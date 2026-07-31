@@ -1,16 +1,19 @@
 /**
- * Parity-тест wasm-плагіна `plugin-lang-js` (задачі N2, Q1 батч 1 та Q2
- * батч 2 — де-скоуп до byte-exact-парних концернів, спека
- * `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md` §3.5.5):
- * ганяє ОДНІ фікстури через чинні JS-детектори
+ * Parity-тест wasm-плагіна `plugin-lang-js` (задачі N2, Q1 батч 1, Q2
+ * батч 2 та Q3 — де-скоуп до byte-exact-парних концернів, спека
+ * `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md` §3.5.5 і
+ * `docs/specs/2026-08-01-wasm-ast-strategy.md`): ганяє ОДНІ фікстури через
+ * чинні JS-детектори
  * (`plugins/lang-js/rules/<rule>/<concern>/main.mjs` — канонічні реалізації,
  * Plugin API v2, НЕ видаляються) і через `runWasmConcern` napi-мосту
  * (`crates/rules-napi` → `crates/plugin-lang-js`), звіряючи, що `violations`
  * ідентичні (reason/message/file/severity біт-у-біт) — для перших семи
- * концернів (задачі N2 + Q1 батч 1) і `test/no-console-store-restore`/
- * `test/no-bun-test-import` (задача Q2 батч 2, справжній 1:1-порт). Це
- * доводить конвеєр «wasm-компонент → napi-міст → JS-diagnostics-форма», не
- * замінює JS-канон.
+ * концернів (задачі N2 + Q1 батч 1), `test/no-console-store-restore`/
+ * `test/no-bun-test-import` (задача Q2 батч 2, справжній 1:1-порт) і
+ * `js/utils_imports`/`test/no-relative-fs-path` (задача Q3, справжні
+ * AST-концерни через `oxc_parser` — byte-exact через ТОЙ САМИЙ движок, не
+ * наближення). Це доводить конвеєр «wasm-компонент → napi-міст →
+ * JS-diagnostics-форма», не замінює JS-канон.
  *
  * `js-bun-redis/imports`/`js-bun-db/safety`/`js-mssql/deps` (задача Q2
  * батч 2) — СВІДОМО БЕЗ parity-тестів тут (рішення оркестратора після звіту
@@ -41,7 +44,13 @@
  * `style/quasar_fixes` — `style/quasar_fixes/tests/main.test.mjs`;
  * `test/location` — `test/location/tests/location.test.mjs`;
  * `test/no-console-store-restore` — `test/no-console-store-restore/tests/no-console-store-restore.test.mjs`;
- * `test/no-bun-test-import` — `test/no-bun-test-import/tests/no-bun-test-import.test.mjs`.
+ * `test/no-bun-test-import` — `test/no-bun-test-import/tests/no-bun-test-import.test.mjs`;
+ * `js/utils_imports` — `js/utils_imports/tests/utils_imports.test.mjs`;
+ * `test/no-relative-fs-path` — `test/no-relative-fs-path/tests/no-relative-fs-path.test.mjs`.
+ *
+ * Останній describe-блок (`size-budget`) — окремо від parity: заміряє
+ * реальний `plugin_lang_js.wasm` проти бюджету 2,5 MB (задача Q3, спека
+ * `docs/specs/2026-08-01-wasm-ast-strategy.md`, розділ «Рішення» п.2).
  */
 import { existsSync } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
@@ -120,6 +129,16 @@ const NO_BUN_TEST_IMPORT_FIX_MJS_PATH = join(
   'no-bun-test-import',
   'fix-no-bun-test-import.mjs'
 )
+const UTILS_IMPORTS_MAIN_MJS_PATH = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'js', 'utils_imports', 'main.mjs')
+const NO_RELATIVE_FS_PATH_MAIN_MJS_PATH = join(
+  REPO_ROOT,
+  'plugins',
+  'lang-js',
+  'rules',
+  'test',
+  'no-relative-fs-path',
+  'main.mjs'
+)
 const TFM_CONCERN_KEY = 'vue/tfm-translations'
 const GAP_CONCERN_KEY = 'style/gap'
 const POOL_FORKS_CONCERN_KEY = 'test/vitest-config-pool-forks'
@@ -129,6 +148,11 @@ const QUASAR_FIXES_CONCERN_KEY = 'style/quasar_fixes'
 const LOCATION_CONCERN_KEY = 'test/location'
 const NO_CONSOLE_STORE_RESTORE_CONCERN_KEY = 'test/no-console-store-restore'
 const NO_BUN_TEST_IMPORT_CONCERN_KEY = 'test/no-bun-test-import'
+const UTILS_IMPORTS_CONCERN_KEY = 'js/utils_imports'
+const NO_RELATIVE_FS_PATH_CONCERN_KEY = 'test/no-relative-fs-path'
+
+/** Size-budget компонента (задача Q3, спека `docs/specs/2026-08-01-wasm-ast-strategy.md`, розділ «Рішення» п.2). */
+const WASM_SIZE_BUDGET_BYTES = 2.5 * 1024 * 1024
 
 /**
  * Виставляє дефолт `severity: 'error'`, якщо ключ відсутній — точне дзеркало
@@ -651,6 +675,176 @@ describe('wasm-plugin parity — test/no-bun-test-import (JS канон vs wasm 
       expect(content).toContain('import { describe, test, expect, beforeEach } from')
       expect(content).toContain("test('ok', () => expect(1).toBe(1))")
     })
+  })
+})
+
+describe('wasm-plugin parity — js/utils_imports (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q3 AST-концерн)', () => {
+  const runUtilsImportsBoth = dir =>
+    runFullScopeBoth(UTILS_IMPORTS_MAIN_MJS_PATH, UTILS_IMPORTS_CONCERN_KEY, 'js', 'utils_imports', dir)
+
+  test('без utils-каталогів → без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'src'), { recursive: true })
+      await writeFile(join(dir, 'src', 'index.mjs'), 'export const x = 1\n')
+      const { js, wasm } = await runUtilsImportsBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('utils/ з бажаним ./same-dir імпортом → без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'utils'), { recursive: true })
+      await writeFile(
+        join(dir, 'utils', 'helper.mjs'),
+        "import { readFile } from 'node:fs/promises'\nexport function h() {}\n"
+      )
+      const { js, wasm } = await runUtilsImportsBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('utils/ з забороненим ../ імпортом → однакове violation з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'utils'), { recursive: true })
+      await writeFile(
+        join(dir, 'utils', 'bad.mjs'),
+        "import { config } from '../lib/config.mjs'\nexport const x = config\n"
+      )
+      const { js, wasm } = await runUtilsImportsBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('utils_imports')
+      expect(js[0].message).toContain('../lib/config.mjs')
+      expect(js[0].file).toBeUndefined()
+    })
+  })
+
+  test('файл у utils/tests/ ігнорується — без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'utils', 'tests'), { recursive: true })
+      await writeFile(join(dir, 'utils', 'tests', 'helper.test.mjs'), "import { h } from '../helper.mjs'\n")
+      const { js, wasm } = await runUtilsImportsBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('файл у utils/__fixtures__/ ігнорується — без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'utils', '__fixtures__'), { recursive: true })
+      await writeFile(join(dir, 'utils', '__fixtures__', 'data.mjs'), "import { x } from '../../other.mjs'\n")
+      const { js, wasm } = await runUtilsImportsBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('динамічний import()/require() з .. → однакова кількість violations з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'utils'), { recursive: true })
+      await writeFile(
+        join(dir, 'utils', 'mixed.mjs'),
+        "const f = () => import('../dynamic.mjs')\nconst g = require('../required.mjs')\n"
+      )
+      const { js, wasm } = await runUtilsImportsBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(2)
+    })
+  })
+})
+
+describe('wasm-plugin parity — test/no-relative-fs-path (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q3 AST-концерн)', () => {
+  const runNoRelativeFsPathBoth = dir =>
+    runFullScopeBoth(
+      NO_RELATIVE_FS_PATH_MAIN_MJS_PATH,
+      NO_RELATIVE_FS_PATH_CONCERN_KEY,
+      'test',
+      'no-relative-fs-path',
+      dir
+    )
+  const FS_TEST_HEAD = "import { writeFile, copyFile, mkdir } from 'node:fs/promises'\n"
+
+  test('успіх: тест з join(dir, …) → без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'tests'), { recursive: true })
+      await writeFile(
+        join(dir, 'tests/foo.test.mjs'),
+        `${FS_TEST_HEAD}await writeFile(join(dir, 'foo.json'), 'x', 'utf8')\n`
+      )
+      const { js, wasm } = await runNoRelativeFsPathBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test("порушення: writeFile('foo.json', …) → однакове violation з обох реалізацій", async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'tests'), { recursive: true })
+      await writeFile(join(dir, 'tests/foo.test.mjs'), `${FS_TEST_HEAD}await writeFile('foo.json', 'x', 'utf8')\n`)
+      const { js, wasm } = await runNoRelativeFsPathBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('no-relative-fs-path')
+      expect(js[0].message).toContain('writeFile')
+      expect(js[0].file).toBeUndefined()
+    })
+  })
+
+  test('порушення: fsp.writeFile (MemberExpression) → однакове violation з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'tests'), { recursive: true })
+      await writeFile(
+        join(dir, 'tests/foo.test.mjs'),
+        "import * as fsp from 'node:fs/promises'\nawait fsp.writeFile('foo', 'x')\n"
+      )
+      const { js, wasm } = await runNoRelativeFsPathBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+    })
+  })
+
+  test('успіх: не-тестові файли не скануються → без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'src'), { recursive: true })
+      await writeFile(
+        join(dir, 'src/helper.mjs'),
+        `${FS_TEST_HEAD}export async function fn() { await writeFile('any.json', 'x') }\n`
+      )
+      const { js, wasm } = await runNoRelativeFsPathBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('успіх: файл з syntax-error НЕ кидає, тільки пропускає аналіз (обидві реалізації)', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'tests'), { recursive: true })
+      await writeFile(join(dir, 'tests/foo.test.mjs'), 'invalid <<<< syntax\n')
+      const { js, wasm } = await runNoRelativeFsPathBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+})
+
+describe('wasm-plugin — size-budget (задача Q3, спека `docs/specs/2026-08-01-wasm-ast-strategy.md`, розділ «Рішення» п.2)', () => {
+  test(`plugin_lang_js.wasm не перевищує бюджет ${WASM_SIZE_BUDGET_BYTES} байт (2.5 MB)`, async () => {
+    const { stat } = await import('node:fs/promises')
+    const { size } = await stat(WASM_PATH)
+    expect(size).toBeLessThanOrEqual(WASM_SIZE_BUDGET_BYTES)
   })
 })
 

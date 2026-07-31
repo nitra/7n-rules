@@ -37,12 +37,15 @@ const hasBuild = existsSync(PINS_PATH)
  * Задача Q1 батч 1 додала пʼять концернів понад початкові
  * `vue/tfm-translations`/`style/gap` (задача N2); задача Q2 батч 2 додала ще
  * два (`test/no-console-store-restore`, `test/no-bun-test-import` —
- * справжній 1:1 порт). `js-bun-redis/imports`/`js-bun-db/safety`/
- * `js-mssql/deps` — СВІДОМО НЕ в контрибуції (рішення оркестратора: їхні
- * JS-оригінали на справжньому oxc-parser AST, Rust-порт — лише regex-
- * наближення, не byte-exact parity, доккомент `crates/plugin-lang-js/src/lib.rs`
- * секція «Регекс-наближення») — detect-функції лишаються groundwork у
- * крейті, `describe()` про них не знає.
+ * справжній 1:1 порт); задача Q3 додала ще два (`js/utils_imports`,
+ * `test/no-relative-fs-path` — справжні AST-концерни через `oxc_parser`,
+ * `docs/specs/2026-08-01-wasm-ast-strategy.md`). `js-bun-redis/imports`/
+ * `js-bun-db/safety`/`js-mssql/deps` — СВІДОМО НЕ в контрибуції (рішення
+ * оркестратора: їхні JS-оригінали на справжньому oxc-parser AST, Rust-порт —
+ * лише regex-наближення, не byte-exact parity, доккомент
+ * `crates/plugin-lang-js/src/lib.rs` секція «Регекс-наближення») —
+ * detect-функції лишаються groundwork у крейті, `describe()` про них не
+ * знає.
  * @type {string[]}
  */
 const EXPECTED_LANG_JS_CONCERNS = [
@@ -54,7 +57,9 @@ const EXPECTED_LANG_JS_CONCERNS = [
   'style/quasar_fixes',
   'test/location',
   'test/no-console-store-restore',
-  'test/no-bun-test-import'
+  'test/no-bun-test-import',
+  'js/utils_imports',
+  'test/no-relative-fs-path'
 ]
 
 /** Валідний sha256-hex — той самий канон, що `SHA256_HEX_RE` у `wasm-plugins.mjs` (module-scope, без пере-компіляції на кожен виклик). */
