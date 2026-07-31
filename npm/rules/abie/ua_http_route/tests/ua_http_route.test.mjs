@@ -1,19 +1,35 @@
 /**
- * Тести concern-а abie/js/ua_http_route: коли в пакеті (батько `k8s/`) є `vite.config.*`,
+ * Тести concern-а abie/ua_http_route: коли в пакеті (батько `k8s/`) є `vite.config.*`,
  * у `…/k8s/ua/kustomization.yaml` має бути inline patch HTTPRoute (hostnames+parentRefs.namespace).
  * Без vite.config — patch не вимагається. Без ua/kustomization.yaml взагалі — skip.
+ *
+ * Прогін — через `runConcernDetector` (dispatch-рівень), не пряма функція: JS
+ * `main.mjs` видалений (H1 фази 5 батчу 4, YAML-кластер частина 1), concern тепер
+ * живе лише в `crates/rules-core/src/concerns/abie_ua_http_route.rs` і
+ * виконується через native-гілку `runConcernDetector`. Lib-модулі
+ * `../lib/http-route.mjs`, `../lib/k8s-tree.mjs`,
+ * `../lib/kustomization-patches.mjs`, `../lib/overlay-paths.mjs` видалені
+ * разом із трьома main.mjs H1-кластеру — єдиними їхніми споживачами
+ * (перевірено grep-ом по всьому `npm/`); еквівалентне юніт-покриття
+ * лишається в native-тестах ported-модулів.
  */
 import { describe, expect, test } from 'vitest'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { chmod, writeFile } from 'node:fs/promises'
 import { cwd as processCwd, platform } from 'node:process'
 
-import { lint } from '../main.mjs'
+import { runConcernDetector } from '../../../../scripts/lib/lint-surface/detect.mjs'
 import { ensureDir, withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
-const ruleId = 'rules/abie'
-const concernId = 'rules/abie/ua_http_route'
-const run = dir => lint({ cwd: dir, ruleId, concernId, files: undefined })
+/** Абсолютний шлях теки концерну (тека з `concern.json`, без main.mjs — native-порт). */
+const CONCERN_DIR = join(dirname(fileURLToPath(import.meta.url)), '..')
+const CONCERN = { dir: CONCERN_DIR }
+
+// Короткий формат ruleId/concernId — узгоджений з `NATIVE_CONCERNS` (`abie/ua_http_route`).
+const ruleId = 'abie'
+const concernId = 'ua_http_route'
+const run = dir => runConcernDetector(CONCERN, { cwd: dir, ruleId, concernId, files: undefined })
 
 const KUSTOMIZATION_WITH_VALID_PATCH = `apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization

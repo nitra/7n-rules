@@ -4,12 +4,6 @@
   "workspaces": {
     "": {
       "name": "mono",
-      "dependencies": {
-        "@7n/llm-lib-darwin-arm64": "^2.13.8",
-        "@7n/llm-lib-linux-x64": "^2.13.8",
-        "@7n/rules-darwin-arm64": "^1.63.0",
-        "@7n/rules-linux-x64": "^1.63.0",
-      },
       "devDependencies": {
         "@7n/rules": "workspace:*",
         "@7n/rules-ci-azure": "workspace:*",
@@ -185,9 +179,9 @@
   "packages": {
     "@7n/llm-lib": ["@7n/llm-lib@workspace:llm-lib"],
 
-    "@7n/llm-lib-darwin-arm64": ["@7n/llm-lib-darwin-arm64@2.13.8", "", { "os": "darwin", "cpu": "arm64" }, "sha512-2O4/e1qXsM0q7yvKVzjzB0IMTndGfuHJOs+x8RWBl3cmFiUslfy+7a++IxnoeIdKG+TlTPnYueAR6iygQsQ5Ag=="],
+    "@7n/llm-lib-darwin-arm64": ["@7n/llm-lib-darwin-arm64@2.13.10", "", { "os": "darwin", "cpu": "arm64" }, "sha512-WU5Axc7+oouP3XjoIFzLYmsYw0OjGqSVS+ohKtMlZi/EXusT1ya8WcaYxTYZ7OtI0HmmmrGUko14vSETNW93ag=="],
 
-    "@7n/llm-lib-linux-x64": ["@7n/llm-lib-linux-x64@2.13.8", "", { "os": "linux", "cpu": "x64" }, "sha512-F72t3no6ZCD6LLisRYmriEkmQmOiA8m7JCkM3MQh59s0MgMc9wBnQ7TV8Z+SP9YDgJMINBZTegRBGR/kLyfh1Q=="],
+    "@7n/llm-lib-linux-x64": ["@7n/llm-lib-linux-x64@2.13.10", "", { "os": "linux", "cpu": "x64" }, "sha512-nofpoV3RAEQwv4rCOXRTT4NB9sYbDW7wkwb/PiZ4Gf5rRHKDICxwWrUvPTfa76AuQIhkz3eMHYJF1bp3MoLsDw=="],
 
     "@7n/rules": ["@7n/rules@workspace:npm"],
 
@@ -2578,10 +2572,6 @@
     "zod-to-json-schema": ["zod-to-json-schema@3.25.2", "", { "peerDependencies": { "zod": "^3.25.28 || ^4" } }, "sha512-O/PgfnpT1xKSDeQYSCfRI5Gy3hPf91mKVDuYLUHZJMiDFptvP41MSnWofm8dnCm0256ZNfZIM7DSzuSMAFnjHA=="],
 
     "zwitch": ["zwitch@2.0.4", "", {}, "sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A=="],
-
-    "@7n/llm-lib/@7n/llm-lib-darwin-arm64": ["@7n/llm-lib-darwin-arm64@2.13.10", "", { "os": "darwin", "cpu": "arm64" }, "sha512-WU5Axc7+oouP3XjoIFzLYmsYw0OjGqSVS+ohKtMlZi/EXusT1ya8WcaYxTYZ7OtI0HmmmrGUko14vSETNW93ag=="],
-
-    "@7n/llm-lib/@7n/llm-lib-linux-x64": ["@7n/llm-lib-linux-x64@2.13.10", "", { "os": "linux", "cpu": "x64" }, "sha512-nofpoV3RAEQwv4rCOXRTT4NB9sYbDW7wkwb/PiZ4Gf5rRHKDICxwWrUvPTfa76AuQIhkz3eMHYJF1bp3MoLsDw=="],
 
     "@aws-sdk/credential-provider-http/@smithy/node-http-handler": ["@smithy/node-http-handler@4.9.6", "", { "dependencies": { "@smithy/core": "^3.29.4", "@smithy/types": "^4.16.1", "tslib": "^2.6.2" } }, "sha512-odd+HYx3OLcXRSEz0ZeF3JQdSYdK8QnRgA2N87cPW7coWIbKfRk7a9VQjfeWQLqnzrDLk23KMEn46p8N7M/JFg=="],
 

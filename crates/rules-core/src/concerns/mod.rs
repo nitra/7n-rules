@@ -13,6 +13,15 @@ use std::path::Path;
 
 use crate::{diagnostics::Violation, RulesError};
 
+mod abie_hc_pairing;
+mod abie_hc_yaml;
+mod abie_http_route;
+mod abie_k8s_tree;
+mod abie_kustomization_patches;
+mod abie_overlay_paths;
+mod abie_ua_http_route;
+mod abie_ua_node_selector;
+mod abie_yaml;
 mod cargo_workspace;
 pub(crate) mod cursor_ignore;
 mod dremio_logging;
@@ -32,6 +41,9 @@ mod tauri_gitignore_target;
 mod tauri_linux_deps;
 mod workspaces;
 
+pub use abie_hc_pairing::hc_pairing as abie_hc_pairing;
+pub use abie_ua_http_route::ua_http_route as abie_ua_http_route;
+pub use abie_ua_node_selector::ua_node_selector as abie_ua_node_selector;
 pub use dremio_logging::{dremio_logging, zk_logback_root_level_violation};
 pub use env_dns::env_dns;
 pub use firebase_hosting::firebase_hosting;
@@ -64,6 +76,9 @@ pub const NATIVE_CONCERNS: &[&str] = &[
     "tauri/gitignore_target",
     "tauri/linux_deps",
     "tauri/core_test_isolation",
+    "abie/hc_pairing",
+    "abie/ua_node_selector",
+    "abie/ua_http_route",
 ];
 
 /// Запускає native-порт concern-а за ключем `ruleId/concernId`.
@@ -96,6 +111,9 @@ pub fn run_concern(
         "tauri/gitignore_target" => Ok(tauri_gitignore_target(cwd)),
         "tauri/linux_deps" => Ok(tauri_linux_deps(cwd)),
         "tauri/core_test_isolation" => Ok(tauri_core_test_isolation(cwd)),
+        "abie/hc_pairing" => Ok(abie_hc_pairing(cwd)),
+        "abie/ua_node_selector" => Ok(abie_ua_node_selector(cwd)),
+        "abie/ua_http_route" => Ok(abie_ua_http_route(cwd)),
         other => Err(RulesError::Concern(format!(
             "невідомий native concern: {other}"
         ))),
@@ -107,7 +125,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn native_concerns_lists_all_thirteen_entries() {
+    fn native_concerns_lists_all_sixteen_entries() {
         assert_eq!(
             NATIVE_CONCERNS,
             &[
@@ -124,6 +142,9 @@ mod tests {
                 "tauri/gitignore_target",
                 "tauri/linux_deps",
                 "tauri/core_test_isolation",
+                "abie/hc_pairing",
+                "abie/ua_node_selector",
+                "abie/ua_http_route",
             ]
         );
     }
@@ -167,6 +188,25 @@ mod tests {
             "tauri/gitignore_target",
             "tauri/linux_deps",
             "tauri/core_test_isolation",
+        ] {
+            assert!(
+                run_concern(key, tmp.path(), None).is_ok(),
+                "run_concern має прийняти ключ {key}"
+            );
+        }
+    }
+
+    /// Кожен із трьох ключів H1 YAML-кластеру (фаза 5, батч 4 частина 1)
+    /// диспатчиться на свою функцію — smoke-перевірка самого `match` у
+    /// `run_concern` (не повторних сценаріїв concern-ів — ті у власних
+    /// підмодулях).
+    #[test]
+    fn run_concern_dispatches_all_h1_yaml_cluster_keys() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        for key in [
+            "abie/hc_pairing",
+            "abie/ua_node_selector",
+            "abie/ua_http_route",
         ] {
             assert!(
                 run_concern(key, tmp.path(), None).is_ok(),

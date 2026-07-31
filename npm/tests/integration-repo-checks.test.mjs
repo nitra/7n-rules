@@ -7,9 +7,6 @@ import { env } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 import { runConcernDetector } from '../scripts/lib/lint-surface/detect.mjs'
-import { lint as _abieHc } from '../rules/abie/hc_pairing/main.mjs'
-import { lint as _abieUaNs } from '../rules/abie/ua_node_selector/main.mjs'
-import { lint as _abieUaHr } from '../rules/abie/ua_http_route/main.mjs'
 // Плагінні правила — пакетними specifier-ами, не `../../plugins/…`: sandbox-копія
 // Stryker містить лише npm/, відносний шлях там не резолвиться.
 import { lint as _bun } from '@7n/rules-lang-js/rules/bun/layout/main.mjs'
@@ -28,9 +25,6 @@ const mk = (fn, ruleId, concernId) => async cwd => {
   const result = await fn({ cwd, ruleId, concernId })
   return result.violations.length === 0 ? 0 : 1
 }
-const checkAbieHc = mk(_abieHc, 'abie', 'hc_pairing')
-const checkAbieUaNs = mk(_abieUaNs, 'abie', 'ua_node_selector')
-const checkAbieUaHr = mk(_abieUaHr, 'abie', 'ua_http_route')
 const checkBun = mk(_bun, 'bun', 'layout')
 const checkDocker = mk(_docker, 'docker', 'lint')
 const checkGa = mk(_ga, 'ga', 'workflows')
@@ -45,10 +39,11 @@ const TEST_DIR =
   typeof import.meta.dirname === 'string' ? import.meta.dirname : fileURLToPath(new URL('.', import.meta.url))
 const REPO_ROOT = join(TEST_DIR, '..', '..')
 
-// firebase_hosting і env_dns — native-портовані concern-и (F1 фази 5 батчу 2):
-// `main.mjs` видалено, лишається лише native-реєстр (`crates/rules-core`), тож
-// диспатч тут — через `runConcernDetector` (той самий шлях, що й dispatch-рівень
-// concern-тестів), а не прямий `lint()`-імпорт.
+// firebase_hosting, env_dns (F1 фази 5 батчу 2) і hc_pairing/ua_node_selector/
+// ua_http_route (H1 фази 5 батчу 4, YAML-кластер частина 1) — native-портовані
+// concern-и: `main.mjs` видалено, лишається лише native-реєстр
+// (`crates/rules-core`), тож диспатч тут — через `runConcernDetector` (той
+// самий шлях, що й dispatch-рівень concern-тестів), а не прямий `lint()`-імпорт.
 const mkNative = (dirName, ruleId, concernId) => async cwd => {
   const result = await runConcernDetector(
     { dir: join(TEST_DIR, '..', 'rules', 'abie', dirName) },
@@ -58,6 +53,9 @@ const mkNative = (dirName, ruleId, concernId) => async cwd => {
 }
 const checkAbieFirebase = mkNative('firebase_hosting', 'abie', 'firebase_hosting')
 const checkAbieEnv = mkNative('env_dns', 'abie', 'env_dns')
+const checkAbieHc = mkNative('hc_pairing', 'abie', 'hc_pairing')
+const checkAbieUaNs = mkNative('ua_node_selector', 'abie', 'ua_node_selector')
+const checkAbieUaHr = mkNative('ua_http_route', 'abie', 'ua_http_route')
 
 /**
  * @param {string} cwd корінь репозиторію
