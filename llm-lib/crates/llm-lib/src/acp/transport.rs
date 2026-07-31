@@ -40,6 +40,10 @@ const NPM_CONFIG_PACKAGE: &str = "npm_config_package";
 /// відтворює останній text/tool event замість `StopReason`.
 const MAX_DUPLICATE_ACTIVITY_EVENTS: usize = 64;
 
+/// Абсолютна межа одного ACP ходу. Progress-події не можуть її подовжити,
+/// тому bridge не здатен утримувати resolver живим нескінченним flood-ом.
+const DEFAULT_TURN_TIMEOUT_MS: u64 = 300_000;
+
 /// Semantic idle-timeout — без нового tool-call або agent output, не загальна
 /// тривалість ходу. Usage/thought/config/tool-update шум не подовжує deadline,
 /// тому завислий агент не може жити вічно лише завдяки progress events.
@@ -51,6 +55,17 @@ pub(crate) fn idle_timeout() -> Duration {
             .ok()
             .and_then(|v| v.parse().ok())
             .unwrap_or(180_000),
+    )
+}
+
+/// Повертає абсолютний timeout одного ACP ходу. Override:
+/// `N_LLM_ACP_TURN_TIMEOUT_MS`.
+pub(crate) fn turn_timeout() -> Duration {
+    Duration::from_millis(
+        env::var("N_LLM_ACP_TURN_TIMEOUT_MS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(DEFAULT_TURN_TIMEOUT_MS),
     )
 }
 
@@ -197,6 +212,13 @@ fn idle_timeout_error(idle_timeout: Duration) -> AcpError {
     ))))
 }
 
+/// Помилка абсолютного timeout незалежно від будь-яких ACP progress events.
+fn turn_timeout_error(turn_timeout: Duration) -> AcpError {
+    AcpError::internal_error().data(Some(serde_json::json!(format!(
+        "acp: хід перевищив абсолютний timeout {turn_timeout:?} — сесію зупинено"
+    ))))
+}
+
 /// Чи є update змістовним прогресом, який подовжує semantic idle deadline.
 /// Usage/thought/config/tool-update шум навмисно не скидає watchdog: ACP
 /// агенти можуть нескінченно надсилати такі events уже після filesystem edits.
@@ -220,16 +242,24 @@ fn activity_key(update: &SessionUpdate) -> Option<String> {
 pub(crate) async fn drive_turn<S>(
     session: &mut S,
     idle_timeout: Duration,
+    turn_timeout: Duration,
     mut on_update: impl FnMut(&SessionUpdate),
 ) -> Result<StopReason, AcpError>
 where
     S: AcpSessionUpdates,
 {
     let mut idle_deadline = Instant::now() + idle_timeout;
+    let turn_deadline = Instant::now() + turn_timeout;
     let mut last_activity = None;
     let mut duplicate_activity_events = 0;
     loop {
-        let remaining = idle_deadline.saturating_duration_since(Instant::now());
+        let now = Instant::now();
+        if now >= turn_deadline {
+            return Err(turn_timeout_error(turn_timeout));
+        }
+        let remaining = idle_deadline
+            .saturating_duration_since(now)
+            .min(turn_deadline.saturating_duration_since(now));
         // Вичерпаний deadline перевіряється явно ДО читання:
         // `tokio::time::timeout` завжди спершу полить внутрішній future, тож
         // на агенті, що флудить не-змістовними подіями (кожен `read_update`
@@ -396,6 +426,36 @@ impl AcpSessionUpdates for RepeatingActivitySession {
     }
 }
 
+/// Фейкова сесія, яка чергує різні agent chunks. Вони скидають idle timeout,
+/// тому лише абсолютна межа здатна завершити такий flood.
+#[cfg(test)]
+struct AlternatingActivitySession {
+    next: bool,
+}
+
+#[cfg(test)]
+impl AcpSessionUpdates for AlternatingActivitySession {
+    async fn read_update(&mut self) -> Result<SessionMessage, AcpError> {
+        use agent_client_protocol::schema::v1::TextContent;
+        use agent_client_protocol::{Dispatch, UntypedMessage};
+
+        self.next = !self.next;
+        let text = if self.next {
+            "first output"
+        } else {
+            "second output"
+        };
+        let update = SessionUpdate::AgentMessageChunk(ContentChunk::new(ContentBlock::Text(
+            TextContent::new(text),
+        )));
+        let notification = SessionNotification::new("test", update);
+        let message = UntypedMessage::new("session/update", notification)?;
+        Ok(SessionMessage::SessionMessage(Dispatch::Notification(
+            message,
+        )))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -553,6 +613,7 @@ mod tests {
             drive_turn(
                 &mut NeverUpdatingSession,
                 std::time::Duration::from_millis(50),
+                Duration::from_secs(5),
                 |_update| {},
             ),
         )
@@ -581,6 +642,7 @@ mod tests {
             drive_turn(
                 &mut FloodingSession,
                 Duration::from_millis(50),
+                Duration::from_secs(5),
                 |_update| {},
             ),
         )
@@ -600,6 +662,7 @@ mod tests {
             drive_turn(
                 &mut RepeatingActivitySession,
                 Duration::from_secs(30),
+                Duration::from_secs(5),
                 |_update| {},
             ),
         )
@@ -613,10 +676,35 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn absolute_turn_timeout_stops_alternating_activity_flood() {
+        let result = tokio::time::timeout(
+            Duration::from_secs(1),
+            drive_turn(
+                &mut AlternatingActivitySession { next: false },
+                Duration::from_secs(30),
+                Duration::from_millis(50),
+                |_update| {},
+            ),
+        )
+        .await;
+
+        let outcome = result.expect("абсолютний timeout має завершити alternating flood");
+        assert!(
+            outcome.is_err(),
+            "progress events не мають нескінченно подовжувати ACP хід"
+        );
+    }
+
+    #[tokio::test]
     async fn progress_noise_does_not_reset_semantic_idle_timeout() {
         let result = tokio::time::timeout(
             Duration::from_secs(1),
-            drive_turn(&mut NoisySession, Duration::from_millis(40), |_update| {}),
+            drive_turn(
+                &mut NoisySession,
+                Duration::from_millis(40),
+                Duration::from_secs(5),
+                |_update| {},
+            ),
         )
         .await;
 
