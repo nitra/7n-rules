@@ -24,10 +24,31 @@
 //!   ([`rename_yaml_cmd`], ядро — `rules_core::rename_yaml`); перша
 //!   МУТУЮЧА native-команда.
 //!
+//! Зріз 3 додає read-only гейт-команду CI:
+//!
+//! - `ci plan` — skip-логіка сервіс-орієнтованого CI-канону ([`ci_cmd`],
+//!   ядро — `rules_core::{ci_plan, config, concern_meta}`). Native-шлях
+//!   вмикається лише там, де він доказово byte-exact (немає плагінів і
+//!   rule-level `applies`-гейтів), інакше команда чесно делегується —
+//!   докладно в доккоменті [`ci_cmd`].
+//!
 //! Решта (включно з дефолтним sync без підкоманди та legacy-аліасами
 //! `lint-*`) — транзитна делегація, перелік скорочується по зрізах фази 8.
+//!
+//! # Про арг-парсинг (ревізія рішення Б, зріз 3)
+//!
+//! Розбір argv лишається РУЧНИМ, без `clap` — свідомо переглянуто на цьому
+//! зрізі (розділ 9 мінідизайну). Коротко: кожна native-команда мусить
+//! byte-exact дзеркалити СВІЙ JS-парсер, а вони різні за контрактом
+//! (`changed-files` — fail-closed на невідомий аргумент,
+//! `rename-yaml-extensions` — мовчазне ігнорування і `--root=` лише через
+//! `=`, `ci plan` — `indexOf`-семантика `valueOf`), тож єдина граматика
+//! `clap` була б регресією паритету, а її головна перевага —
+//! автогенеровані help/usage/error — тут заборонена (довідка байтово
+//! успадкована з JS).
 
 mod changed_files_cmd;
+mod ci_cmd;
 mod cursor_ignore;
 mod git_policy;
 mod js_fallback;
@@ -54,6 +75,9 @@ fn main() -> ExitCode {
 fn run(args: &[String]) -> ExitCode {
     match args.first().map(String::as_str) {
         Some("changed-files") => changed_files_cmd::run(&args[1..]),
+        // Повний argv (з `ci`) — щоб делегація непокритих native-шляхом
+        // випадків віддала його в JS без змін (доккомент `ci_cmd`).
+        Some("ci") => ci_cmd::run(args),
         Some("rename-yaml-extensions") => rename_yaml_cmd::run(&args[1..]),
         // Нативний лише `skill list`; JS дивиться теж тільки на перший
         // аргумент після `skill` (зайві — ігнорує), решта підкоманд —
