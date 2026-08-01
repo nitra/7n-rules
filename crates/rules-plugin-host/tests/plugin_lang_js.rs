@@ -61,6 +61,11 @@ const CONCERN_NO_RELATIVE_FS_PATH: &str = "test/no-relative-fs-path";
 const CONCERN_REDIS_IMPORTS: &str = "js-bun-redis/imports";
 const CONCERN_MSSQL_DEPS: &str = "js-mssql/deps";
 const CONCERN_BUN_DB_SAFETY: &str = "js-bun-db/safety";
+const CONCERN_STORYBOOK_SCOPE: &str = "test/storybook-scope";
+const CONCERN_STORYBOOK_HYGIENE: &str = "test/storybook-hygiene";
+const CONCERN_STORYBOOK_PAGE_COVERAGE: &str = "test/storybook-page-coverage";
+const CONCERN_STORYBOOK_SCAFFOLD: &str = "test/storybook-scaffold";
+const CONCERN_STORYBOOK_CI: &str = "test/storybook-ci";
 
 /// Абсолютний шлях до зібраного `.wasm`-компонента (`crates/plugin-lang-js/build.sh`)
 /// — `wasm32-wasip2`/`release`.
@@ -88,7 +93,7 @@ fn host() -> PluginHost {
 }
 
 #[test]
-fn describe_declares_all_fourteen_concerns_with_expected_scopes() {
+fn describe_declares_all_nineteen_concerns_with_expected_scopes() {
     let path = require_fixture();
     let plugin = host()
         .load(&path, PLUGIN_WORLD_VERSION)
@@ -100,8 +105,9 @@ fn describe_declares_all_fourteen_concerns_with_expected_scopes() {
     assert_eq!(manifest.domains, vec![Domain::Lint]);
     // Задача Q4 батч 4: `js-bun-redis/imports`/`js-mssql/deps`/
     // `js-bun-db/safety` тепер У контрибуції (AST-порти, де-скоуп батчу 2
-    // знято — доккомент `crates/plugin-lang-js/src/lib.rs`).
-    assert_eq!(manifest.concerns.len(), 14);
+    // знято — доккомент `crates/plugin-lang-js/src/lib.rs`); батч 5 додає
+    // п'ять концернів storybook-сімейства (секція «Батч 5» там само).
+    assert_eq!(manifest.concerns.len(), 19);
 
     let tfm = manifest
         .concerns
@@ -212,6 +218,28 @@ fn describe_declares_all_fourteen_concerns_with_expected_scopes() {
         assert_eq!(contribution.scope, ConcernScope::Full);
         assert!(contribution.glob.iter().any(|g| g.contains("package.json")));
         assert!(contribution.glob.iter().any(|g| g.contains("{js,")));
+    }
+
+    // П'ять концернів storybook-сімейства (батч 5) — full-scope, глоби
+    // покривають `.n-rules.json` (optOut/detectApps/ignore) і
+    // `**/package.json` (workspace-розгортання) — ширші за `concern.json`
+    // JS-оригіналів (доккомент `build_manifest` у
+    // `crates/plugin-lang-js/src/lib.rs`, секція «Батч 5»).
+    for key in [
+        CONCERN_STORYBOOK_SCOPE,
+        CONCERN_STORYBOOK_HYGIENE,
+        CONCERN_STORYBOOK_PAGE_COVERAGE,
+        CONCERN_STORYBOOK_SCAFFOLD,
+        CONCERN_STORYBOOK_CI,
+    ] {
+        let contribution = manifest
+            .concerns
+            .iter()
+            .find(|c| c.key == key)
+            .unwrap_or_else(|| panic!("{key} має бути в маніфесті (батч 5)"));
+        assert_eq!(contribution.scope, ConcernScope::Full);
+        assert!(contribution.glob.iter().any(|g| g == ".n-rules.json"));
+        assert!(contribution.glob.iter().any(|g| g == "**/package.json"));
     }
 
     assert!(manifest.capabilities.fs_read.is_empty());
@@ -1021,6 +1049,184 @@ fn detect_bun_db_safety_tagged_join_yields_js_identical_duplicates() {
     assert!(diagnostics[2]
         .message
         .contains("значення для IN (...) у template literal треба винести"));
+}
+
+/// Спільна фікстура батчу 5: мінімальне монорепо з Vue-бібліотекою
+/// `packages/ui` у скоупі Storybook (peerDependencies.vue + 3 `.vue`) —
+/// дзеркало `writeVueLibraryPkg` (`storybook-scope/tests/scope.test.mjs`).
+fn storybook_scope_fixture_files() -> Vec<SourceFile> {
+    let mut files = vec![
+        SourceFile {
+            path: "package.json".to_string(),
+            content: "{\"name\":\"root\",\"workspaces\":[\"packages/*\"]}\n".to_string(),
+        },
+        SourceFile {
+            path: "packages/ui/package.json".to_string(),
+            content: "{\"name\":\"ui\",\"peerDependencies\":{\"vue\":\"^3.6.0\"}}\n".to_string(),
+        },
+    ];
+    for i in 0..3 {
+        files.push(SourceFile {
+            path: format!("packages/ui/src/components/Comp{i}.vue"),
+            content: "<template><div/></template>\n".to_string(),
+        });
+    }
+    files
+}
+
+/// `test/storybook-scope`: застарілий optOut → `stale-opt-out` (той самий
+/// сценарій, що JS-тест «storybook.optOut на неіснуючий пакет»).
+#[test]
+fn detect_storybook_scope_flags_stale_opt_out() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let mut files = storybook_scope_fixture_files();
+    files.push(SourceFile {
+        path: ".n-rules.json".to_string(),
+        content: "{\"storybook\":{\"optOut\":[\"packages/ghost\"]}}\n".to_string(),
+    });
+    let batch = DetectBatch {
+        concern_id: CONCERN_STORYBOOK_SCOPE.to_string(),
+        files,
+    };
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].reason, "stale-opt-out");
+    assert_eq!(
+        diagnostics[0].message,
+        ".n-rules.json storybook.optOut містить 'packages/ghost' — такого workspace-пакета немає \
+         (застаріле opt-out, storybook.mdc)"
+    );
+}
+
+/// `test/storybook-hygiene`: undeclared third-party import у `.vue`
+/// бібліотеки → `undeclared-import` з byte-exact повідомленням JS-оригіналу.
+#[test]
+fn detect_storybook_hygiene_flags_undeclared_import() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let mut files = storybook_scope_fixture_files();
+    files.push(SourceFile {
+        path: "packages/ui/src/components/Picker.vue".to_string(),
+        content: "<script setup>\nimport Datepicker from '@vuepic/vue-datepicker'\n</script>\n"
+            .to_string(),
+    });
+    let batch = DetectBatch {
+        concern_id: CONCERN_STORYBOOK_HYGIENE.to_string(),
+        files,
+    };
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].reason, "undeclared-import");
+    assert_eq!(diagnostics[0].severity, Severity::Error);
+    assert_eq!(
+        diagnostics[0].message,
+        "[undeclared-import] packages/ui/src/components/Picker.vue: import \
+         '@vuepic/vue-datepicker' — пакет '@vuepic/vue-datepicker' відсутній у \
+         dependencies/peerDependencies packages/ui (storybook.mdc hygiene)"
+    );
+}
+
+/// `test/storybook-page-coverage`: сторінка app-пакета без stories поряд →
+/// warn `page-missing-story` (хвиля 2a, лише за `detectApps: true`).
+#[test]
+fn detect_storybook_page_coverage_warns_page_without_story() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let batch = DetectBatch {
+        concern_id: CONCERN_STORYBOOK_PAGE_COVERAGE.to_string(),
+        files: vec![
+            SourceFile {
+                path: "package.json".to_string(),
+                content: "{\"name\":\"root\",\"workspaces\":[\"packages/*\"]}\n".to_string(),
+            },
+            SourceFile {
+                path: ".n-rules.json".to_string(),
+                content: "{\"storybook\":{\"detectApps\":true}}\n".to_string(),
+            },
+            SourceFile {
+                path: "packages/demo/package.json".to_string(),
+                content: "{\"name\":\"demo\",\"dependencies\":{\"vue\":\"^3.6.0\"}}\n".to_string(),
+            },
+            SourceFile {
+                path: "packages/demo/src/pages/task/[id].vue".to_string(),
+                content: "<template><div/></template>\n".to_string(),
+            },
+        ],
+    };
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].reason, "page-missing-story");
+    assert_eq!(diagnostics[0].severity, Severity::Warn);
+    assert_eq!(
+        diagnostics[0].message,
+        "[page-coverage] packages/demo/src/pages/task/[id].vue: немає жодної *.stories.js поряд — \
+         сторінка app-проєкту без smoke-story (storybook.mdc, хвиля 2a)"
+    );
+}
+
+/// `test/storybook-scaffold`: бібліотека у скоупі без жодного canon-файлу —
+/// пʼять діагностик у порядку JS-оригіналу (main → preview → empty-vite →
+/// vitest.setup → scripts.storybook).
+#[test]
+fn detect_storybook_scaffold_reports_missing_canon_files() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let batch = DetectBatch {
+        concern_id: CONCERN_STORYBOOK_SCAFFOLD.to_string(),
+        files: storybook_scope_fixture_files(),
+    };
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    let reasons: Vec<&str> = diagnostics.iter().map(|d| d.reason.as_str()).collect();
+    assert_eq!(
+        reasons,
+        vec![
+            "missing-main-js",
+            "missing-preview-js",
+            "missing-empty-vite-config",
+            "missing-vitest-setup-js",
+            "missing-storybook-script",
+        ]
+    );
+    assert_eq!(
+        diagnostics[4].message,
+        "[packages/ui] package.json#scripts.storybook має бути 'storybook dev -p 6006 --no-open' \
+         (зараз: відсутній) — storybook.mdc"
+    );
+}
+
+/// `test/storybook-ci`: бібліотека у скоупі без обох `.github`-файлів — дві
+/// діагностики (composite action + workflow).
+#[test]
+fn detect_storybook_ci_reports_missing_repo_canon_files() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let batch = DetectBatch {
+        concern_id: CONCERN_STORYBOOK_CI.to_string(),
+        files: storybook_scope_fixture_files(),
+    };
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    assert_eq!(diagnostics.len(), 2);
+    assert_eq!(diagnostics[0].reason, "missing-playwright-action");
+    assert_eq!(
+        diagnostics[0].file.as_deref(),
+        Some(".github/actions/setup-playwright-chromium/action.yml")
+    );
+    assert_eq!(diagnostics[1].reason, "missing-storybook-workflow");
+    assert_eq!(
+        diagnostics[1].file.as_deref(),
+        Some(".github/workflows/lint-storybook.yml")
+    );
 }
 
 #[test]

@@ -43,7 +43,10 @@ const hasBuild = existsSync(PINS_PATH)
  * останні три (`js-bun-redis/imports`, `js-mssql/deps`, `js-bun-db/safety` —
  * теж справжні AST-концерни: де-скоуп батчу 2 знято, regex-groundwork
  * замінено AST-портом, доккомент `crates/plugin-lang-js/src/lib.rs` секція
- * «Батч 4»).
+ * «Батч 4»); батч 5 додав пʼять концернів storybook-сімейства
+ * (`test/storybook-{scope,hygiene,page-coverage,scaffold,ci}` — full-scope
+ * порт спільної scope-детекції в batch-простір, доккомент секції «Батч 5»
+ * там само).
  * @type {string[]}
  */
 const EXPECTED_LANG_JS_CONCERNS = [
@@ -60,7 +63,12 @@ const EXPECTED_LANG_JS_CONCERNS = [
   'test/no-relative-fs-path',
   'js-bun-redis/imports',
   'js-mssql/deps',
-  'js-bun-db/safety'
+  'js-bun-db/safety',
+  'test/storybook-scope',
+  'test/storybook-hygiene',
+  'test/storybook-page-coverage',
+  'test/storybook-scaffold',
+  'test/storybook-ci'
 ]
 
 /** Валідний sha256-hex — той самий канон, що `SHA256_HEX_RE` у `wasm-plugins.mjs` (module-scope, без пере-компіляції на кожен виклик). */
