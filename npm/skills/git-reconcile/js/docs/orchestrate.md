@@ -3,31 +3,15 @@ type: JS Module
 title: orchestrate.mjs
 resource: npm/skills/git-reconcile/js/orchestrate.mjs
 docgen:
-  crc: 073c4942
+  crc: a1b594a1
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
-  score: 0
+  score: 70
 ---
 
 ## Поведінка
 
-`runGitReconcileOrchestrator` ініціює процес через `elapsedLabel` та `createPhaseProgress` для відстеження часу. Спочатку викликається `inventoryRepository`, який використовує `policyBaseRef`, `git`, `parseWorktreeState`, `groupTrackingRefs`, `trackingRelation`, `openPullRequests`, `branchName`, `branchState`, `commitMetadata`, `conflictFiles`, `inventoryStashes`, `isManagedTransientWorktree` для збору детермінованого Git inventory. Далі, `inventoryStashes` збирає stash-інвентар, що також викликає `git` та `stashPathsAbsorbed`.
-
-Сформований інвентар передається у `triageCandidates`, який використовує `buildTriagePrompt` для створення промпта, а потім багаторазово викликає `callWithValidatedFallback` з `buildTriagePrompt` для отримання рішень. Результати валідуються через `validateTriageOutcome`, що залежить від `validateDecision`, `validatePrDecision` та `validateBranchGroups`, збираючи `failedTriageDecisions` для кейсів, де вибір не відбувся.
-
-Після вибору рішень, `materializeDecisions` застосовує їх за допомогою `runWithConcurrency` через `materializePrGroup`, який створює кожен PR-груповий результат, використовуючи `callRunner` для виконання LLM-кроків.
-
-Для кожного PR-групи, `materializePrGroup` збирає деталі: `collectPullRequestFacts` використовує `git` та `pullRequestDiffProfile` для опису PR, а `releasedChangeEntries` визначає, які зміни вже були опубліковані. Потім, `buildPullRequestDescriptionPrompt` формує промпт, і `describePullRequest` ініціює LLM-генерацію опису за допомогою `callWithValidatedFallback`, валідуючи результат через `validatePullRequestDescription`, і фіналізуючи його через `renderPullRequestBody`.
-
-Для керування змінами, `discartPatchEquivalentWorktree` визначає, чи достатньо змін для PR. Якщо так, `applySource` застосовує зміни, викликаючи `skipEmptyCherryPick`, `finishCherryPick`, `resolveConflict` та `validateGitState` для підтвердження стабільності.
-
-Якщо PR-групи успішно матеріалізовані, `passFinalProjectGates` запускає остаточну валідацію, включаючи `validateFinalProjectGates` та `validateChangedLockfiles` для перевірки не-код змін та файлів блокування, які не обробляються в `node_modules`. Для забезпечення якості, `captureBehaviorBaseline` або `captureCachedBehaviorBaseline` фіксує тестовий стан бази. Якщо тести пройшли, `validateBehaviorState` збирає докази з тестових скриптів. Успішне завершення веде до `commitPendingChanges` для фіксації індексу.
-
-Фінальна генерація використовує `commitPendingChanges` та `createPullRequest`, який збирає всі попередні етапи, а потім викликає `passFinalProjectGates`.
-
-Якщо PR-група не утворюється або завершується невдачею, відбувається очищення через `cleanupInactiveSources` та `cleanupMaterializedSources`. Також, `cleanupObsoleteWorktrees` прибирає неактивні записи, а `cleanupSource` видаляє джерела, що більше не потрібні.
-
-Наприкінці, `summarizeRemaining` аналізує результати через `appendMaterializedWorktrees` та `appendMaterializedBranches` для підрахунку та формування `formatReport`, який містить підсумки через `formatOutcomeCounts`.
+runGitReconcileOrchestrator ініціює процес, використовуючи elapsedLabel та createPhaseProgress для відстеження прогресу, а потім викликає triageCandidates для початку LLM-оркестрації. triageCandidates використовує buildTriagePrompt для генерації промпта, після чого викликає callWithValidatedFallback для виконання LLM-кроку, який повинен повернути результат, що перевіряється validateTriageOutcome. Якщо triage успішний, отримані рішення трансформуються у materializedDecisions, які виконуються паралельно з bounded concurrency за допомогою runWithConcurrency, де materializePrGroup матеріалізує кожну PR-групу. Після завершення матеріалізації, cleanupInactiveSources та cleanupMaterializedSources проводяться для очищення. Якщо PR генерується, collectPullRequestFacts збирає дані для PR, a pullRequestDiffProfile класифікує зміни. Потім buildPullRequestDescriptionPrompt формує промпт, а validatePullRequestDescription перевіряє його структуру, після чого describePullRequest генерує фінальний Markdown за допомогою renderPullRequestBody. На етапі очищення cleanupObsoleteWorktrees виконує pruneStaleWorktrees, які використовують parseWorktreeInventory, щоб визначити, що можна видалити. Коли потрібно застосувати зміни, applySource використовує skipEmptyCherryPick та finishCherryPick для управління cherry-pick. Якщо зміни важливі, hasChangesFromBase перевіряє їх, а remediateBehaviorState намагається виправити дефекти перед ескалацією. Для забезпечення чистоти бізнес-логіки, validateBehaviorState вимагає проведення test-валідації, де acceptsTestOutcome порівнює результати. validateFinalProjectGates завершує перевірку, використовуючи validateChangedLockfiles для стану lockfile, а pruneForensicDependencies видаляє тимчасові залежності. Якщо всі перевірки пройдені, commitPendingChanges фіксує зміни, а createPullRequest збирає всі артефакти і створює PR. У випадку необхідності створювати нові робочі середовища, createReconcileWorktree використовує policyBaseRef та nativeExecutableEnvironment, а потім runAsync виконує команди. Якщо потрібне видалення, removeReconcileWorktree використовує nativeMt. Для управління неактивними середовищами cleanupSource викликається для видалення точного джерела. runGitReconcileOrchestrator фінально викликає formatReport, щоб створити детермінований звіт, який відображає результати formatOutcomeCounts та summarizeRemaining.
 
 ## Сценарії використання
 
