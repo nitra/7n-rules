@@ -170,8 +170,26 @@ const FIXTURE_MULTI_GROUP = [
   { ruleId: 'zzz', concernId: 'c', reason: 'q', message: 'm-zzz-2' }
 ]
 
+/**
+ * Колація ICU root ⇄ байти — регресія на клас, який попередні фікстури
+ * не покривали (усі були kebab-case, тож розбіжність лишалась невидимою).
+ * На КОЖНІЙ парі нижче `localeCompare` і байтове порівняння дають
+ * ПРОТИЛЕЖНИЙ порядок: `_` перед `-`, велика літера після малої.
+ * Ідентифікатори реальні — `stryker_config`, `doc_comments`,
+ * `header_doc_pointer` є в цьому репо, як і шляхи з `package_knowledge`.
+ */
+const FIXTURE_COLLATION = [
+  { ruleId: 'test', concernId: 'stryker-config', reason: 'r', message: 'm1', file: 'npm/rules/doc-files/a.md' },
+  { ruleId: 'test', concernId: 'stryker_config', reason: 'r', message: 'm2', file: 'npm/rules/doc_files/b.md' },
+  { ruleId: 'js', concernId: 'doc-comments', reason: 'r', message: 'm3', file: 'npm/rules/z_a/package-json.md' },
+  { ruleId: 'js', concernId: 'doc_comments', reason: 'r', message: 'm4', file: 'npm/rules/z_a/package_knowledge.md' },
+  { ruleId: 'Npm-module', concernId: 'header_doc_pointer', reason: 'r', message: 'm5' },
+  { ruleId: 'npm-module', concernId: 'header-doc-pointer', reason: 'r', message: 'm6' }
+]
+
 const FIXTURES = [
   { label: 'колізії ключів сортування (file/line/reason)', violations: FIXTURE_KEY_COLLISIONS },
+  { label: 'колація ICU root: _ перед -, великі після малих', violations: FIXTURE_COLLATION },
   { label: 'українські повідомлення', violations: FIXTURE_UKRAINIAN },
   { label: 'відсутній file', violations: FIXTURE_MISSING_FILE },
   { label: 'warn/error/absent severity', violations: FIXTURE_WARN_SEVERITY },

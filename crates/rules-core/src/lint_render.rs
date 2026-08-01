@@ -1,4 +1,4 @@
-//! cspell:ignore колація кодпойнтне picomatch timsort
+//! cspell:ignore колація колацією кодпойнтне кодпойнтним кодпойнтах picomatch timsort
 //! Порт sort/render/exit-code контуру lint-оркестрації (R1 фази 7,
 //! `docs/specs/2026-07-30-rules-v2-rust-core-migration.md` §4) — другий зріз
 //! після `lint_plan` (P1): `sortViolations`/`violationLine`
@@ -31,21 +31,35 @@
 //! [`sort_and_render_violations`] явно сортує ПЕРЕД рендером — це вибір
 //! викликача (`run-detectors.mjs::detectAll`), не властивість самого рендеру.
 //!
-//! # `localeCompare` ⇄ `str::cmp` — чому byte-order тут коректний паритет
+//! # `localeCompare` ⇄ [`crate::locale`] — чому byte-order тут НЕ паритет
 //!
 //! JS-версія сортує через `String.prototype.localeCompare` (locale-aware
-//! колація дефолтного locale рантайму). Усі чотири рядкові поля ключа
-//! сортування (`ruleId`, `concernId`, `file`, `reason`) на практиці —
-//! ASCII kebab-case ідентифікатори чи posix-relative шляхи (перевіряється
-//! `normalizeViolation`: `file` без `..`/провідного `/`; `ruleId`/`concernId`
-//! — імена каталогів concern.json). Для чистого ASCII без діакритики/
-//! спецсимволів локаль-колація і кодпойнтне порівняння (`str::cmp`, яке
-//! використовує Rust) дають однаковий порядок — на відміну від повної
-//! Unicode-колації (де пунктуація іноді ignorable на primary strength),
-//! ризик розходження існує лише для гіпотетичних не-ASCII `reason`/`file`,
-//! які жоден чинний concern не виробляє. Той самий клас припущення, що
-//! `picomatch`-паритет у `lint_plan` (doc-комент [`crate::lint_plan`]) —
-//! звірено на реальних identifiers, не доведено формально для всього Unicode.
+//! колація дефолтного locale рантайму). Попередня редакція цього модуля
+//! сортувала через `str::cmp` (кодпойнтне порівняння) і обґрунтовувала це
+//! тим, що для чистого ASCII колація й кодпойнтне порівняння нібито
+//! збігаються, а ризик лишається «лише для гіпотетичних не-ASCII» полів.
+//! **Це було невірно** — розходження є в межах чистого ASCII, і на
+//! реальних даних цього репо:
+//!
+//! ```text
+//! "doc_comments" vs "doc-files":   localeCompare → -1, str::cmp → Greater
+//! "stryker_config" vs "stryker-a": localeCompare → -1, str::cmp → Greater
+//! "Zed" vs "abc":                  localeCompare → +1, str::cmp → Less
+//! ```
+//!
+//! ICU root ставить `_` ПЕРЕД `-` і велику латинську літеру ПІСЛЯ малої за
+//! тієї самої первинної ваги, тоді як кодпойнтне порівняння дає зворотний
+//! порядок в обох випадках. Підкреслення й змішаний регістр — звичайні
+//! мешканці всіх чотирьох полів ключа: чинні концерни `test/stryker_config`,
+//! `js/doc_comments`, `npm-module/header_doc_pointer`,
+//! `js-bun-db/pg_format_identifiers`, шляхи на кшталт
+//! `npm/rules/doc-files/package_knowledge/docs/…`. Тобто вивід native-гілки
+//! міг розійтися з JS-каноном порядком рядків — мовчазна розбіжність, яку
+//! не ловив жоден тест, бо всі фікстури були kebab-case.
+//!
+//! Тому сортування використовує [`crate::locale::locale_compare`] —
+//! наближення ICU root collation (той самий модуль, що обслуговує порти
+//! CLI-команд фази 8). Межі наближення — доккомент [`crate::locale`].
 //!
 //! # Стабільність сортування — Rust `sort_by` ⇄ JS `toSorted`
 //!
@@ -108,21 +122,20 @@ fn violation_line(v: &LintViolation) -> f64 {
 pub fn sort_violations(violations: &[LintViolation]) -> Vec<LintViolation> {
     let mut sorted = violations.to_vec();
     sorted.sort_by(|a, b| {
-        a.rule_id
-            .cmp(&b.rule_id)
-            .then_with(|| a.concern_id.cmp(&b.concern_id))
+        crate::locale::locale_compare(&a.rule_id, &b.rule_id)
+            .then_with(|| crate::locale::locale_compare(&a.concern_id, &b.concern_id))
             .then_with(|| {
-                a.file
-                    .as_deref()
-                    .unwrap_or("")
-                    .cmp(b.file.as_deref().unwrap_or(""))
+                crate::locale::locale_compare(
+                    a.file.as_deref().unwrap_or(""),
+                    b.file.as_deref().unwrap_or(""),
+                )
             })
             .then_with(|| {
                 violation_line(a)
                     .partial_cmp(&violation_line(b))
                     .unwrap_or(std::cmp::Ordering::Equal)
             })
-            .then_with(|| a.reason.cmp(&b.reason))
+            .then_with(|| crate::locale::locale_compare(&a.reason, &b.reason))
     });
     sorted
 }
@@ -299,6 +312,60 @@ mod tests {
                 .map(|x| x.rule_id.as_str())
                 .collect::<Vec<_>>(),
             vec!["aaa", "zzz"]
+        );
+    }
+
+    /// Регресія: сортування мусить іти за колацією ICU root, а не за
+    /// кодпойнтним порівнянням. Усі три пари нижче — чистий ASCII, і на
+    /// кожній `str::cmp` дає ПРОТИЛЕЖНИЙ порядок до `localeCompare`
+    /// (звірено живим Node, доккомент модуля). Ідентифікатори не вигадані:
+    /// `stryker_config`, `doc_comments`, `header_doc_pointer` — чинні
+    /// концерни цього репо, а `package_knowledge` — реальний каталог
+    /// у `npm/rules/doc-files/`.
+    #[test]
+    fn sort_violations_uses_icu_root_collation_not_raw_bytes() {
+        // `_` перед `-` — у байтах навпаки (`-` = 0x2D, `_` = 0x5F).
+        let by_concern = sort_violations(&[
+            v("r", "doc-files", "reason", "m"),
+            v("r", "doc_comments", "reason", "m"),
+        ]);
+        assert_eq!(
+            by_concern
+                .iter()
+                .map(|x| x.concern_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["doc_comments", "doc-files"],
+        );
+
+        // Те саме у полі `file` — реальний шлях із підкресленням.
+        let by_file = sort_violations(&[
+            with_file(v("r", "c", "reason", "m"), "npm/rules/doc-files/a.md"),
+            with_file(
+                v("r", "c", "reason", "m"),
+                "npm/rules/doc_files/package_knowledge.md",
+            ),
+        ]);
+        assert_eq!(
+            by_file
+                .iter()
+                .map(|x| x.file.as_deref().unwrap_or(""))
+                .collect::<Vec<_>>(),
+            vec![
+                "npm/rules/doc_files/package_knowledge.md",
+                "npm/rules/doc-files/a.md",
+            ],
+        );
+
+        // Велика літера ПІСЛЯ малої за тієї самої первинної ваги —
+        // у кодпойнтах усі великі йдуть перед усіма малими.
+        let by_rule =
+            sort_violations(&[v("Zed", "c", "reason", "m"), v("abc", "c", "reason", "m")]);
+        assert_eq!(
+            by_rule
+                .iter()
+                .map(|x| x.rule_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["abc", "Zed"],
         );
     }
 
