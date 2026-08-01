@@ -38,8 +38,9 @@ const INTERNAL_DNS_SUFFIX: &str = ".internal";
 
 /// Знаходить рядок присвоєння `HASURA_GRAPHQL_ENDPOINT` у env-файлі; захоплює
 /// значення URL без лапок і коментаря — точний порт `HASURA_ENDPOINT_LINE_RE`
-/// (`main.mjs:22-23`, `(?m)` = JS-флаг `m`).
-static HASURA_ENDPOINT_LINE_RE: LazyLock<Regex> = LazyLock::new(|| {
+/// (`main.mjs:22-23`, `(?m)` = JS-флаг `m`). `pub(crate)` — перевикористовує
+/// native-фікс цього concern-а (`super::fix`, T2 зрізу 5 фази 7).
+pub(crate) static HASURA_ENDPOINT_LINE_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r#"(?m)^[ \t]*(?:export[ \t]+)?HASURA_GRAPHQL_ENDPOINT[ \t]*=[ \t]*['"]?([^'"\r\n#]+)"#,
     )
@@ -127,10 +128,11 @@ fn read_root_repository_url(cwd: &Path) -> Option<String> {
 }
 
 /// Очікувані `service`/`namespace` з `hasura/k8s/base/{svc-hl,namespace}.yaml`.
+/// `pub(crate)` — перевикористовує native-фікс (`super::fix`).
 #[derive(Debug, Default)]
-struct ExpectedSegments {
-    service: Option<String>,
-    namespace: Option<String>,
+pub(crate) struct ExpectedSegments {
+    pub(crate) service: Option<String>,
+    pub(crate) namespace: Option<String>,
 }
 
 /// Зчитує `metadata.name` з першого документа YAML, який має заданий `kind` —
@@ -167,8 +169,9 @@ fn read_yaml_metadata_name(abs_path: &Path, kind: &str) -> Option<String> {
 
 /// Обчислює очікувані `service`/`namespace` з
 /// `hasura/k8s/base/{svc-hl,namespace}.yaml` — точний порт
-/// `computeExpectedEndpointSegments` (`main.mjs:190-195`).
-fn compute_expected_endpoint_segments(root: &Path) -> ExpectedSegments {
+/// `computeExpectedEndpointSegments` (`main.mjs:190-195`). `pub(crate)` —
+/// перевикористовує native-фікс (`super::fix`).
+pub(crate) fn compute_expected_endpoint_segments(root: &Path) -> ExpectedSegments {
     ExpectedSegments {
         service: read_yaml_metadata_name(&root.join(HASURA_SVC_HL_FILE), "Service"),
         namespace: read_yaml_metadata_name(&root.join(HASURA_NAMESPACE_FILE), "Namespace"),

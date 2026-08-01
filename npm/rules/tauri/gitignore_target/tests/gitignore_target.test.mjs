@@ -20,10 +20,16 @@
  * колишніх pure-функцій `expectedTargetEntry`/`findMissingEntries` (вони більше
  * не експортуються з JS) замінене на детектор-рівневі сценарії з тими самими
  * fixture-ами — еквівалентне покриття лишається і в native-юніт-тестах самого
- * порту (`tauri_gitignore_target.rs`, той самий модуль). T0-фіксер
- * (`fix-gitignore_target.mjs`) лишається JS — читає `violation.data.missing`.
+ * порту (`tauri_gitignore_target.rs`, той самий модуль).
+ *
+ * T0-фікс (T2 зрізу 5 фази 7): JS `fix-gitignore_target.mjs` теж видалений —
+ * splice-логіка `insertMissingTargetEntries` тепер у
+ * `crates/rules-core/src/concerns/fix.rs` (`run_concern_fix`), а JS-бік
+ * отримує синтетичний T0Pattern через `loadT0Patterns` (`run-fix.mjs`, реєстр
+ * `NATIVE_FIXES`). Тести нижче дзеркалять старі кейси через ЦЮ обгортку;
+ * pure-функція splice-а покрита в native-юніт-тестах (`fix.rs`).
  */
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -31,7 +37,11 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, test, vi } from 'vitest'
 
 import { runConcernDetector } from '../../../../scripts/lib/lint-surface/detect.mjs'
-import { GITIGNORE_TARGET_HEADER, insertMissingTargetEntries, patterns } from '../fix-gitignore_target.mjs'
+import { loadT0Patterns } from '../../../../scripts/lib/lint-surface/run-fix.mjs'
+import { createSnapshot } from '../../../../scripts/lib/lint-surface/snapshot.mjs'
+
+/** Заголовок-коментар секції Tauri build-артефактів (дубль константи native-фіксу `fix.rs`). */
+const GITIGNORE_TARGET_HEADER = '# Tauri — Rust build artifacts (tauri.mdc)'
 
 /** Стабільний reason: у корінному `.gitignore` бракує ignore-запису(ів) для `src-tauri/target/`. */
 const MISSING_GITIGNORE_TARGET_ENTRIES = 'missing-gitignore-target-entries'
@@ -90,6 +100,13 @@ function readGitignore(root) {
 }
 
 /**
+ * Резолвить синтетичний native T0Pattern для `dir` (той самий, що бере реальний fix-pipeline).
+ * @param {string} dir корінь тимчасового монорепо
+ * @returns {Promise<import('../../../../scripts/lib/lint-surface/types.mjs').T0Pattern[]>} T0-патерни concern-а
+ */
+const patternsFor = dir => loadT0Patterns(CONCERN_DIR, 'gitignore_target', 'tauri', dir)
+
+/**
  * Прогоняє T0-патерни над violations (як central fix-pipeline).
  * @param {import('../../../../scripts/lib/lint-surface/types.mjs').LintViolation[]} violations порушення
  * @param {string} dir корінь тимчасового монорепо
@@ -97,7 +114,7 @@ function readGitignore(root) {
  */
 async function applyT0(violations, dir) {
   const ctx = { cwd: dir, ruleId: 'tauri', concernId: 'gitignore_target', recordWrite: vi.fn() }
-  for (const p of patterns) {
+  for (const p of await patternsFor(dir)) {
     if (p.test(violations)) await p.apply(violations, ctx)
   }
 }
@@ -267,22 +284,59 @@ describe('findMissingEntries: substring-match не рахується прису
   })
 })
 
-describe('tauri/gitignore_target fix', () => {
-  test('вставляє новий блок у кінець файла, коли секції ще немає', () => {
-    const next = insertMissingTargetEntries('node_modules/\ndist/\n', ['owner/src-tauri/target/'])
-    expect(next).toBe(`node_modules/\ndist/\n\n${GITIGNORE_TARGET_HEADER}\nowner/src-tauri/target/\n`)
+describe('tauri/gitignore_target fix (native-fix обгортка)', () => {
+  test('loadT0Patterns повертає синтетичний native-fix pattern', async () => {
+    const root = makeRoot()
+    try {
+      const patterns = await patternsFor(root)
+      expect(patterns).toHaveLength(1)
+      expect(patterns[0].id).toBe('native-fix:tauri/gitignore_target')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   })
 
-  test('дописує запис у вже наявну секцію поруч з іншими entries, зберігаючи оточення', () => {
-    const content = `node_modules/\n\n${GITIGNORE_TARGET_HEADER}\napp/src-tauri/target/\n\ndist/\n`
-    const next = insertMissingTargetEntries(content, ['owner/src-tauri/target/'])
-    expect(next).toBe(
-      `node_modules/\n\n${GITIGNORE_TARGET_HEADER}\napp/src-tauri/target/\nowner/src-tauri/target/\n\ndist/\n`
-    )
+  test('вставляє новий блок у кінець файла, коли секції ще немає', async () => {
+    const root = makeRoot()
+    try {
+      makeMonorepoRoot(root, ['owner'])
+      makeSrcTauriWorkspace(root, 'owner')
+      writeGitignore(root, 'node_modules/\ndist/\n')
+      const { violations } = await lint({ cwd: root, ruleId: 'tauri', concernId: 'gitignore_target' })
+      await applyT0(violations, root)
+      expect(readGitignore(root)).toBe(`node_modules/\ndist/\n\n${GITIGNORE_TARGET_HEADER}\nowner/src-tauri/target/\n`)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   })
 
-  test('без відсутніх entries нічого не змінює', () => {
-    expect(insertMissingTargetEntries('node_modules/\n', [])).toBeNull()
+  test('дописує запис у вже наявну секцію поруч з іншими entries, зберігаючи оточення', async () => {
+    const root = makeRoot()
+    try {
+      makeMonorepoRoot(root, ['owner', 'app'])
+      makeSrcTauriWorkspace(root, 'owner')
+      makeSrcTauriWorkspace(root, 'app')
+      writeGitignore(root, `node_modules/\n\n${GITIGNORE_TARGET_HEADER}\napp/src-tauri/target/\n\ndist/\n`)
+      const { violations } = await lint({ cwd: root, ruleId: 'tauri', concernId: 'gitignore_target' })
+      await applyT0(violations, root)
+      expect(readGitignore(root)).toBe(
+        `node_modules/\n\n${GITIGNORE_TARGET_HEADER}\napp/src-tauri/target/\nowner/src-tauri/target/\n\ndist/\n`
+      )
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  test('без mismatch-violations план порожній — test() = false', async () => {
+    const root = makeRoot()
+    try {
+      writeGitignore(root, 'node_modules/\n')
+      const [pattern] = await patternsFor(root)
+      expect(pattern.test([])).toBe(false)
+      expect(pattern.test([{ reason: 'other', message: 'm' }])).toBe(false)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   })
 
   test('ідемпотентно: T0-фікс закриває violation, повторний прогін не змінює файл', async () => {
@@ -319,6 +373,57 @@ describe('tauri/gitignore_target fix', () => {
 
       const second = await lint({ cwd: root, ruleId: 'tauri', concernId: 'gitignore_target' })
       expect(second.violations).toEqual([])
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  test('JS-паритет: .gitignore відсутній повністю — T0 не створює файл з нуля (план порожній)', async () => {
+    // Старий `applyToFiles` скіпав нечитабельний файл (`try/catch continue`) —
+    // native-порт зберігає цю поведінку 1:1 (доккомент `tauri_gitignore_target_fix`).
+    const root = makeRoot()
+    try {
+      makeMonorepoRoot(root, ['owner'])
+      makeSrcTauriWorkspace(root, 'owner')
+      const { violations } = await lint({ cwd: root, ruleId: 'tauri', concernId: 'gitignore_target' })
+      expect(violations).toHaveLength(1)
+      const [pattern] = await patternsFor(root)
+      expect(pattern.test(violations)).toBe(false)
+      expect(existsSync(join(root, '.gitignore'))).toBe(false)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  test('rollback-контракт: ctx.recordWrite викликається ДО запису — rollback відновлює старий вміст', async () => {
+    const root = makeRoot()
+    try {
+      makeMonorepoRoot(root, ['owner'])
+      makeSrcTauriWorkspace(root, 'owner')
+      const original = 'node_modules/\n'
+      writeGitignore(root, original)
+      const { violations } = await lint({ cwd: root, ruleId: 'tauri', concernId: 'gitignore_target' })
+
+      const snapshot = createSnapshot()
+      let contentAtRecordWriteTime = null
+      const ctx = {
+        cwd: root,
+        ruleId: 'tauri',
+        concernId: 'gitignore_target',
+        recordWrite: absPath => {
+          // recordWrite ДО write: pre-image ще ОРИГІНАЛЬНА — інакше rollback
+          // відновлював би вже новий вміст.
+          contentAtRecordWriteTime = readFileSync(absPath, 'utf8')
+          snapshot.record(absPath)
+        }
+      }
+      const [pattern] = await patternsFor(root)
+      await pattern.apply(violations, ctx)
+      expect(contentAtRecordWriteTime).toBe(original)
+      expect(readGitignore(root)).toContain('owner/src-tauri/target/')
+
+      snapshot.rollback()
+      expect(readGitignore(root)).toBe(original)
     } finally {
       rmSync(root, { recursive: true, force: true })
     }

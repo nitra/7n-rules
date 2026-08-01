@@ -27,7 +27,9 @@ pub const MUTANTS_KEYS_MISSING: &str = "mutants-keys-missing";
 
 /// Канонічні top-level ключі mutants-конфігу Tauri, у порядку — точний порт
 /// `TAURI_CANONICAL_KEYS = Object.keys(TAURI_KEY_SNIPPETS)` (`main.mjs:29,50`).
-const TAURI_CANONICAL_KEYS: &[&str] = &["additional_cargo_test_args", "exclude_globs"];
+/// `pub(crate)` — перевикористовує native-фікс цього concern-а (`super::fix`,
+/// T2 зрізу 5 фази 7: порядок append-блоку той самий, що порядок ключів тут).
+pub(crate) const TAURI_CANONICAL_KEYS: &[&str] = &["additional_cargo_test_args", "exclude_globs"];
 
 /// Зчитує існуючий `.cargo/mutants.toml` і повертає top-level ключі, яких ще
 /// немає — точний порт `detectMissingKeys` (`main.mjs:80-84`) для щасливого
@@ -39,7 +41,9 @@ const TAURI_CANONICAL_KEYS: &[&str] = &["additional_cargo_test_args", "exclude_g
 /// в `async`-функції → rejected promise); тут — той самий fail-safe принцип,
 /// що й в інших native-концернах цього крейту (`workspaces`-модуль,
 /// doc-комент там): деградує до «усі канонічні ключі відсутні», не панікує.
-fn detect_missing_keys(target_path: &Path) -> Vec<&'static str> {
+/// `pub(crate)` — перевикористовує native-фікс (`super::fix`) для
+/// augment-гілки (той самий скан, що й detector).
+pub(crate) fn detect_missing_keys(target_path: &Path) -> Vec<&'static str> {
     let table = std::fs::read_to_string(target_path)
         .ok()
         .and_then(|content| toml::from_str::<toml::Table>(&content).ok())

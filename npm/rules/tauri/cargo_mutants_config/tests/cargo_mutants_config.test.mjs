@@ -12,9 +12,14 @@
  * Детектор — через `runConcernDetector` (dispatch-рівень), не пряма функція:
  * JS `main.mjs` видалений (G2 фази 5 батчу 3, TOML-кластер), concern тепер
  * живе лише в `crates/rules-core/src/concerns/tauri_cargo_mutants_config.rs`
- * і виконується через native-гілку `runConcernDetector`. T0-фіксер
- * (`fix-cargo_mutants_config.mjs`) лишається JS і тепер самодостатній
- * (константи й білдери baseline дубльовані, не імпортуються з main.mjs).
+ * і виконується через native-гілку `runConcernDetector`.
+ *
+ * T0-фікс (T2 зрізу 5 фази 7): JS `fix-cargo_mutants_config.mjs` теж
+ * видалений — білдери baseline/append-блоку тепер у
+ * `crates/rules-core/src/concerns/fix.rs` (`run_concern_fix`), а JS-бік
+ * отримує синтетичний T0Pattern через `loadT0Patterns` (`run-fix.mjs`,
+ * реєстр `NATIVE_FIXES`). Тести нижче дзеркалять старі кейси через ЦЮ
+ * обгортку, не пряму функцію concern-а.
  */
 import { describe, expect, test } from 'vitest'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -25,11 +30,24 @@ import { fileURLToPath } from 'node:url'
 import { parse as parseToml } from 'smol-toml'
 
 import { runConcernDetector } from '../../../../scripts/lib/lint-surface/detect.mjs'
-import { MUTANTS_CONFIG_MISSING, MUTANTS_KEYS_MISSING, patterns } from '../fix-cargo_mutants_config.mjs'
+import { loadT0Patterns } from '../../../../scripts/lib/lint-surface/run-fix.mjs'
+import { createSnapshot } from '../../../../scripts/lib/lint-surface/snapshot.mjs'
 
-/** Абсолютний шлях теки концерну (тека з `concern.json`, без main.mjs — native-порт). */
+/** Стабільний reason: файл mutants-конфігу відсутній узагалі (дубль константи detector-а). */
+const MUTANTS_CONFIG_MISSING = 'mutants-config-missing'
+/** Стабільний reason: mutants-конфіг є, але бракує канонічних Tauri-ключів (дубль константи detector-а). */
+const MUTANTS_KEYS_MISSING = 'mutants-keys-missing'
+
+/** Абсолютний шлях теки концерну (тека з `concern.json`, без main.mjs/fix-*.mjs — native-порт). */
 const CONCERN_DIR = join(dirname(fileURLToPath(import.meta.url)), '..')
 const CONCERN = { dir: CONCERN_DIR }
+
+/**
+ * Резолвить синтетичний native T0Pattern для `dir` (той самий, що бере реальний fix-pipeline).
+ * @param {string} dir корінь тимчасового проєкту
+ * @returns {Promise<import('../../../../scripts/lib/lint-surface/types.mjs').T0Pattern[]>} T0-патерни concern-а
+ */
+const patternsFor = dir => loadT0Patterns(CONCERN_DIR, 'cargo_mutants_config', 'tauri', dir)
 
 /**
  * Прогоняє T0-патерни concern-а над violations (як central fix-pipeline).
@@ -46,7 +64,7 @@ async function applyT0(violations, dir) {
       // no-op: тест не відстежує записи fix-pipeline
     }
   }
-  for (const p of patterns) {
+  for (const p of await patternsFor(dir)) {
     if (p.test(violations)) await p.apply(violations, ctx)
   }
 }
@@ -220,6 +238,45 @@ timeout_multiplier = 5.0
     const parsed = parseToml(after)
     expect(parsed.additional_cargo_test_args).toEqual(['--lib', '--tests'])
     expect(parsed.exclude_globs).toContain('src/**/android.rs')
+    proj.cleanup()
+  })
+
+  test('loadT0Patterns повертає синтетичний native-fix pattern', async () => {
+    const proj = makeProj({ layout: 'tauri' })
+    const patterns = await patternsFor(proj.dir)
+    expect(patterns).toHaveLength(1)
+    expect(patterns[0].id).toBe('native-fix:tauri/cargo_mutants_config')
+    proj.cleanup()
+  })
+
+  test('rollback-контракт: ctx.recordWrite викликається ДО запису — rollback повертає стан «файл відсутній»', async () => {
+    const proj = makeProj({ layout: 'tauri' })
+    const target = join(proj.dir, 'app', 'src-tauri', '.cargo', 'mutants.toml')
+    const violations = await runCheckIn(proj.dir)
+    expect(violations.some(v => v.reason === MUTANTS_CONFIG_MISSING)).toBe(true)
+
+    const snapshot = createSnapshot()
+    let existedAtRecordWriteTime = null
+    const ctx = {
+      cwd: proj.dir,
+      ruleId: 'tauri',
+      concernId: 'cargo_mutants_config',
+      recordWrite: absPath => {
+        // recordWrite ДО write: у момент виклику файла ще НЕМА — інакше
+        // pre-image була б уже новим baseline-ом, і rollback не зміг би
+        // повернути стан «файл відсутній».
+        existedAtRecordWriteTime = existsSync(absPath)
+        snapshot.record(absPath)
+      }
+    }
+    const [pattern] = await patternsFor(proj.dir)
+    expect(pattern.test(violations)).toBe(true)
+    await pattern.apply(violations, ctx)
+    expect(existedAtRecordWriteTime).toBe(false)
+    expect(existsSync(target)).toBe(true)
+
+    snapshot.rollback()
+    expect(existsSync(target)).toBe(false)
     proj.cleanup()
   })
 })
