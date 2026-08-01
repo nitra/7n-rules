@@ -29,15 +29,17 @@ pub const MISSING_LINUX_DEPS_PACKAGES: &str = "missing-linux-deps-packages";
 const LINT_RUST_YML: &str = ".github/workflows/lint-rust.yml";
 
 /// Канонічні dev-пакети для компіляції Tauri v2 на ubuntu-runner-і — порт
-/// `REQUIRED_LINUX_PACKAGES` (`main.mjs:29-33`).
-const REQUIRED_LINUX_PACKAGES: &[&str] = &[
+/// `REQUIRED_LINUX_PACKAGES` (`main.mjs:29-33`). `pub(crate)` — перевикористовує
+/// native-фікс цього concern-а (`super::fix`, T2 зрізу 5 фази 7).
+pub(crate) const REQUIRED_LINUX_PACKAGES: &[&str] = &[
     "libwebkit2gtk-4.1-dev",
     "libayatana-appindicator3-dev",
     "librsvg2-dev",
 ];
 
 /// Порт `APT_INSTALL_RE` (`main.mjs:35`, `/\bapt-get install\b/u`).
-static APT_INSTALL_RE: LazyLock<Regex> =
+/// `pub(crate)` — перевикористовує native-фікс (`super::fix`).
+pub(crate) static APT_INSTALL_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\bapt-get install\b").expect("valid regex"));
 
 /// Результат сканування `lint-rust.yml` — точний порт `LinuxDepsScan`

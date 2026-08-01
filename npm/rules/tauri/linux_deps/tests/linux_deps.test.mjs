@@ -11,9 +11,14 @@
  * Детектор — через `runConcernDetector` (dispatch-рівень), не пряма функція:
  * JS `main.mjs` видалений (G2 фази 5 батчу 3, TOML-кластер), concern тепер
  * живе лише в `crates/rules-core/src/concerns/tauri_linux_deps.rs` і
- * виконується через native-гілку `runConcernDetector`. T0-фіксер
- * (`fix-linux_deps.mjs`) лишається JS і тепер самодостатній (константи й
- * `scanLinuxDeps` дубльовані, не імпортуються з main.mjs).
+ * виконується через native-гілку `runConcernDetector`.
+ *
+ * T0-фікс (T2 зрізу 5 фази 7): JS `fix-linux_deps.mjs` теж видалений —
+ * splice-логіка `insertLinuxDepsStep`/`appendMissingPackages` тепер у
+ * `crates/rules-core/src/concerns/fix.rs` (`run_concern_fix`), а JS-бік
+ * отримує синтетичний T0Pattern через `loadT0Patterns` (`run-fix.mjs`,
+ * реєстр `NATIVE_FIXES`). Тести нижче дзеркалять старі кейси через ЦЮ
+ * обгортку; pure-функції splice-ів покриті в native-юніт-тестах (`fix.rs`).
  */
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -23,7 +28,8 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, test, vi } from 'vitest'
 
 import { runConcernDetector } from '../../../../scripts/lib/lint-surface/detect.mjs'
-import { appendMissingPackages, insertLinuxDepsStep, patterns } from '../fix-linux_deps.mjs'
+import { loadT0Patterns } from '../../../../scripts/lib/lint-surface/run-fix.mjs'
+import { createSnapshot } from '../../../../scripts/lib/lint-surface/snapshot.mjs'
 
 /** Стабільний reason: у CI-workflow немає apt-кроку встановлення Linux-залежностей Tauri. */
 const MISSING_LINUX_DEPS_STEP = 'missing-linux-deps-step'
@@ -66,6 +72,13 @@ function writeLintRust(root, content) {
 }
 
 /**
+ * Резолвить синтетичний native T0Pattern для `dir` (той самий, що бере реальний fix-pipeline).
+ * @param {string} dir корінь тимчасового проєкту
+ * @returns {Promise<import('../../../../scripts/lib/lint-surface/types.mjs').T0Pattern[]>} T0-патерни concern-а
+ */
+const patternsFor = dir => loadT0Patterns(CONCERN_DIR, 'linux_deps', 'tauri', dir)
+
+/**
  * Прогоняє T0-патерни над violations (як central fix-pipeline).
  * @param {import('../../../../scripts/lib/lint-surface/types.mjs').LintViolation[]} violations порушення
  * @param {string} dir корінь тимчасового проєкту
@@ -73,7 +86,7 @@ function writeLintRust(root, content) {
  */
 async function applyT0(violations, dir) {
   const ctx = { cwd: dir, ruleId: 'tauri', concernId: 'linux_deps', recordWrite: vi.fn() }
-  for (const p of patterns) {
+  for (const p of await patternsFor(dir)) {
     if (p.test(violations)) await p.apply(violations, ctx)
   }
 }
@@ -188,20 +201,53 @@ function readLintRust(root) {
   return readFileSync(join(root, '.github', 'workflows', 'lint-rust.yml'), 'utf8')
 }
 
-describe('tauri/linux_deps fix', () => {
-  test('вставляє apt-крок перед dtolnay/rust-toolchain', () => {
-    const next = insertLinuxDepsStep(NO_DEPS_YML)
-    const lines = next.split('\n')
-    const aptIdx = lines.findIndex(l => l.includes('apt-get install'))
-    const toolchainIdx = lines.findIndex(l => l.includes('dtolnay/rust-toolchain'))
-    const checkoutIdx = lines.findIndex(l => l.includes('actions/checkout'))
-    expect(aptIdx).toBeGreaterThan(checkoutIdx)
-    expect(aptIdx).toBeLessThan(toolchainIdx)
-    expect(next).toContain('libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev')
+describe('tauri/linux_deps fix (native-fix обгортка)', () => {
+  test('loadT0Patterns повертає синтетичний native-fix pattern', async () => {
+    const root = makeRoot()
+    try {
+      const patterns = await patternsFor(root)
+      expect(patterns).toHaveLength(1)
+      expect(patterns[0].id).toBe('native-fix:tauri/linux_deps')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   })
 
-  test('без toolchain-кроку не вставляє (нетипове форматування — T1/LLM)', () => {
-    expect(insertLinuxDepsStep('jobs:\n  lint:\n    steps:\n      - run: cargo clippy\n')).toBeNull()
+  test('вставляє apt-крок перед dtolnay/rust-toolchain', async () => {
+    const root = makeRoot()
+    try {
+      makeSrcTauri(root)
+      writeLintRust(root, NO_DEPS_YML)
+      const first = await lint({ cwd: root, ruleId: 'tauri', concernId: 'linux_deps' })
+      await applyT0(first.violations, root)
+      const next = readLintRust(root)
+      const lines = next.split('\n')
+      const aptIdx = lines.findIndex(l => l.includes('apt-get install'))
+      const toolchainIdx = lines.findIndex(l => l.includes('dtolnay/rust-toolchain'))
+      const checkoutIdx = lines.findIndex(l => l.includes('actions/checkout'))
+      expect(aptIdx).toBeGreaterThan(checkoutIdx)
+      expect(aptIdx).toBeLessThan(toolchainIdx)
+      expect(next).toContain('libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  test('без toolchain-кроку не вставляє (нетипове форматування — T1/LLM): план порожній', async () => {
+    const root = makeRoot()
+    try {
+      makeSrcTauri(root)
+      const atypical = 'jobs:\n  lint:\n    steps:\n      - run: cargo clippy\n'
+      writeLintRust(root, atypical)
+      const first = await lint({ cwd: root, ruleId: 'tauri', concernId: 'linux_deps' })
+      expect(first.violations.some(v => v.reason === MISSING_LINUX_DEPS_STEP)).toBe(true)
+      const [pattern] = await patternsFor(root)
+      expect(pattern.test(first.violations)).toBe(false)
+      await applyT0(first.violations, root)
+      expect(readLintRust(root)).toBe(atypical)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   })
 
   test('ідемпотентно: T0-фікс закриває violation, повторний прогін не змінює файл', async () => {
@@ -222,13 +268,26 @@ describe('tauri/linux_deps fix', () => {
     }
   })
 
-  test('appendMissingPackages дописує відсутні пакети в наявний apt-рядок', () => {
-    const next = appendMissingPackages(PARTIAL_DEPS_YML)
-    expect(next).toContain('sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev')
+  test('дописує відсутні пакети в наявний apt-рядок', async () => {
+    const root = makeRoot()
+    try {
+      makeSrcTauri(root)
+      writeLintRust(root, PARTIAL_DEPS_YML)
+      const first = await lint({ cwd: root, ruleId: 'tauri', concernId: 'linux_deps' })
+      await applyT0(first.violations, root)
+      expect(readLintRust(root)).toContain(
+        'sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev'
+      )
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   })
 
-  test('appendMissingPackages зберігає shell-continuation `\\`', () => {
-    const yml = `jobs:
+  test('append зберігає shell-continuation `\\`', async () => {
+    const root = makeRoot()
+    try {
+      makeSrcTauri(root)
+      const yml = `jobs:
   lint:
     steps:
       - run: |
@@ -236,8 +295,15 @@ describe('tauri/linux_deps fix', () => {
             build-essential
       - uses: dtolnay/rust-toolchain@stable
 `
-    const next = appendMissingPackages(yml)
-    expect(next).toContain('libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev \\')
+      writeLintRust(root, yml)
+      const first = await lint({ cwd: root, ruleId: 'tauri', concernId: 'linux_deps' })
+      await applyT0(first.violations, root)
+      const next = readLintRust(root)
+      expect(next).toContain('libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev \\')
+      expect(next).toContain('            build-essential')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   })
 
   test('T0-фікс закриває missing-linux-deps-packages ідемпотентно', async () => {
@@ -249,6 +315,38 @@ describe('tauri/linux_deps fix', () => {
       await applyT0(first.violations, root)
       const second = await lint({ cwd: root, ruleId: 'tauri', concernId: 'linux_deps' })
       expect(second.violations).toEqual([])
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  test('rollback-контракт: ctx.recordWrite викликається ДО запису — rollback відновлює старий вміст', async () => {
+    const root = makeRoot()
+    try {
+      makeSrcTauri(root)
+      writeLintRust(root, NO_DEPS_YML)
+      const first = await lint({ cwd: root, ruleId: 'tauri', concernId: 'linux_deps' })
+
+      const snapshot = createSnapshot()
+      let contentAtRecordWriteTime = null
+      const ctx = {
+        cwd: root,
+        ruleId: 'tauri',
+        concernId: 'linux_deps',
+        recordWrite: absPath => {
+          // recordWrite ДО write: pre-image ще ОРИГІНАЛЬНА — інакше rollback
+          // відновлював би вже новий вміст.
+          contentAtRecordWriteTime = readFileSync(absPath, 'utf8')
+          snapshot.record(absPath)
+        }
+      }
+      const [pattern] = await patternsFor(root)
+      await pattern.apply(first.violations, ctx)
+      expect(contentAtRecordWriteTime).toBe(NO_DEPS_YML)
+      expect(readLintRust(root)).toContain('apt-get install')
+
+      snapshot.rollback()
+      expect(readLintRust(root)).toBe(NO_DEPS_YML)
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
