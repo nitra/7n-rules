@@ -9,8 +9,9 @@ import { join } from 'node:path'
 
 import { describe, expect, test } from 'vitest'
 
+import { patterns } from '../fix-check.mjs'
 import { lint } from '../main.mjs'
-import { OXLINT_CANONICAL_JSON_PATH } from '../../tooling/main.mjs'
+import { KNIP_MISSING, OXLINT_CANONICAL_JSON_PATH } from '../../tooling/main.mjs'
 import { withTmpDir } from '@7n/rules/scripts/utils/test-helpers.mjs'
 
 /**
@@ -132,23 +133,45 @@ describe('check — .oxlintrc.json не збігається з каноном',
 })
 
 describe('check — knip.json', () => {
-  test('відсутній knip.json → копіює канон і pass для knip', async () => {
+  // Регресія рішення Ґ спеки контракту v3.1: до 2026-08-01 детектор САМ
+  // копіював канон під час detect і звітував `pass` — файл з'являвся, а
+  // порушення не існувало. Обидві половини цього твердження тепер
+  // перевернуті й зафіксовані тестом.
+  test('відсутній knip.json → порушення `knip-missing`, дерево НЕ мутоване', async () => {
     await withTmpDir(async dir => {
-      // Без knip.json — функція має його скопіювати з канону і повернути pass
-      const code = await check(dir)
-      // Після виклику knip.json повинен з'явитися (side effect)
+      const { violations } = await lint({ cwd: dir, ruleId: 'js', concernId: 'check', files: undefined })
       const { existsSync } = await import('node:fs')
-      expect(existsSync(join(dir, 'knip.json'))).toBe(true)
-      // exit code залежить від інших перевірок
-      expect(typeof code).toBe('number')
+      expect(existsSync(join(dir, 'knip.json'))).toBe(false)
+      expect(violations.some(v => v.reason === KNIP_MISSING)).toBe(true)
     })
   })
 
-  test('наявний knip.json → pass для knip', async () => {
+  test('наявний knip.json → без порушення `knip-missing`', async () => {
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'knip.json'), '{}', 'utf8')
-      const code = await check(dir)
-      expect(typeof code).toBe('number')
+      const { violations } = await lint({ cwd: dir, ruleId: 'js', concernId: 'check', files: undefined })
+      expect(violations.some(v => v.reason === KNIP_MISSING)).toBe(false)
+    })
+  })
+
+  test('T0 `js-check-knip` створює knip.json з канону й ідемпотентний', async () => {
+    await withTmpDir(async dir => {
+      const { existsSync } = await import('node:fs')
+      const knipPattern = patterns.find(p => p.id === 'js-check-knip')
+      const violations = [{ reason: KNIP_MISSING, message: 'knip.json відсутній' }]
+      expect(knipPattern.test(violations)).toBe(true)
+
+      const first = await knipPattern.apply(violations, { cwd: dir })
+      expect(existsSync(join(dir, 'knip.json'))).toBe(true)
+      expect(first.touchedFiles).toHaveLength(1)
+
+      // Повторний прогін на вже виправленому дереві нічого не чіпає.
+      const second = await knipPattern.apply(violations, { cwd: dir })
+      expect(second.touchedFiles).toEqual([])
+
+      // І детектор більше не звітує це порушення.
+      const { violations: after } = await lint({ cwd: dir, ruleId: 'js', concernId: 'check', files: undefined })
+      expect(after.some(v => v.reason === KNIP_MISSING)).toBe(false)
     })
   })
 })

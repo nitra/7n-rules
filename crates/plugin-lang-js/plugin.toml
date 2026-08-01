@@ -263,6 +263,43 @@ glob = [
   "**/*.{vue,json,jsonc,yaml,yml,md,mdc}",
 ]
 
+# Зріз 1 контракту v3.1: глоб — `concern.json.lint.glob` плюс `.n-rules.json`
+# (self-gate `js`-правила) і `.gitignore`, які канон читає повз `ctx.files`
+# (секція «Зріз 1» у `src/lib.rs`).
+[[concerns]]
+key = "test/stryker_config"
+scope = "full"
+glob = [
+  ".n-rules.json",
+  ".n-cursor.json",
+  ".gitignore",
+  "**/package.json",
+  "**/stryker.config.mjs",
+  "**/stryker-vue-macros-ignorer.mjs",
+  "**/vitest.config.{mjs,js}",
+  "**/src/**/*.vue",
+]
+
+# Зріз 2 контракту v3.1: глоб — `concern.json.lint.glob` плюс `**/*.vue`
+# (детекція vue-воркспейсів `isVueWorkspace`, секція «Зріз 2» у `src/lib.rs`).
+[[concerns]]
+key = "js/check"
+scope = "full"
+glob = [
+  "eslint.config.js",
+  "eslint.config.mjs",
+  "**/package.json",
+  "**/*.vue",
+  ".oxlintrc.json",
+  ".github/workflows/lint-js.yml",
+  ".github/workflows/lint.yml",
+  "knip.json",
+  ".eslintrc",
+  ".eslintrc.js",
+  ".eslintrc.json",
+  ".eslintrc.yml",
+]
+
 ci_artifacts = []
 tools = []
 

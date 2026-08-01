@@ -20,6 +20,16 @@ export const KNIP_CANONICAL_JSON_PATH = join(
 
 /** `.oxlintrc.json` відсутній — T0 копіює канон (`fix-check.mjs`). */
 export const OXLINTRC_MISSING = 'oxlintrc-missing'
+/**
+ * `knip.json` відсутній — T0 копіює канон (`fix-check.mjs`, патерн `js-check-knip`).
+ *
+ * До 2026-08-01 порушення НЕ існувало: `checkKnipConfig` детектора сам робив
+ * `copyFile` під час фази detect і звітував `pass`, тобто стан «knip.json
+ * немає» був принципово неспостережуваний, а `lint --no-fix` мутував дерево
+ * (спека `docs/specs/2026-08-01-plugin-contract-v31-surfaces.md`, рішення Ґ).
+ * Тепер це звичайний T0-фіксований reason, як `oxlintrc-missing` поруч.
+ */
+export const KNIP_MISSING = 'knip-missing'
 /** `.oxlintrc.json` існує, але розходиться з каноном — T0 доводить до відповідності детермінованим merge. */
 export const OXLINTRC_DRIFT = 'oxlintrc-drift'
 

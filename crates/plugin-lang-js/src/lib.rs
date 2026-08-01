@@ -1,10 +1,11 @@
 //! wasm-компонент `n-rules:plugin@3.0.0` — `lang-js/wasm-concerns` (задачі N2,
-//! Q1 батч 1, Q2 батч 2, Q3, Q4 батч 4 та батчі 5–8, спека
+//! Q1 батч 1, Q2 батч 2, Q3, Q4 батч 4, батчі 5–9 і зріз 1 контракту v3.1
+//! (`docs/specs/2026-08-01-plugin-contract-v31-surfaces.md`), спека
 //! `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md` §3.5.5 і
 //! `docs/specs/2026-08-01-wasm-ast-strategy.md`),
 //! створений за флоу скіла `npm/skills/wasm-plugin/` (scaffold → реалізація →
-//! golden-тести). ТРИДЦЯТЬ ДВА концерни у контрибуції (перелік нижче —
-//! перші чотирнадцять; батчі 5–8 описані в доккоментах однойменних секцій
+//! golden-тести). ТРИДЦЯТЬ П'ЯТЬ концернів у контрибуції (перелік нижче —
+//! перші чотирнадцять; батчі 5–9 і зріз 1 описані в доккоментах однойменних секцій
 //! нижче за текстом), порт чинних
 //! JS-оригіналів — справжній 1:1, той самий `reason`/`message` біт-у-біт
 //! (parity-дисципліна СКІЛа не допускає shadowing regex-наближенням
@@ -201,11 +202,12 @@ use std::collections::{BTreeSet, HashSet};
 
 use oxc_allocator::Allocator;
 use oxc_ast::ast::{
-    Argument, ArrayExpressionElement, ArrowFunctionExpression, BinaryOperator, BindingPattern,
-    BlockStatement, CallExpression, Comment, Expression, FormalParameters, Function, FunctionBody,
-    FunctionType, ImportDeclaration, ImportExpression, NewExpression, ObjectExpression,
-    ObjectProperty, ObjectPropertyKind, PropertyKey, RegExpLiteral, Statement, StringLiteral,
-    TaggedTemplateExpression, TemplateLiteral, UnaryExpression, UnaryOperator, VariableDeclarator,
+    Argument, ArrayExpression, ArrayExpressionElement, ArrowFunctionExpression, BinaryOperator,
+    BindingPattern, BlockStatement, CallExpression, Comment, ExportDefaultDeclarationKind,
+    Expression, FormalParameters, Function, FunctionBody, FunctionType, ImportDeclaration,
+    ImportExpression, NewExpression, ObjectExpression, ObjectProperty, ObjectPropertyKind, Program,
+    PropertyKey, RegExpLiteral, Statement, StringLiteral, TaggedTemplateExpression,
+    TemplateLiteral, UnaryExpression, UnaryOperator, VariableDeclarator,
 };
 use oxc_ast_visit::{
     walk::{
@@ -3757,6 +3759,46 @@ fn build_manifest() -> Manifest {
                 glob: vec![
                     "**/*.{js,jsx,mjs,mjsx,cjs,cjsx,ts,tsx,mts,mtsx,cts,ctsx}".to_string(),
                     "**/*.{vue,json,jsonc,yaml,yml,md,mdc}".to_string(),
+                ],
+            },
+            // Зріз 1 контракту v3.1: `test/stryker_config`. Глоб —
+            // `concern.json.lint.glob` плюс два кореневі файли, які канон
+            // читає повз `ctx.files` (`.n-rules.json` self-gate і
+            // `.gitignore`), плюс сам vue-plugin-файл, чию наявність
+            // перевіряє `planBaselineFile` (доккомент секції «Зріз 1»).
+            ConcernContribution {
+                key: CONCERN_STRYKER_CONFIG.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec![
+                    ".n-rules.json".to_string(),
+                    ".n-cursor.json".to_string(),
+                    ".gitignore".to_string(),
+                    "**/package.json".to_string(),
+                    "**/stryker.config.mjs".to_string(),
+                    "**/stryker-vue-macros-ignorer.mjs".to_string(),
+                    "**/vitest.config.{mjs,js}".to_string(),
+                    "**/src/**/*.vue".to_string(),
+                ],
+            },
+            // Зріз 2 контракту v3.1: `js/check`. Глоб — `concern.json.lint.glob`
+            // плюс `**/*.vue` (детекція vue-воркспейсів `isVueWorkspace`,
+            // доккомент секції «Зріз 2»).
+            ConcernContribution {
+                key: CONCERN_JS_CHECK.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec![
+                    "eslint.config.js".to_string(),
+                    "eslint.config.mjs".to_string(),
+                    "**/package.json".to_string(),
+                    "**/*.vue".to_string(),
+                    ".oxlintrc.json".to_string(),
+                    ".github/workflows/lint-js.yml".to_string(),
+                    ".github/workflows/lint.yml".to_string(),
+                    "knip.json".to_string(),
+                    ".eslintrc".to_string(),
+                    ".eslintrc.js".to_string(),
+                    ".eslintrc.json".to_string(),
+                    ".eslintrc.yml".to_string(),
                 ],
             },
         ],
@@ -8435,7 +8477,1492 @@ fn detect_vue_packages(files: &[SourceFile]) -> Vec<Diagnostic> {
     out
 }
 
-/// Guest-реалізація world `plugin` — тридцять три контрибуції ([`CONCERN_TFM`],
+// =====================================================================
+// Зріз 1 контракту v3.1 (`docs/specs/2026-08-01-plugin-contract-v31-surfaces.md`,
+// §7): `test/stryker_config` — порт detect-половини.
+//
+// # Чому цей концерн узагалі був заблокований — і чому блокер знявся
+//
+// Доккомент секції «Батч 9» відніс `test/stryker_config` до класу «потребує
+// поверхні, якої в контракті немає» (package-асетів: чотири canonical
+// baseline-файли лежать у `<concern>/data/**` ПАКЕТА `@7n/rules`, не в репо
+// споживача). Ревізія (спека v3.1, §2 рядок 3 і §3 рішення Г)
+// показала, що клас описано ширше, ніж він є: **detect-половина концерну
+// вмісту асетів не читає взагалі**. Єдина її взаємодія з ними —
+// `existsSync(baselinePath)` (`main.mjs:447-457`), тобто перевірка
+// «інсталяція пакета не пошкоджена». У wasm-компоненті ця перевірка
+// вироджується в константу: файли, які були б `include_str!`-нуті, з
+// компонента зникнути не можуть. Тому гілка `plan.fatal =
+// "canonical baseline не знайдено (…) — перевстанови @7n/rules"` у порті
+// НЕДОСЯЖНА за конструкцією, а не «пропущена» (задокументована розбіжність 1
+// нижче), і жодного байта асетів у компонент вшивати не треба.
+//
+// Вміст асетів потрібен ЛИШЕ fix-половині (T0 пише baseline у дерево). Її
+// цей зріз свідомо лишає в JS (`fix-stryker_config.mjs`, незмінний):
+// napi-міст будує `FixRequest::files` виключно з полів `file` переданих
+// violations (`crates/rules-napi::run_wasm_concern_fix`), тобто гість у
+// `export fix` бачить лише ВІДСУТНІ (нечитані) цільові файли й не може
+// повторити планувальник — а весь T0 цього концерну на повторному
+// плануванні й тримається (`planStrykerActions(cwd)` у `apply`). Це
+// обмеження host-мосту, не контракту, і воно поза бюджетом зрізу, який за
+// умовою контракту не торкається. Диспатч від цього не страждає:
+// `loadT0Patterns` (`run-fix.mjs`) ДОДАЄ wasm-патерн ПЕРЕД JS-патерном, а не
+// заміщає його, тож порожній `fix-plan` гостя (дефолтна гілка `Guest::fix`)
+// — це рівно «нічого не чиню», і фіксить далі JS-канон.
+//
+// # Глоб контрибуції
+//
+// Ширший за `concern.json.lint.glob` цього концерну рівно на два кореневі
+// файли, які JS-канон читає з диска повз `ctx.files`: `.n-rules.json`
+// (self-gate `js`-правила, `main.mjs:475-480`) і `.gitignore`
+// (`missingGitignoreEntries`). Той самий мотив, що глоби батчу 7: batch має
+// містити РІВНО те, що канон реально читає.
+//
+// # Задокументовані розбіжності
+//
+// 1. **`plan.fatal` про canonical baseline** — недосяжна в порті (див. вище).
+//    Спостережувано вона й у JS-каноні означає лише пошкоджену інсталяцію
+//    `@7n/rules`, не стан репо споживача, тож parity на здоровому дереві
+//    точна.
+// 2. **Невалідний JSON** у `.n-rules.json` чи кореневому `package.json`:
+//    JS-канон (`readNRulesConfigLite`, `resolveAllJsRoots`) кличе `JSON.parse`
+//    БЕЗ `try/catch` — виняток валить увесь концерн (exit 2); порт через
+//    [`parse_json_tolerant`] трактує битий `.n-rules.json` як «правило `js`
+//    не ввімкнене» (мовчання), а битий `package.json` — як «немає
+//    `workspaces`» (єдиний js-root — корінь). Той самий skip-not-crash дух,
+//    що розбіжність 1 секції «Батч 6».
+// 3. **`migrateRuleIds`** (`rule-meta-helpers.mjs`) у порті НЕ відтворено як
+//    крок: уся карта міграцій — `image → [image-compress, image-avif]` і
+//    `ci4 → [doc-files]`; жоден запис не породжує й не поглинає `js`, тож
+//    пряма перевірка членства в `rules`/`disable-rules` тотожна. Якщо в
+//    `RULE_MIGRATIONS` колись зʼявиться запис із `js` у будь-якому боці —
+//    цей порт треба оновити (анти-дрейф тримає parity-фікстура self-gate).
+// 4. **`.gitignore` як фільтр обходу**: host-збірка батчу
+//    (`rules_core::scan::walk_dir`, `git_ignore(true)`) ПОВАЖАЄ `.gitignore`
+//    репо, тоді як `hasVueFiles` JS-канону ходить `node:fs/promises#glob` без
+//    gitignore-фільтра. Репо, що ігнорує власні `src/**/*.vue`, дало б у
+//    порті «не vue-root». Успадкована розбіжність усіх full-scope портів,
+//    але тут вона вперше має свій сценарій — названа явно.
+// 5. **Порожній каталог**: `existsSync` JS-канону true і для каталогу з
+//    імʼям цільового файлу; batch — список ФАЙЛІВ. Успадкована
+//    мікро-розбіжність 5 секції «Батч 5».
+// 6. **Текст syntax-error** гілки `augment` (`stryker.config.mjs має syntax
+//    error (…): <msg>`): `<msg>` — повідомлення першої діагностики парсера.
+//    Обидві сторони — oxc 0.137.0 (пін `oxc-version-pin.test.mjs`), тож
+//    рядок той самий; parity-фікстура «битий stryker.config.mjs» тримає це
+//    твердження живим, а не припущенням.
+//
+// # Офсети augment-у — чому UTF-16 тут не блокер
+//
+// На відміну від `js/doc_comments` (§3.5.5, клас 3), офсети цього концерну
+// НЕ витікають у діагностику: `planVueAugment` використовує їх виключно
+// всередині себе — щоб зробити точкові string-splice-и у ВЛАСНОМУ ж тексті
+// й повторно розібрати результат. JS індексує UTF-16 і ріже UTF-16-рядок, порт
+// індексує байти й ріже UTF-8-рядок — обидва внутрішньо консистентні, тож і
+// текст результату, і спостережуваний назовні предикат «edits непорожні»
+// збігаються без жодної конверсії.
+// =====================================================================
+
+/// Ключ контрибуції `test/stryker_config` (зріз 1 контракту v3.1).
+const CONCERN_STRYKER_CONFIG: &str = "test/stryker_config";
+
+/// Дефолтний `reason` fatal-гілки — `reporter.fail(plan.fatal)` без другого
+/// аргументу, тож `createViolationReporter` підставляє `ctx.concernId`
+/// (bare `stryker_config`, без `test/`-префікса — той самий мотив, що
+/// [`PACKAGE_STRUCTURE_REASON`]).
+const STRYKER_CONFIG_REASON: &str = "stryker_config";
+
+/// `STRYKER_CONFIG_MISSING` (`main.mjs:33`) — відсутній baseline-файл.
+const STRYKER_CONFIG_MISSING_REASON: &str = "stryker-config-missing";
+
+/// `STRYKER_VUE_AUGMENT` (`main.mjs:35`) — vue-macros ignorer не зареєстровано.
+const STRYKER_VUE_AUGMENT_REASON: &str = "stryker-vue-augment";
+
+/// `STRYKER_VUE_AUGMENT_FAIL` (`main.mjs:37`) — augment неможливий.
+const STRYKER_VUE_AUGMENT_FAIL_REASON: &str = "stryker-vue-augment-fail";
+
+/// `GITIGNORE_MISSING` (`main.mjs:39`) — бракує тест-патернів у `.gitignore`.
+const STRYKER_GITIGNORE_MISSING_REASON: &str = "gitignore-missing";
+
+/// Імʼя stryker-конфіга у js-root (ціль baseline-копії й augment-у).
+const STRYKER_CONFIG_FILENAME: &str = "stryker.config.mjs";
+
+/// `STRYKER_VUE_PLUGIN_FILENAME` (`main.mjs:28`).
+const STRYKER_VUE_PLUGIN_FILENAME: &str = "stryker-vue-macros-ignorer.mjs";
+
+/// `TEST_GITIGNORE_ENTRIES` (`main.mjs:80`) — порядок значущий (він же
+/// порядок у тексті діагностики).
+const TEST_GITIGNORE_ENTRIES: [&str; 2] = ["**/reports/stryker/", "**/coverage/"];
+
+/// `VITEST_RUNNER_PLUGIN` (`main.mjs:64`).
+const VITEST_RUNNER_PLUGIN: &str = "@stryker-mutator/vitest-runner";
+
+/// `VUE_MACROS_PLUGIN` (`main.mjs:65`).
+const VUE_MACROS_PLUGIN: &str = "./stryker-vue-macros-ignorer.mjs";
+
+/// `VUE_MACROS_IGNORER` (`main.mjs:66`).
+const VUE_MACROS_IGNORER: &str = "vue-macros";
+
+/// `VUE_GLOB_IGNORE` (`main.mjs:85`) у формі імен сегментів — усі три
+/// патерни там мають вигляд `**/<dir>/**`.
+const STRYKER_VUE_GLOB_IGNORED_DIRS: [&str; 3] = ["node_modules", "dist", "reports"];
+
+/// Ігноровані сегменти `WORKSPACE_IGNORED_DIRS` (`resolve-js-root.mjs:13`) —
+/// СВІДОМО окрема константа від однойменного списку `workspaces.mjs`
+/// (там чотири записи, `.venv`/`venv` включно): js-root-резолвер знає рівно
+/// два, і порт має дзеркалити саме його.
+const JS_ROOT_IGNORED_DIRS: [&str; 2] = ["node_modules", ".git"];
+
+/// Порожній рядок-відступ (`INDENT_WS_RE`, `main.mjs:70`).
+const INDENT_WS_PATTERN: &str = r"^\s*$";
+
+/// Провідна кома після останньої property (`LEADING_COMMA_RE`, `main.mjs:71`).
+const LEADING_COMMA_PATTERN: &str = r"^\s*,";
+
+/// `join(<jsRoot>, name)` у просторі repo-relative posix-шляхів батча:
+/// корінь репо — порожній рядок (JS `jsRoot === cwd`, і тоді
+/// `relative(cwd, target)` дає голе імʼя файлу).
+fn js_root_join(root: &str, name: &str) -> String {
+    if root.is_empty() {
+        name.to_string()
+    } else {
+        format!("{root}/{name}")
+    }
+}
+
+/// Порт self-gate `lint()` (`main.mjs:475-480`): `readNRulesConfigLite` +
+/// `config.rules.includes('js') && !config.disableRules.includes('js')`.
+/// Відсутній конфіг → `rules: []` → правило вимкнене (мовчання) — рівно
+/// поведінка JS-канону, а не «open by default» (`isRuleEnabled` тут не
+/// викликається). Про `migrateRuleIds` — розбіжність 3 доккоменту секції.
+fn stryker_js_rule_enabled(files: &[SourceFile]) -> bool {
+    let Some(config) = batch_root_config(files) else {
+        return false;
+    };
+    // Розбіжність 2 секції: JS `JSON.parse` без try/catch валить концерн.
+    let Some(raw) = parse_json_tolerant(&config.content) else {
+        return false;
+    };
+    let has = |key: &str, id: &str| {
+        raw.get(key)
+            .and_then(|v| v.as_array())
+            .is_some_and(|list| list.iter().filter_map(|v| v.as_str()).any(|s| s == id))
+    };
+    has("rules", "js") && !has("disable-rules", "js")
+}
+
+/// Порт `expandWorkspacePattern` (`resolve-js-root.mjs:24-34`): літеральний
+/// патерн — `existsSync(<pattern>/package.json)`, glob-патерн — збіги
+/// `scanGlob('<pattern>/package.json')` мінус ігноровані сегменти,
+/// відсортовані (`toSorted()` без компаратора — UTF-16 code units; для
+/// ASCII-шляхів тотожно байтовому порядку).
+fn expand_workspace_pattern(files: &[SourceFile], pattern: &str) -> Vec<String> {
+    if !pattern.contains('*') {
+        let Some(dir) = normalize_rel_path(pattern) else {
+            return Vec::new();
+        };
+        return if batch_file(files, &format!("{dir}/package.json")).is_some() {
+            vec![dir]
+        } else {
+            Vec::new()
+        };
+    }
+    let Some(re) = glob_to_regex(&format!("{pattern}/package.json")) else {
+        return Vec::new();
+    };
+    let mut roots: Vec<String> = files
+        .iter()
+        .map(|f| f.path.as_str())
+        .filter(|path| re.is_match(path))
+        .filter(|path| {
+            !path
+                .split('/')
+                .any(|seg| JS_ROOT_IGNORED_DIRS.contains(&seg))
+        })
+        .filter_map(|path| path.strip_suffix("/package.json").map(str::to_string))
+        .collect();
+    roots.sort();
+    roots
+}
+
+/// Порт `resolveAllJsRoots` (`resolve-js-root.mjs:51-63`) у простір
+/// repo-relative шляхів: порожній рядок = корінь репо (JS `cwd`). Порожній
+/// результат = кореневого `package.json` немає взагалі (fatal-гілка
+/// планувальника).
+fn resolve_all_js_roots(files: &[SourceFile]) -> Vec<String> {
+    let Some(root_pkg) = batch_file(files, "package.json") else {
+        return Vec::new();
+    };
+    // Розбіжність 2 секції: JS `JSON.parse` без try/catch валить концерн.
+    let patterns: Vec<String> = parse_json_tolerant(&root_pkg.content)
+        .as_ref()
+        .and_then(|pkg| pkg.get("workspaces"))
+        .and_then(|w| w.as_array())
+        .map(|list| {
+            list.iter()
+                .filter_map(|v| v.as_str())
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default();
+    if patterns.is_empty() {
+        return vec![String::new()];
+    }
+    let mut roots = Vec::new();
+    for pattern in &patterns {
+        roots.extend(expand_workspace_pattern(files, pattern));
+    }
+    if roots.is_empty() {
+        vec![String::new()]
+    } else {
+        roots
+    }
+}
+
+/// Порт `hasVueFiles` (`main.mjs:92-97`): хоч один `.vue` під `<jsRoot>/src/`
+/// повз `VUE_GLOB_IGNORE`. Про gitignore-фільтр host-обходу — розбіжність 4
+/// доккоменту секції.
+fn has_vue_files(files: &[SourceFile], root: &str) -> bool {
+    let prefix = js_root_join(root, "src/");
+    files.iter().any(|file| {
+        file.path.starts_with(&prefix)
+            && file.path.ends_with(".vue")
+            && !file.path[prefix.len()..]
+                .split('/')
+                .any(|seg| STRYKER_VUE_GLOB_IGNORED_DIRS.contains(&seg))
+    })
+}
+
+/// Порт `resolveVitestConfigName` (`main.mjs:55-57`).
+fn resolve_vitest_config_name(files: &[SourceFile], root: &str) -> &'static str {
+    VITEST_CONFIG_NAMES
+        .iter()
+        .copied()
+        .find(|name| batch_file(files, &js_root_join(root, name)).is_some())
+        .unwrap_or("vitest.config.mjs")
+}
+
+/// Порт `missingGitignoreEntries` (`main.mjs:360-365`): `.gitignore` немає —
+/// порожній вміст, тобто бракує ВСІХ канонічних entries.
+fn missing_gitignore_entries(files: &[SourceFile]) -> Vec<String> {
+    let existing = batch_file(files, ".gitignore")
+        .map(|f| f.content.as_str())
+        .unwrap_or("");
+    let lines: HashSet<&str> = existing.split('\n').map(str::trim).collect();
+    TEST_GITIGNORE_ENTRIES
+        .iter()
+        .copied()
+        .filter(|entry| !lines.contains(entry))
+        .map(str::to_string)
+        .collect()
+}
+
+/// Одна `BaselineAction` (`main.mjs:100-109`) у батч-просторі: detect-половині
+/// потрібні лише ціль (repo-relative — вона ж `relative(cwd, target)`
+/// діагностики) і людиночитна мітка. `baselinePath`/`transform` живуть у
+/// fix-половині, яка лишається в JS (доккомент секції).
+struct BaselineAction {
+    target: String,
+    label: String,
+}
+
+/// План `planStrykerActions` (`main.mjs:368-374`) у батч-просторі.
+#[derive(Default)]
+struct StrykerPlan {
+    fatal: Option<String>,
+    baseline_actions: Vec<BaselineAction>,
+    augment_writes: Vec<String>,
+    augment_fails: Vec<String>,
+    gitignore_missing: Vec<String>,
+}
+
+/// Порт `planBaselineFile` (`main.mjs:119-125`): дія потрібна, лише якщо
+/// цілі ще немає (idempotent).
+fn plan_baseline_file(files: &[SourceFile], target: String, label: &str) -> Option<BaselineAction> {
+    if batch_file(files, &target).is_some() {
+        return None;
+    }
+    Some(BaselineAction {
+        target,
+        label: label.to_string(),
+    })
+}
+
+/// Порт `quote` (`main.mjs:134-136`): канонічні entries лапок не містять,
+/// тож escaping не потрібен.
+fn quote_single(value: &str) -> String {
+    format!("'{value}'")
+}
+
+/// Порт `findDefaultExportObject` (`main.mjs:145-149`): ПЕРШИЙ
+/// `ExportDefaultDeclaration` у `program.body`; не object-literal → `None`
+/// (augment не чіпає файл).
+fn find_default_export_object<'a>(program: &'a Program<'a>) -> Option<&'a ObjectExpression<'a>> {
+    let export = program.body.iter().find_map(|stmt| match stmt {
+        Statement::ExportDefaultDeclaration(export) => Some(export),
+        _ => None,
+    })?;
+    match &export.declaration {
+        ExportDefaultDeclarationKind::ObjectExpression(obj) => Some(obj),
+        _ => None,
+    }
+}
+
+/// Стан property-масиву — порт `analyzeArrayProperty` (`main.mjs:160-175`).
+/// `array: None` разом із `dynamic: false` = property взагалі немає (нову
+/// треба створити); `dynamic: true` = зливати небезпечно.
+struct ArrayPropertyState<'a> {
+    array: Option<&'a ArrayExpression<'a>>,
+    values: Vec<String>,
+    dynamic: bool,
+}
+
+/// Порт `analyzeArrayProperty` (`main.mjs:160-175`). Spread-property не має
+/// типу `Property` в ESTree-виводі JS-боку, тож і тут пропускається
+/// (`ObjectPropertyKind::SpreadProperty`).
+fn analyze_array_property<'a>(obj: &'a ObjectExpression<'a>, name: &str) -> ArrayPropertyState<'a> {
+    let prop = obj.properties.iter().find_map(|kind| {
+        let ObjectPropertyKind::ObjectProperty(prop) = kind else {
+            return None;
+        };
+        if prop.computed {
+            return None;
+        }
+        let matches = match &prop.key {
+            PropertyKey::StaticIdentifier(ident) => ident.name == name,
+            PropertyKey::StringLiteral(lit) => lit.value == name,
+            _ => false,
+        };
+        matches.then_some(&**prop)
+    });
+    let Some(prop) = prop else {
+        return ArrayPropertyState {
+            array: None,
+            values: Vec::new(),
+            dynamic: false,
+        };
+    };
+    let Expression::ArrayExpression(array) = &prop.value else {
+        return ArrayPropertyState {
+            array: None,
+            values: Vec::new(),
+            dynamic: true,
+        };
+    };
+    let mut values = Vec::new();
+    for element in &array.elements {
+        let ArrayExpressionElement::StringLiteral(lit) = element else {
+            return ArrayPropertyState {
+                array: Some(array),
+                values: Vec::new(),
+                dynamic: true,
+            };
+        };
+        values.push(lit.value.to_string());
+    }
+    ArrayPropertyState {
+        array: Some(array),
+        values,
+        dynamic: false,
+    }
+}
+
+/// Одна точкова вставка (`{pos, text}` JS-оригіналу). `pos` — БАЙТОВИЙ офсет
+/// (JS — UTF-16); обидва боки ріжуть власний рядок тим самим індексом, тож
+/// результат тотожний (доккомент секції, «Офсети augment-у»).
+struct SpliceEdit {
+    pos: usize,
+    text: String,
+}
+
+/// Порт `arrayAppendEdit` (`main.mjs:186-192`).
+fn array_append_edit(array: &ArrayExpression, values: &[String], missing: &[String]) -> SpliceEdit {
+    if values.is_empty() {
+        return SpliceEdit {
+            pos: array.span.end as usize - 1,
+            text: missing
+                .iter()
+                .map(|v| quote_single(v))
+                .collect::<Vec<_>>()
+                .join(", "),
+        };
+    }
+    // `values` непорожній ⇒ усі елементи — рядкові літерали ⇒ `elements`
+    // непорожній (JS `arr.elements.at(-1)`).
+    let last_end = array
+        .elements
+        .last()
+        .map(|el| el.span().end as usize)
+        .unwrap_or(array.span.end as usize - 1);
+    SpliceEdit {
+        pos: last_end,
+        text: missing
+            .iter()
+            .map(|v| format!(", {}", quote_single(v)))
+            .collect(),
+    }
+}
+
+/// Порт `detectIndent` (`main.mjs:201-210`).
+fn detect_indent(src: &str, obj: &ObjectExpression) -> String {
+    let Some(last) = obj.properties.last() else {
+        return "  ".to_string();
+    };
+    let start = last.span().start as usize;
+    let line_start = src[..start].rfind('\n').map(|idx| idx + 1).unwrap_or(0);
+    let ws = &src[line_start..start];
+    let re = regex::Regex::new(INDENT_WS_PATTERN).expect("INDENT_WS_PATTERN валідний");
+    if re.is_match(ws) {
+        ws.to_string()
+    } else {
+        "  ".to_string()
+    }
+}
+
+/// Порт `newPropertyEdit` (`main.mjs:222-235`).
+fn new_property_edit(
+    src: &str,
+    obj: &ObjectExpression,
+    indent: &str,
+    lines: &[String],
+) -> SpliceEdit {
+    let block = lines.join(&format!(",\n{indent}"));
+    let Some(last) = obj.properties.last() else {
+        return SpliceEdit {
+            pos: obj.span.start as usize + 1,
+            text: format!("\n{indent}{block}\n"),
+        };
+    };
+    let last_end = last.span().end as usize;
+    let tail = &src[last_end..obj.span.end as usize - 1];
+    let re = regex::Regex::new(LEADING_COMMA_PATTERN).expect("LEADING_COMMA_PATTERN валідний");
+    if let Some(m) = re.find(tail) {
+        return SpliceEdit {
+            pos: last_end + m.end(),
+            text: format!("\n{indent}{block}"),
+        };
+    }
+    SpliceEdit {
+        pos: last_end,
+        text: format!(",\n{indent}{block}"),
+    }
+}
+
+/// Порт `applyEdits` (`main.mjs:244-250`): сортування за СПАДАННЯМ `pos`
+/// (стабільне, як `Array.prototype.toSorted`), щоб ранні офсети лишались
+/// валідними після вставок справа.
+fn apply_splice_edits(src: &str, mut edits: Vec<SpliceEdit>) -> String {
+    edits.sort_by(|a, b| b.pos.cmp(&a.pos));
+    let mut out = src.to_string();
+    for edit in edits {
+        out.insert_str(edit.pos, &edit.text);
+    }
+    out
+}
+
+/// Порт `planVueAugment` (`main.mjs:271-349`): `Err` — augment неможливий
+/// (fail-повідомлення), `Ok(None)` — no-op, `Ok(Some(content))` — обчислений
+/// новий вміст (його споживає fix-половина; detect дивиться лише на факт).
+fn plan_vue_augment(files: &[SourceFile], root: &str) -> Result<Option<String>, String> {
+    let rel = js_root_join(root, STRYKER_CONFIG_FILENAME);
+    // Викликається лише за `wasMissing == false`, тобто файл у батчі є.
+    let Some(file) = batch_file(files, &rel) else {
+        return Ok(None);
+    };
+    let src = file.content.as_str();
+
+    let allocator = Allocator::default();
+    let parsed = Parser::new(&allocator, src, SourceType::mjs()).parse();
+    if let Some(first) = parsed.diagnostics.first() {
+        return Err(format!(
+            "stryker.config.mjs має syntax error ({rel}): {} — augment скіпнуто",
+            first.message
+        ));
+    }
+
+    let Some(obj) = find_default_export_object(&parsed.program) else {
+        return Err(format!(
+            "stryker.config.mjs has non-literal default export ({rel}) — augment скіпнуто, \
+             додай вручну plugins/ignorers згідно stryker.config.vue.baseline.mjs"
+        ));
+    };
+
+    let plugins = analyze_array_property(obj, "plugins");
+    let ignorers = analyze_array_property(obj, "ignorers");
+    if plugins.dynamic || ignorers.dynamic {
+        return Err(format!(
+            "stryker.config.mjs: plugins/ignorers — динамічний вираз (spread/computed) ({rel}) — \
+             augment скіпнуто, додай vue-macros ignorer вручну згідно stryker.config.vue.baseline.mjs"
+        ));
+    }
+
+    let mut edits: Vec<SpliceEdit> = Vec::new();
+    let mut new_property_lines: Vec<String> = Vec::new();
+    for (name, state, required) in [
+        (
+            "plugins",
+            &plugins,
+            vec![VITEST_RUNNER_PLUGIN, VUE_MACROS_PLUGIN],
+        ),
+        ("ignorers", &ignorers, vec![VUE_MACROS_IGNORER]),
+    ] {
+        let missing: Vec<String> = required
+            .iter()
+            .filter(|value| !state.values.iter().any(|have| have == *value))
+            .map(|value| (*value).to_string())
+            .collect();
+        match state.array {
+            Some(array) => {
+                if !missing.is_empty() {
+                    edits.push(array_append_edit(array, &state.values, &missing));
+                }
+            }
+            None => new_property_lines.push(format!(
+                "{name}: [{}]",
+                required
+                    .iter()
+                    .map(|v| quote_single(v))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )),
+        }
+    }
+    if !new_property_lines.is_empty() {
+        let indent = detect_indent(src, obj);
+        edits.push(new_property_edit(src, obj, &indent, &new_property_lines));
+    }
+    if edits.is_empty() {
+        return Ok(None);
+    }
+
+    let next = apply_splice_edits(src, edits);
+    // Safety (`main.mjs:329-346`): результат має компілюватись, інакше відкат.
+    let recheck_allocator = Allocator::default();
+    let recheck = Parser::new(&recheck_allocator, &next, SourceType::mjs()).parse();
+    if !recheck.diagnostics.is_empty() {
+        return Err(format!(
+            "stryker.config.mjs: augment дав некоректний результат ({rel}) — відкат, додай вручну"
+        ));
+    }
+    Ok(Some(next))
+}
+
+/// Порт `planVueRootActions` (`main.mjs:385-400`).
+fn plan_vue_root_actions(
+    plan: &mut StrykerPlan,
+    files: &[SourceFile],
+    root: &str,
+    was_missing: bool,
+) {
+    if !was_missing {
+        match plan_vue_augment(files, root) {
+            Err(message) => plan.augment_fails.push(message),
+            Ok(Some(_)) => plan
+                .augment_writes
+                .push(js_root_join(root, STRYKER_CONFIG_FILENAME)),
+            Ok(None) => {}
+        }
+    }
+    if let Some(action) = plan_baseline_file(
+        files,
+        js_root_join(root, STRYKER_VUE_PLUGIN_FILENAME),
+        STRYKER_VUE_PLUGIN_FILENAME,
+    ) {
+        plan.baseline_actions.push(action);
+    }
+}
+
+/// Порт `planJsRootActions` (`main.mjs:409-429`) — порядок дій значущий
+/// (stryker → vue-plugin → vitest), він же порядок діагностик.
+fn plan_js_root_actions(plan: &mut StrykerPlan, files: &[SourceFile], root: &str) {
+    let is_vue_root = has_vue_files(files, root);
+    let stryker_target = js_root_join(root, STRYKER_CONFIG_FILENAME);
+    let was_missing = batch_file(files, &stryker_target).is_none();
+    if let Some(action) = plan_baseline_file(files, stryker_target, STRYKER_CONFIG_FILENAME) {
+        plan.baseline_actions.push(action);
+    }
+    if is_vue_root {
+        plan_vue_root_actions(plan, files, root, was_missing);
+    }
+    let vitest_name = resolve_vitest_config_name(files, root);
+    if let Some(action) = plan_baseline_file(files, js_root_join(root, vitest_name), vitest_name) {
+        plan.baseline_actions.push(action);
+    }
+}
+
+/// Порт `planStrykerActions` (`main.mjs:437-465`). Гілка «canonical baseline
+/// не знайдено» — розбіжність 1 доккоменту секції (недосяжна в компоненті).
+fn plan_stryker_actions(files: &[SourceFile]) -> StrykerPlan {
+    let mut plan = StrykerPlan::default();
+    let js_roots = resolve_all_js_roots(files);
+    if js_roots.is_empty() {
+        plan.fatal =
+            Some("test: js enabled, але кореневий package.json не знайдено (test.mdc)".to_string());
+        return plan;
+    }
+    for root in &js_roots {
+        plan_js_root_actions(&mut plan, files, root);
+    }
+    plan.gitignore_missing = missing_gitignore_entries(files);
+    plan
+}
+
+/// Порт `lint()` `test/stryker_config` (`main.mjs:472-511`) — WHOLE-BATCH.
+fn detect_stryker_config(files: &[SourceFile]) -> Vec<Diagnostic> {
+    if !stryker_js_rule_enabled(files) {
+        return Vec::new();
+    }
+    let plan = plan_stryker_actions(files);
+    if let Some(fatal) = plan.fatal {
+        return vec![Diagnostic {
+            reason: STRYKER_CONFIG_REASON.to_string(),
+            message: fatal,
+            file: None,
+            severity: Severity::Error,
+            data: None,
+        }];
+    }
+
+    let mut out = Vec::new();
+    for action in &plan.baseline_actions {
+        out.push(Diagnostic {
+            reason: STRYKER_CONFIG_MISSING_REASON.to_string(),
+            message: format!(
+                "{} відсутній ({}) — запусти `npx @7n/rules lint test` для canonical baseline (test.mdc)",
+                action.label, action.target
+            ),
+            file: Some(action.target.clone()),
+            severity: Severity::Error,
+            data: None,
+        });
+    }
+    for target in &plan.augment_writes {
+        out.push(Diagnostic {
+            reason: STRYKER_VUE_AUGMENT_REASON.to_string(),
+            message: format!(
+                "vue-macros ignorer не зареєстровано у stryker.config.mjs ({target}) — запусти `npx @7n/rules lint test` (test.mdc)"
+            ),
+            file: Some(target.clone()),
+            severity: Severity::Error,
+            data: None,
+        });
+    }
+    for message in &plan.augment_fails {
+        out.push(Diagnostic {
+            reason: STRYKER_VUE_AUGMENT_FAIL_REASON.to_string(),
+            message: message.clone(),
+            file: None,
+            severity: Severity::Error,
+            data: None,
+        });
+    }
+    if !plan.gitignore_missing.is_empty() {
+        out.push(Diagnostic {
+            reason: STRYKER_GITIGNORE_MISSING_REASON.to_string(),
+            message: format!(
+                ".gitignore: бракує тест-патернів ({}) — запусти `npx @7n/rules lint test` (test.mdc)",
+                plan.gitignore_missing.join(", ")
+            ),
+            file: None,
+            severity: Severity::Error,
+            data: None,
+        });
+    }
+    out
+}
+
+// =====================================================================
+// Зріз 2 контракту v3.1 (`docs/specs/2026-08-01-plugin-contract-v31-surfaces.md`,
+// §7): `js/check` — рефакторинг концерну (рішення Ґ) плюс порт detect.
+//
+// # Чому цей концерн був заблокований подвійно — і що з цим сталося
+//
+// Доккомент секції «Батч 9» назвав дві причини: (а) канон oxlint читається з
+// ПАКЕТА `@7n/rules`, а не з репо споживача, і (б) `checkKnipConfig` робить
+// `copyFile` під час `detect`. Обидві зняті, але по-різному:
+//
+// (а) **Асет вшито** (рішення Г спеки): [`OXLINT_CANONICAL_JSON`] —
+// `include_str!` того самого файлу, що читав JS-канон. Поверхні до
+// package-асетів не додано: контракт свідомо не знає про структуру
+// npm-пакета, а вшитий асет і компонент версіонуються одним релізом
+// (lockstep builtin-пінів), тож дрейфу за конструкцією немає — на відміну від
+// читання з диска, де асет і компонент могли б розʼїхатись.
+//
+// (б) **Концерн полагоджено, не обійдено** (рішення Ґ): `checkKnipConfig`
+// JS-канону тепер read-only й звітує `KNIP_MISSING`, а копію робить T0
+// (`fix-check.mjs`, патерн `js-check-knip`). Це ЗМІНА СПОСТЕРЕЖУВАНОЇ
+// ПОВЕДІНКИ — до неї стан «`knip.json` немає» був неспостережуваний узагалі
+// (детектор звітував `pass`, тихо створивши файл), тож у консюмерів
+// зʼявляється нове порушення. Порт дзеркалить уже полагоджений канон, а не
+// стару поведінку: писати з `detect` контракт не вміє і не має вміти.
+//
+// # Глоб контрибуції
+//
+// `concern.json.lint.glob` плюс `**/*.vue` — `isVueWorkspace`
+// (`eslint-config.mjs:88-100`) сканує `.vue` під кожним воркспейсом, і без
+// них детекція vue-воркспейсів була б сліпою.
+//
+// # Задокументовані розбіжності
+//
+// 1. **Невалідний JSON** у кореневому/воркспейсному `package.json`: JS-канон
+//    (`checkPackageJsonJsLint`) кличе `JSON.parse` БЕЗ `try/catch` — виняток
+//    валить концерн (exit 2); порт трактує битий файл як «полів немає».
+//    `detectWorkspaceTypes` тут виняток: у нього `readJsonOrNull` із
+//    `try/catch`, тож там parity точна. Для `.oxlintrc.json` `try/catch` теж
+//    є в оригіналі — гілка «не є валідним JSON» портується дослівно.
+// 2. **Порожній каталог**: `existsSync(join(cwd, norm))` `expandWorkspaces` і
+//    `existsSync(wsPkgAbs)` `checkWorkspacePackages` бачать каталог; batch —
+//    список ФАЙЛІВ. Успадкована мікро-розбіжність 5 секції «Батч 5».
+// 3. **`.gitignore`/`.cursorignore` як фільтр обходу**: `globby` JS-канону
+//    викликається з `gitignore: false`, host-збірка батчу
+//    (`rules_core::scan::walk_dir`) поважає `.gitignore`. Репо, що ігнорує
+//    власні `.vue`, дасть у порті «не vue-воркспейс».
+// 4. **Числа з дробовою частиною у `JSON.stringify`**: JS `JSON.stringify(1.0)`
+//    друкує `1`, `serde_json::Number` для розібраного `1.0` — `1.0`. У
+//    конфігах oxlint числові значення правил не трапляються (усе — рядки й
+//    масиви), тож сценарію немає; названо, бо це єдина відома щілина
+//    [`js_json_stringify`].
+// 5. **`engines.node`/`engines.bun` нерядкового типу**: JS `String(nodeEngine)`
+//    перетворює будь-що; порт обробляє рядок і число, решту (обʼєкт/масив)
+//    трактує як «поле відсутнє». У реальних `package.json` це рядок.
+//
+// # Порядок ключів — чому [`JsonOrdered`], а не `serde_json::Value`
+//
+// `verifyOxlintRcAgainstCanonical` ітерує `Object.entries(canonical)` і
+// `Object.entries(canonical.rules)`, тобто ПОРЯДОК ключів канону визначає
+// порядок діагностик; `JSON.stringify(value)` у тексті повідомлення теж
+// друкує ключі в порядку документа. `serde_json::Value` тримає обʼєкт у
+// `BTreeMap` (ключі відсортовані) — цього досить для порівняння, але не для
+// byte-exact parity ні порядку, ні тексту. Тому і канон, і `.oxlintrc.json`
+// споживача розбираються в [`JsonOrdered`] із документним порядком.
+// =====================================================================
+
+/// Канон oxlint, вшитий у компонент (рішення Г спеки v3.1) — ТОЙ САМИЙ файл,
+/// що читає JS-канон через `OXLINT_CANONICAL_JSON_PATH`
+/// (`plugins/lang-js/rules/js/tooling/main.mjs`). `include_str!` вказує на
+/// канонічне місце, а не на копію в крейті: копія була б другим джерелом
+/// правди й неминучим дрейфом. Анти-дрейф — тест
+/// [`oxlint_canonical_asset_parses_and_matches_js_path`].
+const OXLINT_CANONICAL_JSON: &str =
+    include_str!("../../../plugins/lang-js/rules/js/tooling/data/tooling/oxlint-canonical.json");
+
+/// JSON-значення зі збереженим порядком ключів обʼєктів — мотив у доккоменті
+/// секції («Порядок ключів»).
+#[derive(Clone, Debug, PartialEq)]
+enum JsonOrdered {
+    Null,
+    Bool(bool),
+    Number(serde_json::Number),
+    Str(String),
+    Array(Vec<JsonOrdered>),
+    Object(Vec<(String, JsonOrdered)>),
+}
+
+impl<'de> serde::Deserialize<'de> for JsonOrdered {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct JsonOrderedVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for JsonOrderedVisitor {
+            type Value = JsonOrdered;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("будь-яке JSON-значення")
+            }
+
+            fn visit_unit<E>(self) -> Result<JsonOrdered, E> {
+                Ok(JsonOrdered::Null)
+            }
+
+            fn visit_bool<E>(self, value: bool) -> Result<JsonOrdered, E> {
+                Ok(JsonOrdered::Bool(value))
+            }
+
+            fn visit_i64<E>(self, value: i64) -> Result<JsonOrdered, E> {
+                Ok(JsonOrdered::Number(value.into()))
+            }
+
+            fn visit_u64<E>(self, value: u64) -> Result<JsonOrdered, E> {
+                Ok(JsonOrdered::Number(value.into()))
+            }
+
+            fn visit_f64<E>(self, value: f64) -> Result<JsonOrdered, E> {
+                Ok(serde_json::Number::from_f64(value)
+                    .map(JsonOrdered::Number)
+                    .unwrap_or(JsonOrdered::Null))
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<JsonOrdered, E> {
+                Ok(JsonOrdered::Str(value.to_string()))
+            }
+
+            fn visit_seq<A: serde::de::SeqAccess<'de>>(
+                self,
+                mut seq: A,
+            ) -> Result<JsonOrdered, A::Error> {
+                let mut out = Vec::new();
+                while let Some(item) = seq.next_element()? {
+                    out.push(item);
+                }
+                Ok(JsonOrdered::Array(out))
+            }
+
+            fn visit_map<A: serde::de::MapAccess<'de>>(
+                self,
+                mut map: A,
+            ) -> Result<JsonOrdered, A::Error> {
+                let mut out = Vec::new();
+                while let Some((key, value)) = map.next_entry::<String, JsonOrdered>()? {
+                    out.push((key, value));
+                }
+                Ok(JsonOrdered::Object(out))
+            }
+        }
+
+        deserializer.deserialize_any(JsonOrderedVisitor)
+    }
+}
+
+impl JsonOrdered {
+    /// Значення за ключем — `obj[key]` JS (перше входження, як і в
+    /// JS-обʼєкті після парсингу).
+    fn get(&self, key: &str) -> Option<&JsonOrdered> {
+        match self {
+            JsonOrdered::Object(entries) => entries.iter().find(|(k, _)| k == key).map(|(_, v)| v),
+            _ => None,
+        }
+    }
+
+    /// Записи обʼєкта в документному порядку (`Object.entries`).
+    fn entries(&self) -> &[(String, JsonOrdered)] {
+        match self {
+            JsonOrdered::Object(entries) => entries,
+            _ => &[],
+        }
+    }
+
+    /// Елементи масиву або порожньо (`Array.isArray` + доступ).
+    fn as_array(&self) -> Option<&[JsonOrdered]> {
+        match self {
+            JsonOrdered::Array(items) => Some(items),
+            _ => None,
+        }
+    }
+
+    fn as_str(&self) -> Option<&str> {
+        match self {
+            JsonOrdered::Str(s) => Some(s),
+            _ => None,
+        }
+    }
+
+    /// `typeof v === 'object' && v !== null && !Array.isArray(v)`.
+    fn is_plain_object(&self) -> bool {
+        matches!(self, JsonOrdered::Object(_))
+    }
+}
+
+/// Толерантний парсинг у [`JsonOrdered`] — дзеркало `try { JSON.parse } catch`.
+fn parse_json_ordered(content: &str) -> Option<JsonOrdered> {
+    serde_json::from_str(content).ok()
+}
+
+/// Дзеркало `JSON.stringify(value)` без відступів: компактний вивід із
+/// документним порядком ключів. Про числа — розбіжність 4 доккоменту секції.
+fn js_json_stringify(value: &JsonOrdered) -> String {
+    match value {
+        JsonOrdered::Null => "null".to_string(),
+        JsonOrdered::Bool(true) => "true".to_string(),
+        JsonOrdered::Bool(false) => "false".to_string(),
+        JsonOrdered::Number(n) => n.to_string(),
+        JsonOrdered::Str(s) => json_escape_string(s),
+        JsonOrdered::Array(items) => {
+            let inner: Vec<String> = items.iter().map(js_json_stringify).collect();
+            format!("[{}]", inner.join(","))
+        }
+        JsonOrdered::Object(entries) => {
+            let inner: Vec<String> = entries
+                .iter()
+                .map(|(k, v)| format!("{}:{}", json_escape_string(k), js_json_stringify(v)))
+                .collect();
+            format!("{{{}}}", inner.join(","))
+        }
+    }
+}
+
+/// `JSON.stringify(undefined)` віддає `undefined` (не рядок) — саме він
+/// потрапляє у шаблонний рядок повідомлення `compareOxlintRules`, коли
+/// правила в `.oxlintrc.json` немає взагалі.
+fn js_json_stringify_opt(value: Option<&JsonOrdered>) -> String {
+    value.map_or_else(|| "undefined".to_string(), js_json_stringify)
+}
+
+/// Точний порт `deepEqualOxlintCanonical` (`tooling/main.mjs:37-60`).
+fn deep_equal_oxlint_canonical(actual: Option<&JsonOrdered>, expected: &JsonOrdered) -> bool {
+    match expected {
+        JsonOrdered::Array(_) => actual.is_some_and(|a| {
+            a.as_array().is_some() && js_json_stringify(a) == js_json_stringify(expected)
+        }),
+        JsonOrdered::Object(exp_entries) => {
+            let Some(act) = actual else { return false };
+            if !act.is_plain_object() {
+                return false;
+            }
+            let act_entries = act.entries();
+            if act_entries.len() != exp_entries.len() {
+                return false;
+            }
+            exp_entries.iter().all(|(key, exp_value)| {
+                act.get(key)
+                    .is_some_and(|a| deep_equal_oxlint_canonical(Some(a), exp_value))
+            })
+        }
+        // Примітив (включно з `null`) — строга рівність `actual === expected`.
+        _ => actual == Some(expected),
+    }
+}
+
+/// Точний порт `compareOxlintRules` (`tooling/main.mjs:77-87`).
+fn compare_oxlint_rules(
+    expected: Option<&JsonOrdered>,
+    actual: Option<&JsonOrdered>,
+    failures: &mut Vec<String>,
+) {
+    let empty = JsonOrdered::Object(Vec::new());
+    let expected_record = expected.filter(|v| v.is_plain_object()).unwrap_or(&empty);
+    let actual_record = actual.filter(|v| v.is_plain_object()).unwrap_or(&empty);
+    for (rule_key, expected_value) in expected_record.entries() {
+        let actual_value = actual_record.get(rule_key);
+        if !deep_equal_oxlint_canonical(actual_value, expected_value) {
+            failures.push(format!(
+                ".oxlintrc.json: rules[\"{rule_key}\"] очікується {}, зараз {}",
+                js_json_stringify(expected_value),
+                js_json_stringify_opt(actual_value)
+            ));
+        }
+    }
+}
+
+/// Точний порт `compareOxlintIgnorePatterns` (`tooling/main.mjs:96-113`).
+fn compare_oxlint_ignore_patterns(
+    expected: Option<&JsonOrdered>,
+    actual: Option<&JsonOrdered>,
+    failures: &mut Vec<String>,
+) {
+    let Some(expected_items) = expected.and_then(JsonOrdered::as_array) else {
+        return;
+    };
+    let Some(actual_items) = actual.and_then(JsonOrdered::as_array) else {
+        failures.push(
+            ".oxlintrc.json: поле \"ignorePatterns\" має бути масивом (канон задає мінімум, додаткові патерни дозволені)"
+                .to_string(),
+        );
+        return;
+    };
+    // `new Set(actual)` + `has(p)` — SameValueZero над примітивами; канонічні
+    // патерни — рядки, тож звірка за значенням тотожна.
+    let missing: Vec<&JsonOrdered> = expected_items
+        .iter()
+        .filter(|p| !actual_items.iter().any(|a| a == *p))
+        .collect();
+    if !missing.is_empty() {
+        let rendered: Vec<String> = missing.iter().map(|p| js_json_stringify(p)).collect();
+        failures.push(format!(
+            ".oxlintrc.json: ignorePatterns має містити канонічні патерни — додай: {}",
+            rendered.join(", ")
+        ));
+    }
+}
+
+/// Точний порт `compareOxlintJsPlugins` (`tooling/main.mjs:122-136`).
+fn compare_oxlint_js_plugins(
+    expected: Option<&JsonOrdered>,
+    actual: Option<&JsonOrdered>,
+    failures: &mut Vec<String>,
+) {
+    let Some(expected_items) = expected.and_then(JsonOrdered::as_array) else {
+        return;
+    };
+    let Some(actual_items) = actual.and_then(JsonOrdered::as_array) else {
+        failures.push(
+            ".oxlintrc.json: поле \"jsPlugins\" має бути масивом (канон задає мінімум, локальні wrapper-и дозволені)"
+                .to_string(),
+        );
+        return;
+    };
+    let missing: Vec<&JsonOrdered> = expected_items
+        .iter()
+        .filter(|plugin| {
+            actual_items
+                .iter()
+                .all(|entry| !deep_equal_oxlint_canonical(Some(entry), plugin))
+        })
+        .collect();
+    if !missing.is_empty() {
+        let rendered: Vec<String> = missing.iter().map(|p| js_json_stringify(p)).collect();
+        failures.push(format!(
+            ".oxlintrc.json: jsPlugins має містити канонічні plugins — додай: {}",
+            rendered.join(", ")
+        ));
+    }
+}
+
+/// Точний порт `verifyOxlintRcAgainstCanonical` (`tooling/main.mjs:145-182`).
+/// Канон завжди валідний обʼєкт (вшитий асет), тож гілка «канон має бути
+/// object» недосяжна — на відміну від JS, де канон читається з диска.
+fn verify_oxlintrc_against_canonical(cfg: &JsonOrdered, canonical: &JsonOrdered) -> Vec<String> {
+    if !cfg.is_plain_object() {
+        return vec![".oxlintrc.json: корінь має бути значенням типу object".to_string()];
+    }
+    let mut failures = Vec::new();
+    for (key, expected) in canonical.entries() {
+        let actual = cfg.get(key);
+        match key.as_str() {
+            "rules" => compare_oxlint_rules(Some(expected), actual, &mut failures),
+            "ignorePatterns" => {
+                compare_oxlint_ignore_patterns(Some(expected), actual, &mut failures)
+            }
+            "jsPlugins" => compare_oxlint_js_plugins(Some(expected), actual, &mut failures),
+            _ => {
+                if !deep_equal_oxlint_canonical(actual, expected) {
+                    failures.push(format!(
+                        ".oxlintrc.json: поле \"{key}\" має збігатися з каноном пакета @7n/rules (npm/rules/js/tooling/data/tooling/oxlint-canonical.json)"
+                    ));
+                }
+            }
+        }
+    }
+    failures
+}
+
+/// Ключ контрибуції `js/check` (зріз 2 контракту v3.1).
+const CONCERN_JS_CHECK: &str = "js/check";
+
+/// Дефолтний `reason` — `ctx.concernId` (bare `check`, без `js/`-префікса).
+const JS_CHECK_REASON: &str = "check";
+
+/// `ESLINT_CONFIG_MISSING` (`eslint-config.mjs:23`).
+const ESLINT_CONFIG_MISSING_REASON: &str = "eslint-config-missing";
+
+/// `ESLINT_CONFIG_IGNORES` (`eslint-config.mjs:25`).
+const ESLINT_CONFIG_IGNORES_REASON: &str = "eslint-config-ignores";
+
+/// `ESLINT_CONFIG_VUE_WORKSPACE` (`eslint-config.mjs:27`).
+const ESLINT_CONFIG_VUE_WORKSPACE_REASON: &str = "eslint-config-vue-workspace";
+
+/// `OXLINTRC_MISSING` (`tooling/main.mjs`).
+const OXLINTRC_MISSING_REASON: &str = "oxlintrc-missing";
+
+/// `OXLINTRC_DRIFT` (`tooling/main.mjs`).
+const OXLINTRC_DRIFT_REASON: &str = "oxlintrc-drift";
+
+/// `KNIP_MISSING` (`tooling/main.mjs`) — новий reason рішення Ґ.
+const KNIP_MISSING_REASON: &str = "knip-missing";
+
+/// `AUTO_IMPORTS_IGNORE` (`eslint-config.mjs:30`).
+const AUTO_IMPORTS_IGNORE: &str = "**/auto-imports.d.ts";
+
+/// Кандидати flat-config (`main.mjs:35-40`) — порядок значущий.
+const ESLINT_CONFIG_NAMES: [&str; 2] = ["eslint.config.js", "eslint.config.mjs"];
+
+/// Застарілі конфіги ESLint (`main.mjs:305`) — порядок значущий.
+const LEGACY_ESLINT_CONFIGS: [&str; 4] = [
+    ".eslintrc",
+    ".eslintrc.js",
+    ".eslintrc.json",
+    ".eslintrc.yml",
+];
+
+/// `deep: 8` у `globby('**/*.vue', …)` (`eslint-config.mjs:97`) — максимальна
+/// кількість сегментів відносного шляху збігу (виміряно живим прогоном
+/// `globby`, не вгадано).
+const VUE_SCAN_MAX_DEPTH: usize = 8;
+
+/// `VUE_LIST_RE` (`eslint-config.mjs:32`).
+const VUE_LIST_PATTERN: &str = r"\bvue\s*:\s*\[([^\]]*)\]";
+
+/// `STRING_ENTRY_RE` (`eslint-config.mjs:36`).
+const STRING_ENTRY_PATTERN: &str = r#"'([^']*)'|"([^"]*)""#;
+
+/// `NON_DIGITS_RE` (`main.mjs:25`) — роздільник числових токенів версії.
+const NON_DIGITS_PATTERN: &str = r"\D+";
+
+/// Точний порт `normalizeWs` (`eslint-config.mjs:42-46`).
+fn normalize_ws(path: &str) -> String {
+    let stripped = path.strip_prefix("./").unwrap_or(path);
+    let trimmed = stripped.trim_end_matches('/');
+    if trimmed.is_empty() {
+        ".".to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+/// Каталоги батча, що збігаються з glob-патерном — batch-відповідник
+/// `globby(norm, { onlyDirectories: true })`: каталог «існує», якщо під ним
+/// є хоч один файл (розбіжність 2 доккоменту секції).
+fn batch_dirs_matching_glob(files: &[SourceFile], glob: &str) -> Vec<String> {
+    let Some(re) = glob_to_regex(glob) else {
+        return Vec::new();
+    };
+    let mut dirs: BTreeSet<String> = BTreeSet::new();
+    for file in files {
+        // Кожен каталог-предок файлу — кандидат на «існуючий каталог».
+        for (idx, ch) in file.path.char_indices() {
+            if ch == '/' {
+                let prefix = &file.path[..idx];
+                if re.is_match(prefix) {
+                    dirs.insert(prefix.to_string());
+                }
+            }
+        }
+    }
+    dirs.into_iter().collect()
+}
+
+/// Точний порт `expandWorkspaces` (`eslint-config.mjs:67-79`).
+fn expand_workspaces(files: &[SourceFile], patterns: &[JsonOrdered]) -> Vec<String> {
+    let mut dirs: Vec<String> = Vec::new();
+    for pattern in patterns {
+        let Some(raw) = pattern.as_str() else {
+            continue;
+        };
+        if raw.is_empty() {
+            continue;
+        }
+        let norm = normalize_ws(raw);
+        if norm.contains('*') {
+            dirs.extend(batch_dirs_matching_glob(files, &norm));
+        } else if batch_dir_exists(files, &norm) {
+            dirs.push(norm);
+        }
+    }
+    // `[...new Set(dirs.map(normalizeWs))]` — дедуп зі збереженням порядку.
+    let mut seen: HashSet<String> = HashSet::new();
+    dirs.into_iter()
+        .map(|d| normalize_ws(&d))
+        .filter(|d| seen.insert(d.clone()))
+        .collect()
+}
+
+/// Точний порт `isVueWorkspace` (`eslint-config.mjs:88-100`).
+fn is_vue_workspace(files: &[SourceFile], ws: &str) -> bool {
+    let dir_prefix = if ws == "." {
+        String::new()
+    } else {
+        format!("{ws}/")
+    };
+    let pkg = batch_file(files, &format!("{dir_prefix}package.json"))
+        .and_then(|f| parse_json_ordered(&f.content));
+    // `{ ...pkg?.dependencies, ...pkg?.devDependencies }` — наявність ключа в
+    // будь-якому з двох блоків.
+    let has_dep = |name: &str| {
+        pkg.as_ref().is_some_and(|p| {
+            p.get("dependencies").and_then(|d| d.get(name)).is_some()
+                || p.get("devDependencies").and_then(|d| d.get(name)).is_some()
+        })
+    };
+    if has_dep("vue") || has_dep("nuxt") {
+        return true;
+    }
+    files.iter().any(|file| {
+        if !file.path.ends_with(".vue") || !file.path.starts_with(&dir_prefix) {
+            return false;
+        }
+        let rel = &file.path[dir_prefix.len()..];
+        rel.split('/').count() <= VUE_SCAN_MAX_DEPTH
+            && !rel
+                .split('/')
+                .any(|seg| seg == "node_modules" || seg == "dist")
+    })
+}
+
+/// Точний порт `detectWorkspaceTypes` (`eslint-config.mjs:109-129`) —
+/// повертає лише `vue`-половину (`node` детектор не читає).
+fn detect_vue_workspaces(files: &[SourceFile]) -> Vec<String> {
+    let root_pkg = batch_file(files, "package.json").and_then(|f| parse_json_ordered(&f.content));
+    let ws_field: Vec<JsonOrdered> = root_pkg
+        .as_ref()
+        .and_then(|p| p.get("workspaces"))
+        .and_then(JsonOrdered::as_array)
+        .map(<[JsonOrdered]>::to_vec)
+        .unwrap_or_default();
+    let dirs = expand_workspaces(files, &ws_field);
+    if dirs.is_empty() {
+        return if is_vue_workspace(files, ".") {
+            vec![".".to_string()]
+        } else {
+            Vec::new()
+        };
+    }
+    dirs.into_iter()
+        .filter(|ws| is_vue_workspace(files, ws))
+        .collect()
+}
+
+/// Точний порт `listEntries` + `parseVueList` (`eslint-config.mjs:136-151`).
+fn parse_vue_list(raw: &str) -> Vec<String> {
+    let list_re = regex::Regex::new(VUE_LIST_PATTERN).expect("VUE_LIST_PATTERN валідний");
+    let Some(inner) = list_re.captures(raw).and_then(|c| c.get(1)) else {
+        return Vec::new();
+    };
+    let entry_re = regex::Regex::new(STRING_ENTRY_PATTERN).expect("STRING_ENTRY_PATTERN валідний");
+    entry_re
+        .captures_iter(inner.as_str())
+        .map(|caps| {
+            let value = caps
+                .get(1)
+                .or_else(|| caps.get(2))
+                .map(|m| m.as_str())
+                .unwrap_or("");
+            normalize_ws(value)
+        })
+        .collect()
+}
+
+/// Створює діагностику концерну — дефолтний `reason` (`ctx.concernId`)
+/// підставляється викликом із [`JS_CHECK_REASON`].
+fn js_check_diagnostic(reason: &str, message: String) -> Diagnostic {
+    Diagnostic {
+        reason: reason.to_string(),
+        message,
+        file: None,
+        severity: Severity::Error,
+        data: None,
+    }
+}
+
+/// Точний порт `checkEslintConfig` + `checkEslintWorkspaceTypes`
+/// (`main.mjs:33-100`).
+fn check_eslint_config(files: &[SourceFile], out: &mut Vec<Diagnostic>) {
+    let Some(eslint_path) = ESLINT_CONFIG_NAMES
+        .iter()
+        .copied()
+        .find(|name| batch_file(files, name).is_some())
+    else {
+        out.push(js_check_diagnostic(
+            ESLINT_CONFIG_MISSING_REASON,
+            "Відсутній eslint.config.js або eslint.config.mjs — flat config з getConfig (js.mdc)"
+                .to_string(),
+        ));
+        return;
+    };
+    let raw = batch_file(files, eslint_path)
+        .map(|f| f.content.as_str())
+        .unwrap_or("");
+
+    for (needle, message, reason) in [
+        (
+            "getConfig",
+            format!("{eslint_path}: потрібен виклик getConfig (js.mdc)"),
+            JS_CHECK_REASON,
+        ),
+        (
+            "@nitra/eslint-config",
+            format!("{eslint_path}: імпортуй getConfig з @nitra/eslint-config"),
+            JS_CHECK_REASON,
+        ),
+        (
+            AUTO_IMPORTS_IGNORE,
+            format!("{eslint_path}: додай у ignores запис {AUTO_IMPORTS_IGNORE} (js.mdc)"),
+            ESLINT_CONFIG_IGNORES_REASON,
+        ),
+    ] {
+        if !raw.contains(needle) {
+            out.push(js_check_diagnostic(reason, message));
+        }
+    }
+
+    let vue_workspaces = detect_vue_workspaces(files);
+    if vue_workspaces.is_empty() {
+        return;
+    }
+    let declared = parse_vue_list(raw);
+    for ws in vue_workspaces {
+        if !declared.contains(&ws) {
+            out.push(js_check_diagnostic(
+                ESLINT_CONFIG_VUE_WORKSPACE_REASON,
+                format!(
+                    "{eslint_path}: воркспейс '{ws}' містить Vue-код, але відсутній у vue: [...] getConfig — .vue файли не парсяться (js.mdc)"
+                ),
+            ));
+        }
+    }
+}
+
+/// Рядкове представлення значення `engines.*` — дзеркало `String(value)` для
+/// типів, які реально трапляються (розбіжність 5 доккоменту секції).
+fn engines_value_string(value: Option<&JsonOrdered>) -> Option<String> {
+    match value? {
+        JsonOrdered::Str(s) if !s.is_empty() => Some(s.clone()),
+        JsonOrdered::Number(n) => Some(n.to_string()),
+        _ => None,
+    }
+}
+
+/// Точний порт `checkEnginesNode` (`main.mjs:150-162`).
+fn check_engines_node(label: &str, pkg: &JsonOrdered, out: &mut Vec<Diagnostic>) {
+    let Some(engine) = engines_value_string(pkg.get("engines").and_then(|e| e.get("node"))) else {
+        out.push(js_check_diagnostic(
+            JS_CHECK_REASON,
+            format!(
+                "{label} не містить engines.node — додай: \"engines\": {{ \"node\": \">=24\" }}"
+            ),
+        ));
+        return;
+    };
+    let re = regex::Regex::new(NON_DIGITS_PATTERN).expect("NON_DIGITS_PATTERN валідний");
+    let first_numeric = re.split(&engine).find(|token| !token.is_empty());
+    let ok = first_numeric.is_some_and(|token| token.parse::<f64>().is_ok_and(|n| n >= 24.0));
+    if !ok {
+        out.push(js_check_diagnostic(
+            JS_CHECK_REASON,
+            format!("{label}: engines.node \"{engine}\" — має бути >=24"),
+        ));
+    }
+}
+
+/// Точний порт `checkEnginesBun` (`main.mjs:171-183`).
+fn check_engines_bun(label: &str, pkg: &JsonOrdered, out: &mut Vec<Diagnostic>) {
+    let Some(engine) = engines_value_string(pkg.get("engines").and_then(|e| e.get("bun"))) else {
+        out.push(js_check_diagnostic(
+            JS_CHECK_REASON,
+            format!(
+                "{label} не містить engines.bun — додай: \"engines\": {{ \"bun\": \">=1.3\" }}"
+            ),
+        ));
+        return;
+    };
+    let re = regex::Regex::new(NON_DIGITS_PATTERN).expect("NON_DIGITS_PATTERN валідний");
+    let tokens: Vec<f64> = re
+        .split(&engine)
+        .filter(|token| !token.is_empty())
+        .map(|token| token.parse::<f64>().unwrap_or(f64::NAN))
+        .collect();
+    let major = tokens.first().copied();
+    let minor = tokens.get(1).copied();
+    let ok = match (major, minor) {
+        (Some(major), Some(minor)) if major.is_finite() && minor.is_finite() => {
+            major > 1.0 || (major == 1.0 && minor >= 3.0)
+        }
+        _ => false,
+    };
+    if !ok {
+        out.push(js_check_diagnostic(
+            JS_CHECK_REASON,
+            format!("{label}: engines.bun \"{engine}\" — має бути >=1.3"),
+        ));
+    }
+}
+
+/// Точний порт `checkPackageJsonJsLint` + `checkWorkspacePackages` +
+/// `checkPackageJsonTypeModule` (`main.mjs:115-200`): ітерація по СИРИХ
+/// записах `workspaces` (без розгортання глобів — `existsSync` на
+/// glob-рядку завжди false).
+fn check_package_json_js_lint(files: &[SourceFile], out: &mut Vec<Diagnostic>) {
+    let Some(root) = batch_file(files, "package.json") else {
+        return;
+    };
+    // Розбіжність 1 секції: JS `JSON.parse` без try/catch валить концерн.
+    let Some(pkg) = parse_json_ordered(&root.content) else {
+        return;
+    };
+    let Some(workspaces) = pkg.get("workspaces").and_then(JsonOrdered::as_array) else {
+        return;
+    };
+    for ws in workspaces {
+        let Some(ws) = ws.as_str() else { continue };
+        let ws_pkg_rel = format!("{ws}/package.json");
+        let Some(ws_file) = batch_file(files, &ws_pkg_rel) else {
+            continue;
+        };
+        let Some(ws_pkg) = parse_json_ordered(&ws_file.content) else {
+            continue;
+        };
+        if ws_pkg.get("type").and_then(JsonOrdered::as_str) != Some("module") {
+            out.push(js_check_diagnostic(
+                JS_CHECK_REASON,
+                format!("{ws_pkg_rel}: має містити \"type\": \"module\" (js.mdc)"),
+            ));
+        }
+        check_engines_node(&ws_pkg_rel, &ws_pkg, out);
+        check_engines_bun(&ws_pkg_rel, &ws_pkg, out);
+    }
+}
+
+/// Точний порт `checkOxlintRc` (`main.mjs:208-237`). Гілка «не вдалося
+/// прочитати канон з пакета» недосяжна — асет вшито (доккомент секції).
+fn check_oxlintrc(files: &[SourceFile], out: &mut Vec<Diagnostic>) {
+    let Some(file) = batch_file(files, ".oxlintrc.json") else {
+        out.push(js_check_diagnostic(
+            OXLINTRC_MISSING_REASON,
+            ".oxlintrc.json не існує — додай конфіг oxlint (js.mdc)".to_string(),
+        ));
+        return;
+    };
+    let Some(cfg) = parse_json_ordered(&file.content) else {
+        out.push(js_check_diagnostic(
+            JS_CHECK_REASON,
+            ".oxlintrc.json не є валідним JSON".to_string(),
+        ));
+        return;
+    };
+    let canonical =
+        parse_json_ordered(OXLINT_CANONICAL_JSON).expect("вшитий канон oxlint — валідний JSON");
+    for message in verify_oxlintrc_against_canonical(&cfg, &canonical) {
+        out.push(js_check_diagnostic(OXLINTRC_DRIFT_REASON, message));
+    }
+}
+
+/// Точний порт `checkLintJsWorkflows` (`main.mjs:247-260`).
+fn check_lint_js_workflows(files: &[SourceFile], out: &mut Vec<Diagnostic>) {
+    let Some(file) = batch_file(files, ".github/workflows/lint.yml") else {
+        return;
+    };
+    let content = file.content.as_str();
+    if content.contains("bunx oxlint")
+        && content.contains("bunx eslint")
+        && content.contains("jscpd")
+    {
+        out.push(js_check_diagnostic(
+            JS_CHECK_REASON,
+            ".github/workflows/lint.yml дублює кроки lint-js.yml — залиш один workflow на лінт JS (js.mdc)"
+                .to_string(),
+        ));
+    }
+}
+
+/// Точний порт `checkKnipConfig` ПІСЛЯ рефакторингу рішення Ґ
+/// (`main.mjs`, read-only): відсутність — звичайне порушення, копію робить T0.
+fn check_knip_config(files: &[SourceFile], out: &mut Vec<Diagnostic>) {
+    if batch_file(files, "knip.json").is_none() {
+        out.push(js_check_diagnostic(
+            KNIP_MISSING_REASON,
+            "knip.json відсутній — T0 створить його з канону пакета @7n/rules (js.mdc)".to_string(),
+        ));
+    }
+}
+
+/// Точний порт `lint()` `js/check` (`main.mjs`) — WHOLE-BATCH, порядок
+/// перевірок значущий (він же порядок діагностик).
+fn detect_js_check(files: &[SourceFile]) -> Vec<Diagnostic> {
+    let mut out = Vec::new();
+    check_eslint_config(files, &mut out);
+    check_package_json_js_lint(files, &mut out);
+    check_oxlintrc(files, &mut out);
+    check_lint_js_workflows(files, &mut out);
+    check_knip_config(files, &mut out);
+    for legacy in LEGACY_ESLINT_CONFIGS {
+        if batch_file(files, legacy).is_some() {
+            out.push(js_check_diagnostic(
+                JS_CHECK_REASON,
+                format!("Знайдено застарілий конфіг ESLint: {legacy} — видали, використовуй flat config"),
+            ));
+        }
+    }
+    out
+}
+
+/// Guest-реалізація world `plugin` — тридцять п'ять контрибуцій ([`CONCERN_TFM`],
 /// [`CONCERN_GAP`], [`CONCERN_POOL_FORKS`], [`CONCERN_NO_PROCESS_CHDIR`],
 /// [`CONCERN_ADMIN_TABLE`], [`CONCERN_QUASAR_FIXES`], [`CONCERN_LOCATION`],
 /// [`CONCERN_NO_CONSOLE_STORE_RESTORE`], [`CONCERN_NO_BUN_TEST_IMPORT`],
@@ -8453,7 +9980,9 @@ fn detect_vue_packages(files: &[SourceFile]) -> Vec<Diagnostic> {
 /// [`CONCERN_BUN_LAYOUT`], [`CONCERN_STYLE_TOOLING`],
 /// [`CONCERN_SANDBOX_AWARE_TEST`], [`CONCERN_VITEST_API_CONVENTIONS`] —
 /// батч 8, доккомент секції «Батч 8» вище; [`CONCERN_VUE_PACKAGES`] — батч 9,
-/// доккомент секції «Батч 9» вище).
+/// доккомент секції «Батч 9» вище; [`CONCERN_STRYKER_CONFIG`] — зріз 1
+/// контракту v3.1, доккомент секції «Зріз 1» вище; [`CONCERN_JS_CHECK`] —
+/// зріз 2, доккомент секції «Зріз 2» вище).
 struct LangJs;
 
 impl Guest for LangJs {
@@ -8599,6 +10128,14 @@ impl Guest for LangJs {
             CONCERN_VUE_PACKAGES => {
                 report_progress(total, total);
                 detect_vue_packages(&batch.files)
+            }
+            CONCERN_STRYKER_CONFIG => {
+                report_progress(total, total);
+                detect_stryker_config(&batch.files)
+            }
+            CONCERN_JS_CHECK => {
+                report_progress(total, total);
+                detect_js_check(&batch.files)
             }
             _ => {
                 let mut diagnostics = Vec::new();
@@ -10690,10 +12227,366 @@ mod tests {
         assert_eq!(roots, vec!["npm", "packages/app", "packages/ui"]);
     }
 
+    // --- зріз 1 контракту v3.1: `test/stryker_config` ---
+
+    /// Мінімальний батч «js увімкнено, single-package репо».
+    fn stryker_files(extra: Vec<SourceFile>) -> Vec<SourceFile> {
+        let mut files = vec![
+            source(".n-rules.json", r#"{"rules":["js","test"]}"#),
+            source("package.json", "{}"),
+        ];
+        files.extend(extra);
+        files
+    }
+
+    #[test]
+    fn detect_stryker_config_is_silent_without_js_rule() {
+        let files = vec![
+            source(".n-rules.json", r#"{"rules":["test"]}"#),
+            source("package.json", "{}"),
+        ];
+        assert!(detect_stryker_config(&files).is_empty());
+    }
+
+    #[test]
+    fn detect_stryker_config_is_silent_when_js_rule_disabled() {
+        let files = vec![
+            source(
+                ".n-rules.json",
+                r#"{"rules":["js"],"disable-rules":["js"]}"#,
+            ),
+            source("package.json", "{}"),
+        ];
+        assert!(detect_stryker_config(&files).is_empty());
+    }
+
+    #[test]
+    fn detect_stryker_config_is_silent_without_config_file() {
+        // `readNRulesConfigLite` без файлу → `rules: []` → правило вимкнене.
+        let files = vec![source("package.json", "{}")];
+        assert!(detect_stryker_config(&files).is_empty());
+    }
+
+    #[test]
+    fn detect_stryker_config_fatal_without_root_package_json() {
+        let files = vec![source(".n-rules.json", r#"{"rules":["js"]}"#)];
+        let diagnostics = detect_stryker_config(&files);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].reason, STRYKER_CONFIG_REASON);
+        assert_eq!(
+            diagnostics[0].message,
+            "test: js enabled, але кореневий package.json не знайдено (test.mdc)"
+        );
+        assert_eq!(diagnostics[0].file, None);
+    }
+
+    #[test]
+    fn detect_stryker_config_reports_baselines_and_gitignore_for_bare_repo() {
+        let diagnostics = detect_stryker_config(&stryker_files(vec![]));
+        // stryker.config.mjs, vitest.config.mjs, .gitignore — саме в цьому порядку.
+        assert_eq!(diagnostics.len(), 3);
+        assert_eq!(diagnostics[0].reason, STRYKER_CONFIG_MISSING_REASON);
+        assert_eq!(diagnostics[0].file.as_deref(), Some("stryker.config.mjs"));
+        assert_eq!(
+            diagnostics[0].message,
+            "stryker.config.mjs відсутній (stryker.config.mjs) — запусти `npx @7n/rules lint test` для canonical baseline (test.mdc)"
+        );
+        assert_eq!(diagnostics[1].file.as_deref(), Some("vitest.config.mjs"));
+        assert_eq!(diagnostics[2].reason, STRYKER_GITIGNORE_MISSING_REASON);
+        assert_eq!(
+            diagnostics[2].message,
+            ".gitignore: бракує тест-патернів (**/reports/stryker/, **/coverage/) — запусти `npx @7n/rules lint test` (test.mdc)"
+        );
+        assert_eq!(diagnostics[2].file, None);
+    }
+
+    #[test]
+    fn detect_stryker_config_keeps_legacy_vitest_config_js_name() {
+        let files = stryker_files(vec![source("vitest.config.js", "export default {}\n")]);
+        let diagnostics = detect_stryker_config(&files);
+        // vitest-дії немає (файл є), лишаються stryker + .gitignore.
+        assert_eq!(diagnostics.len(), 2);
+        assert_eq!(diagnostics[0].file.as_deref(), Some("stryker.config.mjs"));
+        assert_eq!(diagnostics[1].reason, STRYKER_GITIGNORE_MISSING_REASON);
+    }
+
+    #[test]
+    fn detect_stryker_config_adds_vue_plugin_baseline_for_vue_root() {
+        let files = stryker_files(vec![
+            source("src/App.vue", "<template><div /></template>\n"),
+            source(".gitignore", "**/reports/stryker/\n**/coverage/\n"),
+        ]);
+        let diagnostics = detect_stryker_config(&files);
+        assert_eq!(diagnostics.len(), 3);
+        assert_eq!(diagnostics[0].file.as_deref(), Some("stryker.config.mjs"));
+        assert_eq!(
+            diagnostics[1].file.as_deref(),
+            Some("stryker-vue-macros-ignorer.mjs")
+        );
+        assert_eq!(diagnostics[2].file.as_deref(), Some("vitest.config.mjs"));
+    }
+
+    #[test]
+    fn has_vue_files_skips_ignored_dirs() {
+        let files = vec![
+            source("src/node_modules/dep/A.vue", ""),
+            source("src/dist/B.vue", ""),
+            source("src/reports/C.vue", ""),
+        ];
+        assert!(!has_vue_files(&files, ""));
+        let files = vec![source("src/pages/D.vue", "")];
+        assert!(has_vue_files(&files, ""));
+    }
+
+    #[test]
+    fn resolve_all_js_roots_expands_glob_workspaces_sorted() {
+        let files = vec![
+            source("package.json", r#"{"workspaces":["packages/*","npm"]}"#),
+            source("packages/ui/package.json", "{}"),
+            source("packages/app/package.json", "{}"),
+            source("packages/app/node_modules/x/package.json", "{}"),
+            source("npm/package.json", "{}"),
+        ];
+        assert_eq!(
+            resolve_all_js_roots(&files),
+            vec!["packages/app", "packages/ui", "npm"]
+        );
+    }
+
+    #[test]
+    fn resolve_all_js_roots_falls_back_to_repo_root() {
+        // Немає `workspaces` → сам корінь; є, але жоден не резолвиться → теж корінь.
+        assert_eq!(
+            resolve_all_js_roots(&[source("package.json", "{}")]),
+            vec![String::new()]
+        );
+        assert_eq!(
+            resolve_all_js_roots(&[source("package.json", r#"{"workspaces":["apps/*"]}"#)]),
+            vec![String::new()]
+        );
+        // Битий кореневий package.json — розбіжність 2 доккоменту секції.
+        assert_eq!(
+            resolve_all_js_roots(&[source("package.json", "{ not json")]),
+            vec![String::new()]
+        );
+    }
+
+    #[test]
+    fn plan_vue_augment_appends_missing_entries_to_existing_arrays() {
+        let files = vec![source(
+            "stryker.config.mjs",
+            "export default {\n  plugins: ['@stryker-mutator/vitest-runner'],\n  ignorers: []\n}\n",
+        )];
+        let content = plan_vue_augment(&files, "")
+            .expect("augment можливий")
+            .expect("є що дописати");
+        assert_eq!(
+            content,
+            "export default {\n  plugins: ['@stryker-mutator/vitest-runner', './stryker-vue-macros-ignorer.mjs'],\n  ignorers: ['vue-macros']\n}\n"
+        );
+    }
+
+    #[test]
+    fn plan_vue_augment_creates_missing_properties_with_detected_indent() {
+        let files = vec![source(
+            "stryker.config.mjs",
+            "export default {\n    testRunner: 'vitest'\n}\n",
+        )];
+        let content = plan_vue_augment(&files, "")
+            .expect("augment можливий")
+            .expect("є що дописати");
+        assert_eq!(
+            content,
+            "export default {\n    testRunner: 'vitest',\n    plugins: ['@stryker-mutator/vitest-runner', './stryker-vue-macros-ignorer.mjs'],\n    ignorers: ['vue-macros']\n}\n"
+        );
+    }
+
+    #[test]
+    fn plan_vue_augment_is_noop_when_everything_registered() {
+        let files = vec![source(
+            "stryker.config.mjs",
+            "export default {\n  plugins: ['@stryker-mutator/vitest-runner', './stryker-vue-macros-ignorer.mjs'],\n  ignorers: ['vue-macros']\n}\n",
+        )];
+        assert!(plan_vue_augment(&files, "")
+            .expect("augment можливий")
+            .is_none());
+    }
+
+    #[test]
+    fn plan_vue_augment_fails_on_non_literal_default_export() {
+        let files = vec![source(
+            "stryker.config.mjs",
+            "export default defineConfig({ plugins: [] })\n",
+        )];
+        let message = plan_vue_augment(&files, "").expect_err("не object-literal");
+        assert_eq!(
+            message,
+            "stryker.config.mjs has non-literal default export (stryker.config.mjs) — augment скіпнуто, \
+             додай вручну plugins/ignorers згідно stryker.config.vue.baseline.mjs"
+        );
+    }
+
+    #[test]
+    fn plan_vue_augment_fails_on_dynamic_arrays() {
+        let files = vec![source(
+            "stryker.config.mjs",
+            "export default {\n  plugins: [...base]\n}\n",
+        )];
+        let message = plan_vue_augment(&files, "").expect_err("spread — динамічний вираз");
+        assert!(message.starts_with("stryker.config.mjs: plugins/ignorers — динамічний вираз"));
+    }
+
+    #[test]
+    fn missing_gitignore_entries_trims_lines() {
+        let files = vec![source(".gitignore", "  **/coverage/  \nnode_modules\n")];
+        assert_eq!(
+            missing_gitignore_entries(&files),
+            vec!["**/reports/stryker/"]
+        );
+    }
+
+    // --- зріз 2 контракту v3.1: `js/check` ---
+
+    /// Анти-дрейф вшитого асета: `include_str!` вказує на ТОЙ САМИЙ файл, що
+    /// читає JS-канон, і він лишається валідним JSON із очікуваними блоками.
+    #[test]
+    fn oxlint_canonical_asset_parses_and_keeps_key_order() {
+        let canonical = parse_json_ordered(OXLINT_CANONICAL_JSON).expect("канон — валідний JSON");
+        let keys: Vec<&str> = canonical
+            .entries()
+            .iter()
+            .map(|(k, _)| k.as_str())
+            .collect();
+        // Документний порядок (НЕ алфавітний — саме він задає порядок
+        // діагностик, доккомент секції «Зріз 2»).
+        assert_eq!(keys.first(), Some(&"$schema"));
+        assert!(keys.contains(&"rules"));
+        assert!(keys.contains(&"jsPlugins"));
+        assert!(keys.contains(&"ignorePatterns"));
+        assert_ne!(keys, {
+            let mut sorted = keys.clone();
+            sorted.sort_unstable();
+            sorted
+        });
+    }
+
+    #[test]
+    fn js_json_stringify_mirrors_json_stringify() {
+        let value =
+            parse_json_ordered(r#"{"b":1,"a":["x",{"n":null,"t":true}]}"#).expect("валідний");
+        assert_eq!(
+            js_json_stringify(&value),
+            r#"{"b":1,"a":["x",{"n":null,"t":true}]}"#
+        );
+        assert_eq!(js_json_stringify_opt(None), "undefined");
+    }
+
+    #[test]
+    fn detect_js_check_reports_everything_on_empty_repo() {
+        let diagnostics = detect_js_check(&[]);
+        let reasons: Vec<&str> = diagnostics.iter().map(|d| d.reason.as_str()).collect();
+        assert_eq!(
+            reasons,
+            vec!["eslint-config-missing", "oxlintrc-missing", "knip-missing"]
+        );
+    }
+
+    #[test]
+    fn detect_js_check_reports_knip_missing_without_writing_anything() {
+        // Регресія рішення Ґ: `knip.json` немає → СПОСТЕРЕЖУВАНЕ порушення
+        // (до рефакторингу детектор мовчки створював файл і звітував pass).
+        let files = vec![source("knip.json", "{}")];
+        assert!(detect_js_check(&files)
+            .iter()
+            .all(|d| d.reason != KNIP_MISSING_REASON));
+        assert!(detect_js_check(&[])
+            .iter()
+            .any(|d| d.reason == KNIP_MISSING_REASON));
+    }
+
+    #[test]
+    fn detect_js_check_flags_vue_workspace_missing_from_get_config() {
+        let files = vec![
+            source(
+                "eslint.config.js",
+                "import { getConfig } from '@nitra/eslint-config'\nexport default [{ ignores: ['**/auto-imports.d.ts'] }, ...getConfig({ node: ['app'] })]\n",
+            ),
+            source("package.json", r#"{"workspaces":["app"]}"#),
+            source("app/package.json", r#"{"dependencies":{"vue":"^3.6.0"}}"#),
+            source(".oxlintrc.json", OXLINT_CANONICAL_JSON),
+            source("knip.json", "{}"),
+        ];
+        let diagnostics = detect_js_check(&files);
+        let vue = diagnostics
+            .iter()
+            .find(|d| d.reason == ESLINT_CONFIG_VUE_WORKSPACE_REASON)
+            .expect("vue-воркспейс поза vue: [...]");
+        assert!(vue.message.contains("воркспейс 'app' містить Vue-код"));
+        // Канонічний `.oxlintrc.json` дрейфу не дає.
+        assert!(diagnostics
+            .iter()
+            .all(|d| d.reason != OXLINTRC_DRIFT_REASON));
+    }
+
+    #[test]
+    fn detect_js_check_engines_thresholds() {
+        let files = vec![
+            source("package.json", r#"{"workspaces":["a","b"]}"#),
+            source(
+                "a/package.json",
+                r#"{"type":"module","engines":{"node":">=24","bun":">=1.3"}}"#,
+            ),
+            source(
+                "b/package.json",
+                r#"{"type":"commonjs","engines":{"node":">=22","bun":">=1.2"}}"#,
+            ),
+        ];
+        let messages: Vec<String> = detect_js_check(&files)
+            .into_iter()
+            .map(|d| d.message)
+            .filter(|m| m.starts_with("b/package.json"))
+            .collect();
+        assert_eq!(
+            messages,
+            vec![
+                "b/package.json: має містити \"type\": \"module\" (js.mdc)",
+                "b/package.json: engines.node \">=22\" — має бути >=24",
+                "b/package.json: engines.bun \">=1.2\" — має бути >=1.3",
+            ]
+        );
+    }
+
+    #[test]
+    fn detect_js_check_oxlintrc_drift_message_keeps_json_stringify_form() {
+        let mut cfg = parse_json_ordered(OXLINT_CANONICAL_JSON).expect("валідний");
+        if let JsonOrdered::Object(entries) = &mut cfg {
+            for (key, value) in entries.iter_mut() {
+                if key == "rules" {
+                    if let JsonOrdered::Object(rules) = value {
+                        rules.retain(|(k, _)| k != "eqeqeq");
+                    }
+                }
+            }
+        }
+        let files = vec![source(".oxlintrc.json", &js_json_stringify(&cfg))];
+        let drift: Vec<String> = detect_js_check(&files)
+            .into_iter()
+            .filter(|d| d.reason == OXLINTRC_DRIFT_REASON)
+            .map(|d| d.message)
+            .collect();
+        assert_eq!(
+            drift,
+            vec![
+                "\u{2e}oxlintrc.json: rules[\"eqeqeq\"] очікується [\"deny\",\"always\",{\"null\":\"ignore\"}], зараз undefined"
+                    .replace("\u{2e}", ".")
+            ]
+        );
+    }
+
     // --- маніфест ---
 
     #[test]
-    fn build_manifest_declares_all_thirty_three_concerns_with_expected_scopes() {
+    fn build_manifest_declares_all_thirty_five_concerns_with_expected_scopes() {
         let manifest = build_manifest();
         // Задача Q4 батч 4: `CONCERN_REDIS_IMPORTS`/`CONCERN_MSSQL_DEPS`/
         // `CONCERN_BUN_DB_SAFETY` тепер У контрибуції (AST-порти, де-скоуп
@@ -10704,8 +12597,10 @@ mod tests {
         // `js/dep-policy` (доккомент секції «Батч 7»), батч 8 — `bun/layout`,
         // `style/tooling`, `test/sandbox-aware-test` і
         // `test/vitest-api-conventions` (доккомент секції «Батч 8»), батч 9 —
-        // `vue/packages` (доккомент секції «Батч 9»).
-        assert_eq!(manifest.concerns.len(), 33);
+        // `vue/packages` (доккомент секції «Батч 9»), зріз 1 контракту
+        // v3.1 — `test/stryker_config` (доккомент секції «Зріз 1»), зріз 2
+        // — `js/check` (доккомент секції «Зріз 2»).
+        assert_eq!(manifest.concerns.len(), 35);
         let tfm = manifest
             .concerns
             .iter()
@@ -10745,6 +12640,8 @@ mod tests {
             CONCERN_SANDBOX_AWARE_TEST,
             CONCERN_VITEST_API_CONVENTIONS,
             CONCERN_VUE_PACKAGES,
+            CONCERN_STRYKER_CONFIG,
+            CONCERN_JS_CHECK,
         ] {
             let contribution = manifest
                 .concerns

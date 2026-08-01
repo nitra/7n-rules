@@ -107,7 +107,7 @@ fn host() -> PluginHost {
 }
 
 #[test]
-fn describe_declares_all_thirty_three_concerns_with_expected_scopes() {
+fn describe_declares_all_thirty_five_concerns_with_expected_scopes() {
     let path = require_fixture();
     let plugin = host()
         .load(&path, PLUGIN_WORLD_VERSION)
@@ -129,8 +129,12 @@ fn describe_declares_all_thirty_three_concerns_with_expected_scopes() {
     // «Батч 7» там само. Батч 8 додає `bun/layout`, `style/tooling`,
     // `test/sandbox-aware-test` і `test/vitest-api-conventions` — секція
     // «Батч 8» там само. Батч 9 додає `vue/packages` — останній придатний
-    // до порту концерн lang-js (секція «Батч 9» там само).
-    assert_eq!(manifest.concerns.len(), 33);
+    // до порту концерн lang-js (секція «Батч 9» там само). Зріз 1
+    // контракту v3.1 додає `test/stryker_config` — секція «Зріз 1» там
+    // само (блокер package-асетів знявся: detect вмісту асетів не читає).
+    // Зріз 2 додає `js/check` — вшитий канон oxlint (`include_str!`) плюс
+    // рефакторинг рішення Ґ, секція «Зріз 2» там само.
+    assert_eq!(manifest.concerns.len(), 35);
 
     let tfm = manifest
         .concerns

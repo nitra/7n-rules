@@ -3,13 +3,13 @@ type: JS Module
 title: fix-check.mjs
 resource: plugins/lang-js/rules/js/check/fix-check.mjs
 docgen:
-  crc: d4e460e8
+  crc: 191325da
   model: manual
 ---
 
 ## Огляд
 
-T0-autofix для `js/check`: два детерміновані патерни, обидва без LLM.
+T0-autofix для `js/check`: три детерміновані патерни, усі без LLM.
 
 - `js-check-eslint-config` — scaffold/merge `eslint.config.js` за планом
   `planEslintConfigFix` (детекція воркспейс-типів node/vue). Раніше ці
@@ -20,6 +20,10 @@ T0-autofix для `js/check`: два детерміновані патерни, 
   `planOxlintrcFix` (`../tooling/main.mjs`). Раніше ці порушення теж йшли у
   LLM-ладдер: 15 КБ канону дешева модель не відтворює byte-perfect (verify
   fail), а дорожча не встигає за один rung-таймаут.
+- `js-check-knip` — копія канонічного `knip-canonical.json` у корінь репо.
+  Раніше цю копію робив САМ детектор під час фази detect (і звітував `pass`),
+  тобто `lint --no-fix` мутував дерево, а порушення не існувало
+  (`docs/specs/2026-08-01-plugin-contract-v31-surfaces.md`, рішення Ґ).
 
 ## Поведінка
 
@@ -34,6 +38,10 @@ T0-autofix для `js/check`: два детерміновані патерни, 
   `apply` читає наявний `.oxlintrc.json` (`null`, якщо відсутній або невалідний
   JSON) і канон, будує злитий обʼєкт через `planOxlintrcFix` і перезаписує
   файл цілком (JSON, 2-space, з кінцевим переносом рядка).
+- `js-check-knip` тригериться на reason `knip-missing` (`KNIP_MISSING` з
+  `../tooling/main.mjs`). `apply` не робить нічого, якщо канону в пакеті немає
+  (пошкоджена інсталяція) або якщо `knip.json` уже зʼявився — тобто
+  ідемпотентний і ніколи не перезаписує чужий вміст.
 - Решта порушень `js/check` (engines, workflows) — поза цим T0, стандартний
   шлях (ladder/manual).
 - Обидва патерни викликають `ctx.recordWrite` перед записом (pre-image для
@@ -46,3 +54,5 @@ T0-autofix для `js/check`: два детерміновані патерни, 
   точкові вставки/заміни.
 - `js-check-oxlintrc` записує лише `.oxlintrc.json` у корені репо; результат
   завжди проходить `verifyOxlintRcAgainstCanonical` без ручного втручання.
+- `js-check-knip` записує лише `knip.json` у корені репо і лише за його
+  відсутності.
