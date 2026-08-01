@@ -1,3 +1,5 @@
+//! cspell:ignore портовна EPIPE
+//!
 //! Транзитна делегація непортованих команд у чинний JS-entrypoint
 //! (`npm/bin/n-rules.js`) — рішення В/Г мінідизайну
 //! `docs/specs/2026-08-01-rules-cli-phase8-skeleton.md`.
@@ -88,19 +90,43 @@ pub fn package_root(cwd: &Path) -> Result<PathBuf, String> {
         })
 }
 
-/// Запускає entrypoint заданим runtime; stdio успадковується (дефолт
-/// `Command::status`), argv передається без змін.
+/// Запускає entrypoint заданим runtime; argv передається без змін.
+/// `stdin_bytes = None` — stdio успадковується цілком (дефолт
+/// `Command::status`); `Some(bytes)` — stdin стає пайпом, у який байти
+/// переграються один-в-один (див. [`delegate_with_stdin`]), решта stdio
+/// лишається успадкованою.
 fn spawn_status(
     runtime: &str,
     entry: &Path,
     args: &[String],
+    stdin_bytes: Option<&[u8]>,
 ) -> io::Result<std::process::ExitStatus> {
-    Command::new(runtime).arg(entry).args(args).status()
+    let mut command = Command::new(runtime);
+    command.arg(entry).args(args);
+    let Some(bytes) = stdin_bytes else {
+        return command.status();
+    };
+    let mut child = command.stdin(std::process::Stdio::piped()).spawn()?;
+    if let Some(mut pipe) = child.stdin.take() {
+        use std::io::Write as _;
+        // Дочірній процес міг завершитись, не дочитавши stdin (JS-гілка, що
+        // повертає 0 до `readStdin`): EPIPE тут — нормальний хід, а не збій.
+        let _ = pipe.write_all(bytes);
+    }
+    child.wait()
 }
 
 /// Делегує команду в JS-entrypoint і повертає його exit-код (сигнальне
 /// завершення без коду → 1). Порядок runtime — доккомент модуля.
 pub fn delegate(args: &[String]) -> ExitCode {
+    delegate_with_stdin(args, None)
+}
+
+/// Те саме, що [`delegate`], але з явно переграним stdin — для команд, яким
+/// native-шар мусив прочитати stdin, щоб вирішити, чи гілка портовна
+/// (`hook --post-tool-use`, [`crate::hook_cmd`]). Без цього делегований
+/// JS-процес отримав би вже вичерпаний потік.
+pub fn delegate_with_stdin(args: &[String], stdin_bytes: Option<&[u8]>) -> ExitCode {
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     let entry = match resolve_entry(&cwd) {
         Ok(entry) => entry,
@@ -119,7 +145,7 @@ pub fn delegate(args: &[String]) -> ExitCode {
     };
 
     for (i, runtime) in runtimes.iter().enumerate() {
-        match spawn_status(runtime, &entry, args) {
+        match spawn_status(runtime, &entry, args, stdin_bytes) {
             Ok(status) => {
                 return match status.code() {
                     Some(code) => ExitCode::from(u8::try_from(code.clamp(0, 255)).unwrap_or(1)),
