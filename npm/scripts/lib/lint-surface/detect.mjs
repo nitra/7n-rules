@@ -246,6 +246,37 @@ function hasHandWrittenMain(mainPath) {
 }
 
 /**
+ * Native-гілка маршрутизації: якщо ключ у `NATIVE_CONCERNS`, виконує
+ * `runNativeConcern` і повертає нормалізований результат.
+ *
+ * `null` означає «native не дав відповіді, йди далі за ланцюжком»: або ключ
+ * не native, або native свідомо делегував JS-канону
+ * ({@link isNativeDelegateSignal}). Будь-який інший збій native — це
+ * `DetectorError` (exit 2), не мовчазний пропуск.
+ * @param {string} nativeKey ключ `ruleId/concernId`.
+ * @param {LintContext} ctx контекст лінту.
+ * @returns {LintResult | null} нормалізований результат або `null`.
+ */
+function runNativeBranch(nativeKey, ctx) {
+  if (!getNativeConcernKeys().has(nativeKey)) return null
+  let raw
+  try {
+    raw = loadNative().runNativeConcern(nativeKey, ctx.cwd, ctx.files ?? null)
+  } catch (error) {
+    // Делегування (`RulesError::NativeDelegate`) — НЕ збій: native-порт
+    // свідомо віддає керування JS-канону, бо не може виконатись у цьому
+    // оточенні (наразі: зовнішній лінт-тул не встановлено, а встановлює
+    // його лише `ensureTool` на боці JS). Повертаємо `null` — виклик іде в
+    // `main.mjs`-гілку, той самий skip-not-crash, що вже діє для wasm.
+    if (isNativeDelegateSignal(error)) return null
+    throw new DetectorError(ctx.ruleId, ctx.concernId, `native concern кинув: ${error.message}`)
+  }
+  // `normalizeResult` — поза `try`: його власний `DetectorError` (невалідна
+  // форма violation) не має перетворюватись на «native concern кинув: …».
+  return normalizeResult(raw, ctx)
+}
+
+/**
  * Запускає detector одного concern-а і нормалізує результат. Кидає `DetectorError`
  * при будь-якій аномалії (→ exit 2).
  *
@@ -282,24 +313,8 @@ function hasHandWrittenMain(mainPath) {
  */
 export async function runConcernDetector(concern, ctx) {
   const nativeKey = `${ctx.ruleId}/${ctx.concernId}`
-  if (getNativeConcernKeys().has(nativeKey)) {
-    let raw
-    let delegated = false
-    try {
-      raw = loadNative().runNativeConcern(nativeKey, ctx.cwd, ctx.files ?? null)
-    } catch (error) {
-      // Делегування (`RulesError::NativeDelegate`) — НЕ збій: native-порт
-      // свідомо віддає керування JS-канону, бо не може виконатись у цьому
-      // оточенні (наразі: зовнішній лінт-тул не встановлено, а встановлює
-      // його лише `ensureTool` на боці JS). Провалюємось у `main.mjs`-гілку
-      // нижче — той самий skip-not-crash, що вже діє для wasm-плагінів.
-      if (!isNativeDelegateSignal(error)) {
-        throw new DetectorError(ctx.ruleId, ctx.concernId, `native concern кинув: ${error.message}`)
-      }
-      delegated = true
-    }
-    if (!delegated) return normalizeResult(raw, ctx)
-  }
+  const nativeResult = runNativeBranch(nativeKey, ctx)
+  if (nativeResult !== null) return nativeResult
 
   const wasmConcernMap = await resolveWasmConcernMap(ctx.cwd)
   const wasmEntry = wasmConcernMap.get(nativeKey)

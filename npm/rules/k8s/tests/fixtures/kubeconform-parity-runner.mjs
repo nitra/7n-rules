@@ -14,7 +14,7 @@
  */
 import { argv, stdout } from 'node:process'
 
-const [, , mode, root] = argv
+const [mode, root] = argv.slice(2)
 
 /**
  * Зводить violation обох гілок до спільної форми: JS-репортер не проставляє
@@ -42,7 +42,7 @@ try {
     const result = await lint({ cwd: root, ruleId: 'k8s', concernId: 'kubeconform' })
     violations = result.violations
   }
-  stdout.write(JSON.stringify({ violations: violations.map(normalize) }))
+  stdout.write(JSON.stringify({ violations: violations.map(v => normalize(v)) }))
 } catch (error) {
   stdout.write(JSON.stringify({ error: String(error?.message ?? error) }))
 }

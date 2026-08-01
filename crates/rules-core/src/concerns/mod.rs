@@ -209,40 +209,44 @@ pub fn run_concern(
 mod tests {
     use super::*;
 
+    /// Registry-інваріанти: очікувана кількість ключів, відсутність дублів,
+    /// формат `ruleId/concernId` і те, що КОЖЕН ключ реально диспатчиться в
+    /// [`run_concern`] (а не тільки перелічений).
+    ///
+    /// Навмисно БЕЗ другої копії списку літералом: дослівний дубль
+    /// [`NATIVE_CONCERNS`] у тесті ловив `js/jscpd_duplicates` як
+    /// `duplicate-clone`, а користі понад ці інваріанти він не давав —
+    /// «список змінився» так само ловиться лічильником, а «ключ забули
+    /// підключити» лічильник не ловив узагалі, на відміну від циклу нижче.
     #[test]
-    fn native_concerns_lists_all_twenty_seven_entries() {
+    fn native_concerns_registry_is_consistent() {
         assert_eq!(
-            NATIVE_CONCERNS,
-            &[
-                "text/forbidden-prettier",
-                "security/sample_secret",
-                "k8s/dremio_logging",
-                "rego/tooling",
-                "doc-files/marksman_config",
-                "abie/firebase_hosting",
-                "abie/env_dns",
-                "hasura/migrations",
-                "image-compress/package_setup",
-                "tauri/cargo_mutants_config",
-                "tauri/gitignore_target",
-                "tauri/linux_deps",
-                "tauri/core_test_isolation",
-                "abie/hc_pairing",
-                "abie/ua_node_selector",
-                "abie/ua_http_route",
-                "hasura/internal_urls",
-                "text/formatting",
-                "tauri/release",
-                "tauri/updater",
-                "tauri/tool_surface",
-                "security/trufflehog",
-                "changelog/presence",
-                "adr/hooks",
-                "capacitor/platforms",
-                "image-avif/avif_generation",
-                "k8s/kubeconform",
-            ]
+            NATIVE_CONCERNS.len(),
+            27,
+            "змінився склад registry — онови число свідомо, разом із доккоментом"
         );
+        let unique: std::collections::BTreeSet<&str> = NATIVE_CONCERNS.iter().copied().collect();
+        assert_eq!(
+            unique.len(),
+            NATIVE_CONCERNS.len(),
+            "у NATIVE_CONCERNS є дубльовані ключі"
+        );
+
+        let tmp = tempfile::TempDir::new().unwrap();
+        for key in NATIVE_CONCERNS {
+            assert_eq!(
+                key.split('/').count(),
+                2,
+                "ключ {key} має бути у форматі ruleId/concernId"
+            );
+            // Порожній tmp-каталог: усі концерни fail-safe на відсутні файли,
+            // тож тут перевіряється саме наявність гілки в `match`, а не
+            // їхні сценарії (ті — у власних підмодулях).
+            assert!(
+                run_concern(key, tmp.path(), None).is_ok(),
+                "run_concern не має гілки для ключа {key}"
+            );
+        }
     }
 
     /// Кожен делегувальний ключ має бути й у основному registry — інакше
