@@ -192,7 +192,7 @@ wit_bindgen::generate!({
     generate_all,
 });
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
 
 use oxc_allocator::Allocator;
 use oxc_ast::ast::{
@@ -3427,6 +3427,72 @@ fn build_manifest() -> Manifest {
                     "**/package.json".to_string(),
                 ],
             },
+            // П'ять концернів storybook-сімейства (батч 5): глоби ШИРШІ за
+            // `concern.json.lint.glob` JS-оригіналів — batch мусить містити
+            // все, що ті читають напряму з диска (`.n-rules.json`/legacy
+            // `.n-cursor.json` для optOut/detectApps/ignore, `**/package.json`
+            // для workspace-розгортання, `**/*.vue` для порога скоупу,
+            // quasar.variables-кандидати для sass-гейта hygiene). Extglob
+            // `@(js|ts)` JS-оригіналу page-coverage розгорнуто у два патерни
+            // — `globset` host-а (`build_full_scope_files`) його не підтримує
+            // (невалідний патерн тихо випав би з фільтра).
+            ConcernContribution {
+                key: CONCERN_STORYBOOK_SCOPE.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec![
+                    ".n-rules.json".to_string(),
+                    ".n-cursor.json".to_string(),
+                    "**/package.json".to_string(),
+                ],
+            },
+            ConcernContribution {
+                key: CONCERN_STORYBOOK_HYGIENE.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec![
+                    ".n-rules.json".to_string(),
+                    ".n-cursor.json".to_string(),
+                    "**/package.json".to_string(),
+                    "**/*.vue".to_string(),
+                    "**/.storybook/**".to_string(),
+                    "**/src/css/quasar.variables.scss".to_string(),
+                    "**/src/css/quasar.variables.sass".to_string(),
+                ],
+            },
+            ConcernContribution {
+                key: CONCERN_STORYBOOK_PAGE_COVERAGE.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec![
+                    ".n-rules.json".to_string(),
+                    ".n-cursor.json".to_string(),
+                    "**/package.json".to_string(),
+                    "**/*.vue".to_string(),
+                    "**/*.stories.js".to_string(),
+                    "**/*.stories.ts".to_string(),
+                ],
+            },
+            ConcernContribution {
+                key: CONCERN_STORYBOOK_SCAFFOLD.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec![
+                    ".n-rules.json".to_string(),
+                    ".n-cursor.json".to_string(),
+                    "**/package.json".to_string(),
+                    "**/*.vue".to_string(),
+                    "**/.storybook/**".to_string(),
+                ],
+            },
+            ConcernContribution {
+                key: CONCERN_STORYBOOK_CI.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec![
+                    ".n-rules.json".to_string(),
+                    ".n-cursor.json".to_string(),
+                    "**/package.json".to_string(),
+                    "**/*.vue".to_string(),
+                    ".github/actions/setup-playwright-chromium/action.yml".to_string(),
+                    ".github/workflows/lint-storybook.yml".to_string(),
+                ],
+            },
         ],
         ci_artifacts: vec![],
         capabilities: Capabilities {
@@ -3698,14 +3764,1388 @@ fn detect_location(files: &[SourceFile]) -> Vec<Diagnostic> {
         .collect()
 }
 
-/// Guest-реалізація world `plugin` — чотирнадцять контрибуцій ([`CONCERN_TFM`],
+// =====================================================================
+// Батч 5 (§3.5.5): storybook-сімейство — п'ять full-scope концернів
+// `test/storybook-{scope,hygiene,page-coverage,scaffold,ci}`. JS-оригінали —
+// `plugins/lang-js/rules/test/storybook-*/main.mjs`; спільна scope-детекція
+// (`collectInScopeVuePackages`, `storybook-scope/main.mjs`) відтворена тут
+// batch-функціями: замість власного filesystem-обходу (walkDir/existsSync
+// JS-оригіналів) плагін працює з full-scope батчем, що його host
+// (`crates/rules-napi::build_full_scope_files`) будує тим САМИМ walk-двигуном
+// (`rules_core::scan::walk_dir`), що й JS-`walkDir` — тож множина видимих
+// файлів збігається, а `existsSync`-гейти стають перевірками присутності
+// шляху в батчі.
+//
+// Свідомо задокументовані мікро-розбіжності (недосяжні в реальних репо, не
+// покриваються фікстурами):
+// 1. Битий JSON кореневого `package.json` — JS-оригінал кидає DetectorError
+//    (без try/catch у `getMonorepoPackageRootDirs`), порт толерантно
+//    повертає лише корінь `.` (skip-not-crash дух контракту; консюмер із
+//    битим кореневим package.json падає раніше на інших концернах).
+// 2. `scanGlob` розгортання workspace-патернів НЕ поважає .gitignore, а
+//    full-scope batch — поважає: workspace-пакет під .gitignore невидимий
+//    порту (нереальний кейс — воркспейси комітяться).
+// 3. Абсолютні шляхи в `.n-rules.json#ignore` — плагін не знає cwd, такі
+//    записи пропускаються (машино-специфічний конфіг, зламаний за задумом).
+// 4. `localeCompare`-сортування коренів наближене
+//    ([`locale_compare_approx`]): точна ICU-колація недоступна в guest;
+//    для реалістичних імен пакетів (ASCII, без пунктуаційних колізій)
+//    порядок збігається.
+// 5. Порожній каталог (`src/pages/` без файлів) невидимий у батчі, тоді як
+//    `existsSync` JS-оригіналу його бачить — git не трекає порожні теки,
+//    кейс недосяжний у чекауті.
+
+/// Ключ контрибуції `test/storybook-scope` (батч 5).
+const CONCERN_STORYBOOK_SCOPE: &str = "test/storybook-scope";
+
+/// Ключ контрибуції `test/storybook-hygiene` (батч 5).
+const CONCERN_STORYBOOK_HYGIENE: &str = "test/storybook-hygiene";
+
+/// Ключ контрибуції `test/storybook-page-coverage` (батч 5).
+const CONCERN_STORYBOOK_PAGE_COVERAGE: &str = "test/storybook-page-coverage";
+
+/// Ключ контрибуції `test/storybook-scaffold` (батч 5).
+const CONCERN_STORYBOOK_SCAFFOLD: &str = "test/storybook-scaffold";
+
+/// Ключ контрибуції `test/storybook-ci` (батч 5).
+const CONCERN_STORYBOOK_CI: &str = "test/storybook-ci";
+
+/// Поріг кількості `.vue`-файлів для скоупу канону Storybook — точний порт
+/// `VUE_FILE_THRESHOLD` (`storybook-scope/main.mjs:16`).
+const VUE_FILE_THRESHOLD: usize = 3;
+
+/// Канонічне значення `package.json#scripts.storybook` — точний порт
+/// `STORYBOOK_SCRIPT` (`storybook-scaffold/main.mjs:10`).
+const STORYBOOK_SCRIPT: &str = "storybook dev -p 6006 --no-open";
+
+/// Теки, ігноровані при розгортанні workspace-патернів — точний порт
+/// `WORKSPACE_IGNORED_DIRS` (`npm/scripts/lib/workspaces.mjs:17`).
+const WORKSPACE_IGNORED_DIRS: [&str; 4] = ["node_modules", ".git", ".venv", "venv"];
+
+/// Quasar CLI-конвенція глобальних SCSS-змінних — точний порт
+/// `SASS_VARIABLES_CANDIDATES` (`storybook-hygiene/main.mjs:25`).
+const SASS_VARIABLES_CANDIDATES: [&str; 2] = [
+    "src/css/quasar.variables.scss",
+    "src/css/quasar.variables.sass",
+];
+
+/// `quasar({ sassVariables: true|'шлях' })` — точний порт
+/// `SASS_VARIABLES_MARKER_RE` (`storybook-hygiene/main.mjs:29`).
+const SASS_VARIABLES_MARKER_PATTERN: &str = r#"sassVariables\s*:\s*(?:true|['"])"#;
+
+/// `*.stories.js`/`*.stories.ts` — точний порт `STORIES_SUFFIX_RE`
+/// (`storybook-page-coverage/main.mjs:10`).
+const STORIES_SUFFIX_PATTERN: &str = r"\.stories\.(js|ts)$";
+
+/// `<script …>…</script>`-блоки SFC — точний порт regex
+/// `extractVueScriptBlocks` (`npm/scripts/lib/js-source-signals.mjs:30`,
+/// `/<script\b[^>]*>([\s\S]*?)<\/script>/gi` → `(?is)` прапорці).
+const VUE_SCRIPT_BLOCK_PATTERN: &str = r"(?is)<script\b[^>]*>(.*?)</script>";
+
+/// Node-builtin модулі — статичне дзеркало `builtinModules` (`node:module`,
+/// Node 25; порт `NODE_BUILTIN_MODULES` з
+/// `plugins/lang-js/rules/vue/lib/vue-forbidden-imports.mjs:23`). `node:`-
+/// префіксні записи (`node:test` тощо) опущено — їх уже покриває гілка
+/// `starts_with("node:")` [`is_node_builtin_specifier`].
+const NODE_BUILTIN_MODULES: [&str; 62] = [
+    "_http_agent",
+    "_http_client",
+    "_http_common",
+    "_http_incoming",
+    "_http_outgoing",
+    "_http_server",
+    "_tls_common",
+    "_tls_wrap",
+    "assert",
+    "assert/strict",
+    "async_hooks",
+    "buffer",
+    "child_process",
+    "cluster",
+    "console",
+    "constants",
+    "crypto",
+    "dgram",
+    "diagnostics_channel",
+    "dns",
+    "dns/promises",
+    "domain",
+    "events",
+    "fs",
+    "fs/promises",
+    "http",
+    "http2",
+    "https",
+    "inspector",
+    "inspector/promises",
+    "module",
+    "net",
+    "os",
+    "path",
+    "path/posix",
+    "path/win32",
+    "perf_hooks",
+    "process",
+    "punycode",
+    "querystring",
+    "readline",
+    "readline/promises",
+    "repl",
+    "stream",
+    "stream/consumers",
+    "stream/promises",
+    "stream/web",
+    "string_decoder",
+    "sys",
+    "timers",
+    "timers/promises",
+    "tls",
+    "trace_events",
+    "tty",
+    "url",
+    "util",
+    "util/types",
+    "v8",
+    "vm",
+    "wasi",
+    "worker_threads",
+    "zlib",
+];
+
+/// Один канонічний маркер scaffold/ci-файлу — точне дзеркало елементів
+/// `MAIN_JS_MARKERS`/`PREVIEW_JS_MARKERS`/… (`storybook-scaffold/main.mjs`,
+/// `storybook-ci/main.mjs`): `token` шукається як підрядок (`content.includes`),
+/// `hint` — людський текст повідомлення.
+struct CanonMarker {
+    token: &'static str,
+    hint: &'static str,
+}
+
+/// Маркери канону `.storybook/main.js` бібліотек — точний порт
+/// `MAIN_JS_MARKERS` (`storybook-scaffold/main.mjs:16-34`).
+const MAIN_JS_MARKERS: [CanonMarker; 8] = [
+    CanonMarker { token: "@storybook/vue3-vite", hint: "framework @storybook/vue3-vite" },
+    CanonMarker { token: "viteFinal", hint: "viteFinal-override vite.config пакета" },
+    CanonMarker { token: "'vite-plugin-pages'", hint: "фільтр vite-plugin-pages у viteFinal" },
+    CanonMarker { token: "'vite-plugin-vue-layouts'", hint: "фільтр vite-plugin-vue-layouts у viteFinal" },
+    CanonMarker { token: "'vite-plugin-vue-layouts-next'", hint: "фільтр vite-plugin-vue-layouts-next у viteFinal" },
+    CanonMarker {
+        token: "isVueTransformFamily",
+        hint: "сімейний фільтр vue-трансформерів (vite:vue/vue-macros) — стійкість до VueMacros-стека",
+    },
+    CanonMarker {
+        token: "resolvePluginEntry",
+        hint: "resolve/flatten Promise/масиву плагінів перед фільтрацією (VueMacros повертає Promise)",
+    },
+    CanonMarker {
+        token: "viteConfigPath",
+        hint: "core.builder.options.viteConfigPath на empty-vite.config.js (блокує builder-vite autodiscovery vite.config пакета — інакше подвійна SFC-трансформація на storybook build)",
+    },
+];
+
+/// Маркери канону `.storybook/preview.js` бібліотек — точний порт
+/// `PREVIEW_JS_MARKERS` (`storybook-scaffold/main.mjs:37-44`).
+const PREVIEW_JS_MARKERS: [CanonMarker; 6] = [
+    CanonMarker {
+        token: "Quasar",
+        hint: "повний install Quasar",
+    },
+    CanonMarker {
+        token: "iconSet",
+        hint: "iconSet",
+    },
+    CanonMarker {
+        token: "iconMapFn",
+        hint: "iconMapFn (без нього внутрішні Quasar-іконки недоступні)",
+    },
+    CanonMarker {
+        token: "msw-storybook-addon",
+        hint: "msw-storybook-addon",
+    },
+    CanonMarker {
+        token: "onUnhandledRequest",
+        hint: "onUnhandledRequest-фільтр",
+    },
+    CanonMarker {
+        token: "mswLoader",
+        hint: "mswLoader (не mswDecorator — deprecated у msw-storybook-addon 2.x)",
+    },
+];
+
+/// Маркери канону `.storybook/main.js` app-проєктів (хвиля 2a) — точний порт
+/// `APP_MAIN_JS_MARKERS` (`storybook-scaffold/main.mjs:57-64`).
+const APP_MAIN_JS_MARKERS: [CanonMarker; 6] = [
+    CanonMarker {
+        token: "@storybook/vue3-vite",
+        hint: "framework @storybook/vue3-vite",
+    },
+    CanonMarker {
+        token: "staticDirs",
+        hint: "staticDirs на ./public (msw service worker)",
+    },
+    CanonMarker {
+        token: "viteFinal",
+        hint: "viteFinal-фільтр file-system-routing плагінів",
+    },
+    CanonMarker {
+        token: "'vite-plugin-vue-layouts'",
+        hint: "фільтр vite-plugin-vue-layouts у viteFinal",
+    },
+    CanonMarker {
+        token: "'vite-plugin-vue-layouts-next'",
+        hint: "фільтр vite-plugin-vue-layouts-next у viteFinal",
+    },
+    CanonMarker {
+        token: "'unplugin-vue-router'",
+        hint: "фільтр unplugin-vue-router у viteFinal",
+    },
+];
+
+/// Маркери канону `.storybook/preview.js` app-проєктів — точний порт
+/// `APP_PREVIEW_JS_MARKERS` (`storybook-scaffold/main.mjs:72-80`).
+const APP_PREVIEW_JS_MARKERS: [CanonMarker; 7] = [
+    CanonMarker {
+        token: "msw-storybook-addon",
+        hint: "msw-storybook-addon",
+    },
+    CanonMarker {
+        token: "onUnhandledRequest",
+        hint: "onUnhandledRequest-фільтр",
+    },
+    CanonMarker {
+        token: "mswLoader",
+        hint: "mswLoader (не mswDecorator — deprecated у msw-storybook-addon 2.x)",
+    },
+    CanonMarker {
+        token: "pageLoader",
+        hint: "pageLoader — router/pinia на кожну story за parameters.route/parameters.pinia",
+    },
+    CanonMarker {
+        token: "createMemoryHistory",
+        hint: "createMemoryHistory — реальний параметризований маршрут сторінки",
+    },
+    CanonMarker {
+        token: "QLayout",
+        hint: "явна реєстрація QLayout (q-page кидає без layout-предка)",
+    },
+    CanonMarker {
+        token: "QPageContainer",
+        hint: "явна реєстрація QPageContainer",
+    },
+];
+
+/// Маркери канону `.storybook/empty-vite.config.js` — точний порт
+/// `EMPTY_VITE_CONFIG_MARKERS` (`storybook-scaffold/main.mjs:93-95`).
+const EMPTY_VITE_CONFIG_MARKERS: [CanonMarker; 1] = [CanonMarker {
+    token: "defineConfig",
+    hint: "порожній defineConfig({}) — стенд-ін для viteConfigPath",
+}];
+
+/// Маркери канону `.storybook/vitest.setup.js` — точний порт
+/// `VITEST_SETUP_JS_MARKERS` (`storybook-scaffold/main.mjs:107-110`).
+const VITEST_SETUP_JS_MARKERS: [CanonMarker; 2] = [
+    CanonMarker {
+        token: "setProjectAnnotations",
+        hint: "setProjectAnnotations([previewAnnotations])",
+    },
+    CanonMarker {
+        token: "beforeAll",
+        hint: "beforeAll(project.beforeAll)",
+    },
+];
+
+/// Repo-relative шлях канонічного composite action — точний порт
+/// `PLAYWRIGHT_ACTION_REL` (`storybook-ci/main.mjs:11`).
+const PLAYWRIGHT_ACTION_REL: &str = ".github/actions/setup-playwright-chromium/action.yml";
+
+/// Repo-relative шлях канонічного workflow — точний порт
+/// `STORYBOOK_WORKFLOW_REL` (`storybook-ci/main.mjs:14`).
+const STORYBOOK_WORKFLOW_REL: &str = ".github/workflows/lint-storybook.yml";
+
+/// Маркери канону composite action — точний порт `PLAYWRIGHT_ACTION_MARKERS`
+/// (`storybook-ci/main.mjs:21-25`).
+const PLAYWRIGHT_ACTION_MARKERS: [CanonMarker; 3] = [
+    CanonMarker {
+        token: "ms-playwright",
+        hint: "кеш каталогу ms-playwright",
+    },
+    CanonMarker {
+        token: "actions/cache@",
+        hint: "actions/cache для Playwright-браузерів",
+    },
+    CanonMarker {
+        token: "playwright install chromium",
+        hint: "install лише chromium (не всі браузери)",
+    },
+];
+
+/// Маркери канону `lint-storybook.yml` — точний порт
+/// `STORYBOOK_WORKFLOW_MARKERS` (`storybook-ci/main.mjs:32-36`).
+const STORYBOOK_WORKFLOW_MARKERS: [CanonMarker; 3] = [
+    CanonMarker {
+        token: "./.github/actions/setup-bun-deps",
+        hint: "setup-bun-deps перед Playwright-кроком",
+    },
+    CanonMarker {
+        token: "./.github/actions/setup-playwright-chromium",
+        hint: "композитний Playwright-кеш",
+    },
+    CanonMarker {
+        token: "--project=storybook",
+        hint: "швидкий прогін лише storybook-проєкту (не повний coverage)",
+    },
+];
+
+/// Шукає файл у батчі за точним posix-relative шляхом — batch-відповідник
+/// `existsSync`+`readFile` JS-оригіналів (host уже прочитав вміст, спека §3.2).
+fn batch_file<'a>(files: &'a [SourceFile], path: &str) -> Option<&'a SourceFile> {
+    files.iter().find(|f| f.path == path)
+}
+
+/// Чи «існує каталог» `dir` з погляду батча: хоч один файл лежить під ним
+/// (або сам шлях є файлом — тоді JS-`existsSync` теж true, а обхід такого
+/// «каталогу» в обох реалізацій порожній). Порожні каталоги git не трекає —
+/// задокументована мікро-розбіжність 5 (доккомент секції).
+fn batch_dir_exists(files: &[SourceFile], dir: &str) -> bool {
+    let prefix = format!("{dir}/");
+    files
+        .iter()
+        .any(|f| f.path == dir || f.path.starts_with(&prefix))
+}
+
+/// Толерантний JSON-парсинг — дзеркало `try { JSON.parse } catch { … }`
+/// JS-оригіналів (повертає `None` замість винятку).
+fn parse_json_tolerant(content: &str) -> Option<serde_json::Value> {
+    serde_json::from_str(content).ok()
+}
+
+/// JS-truthiness для JSON-значення — дзеркало `Boolean(x)` над результатом
+/// `JSON.parse`: falsy — `null`/`false`/`0`/`""`.
+fn js_truthy(v: &serde_json::Value) -> bool {
+    match v {
+        serde_json::Value::Null => false,
+        serde_json::Value::Bool(b) => *b,
+        serde_json::Value::Number(n) => n.as_f64().is_some_and(|f| f != 0.0),
+        serde_json::Value::String(s) => !s.is_empty(),
+        _ => true,
+    }
+}
+
+/// Конфіг-файл репо: `.n-rules.json`, fallback — legacy `.n-cursor.json`
+/// (точний порт вибору файлу `readStorybookOptOut`/`loadCursorIgnorePaths`:
+/// СПОЧАТКУ existsSync першого, і лише за відсутності — другий; битий JSON
+/// першого НЕ вмикає fallback).
+fn batch_root_config(files: &[SourceFile]) -> Option<&SourceFile> {
+    batch_file(files, ".n-rules.json").or_else(|| batch_file(files, ".n-cursor.json"))
+}
+
+/// Точний порт `readStorybookOptOut` (`storybook-scope/main.mjs:37-50`):
+/// значення НЕ трімляться (фільтр лише відкидає нерядкові/порожні-після-trim).
+fn read_storybook_opt_out(files: &[SourceFile]) -> Vec<String> {
+    let Some(config) = batch_root_config(files) else {
+        return Vec::new();
+    };
+    let Some(raw) = parse_json_tolerant(&config.content) else {
+        return Vec::new();
+    };
+    let Some(list) = raw
+        .get("storybook")
+        .and_then(|s| s.get("optOut"))
+        .and_then(|v| v.as_array())
+    else {
+        return Vec::new();
+    };
+    list.iter()
+        .filter_map(|v| v.as_str())
+        .filter(|s| !s.trim().is_empty())
+        .map(|s| s.to_string())
+        .collect()
+}
+
+/// Точний порт `readDetectAppsFlag` (`storybook-scope/main.mjs:59-70`).
+fn read_detect_apps_flag(files: &[SourceFile]) -> bool {
+    let Some(config) = batch_root_config(files) else {
+        return false;
+    };
+    let Some(raw) = parse_json_tolerant(&config.content) else {
+        return false;
+    };
+    raw.get("storybook")
+        .and_then(|s| s.get("detectApps"))
+        .and_then(|v| v.as_bool())
+        == Some(true)
+}
+
+/// Нормалізує відносний posix-шлях: прибирає `./`, порожні сегменти й
+/// trailing-slash, розвʼязує `..`. `None` — запис не застосовний (порожній,
+/// абсолютний — мікро-розбіжність 3, доккомент секції — чи виходить за корінь).
+fn normalize_rel_path(raw: &str) -> Option<String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() || trimmed.starts_with('/') {
+        return None;
+    }
+    let mut out: Vec<&str> = Vec::new();
+    for seg in trimmed.split('/') {
+        match seg {
+            "" | "." => {}
+            ".." => {
+                out.pop()?;
+            }
+            s => out.push(s),
+        }
+    }
+    if out.is_empty() {
+        return None;
+    }
+    Some(out.join("/"))
+}
+
+/// Ignore-шляхи з `.n-rules.json#ignore` — порт `loadCursorIgnorePaths`
+/// (`npm/scripts/lib/load-cursor-config.mjs`) у відносний простір батча:
+/// замість абсолютних posix-шляхів — нормалізовані відносні префікси.
+fn read_ignore_prefixes(files: &[SourceFile]) -> Vec<String> {
+    let Some(config) = batch_root_config(files) else {
+        return Vec::new();
+    };
+    let Some(raw) = parse_json_tolerant(&config.content) else {
+        return Vec::new();
+    };
+    let Some(list) = raw.get("ignore").and_then(|v| v.as_array()) else {
+        return Vec::new();
+    };
+    list.iter()
+        .filter_map(|v| v.as_str())
+        .filter_map(normalize_rel_path)
+        .collect()
+}
+
+/// Ignore-префікси, дієві для обходу з коренем `walk_prefix` (`""` — корінь
+/// репо, інакше `"<dir>/"`) — точне дзеркало нормалізації `walkDir`
+/// (`npm/scripts/utils/walkDir.mjs:63-70`): запис поза walk-коренем чи
+/// рівний йому — відкидається (`relative()` дала б `..`-шлях або `''`).
+fn effective_ignore_for_walk(walk_prefix: &str, ignore: &[String]) -> Vec<String> {
+    ignore
+        .iter()
+        .filter_map(|entry| {
+            if walk_prefix.is_empty() {
+                Some(entry.clone())
+            } else {
+                entry
+                    .strip_prefix(walk_prefix)
+                    .filter(|rest| !rest.is_empty())
+                    .map(|rest| rest.to_string())
+            }
+        })
+        .collect()
+}
+
+/// Чи відносний (від walk-кореня) шлях лежить в ignore-префіксі — дзеркало
+/// glob-а `${rel}/**` `walkDir` (файли строго ВСЕРЕДИНІ каталогу).
+fn is_ignored_in_walk(rel_path: &str, effective_ignore: &[String]) -> bool {
+    effective_ignore.iter().any(|p| {
+        rel_path
+            .strip_prefix(p.as_str())
+            .is_some_and(|rest| rest.starts_with('/'))
+    })
+}
+
+/// Матч одного glob-сегмента (`*` — будь-які символи в межах сегмента,
+/// `?` — один символ) — спрощене дзеркало `Bun.Glob`/`node:fs glob` для
+/// workspace-патернів (брейси/класи символів свідомо поза скоупом — їх немає
+/// в реальних `workspaces`-полях).
+fn glob_segment_matches(pattern: &str, segment: &str) -> bool {
+    fn rec(p: &[char], s: &[char]) -> bool {
+        match p.first() {
+            None => s.is_empty(),
+            Some('*') => rec(&p[1..], s) || (!s.is_empty() && rec(p, &s[1..])),
+            Some('?') => !s.is_empty() && rec(&p[1..], &s[1..]),
+            Some(c) => s.first() == Some(c) && rec(&p[1..], &s[1..]),
+        }
+    }
+    let p: Vec<char> = pattern.chars().collect();
+    let s: Vec<char> = segment.chars().collect();
+    rec(&p, &s)
+}
+
+/// Посегментний glob-матч шляху (`**` — нуль чи більше сегментів).
+fn glob_path_matches(pattern_segments: &[&str], path_segments: &[&str]) -> bool {
+    match pattern_segments.first() {
+        None => path_segments.is_empty(),
+        Some(&"**") => {
+            glob_path_matches(&pattern_segments[1..], path_segments)
+                || (!path_segments.is_empty()
+                    && glob_path_matches(pattern_segments, &path_segments[1..]))
+        }
+        Some(seg) => {
+            !path_segments.is_empty()
+                && glob_segment_matches(seg, path_segments[0])
+                && glob_path_matches(&pattern_segments[1..], &path_segments[1..])
+        }
+    }
+}
+
+/// Точний порт `isIgnoredWorkspaceRoot` (`npm/scripts/lib/workspaces.mjs:24-29`).
+fn is_ignored_workspace_root(ws: &str) -> bool {
+    if ws == "." {
+        return false;
+    }
+    let stripped = ws.replace('\\', "/");
+    let stripped = stripped.strip_prefix("./").unwrap_or(&stripped);
+    stripped
+        .split('/')
+        .any(|seg| WORKSPACE_IGNORED_DIRS.contains(&seg))
+}
+
+/// Наближення дефолтного `String#localeCompare` для сортування коренів
+/// (`getMonorepoPackageRootDirs`, `workspaces.mjs:102-106`): первинний ключ
+/// — лише буквено-цифрові символи в нижньому регістрі (ICU ігнорує
+/// пунктуацію на первинному рівні), потім case-insensitive повний рядок,
+/// потім байтовий — мікро-розбіжність 4, доккомент секції.
+fn locale_compare_approx(a: &str, b: &str) -> std::cmp::Ordering {
+    let primary = |s: &str| -> String {
+        s.chars()
+            .filter(|c| c.is_alphanumeric())
+            .flat_map(char::to_lowercase)
+            .collect()
+    };
+    primary(a)
+        .cmp(&primary(b))
+        .then_with(|| a.to_lowercase().cmp(&b.to_lowercase()))
+        .then_with(|| a.cmp(b))
+}
+
+/// Точний порт `normalizeWorkspacePattern` (`workspaces.mjs:36-42`).
+fn normalize_workspace_pattern(raw: &str) -> String {
+    let mut normalized = raw.replace('\\', "/");
+    while normalized.ends_with('/') {
+        normalized.pop();
+    }
+    if normalized.is_empty() {
+        ".".to_string()
+    } else {
+        normalized
+    }
+}
+
+/// Шлях `package.json` кореня пакета `root_dir` у батчі (нормалізований для
+/// lookup-а; сам `root_dir` лишається сирим, як у JS-оригіналі).
+fn pkg_json_path(root_dir: &str) -> String {
+    match normalize_rel_path(root_dir) {
+        Some(norm) => format!("{norm}/package.json"),
+        None => "package.json".to_string(),
+    }
+}
+
+/// Префікс walk-простору пакета: `""` для кореня `.`, інакше `"<dir>/"`.
+fn pkg_walk_prefix(root_dir: &str) -> String {
+    match normalize_rel_path(root_dir) {
+        Some(norm) => format!("{norm}/"),
+        None => String::new(),
+    }
+}
+
+/// Точний порт `getMonorepoPackageRootDirs` (`workspaces.mjs:90-108`) у
+/// batch-простір: розгортання патернів іде по `**/package.json`-файлах
+/// батча (мікро-розбіжності 1–2, доккомент секції).
+fn monorepo_package_root_dirs(files: &[SourceFile]) -> Vec<String> {
+    let mut roots: Vec<String> = vec![".".to_string()];
+    let mut seen: HashSet<String> = roots.iter().cloned().collect();
+    let add = |roots: &mut Vec<String>, seen: &mut HashSet<String>, ws: String| {
+        if !seen.contains(&ws) {
+            seen.insert(ws.clone());
+            roots.push(ws);
+        }
+    };
+
+    let Some(root_pkg) = batch_file(files, "package.json") else {
+        return roots;
+    };
+    let Some(pkg) = parse_json_tolerant(&root_pkg.content) else {
+        // Мікро-розбіжність 1 (доккомент секції): JS кидає DetectorError.
+        return roots;
+    };
+    let patterns: Vec<String> = match pkg.get("workspaces") {
+        Some(serde_json::Value::Array(items)) => items
+            .iter()
+            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+            .collect(),
+        Some(serde_json::Value::Object(obj)) => match obj.get("packages") {
+            Some(serde_json::Value::Array(items)) => items
+                .iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect(),
+            _ => Vec::new(),
+        },
+        _ => Vec::new(),
+    };
+
+    for raw in patterns {
+        let pattern = normalize_workspace_pattern(&raw);
+        if pattern.contains('*') {
+            let glob = format!("{pattern}/package.json");
+            let glob_segments: Vec<&str> = glob.split('/').collect();
+            for file in files {
+                if file.path != "package.json" && !file.path.ends_with("/package.json") {
+                    continue;
+                }
+                let path_segments: Vec<&str> = file.path.split('/').collect();
+                if !glob_path_matches(&glob_segments, &path_segments) {
+                    continue;
+                }
+                let dir = posix_dirname(&file.path);
+                let ws = if dir.is_empty() { "." } else { dir };
+                if !is_ignored_workspace_root(ws) {
+                    add(&mut roots, &mut seen, ws.to_string());
+                }
+            }
+        } else if batch_file(files, &pkg_json_path(&pattern)).is_some()
+            && !is_ignored_workspace_root(&pattern)
+        {
+            add(&mut roots, &mut seen, pattern);
+        }
+    }
+
+    let mut list: Vec<String> = roots
+        .into_iter()
+        .filter(|ws| !is_ignored_workspace_root(ws))
+        .collect();
+    list.sort_by(|a, b| {
+        if a == "." {
+            std::cmp::Ordering::Less
+        } else if b == "." {
+            std::cmp::Ordering::Greater
+        } else {
+            locale_compare_approx(a, b)
+        }
+    });
+    list
+}
+
+/// Точний порт `isVueComponentLibraryPkg` (`vue/packages/main.mjs:217-219`).
+fn is_vue_component_library_pkg(pkg: &serde_json::Value) -> bool {
+    pkg.get("peerDependencies")
+        .and_then(|d| d.get("vue"))
+        .is_some_and(js_truthy)
+}
+
+/// Точний порт `isVueAppPkg` (`storybook-scope/main.mjs:98-100`).
+fn is_vue_app_pkg(pkg: &serde_json::Value) -> bool {
+    pkg.get("dependencies")
+        .and_then(|d| d.get("vue"))
+        .is_some_and(js_truthy)
+        && !is_vue_component_library_pkg(pkg)
+}
+
+/// Файли батча всередині walk-кореня `walk_prefix` (без ignore-нутих) у
+/// порядку rel-шляхів — дзеркало `walkDir` (native walk уже байтово-лексико-
+/// графічний; сортуємо явно, щоб не залежати від порядку батча). Повертає
+/// пари (rel-від-walk-кореня, файл).
+fn walk_batch_files<'a>(
+    files: &'a [SourceFile],
+    walk_prefix: &str,
+    ignore: &[String],
+) -> Vec<(&'a str, &'a SourceFile)> {
+    let effective = effective_ignore_for_walk(walk_prefix, ignore);
+    let mut out: Vec<(&str, &SourceFile)> = files
+        .iter()
+        .filter_map(|f| {
+            let rel = if walk_prefix.is_empty() {
+                Some(f.path.as_str())
+            } else {
+                f.path.strip_prefix(walk_prefix)
+            }?;
+            if rel.is_empty() || is_ignored_in_walk(rel, &effective) {
+                return None;
+            }
+            Some((rel, f))
+        })
+        .collect();
+    out.sort_by(|a, b| a.0.cmp(b.0));
+    out
+}
+
+/// Точний порт `countVueFiles` (`storybook-scope/main.mjs:79-89`) у
+/// batch-простір.
+fn count_vue_files(files: &[SourceFile], walk_prefix: &str, ignore: &[String]) -> usize {
+    walk_batch_files(files, walk_prefix, ignore)
+        .iter()
+        .filter(|(rel, _)| rel.ends_with(".vue"))
+        .count()
+}
+
+/// Тип пакета у скоупі Storybook — дзеркало `InScopePackage.type`.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ScopePkgKind {
+    Library,
+    App,
+}
+
+/// Пакет у скоупі канону Storybook — batch-дзеркало `InScopePackage`
+/// (`storybook-scope/main.mjs`): без `absDir`/`vueFileCount` (перший
+/// незнаний у guest-а, другий downstream-концернам не потрібен).
+struct ScopePkg {
+    root_dir: String,
+    pkg: serde_json::Value,
+    kind: ScopePkgKind,
+}
+
+/// Точний порт `evaluateCandidate` (`storybook-scope/main.mjs:116-131`).
+fn evaluate_candidate(
+    files: &[SourceFile],
+    root_dir: &str,
+    matches: impl Fn(&serde_json::Value) -> bool,
+    ignore: &[String],
+    require_threshold: bool,
+) -> Option<serde_json::Value> {
+    let pkg_file = batch_file(files, &pkg_json_path(root_dir))?;
+    let pkg = parse_json_tolerant(&pkg_file.content)?;
+    if !matches(&pkg) {
+        return None;
+    }
+    if require_threshold {
+        let count = count_vue_files(files, &pkg_walk_prefix(root_dir), ignore);
+        if count < VUE_FILE_THRESHOLD {
+            return None;
+        }
+    }
+    Some(pkg)
+}
+
+/// Точний порт `collectInScopeVuePackages` (`storybook-scope/main.mjs:149-173`)
+/// у batch-простір.
+fn collect_in_scope_vue_packages(files: &[SourceFile]) -> Vec<ScopePkg> {
+    let roots = monorepo_package_root_dirs(files);
+    let ignore = read_ignore_prefixes(files);
+    let opt_out: HashSet<String> = read_storybook_opt_out(files).into_iter().collect();
+    let candidate_roots: Vec<&String> = roots.iter().filter(|r| !opt_out.contains(*r)).collect();
+
+    let mut result: Vec<ScopePkg> = Vec::new();
+    for root_dir in &candidate_roots {
+        if let Some(pkg) =
+            evaluate_candidate(files, root_dir, is_vue_component_library_pkg, &ignore, true)
+        {
+            result.push(ScopePkg {
+                root_dir: (*root_dir).clone(),
+                pkg,
+                kind: ScopePkgKind::Library,
+            });
+        }
+    }
+
+    if read_detect_apps_flag(files) {
+        for root_dir in &candidate_roots {
+            if result.iter().any(|p| &&p.root_dir == root_dir) {
+                continue;
+            }
+            let pages_dir = format!("{}src/pages", pkg_walk_prefix(root_dir));
+            if !batch_dir_exists(files, &pages_dir) {
+                continue;
+            }
+            if let Some(pkg) = evaluate_candidate(files, root_dir, is_vue_app_pkg, &ignore, false) {
+                result.push(ScopePkg {
+                    root_dir: (*root_dir).clone(),
+                    pkg,
+                    kind: ScopePkgKind::App,
+                });
+            }
+        }
+    }
+
+    result
+}
+
+/// Точний порт `lint()` `test/storybook-scope`
+/// (`storybook-scope/main.mjs:183-204`) — self-check конфігурації: застарілі
+/// записи `storybook.optOut`.
+fn detect_storybook_scope(files: &[SourceFile]) -> Vec<Diagnostic> {
+    let opt_out = read_storybook_opt_out(files);
+    if opt_out.is_empty() {
+        return Vec::new();
+    }
+    let roots: HashSet<String> = monorepo_package_root_dirs(files).into_iter().collect();
+    opt_out
+        .iter()
+        .filter(|root_dir| !roots.contains(*root_dir))
+        .map(|root_dir| Diagnostic {
+            reason: "stale-opt-out".to_string(),
+            message: format!(
+                ".n-rules.json storybook.optOut містить '{root_dir}' — такого workspace-пакета \
+                 немає (застаріле opt-out, storybook.mdc)"
+            ),
+            file: None,
+            severity: Severity::Error,
+            data: None,
+        })
+        .collect()
+}
+
+/// Точний порт `fileRelFromCwd` (`storybook-hygiene/main.mjs:147-149`).
+fn file_rel_from_cwd(root_dir: &str, rel_from_pkg: &str) -> String {
+    if root_dir == "." {
+        rel_from_pkg.to_string()
+    } else {
+        format!("{root_dir}/{rel_from_pkg}")
+    }
+}
+
+/// Точний порт `extractVueScriptBlocks` (`npm/scripts/lib/js-source-signals.mjs:28-37`).
+/// Regex кешується процес-глобально (`OnceLock`) — функція викликається в
+/// циклі по `.vue`-файлах батча (clippy `regex_creation_in_loops`).
+fn extract_vue_script_blocks(sfc: &str) -> String {
+    static RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    let re = RE.get_or_init(|| {
+        regex::Regex::new(VUE_SCRIPT_BLOCK_PATTERN).expect("VUE_SCRIPT_BLOCK_PATTERN валідний")
+    });
+    re.captures_iter(sfc)
+        .map(|c| c.get(1).map_or("", |m| m.as_str()))
+        .collect::<Vec<_>>()
+        .join("\n\n")
+}
+
+/// Visitor для [`extract_import_specifiers`]: статичні імпорти окремо від
+/// динамічних/`require` — JS-оригінал (`storybook-hygiene/main.mjs:50-75`)
+/// СПОЧАТКУ віддає всі `parsed.module.staticImports`, а ПОТІМ обходить AST
+/// за `import()`/`require()` (`walkAstWithAncestors`), тож порядок
+/// specifier-ів — «усі статичні, далі динамічні у порядку обходу».
+struct HygieneImportVisitor {
+    static_sources: Vec<String>,
+    dynamic_sources: Vec<String>,
+}
+
+impl<'a> Visit<'a> for HygieneImportVisitor {
+    fn visit_import_declaration(&mut self, it: &ImportDeclaration<'a>) {
+        self.static_sources
+            .push(it.source.value.as_str().to_string());
+    }
+
+    fn visit_import_expression(&mut self, it: &ImportExpression<'a>) {
+        if let Expression::StringLiteral(lit) = &it.source {
+            self.dynamic_sources.push(lit.value.as_str().to_string());
+        }
+        walk_import_expression(self, it);
+    }
+
+    fn visit_call_expression(&mut self, it: &CallExpression<'a>) {
+        if let Expression::Identifier(ident) = &it.callee {
+            if ident.name.as_str() == "require" {
+                if let Some(Argument::StringLiteral(lit)) = it.arguments.first() {
+                    self.dynamic_sources.push(lit.value.as_str().to_string());
+                }
+            }
+        }
+        walk_call_expression(self, it);
+    }
+}
+
+/// Точний порт `extractImportSpecifiers` (`storybook-hygiene/main.mjs:50-75`):
+/// `.vue` → лише `<script>`-блоки, віртуальний `.ts` для вибору мови; файл із
+/// parse-помилками пропускається цілком (`parsed.errors?.length` → `[]` —
+/// на відміну від best-effort [`extract_import_sources`] `js/utils_imports`).
+fn extract_import_specifiers(content: &str, rel_path: &str) -> Vec<String> {
+    let is_vue = rel_path.ends_with(".vue");
+    let scan = if is_vue {
+        extract_vue_script_blocks(content)
+    } else {
+        content.to_string()
+    };
+    let source_type = if is_vue {
+        SourceType::ts()
+    } else {
+        SourceType::from_path(rel_path).unwrap_or_default()
+    };
+    let allocator = Allocator::default();
+    let ret = Parser::new(&allocator, &scan, source_type).parse();
+    if !ret.diagnostics.is_empty() {
+        return Vec::new();
+    }
+    let mut visitor = HygieneImportVisitor {
+        static_sources: Vec::new(),
+        dynamic_sources: Vec::new(),
+    };
+    visitor.visit_program(&ret.program);
+    let mut out = visitor.static_sources;
+    out.extend(visitor.dynamic_sources);
+    out
+}
+
+/// Точний порт `isRelativeOrAliasSpecifier` (`storybook-hygiene/main.mjs:85-87`).
+fn is_relative_or_alias_specifier(spec: &str) -> bool {
+    spec.starts_with('.')
+        || spec.starts_with('/')
+        || spec.starts_with("~/")
+        || spec.starts_with("@/")
+}
+
+/// Точний порт `isNodeBuiltinSpecifier`
+/// (`plugins/lang-js/rules/vue/lib/vue-forbidden-imports.mjs:186-204`).
+fn is_node_builtin_specifier(spec: &str) -> bool {
+    if spec.is_empty() {
+        return false;
+    }
+    if spec.starts_with("node:") {
+        return true;
+    }
+    if NODE_BUILTIN_MODULES.contains(&spec) {
+        return true;
+    }
+    if let Some(idx) = spec.find('/') {
+        if idx > 0 && NODE_BUILTIN_MODULES.contains(&&spec[..idx]) {
+            return true;
+        }
+    }
+    false
+}
+
+/// Точний порт `topLevelPackageName` (`storybook-hygiene/main.mjs:95-102`).
+fn top_level_package_name(spec: &str) -> String {
+    if spec.starts_with('@') {
+        let parts: Vec<&str> = spec.split('/').collect();
+        if parts.len() >= 2 {
+            return format!("{}/{}", parts[0], parts[1]);
+        }
+        return spec.to_string();
+    }
+    match spec.find('/') {
+        Some(idx) => spec[..idx].to_string(),
+        None => spec.to_string(),
+    }
+}
+
+/// Точний порт `collectDeclaredDeps` (`storybook-hygiene/main.mjs:111-120`).
+fn collect_declared_deps(pkg: &serde_json::Value) -> HashSet<String> {
+    let mut names = HashSet::new();
+    for field in ["dependencies", "peerDependencies"] {
+        if let Some(serde_json::Value::Object(obj)) = pkg.get(field) {
+            for name in obj.keys() {
+                names.insert(name.clone());
+            }
+        }
+    }
+    names
+}
+
+/// Точний порт `lint()` `test/storybook-hygiene`
+/// (`storybook-hygiene/main.mjs:250-268`): undeclared third-party imports у
+/// `.vue` + auto-detect глобальних Quasar SCSS-змінних — ЛИШЕ для
+/// `type: 'library'` пакетів (хвиля 2a, доккомент JS-оригіналу).
+fn detect_storybook_hygiene(files: &[SourceFile]) -> Vec<Diagnostic> {
+    let pkgs: Vec<ScopePkg> = collect_in_scope_vue_packages(files)
+        .into_iter()
+        .filter(|p| p.kind == ScopePkgKind::Library)
+        .collect();
+    if pkgs.is_empty() {
+        return Vec::new();
+    }
+    let ignore = read_ignore_prefixes(files);
+    let marker_re = regex::Regex::new(SASS_VARIABLES_MARKER_PATTERN)
+        .expect("SASS_VARIABLES_MARKER_PATTERN валідний");
+    let mut diagnostics = Vec::new();
+
+    for entry in &pkgs {
+        let declared = collect_declared_deps(&entry.pkg);
+        let walk_prefix = pkg_walk_prefix(&entry.root_dir);
+
+        // checkUndeclaredImportsForPackage (`main.mjs:162-189`).
+        for (rel_from_pkg, file) in walk_batch_files(files, &walk_prefix, &ignore) {
+            if !rel_from_pkg.ends_with(".vue") {
+                continue;
+            }
+            let specifiers = extract_import_specifiers(&file.content, rel_from_pkg);
+            let mut reported_for_file: HashSet<String> = HashSet::new();
+            for spec in specifiers {
+                if is_relative_or_alias_specifier(&spec) || is_node_builtin_specifier(&spec) {
+                    continue;
+                }
+                let pkg_name = top_level_package_name(&spec);
+                if declared.contains(&pkg_name) || reported_for_file.contains(&pkg_name) {
+                    continue;
+                }
+                reported_for_file.insert(pkg_name.clone());
+
+                let file_rel = file_rel_from_cwd(&entry.root_dir, rel_from_pkg);
+                let where_pkg = if entry.root_dir == "." {
+                    "кореня монорепо".to_string()
+                } else {
+                    entry.root_dir.clone()
+                };
+                diagnostics.push(Diagnostic {
+                    reason: "undeclared-import".to_string(),
+                    message: format!(
+                        "[undeclared-import] {file_rel}: import '{spec}' — пакет '{pkg_name}' \
+                         відсутній у dependencies/peerDependencies {where_pkg} (storybook.mdc \
+                         hygiene)"
+                    ),
+                    file: Some(file_rel),
+                    severity: Severity::Error,
+                    data: Some(
+                        serde_json::json!({
+                            "rootDir": entry.root_dir,
+                            "package": pkg_name,
+                            "specifier": spec,
+                        })
+                        .to_string(),
+                    ),
+                });
+            }
+        }
+
+        // checkSassVariablesForPackage (`main.mjs:212-226`).
+        let has_sass_variables = SASS_VARIABLES_CANDIDATES
+            .iter()
+            .any(|f| batch_file(files, &format!("{walk_prefix}{f}")).is_some());
+        if !has_sass_variables {
+            continue;
+        }
+        let Some(main_js) = batch_file(files, &format!("{walk_prefix}.storybook/main.js")) else {
+            continue;
+        };
+        if marker_re.is_match(&main_js.content) {
+            continue;
+        }
+        let file_rel = file_rel_from_cwd(&entry.root_dir, ".storybook/main.js");
+        diagnostics.push(Diagnostic {
+            reason: "missing-sass-variables".to_string(),
+            message: format!(
+                "[sass-variables] {file_rel}: пакет має глобальні Quasar SCSS-змінні ({}), але \
+                 quasar({{ sassVariables }}) не задано в .storybook/main.js (storybook.mdc \
+                 hygiene)",
+                SASS_VARIABLES_CANDIDATES.join(" | ")
+            ),
+            file: Some(file_rel),
+            severity: Severity::Warn,
+            data: Some(serde_json::json!({ "rootDir": entry.root_dir }).to_string()),
+        });
+    }
+
+    diagnostics
+}
+
+/// Точний порт `lint()` `test/storybook-page-coverage`
+/// (`storybook-page-coverage/main.mjs:69-86`): кожен `.vue` під `src/pages/`
+/// app-пакета має мати `*.stories.js|ts` поряд (warn, хвиля 2a).
+fn detect_storybook_page_coverage(files: &[SourceFile]) -> Vec<Diagnostic> {
+    let pkgs: Vec<ScopePkg> = collect_in_scope_vue_packages(files)
+        .into_iter()
+        .filter(|p| p.kind == ScopePkgKind::App)
+        .collect();
+    if pkgs.is_empty() {
+        return Vec::new();
+    }
+    let ignore = read_ignore_prefixes(files);
+    let stories_re =
+        regex::Regex::new(STORIES_SUFFIX_PATTERN).expect("STORIES_SUFFIX_PATTERN валідний");
+    let mut diagnostics = Vec::new();
+
+    for entry in &pkgs {
+        let pkg_prefix = pkg_walk_prefix(&entry.root_dir);
+        let pages_dir = format!("{pkg_prefix}src/pages");
+        if !batch_dir_exists(files, &pages_dir) {
+            continue;
+        }
+        // collectPagesTree (`main.mjs:21-34`): walk-корінь — сам `src/pages/`.
+        let pages_walk_prefix = format!("{pages_dir}/");
+        let walked = walk_batch_files(files, &pages_walk_prefix, &ignore);
+        let story_dirs: HashSet<&str> = walked
+            .iter()
+            .filter(|(rel, _)| stories_re.is_match(rel))
+            .map(|(rel, _)| posix_dirname(rel))
+            .collect();
+        for (rel, _) in &walked {
+            if !rel.ends_with(".vue") {
+                continue;
+            }
+            if story_dirs.contains(posix_dirname(rel)) {
+                continue;
+            }
+            let rel_from_pkg = format!("src/pages/{rel}");
+            let file_rel = file_rel_from_cwd(&entry.root_dir, &rel_from_pkg);
+            diagnostics.push(Diagnostic {
+                reason: "page-missing-story".to_string(),
+                message: format!(
+                    "[page-coverage] {file_rel}: немає жодної *.stories.js поряд — сторінка \
+                     app-проєкту без smoke-story (storybook.mdc, хвиля 2a)"
+                ),
+                file: Some(file_rel),
+                severity: Severity::Warn,
+                data: Some(serde_json::json!({ "rootDir": entry.root_dir }).to_string()),
+            });
+        }
+    }
+
+    diagnostics
+}
+
+/// Людський підпис пакета для повідомлень scaffold — дзеркало
+/// `label = rootDir === '.' ? 'корінь' : rootDir`.
+fn pkg_label(root_dir: &str) -> String {
+    if root_dir == "." {
+        "корінь".to_string()
+    } else {
+        root_dir.to_string()
+    }
+}
+
+/// `relPrefix` scaffold-повідомлень — дзеркало
+/// `rootDir === '.' ? '' : `${rootDir}/``.
+fn pkg_rel_prefix(root_dir: &str) -> String {
+    if root_dir == "." {
+        String::new()
+    } else {
+        format!("{root_dir}/")
+    }
+}
+
+/// Точний порт `missingMarkers` (`storybook-scaffold/main.mjs:153-155`).
+fn missing_markers<'m>(content: &str, markers: &'m [CanonMarker]) -> Vec<&'m CanonMarker> {
+    markers
+        .iter()
+        .filter(|m| !content.contains(m.token))
+        .collect()
+}
+
+/// Точний порт `checkCanonFile` (`storybook-scaffold/main.mjs:172-199`) у
+/// batch-простір: відсутній файл → `missing_reason` (+`data.rootDir`),
+/// наявний без маркера → `marker_reason` на кожен маркер.
+#[allow(clippy::too_many_arguments)]
+fn check_canon_file(
+    files: &[SourceFile],
+    root_dir: &str,
+    rel_file: &str,
+    markers: &[CanonMarker],
+    missing_reason: &str,
+    marker_reason: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let label = pkg_label(root_dir);
+    let file_rel = format!("{}{rel_file}", pkg_rel_prefix(root_dir));
+    let abs_path = format!("{}{rel_file}", pkg_walk_prefix(root_dir));
+    if let Some(file) = batch_file(files, &abs_path) {
+        for m in missing_markers(&file.content, markers) {
+            diagnostics.push(Diagnostic {
+                reason: marker_reason.to_string(),
+                message: format!(
+                    "[{label}] {rel_file} не відповідає канону — бракує: {} (storybook.mdc)",
+                    m.hint
+                ),
+                file: Some(file_rel.clone()),
+                severity: Severity::Error,
+                data: None,
+            });
+        }
+        return;
+    }
+    diagnostics.push(Diagnostic {
+        reason: missing_reason.to_string(),
+        message: format!(
+            "[{label}] відсутній {rel_file} — канонічний скафолд: npx @7n/rules fix storybook \
+             (storybook.mdc)"
+        ),
+        file: Some(file_rel),
+        severity: Severity::Error,
+        data: Some(serde_json::json!({ "rootDir": root_dir }).to_string()),
+    });
+}
+
+/// JS-подібне рядкове відображення JSON-значення для template-literal
+/// інтерполяції (`${scriptValue}`): рядок — як є, число/булеве — канонічно,
+/// масив — join(','), обʼєкт — `[object Object]`, `null` у масиві — порожньо.
+fn js_display_json(v: &serde_json::Value) -> String {
+    match v {
+        serde_json::Value::String(s) => s.clone(),
+        serde_json::Value::Number(n) => n.to_string(),
+        serde_json::Value::Bool(b) => b.to_string(),
+        serde_json::Value::Null => String::new(),
+        serde_json::Value::Array(items) => items
+            .iter()
+            .map(js_display_json)
+            .collect::<Vec<_>>()
+            .join(","),
+        serde_json::Value::Object(_) => "[object Object]".to_string(),
+    }
+}
+
+/// Точний порт `checkPackageScaffold` (`storybook-scaffold/main.mjs:300-333`).
+fn check_package_scaffold(
+    files: &[SourceFile],
+    entry: &ScopePkg,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let root_dir = entry.root_dir.as_str();
+
+    if entry.kind == ScopePkgKind::App {
+        // checkAppScaffold (`main.mjs:266-290`).
+        check_canon_file(
+            files,
+            root_dir,
+            ".storybook/main.js",
+            &APP_MAIN_JS_MARKERS,
+            "missing-app-main-js",
+            "app-main-js-marker-missing",
+            diagnostics,
+        );
+        check_canon_file(
+            files,
+            root_dir,
+            ".storybook/preview.js",
+            &APP_PREVIEW_JS_MARKERS,
+            "missing-app-preview-js",
+            "app-preview-js-marker-missing",
+            diagnostics,
+        );
+    } else {
+        // checkLibraryScaffold (`main.mjs:212-252`).
+        check_canon_file(
+            files,
+            root_dir,
+            ".storybook/main.js",
+            &MAIN_JS_MARKERS,
+            "missing-main-js",
+            "main-js-marker-missing",
+            diagnostics,
+        );
+        check_canon_file(
+            files,
+            root_dir,
+            ".storybook/preview.js",
+            &PREVIEW_JS_MARKERS,
+            "missing-preview-js",
+            "preview-js-marker-missing",
+            diagnostics,
+        );
+        check_canon_file(
+            files,
+            root_dir,
+            ".storybook/empty-vite.config.js",
+            &EMPTY_VITE_CONFIG_MARKERS,
+            "missing-empty-vite-config",
+            "empty-vite-config-marker-missing",
+            diagnostics,
+        );
+    }
+
+    check_canon_file(
+        files,
+        root_dir,
+        ".storybook/vitest.setup.js",
+        &VITEST_SETUP_JS_MARKERS,
+        "missing-vitest-setup-js",
+        "vitest-setup-js-marker-missing",
+        diagnostics,
+    );
+
+    let script_value = entry.pkg.get("scripts").and_then(|s| s.get("storybook"));
+    let is_canonical = script_value.and_then(|v| v.as_str()) == Some(STORYBOOK_SCRIPT);
+    if !is_canonical {
+        let label = pkg_label(root_dir);
+        let pkg_json_rel = format!("{}package.json", pkg_rel_prefix(root_dir));
+        let current = match script_value {
+            Some(v) if js_truthy(v) => format!("'{}'", js_display_json(v)),
+            _ => "відсутній".to_string(),
+        };
+        diagnostics.push(Diagnostic {
+            reason: "missing-storybook-script".to_string(),
+            message: format!(
+                "[{label}] package.json#scripts.storybook має бути '{STORYBOOK_SCRIPT}' (зараз: \
+                 {current}) — storybook.mdc"
+            ),
+            file: Some(pkg_json_rel),
+            severity: Severity::Error,
+            data: Some(serde_json::json!({ "rootDir": root_dir }).to_string()),
+        });
+    }
+}
+
+/// Точний порт `lint()` `test/storybook-scaffold`
+/// (`storybook-scaffold/main.mjs:341-355`).
+fn detect_storybook_scaffold(files: &[SourceFile]) -> Vec<Diagnostic> {
+    let pkgs = collect_in_scope_vue_packages(files);
+    if pkgs.is_empty() {
+        return Vec::new();
+    }
+    let mut diagnostics = Vec::new();
+    for entry in &pkgs {
+        check_package_scaffold(files, entry, &mut diagnostics);
+    }
+    diagnostics
+}
+
+/// Точний порт `checkRepoCanonFile` (`storybook-ci/main.mjs:51-67`) —
+/// репо-рівневий канонічний файл, без per-package `rootDir`.
+fn check_repo_canon_file(
+    files: &[SourceFile],
+    rel_file: &str,
+    markers: &[CanonMarker],
+    missing_reason: &str,
+    marker_reason: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if let Some(file) = batch_file(files, rel_file) {
+        for m in missing_markers(&file.content, markers) {
+            diagnostics.push(Diagnostic {
+                reason: marker_reason.to_string(),
+                message: format!(
+                    "{rel_file} не відповідає канону — бракує: {} (storybook.mdc, ADR Кластер 5)",
+                    m.hint
+                ),
+                file: Some(rel_file.to_string()),
+                severity: Severity::Error,
+                data: None,
+            });
+        }
+        return;
+    }
+    diagnostics.push(Diagnostic {
+        reason: missing_reason.to_string(),
+        message: format!(
+            "Відсутній {rel_file} — канонічний Playwright-кеш для vitest storybook-проєкту: npx \
+             @7n/rules fix storybook (storybook.mdc, ADR Кластер 5)"
+        ),
+        file: Some(rel_file.to_string()),
+        severity: Severity::Error,
+        data: None,
+    });
+}
+
+/// Точний порт `lint()` `test/storybook-ci` (`storybook-ci/main.mjs:83-112`).
+/// Гейт `requires.capability: ci:github` НЕ відтворюється тут — він
+/// застосовується JS-планувальником ДО диспатчу за `concern.json`
+/// JS-оригіналу (обидва фільтри — capabilities/applies — лишаються в JS,
+/// доккомент `rules_core::lint_plan`), wasm-shadowing його не оминає.
+fn detect_storybook_ci(files: &[SourceFile]) -> Vec<Diagnostic> {
+    let pkgs = collect_in_scope_vue_packages(files);
+    if pkgs.is_empty() {
+        return Vec::new();
+    }
+    let mut diagnostics = Vec::new();
+    check_repo_canon_file(
+        files,
+        PLAYWRIGHT_ACTION_REL,
+        &PLAYWRIGHT_ACTION_MARKERS,
+        "missing-playwright-action",
+        "playwright-action-marker-missing",
+        &mut diagnostics,
+    );
+    check_repo_canon_file(
+        files,
+        STORYBOOK_WORKFLOW_REL,
+        &STORYBOOK_WORKFLOW_MARKERS,
+        "missing-storybook-workflow",
+        "storybook-workflow-marker-missing",
+        &mut diagnostics,
+    );
+    diagnostics
+}
+
+/// Guest-реалізація world `plugin` — дев'ятнадцять контрибуцій ([`CONCERN_TFM`],
 /// [`CONCERN_GAP`], [`CONCERN_POOL_FORKS`], [`CONCERN_NO_PROCESS_CHDIR`],
 /// [`CONCERN_ADMIN_TABLE`], [`CONCERN_QUASAR_FIXES`], [`CONCERN_LOCATION`],
 /// [`CONCERN_NO_CONSOLE_STORE_RESTORE`], [`CONCERN_NO_BUN_TEST_IMPORT`],
 /// [`CONCERN_UTILS_IMPORTS`], [`CONCERN_NO_RELATIVE_FS_PATH`],
 /// [`CONCERN_REDIS_IMPORTS`], [`CONCERN_MSSQL_DEPS`],
-/// [`CONCERN_BUN_DB_SAFETY`] — останні три в контрибуції з батчу 4, задача
-/// Q4, доккомент секції «Батч 4» вище).
+/// [`CONCERN_BUN_DB_SAFETY`] — батч 4, задача Q4; [`CONCERN_STORYBOOK_SCOPE`],
+/// [`CONCERN_STORYBOOK_HYGIENE`], [`CONCERN_STORYBOOK_PAGE_COVERAGE`],
+/// [`CONCERN_STORYBOOK_SCAFFOLD`], [`CONCERN_STORYBOOK_CI`] — батч 5,
+/// storybook-сімейство, доккомент секції «Батч 5» вище).
 struct LangJs;
 
 impl Guest for LangJs {
@@ -3771,6 +5211,26 @@ impl Guest for LangJs {
             CONCERN_MSSQL_DEPS => {
                 report_progress(total, total);
                 detect_mssql_deps(&batch.files)
+            }
+            CONCERN_STORYBOOK_SCOPE => {
+                report_progress(total, total);
+                detect_storybook_scope(&batch.files)
+            }
+            CONCERN_STORYBOOK_HYGIENE => {
+                report_progress(total, total);
+                detect_storybook_hygiene(&batch.files)
+            }
+            CONCERN_STORYBOOK_PAGE_COVERAGE => {
+                report_progress(total, total);
+                detect_storybook_page_coverage(&batch.files)
+            }
+            CONCERN_STORYBOOK_SCAFFOLD => {
+                report_progress(total, total);
+                detect_storybook_scaffold(&batch.files)
+            }
+            CONCERN_STORYBOOK_CI => {
+                report_progress(total, total);
+                detect_storybook_ci(&batch.files)
             }
             _ => {
                 let mut diagnostics = Vec::new();
@@ -5098,15 +6558,455 @@ mod tests {
         assert!(detect_no_relative_fs_path(&files).is_empty());
     }
 
+    // --- батч 5: storybook-сімейство ---
+
+    /// Мінімальна Vue-бібліотека `packages/ui` з `count` `.vue`-файлами —
+    /// дзеркало `writeVueLibraryPkg` (`storybook-scope/tests/scope.test.mjs`).
+    fn vue_library_files(count: usize) -> Vec<SourceFile> {
+        let mut files = vec![
+            source(
+                "package.json",
+                "{\"name\":\"root\",\"workspaces\":[\"packages/*\"]}",
+            ),
+            source(
+                "packages/ui/package.json",
+                "{\"name\":\"ui\",\"peerDependencies\":{\"vue\":\"^3.6.0\"}}",
+            ),
+        ];
+        for i in 0..count {
+            files.push(source(
+                &format!("packages/ui/src/components/Comp{i}.vue"),
+                "<template><div/></template>\n",
+            ));
+        }
+        files
+    }
+
+    #[test]
+    fn monorepo_roots_expand_star_pattern_and_sort_root_first() {
+        let files = vec![
+            source("package.json", "{\"workspaces\":[\"packages/*\",\"npm\"]}"),
+            source("packages/ui/package.json", "{\"name\":\"ui\"}"),
+            source("packages/app/package.json", "{\"name\":\"app\"}"),
+            source("npm/package.json", "{\"name\":\"npm\"}"),
+            source("packages/node_modules/x/package.json", "{\"name\":\"x\"}"),
+        ];
+        assert_eq!(
+            monorepo_package_root_dirs(&files),
+            vec![".", "npm", "packages/app", "packages/ui"]
+        );
+    }
+
+    #[test]
+    fn monorepo_roots_without_root_package_json_is_only_dot() {
+        let files = vec![source("packages/ui/package.json", "{\"name\":\"ui\"}")];
+        assert_eq!(monorepo_package_root_dirs(&files), vec!["."]);
+    }
+
+    #[test]
+    fn workspace_glob_star_does_not_cross_segments_but_double_star_does() {
+        let files = vec![
+            source("package.json", "{\"workspaces\":[\"packages/**\"]}"),
+            source("packages/group/deep/package.json", "{\"name\":\"deep\"}"),
+        ];
+        assert_eq!(
+            monorepo_package_root_dirs(&files),
+            vec![".", "packages/group/deep"]
+        );
+        let star_only = vec![
+            source("package.json", "{\"workspaces\":[\"packages/*\"]}"),
+            source("packages/group/deep/package.json", "{\"name\":\"deep\"}"),
+        ];
+        assert_eq!(monorepo_package_root_dirs(&star_only), vec!["."]);
+    }
+
+    #[test]
+    fn read_storybook_opt_out_prefers_n_rules_and_keeps_raw_values() {
+        let files = vec![
+            source(
+                ".n-rules.json",
+                "{\"storybook\":{\"optOut\":[\"packages/ui\",\" \",42]}}",
+            ),
+            source(
+                ".n-cursor.json",
+                "{\"storybook\":{\"optOut\":[\"legacy\"]}}",
+            ),
+        ];
+        assert_eq!(read_storybook_opt_out(&files), vec!["packages/ui"]);
+    }
+
+    #[test]
+    fn read_storybook_opt_out_broken_n_rules_does_not_fall_back_to_legacy() {
+        // existsSync-вибір файлу відбувається ДО парсингу: битий
+        // `.n-rules.json` → порожньо, БЕЗ fallback-у на `.n-cursor.json`.
+        let files = vec![
+            source(".n-rules.json", "не json"),
+            source(
+                ".n-cursor.json",
+                "{\"storybook\":{\"optOut\":[\"legacy\"]}}",
+            ),
+        ];
+        assert!(read_storybook_opt_out(&files).is_empty());
+    }
+
+    #[test]
+    fn collect_in_scope_respects_threshold_and_opt_out() {
+        // Поріг: 2 < VUE_FILE_THRESHOLD → поза скоупом.
+        assert!(collect_in_scope_vue_packages(&vue_library_files(2)).is_empty());
+        // 3 — у скоупі, type library.
+        let in_scope = collect_in_scope_vue_packages(&vue_library_files(3));
+        assert_eq!(in_scope.len(), 1);
+        assert_eq!(in_scope[0].root_dir, "packages/ui");
+        assert!(in_scope[0].kind == ScopePkgKind::Library);
+        // optOut знімає зі скоупу.
+        let mut opted_out = vue_library_files(3);
+        opted_out.push(source(
+            ".n-rules.json",
+            "{\"storybook\":{\"optOut\":[\"packages/ui\"]}}",
+        ));
+        assert!(collect_in_scope_vue_packages(&opted_out).is_empty());
+    }
+
+    #[test]
+    fn collect_in_scope_app_requires_detect_apps_flag_and_pages_dir() {
+        let base = vec![
+            source(
+                "package.json",
+                "{\"name\":\"root\",\"workspaces\":[\"packages/*\"]}",
+            ),
+            source(
+                "packages/demo/package.json",
+                "{\"name\":\"demo\",\"dependencies\":{\"vue\":\"^3.6.0\"}}",
+            ),
+            source("packages/demo/src/pages/task/[id].vue", "<template/>"),
+        ];
+        // Без прапорця detectApps — поза скоупом.
+        assert!(collect_in_scope_vue_packages(&base).is_empty());
+        // З прапорцем — у скоупі як app, БЕЗ порога (одна сторінка досить).
+        let mut with_flag = base.clone();
+        with_flag.push(source(
+            ".n-rules.json",
+            "{\"storybook\":{\"detectApps\":true}}",
+        ));
+        let in_scope = collect_in_scope_vue_packages(&with_flag);
+        assert_eq!(in_scope.len(), 1);
+        assert!(in_scope[0].kind == ScopePkgKind::App);
+    }
+
+    #[test]
+    fn count_vue_files_respects_n_rules_ignore() {
+        let files = vec![
+            source(
+                ".n-rules.json",
+                "{\"ignore\":[\"packages/ui/src/legacy/\"]}",
+            ),
+            source("packages/ui/src/components/A.vue", "<template/>"),
+            source("packages/ui/src/legacy/B.vue", "<template/>"),
+        ];
+        let ignore = read_ignore_prefixes(&files);
+        assert_eq!(count_vue_files(&files, "packages/ui/", &ignore), 1);
+        assert_eq!(count_vue_files(&files, "", &ignore), 1);
+    }
+
+    #[test]
+    fn detect_storybook_scope_flags_stale_opt_out_only() {
+        let mut files = vue_library_files(3);
+        files.push(source(
+            ".n-rules.json",
+            "{\"storybook\":{\"optOut\":[\"packages/ghost\",\"packages/ui\"]}}",
+        ));
+        let diagnostics = detect_storybook_scope(&files);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].reason, "stale-opt-out");
+        assert_eq!(
+            diagnostics[0].message,
+            ".n-rules.json storybook.optOut містить 'packages/ghost' — такого workspace-пакета \
+             немає (застаріле opt-out, storybook.mdc)"
+        );
+        assert!(diagnostics[0].file.is_none());
+    }
+
+    #[test]
+    fn detect_storybook_scope_empty_opt_out_is_silent() {
+        assert!(detect_storybook_scope(&vue_library_files(3)).is_empty());
+    }
+
+    #[test]
+    fn extract_import_specifiers_orders_statics_before_dynamics_and_requires() {
+        let content = "<template><div/></template>\n<script setup>\nconst legacy = \
+                       require('legacy-pkg')\nimport { thing } from 'static-pkg'\nawait \
+                       import('dyn-pkg')\n</script>\n";
+        assert_eq!(
+            extract_import_specifiers(content, "src/components/A.vue"),
+            vec!["static-pkg", "legacy-pkg", "dyn-pkg"]
+        );
+    }
+
+    #[test]
+    fn extract_import_specifiers_skips_file_with_syntax_error() {
+        let content = "<script setup>\nimport { x } from 'pkg'\ninvalid <<<< syntax\n</script>\n";
+        assert!(extract_import_specifiers(content, "A.vue").is_empty());
+    }
+
+    #[test]
+    fn detect_storybook_hygiene_flags_undeclared_import_once_per_package_name() {
+        let mut files = vue_library_files(3);
+        files.push(source(
+            "packages/ui/src/components/Picker.vue",
+            "<script setup>\nimport Datepicker from '@vuepic/vue-datepicker'\nimport { x } from \
+             '@vuepic/vue-datepicker/sub'\nimport { join } from 'node:path'\nimport rel from \
+             './local.js'\nimport aliased from '@/utils'\n</script>\n",
+        ));
+        let diagnostics = detect_storybook_hygiene(&files);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].reason, "undeclared-import");
+        assert_eq!(
+            diagnostics[0].message,
+            "[undeclared-import] packages/ui/src/components/Picker.vue: import \
+             '@vuepic/vue-datepicker' — пакет '@vuepic/vue-datepicker' відсутній у \
+             dependencies/peerDependencies packages/ui (storybook.mdc hygiene)"
+        );
+        assert_eq!(
+            diagnostics[0].file.as_deref(),
+            Some("packages/ui/src/components/Picker.vue")
+        );
+    }
+
+    #[test]
+    fn detect_storybook_hygiene_declared_deps_pass() {
+        let mut files = vec![
+            source(
+                "package.json",
+                "{\"name\":\"root\",\"workspaces\":[\"packages/*\"]}",
+            ),
+            source(
+                "packages/ui/package.json",
+                "{\"name\":\"ui\",\"peerDependencies\":{\"vue\":\"^3.6.0\"},\"dependencies\":{\"@vuepic/vue-datepicker\":\"^14.0.0\"}}",
+            ),
+        ];
+        for i in 0..3 {
+            files.push(source(
+                &format!("packages/ui/src/components/Comp{i}.vue"),
+                "<script setup>\nimport Datepicker from '@vuepic/vue-datepicker'\n</script>\n",
+            ));
+        }
+        assert!(detect_storybook_hygiene(&files).is_empty());
+    }
+
+    #[test]
+    fn detect_storybook_hygiene_sass_variables_warn() {
+        let mut files = vue_library_files(3);
+        files.push(source(
+            "packages/ui/src/css/quasar.variables.scss",
+            "$primary: #000;\n",
+        ));
+        files.push(source(
+            "packages/ui/.storybook/main.js",
+            "export default { framework: '@storybook/vue3-vite' }\n",
+        ));
+        let diagnostics = detect_storybook_hygiene(&files);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].reason, "missing-sass-variables");
+        assert!(diagnostics[0].severity == Severity::Warn);
+        assert_eq!(
+            diagnostics[0].message,
+            "[sass-variables] packages/ui/.storybook/main.js: пакет має глобальні Quasar \
+             SCSS-змінні (src/css/quasar.variables.scss | src/css/quasar.variables.sass), але \
+             quasar({ sassVariables }) не задано в .storybook/main.js (storybook.mdc hygiene)"
+        );
+        // З маркером — тихо.
+        let last = files.len() - 1;
+        files[last] = source(
+            "packages/ui/.storybook/main.js",
+            "export default { viteFinal: () => quasar({ sassVariables: true }) }\n",
+        );
+        assert!(detect_storybook_hygiene(&files).is_empty());
+    }
+
+    /// App-пакет `packages/demo` у скоупі (detectApps) з опційними stories.
+    fn app_pkg_files(with_story: bool) -> Vec<SourceFile> {
+        let mut files = vec![
+            source(
+                "package.json",
+                "{\"name\":\"root\",\"workspaces\":[\"packages/*\"]}",
+            ),
+            source(".n-rules.json", "{\"storybook\":{\"detectApps\":true}}"),
+            source(
+                "packages/demo/package.json",
+                "{\"name\":\"demo\",\"dependencies\":{\"vue\":\"^3.6.0\"}}",
+            ),
+            source("packages/demo/src/pages/task/[id].vue", "<template/>"),
+        ];
+        if with_story {
+            files.push(source(
+                "packages/demo/src/pages/task/task-detail.stories.js",
+                "export default { title: 'task' }\n",
+            ));
+        }
+        files
+    }
+
+    #[test]
+    fn detect_storybook_page_coverage_warns_without_story_nearby() {
+        let diagnostics = detect_storybook_page_coverage(&app_pkg_files(false));
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].reason, "page-missing-story");
+        assert!(diagnostics[0].severity == Severity::Warn);
+        assert_eq!(
+            diagnostics[0].message,
+            "[page-coverage] packages/demo/src/pages/task/[id].vue: немає жодної *.stories.js \
+             поряд — сторінка app-проєкту без smoke-story (storybook.mdc, хвиля 2a)"
+        );
+    }
+
+    #[test]
+    fn detect_storybook_page_coverage_story_in_same_dir_passes() {
+        // Ім'я story НЕ мусить збігатись із basename сторінки — досить "поряд".
+        assert!(detect_storybook_page_coverage(&app_pkg_files(true)).is_empty());
+    }
+
+    #[test]
+    fn detect_storybook_scaffold_reports_missing_files_and_script() {
+        let diagnostics = detect_storybook_scaffold(&vue_library_files(3));
+        let reasons: Vec<&str> = diagnostics.iter().map(|d| d.reason.as_str()).collect();
+        assert_eq!(
+            reasons,
+            vec![
+                "missing-main-js",
+                "missing-preview-js",
+                "missing-empty-vite-config",
+                "missing-vitest-setup-js",
+                "missing-storybook-script",
+            ]
+        );
+        assert_eq!(
+            diagnostics[0].message,
+            "[packages/ui] відсутній .storybook/main.js — канонічний скафолд: npx @7n/rules fix \
+             storybook (storybook.mdc)"
+        );
+        assert_eq!(
+            diagnostics[4].message,
+            "[packages/ui] package.json#scripts.storybook має бути 'storybook dev -p 6006 \
+             --no-open' (зараз: відсутній) — storybook.mdc"
+        );
+        assert_eq!(
+            diagnostics[4].file.as_deref(),
+            Some("packages/ui/package.json")
+        );
+    }
+
+    #[test]
+    fn detect_storybook_scaffold_marker_violations_on_partial_files() {
+        let mut files = vue_library_files(3);
+        // main.js з УСІМА маркерами, крім viteConfigPath.
+        files.push(source(
+            "packages/ui/.storybook/main.js",
+            "// @storybook/vue3-vite viteFinal 'vite-plugin-pages' 'vite-plugin-vue-layouts' \
+             'vite-plugin-vue-layouts-next' isVueTransformFamily resolvePluginEntry\n",
+        ));
+        let diagnostics = detect_storybook_scaffold(&files);
+        let main_js_markers: Vec<&Diagnostic> = diagnostics
+            .iter()
+            .filter(|d| d.reason == "main-js-marker-missing")
+            .collect();
+        assert_eq!(main_js_markers.len(), 1);
+        assert!(main_js_markers[0].message.contains("viteConfigPath"));
+        assert!(main_js_markers[0]
+            .message
+            .starts_with("[packages/ui] .storybook/main.js не відповідає канону — бракує:"));
+    }
+
+    #[test]
+    fn detect_storybook_scaffold_canonical_package_is_silent() {
+        let mut files = vec![
+            source(
+                "package.json",
+                "{\"name\":\"root\",\"workspaces\":[\"packages/*\"]}",
+            ),
+            source(
+                "packages/ui/package.json",
+                "{\"name\":\"ui\",\"peerDependencies\":{\"vue\":\"^3.6.0\"},\"scripts\":{\"storybook\":\"storybook dev -p 6006 --no-open\"}}",
+            ),
+            source(
+                "packages/ui/.storybook/main.js",
+                "// @storybook/vue3-vite viteFinal 'vite-plugin-pages' 'vite-plugin-vue-layouts' \
+                 'vite-plugin-vue-layouts-next' isVueTransformFamily resolvePluginEntry \
+                 viteConfigPath\n",
+            ),
+            source(
+                "packages/ui/.storybook/preview.js",
+                "// Quasar iconSet iconMapFn msw-storybook-addon onUnhandledRequest mswLoader\n",
+            ),
+            source(
+                "packages/ui/.storybook/empty-vite.config.js",
+                "import { defineConfig } from 'vite'\nexport default defineConfig({})\n",
+            ),
+            source(
+                "packages/ui/.storybook/vitest.setup.js",
+                "// setProjectAnnotations beforeAll\n",
+            ),
+        ];
+        for i in 0..3 {
+            files.push(source(
+                &format!("packages/ui/src/components/Comp{i}.vue"),
+                "<template><div/></template>\n",
+            ));
+        }
+        assert!(detect_storybook_scaffold(&files).is_empty());
+    }
+
+    #[test]
+    fn detect_storybook_ci_reports_both_missing_repo_files() {
+        let diagnostics = detect_storybook_ci(&vue_library_files(3));
+        assert_eq!(diagnostics.len(), 2);
+        assert_eq!(diagnostics[0].reason, "missing-playwright-action");
+        assert_eq!(
+            diagnostics[0].message,
+            "Відсутній .github/actions/setup-playwright-chromium/action.yml — канонічний \
+             Playwright-кеш для vitest storybook-проєкту: npx @7n/rules fix storybook \
+             (storybook.mdc, ADR Кластер 5)"
+        );
+        assert_eq!(diagnostics[1].reason, "missing-storybook-workflow");
+    }
+
+    #[test]
+    fn detect_storybook_ci_marker_check_and_out_of_scope_silence() {
+        // Поза скоупом (немає бібліотек) — тихо, навіть без .github-файлів.
+        assert!(detect_storybook_ci(&vue_library_files(2)).is_empty());
+        // У скоупі: action без одного маркера + канонічний workflow.
+        let mut files = vue_library_files(3);
+        files.push(source(
+            ".github/actions/setup-playwright-chromium/action.yml",
+            "# ms-playwright кеш через actions/cache@v4\n",
+        ));
+        files.push(source(
+            ".github/workflows/lint-storybook.yml",
+            "# ./.github/actions/setup-bun-deps ./.github/actions/setup-playwright-chromium \
+             vitest --project=storybook\n",
+        ));
+        let diagnostics = detect_storybook_ci(&files);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].reason, "playwright-action-marker-missing");
+        assert!(diagnostics[0].message.contains("install лише chromium"));
+    }
+
+    #[test]
+    fn locale_compare_approx_orders_ascii_dirs_like_byte_sort() {
+        let mut roots = vec!["packages/ui", "npm", "packages/app"];
+        roots.sort_by(|a, b| locale_compare_approx(a, b));
+        assert_eq!(roots, vec!["npm", "packages/app", "packages/ui"]);
+    }
+
     // --- маніфест ---
 
     #[test]
-    fn build_manifest_declares_all_fourteen_concerns_with_expected_scopes() {
+    fn build_manifest_declares_all_nineteen_concerns_with_expected_scopes() {
         let manifest = build_manifest();
         // Задача Q4 батч 4: `CONCERN_REDIS_IMPORTS`/`CONCERN_MSSQL_DEPS`/
         // `CONCERN_BUN_DB_SAFETY` тепер У контрибуції (AST-порти, де-скоуп
-        // батчу 2 знято — доккомент модуля вище).
-        assert_eq!(manifest.concerns.len(), 14);
+        // батчу 2 знято — доккомент модуля вище). Батч 5 додає п'ять
+        // концернів storybook-сімейства (доккомент секції «Батч 5»).
+        assert_eq!(manifest.concerns.len(), 19);
         let tfm = manifest
             .concerns
             .iter()
@@ -5127,6 +7027,11 @@ mod tests {
             CONCERN_REDIS_IMPORTS,
             CONCERN_MSSQL_DEPS,
             CONCERN_BUN_DB_SAFETY,
+            CONCERN_STORYBOOK_SCOPE,
+            CONCERN_STORYBOOK_HYGIENE,
+            CONCERN_STORYBOOK_PAGE_COVERAGE,
+            CONCERN_STORYBOOK_SCAFFOLD,
+            CONCERN_STORYBOOK_CI,
         ] {
             let contribution = manifest
                 .concerns
@@ -5135,6 +7040,24 @@ mod tests {
                 .unwrap_or_else(|| panic!("{key} contribution має бути в маніфесті"));
             assert_eq!(contribution.scope, ConcernScope::Full);
             assert!(!contribution.glob.is_empty());
+        }
+        // Глоби storybook-сімейства (батч 5) мусять покривати `.n-rules.json`
+        // і `**/package.json` — без них optOut/workspace-розгортання порту
+        // «сліпі» (доккомент build_manifest, секція про ширші глоби).
+        for key in [
+            CONCERN_STORYBOOK_SCOPE,
+            CONCERN_STORYBOOK_HYGIENE,
+            CONCERN_STORYBOOK_PAGE_COVERAGE,
+            CONCERN_STORYBOOK_SCAFFOLD,
+            CONCERN_STORYBOOK_CI,
+        ] {
+            let contribution = manifest
+                .concerns
+                .iter()
+                .find(|c| c.key == key)
+                .expect("контрибуція є (перевірено вище)");
+            assert!(contribution.glob.iter().any(|g| g == ".n-rules.json"));
+            assert!(contribution.glob.iter().any(|g| g == "**/package.json"));
         }
         // Глоби трьох AST-концернів батчу 4 мусять покривати package.json —
         // гейт «кореневий package.json існує» інакше ніколи не пройде.

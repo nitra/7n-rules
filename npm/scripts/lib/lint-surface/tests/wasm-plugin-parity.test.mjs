@@ -168,6 +168,21 @@ const NO_RELATIVE_FS_PATH_CONCERN_KEY = 'test/no-relative-fs-path'
 const REDIS_IMPORTS_CONCERN_KEY = 'js-bun-redis/imports'
 const MSSQL_DEPS_CONCERN_KEY = 'js-mssql/deps'
 const BUN_DB_SAFETY_CONCERN_KEY = 'js-bun-db/safety'
+// Батч 5 (§3.5.5): storybook-сімейство — п'ять full-scope концернів. JS-канони
+// самі ходять диском (`collectInScopeVuePackages`: workspaces + walkDir +
+// `.n-rules.json`), wasm-порт отримує ті самі факти з host-побудованого
+// батча — саме цю еквівалентність і доводять фікстури нижче.
+const STORYBOOK_RULES_DIR = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'test')
+const STORYBOOK_SCOPE_MAIN_MJS_PATH = join(STORYBOOK_RULES_DIR, 'storybook-scope', 'main.mjs')
+const STORYBOOK_HYGIENE_MAIN_MJS_PATH = join(STORYBOOK_RULES_DIR, 'storybook-hygiene', 'main.mjs')
+const STORYBOOK_PAGE_COVERAGE_MAIN_MJS_PATH = join(STORYBOOK_RULES_DIR, 'storybook-page-coverage', 'main.mjs')
+const STORYBOOK_SCAFFOLD_MAIN_MJS_PATH = join(STORYBOOK_RULES_DIR, 'storybook-scaffold', 'main.mjs')
+const STORYBOOK_CI_MAIN_MJS_PATH = join(STORYBOOK_RULES_DIR, 'storybook-ci', 'main.mjs')
+const STORYBOOK_SCOPE_CONCERN_KEY = 'test/storybook-scope'
+const STORYBOOK_HYGIENE_CONCERN_KEY = 'test/storybook-hygiene'
+const STORYBOOK_PAGE_COVERAGE_CONCERN_KEY = 'test/storybook-page-coverage'
+const STORYBOOK_SCAFFOLD_CONCERN_KEY = 'test/storybook-scaffold'
+const STORYBOOK_CI_CONCERN_KEY = 'test/storybook-ci'
 
 /** Size-budget компонента (задача Q3, спека `docs/specs/2026-08-01-wasm-ast-strategy.md`, розділ «Рішення» п.2). */
 const WASM_SIZE_BUDGET_BYTES = 2.5 * 1024 * 1024
@@ -1244,6 +1259,403 @@ describe('wasm-plugin parity — js-bun-db/safety (JS канон vs wasm plugin-
       expect(wasm).toEqual(js)
       expect(js).toHaveLength(1)
       expect(js[0].message).toContain('sql.array(arr) без другого аргументу')
+    })
+  })
+})
+
+/**
+ * Пише файл із створенням проміжних тек — фікстури storybook-сімейства
+ * (батч 5) будують мінімальні монорепо-дерева (workspaces + пакети).
+ * @param {string} dir корінь tmp-дерева
+ * @param {string} rel відносний шлях файлу
+ * @param {string} content вміст
+ * @returns {Promise<void>}
+ */
+async function writeFileDeep(dir, rel, content) {
+  const { mkdir } = await import('node:fs/promises')
+  const abs = join(dir, rel)
+  await mkdir(join(abs, '..'), { recursive: true })
+  await writeFile(abs, content, 'utf8')
+}
+
+/**
+ * Мінімальна Vue-бібліотека `packages/ui` у скоупі Storybook (workspaces +
+ * peerDependencies.vue + 3 `.vue`) — дзеркало `writeVueLibraryPkg`
+ * (`plugins/lang-js/rules/test/storybook-scope/tests/scope.test.mjs`).
+ * @param {string} dir корінь tmp-дерева
+ * @returns {Promise<void>}
+ */
+async function writeStorybookLibraryFixture(dir) {
+  await writeFileDeep(dir, 'package.json', JSON.stringify({ name: 'root', workspaces: ['packages/*'] }, null, 2))
+  await writeFileDeep(
+    dir,
+    'packages/ui/package.json',
+    JSON.stringify({ name: 'ui', peerDependencies: { vue: '^3.6.0' } }, null, 2)
+  )
+  for (let i = 0; i < 3; i++) {
+    await writeFileDeep(dir, `packages/ui/src/components/Comp${i}.vue`, '<template><div/></template>\n')
+  }
+}
+
+describe('wasm-plugin parity — test/storybook-scope (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
+  const runScopeBoth = dir =>
+    runFullScopeBoth(STORYBOOK_SCOPE_MAIN_MJS_PATH, STORYBOOK_SCOPE_CONCERN_KEY, 'test', 'storybook-scope', dir)
+
+  test('успіх: storybook.optOut порожній/не заданий → без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeStorybookLibraryFixture(dir)
+      const { js, wasm } = await runScopeBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('порушення: optOut на неіснуючий workspace-пакет → однакове stale-opt-out violation', async () => {
+    await withTmpDir(async dir => {
+      await writeStorybookLibraryFixture(dir)
+      await writeFileDeep(dir, '.n-rules.json', JSON.stringify({ storybook: { optOut: ['packages/ghost'] } }))
+      const { js, wasm } = await runScopeBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('stale-opt-out')
+      expect(js[0].message).toContain('packages/ghost')
+    })
+  })
+
+  test('успіх: optOut на існуючий пакет → без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeStorybookLibraryFixture(dir)
+      await writeFileDeep(dir, '.n-rules.json', JSON.stringify({ storybook: { optOut: ['packages/ui'] } }))
+      const { js, wasm } = await runScopeBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('крайове: legacy .n-cursor.json (без .n-rules.json) читається обома реалізаціями', async () => {
+    await withTmpDir(async dir => {
+      await writeStorybookLibraryFixture(dir)
+      await writeFileDeep(dir, '.n-cursor.json', JSON.stringify({ storybook: { optOut: ['packages/ghost'] } }))
+      const { js, wasm } = await runScopeBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('stale-opt-out')
+    })
+  })
+})
+
+describe('wasm-plugin parity — test/storybook-hygiene (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
+  const runHygieneBoth = dir =>
+    runFullScopeBoth(STORYBOOK_HYGIENE_MAIN_MJS_PATH, STORYBOOK_HYGIENE_CONCERN_KEY, 'test', 'storybook-hygiene', dir)
+
+  test('порушення: undeclared import у .vue (static + subpath-дедуп) → ідентичні violations', async () => {
+    await withTmpDir(async dir => {
+      await writeStorybookLibraryFixture(dir)
+      await writeFileDeep(
+        dir,
+        'packages/ui/src/components/Picker.vue',
+        "<script setup>\nimport Datepicker from '@vuepic/vue-datepicker'\nimport { util } from '@vuepic/vue-datepicker/sub'\nimport { join } from 'node:path'\nimport rel from './local.js'\nimport aliased from '@/utils'\n</script>\n"
+      )
+      const { js, wasm } = await runHygieneBoth(dir)
+      expect(wasm).toEqual(js)
+      // Один violation: subpath дедуплікується за top-level ім'ям пакета,
+      // node-builtin/відносний/alias-імпорти пропускаються.
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('undeclared-import')
+      expect(js[0].message).toContain('@vuepic/vue-datepicker')
+    })
+  })
+
+  test('порушення: динамічний import() і require() у script блоці → ідентичний порядок violations', async () => {
+    await withTmpDir(async dir => {
+      await writeStorybookLibraryFixture(dir)
+      await writeFileDeep(
+        dir,
+        'packages/ui/src/components/Lazy.vue',
+        "<script>\nconst legacy = require('legacy-pkg')\nexport default {\n  async mounted() {\n    await import('dyn-pkg')\n  }\n}\n</script>\n"
+      )
+      const { js, wasm } = await runHygieneBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(2)
+      expect(js.map(v => v.data.package)).toEqual(['legacy-pkg', 'dyn-pkg'])
+    })
+  })
+
+  test('успіх: задекларована залежність і .vue із syntax error → без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'package.json', JSON.stringify({ name: 'root', workspaces: ['packages/*'] }, null, 2))
+      await writeFileDeep(
+        dir,
+        'packages/ui/package.json',
+        JSON.stringify(
+          { name: 'ui', peerDependencies: { vue: '^3.6.0' }, dependencies: { '@vuepic/vue-datepicker': '^14.0.0' } },
+          null,
+          2
+        )
+      )
+      for (let i = 0; i < 3; i++) {
+        await writeFileDeep(
+          dir,
+          `packages/ui/src/components/Comp${i}.vue`,
+          "<script setup>\nimport Datepicker from '@vuepic/vue-datepicker'\n</script>\n"
+        )
+      }
+      // Файл із syntax error пропускається цілком (parsed.errors → []).
+      await writeFileDeep(
+        dir,
+        'packages/ui/src/components/Broken.vue',
+        "<script setup>\nimport { x } from 'undeclared-pkg'\ninvalid <<<< syntax\n</script>\n"
+      )
+      const { js, wasm } = await runHygieneBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('порушення: sass-variables без sassVariables у .storybook/main.js → однаковий warn', async () => {
+    await withTmpDir(async dir => {
+      await writeStorybookLibraryFixture(dir)
+      await writeFileDeep(dir, 'packages/ui/src/css/quasar.variables.scss', '$primary: #000;\n')
+      await writeFileDeep(
+        dir,
+        'packages/ui/.storybook/main.js',
+        "export default { framework: '@storybook/vue3-vite' }\n"
+      )
+      const { js, wasm } = await runHygieneBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('missing-sass-variables')
+      expect(js[0].severity).toBe('warn')
+    })
+  })
+
+  test('успіх: sassVariables заданий у main.js → без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeStorybookLibraryFixture(dir)
+      await writeFileDeep(dir, 'packages/ui/src/css/quasar.variables.scss', '$primary: #000;\n')
+      await writeFileDeep(
+        dir,
+        'packages/ui/.storybook/main.js',
+        'export default { viteFinal: () => quasar({ sassVariables: true }) }\n'
+      )
+      const { js, wasm } = await runHygieneBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+})
+
+describe('wasm-plugin parity — test/storybook-page-coverage (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
+  const runPageCoverageBoth = dir =>
+    runFullScopeBoth(
+      STORYBOOK_PAGE_COVERAGE_MAIN_MJS_PATH,
+      STORYBOOK_PAGE_COVERAGE_CONCERN_KEY,
+      'test',
+      'storybook-page-coverage',
+      dir
+    )
+
+  /**
+   * App-пакет `packages/demo` у скоупі хвилі 2a (`detectApps: true`).
+   * @param {string} dir корінь tmp-дерева
+   * @returns {Promise<void>}
+   */
+  async function writeAppFixture(dir) {
+    await writeFileDeep(dir, 'package.json', JSON.stringify({ name: 'root', workspaces: ['packages/*'] }, null, 2))
+    await writeFileDeep(dir, '.n-rules.json', JSON.stringify({ storybook: { detectApps: true } }))
+    await writeFileDeep(
+      dir,
+      'packages/demo/package.json',
+      JSON.stringify({ name: 'demo', dependencies: { vue: '^3.6.0' } }, null, 2)
+    )
+    await writeFileDeep(dir, 'packages/demo/src/pages/task/[id].vue', '<template><div/></template>\n')
+  }
+
+  test('порушення: сторінка без *.stories.js поряд → однаковий warn з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeAppFixture(dir)
+      const { js, wasm } = await runPageCoverageBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('page-missing-story')
+      expect(js[0].severity).toBe('warn')
+    })
+  })
+
+  test('успіх: stories з довільним іменем у тій самій теці → без порушень', async () => {
+    await withTmpDir(async dir => {
+      await writeAppFixture(dir)
+      await writeFileDeep(dir, 'packages/demo/src/pages/task/task-detail.stories.js', "export default { title: 't' }\n")
+      const { js, wasm } = await runPageCoverageBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('успіх: без прапорця detectApps app-пакет поза скоупом → без порушень', async () => {
+    await withTmpDir(async dir => {
+      await writeAppFixture(dir)
+      await writeFileDeep(dir, '.n-rules.json', JSON.stringify({}))
+      const { js, wasm } = await runPageCoverageBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+})
+
+describe('wasm-plugin parity — test/storybook-scaffold (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
+  const runScaffoldBoth = dir =>
+    runFullScopeBoth(
+      STORYBOOK_SCAFFOLD_MAIN_MJS_PATH,
+      STORYBOOK_SCAFFOLD_CONCERN_KEY,
+      'test',
+      'storybook-scaffold',
+      dir
+    )
+
+  test('порушення: бібліотека без жодного canon-файлу → ідентичні пʼять violations у тому ж порядку', async () => {
+    await withTmpDir(async dir => {
+      await writeStorybookLibraryFixture(dir)
+      const { js, wasm } = await runScaffoldBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js.map(v => v.reason)).toEqual([
+        'missing-main-js',
+        'missing-preview-js',
+        'missing-empty-vite-config',
+        'missing-vitest-setup-js',
+        'missing-storybook-script'
+      ])
+    })
+  })
+
+  test('порушення: canon-файли без частини маркерів + некороткий script → ідентичні marker-violations', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'package.json', JSON.stringify({ name: 'root', workspaces: ['packages/*'] }, null, 2))
+      await writeFileDeep(
+        dir,
+        'packages/ui/package.json',
+        JSON.stringify(
+          { name: 'ui', peerDependencies: { vue: '^3.6.0' }, scripts: { storybook: 'storybook dev' } },
+          null,
+          2
+        )
+      )
+      for (let i = 0; i < 3; i++) {
+        await writeFileDeep(dir, `packages/ui/src/components/Comp${i}.vue`, '<template><div/></template>\n')
+      }
+      // main.js з усіма маркерами, крім viteConfigPath; preview.js без mswLoader.
+      await writeFileDeep(
+        dir,
+        'packages/ui/.storybook/main.js',
+        "// @storybook/vue3-vite viteFinal 'vite-plugin-pages' 'vite-plugin-vue-layouts' 'vite-plugin-vue-layouts-next' isVueTransformFamily resolvePluginEntry\n"
+      )
+      await writeFileDeep(
+        dir,
+        'packages/ui/.storybook/preview.js',
+        '// Quasar iconSet iconMapFn msw-storybook-addon onUnhandledRequest\n'
+      )
+      await writeFileDeep(dir, 'packages/ui/.storybook/empty-vite.config.js', 'export default defineConfig({})\n')
+      await writeFileDeep(dir, 'packages/ui/.storybook/vitest.setup.js', '// setProjectAnnotations beforeAll\n')
+      const { js, wasm } = await runScaffoldBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js.map(v => v.reason)).toEqual([
+        'main-js-marker-missing',
+        'preview-js-marker-missing',
+        'missing-storybook-script'
+      ])
+      expect(js[2].message).toContain("(зараз: 'storybook dev')")
+    })
+  })
+
+  test('успіх: канонічний скафолд бібліотеки → без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'package.json', JSON.stringify({ name: 'root', workspaces: ['packages/*'] }, null, 2))
+      await writeFileDeep(
+        dir,
+        'packages/ui/package.json',
+        JSON.stringify(
+          {
+            name: 'ui',
+            peerDependencies: { vue: '^3.6.0' },
+            scripts: { storybook: 'storybook dev -p 6006 --no-open' }
+          },
+          null,
+          2
+        )
+      )
+      for (let i = 0; i < 3; i++) {
+        await writeFileDeep(dir, `packages/ui/src/components/Comp${i}.vue`, '<template><div/></template>\n')
+      }
+      await writeFileDeep(
+        dir,
+        'packages/ui/.storybook/main.js',
+        "// @storybook/vue3-vite viteFinal 'vite-plugin-pages' 'vite-plugin-vue-layouts' 'vite-plugin-vue-layouts-next' isVueTransformFamily resolvePluginEntry viteConfigPath\n"
+      )
+      await writeFileDeep(
+        dir,
+        'packages/ui/.storybook/preview.js',
+        '// Quasar iconSet iconMapFn msw-storybook-addon onUnhandledRequest mswLoader\n'
+      )
+      await writeFileDeep(dir, 'packages/ui/.storybook/empty-vite.config.js', 'export default defineConfig({})\n')
+      await writeFileDeep(dir, 'packages/ui/.storybook/vitest.setup.js', '// setProjectAnnotations beforeAll\n')
+      const { js, wasm } = await runScaffoldBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('крайове: .n-rules.json ignore знімає .vue-файли з порога скоупу в обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeStorybookLibraryFixture(dir)
+      // Без ignore пакет у скоупі (5 scaffold-violations вище); з ignore на
+      // src/components лишаються 0 видимих .vue → поза скоупом → тиша.
+      await writeFileDeep(dir, '.n-rules.json', JSON.stringify({ ignore: ['packages/ui/src/components'] }))
+      const { js, wasm } = await runScaffoldBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+})
+
+describe('wasm-plugin parity — test/storybook-ci (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
+  const runCiBoth = dir =>
+    runFullScopeBoth(STORYBOOK_CI_MAIN_MJS_PATH, STORYBOOK_CI_CONCERN_KEY, 'test', 'storybook-ci', dir)
+
+  test('порушення: бібліотека у скоупі без обох .github-файлів → ідентичні два violations', async () => {
+    await withTmpDir(async dir => {
+      await writeStorybookLibraryFixture(dir)
+      const { js, wasm } = await runCiBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js.map(v => v.reason)).toEqual(['missing-playwright-action', 'missing-storybook-workflow'])
+    })
+  })
+
+  test('порушення: action без одного маркера, канонічний workflow → один marker-violation', async () => {
+    await withTmpDir(async dir => {
+      await writeStorybookLibraryFixture(dir)
+      await writeFileDeep(
+        dir,
+        '.github/actions/setup-playwright-chromium/action.yml',
+        '# ms-playwright кеш через actions/cache@v4\n'
+      )
+      await writeFileDeep(
+        dir,
+        '.github/workflows/lint-storybook.yml',
+        '# ./.github/actions/setup-bun-deps ./.github/actions/setup-playwright-chromium vitest --project=storybook\n'
+      )
+      const { js, wasm } = await runCiBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('playwright-action-marker-missing')
+    })
+  })
+
+  test('успіх: немає пакетів у скоупі → тиша навіть без .github-файлів', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'package.json', JSON.stringify({ name: 'root' }, null, 2))
+      const { js, wasm } = await runCiBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
     })
   })
 })
