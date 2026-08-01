@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.74.0] - 2026-08-01
+
+### Added
+
+- Батч 4 §3.5.5: `js-bun-redis/imports`, `js-mssql/deps` і `js-bun-db/safety` портовано на повноцінний AST через oxc_parser у wasm-компоненті lang-js (заміна regex-groundwork, byte-exact parity з JS-каноном, 14 контрибуцій; size-budget 2.5 MB дотримано — 2.12 MB)
+
 ## [1.73.0] - 2026-08-01
 
 ### Changed
