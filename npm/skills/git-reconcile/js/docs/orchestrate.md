@@ -19,7 +19,7 @@ docgen:
 
 Для кожного PR-групи, `materializePrGroup` збирає деталі: `collectPullRequestFacts` використовує `git` та `pullRequestDiffProfile` для опису PR, а `releasedChangeEntries` визначає, які зміни вже були опубліковані. Потім, `buildPullRequestDescriptionPrompt` формує промпт, і `describePullRequest` ініціює LLM-генерацію опису за допомогою `callWithValidatedFallback`, валідуючи результат через `validatePullRequestDescription`, і фіналізуючи його через `renderPullRequestBody`.
 
-Для керування змінами, `discartPatchEquivalentWorktree` визначає, чи достатньо змін для PR. Якщо так, `applySource` застосовує зміни, викликаючи `skipEmptyCherryPick`, `finishCherryPick`, `resolveConflict` та `validateGitState` для підтвердження стабільності.
+Для керування змінами, `discardPatchEquivalentWorktree` визначає, чи достатньо змін для PR. Якщо так, `applySource` застосовує зміни, викликаючи `skipEmptyCherryPick`, `finishCherryPick`, `resolveConflict` та `validateGitState` для підтвердження стабільності.
 
 Якщо PR-групи успішно матеріалізовані, `passFinalProjectGates` запускає остаточну валідацію, включаючи `validateFinalProjectGates` та `validateChangedLockfiles` для перевірки не-код змін та файлів блокування, які не обробляються в `node_modules`. Для забезпечення якості, `captureBehaviorBaseline` або `captureCachedBehaviorBaseline` фіксує тестовий стан бази. Якщо тести пройшли, `validateBehaviorState` збирає докази з тестових скриптів. Успішне завершення веде до `commitPendingChanges` для фіксації індексу.
 
