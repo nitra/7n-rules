@@ -1,17 +1,16 @@
 //! Прогін детекту фікстурою реального wasm-компонента `plugin-lang-js`
-//! (задачі N2, Q1 батч 1, Q2 батч 2 та Q3 — де-скоуп до byte-exact-парних
-//! концернів, спека
+//! (задачі N2, Q1 батч 1, Q2 батч 2, Q3 та Q4 батч 4, спека
 //! `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md` §3.5.5 і
 //! `docs/specs/2026-08-01-wasm-ast-strategy.md`) —
 //! за зразком `tests/contract_test_kit.rs` (той самий `require_fixture`-мотив:
 //! якщо `.wasm` відсутній, тест падає з точною командою збірки, не мовчазним
 //! skip). Замінює виведений пілотний golden-тест
 //! (`crates/plugin-lang-js-pilot`, видалений цією ж задачею) — покриває усі
-//! одинадцять концернів у контрибуції цього плагіна.
+//! чотирнадцять концернів у контрибуції цього плагіна.
 //!
 //! Звіряє реальний end-to-end прогін через [`PluginHost`]: `describe()`
-//! декларує всі одинадцять концернів з очікуваними `scope`/`glob`, `detect()`
-//! на фікстурах з `main.mjs` кожного JS-оригіналу
+//! декларує всі чотирнадцять концернів з очікуваними `scope`/`glob`,
+//! `detect()` на фікстурах з `main.mjs` кожного JS-оригіналу
 //! (`plugins/lang-js/rules/vue/tfm-translations/main.mjs`,
 //! `plugins/lang-js/rules/style/gap/main.mjs`,
 //! `plugins/lang-js/rules/test/vitest-config-pool-forks/main.mjs`,
@@ -22,19 +21,18 @@
 //! `plugins/lang-js/rules/test/no-console-store-restore/main.mjs`,
 //! `plugins/lang-js/rules/test/no-bun-test-import/main.mjs`,
 //! `plugins/lang-js/rules/js/utils_imports/main.mjs`,
-//! `plugins/lang-js/rules/test/no-relative-fs-path/main.mjs`) дає той самий
-//! violation, що й JS-оригінали біт-у-біт (`reason`/`message`). Останні два
-//! — справжні AST-концерни через `oxc_parser` (задача Q3), не regex-порт —
-//! byte-exact parity через ТОЙ САМИЙ движок, що JS-канон. Parity з JS-боку
-//! звіряє окремий vitest-тест
+//! `plugins/lang-js/rules/test/no-relative-fs-path/main.mjs`,
+//! `plugins/lang-js/rules/js-bun-redis/imports/main.mjs`,
+//! `plugins/lang-js/rules/js-mssql/deps/main.mjs`,
+//! `plugins/lang-js/rules/js-bun-db/safety/main.mjs`) дає той самий
+//! violation, що й JS-оригінали біт-у-біт (`reason`/`message`). П'ять
+//! останніх — справжні AST-концерни через `oxc_parser` (задачі Q3 і Q4
+//! батч 4 — де-скоуп батчу 2 для js-bun-redis/js-mssql/js-bun-db знято,
+//! regex-groundwork замінено AST-портом), не regex-порт — byte-exact parity
+//! через ТОЙ САМИЙ движок, що JS-канон. Parity з JS-боку звіряє окремий
+//! vitest-тест
 //! `npm/scripts/lib/lint-surface/tests/wasm-plugin-parity.test.mjs` на цих
 //! самих фікстурах.
-//!
-//! `js-bun-redis/imports`/`js-bun-db/safety`/`js-mssql/deps` — СВІДОМО БЕЗ
-//! контрибуції (рішення оркестратора, доккомент секції «Регекс-наближення»
-//! `crates/plugin-lang-js/src/lib.rs`): їхні detect-функції — groundwork,
-//! недосяжні через `describe()`, тож немає golden-тестів тут (unit-рівневі
-//! тести на самих функціях лишаються в `crates/plugin-lang-js/src/lib.rs`).
 //!
 //! `detect()` на WIT-рівні не розрізняє per-file/full-scope (це виключно
 //! host(napi)-бічна турбота, `crates/rules-napi::run_wasm_concern`) — тому
@@ -60,6 +58,9 @@ const CONCERN_NO_CONSOLE_STORE_RESTORE: &str = "test/no-console-store-restore";
 const CONCERN_NO_BUN_TEST_IMPORT: &str = "test/no-bun-test-import";
 const CONCERN_UTILS_IMPORTS: &str = "js/utils_imports";
 const CONCERN_NO_RELATIVE_FS_PATH: &str = "test/no-relative-fs-path";
+const CONCERN_REDIS_IMPORTS: &str = "js-bun-redis/imports";
+const CONCERN_MSSQL_DEPS: &str = "js-mssql/deps";
+const CONCERN_BUN_DB_SAFETY: &str = "js-bun-db/safety";
 
 /// Абсолютний шлях до зібраного `.wasm`-компонента (`crates/plugin-lang-js/build.sh`)
 /// — `wasm32-wasip2`/`release`.
@@ -87,7 +88,7 @@ fn host() -> PluginHost {
 }
 
 #[test]
-fn describe_declares_all_eleven_concerns_with_expected_scopes() {
+fn describe_declares_all_fourteen_concerns_with_expected_scopes() {
     let path = require_fixture();
     let plugin = host()
         .load(&path, PLUGIN_WORLD_VERSION)
@@ -97,10 +98,10 @@ fn describe_declares_all_eleven_concerns_with_expected_scopes() {
     assert_eq!(manifest.id, "lang-js/wasm-concerns");
     assert_eq!(manifest.world_version, PLUGIN_WORLD_VERSION);
     assert_eq!(manifest.domains, vec![Domain::Lint]);
-    // Де-скоуп (рішення оркестратора): `js-bun-redis/imports`/
-    // `js-bun-db/safety`/`js-mssql/deps` НЕ в контрибуції (groundwork,
-    // доккомент модуля вище й `crates/plugin-lang-js/src/lib.rs`).
-    assert_eq!(manifest.concerns.len(), 11);
+    // Задача Q4 батч 4: `js-bun-redis/imports`/`js-mssql/deps`/
+    // `js-bun-db/safety` тепер У контрибуції (AST-порти, де-скоуп батчу 2
+    // знято — доккомент `crates/plugin-lang-js/src/lib.rs`).
+    assert_eq!(manifest.concerns.len(), 14);
 
     let tfm = manifest
         .concerns
@@ -196,14 +197,22 @@ fn describe_declares_all_eleven_concerns_with_expected_scopes() {
         .iter()
         .any(|g| g.contains("test.mjs")));
 
-    // `js-bun-redis/imports`/`js-bun-db/safety`/`js-mssql/deps` — свідомо
-    // ВІДСУТНІ в маніфесті (де-скоуп, доккомент модуля вище).
-    assert!(!manifest
-        .concerns
-        .iter()
-        .any(|c| c.key == "js-bun-redis/imports"
-            || c.key == "js-bun-db/safety"
-            || c.key == "js-mssql/deps"));
+    // Три AST-концерни батчу 4 (задача Q4) — full-scope, глоби покривають
+    // і JS/TS-джерела, і package.json (гейт «кореневий package.json існує»).
+    for key in [
+        CONCERN_REDIS_IMPORTS,
+        CONCERN_MSSQL_DEPS,
+        CONCERN_BUN_DB_SAFETY,
+    ] {
+        let contribution = manifest
+            .concerns
+            .iter()
+            .find(|c| c.key == key)
+            .unwrap_or_else(|| panic!("{key} має бути в маніфесті (задача Q4 батч 4)"));
+        assert_eq!(contribution.scope, ConcernScope::Full);
+        assert!(contribution.glob.iter().any(|g| g.contains("package.json")));
+        assert!(contribution.glob.iter().any(|g| g.contains("{js,")));
+    }
 
     assert!(manifest.capabilities.fs_read.is_empty());
     assert!(!manifest.capabilities.network);
@@ -837,9 +846,182 @@ fn detect_no_relative_fs_path_ignores_non_test_files() {
     assert!(diagnostics.is_empty());
 }
 
-// `js-bun-redis/imports`/`js-bun-db/safety`/`js-mssql/deps` — БЕЗ golden-
-// тестів тут (де-скоуп, доккомент модуля вище): недосяжні через `describe()`,
-// їхні unit-тести лишаються в `crates/plugin-lang-js/src/lib.rs`.
+/// `js-bun-redis/imports` (задача Q4 батч 4): заборонений `import` з
+/// `ioredis` — message байт-у-байт як у JS-оригіналу (`main.mjs`,
+/// `js-bun-redis: <rel>:<line> — заміни '<mod>' …: <snippet>`).
+#[test]
+fn detect_redis_imports_flags_ioredis_import_with_exact_message() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let batch = DetectBatch {
+        concern_id: CONCERN_REDIS_IMPORTS.to_string(),
+        files: vec![
+            SourceFile {
+                path: "package.json".to_string(),
+                content: "{\"name\":\"t\"}\n".to_string(),
+            },
+            SourceFile {
+                path: "src/cache.mjs".to_string(),
+                content: "import Redis from 'ioredis'\nexport const r = new Redis()\n".to_string(),
+            },
+        ],
+    };
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].reason, "imports");
+    assert_eq!(diagnostics[0].severity, Severity::Error);
+    assert!(diagnostics[0].file.is_none());
+    assert_eq!(
+        diagnostics[0].message,
+        "js-bun-redis: src/cache.mjs:1 — заміни 'ioredis' на Bun native Redis (import { redis } \
+         from 'bun', https://bun.com/docs/runtime/redis): import Redis from 'ioredis'"
+    );
+}
+
+/// `js-bun-redis/imports`: імпорт у коментарі/рядку — НЕ порушення (AST, не
+/// regex — головний мотив батчу 4).
+#[test]
+fn detect_redis_imports_passes_for_comment_and_string_mentions() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let batch = DetectBatch {
+        concern_id: CONCERN_REDIS_IMPORTS.to_string(),
+        files: vec![
+            SourceFile {
+                path: "package.json".to_string(),
+                content: "{\"name\":\"t\"}\n".to_string(),
+            },
+            SourceFile {
+                path: "src/cache.mjs".to_string(),
+                content: "// import Redis from 'ioredis'\nconst s = \"require('redis')\"\nexport const y = s\n"
+                    .to_string(),
+            },
+        ],
+    };
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    assert!(diagnostics.is_empty());
+}
+
+/// `js-mssql/deps` (задача Q4 батч 4): версія нижче мінімуму — message
+/// байт-у-байт (включно з `JSON.stringify`-лапками навколо діапазону).
+#[test]
+fn detect_mssql_deps_flags_low_version_with_exact_message() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let batch = DetectBatch {
+        concern_id: CONCERN_MSSQL_DEPS.to_string(),
+        files: vec![SourceFile {
+            path: "package.json".to_string(),
+            content: "{\"name\":\"t\",\"dependencies\":{\"mssql\":\"^10.0.0\"}}\n".to_string(),
+        }],
+    };
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].reason, "deps");
+    assert_eq!(
+        diagnostics[0].message,
+        "js-mssql: package.json: dependencies.mssql \"^10.0.0\" — має бути >=12.5.0 (js-mssql.mdc)"
+    );
+}
+
+/// `js-mssql/deps`: singleton pool на рівні модуля + tagged `query` — чисто.
+#[test]
+fn detect_mssql_deps_passes_for_singleton_and_tagged_query() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let batch = DetectBatch {
+        concern_id: CONCERN_MSSQL_DEPS.to_string(),
+        files: vec![
+            SourceFile {
+                path: "package.json".to_string(),
+                content: "{\"name\":\"t\",\"dependencies\":{\"mssql\":\"^12.5.0\"}}\n".to_string(),
+            },
+            SourceFile {
+                path: "src/db.ts".to_string(),
+                content: "const pool = new sql.ConnectionPool(config)\nexport async function findUser(userId) {\n  return pool.request().query`SELECT * FROM users WHERE id = ${userId}`\n}\n"
+                    .to_string(),
+            },
+        ],
+    };
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    assert!(diagnostics.is_empty());
+}
+
+/// `js-bun-db/safety` (задача Q4 батч 4): `new SQL(...)` всередині функції —
+/// message байт-у-біт як у `scanFileForBunSqlPatterns`.
+#[test]
+fn detect_bun_db_safety_flags_per_request_sql_with_exact_message() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let batch = DetectBatch {
+        concern_id: CONCERN_BUN_DB_SAFETY.to_string(),
+        files: vec![
+            SourceFile {
+                path: "package.json".to_string(),
+                content: "{\"name\":\"t\"}\n".to_string(),
+            },
+            SourceFile {
+                path: "src/db.ts".to_string(),
+                content: "import { SQL } from 'bun'\nexport function getUser(id) {\n  const db = new SQL(process.env.DATABASE_URL)\n  return db`SELECT * FROM users WHERE id = ${id}`\n}\n"
+                    .to_string(),
+            },
+        ],
+    };
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].reason, "safety");
+    assert_eq!(
+        diagnostics[0].message,
+        "js-bun-db: src/db.ts:3 — не створюй new SQL(...) всередині функцій; тримай singleton на \
+         рівні модуля (js-bun-db.mdc): new SQL(process.env.DATABASE_URL)"
+    );
+}
+
+/// `js-bun-db/safety`: tagged template з `.join(',')` у `IN (...)` — ЧОТИРИ
+/// діагностики (2 dynamic-list + 2 not_var-guard, дубль-обхід tagged —
+/// точне дзеркало live-прогону JS-оригіналу, доккомент
+/// `crates/plugin-lang-js/src/lib.rs`, секція «Батч 4»).
+#[test]
+fn detect_bun_db_safety_tagged_join_yields_js_identical_duplicates() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let batch = DetectBatch {
+        concern_id: CONCERN_BUN_DB_SAFETY.to_string(),
+        files: vec![
+            SourceFile {
+                path: "package.json".to_string(),
+                content: "{\"name\":\"t\"}\n".to_string(),
+            },
+            SourceFile {
+                path: "src/db.ts".to_string(),
+                content: "import { sql } from 'bun'\nexport async function findMany(ids) {\n  return sql`SELECT * FROM users WHERE id IN (${ids.join(',')})`\n}\n"
+                    .to_string(),
+            },
+        ],
+    };
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    assert_eq!(diagnostics.len(), 4);
+    assert_eq!(diagnostics[0].message, diagnostics[1].message);
+    assert!(diagnostics[0]
+        .message
+        .contains("заборонено підставляти у SQL динамічні списки"));
+    assert_eq!(diagnostics[2].message, diagnostics[3].message);
+    assert!(diagnostics[2]
+        .message
+        .contains("значення для IN (...) у template literal треба винести"));
+}
 
 #[test]
 fn fix_returns_empty_plan() {

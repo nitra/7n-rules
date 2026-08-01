@@ -39,13 +39,11 @@ const hasBuild = existsSync(PINS_PATH)
  * два (`test/no-console-store-restore`, `test/no-bun-test-import` —
  * справжній 1:1 порт); задача Q3 додала ще два (`js/utils_imports`,
  * `test/no-relative-fs-path` — справжні AST-концерни через `oxc_parser`,
- * `docs/specs/2026-08-01-wasm-ast-strategy.md`). `js-bun-redis/imports`/
- * `js-bun-db/safety`/`js-mssql/deps` — СВІДОМО НЕ в контрибуції (рішення
- * оркестратора: їхні JS-оригінали на справжньому oxc-parser AST, Rust-порт —
- * лише regex-наближення, не byte-exact parity, доккомент
- * `crates/plugin-lang-js/src/lib.rs` секція «Регекс-наближення») —
- * detect-функції лишаються groundwork у крейті, `describe()` про них не
- * знає.
+ * `docs/specs/2026-08-01-wasm-ast-strategy.md`); задача Q4 батч 4 додала
+ * останні три (`js-bun-redis/imports`, `js-mssql/deps`, `js-bun-db/safety` —
+ * теж справжні AST-концерни: де-скоуп батчу 2 знято, regex-groundwork
+ * замінено AST-портом, доккомент `crates/plugin-lang-js/src/lib.rs` секція
+ * «Батч 4»).
  * @type {string[]}
  */
 const EXPECTED_LANG_JS_CONCERNS = [
@@ -59,7 +57,10 @@ const EXPECTED_LANG_JS_CONCERNS = [
   'test/no-console-store-restore',
   'test/no-bun-test-import',
   'js/utils_imports',
-  'test/no-relative-fs-path'
+  'test/no-relative-fs-path',
+  'js-bun-redis/imports',
+  'js-mssql/deps',
+  'js-bun-db/safety'
 ]
 
 /** Валідний sha256-hex — той самий канон, що `SHA256_HEX_RE` у `wasm-plugins.mjs` (module-scope, без пере-компіляції на кожен виклик). */

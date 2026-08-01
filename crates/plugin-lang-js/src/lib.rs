@@ -1,15 +1,14 @@
 //! wasm-компонент `n-rules:plugin@3.0.0` — `lang-js/wasm-concerns` (задачі N2,
-//! Q1 батч 1, Q2 батч 2 та Q3, спека
+//! Q1 батч 1, Q2 батч 2, Q3 та Q4 батч 4, спека
 //! `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md` §3.5.5 і
 //! `docs/specs/2026-08-01-wasm-ast-strategy.md`),
 //! створений за флоу скіла `npm/skills/wasm-plugin/` (scaffold → реалізація →
-//! golden-тести). ОДИНАДЦЯТЬ концернів у контрибуції, порт чинних
+//! golden-тести). ЧОТИРНАДЦЯТЬ концернів у контрибуції, порт чинних
 //! JS-оригіналів — справжній 1:1, той самий `reason`/`message` біт-у-біт
 //! (parity-дисципліна СКІЛа не допускає shadowing regex-наближенням
-//! AST-оригіналу в контрибуції — рішення оркестратора після звіту батчу 2,
-//! доккомент секції «Регекс-наближення» нижче; останні два концерни (задача
-//! Q3) — byte-exact через СПРАВЖНІЙ `oxc_parser`, не потребують такого
-//! де-скоупу):
+//! AST-оригіналу в контрибуції — рішення оркестратора після звіту батчу 2;
+//! AST-концерни задач Q3 і Q4 — byte-exact через СПРАВЖНІЙ `oxc_parser`, не
+//! потребують такого де-скоупу):
 //!
 //! - `vue/tfm-translations` (per-file) — перенесено з виведеного пілота
 //!   `crates/plugin-lang-js-pilot` (задача K фази 6), порт
@@ -48,10 +47,9 @@
 //!   перевірений живим смок-тестом (`crates/rules-plugin-host/tests/plugin_lang_js.rs`).
 //! - `js/utils_imports` (full-scope, задача Q3) — порт
 //!   `plugins/lang-js/rules/js/utils_imports/main.mjs`: **справжній
-//!   oxc-parser AST-концерн**, не regex-наближення (доккомент секції нижче
-//!   «Регекс-наближення» стосується ІНШИХ трьох, де-скоупнутих концернів —
-//!   ці два вже мають byte-exact parity через ТОЙ САМИЙ движок,
-//!   `docs/specs/2026-08-01-wasm-ast-strategy.md`). Кожен файл під якимось
+//!   oxc-parser AST-концерн**, не regex-наближення — byte-exact parity через
+//!   ТОЙ САМИЙ движок (`docs/specs/2026-08-01-wasm-ast-strategy.md`). Кожен
+//!   файл під якимось
 //!   `utils/`-каталогом парситься `oxc_parser`, зібрані import-source
 //!   (`ImportDeclaration`, динамічний `import()`, `require()`) звіряються з
 //!   `^\.\.(?:/|$)` — жодного relative-імпорту з `..`.
@@ -61,23 +59,31 @@
 //!   виклики `node:fs`/`node:fs/promises`-функцій (`FS_PATH_ARG_POSITIONS`)
 //!   з relative string/template-literal-аргументом на path-позиції —
 //!   порушення.
+//! - `js-bun-redis/imports` (full-scope, задача Q4 батч 4) — порт
+//!   `plugins/lang-js/rules/js-bun-redis/imports/main.mjs` +
+//!   `../lib/redis-imports.mjs`: справжній oxc-parser AST-концерн (заміна
+//!   regex-groundwork батчу 2, який СВІДОМО не був у контрибуції) —
+//!   статичні `ImportDeclaration`, `require('…')` і динамічні `import('…')`
+//!   заборонених redis-модулів.
+//! - `js-mssql/deps` (full-scope, задача Q4 батч 4) — порт
+//!   `plugins/lang-js/rules/js-mssql/deps/main.mjs` + 610-рядкового
+//!   `../lib/mssql-pool-scan.mjs`: версія `dependencies.mssql` у КОЖНОМУ
+//!   `package.json` (справжній JSON-парсинг через `serde_json`, дзеркало
+//!   `JSON.parse`) + шість AST-сканерів джерел (singleton pool, shared
+//!   Request, ``query(`...`)``, `.join(',')`-списки, непарсовані/безguard-ні
+//!   `IN (${…})`).
+//! - `js-bun-db/safety` (full-scope, задача Q4 батч 4) — порт
+//!   `plugins/lang-js/rules/js-bun-db/safety/main.mjs` + 1071-рядкового
+//!   `../lib/bun-sql-scan.mjs`: десять AST-сканерів Bun SQL-патернів
+//!   (порядок сканерів на файл — точно як у `scanFileForBunSqlPatterns`) +
+//!   `pg`-виняток для LISTEN/NOTIFY (dependency- і import-рівні).
 //!
 //! JS-реалізації лишаються канонічними (Plugin API v2, дистрибуція wasm —
 //! окремий крок) — цей компонент лише переносить логіку в native/wasm шлях,
 //! parity-тест `npm/scripts/lib/lint-surface/tests/wasm-plugin-parity.test.mjs`
 //! ганяє ОДНІ фікстури через обидві реалізації.
 //!
-//! **БЕЗ контрибуції** (groundwork без `describe()`-запису, доккомент секції
-//! «Регекс-наближення» нижче): `js-bun-redis/imports`
-//! (`plugins/lang-js/rules/js-bun-redis/imports/main.mjs`, AST-оригінал через
-//! oxc-parser), `js-bun-db/safety`
-//! (`plugins/lang-js/rules/js-bun-db/safety/main.mjs`, 1071-рядковий
-//! `bun-sql-scan.mjs`), `js-mssql/deps`
-//! (`plugins/lang-js/rules/js-mssql/deps/main.mjs`, 610-рядковий
-//! `mssql-pool-scan.mjs`) — їхні detect-функції й unit-тести лишаються в
-//! крейті, але `Guest::detect`/host їх не досягають.
-//!
-//! # Одинадцять концернів в одному Guest — мотив із `test-plugin-guest`
+//! # Чотирнадцять концернів в одному Guest — мотив із `test-plugin-guest`
 //!
 //! `Guest::detect` розгалужується за `batch.concern-id` (той самий патерн,
 //! що вже встановлений `crates/test-plugin-guest/src/lib.rs` для трьох
@@ -190,14 +196,24 @@ use std::collections::BTreeSet;
 
 use oxc_allocator::Allocator;
 use oxc_ast::ast::{
-    Argument, CallExpression, Expression, ImportDeclaration, ImportExpression, TemplateLiteral,
+    Argument, ArrayExpressionElement, ArrowFunctionExpression, BinaryOperator, BindingPattern,
+    BlockStatement, CallExpression, Comment, Expression, FormalParameters, Function, FunctionBody,
+    FunctionType, ImportDeclaration, ImportExpression, NewExpression, ObjectExpression,
+    ObjectProperty, ObjectPropertyKind, PropertyKey, RegExpLiteral, Statement, StringLiteral,
+    TaggedTemplateExpression, TemplateLiteral, UnaryExpression, UnaryOperator, VariableDeclarator,
 };
 use oxc_ast_visit::{
-    walk::{walk_call_expression, walk_import_expression},
+    walk::{
+        walk_arrow_function_expression, walk_call_expression, walk_function,
+        walk_import_expression, walk_new_expression, walk_object_expression,
+        walk_tagged_template_expression, walk_template_literal, walk_unary_expression,
+        walk_variable_declarator,
+    },
     Visit,
 };
 use oxc_parser::Parser;
-use oxc_span::{GetSpan, SourceType};
+use oxc_span::{GetSpan, SourceType, Span};
+use oxc_syntax::scope::ScopeFlags;
 
 /// Ключ контрибуції `vue/tfm-translations` — точний відповідник
 /// `${ctx.ruleId}/${ctx.concernId}` (`runConcernDetector`,
@@ -408,49 +424,40 @@ fn is_inside_tests_dir(path: &str) -> bool {
 // — СПРАВЖНІЙ 1:1 порт (REGEX-based і в JS-оригіналі), обидва в контрибуції
 // `describe()` як решта семи концернів.
 //
-// # Регекс-наближення замість повного oxc AST — БЕЗ контрибуції (де-скоуп)
+// # Батч 4 (задача Q4): js-bun-redis/imports, js-mssql/deps,
+// # js-bun-db/safety — AST-порти замість regex-groundwork
 //
-// JS-оригінали `js-bun-redis/imports`, `js-bun-db/safety`, `js-mssql/deps`
-// побудовані на **oxc-parser** (справжній AST, не regex) — `redis-imports.mjs`,
-// `bun-sql-scan.mjs` (1071 рядків), `mssql-pool-scan.mjs` (610 рядків):
-// control-flow-чутлива детекція guard-ів, трасування Identifier → init через
-// усі `VariableDeclarator` файлу, обхід предків для «чи всередині функції».
-// Rust `regex`-крейт — це regex-двигун (без lookaround й backreference,
-// той самий ліміт, що вже задокументований для інших концернів цього
-// крейту), не парсер: побудова повноцінного JS/TS AST-парсера (чи
-// вендорингу `oxc_parser` Rust-крейта) — інфраструктурна робота понад обсяг
-// задачі порту пʼяти concern-ів батчу 2. Тут — **пряме синтаксичне
-// наближення**: regex-и + двоє легких лінійних сканерів
-// ([`find_matching_bracket`], [`brace_depth_before`]) без string/comment-
-// masking (збалансовані дужки всередині рядкових літералів — типовий випадок
-// SQL-тексту на кшталт `` `CREATE TABLE ${TABLE} (id int)` `` — net-нейтральні
-// для підрахунку глибини, тож проста лінійна лічба досить для фікстур цього
-// порту).
+// JS-оригінали цих трьох концернів побудовані на **oxc-parser** (справжній
+// AST, не regex) — `redis-imports.mjs`, `bun-sql-scan.mjs` (1071 рядків),
+// `mssql-pool-scan.mjs` (610 рядків). Батч 2 лишив у крейті їхні
+// regex-наближення БЕЗ контрибуції (рішення оркестратора: наближення
+// AST-семантики не проходить parity-гейт для shadowing живої
+// JS-реалізації). Батч 4 замінює ті groundwork-функції повноцінними
+// AST-реалізаціями через ТОЙ САМИЙ пінований `oxc_parser` (=0.137.0), що й
+// npm `oxc-parser` JS-оригіналів (той самий шлях, що `js/utils_imports`/
+// `test/no-relative-fs-path` батчу 3) — байт-у-байт ті самі `message`
+// (включно зі `snippet`-ами через [`normalize_snippet`]), тож де-скоуп
+// знято: усі три концерни тепер У КОНТРИБУЦІЇ [`build_manifest`].
 //
-// **Рішення оркестратора (звіт батчу 2): regex-наближення AST-семантики НЕ
-// проходить parity-гейт цього SKILL.md для КОНТРИБУЦІЇ.** «Пряме синтаксичне
-// наближення» — прийнятна практика лише для lookaround/backreference-обмежень
-// ОДНОГО regex-а (підрозділ «Parity-дисципліна», п.4: «явний алгоритмічний
-// еквівалент, не ‘майже той самий’ регекс», застосовано вище/нижче для
-// `test/no-console-store-restore`/`test/no-bun-test-import` та перших семи
-// концернів батчу 1). Коли ЦІЛЕ ДЖЕРЕЛО — AST-сканер (не один regex із
-// локальним обмеженням), «count+reason, не байтова рівність message»
-// (обраний тут рівень парності) означає, що wasm-вихід МОЖЕ розійтись із
-// JS-каноном на реальних, не лише синтетичних фікстурах — недопустимо для
-// concern-а, що споживачі трактують як shadowing-заміну живої JS-реалізації
-// (доккомент `describe()`/host-диспетчеризації: контрибуція = «ця
-// реалізація тепер джерело правди»). Тому три detect-функції нижче
-// ЛИШАЮТЬСЯ в крейті як groundwork під майбутнє справжнє AST-рішення
-// (`oxc_parser` Rust-крейт чи tree-sitter) — з unit-тестами, що звіряють
-// поведінку самих функцій, — але НЕ в [`build_manifest`] і не в
-// `Guest::detect`-диспетчеризації (host їх ніколи не викличе: не знає про
-// них із `describe()`). Ризик, що лишається задокументованим тут (не
-// production-ризик, оскільки concern без контрибуції): рідкісні
-// синтаксичні конструкції (regex-літерали з дужками, дуже нетипове
-// форматування) можуть дати false-negative/positive, яких не дасть справжній
-// AST — не покрито regression-тестом (як і `.n-rules.json`-ignore
-// розбіжність вище) — немає детермінованого способу довести відсутність
-// майбутнього edge-case.
+// Навмисно відтворені особливості JS-оригіналів (не «виправлені», бо parity
+// важливіша за смак):
+// - `TaggedTemplateExpression` обробляється І як tagged-вузол, і повторно як
+//   його `quasi`-`TemplateLiteral` (walk заходить у дочірній вузол) — тому
+//   `.join(',')`-списки/`IN (${…})`-guard-и/`JSON.stringify::jsonb` у
+//   tagged template дають ДВІ ідентичні діагностики (перевірено live-прогоном
+//   JS-оригіналу, зафіксовано parity-фікстурою).
+// - Пошук guard-а `if (empty) throw` обмежений НАЙБЛИЖЧИМ enclosing
+//   `BlockStatement` (guard у зовнішньому блоці не рятує вкладений) — точний
+//   порт `findEnclosingBlockAndStatementIndex`.
+// - `import 'pg'` (side-effect, без `from`) НЕ дає import-порушення
+//   `js-bun-db/safety`: текстовий pre-filter `PG_LIB_IMPORT_RE` JS-оригіналу
+//   такого імпорту не бачить, тож файл не потрапляє в `pgUsage` — pre-filter
+//   відтворено, не «поліпшено» до чистого AST.
+// - Лінії/зрізи — БАЙТОВІ офсети (`oxc_span::Span`), тоді як JS `slice`/
+//   `offsetToLine` рахують UTF-16-юніти на байтових офсетах — збіг
+//   гарантований лише для ASCII-вмісту ДО діагностованого вузла (той самий
+//   задокументований baseline, що в `test/no-relative-fs-path` батчу 3);
+//   фікстури тримаються ASCII.
 
 /// Ключ контрибуції `test/no-console-store-restore` (задача Q2 батч 2).
 const CONCERN_NO_CONSOLE_STORE_RESTORE: &str = "test/no-console-store-restore";
@@ -463,16 +470,15 @@ const CONCERN_UTILS_IMPORTS: &str = "js/utils_imports";
 /// Ключ контрибуції `test/no-relative-fs-path` (задача Q3) — той самий
 /// мотив, що [`CONCERN_UTILS_IMPORTS`].
 const CONCERN_NO_RELATIVE_FS_PATH: &str = "test/no-relative-fs-path";
-/// Concern-key `js-bun-redis/imports` — БЕЗ контрибуції в [`build_manifest`]
-/// (де-скоуп, доккомент секції «Регекс-наближення» вище): groundwork-ключ,
-/// вживається лише match-гілкою `Guest::detect` (недосяжна без `describe()`)
-/// і unit-тестами.
+/// Ключ контрибуції `js-bun-redis/imports` (задача Q4 батч 4) — справжній
+/// oxc-parser AST-концерн (заміна regex-groundwork батчу 2, доккомент секції
+/// «Батч 4» вище).
 const CONCERN_REDIS_IMPORTS: &str = "js-bun-redis/imports";
-/// Concern-key `js-bun-db/safety` — той самий groundwork-статус, що
-/// [`CONCERN_REDIS_IMPORTS`].
+/// Ключ контрибуції `js-bun-db/safety` (задача Q4 батч 4) — той самий
+/// AST-статус, що [`CONCERN_REDIS_IMPORTS`].
 const CONCERN_BUN_DB_SAFETY: &str = "js-bun-db/safety";
-/// Concern-key `js-mssql/deps` — той самий groundwork-статус, що
-/// [`CONCERN_REDIS_IMPORTS`].
+/// Ключ контрибуції `js-mssql/deps` (задача Q4 батч 4) — той самий
+/// AST-статус, що [`CONCERN_REDIS_IMPORTS`].
 const CONCERN_MSSQL_DEPS: &str = "js-mssql/deps";
 
 /// `reason` violation-а `no-console-store-restore` — бере `fail(msg)` БЕЗ
@@ -568,71 +574,64 @@ const BUN_SQL_IMPORT_PATTERN: &str =
 /// (`bun-sql-scan.mjs:38`) — так само справжній 1:1 (без lookaround/backreference).
 const PG_LIB_IMPORT_PATTERN: &str =
     r#"(?:\bimport\b[\s\S]*?\bfrom\s*["']pg["']|\brequire\s*\(\s*["']pg["']\s*\))"#;
-/// LISTEN/UNLISTEN/NOTIFY у виклику `<obj>.query(...)`/`.queryArray(...)`/
-/// `.queryStream(...)` — регекс-наближення `findPgListenNotifyUsageInText`
-/// (AST-оригінал, `bun-sql-scan.mjs`): перевіряє перший символ аргументу
-/// (рядковий літерал чи template) замість повного розбору `CallExpression`.
-const PG_LISTEN_NOTIFY_CALL_PATTERN: &str =
-    r#"\.(?:query|queryArray|queryStream)\s*\(\s*[`'"]\s*(?i:LISTEN|UNLISTEN|NOTIFY)\b"#;
-/// `.on('notification', ...)` — частина того самого сканера.
-const PG_NOTIFICATION_LISTENER_PATTERN: &str = r#"\.on\s*\(\s*['"]notification['"]"#;
+/// `\b(LISTEN|UNLISTEN|NOTIFY)\b` — точний порт `LISTEN_NOTIFY_KEYWORD_RE`
+/// (`js-bun-db/safety/main.mjs`): дешевий текстовий pre-filter перед
+/// AST-сканом LISTEN/NOTIFY (`collectPgUsageForFile`). Відтворюється, а не
+/// «поліпшується» (доккомент секції «Батч 4» вище — side-effect `import 'pg'`
+/// без жодного сигналу свідомо НЕ потрапляє в `pgUsage`).
+const LISTEN_NOTIFY_KEYWORD_PATTERN: &str = r"(?i)\b(LISTEN|UNLISTEN|NOTIFY)\b";
+/// `'notification'` у будь-яких лапках — точний порт `NOTIFICATION_LITERAL_RE`
+/// (той самий pre-filter).
+const NOTIFICATION_LITERAL_PATTERN: &str = "['\"`]notification['\"`]";
+/// SQL-рядок, що починається з LISTEN/UNLISTEN/NOTIFY — точний порт
+/// `PG_LISTEN_NOTIFY_SQL_RE` (`bun-sql-scan.mjs`), застосовується до
+/// cooked-значення string literal чи raw-тексту quasis.
+const PG_LISTEN_NOTIFY_SQL_PATTERN: &str = r"(?i)^\s*(LISTEN|UNLISTEN|NOTIFY)\b";
 /// `// n-rules:allow-unsafe: <непорожня причина>` — точний порт
-/// `ALLOW_UNSAFE_MARKER_RE` (`bun-sql-scan.mjs`).
-const ALLOW_UNSAFE_MARKER_PATTERN: &str = r"n-rules:allow-unsafe\s*:\s*\S";
+/// `ALLOW_UNSAFE_MARKER_RE` (`bun-sql-scan.mjs`), матчиться проти ВМІСТУ
+/// коментаря (`Comment::content_span`, дзеркало `c.value`).
+const ALLOW_UNSAFE_MARKER_PATTERN: &str = r"\bn-rules:allow-unsafe\s*:\s*\S+";
 /// `// n-rules:allow-pg-leftover: <непорожня причина>` — точний порт
 /// `ALLOW_PG_LEFTOVER_MARKER_RE`.
-const ALLOW_PG_LEFTOVER_MARKER_PATTERN: &str = r"n-rules:allow-pg-leftover\s*:\s*\S";
-/// `new SQL(...)` — цільова форма fixture-ів `js-bun-db/safety`
-/// (`import { SQL } from 'bun'`), регекс-наближення `isNewConnectionPool`-
-/// подібного AST-предиката.
-const NEW_BUN_SQL_PATTERN: &str = r"\bnew\s+SQL\s*\(";
-/// `<obj>.unsafe(` — виклик-кандидат для `findBunSqlUnsafeUseWithoutAllowMarkerInText`/
-/// `findBunSqlUnsafeWithInterpolatedTemplateInText`.
-const UNSAFE_CALL_PATTERN: &str = r"\.unsafe\s*\(";
-/// `<obj>.connect(`/`<obj>.end(` — pg-leftover виклики, точний порт
-/// `PG_LEFTOVER_METHOD_NAMES` (`bun-sql-scan.mjs`).
-const PG_LEFTOVER_CALL_PATTERN: &str = r"\.(?:connect|end)\s*\(";
-/// `IN (${...join(...)...})` / `VALUES (${...join(...)...})` — регекс-
-/// наближення `isSqlListContextTemplate` + `isJoinCall`
-/// (`ast-scan-utils.mjs`): пряма текстова суміжність замість AST-обходу
-/// `TemplateLiteral.expressions`.
-const DYNAMIC_SQL_LIST_JOIN_PATTERN: &str =
-    r"(?i)\b(?:in|values)\s*\(\s*\$\{[^}]*?\.join\s*\([^)]*?\)[^}]*?\}";
-/// `IN (${<вираз>})` — захоплює вміст інтерполяції для перевірки
-/// guard-а/числового парсера. Регекс-наближення `collectInListMissingEmptyGuardFromTemplate`/
-/// `collectInListUnparsedFromTemplate`.
-const IN_LIST_INTERP_PATTERN: &str = r"(?i)\bin\s*\(\s*\$\{([^}]*)\}";
-/// `function format(...)`/`pgFormat`/`sqlFormat`/`pgFmt` — точний порт
-/// `PG_FORMAT_SHIM_FUNC_NAMES` (`bun-sql-scan.mjs`).
-const PG_FORMAT_SHIM_FUNC_PATTERN: &str = r"\bfunction\s+(format|pgFormat|sqlFormat|pgFmt)\s*\(";
-/// `function quoteLiteral(...)`/`quoteIdent`/`escapeLiteral`/`escapeIdent` —
-/// точний порт `QUOTE_HELPER_NAMES`.
-const QUOTE_HELPER_FUNC_PATTERN: &str =
-    r"\bfunction\s+(quoteLiteral|quoteIdent|escapeLiteral|escapeIdent)\s*\(";
+const ALLOW_PG_LEFTOVER_MARKER_PATTERN: &str = r"\bn-rules:allow-pg-leftover\s*:\s*\S+";
+/// `IN (` / `VALUES (` у raw-тексті quasis — точний порт
+/// `SQL_LIST_CONTEXT_RE` (`ast-scan-utils.mjs`, `isSqlListContextTemplate`).
+const SQL_LIST_CONTEXT_PATTERN: &str = r"(?i)\b(in|values)\b\s*\(";
+/// Quasi закінчується на `IN` з опційною `(` — точний порт
+/// `IN_PLACEHOLDER_END_RE` `bun-sql-scan.mjs` (`/\bin\s*(\(\s*)?$/iu`) —
+/// навмисно ШИРШИЙ за mssql-варіант нижче (покриває `IN ${sql(ids)}`).
+const BUN_IN_PLACEHOLDER_END_PATTERN: &str = r"(?i)\bin\s*(\(\s*)?$";
+/// Quasi закінчується на `IN (` — точний порт `IN_PLACEHOLDER_END_RE`
+/// `mssql-pool-scan.mjs` (`/\bin\s*\(\s*$/iu`) — дужка ОБОВ'ЯЗКОВА, на
+/// відміну від bun-варіанта вище (два різні JS-оригінали).
+const MSSQL_IN_PLACEHOLDER_END_PATTERN: &str = r"(?i)\bin\s*\(\s*$";
 /// `%L`/`%I`/`%s` pg-format placeholder — точний порт `PG_FORMAT_PLACEHOLDER_RE`.
 const PG_FORMAT_PLACEHOLDER_PATTERN: &str = r"%[LIs]";
-/// `query(text|sql|query, ...)` — перший параметр типового pg-style
-/// query-wrapper-а. Регекс-наближення `PG_QUERY_FIRST_PARAM_RE`-перевірки.
-const QUERY_WRAPPER_PARAM_PATTERN: &str = r"\bquery\s*\(\s*(?:text|sql|query)\b";
-/// `${JSON.stringify(...)}::jsonb` — точний порт мотиву
-/// `findJsonStringifyBeforeJsonbInText`.
-const JSON_STRINGIFY_JSONB_PATTERN: &str = r"\$\{\s*JSON\.stringify\s*\([^)]*\)\s*\}\s*::jsonb";
-/// `sql.array(`/`pgWrite.array(`/`pgRead.array(` — точний порт цільових
-/// імен `findSqlArrayWithoutTypeArgInText`.
-const SQL_ARRAY_CALL_PATTERN: &str = r"\b(?:sql|pgWrite|pgRead)\.array\s*\(";
-
-/// `new sql.ConnectionPool(...)`/`new mssql.ConnectionPool(...)` — точний
-/// порт `isNewConnectionPool` (`mssql-pool-scan.mjs`).
-const NEW_MSSQL_CONNECTION_POOL_PATTERN: &str = r"\bnew\s+(?:sql|mssql)\.ConnectionPool\s*\(";
-/// `<obj>.query(\`...\`)` (виклик з дужками, TemplateLiteral першим
-/// аргументом — НЕ tagged template) — регекс-наближення
-/// `isUnsafeQueryCallWithTemplateLiteral`.
-const MSSQL_UNSAFE_QUERY_TEMPLATE_PATTERN: &str = r"\.query\s*\(\s*`";
-/// `(export )?const/let/var request = <obj>.request()` — точний порт
-/// `isRequestFactoryCall` + `VariableDeclarator`-перевірки
-/// `findSharedMssqlRequestInText`.
-const MSSQL_SHARED_REQUEST_PATTERN: &str =
-    r"\b(?:export\s+)?(?:const|let|var)\s+request\s*=\s*[\w.$]+\.request\s*\(\s*\)";
+/// Ім'я першого параметра pg-style query-обгортки — точний порт
+/// `PG_QUERY_FIRST_PARAM_RE` (`/^(text|sql|query)$/u`).
+const PG_QUERY_FIRST_PARAM_NAMES: [&str; 3] = ["text", "sql", "query"];
+/// Текст одразу після `${...}` починається з `::jsonb` — точний порт
+/// `JSONB_CAST_RE` (`bun-sql-scan.mjs`).
+const JSONB_CAST_PATTERN: &str = r"^\s*::jsonb";
+/// Імена функцій-кандидатів на pg-format-шим — точний порт
+/// `PG_FORMAT_SHIM_FUNC_NAMES` (спрацьовують лише разом з
+/// `%L`/`%I`/`%s` у тілі).
+const PG_FORMAT_SHIM_FUNC_NAMES: [&str; 4] = ["format", "pgFormat", "sqlFormat", "pgFmt"];
+/// Імена quote/escape-хелперів — точний порт `QUOTE_HELPER_NAMES`
+/// (сильний сигнал без перевірки тіла).
+const QUOTE_HELPER_NAMES: [&str; 4] =
+    ["quoteLiteral", "quoteIdent", "escapeLiteral", "escapeIdent"];
+/// pg-API, зайві з Bun SQL — точний порт `PG_LEFTOVER_METHOD_NAMES`.
+const PG_LEFTOVER_METHOD_NAMES: [&str; 2] = ["connect", "end"];
+/// Імена відомих SQL-інстансів для `.array()` без типу — точний порт
+/// `SQL_INSTANCE_NAMES` (`bun-sql-scan.mjs`).
+const SQL_INSTANCE_NAMES: [&str; 3] = ["sql", "pgWrite", "pgRead"];
+/// Числові парсери — точний порт `NUMERIC_PARSE_FN_NAMES`
+/// (`mssql-pool-scan.mjs`).
+const NUMERIC_PARSE_FN_NAMES: [&str; 4] = ["parseInt", "parseFloat", "Number", "BigInt"];
+/// `\s+` для стискання сніпетів — точний порт `normalizeSnippet`
+/// (`ast-scan-utils.mjs`, `/\s+/gu`).
+const SNIPPET_WHITESPACE_PATTERN: &str = r"\s+";
 /// Провідний версійний префікс (`^`/`~`/`>`/`=`/`<`) — точний порт
 /// `VERSION_PREFIX_RE` (`js-mssql/deps/main.mjs:20`).
 const VERSION_PREFIX_PATTERN: &str = r"^[\^~>=<]+\s*";
@@ -646,9 +645,10 @@ const MIN_MSSQL_VERSION: (u32, u32, u32) = (12, 5, 0);
 // =====================================================================
 // Задача Q3 (`docs/specs/2026-08-01-wasm-ast-strategy.md`): AST-концерни
 // через справжній `oxc_parser` — `js/utils_imports`/`test/no-relative-fs-path`.
-// На відміну від секції вище «Регекс-наближення», ці два концерни В
-// КОНТРИБУЦІЇ (`build_manifest`) — byte-exact parity досягнутий тим самим
-// движком, що JS-оригінали, не наближенням.
+// Обидва концерни В КОНТРИБУЦІЇ (`build_manifest`) — byte-exact parity
+// досягнутий тим самим движком, що JS-оригінали, не наближенням (батч 4
+// поширив той самий підхід на js-bun-redis/js-mssql/js-bun-db, доккомент
+// секції «Батч 4» вище).
 
 /// Каталоги, які пропускає `findUtilsDirs`/`collectUtilsSources`
 /// (`SKIP_DIR_NAMES`, `plugins/lang-js/rules/js/utils_imports/main.mjs:20-29`)
@@ -727,99 +727,9 @@ const NO_RELATIVE_FS_PATH_ABSOLUTE_PREFIXES: [&str; 6] =
 /// Точний порт `WINDOWS_DRIVE_RE` (`main.mjs:65`).
 const NO_RELATIVE_FS_PATH_WINDOWS_DRIVE_PATTERN: &str = r"^[A-Za-z]:[\\/]";
 
-/// Найпростіший лінійний скан для офсету відповідної закриваючої дужки —
-/// рахує лише символи дужок (без masking рядків/коментарів, доккомент
-/// секції вище «Регекс-наближення»): для фікстур цих концернів достатньо,
-/// бо збалансовані дужки всередині рядкових/template-літералів (типовий SQL
-/// на кшталт `` `CREATE TABLE ${TABLE} (id int)` ``) net-нейтральні для
-/// підрахунку глибини.
-fn find_matching_bracket(
-    chars: &[char],
-    open_idx: usize,
-    open_ch: char,
-    close_ch: char,
-) -> Option<usize> {
-    let mut depth = 1i32;
-    let mut i = open_idx + 1;
-    while i < chars.len() {
-        if chars[i] == open_ch {
-            depth += 1;
-        } else if chars[i] == close_ch {
-            depth -= 1;
-            if depth == 0 {
-                return Some(i);
-            }
-        }
-        i += 1;
-    }
-    None
-}
-
-/// Глибина вкладеності `{`/`}` ПЕРЕД позицією `idx` (0 = верхній рівень
-/// модуля) — той самий мотив спрощення, що [`find_matching_bracket`].
-/// Використовується для «чи цей виклик всередині функції» (напр.
-/// `findMssqlPerRequestConnectionInText`'s `ancestors.some(isFunctionNode)`) —
-/// наближення: рахує БУДЬ-ЯКУ вкладеність (об'єктний літерал, блок if тощо),
-/// не лише функції, тож можливий false-positive на не-функціональних
-/// блоках; жодна фікстура цього порту такого не містить.
-fn brace_depth_before(chars: &[char], idx: usize) -> i32 {
-    let mut depth = 0i32;
-    for &c in &chars[..idx.min(chars.len())] {
-        if c == '{' {
-            depth += 1;
-        } else if c == '}' {
-            depth -= 1;
-        }
-    }
-    depth
-}
-
 /// 1-based номер рядка символьного офсету `idx` у `content`.
 fn line_number_at(content: &str, idx: usize) -> usize {
     content.chars().take(idx).filter(|&c| c == '\n').count() + 1
-}
-
-/// Текст рядка, що містить символьний офсет `idx` (без кінцевого `\n`).
-fn line_text_at(content: &str, idx: usize) -> &str {
-    let start = content[..idx.min(content.len())]
-        .rfind('\n')
-        .map(|p| p + 1)
-        .unwrap_or(0);
-    let end = content[idx.min(content.len())..]
-        .find('\n')
-        .map(|p| idx + p)
-        .unwrap_or(content.len());
-    &content[start..end]
-}
-
-/// Текст рядка, що передує рядку з офсетом `idx` (порожній рядок, якщо
-/// `idx` — на першому рядку файлу).
-fn previous_line_text_at(content: &str, idx: usize) -> &str {
-    let current_start = content[..idx.min(content.len())]
-        .rfind('\n')
-        .map(|p| p + 1)
-        .unwrap_or(0);
-    if current_start == 0 {
-        return "";
-    }
-    let prev_end = current_start - 1;
-    let prev_start = content[..prev_end].rfind('\n').map(|p| p + 1).unwrap_or(0);
-    &content[prev_start..prev_end]
-}
-
-/// Чи є `marker_re` на тому самому рядку (байтовий офсет `idx`) чи рядком
-/// вище — точний мотив «на тому ж рядку або рядком вище» з doc-коментарів
-/// `bun-sql-scan.mjs` (`ALLOW_UNSAFE_MARKER_RE`/`ALLOW_PG_LEFTOVER_MARKER_RE`).
-fn marker_present_nearby(content: &str, idx: usize, marker_re: &regex::Regex) -> bool {
-    marker_re.is_match(line_text_at(content, idx))
-        || marker_re.is_match(previous_line_text_at(content, idx))
-}
-
-/// Знаходить усі байтові офсети regex-збігів `pattern` у `content` — тонка
-/// обгортка над `find_iter`, повертає лише `start()` (спільний примітив для
-/// кількох сканерів цього батчу).
-fn find_all_starts(content: &str, pattern: &regex::Regex) -> Vec<usize> {
-    pattern.find_iter(content).map(|m| m.start()).collect()
 }
 
 /// Чи файл — JS-тест з тим самим суфіксним набором, що
@@ -1023,59 +933,234 @@ fn should_skip_redis_scan_file(path: &str) -> bool {
     path.ends_with(".d.ts")
 }
 
+// =====================================================================
+// Спільна AST-інфраструктура батчу 4 (задача Q4, доккомент секції «Батч 4»
+// вище): вибір `SourceType` (порт `langFromPath` + `sourceType: 'module'`),
+// стискання сніпетів (порт `normalizeSnippet`), byte-офсетні лінії, маркерні
+// коментарі. Кожна `find_*`-функція парсить файл САМА (дзеркало JS-оригіналів,
+// де кожен сканер викликає `parseSync` окремо) і мовчки повертає порожній
+// результат на синтаксичних помилках (`ret.diagnostics` непорожній — точний
+// порт `parseProgramOrNull`).
+
+/// `SourceType` за розширенням — точний порт `langFromPath`
+/// (`ast-scan-utils.mjs`: `.tsx`→tsx, `.ts`/`.mts`/`.cts`→ts, `.jsx`→jsx,
+/// решта→js) ПЛЮС примусовий `sourceType: 'module'` (усі JS-оригінали
+/// передають його явно, включно з `.cjs`).
+fn scan_source_type(path: &str) -> SourceType {
+    let lower = path.to_lowercase();
+    if lower.ends_with(".tsx") {
+        SourceType::tsx().with_module(true)
+    } else if lower.ends_with(".ts") || lower.ends_with(".mts") || lower.ends_with(".cts") {
+        SourceType::ts().with_module(true)
+    } else if lower.ends_with(".jsx") {
+        SourceType::jsx()
+    } else {
+        SourceType::mjs()
+    }
+}
+
+/// Стискає пробіли й обрізає до 180 символів — точний порт `normalizeSnippet`
+/// (`ast-scan-utils.mjs`): `s.replaceAll(/\s+/gu, ' ').trim().slice(0, 180)`
+/// (для BMP-вмісту `chars().take(180)` збігається з JS `slice(0, 180)`).
+fn normalize_snippet(s: &str) -> String {
+    let ws_re =
+        regex::Regex::new(SNIPPET_WHITESPACE_PATTERN).expect("SNIPPET_WHITESPACE_PATTERN валідний");
+    ws_re.replace_all(s, " ").trim().chars().take(180).collect()
+}
+
+/// Сніпет за `Span` вузла — `normalizeSnippet(content.slice(start, end))`
+/// JS-оригіналів (байтові офсети, доккомент секції «Батч 4»).
+fn span_snippet(content: &str, span: Span) -> String {
+    normalize_snippet(&content[span.start as usize..span.end as usize])
+}
+
+/// (1-based лінія, сніпет) — найчастіша пара полів знахідки AST-сканера
+/// (`{ line, snippet }` у JS-оригіналах).
+struct AstHit {
+    line: usize,
+    snippet: String,
+}
+
+impl AstHit {
+    /// Знахідка за span-ом вузла: лінія — за `span.start`, сніпет — за всім
+    /// span-ом (найтиповіша форма `offsetToLine(content, node.start)` +
+    /// `normalizeSnippet(content.slice(node.start, node.end))`).
+    fn at(content: &str, span: Span) -> Self {
+        Self {
+            line: line_number_at_offset(content, span.start as usize),
+            snippet: span_snippet(content, span),
+        }
+    }
+}
+
+/// Сирий текст quasis (без expressions) — точний порт `templateQuasisText`
+/// (`ast-scan-utils.mjs`): конкатенація `q.value.raw`.
+fn template_quasis_raw_text(tpl: &TemplateLiteral) -> String {
+    tpl.quasis.iter().map(|q| q.value.raw.as_str()).collect()
+}
+
+/// Чи виглядає template як SQL-контекст зі списком — точний порт
+/// `isSqlListContextTemplate` (`SQL_LIST_CONTEXT_RE` по raw-тексту quasis).
+fn is_sql_list_context_template(tpl: &TemplateLiteral, sql_ctx_re: &regex::Regex) -> bool {
+    sql_ctx_re.is_match(&template_quasis_raw_text(tpl))
+}
+
+/// Чи це виклик `*.join(...)` — точний порт `isJoinCall`
+/// (`ast-scan-utils.mjs`): CallExpression із non-computed MemberExpression
+/// `.join`.
+fn is_join_call(expr: &Expression) -> bool {
+    let Expression::CallExpression(call) = expr else {
+        return false;
+    };
+    let Expression::StaticMemberExpression(member) = &call.callee else {
+        return false;
+    };
+    member.property.name == "join"
+}
+
+/// Чи це виклик `<obj>.unsafe(...)` — точний порт `isUnsafeCall`
+/// (`bun-sql-scan.mjs`): будь-який об'єкт, non-computed `.unsafe`.
+fn is_unsafe_call(call: &CallExpression) -> bool {
+    let Expression::StaticMemberExpression(member) = &call.callee else {
+        return false;
+    };
+    member.property.name == "unsafe"
+}
+
+/// Рядкове cooked-значення string literal-вузла — точний порт
+/// `getStringLiteralValue` (`bun-sql-scan.mjs`, гілки `Literal`/`StringLiteral`).
+fn string_literal_value<'e>(expr: &'e Expression) -> Option<&'e str> {
+    match expr {
+        Expression::StringLiteral(lit) => Some(lit.value.as_str()),
+        _ => None,
+    }
+}
+
+/// Лінії, на яких маркерний коментар «дозволяє» виклик — порт
+/// `hasMarkerCommentNear` (`bun-sql-scan.mjs`): для кожного коментаря, чий
+/// вміст (`Comment::content_span`, дзеркало `c.value`) матчить `marker_re`,
+/// дозволеними стають лінія ПОЧАТКУ коментаря (trailing-коментар на тому ж
+/// рядку, що виклик) і лінія ОДРАЗУ ПІСЛЯ його кінця (коментар рядком вище;
+/// для block-коментаря важливий саме `endLine`).
+fn marker_allowed_lines(
+    content: &str,
+    comments: &[Comment],
+    marker_re: &regex::Regex,
+) -> std::collections::HashSet<usize> {
+    let mut allowed = std::collections::HashSet::new();
+    for comment in comments {
+        let value_span = comment.content_span();
+        let value = &content[value_span.start as usize..value_span.end as usize];
+        if !marker_re.is_match(value) {
+            continue;
+        }
+        allowed.insert(line_number_at_offset(content, comment.span.start as usize));
+        allowed.insert(line_number_at_offset(content, comment.span.end as usize) + 1);
+    }
+    allowed
+}
+
+// =====================================================================
+// Задача Q4 батч 4: `js-bun-redis/imports` — AST-концерн через `oxc_parser`.
+
 /// Один знайдений заборонений redis-імпорт — [`find_redis_imports_in_text`].
 struct RedisImportHit {
-    /// Символьний офсет початку `import`/`require`/`import(` ключового слова.
-    start: usize,
+    /// 1-based лінія початку вузла.
+    line: usize,
+    /// Стиснений сніпет вузла (`normalizeSnippet`).
+    snippet: String,
     /// Специфікатор модуля (`ioredis`, `@redis/client`, ...).
     module: String,
 }
 
-/// Регекс-наближення `findRedisImportsInText` (AST-оригінал через
-/// oxc-parser, `redis-imports.mjs:64-112`) — доккомент секції вище
-/// «Регекс-наближення». Покриває три форми: статичний
-/// `import ... from '<mod>'` (включно з side-effect `import '<mod>'` і
-/// багаторядковим специфікатором), `require('<mod>')`,
-/// динамічний `import('<mod>')`.
-fn find_redis_imports_in_text(content: &str) -> Vec<RedisImportHit> {
-    let import_re = regex::Regex::new(r#"\bimport\s+(?:[^;]*?\bfrom\s+)?['"]([^'"]+)['"]"#)
-        .expect("import_re валідний");
-    let require_re = regex::Regex::new(r#"\brequire\s*\(\s*['"]([^'"]+)['"]\s*\)"#)
-        .expect("require_re валідний");
-    let dynamic_import_re = regex::Regex::new(r#"\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)"#)
-        .expect("dynamic_import_re валідний");
+/// Visitor [`find_redis_imports_in_text`] — два незалежні буфери, що
+/// дзеркалять ДВОФАЗНИЙ порядок JS-оригіналу (`redis-imports.mjs:64-112`):
+/// спочатку УСІ статичні імпорти (`result.module.staticImports`, source
+/// order), потім walk-прохід за `require('…')`/динамічним `import('…')` —
+/// тож змішаний файл віддає порушення НЕ в порядку ліній (перевірено live
+/// прогоном JS-оригіналу; статичний імпорт з лінії 2 передує require з
+/// лінії 1).
+struct RedisImportVisitor<'c> {
+    content: &'c str,
+    static_hits: Vec<RedisImportHit>,
+    walk_hits: Vec<RedisImportHit>,
+}
 
-    let mut hits = Vec::new();
-    for caps in import_re.captures_iter(content) {
-        let m = caps.get(0).expect("група 0 завжди є");
-        hits.push(RedisImportHit {
-            start: content[..m.start()].chars().count(),
-            module: caps[1].to_string(),
-        });
+impl<'c> RedisImportVisitor<'c> {
+    fn hit(&self, span: Span, module: &str) -> RedisImportHit {
+        let base = AstHit::at(self.content, span);
+        RedisImportHit {
+            line: base.line,
+            snippet: base.snippet,
+            module: module.to_string(),
+        }
     }
-    for caps in require_re.captures_iter(content) {
-        let m = caps.get(0).expect("група 0 завжди є");
-        hits.push(RedisImportHit {
-            start: content[..m.start()].chars().count(),
-            module: caps[1].to_string(),
-        });
+}
+
+impl<'a> Visit<'a> for RedisImportVisitor<'_> {
+    fn visit_import_declaration(&mut self, it: &ImportDeclaration<'a>) {
+        let module = it.source.value.as_str();
+        if is_forbidden_redis_module(module) {
+            self.static_hits.push(self.hit(it.span, module));
+        }
+        // Без walk у специфікатори — вкладених `require`/`import()` там нема
+        // (той самий мотив, що [`ImportSourceVisitor`]).
     }
-    for caps in dynamic_import_re.captures_iter(content) {
-        let m = caps.get(0).expect("група 0 завжди є");
-        hits.push(RedisImportHit {
-            start: content[..m.start()].chars().count(),
-            module: caps[1].to_string(),
-        });
+
+    fn visit_call_expression(&mut self, it: &CallExpression<'a>) {
+        if let Expression::Identifier(ident) = &it.callee {
+            if ident.name == "require" {
+                // Точний порт `requireCallModule`: перший аргумент — string
+                // literal (кількість аргументів НЕ перевіряється).
+                if let Some(Argument::StringLiteral(lit)) = it.arguments.first() {
+                    let module = lit.value.as_str();
+                    if is_forbidden_redis_module(module) {
+                        self.walk_hits.push(self.hit(it.span, module));
+                    }
+                }
+            }
+        }
+        walk_call_expression(self, it);
     }
-    hits.retain(|h| is_forbidden_redis_module(&h.module));
-    hits.sort_by_key(|h| h.start);
+
+    fn visit_import_expression(&mut self, it: &ImportExpression<'a>) {
+        if let Expression::StringLiteral(lit) = &it.source {
+            let module = lit.value.as_str();
+            if is_forbidden_redis_module(module) {
+                self.walk_hits.push(self.hit(it.span, module));
+            }
+        }
+        walk_import_expression(self, it);
+    }
+}
+
+/// Точний порт `findRedisImportsInText` (`redis-imports.mjs:64-112`) —
+/// СПРАВЖНІЙ AST-скан через `oxc_parser` (заміна regex-groundwork батчу 2):
+/// статичний `ImportDeclaration` (дзеркало `module.staticImports` —
+/// емпірично звірено батчем 3, що staticImports ≡ ImportDeclaration),
+/// `require('<mod>')`, динамічний `import('<mod>')`. Синтаксична помилка —
+/// порожній результат (порт `try/catch` + `result.errors?.length`).
+fn find_redis_imports_in_text(content: &str, path: &str) -> Vec<RedisImportHit> {
+    let allocator = Allocator::default();
+    let ret = Parser::new(&allocator, content, scan_source_type(path)).parse();
+    if !ret.diagnostics.is_empty() {
+        return Vec::new();
+    }
+    let mut visitor = RedisImportVisitor {
+        content,
+        static_hits: Vec::new(),
+        walk_hits: Vec::new(),
+    };
+    visitor.visit_program(&ret.program);
+    let mut hits = visitor.static_hits;
+    hits.extend(visitor.walk_hits);
     hits
 }
 
 /// Точний порт `lint()` `js-bun-redis/imports` (`main.mjs:62-88`) —
 /// WHOLE-BATCH: гейт на кореневий `package.json` (`existsSync`-перевірка
-/// JS-оригіналу — тут: чи є `package.json` серед файлів батчу), потім скан
-/// усіх JS/TS-джерел.
+/// JS-оригіналу — тут: чи є `package.json` серед файлів батчу, глоб
+/// контрибуції включає `**/package.json`), потім AST-скан усіх JS/TS-джерел.
 fn detect_redis_imports(files: &[SourceFile]) -> Vec<Diagnostic> {
     if !files.iter().any(|f| f.path == "package.json") {
         return Vec::new();
@@ -1085,15 +1170,13 @@ fn detect_redis_imports(files: &[SourceFile]) -> Vec<Diagnostic> {
         if !is_js_ts_source_file(&file.path) || should_skip_redis_scan_file(&file.path) {
             continue;
         }
-        for hit in find_redis_imports_in_text(&file.content) {
-            let line = line_number_at(&file.content, hit.start);
-            let snippet = line_text_at(&file.content, hit.start).trim();
+        for hit in find_redis_imports_in_text(&file.content, &file.path) {
             out.push(Diagnostic {
                 reason: REDIS_IMPORTS_VIOLATION_REASON.to_string(),
                 message: format!(
-                    "js-bun-redis: {}:{line} — заміни '{}' на Bun native Redis (import {{ redis }} \
-                     from 'bun', https://bun.com/docs/runtime/redis): {snippet}",
-                    file.path, hit.module
+                    "js-bun-redis: {}:{} — заміни '{}' на Bun native Redis (import {{ redis }} \
+                     from 'bun', https://bun.com/docs/runtime/redis): {}",
+                    file.path, hit.line, hit.module, hit.snippet
                 ),
                 file: None,
                 severity: Severity::Error,
@@ -1118,61 +1201,56 @@ fn has_bun_sql_import(content: &str) -> bool {
         .is_match(content)
 }
 
-/// Чи вміст імпортує пакет `pg` — точний порт `textHasPgLibImport`/
-/// `findPgLibImportInText` (спрощено до boolean — рядок/snippet тут не
-/// потрібні, `detect_bun_db_safety` сам рахує лінію).
+/// Чи вміст імпортує пакет `pg` — точний порт `textHasPgLibImport`
+/// (`bun-sql-scan.mjs`): ТЕКСТОВИЙ pre-filter (не AST) — саме тому
+/// side-effect `import 'pg'` без `from` цим фільтром НЕ ловиться (доккомент
+/// секції «Батч 4»: відтворено, не «поліпшено»).
 fn has_pg_lib_import(content: &str) -> bool {
     regex::Regex::new(PG_LIB_IMPORT_PATTERN)
         .expect("PG_LIB_IMPORT_PATTERN валідний")
         .is_match(content)
 }
 
-/// Чи вміст містить сигнал LISTEN/NOTIFY/UNLISTEN — регекс-наближення
-/// `findPgListenNotifyUsageInText` (доккомент [`PG_LISTEN_NOTIFY_CALL_PATTERN`]).
-fn has_pg_listen_notify(content: &str) -> bool {
-    regex::Regex::new(PG_LISTEN_NOTIFY_CALL_PATTERN)
-        .expect("PG_LISTEN_NOTIFY_CALL_PATTERN валідний")
+/// Чи вміст МОЖЕ містити LISTEN/NOTIFY-сигнал — точний порт дешевого
+/// pre-filter-а `collectPgUsageForFile` (`js-bun-db/safety/main.mjs`):
+/// `LISTEN_NOTIFY_KEYWORD_RE.test(content) || NOTIFICATION_LITERAL_RE.test(content)`.
+fn may_have_listen_notify(content: &str) -> bool {
+    regex::Regex::new(LISTEN_NOTIFY_KEYWORD_PATTERN)
+        .expect("LISTEN_NOTIFY_KEYWORD_PATTERN валідний")
         .is_match(content)
-        || regex::Regex::new(PG_NOTIFICATION_LISTENER_PATTERN)
-            .expect("PG_NOTIFICATION_LISTENER_PATTERN валідний")
+        || regex::Regex::new(NOTIFICATION_LITERAL_PATTERN)
+            .expect("NOTIFICATION_LITERAL_PATTERN валідний")
             .is_match(content)
 }
 
-/// Груба перевірка «виглядає як JSON-обʼєкт» (без повного парсера —
-/// доккомент [`json_escape_string`], та сама економія залежностей) —
-/// достатньо, щоб відрізнити валідний package.json від сировини на кшталт
-/// `"NOT_VALID_JSON"` (skip-not-crash фікстура `safety.test.mjs`).
-fn looks_like_json_object(content: &str) -> bool {
-    let trimmed = content.trim();
-    trimmed.starts_with('{') && trimmed.ends_with('}')
+/// Рядок `dependencies.mssql` з розпарсеного `package.json` — точний порт
+/// `getMssqlDependencyRange` (`js-mssql/deps/main.mjs`): не-об'єкт →
+/// відсутність; лише непорожній (після trim) рядок; повертається ТРИМОВАНЕ
+/// значення (JS: `v.trim() ? v.trim() : null`).
+fn mssql_dependency_range(parsed: &serde_json::Value) -> Option<String> {
+    let value = parsed
+        .as_object()?
+        .get("dependencies")?
+        .as_object()?
+        .get("mssql")?
+        .as_str()?;
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
 }
 
-/// Чи `package.json`-подібний вміст декларує `dependencies.<field>` —
-/// регекс-наближення JSON-парсингу (`[^{}]*` — плоский `dependencies`-блок,
-/// типовий для фікстур; вкладені обʼєкти всередині `dependencies` на
-/// практиці не зустрічаються).
-fn json_declares_dependency(content: &str, field: &str) -> bool {
-    let pattern = format!(
-        r#""dependencies"\s*:\s*\{{[^{{}}]*"{}"\s*:"#,
-        regex::escape(field)
-    );
-    regex::Regex::new(&pattern)
-        .map(|re| re.is_match(content))
-        .unwrap_or(false)
-}
-
-/// Витягає рядкове значення `dependencies.<field>` — регекс-наближення
-/// того самого JSON-поля, повертає значення (не лише presence), потрібне
-/// [`parse_leading_semver`].
-fn json_dependency_value(content: &str, field: &str) -> Option<String> {
-    let pattern = format!(
-        r#""dependencies"\s*:\s*\{{[^{{}}]*"{}"\s*:\s*"([^"]*)""#,
-        regex::escape(field)
-    );
-    regex::Regex::new(&pattern)
-        .ok()
-        .and_then(|re| re.captures(content))
-        .map(|caps| caps[1].to_string())
+/// Чи `package.json` декларує `dependencies.pg` — точний порт перевірки
+/// `Object.hasOwn(deps, 'pg')` (`checkPgDependencyAndUsage`,
+/// `js-bun-db/safety/main.mjs`): важлива ПРИСУТНІСТЬ ключа, не значення.
+fn package_declares_pg(parsed: &serde_json::Value) -> bool {
+    parsed
+        .as_object()
+        .and_then(|pkg| pkg.get("dependencies"))
+        .and_then(|deps| deps.as_object())
+        .is_some_and(|deps| deps.contains_key("pg"))
 }
 
 /// Точний порт `parseLeadingSemver` (`js-mssql/deps/main.mjs:74-83`).
@@ -1199,286 +1277,1282 @@ fn semver_gte(a: (u32, u32, u32), b: (u32, u32, u32)) -> bool {
     a.2 >= b.2
 }
 
-/// Компільований набір regex-ів для сканерів `js-bun-db/safety`, побудований
-/// раз на виклик [`scan_bun_sql_patterns`] (уникає перекомпіляції на кожен
-/// файл whole-batch).
-struct BunSqlScanRegexes {
-    new_sql: regex::Regex,
-    unsafe_call: regex::Regex,
-    pg_leftover_call: regex::Regex,
-    allow_unsafe_marker: regex::Regex,
-    allow_pg_leftover_marker: regex::Regex,
-    dynamic_list_join: regex::Regex,
-    in_list_interp: regex::Regex,
-    format_shim_func: regex::Regex,
-    quote_helper_func: regex::Regex,
-    format_placeholder: regex::Regex,
-    query_wrapper_param: regex::Regex,
-    json_stringify_jsonb: regex::Regex,
-    sql_array_call: regex::Regex,
+// =====================================================================
+// Задача Q4 батч 4: `js-bun-db/safety` — AST-концерн через `oxc_parser`
+// (десять сканерів `scanFileForBunSqlPatterns` + pg-виняток LISTEN/NOTIFY).
+
+/// Який `new`-конструктор шукає [`NewInsideFunctionVisitor`] — два JS-оригінали
+/// з ідентичною механікою «всередині функції» (`ancestors.some(isFunctionNode)`),
+/// але різними цільовими вузлами.
+enum NewConnectionKind {
+    /// `new SQL(...)` — точний порт `isNewSqlConstructor` (`bun-sql-scan.mjs`).
+    BunSql,
+    /// `new sql.ConnectionPool(...)`/`new mssql.ConnectionPool(...)` — точний
+    /// порт `isNewConnectionPool` (`mssql-pool-scan.mjs`).
+    MssqlPool,
 }
 
-impl BunSqlScanRegexes {
-    fn new() -> Self {
-        Self {
-            new_sql: regex::Regex::new(NEW_BUN_SQL_PATTERN).expect("валідний"),
-            unsafe_call: regex::Regex::new(UNSAFE_CALL_PATTERN).expect("валідний"),
-            pg_leftover_call: regex::Regex::new(PG_LEFTOVER_CALL_PATTERN).expect("валідний"),
-            allow_unsafe_marker: regex::Regex::new(ALLOW_UNSAFE_MARKER_PATTERN).expect("валідний"),
-            allow_pg_leftover_marker: regex::Regex::new(ALLOW_PG_LEFTOVER_MARKER_PATTERN)
-                .expect("валідний"),
-            dynamic_list_join: regex::Regex::new(DYNAMIC_SQL_LIST_JOIN_PATTERN).expect("валідний"),
-            in_list_interp: regex::Regex::new(IN_LIST_INTERP_PATTERN).expect("валідний"),
-            format_shim_func: regex::Regex::new(PG_FORMAT_SHIM_FUNC_PATTERN).expect("валідний"),
-            quote_helper_func: regex::Regex::new(QUOTE_HELPER_FUNC_PATTERN).expect("валідний"),
-            format_placeholder: regex::Regex::new(PG_FORMAT_PLACEHOLDER_PATTERN).expect("валідний"),
-            query_wrapper_param: regex::Regex::new(QUERY_WRAPPER_PARAM_PATTERN).expect("валідний"),
-            json_stringify_jsonb: regex::Regex::new(JSON_STRINGIFY_JSONB_PATTERN)
-                .expect("валідний"),
-            sql_array_call: regex::Regex::new(SQL_ARRAY_CALL_PATTERN).expect("валідний"),
+/// Visitor «`new <...>()` всередині функції» — точний порт
+/// `findBunSqlPerRequestConnectionInText`/`findMssqlPerRequestConnectionInText`:
+/// лічильник глибини інкрементується на ВХОДІ у функціональний вузол (разом з
+/// параметрами — дзеркало `ancestors.some(isFunctionNode)`, де предком є сам
+/// функціональний вузол цілком), декрементується на виході.
+struct NewInsideFunctionVisitor<'c> {
+    content: &'c str,
+    kind: NewConnectionKind,
+    fn_depth: u32,
+    out: Vec<AstHit>,
+}
+
+impl<'a> Visit<'a> for NewInsideFunctionVisitor<'_> {
+    fn visit_function(&mut self, it: &Function<'a>, flags: ScopeFlags) {
+        self.fn_depth += 1;
+        walk_function(self, it, flags);
+        self.fn_depth -= 1;
+    }
+
+    fn visit_arrow_function_expression(&mut self, it: &ArrowFunctionExpression<'a>) {
+        self.fn_depth += 1;
+        walk_arrow_function_expression(self, it);
+        self.fn_depth -= 1;
+    }
+
+    fn visit_new_expression(&mut self, it: &NewExpression<'a>) {
+        let is_target = match self.kind {
+            NewConnectionKind::BunSql => {
+                matches!(&it.callee, Expression::Identifier(ident) if ident.name == "SQL")
+            }
+            NewConnectionKind::MssqlPool => match &it.callee {
+                Expression::StaticMemberExpression(member) => {
+                    member.property.name == "ConnectionPool"
+                        && matches!(&member.object, Expression::Identifier(obj)
+                            if obj.name == "sql" || obj.name == "mssql")
+                }
+                _ => false,
+            },
+        };
+        if is_target && self.fn_depth > 0 {
+            self.out.push(AstHit::at(self.content, it.span));
         }
+        walk_new_expression(self, it);
     }
 }
 
-/// Точний порт `scanFileForBunSqlPatterns` (`js-bun-db/safety/main.mjs:137-225`)
-/// — гейт «файл має сам імпортувати Bun SQL» застосовує викликач
-/// ([`detect_bun_db_safety`]), не ця функція (той самий подіум, що
-/// `findBunSqlPgLeftoverCallInText`'s внутрішній `textHasBunSqlImport`-гейт,
-/// тут винесений на рівень виклику для єдиного проходу по файлу).
-fn scan_bun_sql_patterns(rel: &str, content: &str, re: &BunSqlScanRegexes) -> Vec<String> {
-    let chars: Vec<char> = content.chars().collect();
-    let mut out = Vec::new();
+/// Точний порт `findBunSqlPerRequestConnectionInText` (`bun-sql-scan.mjs`).
+fn find_bun_sql_per_request_connection(content: &str, path: &str) -> Vec<AstHit> {
+    find_new_inside_function(content, path, NewConnectionKind::BunSql)
+}
 
-    // new SQL(...) всередині функції (перевіряємо brace-глибину в місці виклику).
-    for start in find_all_starts(content, &re.new_sql) {
-        let char_idx = content[..start].chars().count();
-        if brace_depth_before(&chars, char_idx) > 0 {
-            let line = line_number_at(content, char_idx);
-            out.push(format!(
-                "js-bun-db: {rel}:{line} — не створюй new SQL(...) всередині функцій; тримай \
-                 singleton на рівні модуля (js-bun-db.mdc)"
-            ));
-        }
+/// Точний порт `findMssqlPerRequestConnectionInText` (`mssql-pool-scan.mjs`).
+fn find_mssql_per_request_connection(content: &str, path: &str) -> Vec<AstHit> {
+    find_new_inside_function(content, path, NewConnectionKind::MssqlPool)
+}
+
+/// Спільний прогін [`NewInsideFunctionVisitor`] для обох флейворів.
+fn find_new_inside_function(content: &str, path: &str, kind: NewConnectionKind) -> Vec<AstHit> {
+    let allocator = Allocator::default();
+    let ret = Parser::new(&allocator, content, scan_source_type(path)).parse();
+    if !ret.diagnostics.is_empty() {
+        return Vec::new();
     }
+    let mut visitor = NewInsideFunctionVisitor {
+        content,
+        kind,
+        fn_depth: 0,
+        out: Vec::new(),
+    };
+    visitor.visit_program(&ret.program);
+    visitor.out
+}
 
-    // <obj>.unsafe(...) без маркера / з інтерпольованим TemplateLiteral.
-    for start in find_all_starts(content, &re.unsafe_call) {
-        let char_idx = content[..start].chars().count();
-        let has_marker = marker_present_nearby(content, char_idx, &re.allow_unsafe_marker);
-        if !has_marker {
-            let line = line_number_at(content, char_idx);
-            out.push(format!(
-                "js-bun-db: {rel}:{line} — sql.unsafe(...) заборонено за замовчуванням; якщо \
-                 випадок легітимний — додай маркер \"// n-rules:allow-unsafe: <причина>\" на \
-                 тому ж рядку або рядком вище (js-bun-db.mdc)"
-            ));
+/// Visitor `<obj>.unsafe(...)` без маркера — точний порт
+/// `findBunSqlUnsafeUseWithoutAllowMarkerInText`: виклик дозволений, лише
+/// якщо його СТАРТОВА лінія входить у [`marker_allowed_lines`].
+struct UnsafeNoMarkerVisitor<'c> {
+    content: &'c str,
+    allowed_lines: std::collections::HashSet<usize>,
+    out: Vec<AstHit>,
+}
+
+impl<'a> Visit<'a> for UnsafeNoMarkerVisitor<'_> {
+    fn visit_call_expression(&mut self, it: &CallExpression<'a>) {
+        if is_unsafe_call(it) {
+            let hit = AstHit::at(self.content, it.span);
+            if !self.allowed_lines.contains(&hit.line) {
+                self.out.push(hit);
+            }
         }
-        // Аргумент виклику — для перевірки template-літерала з інтерполяцією.
-        if let Some(open_paren) = chars[char_idx..].iter().position(|&c| c == '(') {
-            let open_idx = char_idx + open_paren;
-            if let Some(close_idx) = find_matching_bracket(&chars, open_idx, '(', ')') {
-                let arg: String = chars[open_idx + 1..close_idx].iter().collect();
-                let trimmed = arg.trim();
-                if trimmed.starts_with('`') && trimmed.contains("${") {
-                    let line = line_number_at(content, char_idx);
-                    out.push(format!(
-                        "js-bun-db: {rel}:{line} — sql.unsafe(`...${{x}}...`) з template-літералом \
-                         і інтерполяцією заборонено навіть з n-rules:allow-unsafe маркером — збери \
-                         text через @scaleleap/pg-format або позиційні $N (js-bun-db.mdc)"
-                    ));
+        walk_call_expression(self, it);
+    }
+}
+
+/// Точний порт `findBunSqlUnsafeUseWithoutAllowMarkerInText` (`bun-sql-scan.mjs`).
+fn find_bun_sql_unsafe_without_marker(content: &str, path: &str) -> Vec<AstHit> {
+    let allocator = Allocator::default();
+    let ret = Parser::new(&allocator, content, scan_source_type(path)).parse();
+    if !ret.diagnostics.is_empty() {
+        return Vec::new();
+    }
+    let marker_re = regex::Regex::new(ALLOW_UNSAFE_MARKER_PATTERN)
+        .expect("ALLOW_UNSAFE_MARKER_PATTERN валідний");
+    let mut visitor = UnsafeNoMarkerVisitor {
+        content,
+        allowed_lines: marker_allowed_lines(content, &ret.program.comments, &marker_re),
+        out: Vec::new(),
+    };
+    visitor.visit_program(&ret.program);
+    visitor.out
+}
+
+/// Visitor `<obj>.unsafe(`...${x}...`)` — точний порт
+/// `findBunSqlUnsafeWithInterpolatedTemplateInText`: перший аргумент —
+/// `TemplateLiteral` з непорожніми `expressions` (маркер НЕ рятує).
+struct UnsafeInterpolatedTemplateVisitor<'c> {
+    content: &'c str,
+    out: Vec<AstHit>,
+}
+
+impl<'a> Visit<'a> for UnsafeInterpolatedTemplateVisitor<'_> {
+    fn visit_call_expression(&mut self, it: &CallExpression<'a>) {
+        if is_unsafe_call(it) {
+            if let Some(Argument::TemplateLiteral(tpl)) = it.arguments.first() {
+                if !tpl.expressions.is_empty() {
+                    self.out.push(AstHit::at(self.content, it.span));
                 }
             }
         }
+        walk_call_expression(self, it);
     }
+}
 
-    // pg-leftover <obj>.connect()/.end() без маркера.
-    for start in find_all_starts(content, &re.pg_leftover_call) {
-        let char_idx = content[..start].chars().count();
-        if !marker_present_nearby(content, char_idx, &re.allow_pg_leftover_marker) {
-            let line = line_number_at(content, char_idx);
-            out.push(format!(
-                "js-bun-db: {rel}:{line} — pg-leftover виклик: Bun SQL пулом керує сам, видали \
-                 зайвий .connect()/.end() або додай маркер \"// n-rules:allow-pg-leftover: \
-                 <причина>\" (js-bun-db.mdc)"
-            ));
-        }
+/// Точний порт `findBunSqlUnsafeWithInterpolatedTemplateInText` (`bun-sql-scan.mjs`).
+fn find_bun_sql_unsafe_interpolated_template(content: &str, path: &str) -> Vec<AstHit> {
+    let allocator = Allocator::default();
+    let ret = Parser::new(&allocator, content, scan_source_type(path)).parse();
+    if !ret.diagnostics.is_empty() {
+        return Vec::new();
     }
+    let mut visitor = UnsafeInterpolatedTemplateVisitor {
+        content,
+        out: Vec::new(),
+    };
+    visitor.visit_program(&ret.program);
+    visitor.out
+}
 
-    // Динамічний SQL-список через .join(',') у IN/VALUES.
-    for start in find_all_starts(content, &re.dynamic_list_join) {
-        let char_idx = content[..start].chars().count();
-        let line = line_number_at(content, char_idx);
-        out.push(format!(
-            "js-bun-db: {rel}:{line} — заборонено підставляти у SQL динамічні списки через \
-             .join(','); використовуй sql([...]) (js-bun-db.mdc)"
-        ));
-    }
+/// Одна pg-leftover-знахідка — [`find_bun_sql_pg_leftover`].
+struct PgLeftoverHit {
+    line: usize,
+    snippet: String,
+    /// Ім'я методу (`connect`/`end`) — фігурує в повідомленні.
+    method: String,
+}
 
-    // IN (${...}) — не-Identifier чи Identifier без guard-а на пустоту.
-    let ident_re = regex::Regex::new(r"^[A-Za-z_$][\w$]*$").expect("валідний");
-    for caps in re.in_list_interp.captures_iter(content) {
-        let m = caps.get(0).expect("група 0 завжди є");
-        let inner = caps[1].trim();
-        let char_idx = content[..m.start()].chars().count();
-        let line = line_number_at(content, char_idx);
-        if !ident_re.is_match(inner) {
-            out.push(format!(
-                "js-bun-db: {rel}:{line} — IN-список у ${{sql(...)}} має підставлятись зі змінної \
-                 (Identifier) після валідації на пустоту + throw (js-bun-db.mdc)"
-            ));
-        } else {
-            let guard_re = regex::Regex::new(&format!(
-                r"if\s*\(\s*!\s*{}\.length\s*\)",
-                regex::escape(inner)
-            ))
-            .expect("валідний");
-            let has_guard = guard_re
-                .find(content)
-                .map(|m| content[m.end()..].contains("throw"))
-                .unwrap_or(false);
-            if !has_guard {
-                out.push(format!(
-                    "js-bun-db: {rel}:{line} — перед IN-списком {inner} потрібна перевірка на \
-                     пустоту з throw (наприклад if (!{inner}.length) throw ...) (js-bun-db.mdc)"
-                ));
-            }
-        }
-    }
+/// Visitor `<obj>.connect(...)`/`<obj>.end(...)` без маркера — точний порт
+/// `findBunSqlPgLeftoverCallInText` (гейт на bun-sql-імпорт застосовує
+/// викликач, дзеркало внутрішнього `textHasBunSqlImport`-гейта JS).
+struct PgLeftoverVisitor<'c> {
+    content: &'c str,
+    allowed_lines: std::collections::HashSet<usize>,
+    out: Vec<PgLeftoverHit>,
+}
 
-    // pg-format-сумісні шими (format/pgFormat/sqlFormat/pgFmt з %L/%I/%s у тілі).
-    for caps in re.format_shim_func.captures_iter(content) {
-        let m = caps.get(0).expect("група 0 завжди є");
-        let name = &caps[1];
-        if let Some(brace_rel) = content[m.end()..].find('{') {
-            let open_idx = content[..m.end() + brace_rel].chars().count();
-            if let Some(close_idx) = find_matching_bracket(&chars, open_idx, '{', '}') {
-                let body: String = chars[open_idx + 1..close_idx].iter().collect();
-                if re.format_placeholder.is_match(&body) {
-                    let line = line_number_at(content, content[..m.start()].chars().count());
-                    out.push(format!(
-                        "js-bun-db: {rel}:{line} — функція \"{name}\" виглядає як pg-format-сумісний \
-                         шим; видали шим і переведи call-site на tagged template sql`...${{value}}...` \
-                         (js-bun-db.mdc)"
-                    ));
+impl<'a> Visit<'a> for PgLeftoverVisitor<'_> {
+    fn visit_call_expression(&mut self, it: &CallExpression<'a>) {
+        if let Expression::StaticMemberExpression(member) = &it.callee {
+            let method = member.property.name.as_str();
+            if PG_LEFTOVER_METHOD_NAMES.contains(&method) {
+                let hit = AstHit::at(self.content, it.span);
+                if !self.allowed_lines.contains(&hit.line) {
+                    self.out.push(PgLeftoverHit {
+                        line: hit.line,
+                        snippet: hit.snippet,
+                        method: method.to_string(),
+                    });
                 }
             }
         }
+        walk_call_expression(self, it);
     }
-    // Quote/escape-хелпери — дають violation незалежно від тіла.
-    for caps in re.quote_helper_func.captures_iter(content) {
-        let m = caps.get(0).expect("група 0 завжди є");
-        let name = &caps[1];
-        let line = line_number_at(content, content[..m.start()].chars().count());
-        out.push(format!(
-            "js-bun-db: {rel}:{line} — \"{name}\" — це pg-format-специфічний escape-хелпер; з Bun \
-             SQL він не потрібен, видали і перепиши call-site (js-bun-db.mdc)"
-        ));
+}
+
+/// Точний порт `findBunSqlPgLeftoverCallInText` (`bun-sql-scan.mjs`) —
+/// включно з внутрішнім гейтом `textHasBunSqlImport` (скоп навмисно вузький,
+/// доккомент JS-оригіналу: метод-імена занадто загальні поза Bun SQL-файлами).
+fn find_bun_sql_pg_leftover(content: &str, path: &str) -> Vec<PgLeftoverHit> {
+    if !has_bun_sql_import(content) {
+        return Vec::new();
+    }
+    let allocator = Allocator::default();
+    let ret = Parser::new(&allocator, content, scan_source_type(path)).parse();
+    if !ret.diagnostics.is_empty() {
+        return Vec::new();
+    }
+    let marker_re = regex::Regex::new(ALLOW_PG_LEFTOVER_MARKER_PATTERN)
+        .expect("ALLOW_PG_LEFTOVER_MARKER_PATTERN валідний");
+    let mut visitor = PgLeftoverVisitor {
+        content,
+        allowed_lines: marker_allowed_lines(content, &ret.program.comments, &marker_re),
+        out: Vec::new(),
+    };
+    visitor.visit_program(&ret.program);
+    visitor.out
+}
+
+/// Visitor динамічних SQL-списків — точний порт
+/// `findUnsafeBunSqlDynamicSqlListInText`/`findUnsafeMssqlDynamicSqlListInText`
+/// (два JS-оригінали з ідентичним тілом): `IN (...)`/`VALUES (...)` у
+/// raw-тексті quasis + хоч один `.join(...)` серед expressions. Tagged
+/// template дає ДВІ ідентичні знахідки (доккомент секції «Батч 4» —
+/// tagged-вузол І його quasi обходяться окремо, як у JS).
+struct DynamicSqlListVisitor<'c> {
+    content: &'c str,
+    sql_ctx_re: regex::Regex,
+    out: Vec<AstHit>,
+}
+
+impl DynamicSqlListVisitor<'_> {
+    fn process_template(&mut self, tpl: &TemplateLiteral) {
+        if !is_sql_list_context_template(tpl, &self.sql_ctx_re) {
+            return;
+        }
+        if tpl.expressions.is_empty() {
+            return;
+        }
+        if !tpl.expressions.iter().any(is_join_call) {
+            return;
+        }
+        self.out.push(AstHit::at(self.content, tpl.span));
+    }
+}
+
+impl<'a> Visit<'a> for DynamicSqlListVisitor<'_> {
+    fn visit_template_literal(&mut self, it: &TemplateLiteral<'a>) {
+        self.process_template(it);
+        walk_template_literal(self, it);
     }
 
-    // query(text|sql|query, ...) { ... .unsafe(...) ... } — pg-сумісна обгортка.
-    for m in re.query_wrapper_param.find_iter(content) {
-        if let Some(paren_rel) = content[m.start()..].find('(') {
-            let open_paren = content[..m.start() + paren_rel].chars().count();
-            if let Some(close_paren) = find_matching_bracket(&chars, open_paren, '(', ')') {
-                if let Some(brace_rel) = chars[close_paren..].iter().position(|&c| c == '{') {
-                    let open_brace = close_paren + brace_rel;
-                    if let Some(close_brace) = find_matching_bracket(&chars, open_brace, '{', '}') {
-                        let body: String = chars[open_brace + 1..close_brace].iter().collect();
-                        if re.unsafe_call.is_match(&body) {
-                            let line =
-                                line_number_at(content, content[..m.start()].chars().count());
-                            out.push(format!(
-                                "js-bun-db: {rel}:{line} — query(text, params)-обгортка над \
-                                 <obj>.unsafe(...) — прихований pg-сумісний шим; видали обгортку \
-                                 (js-bun-db.mdc)"
-                            ));
-                        }
+    fn visit_tagged_template_expression(&mut self, it: &TaggedTemplateExpression<'a>) {
+        self.process_template(&it.quasi);
+        walk_tagged_template_expression(self, it);
+    }
+}
+
+/// Спільний прогін [`DynamicSqlListVisitor`] (bun-db і mssql відрізняються
+/// лише повідомленням на боці викликача).
+fn find_sql_dynamic_list(content: &str, path: &str) -> Vec<AstHit> {
+    let allocator = Allocator::default();
+    let ret = Parser::new(&allocator, content, scan_source_type(path)).parse();
+    if !ret.diagnostics.is_empty() {
+        return Vec::new();
+    }
+    let mut visitor = DynamicSqlListVisitor {
+        content,
+        sql_ctx_re: regex::Regex::new(SQL_LIST_CONTEXT_PATTERN)
+            .expect("SQL_LIST_CONTEXT_PATTERN валідний"),
+        out: Vec::new(),
+    };
+    visitor.visit_program(&ret.program);
+    visitor.out
+}
+
+/// Причина порушення guard-сканера IN-списків — точний порт `reason`-поля
+/// `collectInListGuardViolationsFromTemplate` (bun) /
+/// `collectInListMissingEmptyGuardFromTemplate` (mssql).
+enum InListGuardReason {
+    /// `${...}` — не Identifier (bun: і не `sql(Identifier)`).
+    NotVar,
+    /// `${sql(<не-Identifier>)}` — лише bun-флейвор.
+    SqlHelperNotVar,
+    /// Identifier без guard-а `if (empty) throw` у найближчому блоці.
+    MissingGuard(String),
+}
+
+/// Одна guard-знахідка — [`find_bun_sql_in_list_guard`]/[`find_mssql_in_list_guard`].
+struct InListGuardHit {
+    line: usize,
+    snippet: String,
+    reason: InListGuardReason,
+}
+
+/// Флейвор guard-сканера: два JS-оригінали з різними IN-регексами
+/// (доккоменти [`BUN_IN_PLACEHOLDER_END_PATTERN`]/[`MSSQL_IN_PLACEHOLDER_END_PATTERN`]),
+/// різною екстракцією виразу (`sql(...)`-хелпер — лише bun) і різним
+/// покриттям tagged-вузлів (bun обробляє tagged+quasi → дублікати; mssql —
+/// лише TemplateLiteral).
+enum InListGuardFlavor {
+    BunSql,
+    Mssql,
+}
+
+/// Visitor guard-перевірки IN-списків. Стек guard-множин відтворює
+/// `findEnclosingBlockAndStatementIndex` + `hasEmptyGuardBefore`: контекст
+/// відкривається на КОЖНОМУ `BlockStatement`/тілі функції (ESTree серіалізує
+/// `FunctionBody` як `BlockStatement`), guard `if (empty(name)) throw`
+/// додає `name` у ВЕРШИНУ стека після свого statement-а — тож перевірка
+/// «guard перед statement-ом у НАЙБЛИЖЧОМУ блоці» зводиться до membership у
+/// вершині стека (guard у зовнішньому блоці вкладений блок НЕ рятує —
+/// перевірено live-прогоном JS-оригіналу).
+struct InListGuardVisitor<'c> {
+    content: &'c str,
+    flavor: InListGuardFlavor,
+    in_end_re: regex::Regex,
+    sql_ctx_re: regex::Regex,
+    guard_stack: Vec<std::collections::HashSet<String>>,
+    out: Vec<InListGuardHit>,
+}
+
+impl InListGuardVisitor<'_> {
+    /// Точний порт `extractInListVarNameFromExpr` (bun) / гілки
+    /// `expr.type !== 'Identifier'` (mssql).
+    fn extract_var_name(&self, expr: &Expression) -> Result<String, InListGuardReason> {
+        if let Expression::Identifier(ident) = expr {
+            return Ok(ident.name.to_string());
+        }
+        if matches!(self.flavor, InListGuardFlavor::BunSql) {
+            if let Expression::CallExpression(call) = expr {
+                if matches!(&call.callee, Expression::Identifier(callee) if callee.name == "sql") {
+                    if let Some(Expression::Identifier(arg)) =
+                        call.arguments.first().and_then(|a| a.as_expression())
+                    {
+                        return Ok(arg.name.to_string());
+                    }
+                    return Err(InListGuardReason::SqlHelperNotVar);
+                }
+            }
+        }
+        Err(InListGuardReason::NotVar)
+    }
+
+    fn process_template(&mut self, tpl: &TemplateLiteral) {
+        if matches!(self.flavor, InListGuardFlavor::BunSql)
+            && !is_sql_list_context_template(tpl, &self.sql_ctx_re)
+        {
+            return;
+        }
+        if tpl.expressions.is_empty() || tpl.quasis.is_empty() {
+            return;
+        }
+        for (index, expr) in tpl.expressions.iter().enumerate() {
+            let raw = tpl
+                .quasis
+                .get(index)
+                .map(|q| q.value.raw.as_str())
+                .unwrap_or("");
+            if !self.in_end_re.is_match(raw) {
+                continue;
+            }
+            let base = AstHit::at(self.content, tpl.span);
+            match self.extract_var_name(expr) {
+                Err(reason) => self.out.push(InListGuardHit {
+                    line: base.line,
+                    snippet: base.snippet,
+                    reason,
+                }),
+                Ok(name) => {
+                    let guarded = self
+                        .guard_stack
+                        .last()
+                        .is_some_and(|guards| guards.contains(&name));
+                    if !guarded {
+                        self.out.push(InListGuardHit {
+                            line: base.line,
+                            snippet: base.snippet,
+                            reason: InListGuardReason::MissingGuard(name),
+                        });
                     }
                 }
             }
         }
     }
 
-    // JSON.stringify(...) перед ::jsonb — Bun SQL серіалізує автоматично.
-    for m in re.json_stringify_jsonb.find_iter(content) {
-        let line = line_number_at(content, content[..m.start()].chars().count());
-        out.push(format!(
-            "js-bun-db: {rel}:{line} — JSON.stringify(...) перед ::jsonb зайвий: Bun SQL серіалізує \
-             автоматично (js-bun-db.mdc query-safety)"
-        ));
+    /// Обхід statement-списку блока з накопиченням guard-ів: guard видно
+    /// лише statement-ам ПІСЛЯ нього (`i < statementIndex` у
+    /// `hasEmptyGuardBefore`).
+    fn enter_statements<'a>(&mut self, statements: &[Statement<'a>]) {
+        self.guard_stack.push(std::collections::HashSet::new());
+        for statement in statements {
+            self.visit_statement(statement);
+            self.record_guard(statement);
+        }
+        self.guard_stack.pop();
     }
 
-    // sql.array(arr) без другого аргументу типу.
-    for m in re.sql_array_call.find_iter(content) {
-        let char_idx = content[..m.end()].chars().count() - 1; // офсет символу '('
-        if let Some(close_idx) = find_matching_bracket(&chars, char_idx, '(', ')') {
-            let arg: String = chars[char_idx + 1..close_idx].iter().collect();
-            if !arg.contains(',') {
-                let line = line_number_at(content, content[..m.start()].chars().count());
-                out.push(format!(
-                    "js-bun-db: {rel}:{line} — sql.array(arr) без другого аргументу типу — вкажи \
-                     явний pg-тип: sql.array(arr, 'int8')/'uuid' тощо (js-bun-db.mdc sql-array)"
-                ));
+    /// Точний порт трійки `IfStatement` + `isEmptyListTest` +
+    /// `consequentHasThrow`: додає ім'я захищеного списку у вершину стека.
+    fn record_guard(&mut self, statement: &Statement) {
+        let Statement::IfStatement(if_stmt) = statement else {
+            return;
+        };
+        let Some(name) = empty_list_test_name(&if_stmt.test) else {
+            return;
+        };
+        if !consequent_has_throw(&if_stmt.consequent) {
+            return;
+        }
+        if let Some(top) = self.guard_stack.last_mut() {
+            top.insert(name);
+        }
+    }
+}
+
+impl<'a> Visit<'a> for InListGuardVisitor<'_> {
+    fn visit_block_statement(&mut self, it: &BlockStatement<'a>) {
+        self.enter_statements(&it.body);
+    }
+
+    fn visit_function_body(&mut self, it: &FunctionBody<'a>) {
+        // ESTree серіалізує FunctionBody як BlockStatement — тіло функції
+        // теж «найближчий блок» для guard-пошуку.
+        self.enter_statements(&it.statements);
+    }
+
+    fn visit_arrow_function_expression(&mut self, it: &ArrowFunctionExpression<'a>) {
+        if it.expression {
+            // ESTree: expression-body arrow має body-ВИРАЗ (НЕ BlockStatement)
+            // — guard-контекст НЕ відкривається, пошук іде у зовнішній блок
+            // (перевірено live-прогоном JS-оригіналу).
+            self.visit_formal_parameters(&it.params);
+            if let Some(expr) = it.get_expression() {
+                self.visit_expression(expr);
             }
+        } else {
+            walk_arrow_function_expression(self, it);
         }
     }
 
+    fn visit_template_literal(&mut self, it: &TemplateLiteral<'a>) {
+        self.process_template(it);
+        walk_template_literal(self, it);
+    }
+
+    fn visit_tagged_template_expression(&mut self, it: &TaggedTemplateExpression<'a>) {
+        if matches!(self.flavor, InListGuardFlavor::BunSql) {
+            // Дзеркало дубль-обходу JS (доккомент секції «Батч 4»): tagged
+            // оброблюється і тут, і повторно як його quasi-TemplateLiteral.
+            self.process_template(&it.quasi);
+        }
+        walk_tagged_template_expression(self, it);
+    }
+}
+
+/// Ім'я `<name>` з виразу `<name>.length` — точний порт `isLengthMember`
+/// (non-computed MemberExpression Identifier.Identifier).
+fn length_member_name(expr: &Expression) -> Option<String> {
+    let Expression::StaticMemberExpression(member) = expr else {
+        return None;
+    };
+    if member.property.name != "length" {
+        return None;
+    }
+    match &member.object {
+        Expression::Identifier(ident) => Some(ident.name.to_string()),
+        _ => None,
+    }
+}
+
+/// Чи це числовий літерал `0` — точний порт `isZeroNumberLiteral`
+/// (`NumericLiteral`/`Literal` зі значенням 0; ESTree bigint `0n` НЕ
+/// проходить строгу рівність `=== 0`).
+fn is_zero_numeric_literal(expr: &Expression) -> bool {
+    matches!(expr, Expression::NumericLiteral(lit) if lit.value == 0.0)
+}
+
+/// Ім'я списку з тесту «список порожній» — точний порт `isEmptyListTest`:
+/// `!name.length`, `name.length ===|==|<=|< 0`, `0 ===|== name.length`.
+fn empty_list_test_name(test: &Expression) -> Option<String> {
+    match test {
+        Expression::UnaryExpression(unary) if unary.operator == UnaryOperator::LogicalNot => {
+            length_member_name(&unary.argument)
+        }
+        Expression::BinaryExpression(binary) => {
+            let op = binary.operator;
+            let allowed = matches!(
+                op,
+                BinaryOperator::StrictEquality
+                    | BinaryOperator::Equality
+                    | BinaryOperator::LessEqualThan
+                    | BinaryOperator::LessThan
+            );
+            if !allowed {
+                return None;
+            }
+            if let Some(name) = length_member_name(&binary.left) {
+                if is_zero_numeric_literal(&binary.right) {
+                    return Some(name);
+                }
+            }
+            // Допускаємо `0 === ids.length` теж (лише для ===/==).
+            if matches!(
+                op,
+                BinaryOperator::StrictEquality | BinaryOperator::Equality
+            ) && is_zero_numeric_literal(&binary.left)
+            {
+                return length_member_name(&binary.right);
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+/// Чи містить consequent `throw` — точний порт `consequentHasThrow`
+/// (`ThrowStatement` напряму чи ПРЯМИЙ елемент `BlockStatement.body`).
+fn consequent_has_throw(consequent: &Statement) -> bool {
+    match consequent {
+        Statement::ThrowStatement(_) => true,
+        Statement::BlockStatement(block) => block
+            .body
+            .iter()
+            .any(|s| matches!(s, Statement::ThrowStatement(_))),
+        _ => false,
+    }
+}
+
+/// Спільний прогін [`InListGuardVisitor`] для обох флейворів.
+fn find_in_list_guard(content: &str, path: &str, flavor: InListGuardFlavor) -> Vec<InListGuardHit> {
+    let allocator = Allocator::default();
+    let ret = Parser::new(&allocator, content, scan_source_type(path)).parse();
+    if !ret.diagnostics.is_empty() {
+        return Vec::new();
+    }
+    let in_end_pattern = match flavor {
+        InListGuardFlavor::BunSql => BUN_IN_PLACEHOLDER_END_PATTERN,
+        InListGuardFlavor::Mssql => MSSQL_IN_PLACEHOLDER_END_PATTERN,
+    };
+    let mut visitor = InListGuardVisitor {
+        content,
+        flavor,
+        in_end_re: regex::Regex::new(in_end_pattern).expect("IN_PLACEHOLDER_END-патерн валідний"),
+        sql_ctx_re: regex::Regex::new(SQL_LIST_CONTEXT_PATTERN)
+            .expect("SQL_LIST_CONTEXT_PATTERN валідний"),
+        guard_stack: Vec::new(),
+        out: Vec::new(),
+    };
+    visitor.visit_program(&ret.program);
+    visitor.out
+}
+
+/// Точний порт `findUnsafeBunSqlInListMissingEmptyGuardInText` (`bun-sql-scan.mjs`).
+fn find_bun_sql_in_list_guard(content: &str, path: &str) -> Vec<InListGuardHit> {
+    find_in_list_guard(content, path, InListGuardFlavor::BunSql)
+}
+
+/// Точний порт `findUnsafeMssqlInListMissingEmptyGuardInText` (`mssql-pool-scan.mjs`).
+fn find_mssql_in_list_guard(content: &str, path: &str) -> Vec<InListGuardHit> {
+    find_in_list_guard(content, path, InListGuardFlavor::Mssql)
+}
+
+/// Вид pg-format-шима — точний порт `kind`-поля `findPgFormatShimDefinitionInText`.
+enum ShimKind {
+    /// `format`/`pgFormat`/`sqlFormat`/`pgFmt` з `%L`/`%I`/`%s` у тілі.
+    FormatFunction,
+    /// `quoteLiteral`/`quoteIdent`/`escapeLiteral`/`escapeIdent` — без
+    /// перевірки тіла.
+    QuoteHelper,
+}
+
+/// Одна шим-знахідка — [`find_pg_format_shims`].
+struct ShimHit {
+    line: usize,
+    snippet: String,
+    kind: ShimKind,
+    name: String,
+}
+
+/// Mini-visitor «чи містить піддерево `%L`/`%I`/`%s`» — точний порт
+/// `nodeContainsPgFormatPlaceholder`: string literal (cooked), template
+/// literal (raw-текст quasis), regexp literal (pattern).
+struct PgPlaceholderFinder<'r> {
+    placeholder_re: &'r regex::Regex,
+    found: bool,
+}
+
+impl<'a> Visit<'a> for PgPlaceholderFinder<'_> {
+    fn visit_string_literal(&mut self, it: &StringLiteral<'a>) {
+        if self.placeholder_re.is_match(it.value.as_str()) {
+            self.found = true;
+        }
+    }
+
+    fn visit_template_literal(&mut self, it: &TemplateLiteral<'a>) {
+        if self.placeholder_re.is_match(&template_quasis_raw_text(it)) {
+            self.found = true;
+        }
+        walk_template_literal(self, it);
+    }
+
+    fn visit_reg_exp_literal(&mut self, it: &RegExpLiteral<'a>) {
+        if self.placeholder_re.is_match(it.regex.pattern.text.as_str()) {
+            self.found = true;
+        }
+    }
+}
+
+/// Чи тіло функції містить pg-format-плейсхолдер (див. [`PgPlaceholderFinder`]).
+fn function_body_has_pg_placeholder(body: &FunctionBody, placeholder_re: &regex::Regex) -> bool {
+    let mut finder = PgPlaceholderFinder {
+        placeholder_re,
+        found: false,
+    };
+    finder.visit_function_body(body);
+    finder.found
+}
+
+/// Visitor pg-format-шимів — точний порт `findPgFormatShimDefinitionInText`
+/// разом з `asNamedFunctionDecl`: `function <name>(...) {...}` (лише
+/// `FunctionDeclaration`) і `const <name> = (...) => {...}` / `= function(...)`.
+struct PgFormatShimVisitor<'c> {
+    content: &'c str,
+    placeholder_re: regex::Regex,
+    out: Vec<ShimHit>,
+}
+
+impl PgFormatShimVisitor<'_> {
+    /// Точний порт вибору `kind` (quote-хелпер має пріоритет — той самий
+    /// порядок гілок, що в JS).
+    fn classify(&self, name: &str, body: Option<&FunctionBody>) -> Option<ShimKind> {
+        if QUOTE_HELPER_NAMES.contains(&name) {
+            return Some(ShimKind::QuoteHelper);
+        }
+        if PG_FORMAT_SHIM_FUNC_NAMES.contains(&name)
+            && body.is_some_and(|b| function_body_has_pg_placeholder(b, &self.placeholder_re))
+        {
+            return Some(ShimKind::FormatFunction);
+        }
+        None
+    }
+
+    /// Сніпет — точний порт `content.slice(node.start, Math.min(node.end,
+    /// node.start + 240))` (кап 240 байт ДО normalize).
+    fn push_shim(&mut self, span: Span, name: &str, kind: ShimKind) {
+        let end = span.end.min(span.start + 240) as usize;
+        self.out.push(ShimHit {
+            line: line_number_at_offset(self.content, span.start as usize),
+            snippet: normalize_snippet(&self.content[span.start as usize..end]),
+            kind,
+            name: name.to_string(),
+        });
+    }
+}
+
+impl<'a> Visit<'a> for PgFormatShimVisitor<'_> {
+    fn visit_function(&mut self, it: &Function<'a>, flags: ScopeFlags) {
+        if it.r#type == FunctionType::FunctionDeclaration {
+            if let Some(id) = &it.id {
+                if let Some(kind) = self.classify(id.name.as_str(), it.body.as_deref()) {
+                    self.push_shim(it.span, id.name.as_str(), kind);
+                }
+            }
+        }
+        walk_function(self, it, flags);
+    }
+
+    fn visit_variable_declarator(&mut self, it: &VariableDeclarator<'a>) {
+        if let BindingPattern::BindingIdentifier(id) = &it.id {
+            let body = match &it.init {
+                Some(Expression::ArrowFunctionExpression(arrow)) => Some(&*arrow.body),
+                Some(Expression::FunctionExpression(func)) => func.body.as_deref(),
+                _ => None,
+            };
+            if body.is_some() {
+                if let Some(kind) = self.classify(id.name.as_str(), body) {
+                    self.push_shim(it.span, id.name.as_str(), kind);
+                }
+            }
+        }
+        walk_variable_declarator(self, it);
+    }
+}
+
+/// Точний порт `findPgFormatShimDefinitionInText` (`bun-sql-scan.mjs`) —
+/// включно з внутрішнім гейтом `textHasBunSqlImport` (щоб не плутати
+/// форматер дат із SQL-шимом поза Bun SQL-файлами).
+fn find_pg_format_shims(content: &str, path: &str) -> Vec<ShimHit> {
+    if !has_bun_sql_import(content) {
+        return Vec::new();
+    }
+    let allocator = Allocator::default();
+    let ret = Parser::new(&allocator, content, scan_source_type(path)).parse();
+    if !ret.diagnostics.is_empty() {
+        return Vec::new();
+    }
+    let mut visitor = PgFormatShimVisitor {
+        content,
+        placeholder_re: regex::Regex::new(PG_FORMAT_PLACEHOLDER_PATTERN)
+            .expect("PG_FORMAT_PLACEHOLDER_PATTERN валідний"),
+        out: Vec::new(),
+    };
+    visitor.visit_program(&ret.program);
+    visitor.out
+}
+
+/// Mini-visitor «чи містить піддерево виклик `<obj>.unsafe(...)`» — точний
+/// порт `nodeContainsUnsafeCall`.
+struct UnsafeCallFinder {
+    found: bool,
+}
+
+impl<'a> Visit<'a> for UnsafeCallFinder {
+    fn visit_call_expression(&mut self, it: &CallExpression<'a>) {
+        if is_unsafe_call(it) {
+            self.found = true;
+        }
+        walk_call_expression(self, it);
+    }
+}
+
+/// Чи ключ property — `query` — точний порт `propertyKeyName` (Identifier
+/// або string literal; числові ключі ніколи не дорівнюють `"query"`).
+fn property_key_is_query(key: &PropertyKey) -> bool {
+    match key {
+        PropertyKey::StaticIdentifier(ident) => ident.name == "query",
+        PropertyKey::StringLiteral(lit) => lit.value == "query",
+        _ => false,
+    }
+}
+
+/// Чи сигнатура — pg-style `query(text, params?)` — точний порт
+/// `hasPgQuerySignature`: 1–2 параметри, перший — Identifier
+/// `text`/`sql`/`query`.
+fn has_pg_query_signature(params: &FormalParameters) -> bool {
+    let len = params.items.len() + usize::from(params.rest.is_some());
+    if !(1..=2).contains(&len) {
+        return false;
+    }
+    let Some(first) = params.items.first() else {
+        return false;
+    };
+    let BindingPattern::BindingIdentifier(ident) = &first.pattern else {
+        return false;
+    };
+    PG_QUERY_FIRST_PARAM_NAMES.contains(&ident.name.as_str())
+}
+
+/// Чи property — pg-сумісна query-обгортка — точний порт
+/// `asPgFormatLikeQueryProp`.
+fn is_pg_query_wrapper_prop(prop: &ObjectProperty) -> bool {
+    if !property_key_is_query(&prop.key) {
+        return false;
+    }
+    let (params, body) = match &prop.value {
+        Expression::FunctionExpression(func) => (&func.params, func.body.as_deref()),
+        Expression::ArrowFunctionExpression(arrow) => (&arrow.params, Some(&*arrow.body)),
+        _ => return false,
+    };
+    if !has_pg_query_signature(params) {
+        return false;
+    }
+    body.is_some_and(|b| {
+        let mut finder = UnsafeCallFinder { found: false };
+        finder.visit_function_body(b);
+        finder.found
+    })
+}
+
+/// Visitor query-обгорток — точний порт `findPgFormatLikeQueryWrapperInText`:
+/// обходить `ObjectExpression` і перевіряє КОЖЕН його property.
+struct QueryWrapperVisitor<'c> {
+    content: &'c str,
+    out: Vec<AstHit>,
+}
+
+impl<'a> Visit<'a> for QueryWrapperVisitor<'_> {
+    fn visit_object_expression(&mut self, it: &ObjectExpression<'a>) {
+        for prop_kind in &it.properties {
+            if let ObjectPropertyKind::ObjectProperty(prop) = prop_kind {
+                if is_pg_query_wrapper_prop(prop) {
+                    self.out.push(AstHit::at(self.content, prop.span));
+                }
+            }
+        }
+        walk_object_expression(self, it);
+    }
+}
+
+/// Точний порт `findPgFormatLikeQueryWrapperInText` (`bun-sql-scan.mjs`) —
+/// включно з внутрішнім гейтом `textHasBunSqlImport`.
+fn find_pg_query_wrappers(content: &str, path: &str) -> Vec<AstHit> {
+    if !has_bun_sql_import(content) {
+        return Vec::new();
+    }
+    let allocator = Allocator::default();
+    let ret = Parser::new(&allocator, content, scan_source_type(path)).parse();
+    if !ret.diagnostics.is_empty() {
+        return Vec::new();
+    }
+    let mut visitor = QueryWrapperVisitor {
+        content,
+        out: Vec::new(),
+    };
+    visitor.visit_program(&ret.program);
+    visitor.out
+}
+
+/// Чи це виклик `JSON.stringify(...)` — точний порт `isJsonStringifyCall`.
+fn is_json_stringify_call(expr: &Expression) -> bool {
+    let Expression::CallExpression(call) = expr else {
+        return false;
+    };
+    let Expression::StaticMemberExpression(member) = &call.callee else {
+        return false;
+    };
+    member.property.name == "stringify"
+        && matches!(&member.object, Expression::Identifier(obj) if obj.name == "JSON")
+}
+
+/// Чи це `sql.array(..., 'text')` — точний порт `isTextArrayCall`
+/// (безпечний контракт `text[] → unnest → ::jsonb`).
+fn is_text_array_call(expr: &Expression) -> bool {
+    let Expression::CallExpression(call) = expr else {
+        return false;
+    };
+    let Expression::StaticMemberExpression(member) = &call.callee else {
+        return false;
+    };
+    if member.property.name != "array" {
+        return false;
+    }
+    matches!(call.arguments.get(1), Some(Argument::StringLiteral(lit)) if lit.value == "text")
+}
+
+/// Чи вираз — `CallExpression`, серед аргументів якого прямий
+/// `JSON.stringify(...)` чи `.map(r => JSON.stringify(...))`-колбек
+/// (expression-body arrow) — точний порт `hasSqlArrayStringify`-гілки
+/// `findJsonStringifyBeforeJsonbInText` (`FunctionExpression`-тіло —
+/// `BlockStatement`, тож у JS ніколи не матчиться — відтворено).
+fn call_has_sql_array_stringify(expr: &Expression) -> bool {
+    let Expression::CallExpression(call) = expr else {
+        return false;
+    };
+    call.arguments.iter().any(|arg| {
+        let Some(arg_expr) = arg.as_expression() else {
+            return false;
+        };
+        if is_json_stringify_call(arg_expr) {
+            return true;
+        }
+        if let Expression::CallExpression(inner) = arg_expr {
+            if let Some(Expression::ArrowFunctionExpression(arrow)) =
+                inner.arguments.first().and_then(|a| a.as_expression())
+            {
+                if let Some(body_expr) = arrow.get_expression() {
+                    return is_json_stringify_call(body_expr);
+                }
+            }
+        }
+        false
+    })
+}
+
+/// Visitor `JSON.stringify(...)::jsonb` — точний порт
+/// `findJsonStringifyBeforeJsonbInText` (tagged template дає дублікати —
+/// доккомент секції «Батч 4»).
+struct JsonStringifyJsonbVisitor<'c> {
+    content: &'c str,
+    jsonb_re: regex::Regex,
+    out: Vec<AstHit>,
+}
+
+impl JsonStringifyJsonbVisitor<'_> {
+    fn process_template(&mut self, tpl: &TemplateLiteral) {
+        for (index, expr) in tpl.expressions.iter().enumerate() {
+            let is_direct = is_json_stringify_call(expr);
+            let has_sql_array_stringify = !is_direct && call_has_sql_array_stringify(expr);
+            if !is_direct && !has_sql_array_stringify {
+                continue;
+            }
+            if is_text_array_call(expr) {
+                continue;
+            }
+            let raw_after = tpl
+                .quasis
+                .get(index + 1)
+                .map(|q| q.value.raw.as_str())
+                .unwrap_or("");
+            if self.jsonb_re.is_match(raw_after) || has_sql_array_stringify {
+                self.out.push(AstHit::at(self.content, expr.span()));
+            }
+        }
+    }
+}
+
+impl<'a> Visit<'a> for JsonStringifyJsonbVisitor<'_> {
+    fn visit_template_literal(&mut self, it: &TemplateLiteral<'a>) {
+        self.process_template(it);
+        walk_template_literal(self, it);
+    }
+
+    fn visit_tagged_template_expression(&mut self, it: &TaggedTemplateExpression<'a>) {
+        self.process_template(&it.quasi);
+        walk_tagged_template_expression(self, it);
+    }
+}
+
+/// Точний порт `findJsonStringifyBeforeJsonbInText` (`bun-sql-scan.mjs`).
+fn find_json_stringify_before_jsonb(content: &str, path: &str) -> Vec<AstHit> {
+    let allocator = Allocator::default();
+    let ret = Parser::new(&allocator, content, scan_source_type(path)).parse();
+    if !ret.diagnostics.is_empty() {
+        return Vec::new();
+    }
+    let mut visitor = JsonStringifyJsonbVisitor {
+        content,
+        jsonb_re: regex::Regex::new(JSONB_CAST_PATTERN).expect("JSONB_CAST_PATTERN валідний"),
+        out: Vec::new(),
+    };
+    visitor.visit_program(&ret.program);
+    visitor.out
+}
+
+/// Visitor `sql.array(arr)` без типу — точний порт
+/// `findSqlArrayWithoutTypeArgInText`: об'єкт — Identifier зі
+/// [`SQL_INSTANCE_NAMES`], РІВНО один аргумент.
+struct SqlArrayNoTypeVisitor<'c> {
+    content: &'c str,
+    out: Vec<AstHit>,
+}
+
+impl<'a> Visit<'a> for SqlArrayNoTypeVisitor<'_> {
+    fn visit_call_expression(&mut self, it: &CallExpression<'a>) {
+        if let Expression::StaticMemberExpression(member) = &it.callee {
+            if member.property.name == "array"
+                && matches!(&member.object, Expression::Identifier(obj)
+                    if SQL_INSTANCE_NAMES.contains(&obj.name.as_str()))
+                && it.arguments.len() == 1
+            {
+                self.out.push(AstHit::at(self.content, it.span));
+            }
+        }
+        walk_call_expression(self, it);
+    }
+}
+
+/// Точний порт `findSqlArrayWithoutTypeArgInText` (`bun-sql-scan.mjs`).
+fn find_sql_array_without_type(content: &str, path: &str) -> Vec<AstHit> {
+    let allocator = Allocator::default();
+    let ret = Parser::new(&allocator, content, scan_source_type(path)).parse();
+    if !ret.diagnostics.is_empty() {
+        return Vec::new();
+    }
+    let mut visitor = SqlArrayNoTypeVisitor {
+        content,
+        out: Vec::new(),
+    };
+    visitor.visit_program(&ret.program);
+    visitor.out
+}
+
+/// Visitor імпортів пакета `pg` — точний порт `findPgLibImportInText`:
+/// `ImportDeclaration` із source РІВНО `pg` (включно з side-effect формою) і
+/// `require('pg')` з одним аргументом (`isRequireOfModule`).
+struct PgLibImportVisitor<'c> {
+    content: &'c str,
+    out: Vec<AstHit>,
+}
+
+impl<'a> Visit<'a> for PgLibImportVisitor<'_> {
+    fn visit_import_declaration(&mut self, it: &ImportDeclaration<'a>) {
+        if it.source.value == "pg" {
+            self.out.push(AstHit::at(self.content, it.span));
+        }
+    }
+
+    fn visit_call_expression(&mut self, it: &CallExpression<'a>) {
+        if matches!(&it.callee, Expression::Identifier(callee) if callee.name == "require")
+            && it.arguments.len() == 1
+            && matches!(it.arguments.first(), Some(Argument::StringLiteral(lit)) if lit.value == "pg")
+        {
+            self.out.push(AstHit::at(self.content, it.span));
+        }
+        walk_call_expression(self, it);
+    }
+}
+
+/// Точний порт `findPgLibImportInText` (`bun-sql-scan.mjs`).
+fn find_pg_lib_imports(content: &str, path: &str) -> Vec<AstHit> {
+    let allocator = Allocator::default();
+    let ret = Parser::new(&allocator, content, scan_source_type(path)).parse();
+    if !ret.diagnostics.is_empty() {
+        return Vec::new();
+    }
+    let mut visitor = PgLibImportVisitor {
+        content,
+        out: Vec::new(),
+    };
+    visitor.visit_program(&ret.program);
+    visitor.out
+}
+
+/// Visitor LISTEN/NOTIFY-сигналів — точний порт `findPgListenNotifyUsageInText`
+/// (зведений до boolean: `kind`-и потрібні лише pass-повідомленням JS-боку):
+/// `.query|queryArray|queryStream('LISTEN …')` (string чи template),
+/// `.on('notification', …)`, tagged template з LISTEN/UNLISTEN/NOTIFY.
+struct ListenNotifyFinder {
+    sql_start_re: regex::Regex,
+    found: bool,
+}
+
+impl<'a> Visit<'a> for ListenNotifyFinder {
+    fn visit_call_expression(&mut self, it: &CallExpression<'a>) {
+        if let Expression::StaticMemberExpression(member) = &it.callee {
+            let method = member.property.name.as_str();
+            if let Some(first) = it.arguments.first().and_then(|a| a.as_expression()) {
+                if method == "on" {
+                    if string_literal_value(first) == Some("notification") {
+                        self.found = true;
+                    }
+                } else if matches!(method, "query" | "queryArray" | "queryStream") {
+                    let sql_text = match first {
+                        Expression::StringLiteral(lit) => Some(lit.value.to_string()),
+                        Expression::TemplateLiteral(tpl) => Some(template_quasis_raw_text(tpl)),
+                        _ => None,
+                    };
+                    if sql_text.is_some_and(|text| self.sql_start_re.is_match(&text)) {
+                        self.found = true;
+                    }
+                }
+            }
+        }
+        walk_call_expression(self, it);
+    }
+
+    fn visit_tagged_template_expression(&mut self, it: &TaggedTemplateExpression<'a>) {
+        if self
+            .sql_start_re
+            .is_match(&template_quasis_raw_text(&it.quasi))
+        {
+            self.found = true;
+        }
+        walk_tagged_template_expression(self, it);
+    }
+}
+
+/// Чи файл містить хоч один AST-рівневий LISTEN/NOTIFY-сигнал (точний порт
+/// `findPgListenNotifyUsageInText(...).length > 0`).
+fn has_pg_listen_notify_usage(content: &str, path: &str) -> bool {
+    let allocator = Allocator::default();
+    let ret = Parser::new(&allocator, content, scan_source_type(path)).parse();
+    if !ret.diagnostics.is_empty() {
+        return false;
+    }
+    let mut finder = ListenNotifyFinder {
+        sql_start_re: regex::Regex::new(PG_LISTEN_NOTIFY_SQL_PATTERN)
+            .expect("PG_LISTEN_NOTIFY_SQL_PATTERN валідний"),
+        found: false,
+    };
+    finder.visit_program(&ret.program);
+    finder.found
+}
+
+/// pg-сигнали одного файлу для `checkPgDependencyAndUsage` — точний порт
+/// `collectPgUsageForFile`: `None`, якщо файл не пройшов дешевий текстовий
+/// pre-filter АБО обидва AST-скани порожні (файл не потрапляє в `pgUsage`).
+fn collect_pg_usage(content: &str, path: &str) -> Option<(Vec<AstHit>, bool)> {
+    if !has_pg_lib_import(content) && !may_have_listen_notify(content) {
+        return None;
+    }
+    let imports = find_pg_lib_imports(content, path);
+    let has_listen_notify = has_pg_listen_notify_usage(content, path);
+    if imports.is_empty() && !has_listen_notify {
+        return None;
+    }
+    Some((imports, has_listen_notify))
+}
+
+/// Повідомлення guard-порушення `js-bun-db/safety` — точний порт
+/// `messageForBunSqlInListGuard` (`main.mjs:299-316`).
+fn bun_db_in_list_guard_message(rel: &str, hit: &InListGuardHit) -> String {
+    match &hit.reason {
+        InListGuardReason::MissingGuard(name) => format!(
+            "js-bun-db: {rel}:{} — перед IN-списком {} потрібна перевірка на пустоту з throw \
+             (наприклад if (!{}.length) throw ...), інакше можливі некоректні запити \
+             (js-bun-db.mdc): {}",
+            hit.line,
+            json_escape_string(name),
+            name,
+            hit.snippet
+        ),
+        InListGuardReason::SqlHelperNotVar => format!(
+            "js-bun-db: {rel}:{} — IN-список у ${{sql(...)}} має підставлятись зі змінної \
+             (Identifier) після валідації на пустоту + throw (js-bun-db.mdc): {}",
+            hit.line, hit.snippet
+        ),
+        InListGuardReason::NotVar => format!(
+            "js-bun-db: {rel}:{} — значення для IN (...) у template literal треба винести в \
+             окрему змінну і перевірити на пустоту (throw), не підставляти вираз напряму \
+             (js-bun-db.mdc): {}",
+            hit.line, hit.snippet
+        ),
+    }
+}
+
+/// Точний порт `scanFileForBunSqlPatterns` (`js-bun-db/safety/main.mjs:137-225`)
+/// — десять сканерів у ТОМУ САМОМУ порядку, кожен зі своїм повідомленням
+/// байт-у-байт; гейти `textHasBunSqlImport` живуть УСЕРЕДИНІ окремих
+/// `find_*` (pg-leftover/shim/query-wrapper), решта сканерів ганяються без
+/// гейта — точно як у JS.
+fn scan_file_for_bun_sql_patterns(rel: &str, content: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    for v in find_bun_sql_per_request_connection(content, rel) {
+        out.push(format!(
+            "js-bun-db: {rel}:{} — не створюй new SQL(...) всередині функцій; тримай singleton \
+             на рівні модуля (js-bun-db.mdc): {}",
+            v.line, v.snippet
+        ));
+    }
+    for v in find_bun_sql_unsafe_without_marker(content, rel) {
+        out.push(format!(
+            "js-bun-db: {rel}:{} — sql.unsafe(...) заборонено за замовчуванням; допустимо лише \
+             для підстановки назви таблиці/колонки чи dynamic SQL/DDL з code-controlled \
+             значенням, інакше переробити на tagged template sql`...${{value}}...`. Якщо випадок \
+             легітимний — додай маркер \"// n-rules:allow-unsafe: <причина>\" на тому ж рядку \
+             або рядком вище (js-bun-db.mdc): {}",
+            v.line, v.snippet
+        ));
+    }
+    for v in find_bun_sql_unsafe_interpolated_template(content, rel) {
+        out.push(format!(
+            "js-bun-db: {rel}:{} — sql.unsafe(`...${{x}}...`) з template-літералом і \
+             ${{...}}-інтерполяцією заборонено навіть з n-rules:n-rules:allow-unsafe маркером: \
+             шаблонна підстановка identifier'у не екранує (reserved words, спецсимволи), а \
+             значення не біндяться. Збери text через @scaleleap/pg-format format('%I', name) \
+             для identifiers або позиційні $N для values, потім sql.unsafe(text, [params]). \
+             Деталі — секція «Динамічна SQL-структура» в js-bun-db.mdc: {}",
+            v.line, v.snippet
+        ));
+    }
+    for v in find_bun_sql_pg_leftover(content, rel) {
+        out.push(format!(
+            "js-bun-db: {rel}:{} — pg-leftover виклик .{}(...): Bun SQL пулом керує сам, видали \
+             зайвий .connect()/.end() або, якщо випадок легітимний (graceful shutdown тощо), \
+             додай маркер \"// n-rules:allow-pg-leftover: <причина>\" на тому ж рядку або рядком \
+             вище (js-bun-db.mdc): {}",
+            v.line, v.method, v.snippet
+        ));
+    }
+    for v in find_sql_dynamic_list(content, rel) {
+        out.push(format!(
+            "js-bun-db: {rel}:{} — заборонено підставляти у SQL динамічні списки через \
+             .join(',') у IN (...) / VALUES (...); використовуй sql([...]) (js-bun-db.mdc): {}",
+            v.line, v.snippet
+        ));
+    }
+    for v in find_bun_sql_in_list_guard(content, rel) {
+        out.push(bun_db_in_list_guard_message(rel, &v));
+    }
+    for v in find_pg_format_shims(content, rel) {
+        match v.kind {
+            ShimKind::FormatFunction => out.push(format!(
+                "js-bun-db: {rel}:{} — функція {} виглядає як pg-format-сумісний шим (тіло \
+                 містить %L / %I / %s). Видали шим і переведи всі call-site на tagged template \
+                 sql`...${{value}}...` (js-bun-db.mdc): {}",
+                v.line,
+                json_escape_string(&v.name),
+                v.snippet
+            )),
+            ShimKind::QuoteHelper => out.push(format!(
+                "js-bun-db: {rel}:{} — {} — це pg-format-специфічний escape-хелпер; з Bun SQL \
+                 він не потрібен (параметризація через tagged template), видали і перепиши \
+                 call-site (js-bun-db.mdc): {}",
+                v.line,
+                json_escape_string(&v.name),
+                v.snippet
+            )),
+        }
+    }
+    for v in find_pg_query_wrappers(content, rel) {
+        out.push(format!(
+            "js-bun-db: {rel}:{} — query(text, params)-обгортка над <obj>.unsafe(...) — це \
+             прихований pg-сумісний шим. Видали обгортку (pgRead/pgWrite/db.query) і переведи \
+             всі call-site на tagged template sql`...${{value}}...` (js-bun-db.mdc): {}",
+            v.line, v.snippet
+        ));
+    }
+    for v in find_json_stringify_before_jsonb(content, rel) {
+        out.push(format!(
+            "js-bun-db: {rel}:{} — JSON.stringify(...) перед ::jsonb зайвий: Bun SQL серіалізує \
+             об'єкти/масиви у JSON автоматично, явний stringify призводить до подвійної \
+             серіалізації (js-bun-db.mdc query-safety): {}",
+            v.line, v.snippet
+        ));
+    }
+    for v in find_sql_array_without_type(content, rel) {
+        out.push(format!(
+            "js-bun-db: {rel}:{} — sql.array(arr) без другого аргументу типу — вкажи явний \
+             pg-тип: sql.array(arr, 'int8') / sql.array(arr, 'uuid') тощо (js-bun-db.mdc \
+             sql-array): {}",
+            v.line, v.snippet
+        ));
+    }
     out
 }
 
 /// Точний порт `lint()` `js-bun-db/safety` (`main.mjs:323-432`) — WHOLE-BATCH,
-/// доккомент секції вище «Регекс-наближення» пояснює межі відповідності
-/// AST-оригіналу. Гейт «кожен `.unsafe`/`.connect`/… скан застосовується
-/// лише у файлах, що САМІ імпортують Bun SQL» (`has_bun_sql_import`
-/// per-file) — консервативне спрощення (JS делегує гейт частково на рівень
-/// окремих `find*`-функцій, тут — єдиний зовнішній гейт перед усім
-/// проходом файлу).
+/// AST-реалізація (задача Q4 батч 4). Порядок violations — точно як порядок
+/// `fail()`-викликів JS: спершу сканери джерел (файл за файлом, десять
+/// сканерів у порядку [`scan_file_for_bun_sql_patterns`]), потім
+/// `dependencies.pg`-перевірка per package.json, потім `import 'pg'` без
+/// LISTEN/NOTIFY. Ранній вихід «немає JS/TS-джерел» стоїть ДО pg-перевірок
+/// (точний порт `if (sourcePaths.length === 0) { pass; return }`).
 fn detect_bun_db_safety(files: &[SourceFile]) -> Vec<Diagnostic> {
     if !files.iter().any(|f| f.path == "package.json") {
         return Vec::new();
     }
-    let mut messages: Vec<String> = Vec::new();
-
-    let source_files: Vec<&SourceFile> = files
-        .iter()
-        .filter(|f| is_bun_db_scan_source_file(&f.path))
-        .collect();
     let package_json_files: Vec<&SourceFile> = files
         .iter()
         .filter(|f| f.path == "package.json" || f.path.ends_with("/package.json"))
         .collect();
-
-    let has_any_listen_notify = source_files
+    if package_json_files.is_empty() {
+        return Vec::new();
+    }
+    let source_files: Vec<&SourceFile> = files
         .iter()
-        .any(|f| has_pg_listen_notify(&f.content));
+        .filter(|f| is_bun_db_scan_source_file(&f.path))
+        .collect();
+    if source_files.is_empty() {
+        return Vec::new();
+    }
 
-    for pkg in &package_json_files {
-        if !looks_like_json_object(&pkg.content) {
-            continue;
+    let mut messages: Vec<String> = Vec::new();
+    let mut pg_usage: Vec<(&SourceFile, Vec<AstHit>, bool)> = Vec::new();
+    for file in &source_files {
+        messages.extend(scan_file_for_bun_sql_patterns(&file.path, &file.content));
+        if let Some((imports, has_listen_notify)) = collect_pg_usage(&file.content, &file.path) {
+            pg_usage.push((file, imports, has_listen_notify));
         }
-        if json_declares_dependency(&pkg.content, "pg") && !has_any_listen_notify {
+    }
+
+    let has_any_listen_notify = pg_usage.iter().any(|(_, _, listen)| *listen);
+    for pkg in &package_json_files {
+        // Невалідний JSON у package.json — проблема інших правил, тут
+        // пропускаємо (точний порт `catch { continue }`).
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&pkg.content) else {
+            continue;
+        };
+        if package_declares_pg(&parsed) && !has_any_listen_notify {
             messages.push(format!(
                 "js-bun-db: {}: dependencies.pg заборонено — у проекті не знайдено LISTEN / \
-                 NOTIFY / UNLISTEN (js-bun-db.mdc, секція «pg для LISTEN/NOTIFY»)",
+                 NOTIFY / UNLISTEN (або listener'а .on('notification', ...)). Bun SQL покриває \
+                 звичайні запити; `pg` дозволений лише як виняток для LISTEN/NOTIFY \
+                 (js-bun-db.mdc, секція «pg для LISTEN/NOTIFY»)",
                 pkg.path
             ));
         }
     }
 
-    for f in &source_files {
-        if has_pg_lib_import(&f.content) && !has_pg_listen_notify(&f.content) {
-            messages.push(format!(
-                "js-bun-db: {} — import 'pg' дозволено лише у файлах з LISTEN / NOTIFY / UNLISTEN \
-                 або .on('notification', ...) (js-bun-db.mdc)",
-                f.path
-            ));
+    for (file, imports, has_listen_notify) in &pg_usage {
+        if imports.is_empty() || *has_listen_notify {
+            continue;
         }
-    }
-
-    let regexes = BunSqlScanRegexes::new();
-    for f in &source_files {
-        if has_bun_sql_import(&f.content) {
-            messages.extend(scan_bun_sql_patterns(&f.path, &f.content, &regexes));
+        for imp in imports {
+            messages.push(format!(
+                "js-bun-db: {}:{} — import 'pg' дозволено лише у файлах з LISTEN / NOTIFY / \
+                 UNLISTEN або .on('notification', ...). Перенеси звичайні запити на Bun SQL \
+                 (import {{ sql }} from 'bun'), а LISTEN/NOTIFY-логіку лиши в окремому модулі \
+                 (js-bun-db.mdc): {}",
+                file.path, imp.line, imp.snippet
+            ));
         }
     }
 
@@ -1494,130 +2568,388 @@ fn detect_bun_db_safety(files: &[SourceFile]) -> Vec<Diagnostic> {
         .collect()
 }
 
-/// Точний порт `auditMssqlVersionInPackageJson`+`aggregateMssqlVersionsAcrossPackages`
-/// (`js-mssql/deps/main.mjs:105-147`) — повертає `(found, bad, messages)`.
-fn audit_mssql_versions(package_json_files: &[&SourceFile]) -> (u32, u32, Vec<String>) {
+// =====================================================================
+// Задача Q4 батч 4: `js-mssql/deps` — AST-концерн через `oxc_parser`
+// (версійний аудит package.json через serde_json + шість AST-сканерів).
+
+/// Точний порт `auditMssqlVersionInPackageJson` +
+/// `aggregateMssqlVersionsAcrossPackages` (`js-mssql/deps/main.mjs:105-147`)
+/// — повертає `(found, messages)`: справжній JSON-парсинг (`serde_json`,
+/// дзеркало `JSON.parse` включно з fail «невалідний JSON»), рядки версій у
+/// повідомленнях — через [`json_escape_string`] (дзеркало `JSON.stringify`).
+fn audit_mssql_versions(package_json_files: &[&SourceFile]) -> (u32, Vec<String>) {
     let mut found = 0u32;
-    let mut bad = 0u32;
     let mut messages = Vec::new();
     for pkg in package_json_files {
-        if !looks_like_json_object(&pkg.content) {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&pkg.content) else {
             messages.push(format!("js-mssql: {} — невалідний JSON", pkg.path));
             continue;
-        }
-        let Some(range) = json_dependency_value(&pkg.content, "mssql") else {
+        };
+        let Some(range) = mssql_dependency_range(&parsed) else {
             continue;
         };
-        if range.trim().is_empty() {
-            continue;
-        }
         found += 1;
-        let Some(parsed) = parse_leading_semver(&range) else {
-            bad += 1;
-            messages.push(format!(
-                "js-mssql: {}: dependencies.mssql має нечитабельну версію: {:?} (js-mssql.mdc)",
-                pkg.path, range
-            ));
-            continue;
-        };
-        if !semver_gte(parsed, MIN_MSSQL_VERSION) {
-            bad += 1;
-            messages.push(format!(
-                "js-mssql: {}: dependencies.mssql {:?} — має бути >=12.5.0 (js-mssql.mdc)",
-                pkg.path, range
-            ));
+        match parse_leading_semver(&range) {
+            None => messages.push(format!(
+                "js-mssql: {}: dependencies.mssql має нечитабельну версію: {} (js-mssql.mdc)",
+                pkg.path,
+                json_escape_string(&range)
+            )),
+            Some(version) if !semver_gte(version, MIN_MSSQL_VERSION) => messages.push(format!(
+                "js-mssql: {}: dependencies.mssql {} — має бути >=12.5.0 (js-mssql.mdc)",
+                pkg.path,
+                json_escape_string(&range)
+            )),
+            Some(_) => {}
         }
     }
-    (found, bad, messages)
+    (found, messages)
 }
 
-/// Точний порт `scanMssqlOneSourceFile` (`js-mssql/deps/main.mjs:157-202`)
-/// — доккомент секції вище «Регекс-наближення» (той самий мотив, що
-/// [`scan_bun_sql_patterns`]).
+/// Visitor shared Request — точний порт `findSharedMssqlRequestInText`:
+/// `VariableDeclarator` з id-Identifier РІВНО `request` та init-викликом
+/// `<obj>.request(...)` (`isRequestFactoryCall`).
+struct SharedRequestVisitor<'c> {
+    content: &'c str,
+    out: Vec<AstHit>,
+}
+
+impl<'a> Visit<'a> for SharedRequestVisitor<'_> {
+    fn visit_variable_declarator(&mut self, it: &VariableDeclarator<'a>) {
+        if let BindingPattern::BindingIdentifier(id) = &it.id {
+            if id.name == "request" {
+                if let Some(Expression::CallExpression(call)) = &it.init {
+                    if matches!(&call.callee, Expression::StaticMemberExpression(member)
+                        if member.property.name == "request")
+                    {
+                        self.out.push(AstHit::at(self.content, it.span));
+                    }
+                }
+            }
+        }
+        walk_variable_declarator(self, it);
+    }
+}
+
+/// Точний порт `findSharedMssqlRequestInText` (`mssql-pool-scan.mjs`).
+fn find_shared_mssql_request(content: &str, path: &str) -> Vec<AstHit> {
+    let allocator = Allocator::default();
+    let ret = Parser::new(&allocator, content, scan_source_type(path)).parse();
+    if !ret.diagnostics.is_empty() {
+        return Vec::new();
+    }
+    let mut visitor = SharedRequestVisitor {
+        content,
+        out: Vec::new(),
+    };
+    visitor.visit_program(&ret.program);
+    visitor.out
+}
+
+/// Visitor ``query(`...`)`` — точний порт
+/// `findUnsafeMssqlQueryTemplateCallInText` (`isUnsafeQueryCallWithTemplateLiteral`):
+/// виклик `.query(...)` з `TemplateLiteral` ПЕРШИМ аргументом (не tagged).
+struct UnsafeQueryTemplateVisitor<'c> {
+    content: &'c str,
+    out: Vec<AstHit>,
+}
+
+impl<'a> Visit<'a> for UnsafeQueryTemplateVisitor<'_> {
+    fn visit_call_expression(&mut self, it: &CallExpression<'a>) {
+        if let Expression::StaticMemberExpression(member) = &it.callee {
+            if member.property.name == "query"
+                && matches!(it.arguments.first(), Some(Argument::TemplateLiteral(_)))
+            {
+                self.out.push(AstHit::at(self.content, it.span));
+            }
+        }
+        walk_call_expression(self, it);
+    }
+}
+
+/// Точний порт `findUnsafeMssqlQueryTemplateCallInText` (`mssql-pool-scan.mjs`).
+fn find_unsafe_mssql_query_template_call(content: &str, path: &str) -> Vec<AstHit> {
+    let allocator = Allocator::default();
+    let ret = Parser::new(&allocator, content, scan_source_type(path)).parse();
+    if !ret.diagnostics.is_empty() {
+        return Vec::new();
+    }
+    let mut visitor = UnsafeQueryTemplateVisitor {
+        content,
+        out: Vec::new(),
+    };
+    visitor.visit_program(&ret.program);
+    visitor.out
+}
+
+/// Класифікація `init`-виразу `VariableDeclarator`-а для трасування
+/// `isInListExpressionParsed`: обчислюється на етапі збору (чиста функція —
+/// той самий результат, що ліниве обчислення JS).
+enum DeclInit {
+    /// Літеральний числовий масив чи піддерево з числовим парсером.
+    Parsed,
+    /// `init` — Identifier: трасується далі за ім'ям.
+    Ref(String),
+    /// Решта — «не парсовано».
+    NotParsed,
+}
+
+/// Visitor-збирач усіх `VariableDeclarator`-ів файлу — точний порт
+/// `collectVariableDeclarators` (лише Identifier-id з непорожнім `init`,
+/// дзеркало фільтра в `isInListExpressionParsed`).
+struct DeclCollector {
+    decls: Vec<(String, DeclInit)>,
+}
+
+impl<'a> Visit<'a> for DeclCollector {
+    fn visit_variable_declarator(&mut self, it: &VariableDeclarator<'a>) {
+        if let BindingPattern::BindingIdentifier(id) = &it.id {
+            if let Some(init) = &it.init {
+                let kind = if is_literal_numeric_array(init) || expression_has_numeric_parse(init) {
+                    DeclInit::Parsed
+                } else if let Expression::Identifier(reference) = init {
+                    DeclInit::Ref(reference.name.to_string())
+                } else {
+                    DeclInit::NotParsed
+                };
+                self.decls.push((id.name.to_string(), kind));
+            }
+        }
+        walk_variable_declarator(self, it);
+    }
+}
+
+/// Чи це непорожній масив суто числових літералів — точний порт
+/// `isLiteralNumericArrayExpression` (elision/spread → false).
+fn is_literal_numeric_array(expr: &Expression) -> bool {
+    let Expression::ArrayExpression(array) = expr else {
+        return false;
+    };
+    !array.elements.is_empty()
+        && array.elements.iter().all(|el| {
+            matches!(
+                el,
+                ArrayExpressionElement::NumericLiteral(_)
+                    | ArrayExpressionElement::BigIntLiteral(_)
+            )
+        })
+}
+
+/// Mini-visitor числових парсерів — точний порт `subtreeHasNumericParseCall`:
+/// виклик `parseInt`/`parseFloat`/`Number`/`BigInt` (Identifier чи
+/// non-computed member) або унарний `+` будь-де у піддереві.
+struct NumericParseFinder {
+    found: bool,
+}
+
+impl<'a> Visit<'a> for NumericParseFinder {
+    fn visit_call_expression(&mut self, it: &CallExpression<'a>) {
+        let is_parse_call = match &it.callee {
+            Expression::Identifier(ident) => NUMERIC_PARSE_FN_NAMES.contains(&ident.name.as_str()),
+            Expression::StaticMemberExpression(member) => {
+                NUMERIC_PARSE_FN_NAMES.contains(&member.property.name.as_str())
+            }
+            _ => false,
+        };
+        if is_parse_call {
+            self.found = true;
+        }
+        walk_call_expression(self, it);
+    }
+
+    fn visit_unary_expression(&mut self, it: &UnaryExpression<'a>) {
+        if it.operator == UnaryOperator::UnaryPlus {
+            self.found = true;
+        }
+        walk_unary_expression(self, it);
+    }
+}
+
+/// Чи піддерево виразу містить числовий парсер (див. [`NumericParseFinder`]).
+fn expression_has_numeric_parse(expr: &Expression) -> bool {
+    let mut finder = NumericParseFinder { found: false };
+    finder.visit_expression(expr);
+    finder.found
+}
+
+/// Трасування Identifier → init за таблицею декларацій — точний порт
+/// Identifier-гілки `isInListExpressionParsed`: `seen` захищає від циклів,
+/// УСІ декларації з цим ім'ям мають резолвитись у «парсовано».
+fn in_list_identifier_resolves(
+    name: &str,
+    decls: &[(String, DeclInit)],
+    seen: &std::collections::HashSet<String>,
+) -> bool {
+    if seen.contains(name) {
+        return false;
+    }
+    let matching: Vec<&DeclInit> = decls
+        .iter()
+        .filter(|(decl_name, _)| decl_name == name)
+        .map(|(_, kind)| kind)
+        .collect();
+    if matching.is_empty() {
+        return false;
+    }
+    let mut next = seen.clone();
+    next.insert(name.to_string());
+    matching.iter().all(|kind| match kind {
+        DeclInit::Parsed => true,
+        DeclInit::Ref(inner) => in_list_identifier_resolves(inner, decls, &next),
+        DeclInit::NotParsed => false,
+    })
+}
+
+/// Точний порт `isInListExpressionParsed` для виразу з `IN (${...})`.
+fn is_in_list_expression_parsed(expr: &Expression, decls: &[(String, DeclInit)]) -> bool {
+    if is_literal_numeric_array(expr) || expression_has_numeric_parse(expr) {
+        return true;
+    }
+    if let Expression::Identifier(ident) = expr {
+        return in_list_identifier_resolves(
+            ident.name.as_str(),
+            decls,
+            &std::collections::HashSet::new(),
+        );
+    }
+    false
+}
+
+/// Visitor непарсованих `IN (${...})` — точний порт
+/// `collectInListUnparsedFromTemplate`: лише `TemplateLiteral`-вузли (tagged
+/// оброблюється один раз — через свій quasi), лінія — за `expr.start`,
+/// сніпет — за всім template-вузлом.
+struct InListUnparsedVisitor<'c, 'd> {
+    content: &'c str,
+    in_end_re: regex::Regex,
+    decls: &'d [(String, DeclInit)],
+    out: Vec<AstHit>,
+}
+
+impl<'a> Visit<'a> for InListUnparsedVisitor<'_, '_> {
+    fn visit_template_literal(&mut self, it: &TemplateLiteral<'a>) {
+        if !it.expressions.is_empty() {
+            for (index, expr) in it.expressions.iter().enumerate() {
+                let raw = it
+                    .quasis
+                    .get(index)
+                    .map(|q| q.value.raw.as_str())
+                    .unwrap_or("");
+                if !self.in_end_re.is_match(raw) {
+                    continue;
+                }
+                if is_join_call(expr) {
+                    continue;
+                }
+                if is_in_list_expression_parsed(expr, self.decls) {
+                    continue;
+                }
+                self.out.push(AstHit {
+                    line: line_number_at_offset(self.content, expr.span().start as usize),
+                    snippet: span_snippet(self.content, it.span),
+                });
+            }
+        }
+        walk_template_literal(self, it);
+    }
+}
+
+/// Точний порт `findUnsafeMssqlInListUnparsedInText` (`mssql-pool-scan.mjs`).
+fn find_mssql_in_list_unparsed(content: &str, path: &str) -> Vec<AstHit> {
+    let allocator = Allocator::default();
+    let ret = Parser::new(&allocator, content, scan_source_type(path)).parse();
+    if !ret.diagnostics.is_empty() {
+        return Vec::new();
+    }
+    let mut collector = DeclCollector { decls: Vec::new() };
+    collector.visit_program(&ret.program);
+    let mut visitor = InListUnparsedVisitor {
+        content,
+        in_end_re: regex::Regex::new(MSSQL_IN_PLACEHOLDER_END_PATTERN)
+            .expect("MSSQL_IN_PLACEHOLDER_END_PATTERN валідний"),
+        decls: &collector.decls,
+        out: Vec::new(),
+    };
+    visitor.visit_program(&ret.program);
+    visitor.out
+}
+
+/// Повідомлення guard-порушення `js-mssql/deps` — точний порт двох гілок
+/// `scanMssqlOneSourceFile` (`main.mjs:188-201`); `sql_helper_not_var` у
+/// mssql-флейворі недосяжний ([`InListGuardVisitor::extract_var_name`]).
+fn mssql_in_list_guard_message(rel: &str, hit: &InListGuardHit) -> String {
+    match &hit.reason {
+        InListGuardReason::MissingGuard(name) => format!(
+            "js-mssql: {rel}:{} — перед IN-списком {} потрібна перевірка на пустоту з throw \
+             (наприклад if (!{}.length) throw ...), інакше можливі некоректні запити \
+             (js-mssql.mdc): {}",
+            hit.line,
+            json_escape_string(name),
+            name,
+            hit.snippet
+        ),
+        _ => format!(
+            "js-mssql: {rel}:{} — значення для IN (${{...}}) у template literal треба винести \
+             в окрему змінну і перевірити на пустоту (throw), не підставляти вираз напряму \
+             (js-mssql.mdc): {}",
+            hit.line, hit.snippet
+        ),
+    }
+}
+
+/// Точний порт `scanMssqlOneSourceFile` (`js-mssql/deps/main.mjs:157-202`) —
+/// шість AST-сканерів у ТОМУ САМОМУ порядку, повідомлення байт-у-байт.
 fn scan_mssql_source_file(rel: &str, content: &str) -> Vec<String> {
-    let chars: Vec<char> = content.chars().collect();
     let mut out = Vec::new();
-
-    let new_pool_re = regex::Regex::new(NEW_MSSQL_CONNECTION_POOL_PATTERN).expect("валідний");
-    for start in find_all_starts(content, &new_pool_re) {
-        let char_idx = content[..start].chars().count();
-        if brace_depth_before(&chars, char_idx) > 0 {
-            let line = line_number_at(content, char_idx);
-            out.push(format!(
-                "js-mssql: {rel}:{line} — не створюй new sql.ConnectionPool(...) на кожен запит; \
-                 використовуй singleton sql.ConnectionPool"
-            ));
-        }
-    }
-
-    let shared_request_re = regex::Regex::new(MSSQL_SHARED_REQUEST_PATTERN).expect("валідний");
-    for start in find_all_starts(content, &shared_request_re) {
-        let char_idx = content[..start].chars().count();
-        let line = line_number_at(content, char_idx);
+    for v in find_mssql_per_request_connection(content, rel) {
         out.push(format!(
-            "js-mssql: {rel}:{line} — заборонено шарити Request (наприклад export const request = \
-             pool.request()); створюй pool.request() щоразу заново (js-mssql.mdc)"
+            "js-mssql: {rel}:{} — не створюй new sql.ConnectionPool(...) на кожен запит; \
+             використовуй singleton sql.ConnectionPool: {}",
+            v.line, v.snippet
         ));
     }
-
-    let unsafe_query_re = regex::Regex::new(MSSQL_UNSAFE_QUERY_TEMPLATE_PATTERN).expect("валідний");
-    for start in find_all_starts(content, &unsafe_query_re) {
-        let char_idx = content[..start].chars().count();
-        let line = line_number_at(content, char_idx);
+    for v in find_shared_mssql_request(content, rel) {
         out.push(format!(
-            "js-mssql: {rel}:{line} — заборонено query(`...`): це не tagged template; використовуй \
-             pool.request().query`...` (js-mssql.mdc)"
+            "js-mssql: {rel}:{} — заборонено шарити Request (наприклад export const request = \
+             pool.request()); створюй pool.request() щоразу заново (js-mssql.mdc): {}",
+            v.line, v.snippet
         ));
     }
-
-    let dynamic_list_re = regex::Regex::new(DYNAMIC_SQL_LIST_JOIN_PATTERN).expect("валідний");
-    for start in find_all_starts(content, &dynamic_list_re) {
-        let char_idx = content[..start].chars().count();
-        let line = line_number_at(content, char_idx);
+    for v in find_unsafe_mssql_query_template_call(content, rel) {
         out.push(format!(
-            "js-mssql: {rel}:{line} — заборонено підставляти у SQL динамічні списки через \
-             .join(','); використовуй TVP (sql.Table) + JOIN/INSERT (js-mssql.mdc)"
+            "js-mssql: {rel}:{} — заборонено query(`...`): це не tagged template; використовуй \
+             pool.request().query`...` (js-mssql.mdc): {}",
+            v.line, v.snippet
         ));
     }
-
-    let in_list_re = regex::Regex::new(IN_LIST_INTERP_PATTERN).expect("валідний");
-    let ident_re = regex::Regex::new(r"^[A-Za-z_$][\w$]*$").expect("валідний");
-    for caps in in_list_re.captures_iter(content) {
-        let m = caps.get(0).expect("група 0 завжди є");
-        let inner = caps[1].trim();
-        let char_idx = content[..m.start()].chars().count();
-        let line = line_number_at(content, char_idx);
-        if !ident_re.is_match(inner) {
-            out.push(format!(
-                "js-mssql: {rel}:{line} — значення для IN (${{...}}) у template literal треба \
-                 винести в окрему змінну і перевірити на пустоту (throw) (js-mssql.mdc)"
-            ));
-            continue;
-        }
-        let guard_re = regex::Regex::new(&format!(
-            r"if\s*\(\s*!\s*{}\.length\s*\)",
-            regex::escape(inner)
-        ))
-        .expect("валідний");
-        let has_guard = guard_re
-            .find(content)
-            .map(|m| content[m.end()..].contains("throw"))
-            .unwrap_or(false);
-        if !has_guard {
-            out.push(format!(
-                "js-mssql: {rel}:{line} — перед IN-списком {inner} потрібна перевірка на пустоту \
-                 з throw (js-mssql.mdc)"
-            ));
-        }
+    for v in find_sql_dynamic_list(content, rel) {
+        out.push(format!(
+            "js-mssql: {rel}:{} — заборонено підставляти у SQL динамічні списки через \
+             .join(',') (типово IN (...) / VALUES (...)); використовуй TVP (sql.Table) + \
+             JOIN/INSERT (js-mssql.mdc): {}",
+            v.line, v.snippet
+        ));
     }
-
+    for v in find_mssql_in_list_unparsed(content, rel) {
+        out.push(format!(
+            "js-mssql: {rel}:{} — у SQL IN (${{...}}) значення мають бути попередньо приведені \
+             числовим парсером (parseInt/Number/BigInt/parseFloat) і відфільтровані від NaN, \
+             інакше можливий SQL injection (js-mssql.mdc): {}",
+            v.line, v.snippet
+        ));
+    }
+    for v in find_mssql_in_list_guard(content, rel) {
+        out.push(mssql_in_list_guard_message(rel, &v));
+    }
     out
 }
 
-/// Точний порт `lint()` `js-mssql/deps` (`main.mjs:267-297`) — WHOLE-BATCH.
-/// Джерела скануються лише якщо ХОЧ ОДИН `package.json` у батчі декларує
-/// `dependencies.mssql` (`found > 0`, точний порт `if (found === 0) { pass;
-/// return }`) — незалежно від того, чи версія валідна/достатня.
+/// Точний порт `lint()` `js-mssql/deps` (`main.mjs:267-297`) — WHOLE-BATCH,
+/// AST-реалізація (задача Q4 батч 4). Джерела скануються лише якщо ХОЧ ОДИН
+/// `package.json` декларує `dependencies.mssql` (`found > 0`); при
+/// `found == 0` уже накопичені version-fails (напр. «невалідний JSON») УСЕ
+/// ОДНО повертаються (точний порт `return reporter.result()` після
+/// аудиту — НЕ порожній список).
 fn detect_mssql_deps(files: &[SourceFile]) -> Vec<Diagnostic> {
     if !files.iter().any(|f| f.path == "package.json") {
         return Vec::new();
@@ -1630,17 +2962,15 @@ fn detect_mssql_deps(files: &[SourceFile]) -> Vec<Diagnostic> {
         return Vec::new();
     }
 
-    let (found, _bad, mut messages) = audit_mssql_versions(&package_json_files);
-    if found == 0 {
-        return Vec::new();
-    }
-
-    let source_files: Vec<&SourceFile> = files
-        .iter()
-        .filter(|f| is_js_ts_source_file(&f.path) && !f.path.ends_with(".d.ts"))
-        .collect();
-    for f in &source_files {
-        messages.extend(scan_mssql_source_file(&f.path, &f.content));
+    let (found, mut messages) = audit_mssql_versions(&package_json_files);
+    if found > 0 {
+        let source_files: Vec<&SourceFile> = files
+            .iter()
+            .filter(|f| is_js_ts_source_file(&f.path) && !f.path.ends_with(".d.ts"))
+            .collect();
+        for file in &source_files {
+            messages.extend(scan_mssql_source_file(&file.path, &file.content));
+        }
     }
 
     messages
@@ -2069,11 +3399,34 @@ fn build_manifest() -> Manifest {
                 scope: ConcernScope::Full,
                 glob: vec!["**/*.test.mjs".to_string(), "**/*.test.js".to_string()],
             },
-            // `js-bun-redis/imports`, `js-bun-db/safety`, `js-mssql/deps` —
-            // СВІДОМО без контрибуції (де-скоуп рішенням оркестратора,
-            // доккомент модуля вище «Регекс-наближення» і секція нижче): їхні
-            // detect-функції лишаються в крейті як groundwork, не в цьому
-            // масиві.
+            // Три AST-концерни батчу 4 (задача Q4): глоби дзеркалять
+            // `concern.json.lint.glob` JS-оригіналів (`**/package.json` у
+            // globset матчить і кореневий `package.json` — потрібен гейту
+            // «package.json існує» кожного з трьох концернів).
+            ConcernContribution {
+                key: CONCERN_REDIS_IMPORTS.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec![
+                    "**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}".to_string(),
+                    "**/package.json".to_string(),
+                ],
+            },
+            ConcernContribution {
+                key: CONCERN_MSSQL_DEPS.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec![
+                    "**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}".to_string(),
+                    "**/package.json".to_string(),
+                ],
+            },
+            ConcernContribution {
+                key: CONCERN_BUN_DB_SAFETY.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec![
+                    "**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}".to_string(),
+                    "**/package.json".to_string(),
+                ],
+            },
         ],
         ci_artifacts: vec![],
         capabilities: Capabilities {
@@ -2345,16 +3698,14 @@ fn detect_location(files: &[SourceFile]) -> Vec<Diagnostic> {
         .collect()
 }
 
-/// Guest-реалізація world `plugin` — одинадцять контрибуцій ([`CONCERN_TFM`],
+/// Guest-реалізація world `plugin` — чотирнадцять контрибуцій ([`CONCERN_TFM`],
 /// [`CONCERN_GAP`], [`CONCERN_POOL_FORKS`], [`CONCERN_NO_PROCESS_CHDIR`],
 /// [`CONCERN_ADMIN_TABLE`], [`CONCERN_QUASAR_FIXES`], [`CONCERN_LOCATION`],
 /// [`CONCERN_NO_CONSOLE_STORE_RESTORE`], [`CONCERN_NO_BUN_TEST_IMPORT`],
-/// [`CONCERN_UTILS_IMPORTS`], [`CONCERN_NO_RELATIVE_FS_PATH`]).
-/// `detect()` нижче зберігає match-гілки і для [`CONCERN_REDIS_IMPORTS`]/
-/// [`CONCERN_BUN_DB_SAFETY`]/[`CONCERN_MSSQL_DEPS`] (недосяжні через
-/// `describe()` — host їх не викличе, доккомент секції «Регекс-наближення»
-/// вище) — захисна відповідність один-до-одного з groundwork-функціями, не
-/// мертвий код без причини.
+/// [`CONCERN_UTILS_IMPORTS`], [`CONCERN_NO_RELATIVE_FS_PATH`],
+/// [`CONCERN_REDIS_IMPORTS`], [`CONCERN_MSSQL_DEPS`],
+/// [`CONCERN_BUN_DB_SAFETY`] — останні три в контрибуції з батчу 4, задача
+/// Q4, доккомент секції «Батч 4» вище).
 struct LangJs;
 
 impl Guest for LangJs {
@@ -3282,6 +4633,223 @@ mod tests {
         assert!(!detect_mssql_deps(&files).is_empty());
     }
 
+    // --- батч 4 (задача Q4): AST-специфічні поведінки, які regex-groundwork
+    // не відтворював — дзеркала live-прогонів JS-оригіналів.
+
+    #[test]
+    fn detect_redis_imports_ignores_comments_and_strings() {
+        // Regex-groundwork тут брехав би: імпорт у коментарі та require у
+        // рядковому літералі — НЕ порушення для AST.
+        let files = vec![
+            source("package.json", "{\"name\":\"t\"}"),
+            source(
+                "src/x.ts",
+                "// import Redis from 'ioredis'\nconst s = \"require('redis')\"\nexport const y = s\n",
+            ),
+        ];
+        assert!(detect_redis_imports(&files).is_empty());
+    }
+
+    #[test]
+    fn detect_redis_imports_orders_static_imports_before_walk_hits() {
+        // Дзеркало двофазного порядку JS-оригіналу: staticImports (лінія 2)
+        // ПЕРЕД require (лінія 1) — не в порядку ліній.
+        let files = vec![
+            source("package.json", "{\"name\":\"t\"}"),
+            source(
+                "src/x.cjs",
+                "const a = require('redis')\nimport Redis from 'ioredis'\n",
+            ),
+        ];
+        let diagnostics = detect_redis_imports(&files);
+        assert_eq!(diagnostics.len(), 2);
+        assert!(diagnostics[0].message.contains(":2 —"));
+        assert!(diagnostics[1].message.contains(":1 —"));
+    }
+
+    #[test]
+    fn detect_redis_imports_skips_file_with_syntax_error() {
+        let files = vec![
+            source("package.json", "{\"name\":\"t\"}"),
+            source(
+                "src/broken.ts",
+                "import Redis from 'ioredis'\ninvalid <<<< syntax\n",
+            ),
+        ];
+        assert!(detect_redis_imports(&files).is_empty());
+    }
+
+    #[test]
+    fn detect_bun_db_safety_tagged_dynamic_join_yields_duplicate_diagnostics() {
+        // Дубль-обхід tagged template (доккомент секції «Батч 4») — ДВІ
+        // ідентичні діагностики, як у JS-оригіналі.
+        let files = vec![
+            source("package.json", "{\"name\":\"t\"}"),
+            source(
+                "src/db.ts",
+                "import { sql } from 'bun'\nexport async function findMany(ids) {\n  return sql`SELECT * FROM users WHERE id IN (${ids.join(',')})`\n}\n",
+            ),
+        ];
+        let dynamic_list: Vec<Diagnostic> = detect_bun_db_safety(&files)
+            .into_iter()
+            .filter(|d| {
+                d.message
+                    .contains("заборонено підставляти у SQL динамічні списки")
+            })
+            .collect();
+        assert_eq!(dynamic_list.len(), 2);
+        assert_eq!(dynamic_list[0].message, dynamic_list[1].message);
+    }
+
+    #[test]
+    fn detect_bun_db_safety_guard_in_same_block_passes() {
+        let files = vec![
+            source("package.json", "{\"name\":\"t\"}"),
+            source(
+                "src/db.ts",
+                "import { sql } from 'bun'\nexport function f(ids) {\n  if (!ids.length) throw new Error('empty')\n  return sql`SELECT 1 FROM t WHERE id IN (${ids})`\n}\n",
+            ),
+        ];
+        assert!(detect_bun_db_safety(&files).is_empty());
+    }
+
+    #[test]
+    fn detect_bun_db_safety_guard_outside_nested_block_does_not_help() {
+        // Guard у зовнішньому блоці НЕ рятує вкладений блок — точний порт
+        // findEnclosingBlockAndStatementIndex (live-прогін JS-оригіналу).
+        let files = vec![
+            source("package.json", "{\"name\":\"t\"}"),
+            source(
+                "src/db.ts",
+                "import { sql } from 'bun'\nexport function f(ids, x) {\n  if (!ids.length) throw new Error('empty')\n  if (x) {\n    return sql`SELECT 1 FROM t WHERE id IN (${ids})`\n  }\n  return null\n}\n",
+            ),
+        ];
+        let diagnostics = detect_bun_db_safety(&files);
+        assert!(diagnostics
+            .iter()
+            .any(|d| d.message.contains("перед IN-списком \"ids\"")));
+    }
+
+    #[test]
+    fn detect_bun_db_safety_ignores_unsafe_in_comment_and_string() {
+        let files = vec![
+            source("package.json", "{\"name\":\"t\"}"),
+            source(
+                "src/db.ts",
+                "import { sql } from 'bun'\n// sql.unsafe('SELECT 1')\nconst s = \"new SQL(url)\"\nexport const ping = () => sql`SELECT ${s}`\n",
+            ),
+        ];
+        assert!(detect_bun_db_safety(&files).is_empty());
+    }
+
+    #[test]
+    fn detect_bun_db_safety_side_effect_pg_import_not_flagged_prefilter_mirror() {
+        // `import 'pg'` (side-effect) не проходить текстовий pre-filter
+        // PG_LIB_IMPORT_RE JS-оригіналу — файл НЕ потрапляє в pgUsage,
+        // import-порушення немає (відтворено, не «поліпшено»).
+        let files = vec![
+            source("package.json", "{\"name\":\"t\"}"),
+            source("src/side-effect.ts", "import 'pg'\nexport const x = 1\n"),
+        ];
+        assert!(detect_bun_db_safety(&files).is_empty());
+    }
+
+    #[test]
+    fn detect_bun_db_safety_flags_pg_import_without_listen_notify() {
+        let files = vec![
+            source("package.json", "{\"name\":\"t\"}"),
+            source(
+                "src/app.ts",
+                "import { Client } from 'pg'\nexport const c = new Client()\n",
+            ),
+        ];
+        let diagnostics = detect_bun_db_safety(&files);
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0]
+            .message
+            .contains("import 'pg' дозволено лише"));
+    }
+
+    #[test]
+    fn detect_bun_db_safety_flags_sql_array_without_type() {
+        let files = vec![
+            source("package.json", "{\"name\":\"t\"}"),
+            source(
+                "src/db.ts",
+                "import { sql } from 'bun'\nexport const q = ids => sql`SELECT ${sql.array(ids)}`\n",
+            ),
+        ];
+        let diagnostics = detect_bun_db_safety(&files);
+        assert!(diagnostics
+            .iter()
+            .any(|d| d.message.contains("sql.array(arr) без другого аргументу")));
+    }
+
+    #[test]
+    fn detect_bun_db_safety_passes_sql_array_with_type() {
+        let files = vec![
+            source("package.json", "{\"name\":\"t\"}"),
+            source(
+                "src/db.ts",
+                "import { sql } from 'bun'\nexport const q = ids => sql`SELECT ${sql.array(ids, 'int8')}`\n",
+            ),
+        ];
+        assert!(detect_bun_db_safety(&files).is_empty());
+    }
+
+    #[test]
+    fn detect_mssql_deps_returns_invalid_json_fail_even_without_mssql_found() {
+        // found == 0 → джерела не скануються, але «невалідний JSON»-fail
+        // повертається (точний порт reporter.result() після аудиту).
+        let files = vec![
+            source("package.json", "{\"name\":\"t\"}"),
+            source("sub/package.json", "NOT_VALID_JSON"),
+            source(
+                "src/db.ts",
+                "export function f() {\n  const pool = new sql.ConnectionPool(config)\n  return pool\n}\n",
+            ),
+        ];
+        let diagnostics = detect_mssql_deps(&files);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(
+            diagnostics[0].message,
+            "js-mssql: sub/package.json — невалідний JSON"
+        );
+    }
+
+    #[test]
+    fn detect_mssql_deps_in_list_with_parse_int_trace_passes() {
+        let files = vec![
+            source(
+                "package.json",
+                "{\"name\":\"t\",\"dependencies\":{\"mssql\":\"^12.5.0\"}}",
+            ),
+            source(
+                "src/db.ts",
+                "export function f(raw) {\n  const ids = raw.map(x => parseInt(x, 10)).filter(n => !Number.isNaN(n))\n  if (!ids.length) throw new Error('empty')\n  return pool.request().query`SELECT 1 WHERE id IN (${ids})`\n}\n",
+            ),
+        ];
+        assert!(detect_mssql_deps(&files).is_empty());
+    }
+
+    #[test]
+    fn detect_mssql_deps_in_list_unparsed_and_unguarded_flags_both() {
+        let files = vec![
+            source(
+                "package.json",
+                "{\"name\":\"t\",\"dependencies\":{\"mssql\":\"^12.5.0\"}}",
+            ),
+            source(
+                "src/db.ts",
+                "export function f(ids) {\n  return pool.request().query`SELECT 1 WHERE id IN (${ids})`\n}\n",
+            ),
+        ];
+        let diagnostics = detect_mssql_deps(&files);
+        assert_eq!(diagnostics.len(), 2);
+        assert!(diagnostics[0].message.contains("числовим парсером"));
+        assert!(diagnostics[1].message.contains("перед IN-списком \"ids\""));
+    }
+
     // --- js/utils_imports (задача Q3, AST через oxc_parser) ---
     // Фікстури дзеркалять `plugins/lang-js/rules/js/utils_imports/tests/utils_imports.test.mjs`.
 
@@ -3533,12 +5101,12 @@ mod tests {
     // --- маніфест ---
 
     #[test]
-    fn build_manifest_declares_all_eleven_concerns_with_expected_scopes() {
+    fn build_manifest_declares_all_fourteen_concerns_with_expected_scopes() {
         let manifest = build_manifest();
-        // Де-скоуп (рішення оркестратора): `CONCERN_REDIS_IMPORTS`/
-        // `CONCERN_BUN_DB_SAFETY`/`CONCERN_MSSQL_DEPS` НЕ в маніфесті —
-        // groundwork без контрибуції, доккомент модуля вище.
-        assert_eq!(manifest.concerns.len(), 11);
+        // Задача Q4 батч 4: `CONCERN_REDIS_IMPORTS`/`CONCERN_MSSQL_DEPS`/
+        // `CONCERN_BUN_DB_SAFETY` тепер У контрибуції (AST-порти, де-скоуп
+        // батчу 2 знято — доккомент модуля вище).
+        assert_eq!(manifest.concerns.len(), 14);
         let tfm = manifest
             .concerns
             .iter()
@@ -3556,6 +5124,9 @@ mod tests {
             CONCERN_NO_BUN_TEST_IMPORT,
             CONCERN_UTILS_IMPORTS,
             CONCERN_NO_RELATIVE_FS_PATH,
+            CONCERN_REDIS_IMPORTS,
+            CONCERN_MSSQL_DEPS,
+            CONCERN_BUN_DB_SAFETY,
         ] {
             let contribution = manifest
                 .concerns
@@ -3565,12 +5136,20 @@ mod tests {
             assert_eq!(contribution.scope, ConcernScope::Full);
             assert!(!contribution.glob.is_empty());
         }
-        assert!(!manifest
-            .concerns
-            .iter()
-            .any(|c| c.key == CONCERN_REDIS_IMPORTS
-                || c.key == CONCERN_BUN_DB_SAFETY
-                || c.key == CONCERN_MSSQL_DEPS));
+        // Глоби трьох AST-концернів батчу 4 мусять покривати package.json —
+        // гейт «кореневий package.json існує» інакше ніколи не пройде.
+        for key in [
+            CONCERN_REDIS_IMPORTS,
+            CONCERN_MSSQL_DEPS,
+            CONCERN_BUN_DB_SAFETY,
+        ] {
+            let contribution = manifest
+                .concerns
+                .iter()
+                .find(|c| c.key == key)
+                .expect("контрибуція є (перевірено вище)");
+            assert!(contribution.glob.iter().any(|g| g.contains("package.json")));
+        }
         assert!(manifest.capabilities.fs_read.is_empty());
         assert!(!manifest.capabilities.network);
         assert_eq!(manifest.domains, vec![Domain::Lint]);

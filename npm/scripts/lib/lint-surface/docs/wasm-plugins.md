@@ -3,7 +3,7 @@ type: JS Module
 title: wasm-plugins.mjs
 resource: npm/scripts/lib/lint-surface/wasm-plugins.mjs
 docgen:
-  crc: 886c6548
+  crc: a298dae4
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 5
