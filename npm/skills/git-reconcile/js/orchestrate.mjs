@@ -2140,7 +2140,12 @@ async function applySource(args) {
  */
 export function validateAppliedValueReview(text) {
   const value = parseJson(text, null)
-  if (!value || !['proceed', 'obsolete'].includes(value.verdict) || typeof value.rationale !== 'string' || !value.rationale.trim()) {
+  if (
+    !value ||
+    !['proceed', 'obsolete'].includes(value.verdict) ||
+    typeof value.rationale !== 'string' ||
+    !value.rationale.trim()
+  ) {
     return { ok: false, error: 'semantic review має повернути verdict proceed|obsolete і непорожній rationale' }
   }
   return { ok: true, value: { verdict: value.verdict, rationale: value.rationale.trim() } }
@@ -2981,8 +2986,10 @@ function formatResultReport(result) {
  * @returns {string} наступна рекомендована дія
  */
 function retainedNextAction(result) {
-  if (result.status.startsWith('pr-checks-')) return 'Перевірити GitHub checks у PR і виправити лише підтверджені регресії.'
-  if ((result.retention?.unresolvedPaths ?? []).length > 0) return 'Розв’язати перелічені конфлікти, повторити final gates і створити або оновити PR.'
+  if (result.status.startsWith('pr-checks-'))
+    return 'Перевірити GitHub checks у PR і виправити лише підтверджені регресії.'
+  if ((result.retention?.unresolvedPaths ?? []).length > 0)
+    return 'Розв’язати перелічені конфлікти, повторити final gates і створити або оновити PR.'
   if (result.status === 'failed') return 'Усунути причину failed final gate, повторити final gates і створити PR.'
   if (result.status === 'kept') return 'Перевірити завершеність source перед повторним reconcile.'
   return 'Перевірити стан worktree перед наступним reconcile.'

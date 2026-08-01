@@ -2413,7 +2413,7 @@ describe('report helpers', () => {
 
     expect(report).toContain('### Залишено для ручного продовження')
     expect(report).toContain('source=`branch:feature/transfer`; status=failed')
-    expect(report).toContain('reason: Нерозв\'язані конфлікти: package.json')
+    expect(report).toContain("reason: Нерозв'язані конфлікти: package.json")
     expect(report).toContain('commits ahead of base: 1')
     expect(report).toContain('unresolved paths: package.json')
     expect(report).toContain('next action: Розв’язати перелічені конфлікти')
