@@ -597,6 +597,80 @@ fn build_full_scope_files(cwd: &Path, glob_patterns: &[String]) -> Vec<SourceFil
 ///   Підміняється на закешованому `LoadedPlugin` ПЕРЕД кожним `detect`
 ///   (`LoadedPlugin::set_tool_resolver`) — різні виклики того самого
 ///   `wasm_path` можуть нести різний `tool_paths`.
+/// Будує fix-plan концерну wasm-плагіна — тонкий binding над
+/// `LoadedPlugin::fix` (fix-контур contract v3, доккомент `wit/world.wit`
+/// біля `export fix`). Дзеркало [`run_native_concern_fix`] для wasm-шляху:
+/// повертає `{ "edits": [...] }` — ту саму JSON-форму `FixPlan` (`type`-тег
+/// `"write"`/`"delete"`), що й native-планів (типи спільні —
+/// `rules_contract::fix`, реекспортовані `rules-core` після злиття
+/// дзеркала), тож JS-обгортка (`run-fix.mjs`) застосовує обидва одним
+/// конвеєром синтетичних T0Pattern-ів.
+///
+/// - `wasm_path`/`key`/`cwd`/`tool_paths` — той самий контракт, що
+///   [`run_wasm_concern`] (кеш per-path, `set_tool_resolver` перед викликом).
+/// - `violations` — JSON-масив, що десеріалізується у
+///   `Vec<rules_contract::diagnostic::Diagnostic>` (нормалізовані
+///   violations JS-боку; зайві поля `ruleId`/`concernId` serde ігнорує) —
+///   стає `FixRequest::diagnostics`.
+/// - `FixRequest::files` хост будує САМ з `file`-полів переданих violations
+///   (дедуп зі збереженням порядку, читання через [`read_source_files`]) —
+///   fix потребує лише файли, на які реально вказують діагностики, окремий
+///   full-scope обхід тут зайвий.
+///
+/// Порожній `edits` = «фікс для цих violations нічого не змінює» — той
+/// самий контракт застосовності, що в native-плану ([`run_native_concern_fix`]).
+/// Невалідний план від плагіна (path-escape, ліміти розміру) хост відхиляє
+/// ЦІЛКОМ ще до цього binding-а (`LoadedPlugin::fix` →
+/// `rules_contract::validators::fix`) — сюди долітає типізована помилка.
+#[napi]
+pub fn run_wasm_concern_fix(
+    wasm_path: String,
+    key: String,
+    cwd: String,
+    violations: serde_json::Value,
+    tool_paths: Option<HashMap<String, String>>,
+) -> Result<serde_json::Value> {
+    use rules_contract::diagnostic::Diagnostic;
+    use rules_contract::fix::FixRequest;
+
+    let diagnostics: Vec<Diagnostic> = serde_json::from_value(violations)
+        .map_err(|err| Error::from_reason(format!("runWasmConcernFix: невалідний вхід: {err}")))?;
+
+    let cwd_path = PathBuf::from(&cwd);
+    let mut target_files: Vec<String> = Vec::new();
+    for diagnostic in &diagnostics {
+        let Some(file) = &diagnostic.file else {
+            continue;
+        };
+        if !target_files.contains(file) {
+            target_files.push(file.clone());
+        }
+    }
+    let files = read_source_files(&cwd_path, target_files);
+
+    let resolver = build_tool_resolver(tool_paths);
+    let plan = with_loaded_plugin(&wasm_path, |plugin| {
+        plugin.set_tool_resolver(resolver);
+        plugin
+            .fix(&FixRequest {
+                concern_id: key.clone(),
+                files,
+                diagnostics,
+            })
+            .map_err(to_wasm_napi_err)
+    })?;
+    serde_json::to_value(plan).map_err(|err| {
+        Error::from_reason(format!(
+            "runWasmConcernFix: серіалізація плану провалилась: {err}"
+        ))
+    })
+}
+
+/// Запускає wasm-порт concern-а за ключем — тонкий binding над
+/// [`rules_core::concerns::run_concern`] (E1 фази 5).
+/// Повертає `{ "violations": [...] }` у тій самій JSON-формі, що й native-виклик;
+/// `files` задає явний список файлів, а `None` вмикає full-scope резолв через
+/// `describe().concerns` і `set_tool_resolver` перед `detect`.
 #[napi]
 pub fn run_wasm_concern(
     wasm_path: String,

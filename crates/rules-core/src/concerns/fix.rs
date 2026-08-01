@@ -26,35 +26,28 @@
 //!   вирішує rewrite/orphan-и. Зовнішній процес + залежність від його
 //!   side-effect-ів не виражаються декларативним [`FixPlan`]. Лишається JS.
 //!
-//! # Форма — дзеркало `rules-contract::fix`, БЕЗ залежності на `rules-contract`
+//! # Форма — спільні типи `rules-contract::fix` (дзеркало злито)
 //!
-//! [`FixPlan`]/[`FileEdit`]/[`WriteFile`] тут — структурно ідентичні
+//! [`FixPlan`]/[`FileEdit`]/[`WriteFile`] — реекспорт
 //! `rules_contract::fix::{FixPlan, FileEdit, WriteFile}` (той самий
 //! `#[serde(tag = "type", rename_all = "lowercase")]` дискримінант
 //! `"write"`/`"delete"`, той самий мінімум "повний новий вміст або
 //! видалення", доккомент модуля `crates/rules-contract/src/fix.rs`).
-//! Дублювання, не імпорт — той самий мотив, що документує E1 фази 5 для
-//! diagnostics DTO ([`crate::diagnostics::Violation`] дзеркалить WIT
-//! `diagnostic`, а не навпаки): `rules-core` НЕ залежить на `rules-contract`
-//! (перевірте `Cargo.toml` — `rules-contract` підключає лише `rules-napi`,
-//! як міст до wasm-плагінів contract v3), а `rules-contract` — контракт
-//! WIT-межі з guest-плагінами, не внутрішній тип оркестрації builtin-концернів.
-//! Зворотна залежність (`rules-core` → `rules-contract`) увела б архітектурну
-//! інверсію: WIT-крейт існує ЗАРАДИ wasm-межі (`rules-plugin-host` +
-//! guest-и), а не як спільна бібліотека типів для native-коду, який під
-//! wasmtime не виконується взагалі.
-//!
-//! **План злиття** (як і в diagnostics DTO, секція «Фаза 5» спеки): коли
-//! реєстр `NATIVE_CONCERNS`/`NATIVE_FIXES` узагальниться до єдиного
-//! інтерфейсу builtin ↔ wasm (рішення И, фаза 6, статус §7 спеки — «чинний
-//! реєстр `NATIVE_CONCERNS` узагальнюється до одного інтерфейсу»), дублікат
-//! тут стає кандидатом на видалення: або `rules-contract::fix` переїжджає в
-//! окремий DTO-крейт без залежності на WIT-генерацію коду (спільний і для
-//! `rules-core`, і для `rules-plugin-host`), або builtin fix-домен сам
-//! переїжджає під той самий інтерфейс, що й wasm-фікси, і викликає
-//! `rules-contract::fix` напряму через цей спільний шар. До того — точна
-//! структурна відповідність полів звірена руками (і тестами нижче), як і
-//! diagnostics DTO звіряється з `normalizeViolation` (`detect.mjs`).
+//! Раніше тут жило структурне дзеркало БЕЗ залежності на `rules-contract`
+//! (задокументований план злиття T1 зрізу 4); умова плану — «коли fix-домен
+//! узагальниться до єдиного інтерфейсу builtin ↔ wasm» — виконана з
+//! активацією fix-контуру contract v3 (napi `run_wasm_concern_fix` +
+//! `run-fix.mjs` подають ОБИДВА шляхи через один конвеєр T0Pattern-обгорток
+//! над однаковим JSON-планом), тож дублікат видалено. Напрямок залежності
+//! `rules-core` → `rules-contract` — рівно той, що з самого початку
+//! документує `crate`-doc-коментар `rules-contract/src/lib.rs` («Залежність
+//! — лише в один бік: `rules-core` → `rules-contract`, ніколи навпаки»);
+//! `rules-contract` — чистий serde-DTO крейт без WIT-кодогенерації і без
+//! wasm-рушія (wasmtime лінкує лише `rules-plugin-host`), тож native-шлях
+//! нічого зайвого не тягне. Diagnostics DTO
+//! ([`crate::diagnostics::Violation`] ⇄ `rules_contract::diagnostic::Diagnostic`)
+//! лишається дзеркалом зі своїм окремим планом злиття (доккомент
+//! `rules-contract/src/lib.rs`) — воно поза обсягом цього кроку.
 //!
 //! # Реєстр [`NATIVE_FIXES`] і диспетчер [`run_concern_fix`]
 //!
@@ -102,34 +95,14 @@ use std::path::Path;
 
 use crate::{diagnostics::Violation, RulesError};
 
-/// Записати файл — повний новий вміст. Структурний відповідник
-/// `rules_contract::fix::WriteFile` (доккомент модуля вище).
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct WriteFile {
-    /// Posix-relative шлях від cwd (той самий контракт, що
-    /// `rules_contract::detect::SourceFile::path`).
-    pub path: String,
-    pub content: String,
-}
-
-/// Одна файлова операція fix-plan-у. Структурний відповідник
-/// `rules_contract::fix::FileEdit` — той самий `type`-дискримінант
-/// (`"write"`/`"delete"`), той самий мінімум «write повним вмістом | delete».
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(tag = "type", rename_all = "lowercase")]
-pub enum FileEdit {
-    Write(WriteFile),
-    Delete { path: String },
-}
-
-/// Результат `run_concern_fix` — впорядкований список операцій; порожній
-/// список = «для цих violations фіксити нічого» (той самий контракт
-/// «непорожній план» ⇔ «застосовний», який JS-обгортка (`run-fix.mjs`)
-/// використовує замість окремого `T0Pattern.test()` — доккомент модуля).
-#[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
-pub struct FixPlan {
-    pub edits: Vec<FileEdit>,
-}
+/// Спільні DTO fix-домену — реекспорт із `rules-contract` (злиття дзеркала,
+/// доккомент модуля вище): `FixPlan` — впорядкований список операцій,
+/// порожній = «для цих violations фіксити нічого» (контракт «непорожній
+/// план» ⇔ «застосовний», який JS-обгортка (`run-fix.mjs`) використовує
+/// замість окремого `T0Pattern.test()`); `FileEdit` — `type`-дискримінант
+/// `"write"`/`"delete"`; `WriteFile.path` — posix-relative шлях від cwd
+/// (той самий контракт, що `rules_contract::detect::SourceFile::path`).
+pub use rules_contract::fix::{FileEdit, FixPlan, WriteFile};
 
 /// Canonical baseline `.marksman.toml`, вбудований у бінарник на етапі
 /// компіляції — джерело правди те саме, що постачається в npm-пакеті

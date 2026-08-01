@@ -3699,6 +3699,7 @@ dependencies = [
  "llm-lib",
  "mt-core",
  "regex",
+ "rules-contract",
  "serde",
  "serde_json",
  "serde_yaml",

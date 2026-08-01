@@ -128,6 +128,10 @@ fn detect_returns_one_diagnostic_per_file_with_expected_shape() {
     }
 }
 
+/// Сумісність активації host-виклику `fix` (доккомент `wit/world.wit` біля
+/// `export fix`): плагін БЕЗ власної fix-логіки для концерну (заглушка)
+/// повертає порожній план = «нічого не чинити» — та сама поведінка, що до
+/// активації fix-контуру, жодного version bump не потрібно.
 #[test]
 fn fix_returns_empty_plan() {
     let path = require_fixture();
@@ -140,6 +144,92 @@ fn fix_returns_empty_plan() {
     };
     let plan = plugin.fix(&request).expect("fix не мав провалитись");
     assert!(plan.edits.is_empty());
+}
+
+/// `concern-id` fix-хука рерайту — дзеркало
+/// `test_plugin_guest::FIX_REWRITE_CONCERN_ID` (той самий мотив рядкового
+/// літерала, що [`FS_PROBE_CONCERN_ID`]).
+const FIX_REWRITE_CONCERN_ID: &str = "test/guest-fix-rewrite";
+/// `concern-id` fix-хука з `..`-шляхом у плані — дзеркало
+/// `test_plugin_guest::FIX_ESCAPE_CONCERN_ID`.
+const FIX_ESCAPE_CONCERN_ID: &str = "test/guest-fix-escape";
+
+/// Host-виклик `fix` повертає непорожній валідний план: `write` з повним
+/// новим вмістом на файл із `BROKEN`, `delete` для діагностики
+/// `guest-delete` — обидві гілки `file-edit` конвертуються з WIT у DTO.
+#[test]
+fn fix_rewrite_hook_returns_write_and_delete_edits() {
+    use rules_contract::detect::SourceFile;
+    use rules_contract::diagnostic::Diagnostic;
+    use rules_contract::fix::FileEdit;
+
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let request = FixRequest {
+        concern_id: FIX_REWRITE_CONCERN_ID.to_string(),
+        files: vec![
+            SourceFile {
+                path: "src/a.txt".to_string(),
+                content: "line BROKEN here".to_string(),
+            },
+            SourceFile {
+                path: "src/ok.txt".to_string(),
+                content: "все гаразд".to_string(),
+            },
+        ],
+        diagnostics: vec![Diagnostic {
+            reason: "guest-delete".to_string(),
+            message: "зайвий файл".to_string(),
+            file: Some("src/extra.txt".to_string()),
+            severity: Severity::Warn,
+            data: None,
+        }],
+    };
+
+    let plan = plugin.fix(&request).expect("fix не мав провалитись");
+    assert_eq!(plan.edits.len(), 2);
+    match &plan.edits[0] {
+        FileEdit::Write(write) => {
+            assert_eq!(write.path, "src/a.txt");
+            assert_eq!(write.content, "line FIXED here");
+        }
+        other => panic!("очікували write-edit, отримали {other:?}"),
+    }
+    match &plan.edits[1] {
+        FileEdit::Delete { path } => assert_eq!(path, "src/extra.txt"),
+        other => panic!("очікували delete-edit, отримали {other:?}"),
+    }
+}
+
+/// План із `..`-шляхом відхиляється host-валідатором
+/// (`rules-contract::validators::fix`, переюз safe-path перевірки слоту
+/// `ci.artifact@1`) типізовано — [`PluginHostError::InvalidContractData`],
+/// план НЕ повертається оркестрації навіть частково.
+#[test]
+fn fix_plan_with_path_escape_is_rejected_typed() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let request = FixRequest {
+        concern_id: FIX_ESCAPE_CONCERN_ID.to_string(),
+        files: vec![],
+        diagnostics: vec![],
+    };
+    match plugin.fix(&request) {
+        Err(PluginHostError::InvalidContractData(message)) => {
+            assert!(
+                message.contains("fix-plan відхилено"),
+                "повідомлення мало назвати відхилення плану: {message}"
+            );
+            assert!(
+                message.contains("../escape.txt"),
+                "повідомлення мало вказати проблемний шлях: {message}"
+            );
+        }
+        Err(other) => panic!("очікували InvalidContractData, отримали {other:?}"),
+        Ok(_) => panic!("план із ..-шляхом мав бути відхилений"),
+    }
 }
 
 #[test]

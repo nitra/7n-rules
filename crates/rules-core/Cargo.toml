@@ -12,6 +12,12 @@ name = "rules_core"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "1"
+# Спільні DTO fix-домену (`FixPlan`/`FileEdit`/`WriteFile`) — злиття дзеркала
+# `concerns/fix.rs` ⇄ `rules_contract::fix` (доккомент модуля
+# `concerns/fix.rs`): напрямок залежності `rules-core` → `rules-contract` —
+# той, що документує `rules-contract/src/lib.rs` («лише в один бік»); крейт —
+# чистий serde-DTO шар без WIT-кодогенерації і wasm-рушія.
+rules-contract = { path = "../rules-contract" }
 # Пін 0.86 синхронно з mt-rust (Р4 спеки). default-features=false: лише
 # локальні commit-graph запити (merge-base, rev-parse) — без мережевих
 # transport-фіч, потрібних mt-core для fetch/push. `revision` дає

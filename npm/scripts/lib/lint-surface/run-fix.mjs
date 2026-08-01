@@ -24,6 +24,7 @@ import { startChain } from '@7n/llm-lib/chain'
 import { writeTrace } from '@7n/llm-lib/trace'
 import { withTimeout } from '@7n/llm-lib/with-timeout'
 import { loadNative } from '../native.mjs'
+import { resolveWasmConcernMap } from './wasm-plugins.mjs'
 import { buildDetectPlan } from './run-detectors.mjs'
 import { runConcernDetector, DetectorError } from './detect.mjs'
 import { renderViolations } from './render.mjs'
@@ -169,31 +170,113 @@ function nativeFixPattern(key, cwd) {
 }
 
 /**
- * Завантажує structured T0-патерни concern-а. Native-fix реєстр
- * (`NATIVE_FIXES`, T1 зрізу 4 фази 7) має пріоритет: якщо `ruleId/concernId`
- * у реєстрі, повертається синтетичний T0Pattern над native-планом
- * ([`nativeFixPattern`]) замість dynamic import() `fix-<concern>.mjs` —
- * той самий поділ пріоритету, що `runConcernDetector` для native-детекторів
- * (`detect.mjs`: native має абсолютний пріоритет ПЕРЕД резолвом `main.mjs`).
- * Інакше — стара поведінка: dynamic import() `fix-<concern>.mjs`, якщо файл є.
+ * Кеш wasm fix-плану за identity `violations`-масиву — той самий мотив, що
+ * {@link nativeFixPlanCache}: `applyT0` передає ОДИН масив у `test()` і
+ * `apply()` одного проходу, другий napi-hop (повторний виклик `fix()` у
+ * wasm-плагіні) не потрібен.
+ * @type {WeakMap<LintViolation[], { edits: Array<{ type: string, path: string, content?: string }> }>}
+ */
+const wasmFixPlanCache = new WeakMap()
+
+/**
+ * Викликає `runWasmConcernFix` (fix-контур contract v3, napi
+ * `crates/rules-napi`) і кешує план під identity `violations`.
+ * @param {string} key `ruleId/concernId` wasm-концерну.
+ * @param {string} cwd Абсолютний корінь consumer-репо.
+ * @param {import('./wasm-plugins.mjs').WasmConcernMapEntry} entry Резолвлений запис wasm-мапи (`wasmPath`, `toolPaths`).
+ * @param {LintViolation[]} violations Порушення concern-а (той самий вхід у test() і apply()).
+ * @returns {{ edits: Array<{ type: string, path: string, content?: string }> }} План (порожні `edits` = фіксити нічого).
+ */
+function computeWasmFixPlan(key, cwd, entry, violations) {
+  if (wasmFixPlanCache.has(violations)) return wasmFixPlanCache.get(violations)
+  const plan = loadNative().runWasmConcernFix(entry.wasmPath, key, cwd, violations, entry.toolPaths)
+  wasmFixPlanCache.set(violations, plan)
+  return plan
+}
+
+/**
+ * Синтезує T0Pattern-обгортку над wasm fix-планом — рівно та сама форма й
+ * rollback-контракт (`ctx.recordWrite?.(abs)` ПЕРЕД кожною мутацією), що
+ * {@link nativeFixPattern}; відрізняється лише джерело плану: `export fix`
+ * wasm-плагіна через napi замість `NATIVE_FIXES`-реєстру. Валідність плану
+ * (safe repo-relative шляхи, ліміти розміру) гарантує host ДО повернення
+ * (`LoadedPlugin::fix` → `rules-contract::validators::fix`) — обгортці
+ * лишається тільки застосувати.
+ * @param {string} key `ruleId/concernId` wasm-концерну.
+ * @param {string} cwd Абсолютний корінь consumer-репо.
+ * @param {import('./wasm-plugins.mjs').WasmConcernMapEntry} entry Резолвлений запис wasm-мапи.
+ * @returns {T0Pattern} Синтетичний патерн.
+ */
+function wasmFixPattern(key, cwd, entry) {
+  return {
+    id: `wasm-fix:${key}`,
+    test: violations => computeWasmFixPlan(key, cwd, entry, violations).edits.length > 0,
+    apply: async (violations, ctx) => {
+      const plan = computeWasmFixPlan(key, cwd, entry, violations)
+      const touchedFiles = []
+      for (const edit of plan?.edits ?? []) {
+        const abs = join(cwd, edit.path)
+        if (edit.type === 'write') {
+          ctx.recordWrite?.(abs)
+          await mkdir(dirname(abs), { recursive: true })
+          await writeFile(abs, edit.content, 'utf8')
+          touchedFiles.push(abs)
+        } else if (edit.type === 'delete') {
+          ctx.recordWrite?.(abs)
+          try {
+            await unlink(abs)
+            touchedFiles.push(abs)
+          } catch {
+            // Файл уже відсутній — best-effort, той самий контракт, що
+            // native-план ({@link nativeFixPattern}).
+          }
+        }
+      }
+      return touchedFiles.length > 0
+        ? { touchedFiles, message: `wasm fix ${key}: ${touchedFiles.length} файл(ів)` }
+        : { touchedFiles: [] }
+    }
+  }
+}
+
+/**
+ * Завантажує structured T0-патерни concern-а. Пріоритет джерел — дзеркало
+ * `runConcernDetector` (`detect.mjs`: native → wasm → JS):
+ *
+ * 1. native-fix реєстр (`NATIVE_FIXES`, T1 зрізу 4 фази 7) — абсолютний
+ *    пріоритет: синтетичний T0Pattern над native-планом ([`nativeFixPattern`]);
+ * 2. wasm-мапа концернів (`resolveWasmConcernMap`, fix-контур contract v3) —
+ *    синтетичний T0Pattern над планом `export fix` плагіна
+ *    ([`wasmFixPattern`]); на відміну від detect-shadowing (wasm ПОВНІСТЮ
+ *    заміняє main.mjs), тут wasm-патерн ДОДАЄТЬСЯ ПЕРЕД можливим
+ *    `fix-<concern>.mjs` — плагін із fix-заглушкою (порожній план — сумісна
+ *    поведінка v3.0, доккомент `wit/world.wit` біля `export fix`) не має
+ *    мовчки вимикати чинний JS T0-фікс концерну;
+ * 3. dynamic import() `fix-<concern>.mjs`, якщо файл є.
  * @param {string} concernDir Директорія concern-а, де шукати fix-модуль.
  * @param {string} concernName Ім'я concern-а для формування назви fix-файлу.
  * @param {string} ruleId Id правила (для `ruleId/concernId`-ключа native-fix реєстру).
  * @param {string} cwd Абсолютний корінь consumer-репо (вшивається у синтетичний патерн).
- * @returns {Promise<T0Pattern[]>} Масив T0-патернів або порожній, якщо немає ані native, ані fix-файлу.
+ * @returns {Promise<T0Pattern[]>} Масив T0-патернів або порожній, якщо немає ані native/wasm, ані fix-файлу.
  */
 export async function loadT0Patterns(concernDir, concernName, ruleId, cwd) {
   const nativeKey = `${ruleId}/${concernName}`
   if (getNativeFixKeys().has(nativeKey)) return [nativeFixPattern(nativeKey, cwd)]
+  const patterns = []
+  const wasmConcernMap = await resolveWasmConcernMap(cwd)
+  const wasmEntry = wasmConcernMap.get(nativeKey)
+  if (wasmEntry) patterns.push(wasmFixPattern(nativeKey, cwd, wasmEntry))
   const fixPath = join(concernDir, `fix-${concernName}.mjs`)
-  if (!existsSync(fixPath)) return []
-  try {
-    // eslint-disable-next-line no-unsanitized/method
-    const mod = await import(pathToFileURL(fixPath).href)
-    return Array.isArray(mod.patterns) ? mod.patterns : []
-  } catch {
-    return []
+  if (existsSync(fixPath)) {
+    try {
+      // eslint-disable-next-line no-unsanitized/method
+      const mod = await import(pathToFileURL(fixPath).href)
+      if (Array.isArray(mod.patterns)) patterns.push(...mod.patterns)
+    } catch {
+      // Битий fix-модуль — той самий silent-skip, що й до wasm-гілки.
+    }
   }
+  return patterns
 }
 
 /**

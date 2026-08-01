@@ -245,6 +245,20 @@ world plugin {
   export detect: func(batch: detect-batch) -> list<diagnostic>;
 
   /// lint-домен: побудова fix-plan-у для підмножини діагностик `detect`.
+  ///
+  /// # Сумісність активації host-виклику (рішення fix-контуру, 2026-08-01)
+  ///
+  /// `export fix` — частина world від самого `3.0.0`: КОЖЕН уже пінований
+  /// плагін цього world його експортує (мінімум — заглушка з порожнім
+  /// `fix-plan`, як `crates/test-plugin-guest`), тож увімкнення реального
+  /// host-виклику (napi `run_wasm_concern_fix` → `LoadedPlugin::fix`) НЕ є
+  /// зміною контракту і не потребує version bump: плагін без власної
+  /// fix-логіки повертає порожній план = «нічого не чинити», рівно та сама
+  /// поведінка, що була до активації (contract-test-kit фіксує це тестом
+  /// `fix_returns_empty_plan`). Семантика плану — недовірений вхід: хост
+  /// валідує шляхи (safe repo-relative) і ліміти розміру
+  /// (`rules-contract::validators::fix`) і відхиляє план цілком при
+  /// будь-якому порушенні (типізована помилка, не часткове застосування).
   export fix: func(request: fix-request) -> fix-plan;
 
   /// Домен поза lint (рішення К) — заглушка `domain-error::not-supported`,

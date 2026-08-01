@@ -42,9 +42,12 @@
 //!   присвоєння `console.<method> = …` у `*.test.{mjs,js}` заборонено.
 //! - `test/no-bun-test-import` (full-scope, задача Q2 батч 2) — порт
 //!   `plugins/lang-js/rules/test/no-bun-test-import/main.mjs`: **T0-фікс
-//!   `fix-no-bun-test-import.mjs` лишається JS** і працює НАПРЯМУ з
-//!   wasm-violations (`reason`/`data.fixable`) — критичний ризик батчу,
-//!   перевірений живим смок-тестом (`crates/rules-plugin-host/tests/plugin_lang_js.rs`).
+//!   портовано в guest через `export fix`** (пілот fix-контуру contract v3,
+//!   [`fix_no_bun_test_import`]) — JS `fix-no-bun-test-import.mjs` видалено,
+//!   диспатч іде через napi `run_wasm_concern_fix` → синтетичний T0Pattern
+//!   (`run-fix.mjs`), живий смок —
+//!   `crates/rules-plugin-host/tests/plugin_lang_js.rs` +
+//!   `npm/scripts/lib/lint-surface/tests/wasm-fix-e2e.test.mjs`.
 //! - `js/utils_imports` (full-scope, задача Q3) — порт
 //!   `plugins/lang-js/rules/js/utils_imports/main.mjs`: **справжній
 //!   oxc-parser AST-концерн**, не regex-наближення — byte-exact parity через
@@ -418,9 +421,9 @@ fn is_inside_tests_dir(path: &str) -> bool {
 
 // =====================================================================
 // Батч 2 (задача Q2, §3.5.5): ще concern-и lang-js у native/wasm —
-// `test/no-console-store-restore`, `test/no-bun-test-import` (+ T0-фікс
-// `fix-no-bun-test-import.mjs` лишається JS, працює НАПРЯМУ з
-// wasm-violations — критичний ризик батчу, перевірений живим смоком). Обидва
+// `test/no-console-store-restore`, `test/no-bun-test-import` (T0-фікс
+// відтоді портовано в guest через `export fix` — пілот fix-контуру contract
+// v3, [`fix_no_bun_test_import`] нижче; JS-файл видалено). Обидва
 // — СПРАВЖНІЙ 1:1 порт (REGEX-based і в JS-оригіналі), обидва в контрибуції
 // `describe()` як решта семи концернів.
 //
@@ -488,8 +491,9 @@ const CONCERN_MSSQL_DEPS: &str = "js-mssql/deps";
 const NO_CONSOLE_STORE_RESTORE_VIOLATION_REASON: &str = "no-console-store-restore";
 /// `reason` violation-а `no-bun-test-import` — точний відповідник
 /// `reason: 'bun-test-import'`, вручну зібраний об'єкт `main.mjs` (НЕ через
-/// `createViolationReporter`). **T0-критичний**: `fix-no-bun-test-import.mjs`
-/// (`patterns[0].test`) матчить саме на це значення.
+/// `createViolationReporter`). **T0-критичний**:
+/// [`is_fixable_bun_test_diagnostic`] (guest-фікс, порт видаленого
+/// `fix-no-bun-test-import.mjs`) матчить саме на це значення.
 const BUN_TEST_IMPORT_VIOLATION_REASON: &str = "bun-test-import";
 /// `reason` violation-а `js/utils_imports` — `fail(msg)` БЕЗ опцій
 /// (`createViolationReporter`, `main.mjs`), дефолт `ctx.concernId` = bare
@@ -803,12 +807,17 @@ fn parse_bun_test_specifiers(raw: &str) -> Vec<String> {
 }
 
 /// Один знайдений `import { ... } from 'bun:test'` — точний порт форми
-/// `findBunTestImports` (`main.mjs:60-68`), без `end`/`raw` (T0-фікс
-/// `fix-no-bun-test-import.mjs` перечитує файл і парсить сам — доккомент
-/// модуля цього крейту, «T0-критичний» вище).
+/// `findBunTestImports` (`main.mjs:60-68`). `byte_start`/`byte_end` — межі
+/// повного матчу для сплайсу [`fix_no_bun_test_import`] (fix-контур contract
+/// v3 — Rust-порт видаленого `fix-no-bun-test-import.mjs`, який раніше
+/// перечитував файл і парсив сам).
 struct BunTestImportMatch {
-    /// Символьний офсет початку `import { ... }`.
+    /// Символьний офсет початку `import { ... }` (для [`line_number_at`]).
     start: usize,
+    /// Байтовий офсет початку повного матчу в `content`.
+    byte_start: usize,
+    /// Байтовий офсет кінця (exclusive) повного матчу в `content`.
+    byte_end: usize,
     /// Іменовані специфікатори (`imported`-імена, без `local`-аліасів).
     specifiers: Vec<String>,
     /// Чи всі специфікатори мають прямий 1:1 еквівалент у vitest.
@@ -829,11 +838,109 @@ fn find_bun_test_imports(content: &str) -> Vec<BunTestImportMatch> {
                     .all(|s| SAFE_BUN_TEST_SPECIFIERS.contains(&s.as_str()));
             BunTestImportMatch {
                 start: content[..m.start()].chars().count(),
+                byte_start: m.start(),
+                byte_end: m.end(),
                 specifiers,
                 fixable,
             }
         })
         .collect()
+}
+
+/// Порт `QUOTED_BUN_TEST_RE`-заміни (`fix-no-bun-test-import.mjs:14,37`,
+/// до видалення): перша поява `'bun:test'`/`"bun:test"` у raw-тексті
+/// import-а замінюється на `vitest` у ТІЙ САМІЙ лапці (JS робив це через
+/// backreference `(['"])bun:test\1`). Змішані лапки (`'bun:test"`) не
+/// матчаться — raw повертається без змін, той самий ефект, що давав
+/// backreference.
+fn rewrite_bun_test_source(raw: &str) -> String {
+    for (needle, replacement) in [("'bun:test'", "'vitest'"), ("\"bun:test\"", "\"vitest\"")] {
+        if let Some(idx) = raw.find(needle) {
+            let mut out = String::with_capacity(raw.len());
+            out.push_str(&raw[..idx]);
+            out.push_str(replacement);
+            out.push_str(&raw[idx + needle.len()..]);
+            return out;
+        }
+    }
+    raw.to_string()
+}
+
+/// Чи діагностика позначена детектором як fixable — `data` на WIT-межі це
+/// JSON-рядок (`{"fixable":…,"specifiers":[…]}`, [`detect_no_bun_test_import`]),
+/// парситься `serde_json` (та сама залежність, що JSON-парсинг
+/// `js-mssql/deps`). Битий/відсутній `data` → `false` (не fixable — фікс
+/// консервативний, як і JS-оригінал, що матчив `v.data?.fixable`).
+fn is_fixable_bun_test_diagnostic(diagnostic: &Diagnostic) -> bool {
+    if diagnostic.reason != BUN_TEST_IMPORT_VIOLATION_REASON {
+        return false;
+    }
+    diagnostic
+        .data
+        .as_deref()
+        .and_then(|raw| serde_json::from_str::<serde_json::Value>(raw).ok())
+        .and_then(|value| value.get("fixable").and_then(|f| f.as_bool()))
+        .unwrap_or(false)
+}
+
+/// Fix-план `test/no-bun-test-import` — точний семантичний порт T0-патерна
+/// `rewrite-bun-test-import-to-vitest` видаленого
+/// `plugins/lang-js/rules/test/no-bun-test-import/fix-no-bun-test-import.mjs`
+/// (пілот fix-контуру contract v3):
+///
+/// 1. файли беруться з діагностик `reason == "bun-test-import"` з
+///    `data.fixable == true` (дедуп зі збереженням порядку — той самий
+///    `[...new Set(...)]`);
+/// 2. вміст НЕ перечитується з диска — на відміну від JS-версії
+///    (`readFile(absPath)`), guest працює з `request.files` (хост уже
+///    передав вміст inline, спека §3.2 — плагін без IO);
+/// 3. заміна йде з кінця файлу до початку (`toReversed` у JS), щоб байтові
+///    офсети попередніх матчів не зсувались;
+/// 4. не-fixable import-и лишаються недоторканими; файл без реальних змін
+///    не потрапляє в план (`next === content` у JS).
+fn fix_no_bun_test_import(request: &FixRequest) -> FixPlan {
+    let mut target_files: Vec<&str> = Vec::new();
+    for diagnostic in &request.diagnostics {
+        if !is_fixable_bun_test_diagnostic(diagnostic) {
+            continue;
+        }
+        let Some(file) = diagnostic.file.as_deref() else {
+            continue;
+        };
+        if !target_files.contains(&file) {
+            target_files.push(file);
+        }
+    }
+
+    let mut edits = Vec::new();
+    for target in target_files {
+        let Some(source) = request.files.iter().find(|f| f.path == target) else {
+            continue;
+        };
+        let found = find_bun_test_imports(&source.content);
+        if found.is_empty() {
+            continue;
+        }
+        let mut next = source.content.clone();
+        for import in found.iter().rev() {
+            if !import.fixable {
+                continue;
+            }
+            let raw = &source.content[import.byte_start..import.byte_end];
+            next.replace_range(
+                import.byte_start..import.byte_end,
+                &rewrite_bun_test_source(raw),
+            );
+        }
+        if next == source.content {
+            continue;
+        }
+        edits.push(FileEdit::Write(WriteFile {
+            path: source.path.clone(),
+            content: next,
+        }));
+    }
+    FixPlan { edits }
 }
 
 /// Мінімальне (без сторонніх крейтів — доккомент `crates/test-plugin-guest`,
@@ -860,8 +967,9 @@ fn json_escape_string(s: &str) -> String {
 /// Точний порт `lint()` `test/no-bun-test-import` (`main.mjs:76-105`) —
 /// WHOLE-BATCH. `data` — вручну зібраний JSON-рядок `{"fixable":…,"specifiers":[…]}`
 /// (той самий мотив, що [`detect_no_process_chdir`]) — **T0-критичне поле**:
-/// `fix-no-bun-test-import.mjs`'s `patterns[0].test`/`apply` матчать саме на
-/// `reason === 'bun-test-import' && data?.fixable`.
+/// guest-фікс ([`is_fixable_bun_test_diagnostic`], порт видаленого
+/// `fix-no-bun-test-import.mjs`) матчить саме на
+/// `reason === 'bun-test-import' && data.fixable`.
 fn detect_no_bun_test_import(files: &[SourceFile]) -> Vec<Diagnostic> {
     let mut out = Vec::new();
     for file in files {
@@ -5253,10 +5361,16 @@ impl Guest for LangJs {
         diagnostics
     }
 
-    /// v3.0-заглушка — жоден із двох JS-оригіналів не має fix-контуру (лише
-    /// detect), тож `FixPlan` завжди порожній.
-    fn fix(_request: FixRequest) -> FixPlan {
-        FixPlan { edits: vec![] }
+    /// fix-контур contract v3 (пілот): `test/no-bun-test-import` будує
+    /// реальний план ([`fix_no_bun_test_import`] — Rust-порт видаленого
+    /// `fix-no-bun-test-import.mjs`); решта концернів — порожній план
+    /// («нічого не чинити», сумісна заглушка — доккомент `wit/world.wit`
+    /// біля `export fix`).
+    fn fix(request: FixRequest) -> FixPlan {
+        match request.concern_id.as_str() {
+            CONCERN_NO_BUN_TEST_IMPORT => fix_no_bun_test_import(&request),
+            _ => FixPlan { edits: vec![] },
+        }
     }
 
     fn ecosystem_outdated(_request: EcosystemRequest) -> Result<Vec<OutdatedDep>, DomainError> {
@@ -5772,6 +5886,129 @@ mod tests {
     #[test]
     fn find_bun_test_imports_finds_none_in_plain_vitest_source() {
         assert!(find_bun_test_imports("import { test } from 'vitest'\n").is_empty());
+    }
+
+    // --- test/no-bun-test-import: guest-фікс (пілот fix-контуру contract v3,
+    // порт кейсів видаленого JS-тесту `no-bun-test-import.test.mjs` секції
+    // «T0-fix») ---
+
+    /// Діагностика в формі, яку реально віддає [`detect_no_bun_test_import`]
+    /// — тести фіксу нижче ганяють detect → fix парою, як конвеєр.
+    fn fix_request_for(files: Vec<SourceFile>) -> FixRequest {
+        let diagnostics = detect_no_bun_test_import(&files);
+        FixRequest {
+            concern_id: CONCERN_NO_BUN_TEST_IMPORT.to_string(),
+            files,
+            diagnostics,
+        }
+    }
+
+    fn single_write_content(plan: &FixPlan) -> &str {
+        assert_eq!(plan.edits.len(), 1);
+        match &plan.edits[0] {
+            FileEdit::Write(write) => &write.content,
+            FileEdit::Delete(_) => panic!("очікували write-edit"),
+        }
+    }
+
+    /// Дзеркало JS-кейсу «fixable import переписується на vitest, тест-код
+    /// не чіпається».
+    #[test]
+    fn fix_no_bun_test_import_rewrites_fixable_import_preserving_body() {
+        let bun_test = ["bun", "test"].join(":");
+        let files = vec![source(
+            "tests/foo.test.mjs",
+            &format!(
+                "import {{ describe, test, expect, beforeEach }} from '{bun_test}'\n\n\
+                 describe('x', () => {{\n  beforeEach(() => {{}})\n  test('ok', () => expect(1).toBe(1))\n}})\n"
+            ),
+        )];
+        let plan = fix_no_bun_test_import(&fix_request_for(files));
+        let content = single_write_content(&plan);
+        assert!(content.contains("from 'vitest'"));
+        assert!(!content.contains(&bun_test));
+        assert!(content.contains("import { describe, test, expect, beforeEach } from"));
+        assert!(content.contains("test('ok', () => expect(1).toBe(1))"));
+    }
+
+    /// Дзеркало JS-кейсу «не-fixable import (mock) лишається недоторканим».
+    #[test]
+    fn fix_no_bun_test_import_leaves_unfixable_import_untouched() {
+        let bun_test = ["bun", "test"].join(":");
+        let files = vec![source(
+            "tests/foo.test.mjs",
+            &format!("import {{ test, mock }} from '{bun_test}'\ntest('x', () => mock(() => 1))\n"),
+        )];
+        let plan = fix_no_bun_test_import(&fix_request_for(files));
+        assert!(plan.edits.is_empty());
+    }
+
+    /// Дзеркало JS-кейсу «подвійні лапки зберігаються після заміни».
+    #[test]
+    fn fix_no_bun_test_import_preserves_double_quotes() {
+        let bun_test = ["bun", "test"].join(":");
+        let files = vec![source(
+            "tests/foo.test.mjs",
+            &format!("import {{ test }} from \"{bun_test}\"\ntest('x', () => {{}})\n"),
+        )];
+        let plan = fix_no_bun_test_import(&fix_request_for(files));
+        assert!(single_write_content(&plan).contains("from \"vitest\""));
+    }
+
+    /// Дзеркало JS-кейсу «кілька файлів у одному прогоні — фіксується лише
+    /// fixable».
+    #[test]
+    fn fix_no_bun_test_import_fixes_only_fixable_files_in_batch() {
+        let bun_test = ["bun", "test"].join(":");
+        let files = vec![
+            source(
+                "tests/a.test.mjs",
+                &format!("import {{ test }} from '{bun_test}'\ntest('a', () => {{}})\n"),
+            ),
+            source(
+                "tests/b.test.mjs",
+                &format!("import {{ test, spyOn }} from '{bun_test}'\ntest('b', () => {{}})\n"),
+            ),
+        ];
+        let plan = fix_no_bun_test_import(&fix_request_for(files));
+        assert_eq!(plan.edits.len(), 1);
+        match &plan.edits[0] {
+            FileEdit::Write(write) => {
+                assert_eq!(write.path, "tests/a.test.mjs");
+                assert!(write.content.contains("from 'vitest'"));
+            }
+            FileEdit::Delete(_) => panic!("очікували write-edit"),
+        }
+    }
+
+    /// Порожні діагностики (чи файл без діагностики) → порожній план — той
+    /// самий контракт «порожній план = нічого не чинити».
+    #[test]
+    fn fix_no_bun_test_import_returns_empty_plan_without_diagnostics() {
+        let files = vec![source(
+            "tests/foo.test.mjs",
+            "import { test } from 'vitest'\n",
+        )];
+        let plan = fix_no_bun_test_import(&fix_request_for(files));
+        assert!(plan.edits.is_empty());
+    }
+
+    /// Діагностика вказує на файл, якого немає в `request.files` —
+    /// пропускається без паніки (guest не має IO, перечитати нізвідки).
+    #[test]
+    fn fix_no_bun_test_import_skips_diagnostic_for_missing_file() {
+        let bun_test = ["bun", "test"].join(":");
+        let detected = vec![source(
+            "tests/foo.test.mjs",
+            &format!("import {{ test }} from '{bun_test}'\n"),
+        )];
+        let diagnostics = detect_no_bun_test_import(&detected);
+        let request = FixRequest {
+            concern_id: CONCERN_NO_BUN_TEST_IMPORT.to_string(),
+            files: vec![],
+            diagnostics,
+        };
+        assert!(fix_no_bun_test_import(&request).edits.is_empty());
     }
 
     // --- js-bun-redis/imports ---

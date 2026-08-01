@@ -195,35 +195,47 @@ wasmtime-`Store`. Це означає:
      AST-детекції зводиться до одного bare `reason` (корисно знати навіть
      для groundwork-функцій без контрибуції).
 
-### T0-фікс поверх wasm-концерну
+### T0-фікс поверх wasm-концерну (`export fix`)
 
 Якщо JS-оригінал має супутній T0-паттерн (`fix-<concern>.mjs`, `export const
 patterns: T0Pattern[]`) — типовий випадок для `test/no-*`-концернів з
-авто-фіксом (зразок — задача Q2 батч 2, `test/no-bun-test-import` +
-`fix-no-bun-test-import.mjs`) — **фіксер лишається JS** (не переноситься у
-wasm), але його `patterns[].test`/`apply` мають продовжувати працювати
-НАПРЯМУ з violations, що прийшли від wasm-детектора (через
-`runWasmConcern` → napi-міст → та сама JS-diagnostics-форма, що дає
-`run_native_concern`). Це працює «само собою», лише якщо wasm-`Diagnostic`
-несе ТОЧНО ті самі поля, на які матчить `test()`/`apply()` фіксера
-(типово — `reason` і конкретні ключі `data`, зразок:
-`v.reason === 'bun-test-import' && v.data?.fixable`). Перевір це **живим
-смок-тестом**, не лише читанням коду:
+авто-фіксом — **фіксер портується в guest через `export fix`** (fix-контур
+contract v3; зразок-пілот — `test/no-bun-test-import`,
+`fix_no_bun_test_import` у `crates/plugin-lang-js/src/lib.rs`), а JS-файл
+видаляється. Конвеєр: детект дає violations → `run-fix.mjs` через
+`resolveWasmConcernMap` синтезує T0Pattern `wasm-fix:<ruleId>/<concernId>`
+→ napi `runWasmConcernFix` будує `FixRequest` (files — з `file`-полів
+violations, вміст хост читає сам) → guest `fix()` повертає `FixPlan`
+(`write` з ПОВНИМ новим вмістом файлу / `delete`) → хост валідує план
+(safe repo-relative шляхи, ліміти розміру —
+`rules-contract::validators::fix`) → JS-обгортка застосовує edits із
+`recordWrite` ПЕРЕД кожною мутацією (rollback-контракт).
 
-1. Tempdir із фікстурою-порушенням.
-2. `detect` через wasm (`runWasmConcern`, той самий виклик, що
-   production-диспетчеризація після `node npm/scripts/build-wasm-plugins.mjs`).
-3. Прогони `patterns[].test(violations)`/`patterns[].apply(violations, ctx)`
-   фіксера напряму на цих wasm-violations (не на JS-violations).
-4. Повторний `detect` через wasm на тому самому tempdir — очікуй 0.
+Правила порту фіксера:
 
-Якщо крок 3 чи 4 провалюється — це означає, що wasm-`Diagnostic` НЕ несе
-поле (чи форму поля), на яке покладається фіксер: виправляй **wasm-вихід**
-(структуру `reason`/`data`), НЕ фіксер — фіксер лишається канонічним і
-незмінним, порт зобов'язаний відтворити ту саму форму, на яку він уже
-розрахований. Зразок живого смоку — `describe('wasm-plugin parity —
-test/no-bun-test-import …')`, тест «T0-смок»,
-`npm/scripts/lib/lint-surface/tests/wasm-plugin-parity.test.mjs`.
+1. Guest НЕ читає диск: працюй лише з `request.files` (вміст хост передав
+   inline) і `request.diagnostics` (`data` на WIT-межі — JSON-рядок,
+   парси `serde_json`-ом).
+2. Порожній план = «фіксити нічого» — це і є `test() === false` синтетичного
+   патерна; окремого test-хука в guest немає.
+3. Концерни без фікса НЕ потребують нічого: заглушка `FixPlan { edits:
+   vec![] }` — сумісна поведінка v3.0 (доккомент `wit/world.wit` біля
+   `export fix`).
+4. Кейси видаленого JS-фіксера зберігай на трьох рівнях: unit-тести
+   guest-логіки (`#[cfg(test)]`), host-виклик через `LoadedPlugin::fix`
+   (`crates/rules-plugin-host/tests/plugin_lang_js.rs`) і dispatch-рівень
+   (`loadT0Patterns`/`runFixPipeline`,
+   `npm/scripts/lib/lint-surface/tests/wasm-fix-e2e.test.mjs`).
+
+Перевір **живим смок-тестом**, не лише читанням коду: tempdir із
+фікстурою-порушенням → `runWasmConcern` (detect) → `runWasmConcernFix`
+(план) → застосування → повторний wasm-detect дає 0. Зразок —
+тест «fix-смок» у
+`npm/scripts/lib/lint-surface/tests/wasm-plugin-parity.test.mjs` і живий
+pipeline-смок у `wasm-fix-e2e.test.mjs`. Якщо план виходить порожнім на
+валідній фікстурі — wasm-`Diagnostic` не несе поле (чи форму поля), на яке
+матчить guest-фікс (типово `reason` і ключі `data`): виправляй wasm-вихід
+детектора, форма violations лишається канонічною.
 
 ### Кілька концернів в одному крейті
 
