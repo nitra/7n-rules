@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.25.4] - 2026-08-01
+
+### Changed
+
+- T0-фікс `test/no-bun-test-import` портовано у wasm-компонент plugin-lang-js через `export fix` (пілот fix-контуру contract v3) — `fix-no-bun-test-import.mjs` видалено, кейси збережено на dispatch/host/unit-рівнях
+
 ## [0.25.3] - 2026-07-30
 
 ### Changed

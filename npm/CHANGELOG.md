@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.75.0] - 2026-08-01
+
+### Added
+
+- Fix-контур wasm-плагінів contract v3: host-виклик `export fix` з валідацією планів (safe-path, ліміти розміру), napi `runWasmConcernFix`, синтетичний `wasm-fix:*` T0Pattern у fix-конвеєрі, злиття дзеркала `FixPlan`/`FileEdit` (rules-core → rules-contract) і пілот `test/no-bun-test-import` — фікс портовано в guest, JS `fix-no-bun-test-import.mjs` видалено
+- Батч 5 §3.5.5: storybook-сімейство (`test/storybook-{scope,hygiene,page-coverage,scaffold,ci}`) портовано у wasm-компонент lang-js — спільна scope-детекція `collectInScopeVuePackages` відтворена в batch-просторі full-scope мосту, hygiene-імпорти через oxc, byte-exact parity з JS-каноном (19 контрибуцій; size-budget 2.5 MB дотримано — 2.21 MB); tool-wrapper-и `js/eslint`/`js/knip` свідомо лишаються на JS (програмні API ESLint/knip і node_modules-резолюція поза run-tool контрактом)
+
 ## [1.74.1] - 2026-08-01
 
 ### Fixed
