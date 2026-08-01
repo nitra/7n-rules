@@ -6,6 +6,7 @@ import { env, execPath } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 import { collectChangedFiles, collectChangedFilesSince, resolveChangedBase } from '../changed-files.mjs'
+import { extractFilePaths } from '../../hook.mjs'
 import { runSkillsCli } from '../../skills-cli.mjs'
 import { withTmpDir } from '../../utils/test-helpers.mjs'
 
@@ -22,6 +23,14 @@ import { withTmpDir } from '../../utils/test-helpers.mjs'
  * єдина МУТУЮЧА native-команда, тож там звіряється не лише stdout/stderr/
  * exit-код, а й СТАН ФАЙЛОВОЇ СИСТЕМИ після прогону (обидва боки ганяються
  * на двох ідентичних копіях дерева).
+ *
+ * Зріз 4: `hook` — команда з частковим native-шляхом, тож гейтяться ТРИ речі,
+ * а не одна: (1) byte-exact вихід там, де native відповідає сам; (2) САМЕ
+ * РІШЕННЯ «нативно чи делегувати» — воно звіряється з оракулом
+ * `extractFilePaths` через недосяжний `N_RULES_JS_RUNTIME`, який робить факт
+ * делегації видимим; (3) те, що делегація доносить до JS незмінений argv і
+ * повний stdin, не вичерпаний native-шаром (фейковий entrypoint фіксує
+ * обидва на диску).
  */
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -409,6 +418,156 @@ describe('rules-cli parity: rename-yaml-extensions', () => {
       )
       expect(snapshotTree(join(dir, 'native'))).toEqual(first.nativeTree)
       expect(snapshotTree(join(dir, 'js'))).toEqual(first.jsTree)
+    })
+  })
+})
+
+/** Runtime, недосяжний у PATH — доводить САМ факт делегації (див. `runHookNative`). */
+const UNREACHABLE_RUNTIME = 'definitely-not-a-runtime'
+
+/**
+ * Запускає native `hook` із заданим stdin.
+ * @param {string[]} args аргументи після `hook`
+ * @param {string} input вміст stdin
+ * @param {string} cwd робочий каталог
+ * @param {Record<string, string>} [extraEnv] додаткові змінні середовища
+ * @returns {{ stdout: string, stderr: string, status: number|null }} результат
+ */
+function runHookNative(args, input, cwd, extraEnv = {}) {
+  return spawnSync(resolveRulesCliBin(), ['hook', ...args], {
+    cwd,
+    input,
+    encoding: 'utf8',
+    env: { ...env, N_RULES_JS_ENTRY: JS_ENTRY, ...extraEnv }
+  })
+}
+
+/**
+ * Той самий виклик JS-CLI — еталон паритету.
+ * @param {string[]} args аргументи після `hook`
+ * @param {string} input вміст stdin
+ * @param {string} cwd робочий каталог
+ * @returns {{ stdout: string, stderr: string, status: number|null }} результат
+ */
+function runHookJs(args, input, cwd) {
+  return spawnSync(execPath, [JS_ENTRY, 'hook', ...args], { cwd, input, encoding: 'utf8', env: { ...env } })
+}
+
+/** Payload-и PostToolUse: `[назва, stdin]`. Оракул «чи є шляхи» — сам `extractFilePaths`. */
+const HOOK_PAYLOADS = [
+  ['порожній stdin', ''],
+  ['невалідний JSON', 'не json'],
+  ['null', 'null'],
+  ['масив замість обʼєкта', '[]'],
+  ['обʼєкт без tool_input', '{"tool_name":"Edit"}'],
+  ['Bash-tool без file_path', '{"tool_name":"Bash","tool_input":{"command":"ls"}}'],
+  ['порожній file_path', '{"tool_input":{"file_path":""}}'],
+  ['file_path не рядок', '{"tool_input":{"file_path":42}}'],
+  [
+    'apply_patch лише з Delete File',
+    String.raw`{"tool_name":"apply_patch","tool_input":{"command":"*** Begin Patch\n*** Delete File: g.rs\n*** End Patch\n"}}`
+  ],
+  ['apply_patch із командою-не-рядком', '{"tool_name":"apply_patch","tool_input":{"command":123}}'],
+  ['Claude Code file_path', '{"tool_name":"Edit","tool_input":{"file_path":"a.js"}}'],
+  [
+    'apply_patch Add File',
+    String.raw`{"tool_name":"apply_patch","tool_input":{"command":"*** Begin Patch\n*** Add File: a.rs\n*** End Patch\n"}}`
+  ],
+  [
+    'apply_patch Update + Move to',
+    String.raw`{"tool_name":"apply_patch","tool_input":{"command":"*** Update File: o.rs\n*** Move to: n.rs\n"}}`
+  ]
+]
+
+describe('rules-cli parity: hook', () => {
+  test('режим не вказано — byte-exact stderr і код 1', async () => {
+    await withTmpDir(dir => {
+      const native = runHookNative([], '', dir)
+      const js = runHookJs([], '', dir)
+      expect(native.stderr).toBe(js.stderr)
+      expect(native.stdout).toBe(js.stdout)
+      expect(native.status).toBe(js.status)
+      expect(native.status).toBe(1)
+      expect(native.stderr).toBe('hook: потрібен --post-tool-use або --stop\n')
+    })
+  })
+
+  test.each(HOOK_PAYLOADS)('рішення «чи є що лінтити» (%s) збігається з extractFilePaths', async (_name, payload) => {
+    await withTmpDir(dir => {
+      // Недосяжний runtime робить делегацію ВИДИМОЮ: якщо native вирішив,
+      // що шляхи є, він піде в JS і впаде саме на запуску рантайму; якщо
+      // вирішив, що шляхів немає — тихий 0 без жодного спавну.
+      const native = runHookNative(['--post-tool-use'], payload, dir, {
+        N_RULES_JS_RUNTIME: UNREACHABLE_RUNTIME
+      })
+      const jsHasPaths = extractFilePaths(payload).length > 0
+      const nativeDelegated = native.stderr.includes(`не вдалося запустити ${UNREACHABLE_RUNTIME}`)
+      expect(nativeDelegated).toBe(jsHasPaths)
+      if (jsHasPaths) return
+      expect(native.status).toBe(0)
+      expect(native.stdout).toBe('')
+      expect(native.stderr).toBe('')
+    })
+  })
+
+  test.each(HOOK_PAYLOADS.filter(([, payload]) => extractFilePaths(payload).length === 0))(
+    'нічого лінтити (%s) — native і JS дають однаковий тихий 0',
+    async (_name, payload) => {
+      await withTmpDir(dir => {
+        const native = runHookNative(['--post-tool-use'], payload, dir)
+        const js = runHookJs(['--post-tool-use'], payload, dir)
+        expect(native.stdout).toBe(js.stdout)
+        expect(native.stderr).toBe(js.stderr)
+        expect(native.status).toBe(js.status)
+        expect(native.status).toBe(0)
+      })
+    }
+  )
+
+  test('--stop делегується завжди (payload тут ні до чого)', async () => {
+    await withTmpDir(dir => {
+      const native = runHookNative(['--stop'], '', dir, { N_RULES_JS_RUNTIME: UNREACHABLE_RUNTIME })
+      expect(native.status).toBe(1)
+      expect(native.stderr).toContain(`не вдалося запустити ${UNREACHABLE_RUNTIME}`)
+    })
+  })
+
+  test('делегація віддає argv без змін і ПЕРЕГРАЄ stdin байт-у-байт', async () => {
+    await withTmpDir(dir => {
+      // Фейковий entrypoint: фіксує на диску те, що реально доїхало до JS.
+      const entry = join(dir, 'echo-entry.mjs')
+      const captured = join(dir, 'captured.json')
+      writeFileSync(
+        entry,
+        "import { readFileSync, writeFileSync } from 'node:fs'\n" +
+          `writeFileSync(${JSON.stringify(captured)}, JSON.stringify({ argv: process.argv.slice(2), stdin: readFileSync(0, 'utf8') }))\n`,
+        'utf8'
+      )
+      // Кирилиця + емодзі в шляху: доводить, що переграються БАЙТИ, а не
+      // «щось, що вижило після перекодування».
+      const payload = JSON.stringify({ tool_name: 'Edit', tool_input: { file_path: 'src/файл — 🚀.js' } })
+      const native = runHookNative(['--post-tool-use', '--чужий-прапорець'], payload, dir, {
+        N_RULES_JS_ENTRY: entry,
+        N_RULES_JS_RUNTIME: execPath
+      })
+      expect(native.status).toBe(0)
+      const seen = JSON.parse(readFileSync(captured, 'utf8'))
+      expect(seen.argv).toEqual(['hook', '--post-tool-use', '--чужий-прапорець'])
+      expect(seen.stdin).toBe(payload)
+    })
+  })
+
+  test('делегована гілка byte-exact із прямим JS-викликом', async () => {
+    await withTmpDir(dir => {
+      // Файл поза будь-яким репо-скоупом: обидва боки мусять однаково
+      // доїхати до detectAll і однаково з нього вийти.
+      writeFixtureFile(dir, 'a.js', 'export const a = 1\n')
+      const payload = JSON.stringify({ tool_name: 'Edit', tool_input: { file_path: 'a.js' } })
+      const native = runHookNative(['--post-tool-use'], payload, dir, { N_RULES_JS_RUNTIME: execPath })
+      const js = runHookJs(['--post-tool-use'], payload, dir)
+      expect(native.stdout).toBe(js.stdout)
+      expect(native.stderr).toBe(js.stderr)
+      expect(native.status).toBe(js.status)
     })
   })
 })

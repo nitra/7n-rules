@@ -1,6 +1,6 @@
-//! Інтеграційні тести бінаря `rules-cli` (зрізи 1–2 фази 8): native-команди
-//! (`lint --help`, `changed-files`, `skill list`, `rename-yaml-extensions`) і
-//! транзитна делегація в JS-entrypoint.
+//! Інтеграційні тести бінаря `rules-cli` (зрізи 1–4 фази 8): native-команди
+//! (`lint --help`, `changed-files`, `skill list`, `rename-yaml-extensions`,
+//! native-гілки `hook`) і транзитна делегація в JS-entrypoint.
 //! Byte-exact parity з JS-боком гейтиться окремо vitest-тестом
 //! `npm/scripts/lib/tests/rules-cli-parity.test.mjs` — тут перевіряється
 //! поведінка самого бінаря без node/bun (делегація — через runtime-стаб).
@@ -341,6 +341,126 @@ fn unknown_command_delegates_argv_and_exit_code_to_js_entrypoint() {
         .unwrap();
     assert_eq!(out.status.code(), Some(42));
     assert_eq!(stdout(&out), "/fake/n-rules.js lint --full --no-fix\n");
+}
+
+/// Виконуваний shell-стаб замість bun/node: друкує argv, віддає stdin у
+/// stdout і завершується заданим кодом. Дозволяє перевіряти делегацію
+/// (включно з переграним stdin) без залежності від рантайму.
+#[cfg(unix)]
+fn runtime_stub(dir: &Path, exit_code: u8) -> std::path::PathBuf {
+    use std::os::unix::fs::PermissionsExt;
+
+    let stub = dir.join("runtime.sh");
+    std::fs::write(
+        &stub,
+        format!("#!/bin/sh\necho \"$@\"\ncat\nexit {exit_code}\n"),
+    )
+    .unwrap();
+    std::fs::set_permissions(&stub, std::fs::Permissions::from_mode(0o755)).unwrap();
+    stub
+}
+
+/// Запускає бінар із заданим stdin (`Command::output` дає stdin=null, чого
+/// для hook-гілок замало).
+fn run_with_stdin(mut command: Command, input: &[u8]) -> Output {
+    use std::io::Write as _;
+
+    let mut child = command
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    child.stdin.take().unwrap().write_all(input).unwrap();
+    child.wait_with_output().unwrap()
+}
+
+#[test]
+fn hook_without_mode_flag_is_native_and_exits_one() {
+    let tmp = TempDir::new().unwrap();
+    let mut command = bin();
+    command
+        .current_dir(tmp.path())
+        // Недосяжні і entrypoint, і runtime: якби гілка делегувалась, тут був
+        // би зовсім інший stderr.
+        .env("N_RULES_JS_ENTRY", "/fake/n-rules.js")
+        .env("N_RULES_JS_RUNTIME", "definitely-not-a-runtime")
+        .args(["hook"]);
+    let out = run_with_stdin(command, b"");
+    assert_eq!(out.status.code(), Some(1));
+    assert_eq!(stdout(&out), "");
+    assert_eq!(stderr(&out), "hook: потрібен --post-tool-use або --stop\n");
+}
+
+#[test]
+fn hook_post_tool_use_without_paths_exits_zero_without_delegating() {
+    let tmp = TempDir::new().unwrap();
+    for payload in [
+        &b""[..],
+        "не json".as_bytes(),
+        br#"{"tool_name":"Bash","tool_input":{"command":"ls"}}"#,
+        br#"{"tool_name":"apply_patch","tool_input":{"command":"*** Delete File: g.rs\n"}}"#,
+    ] {
+        let mut command = bin();
+        command
+            .current_dir(tmp.path())
+            .env("N_RULES_JS_ENTRY", "/fake/n-rules.js")
+            .env("N_RULES_JS_RUNTIME", "definitely-not-a-runtime")
+            .args(["hook", "--post-tool-use"]);
+        let out = run_with_stdin(command, payload);
+        let shown = String::from_utf8_lossy(payload);
+        assert_eq!(out.status.code(), Some(0), "payload: {shown}");
+        assert_eq!(stdout(&out), "", "payload: {shown}");
+        assert_eq!(stderr(&out), "", "payload: {shown}");
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn hook_post_tool_use_with_paths_delegates_argv_and_stdin() {
+    let tmp = TempDir::new().unwrap();
+    let stub = runtime_stub(tmp.path(), 2);
+    let payload = br#"{"tool_name":"Edit","tool_input":{"file_path":"a.js"}}"#;
+
+    let mut command = bin();
+    command
+        .current_dir(tmp.path())
+        .env("N_RULES_JS_ENTRY", "/fake/n-rules.js")
+        .env("N_RULES_JS_RUNTIME", &stub)
+        .args(["hook", "--post-tool-use"]);
+    let out = run_with_stdin(command, payload);
+
+    assert_eq!(out.status.code(), Some(2));
+    assert_eq!(
+        stdout(&out),
+        format!(
+            "/fake/n-rules.js hook --post-tool-use\n{}",
+            String::from_utf8_lossy(payload)
+        )
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn hook_stop_delegates_regardless_of_stdin() {
+    let tmp = TempDir::new().unwrap();
+    let stub = runtime_stub(tmp.path(), 0);
+
+    let mut command = bin();
+    command
+        .current_dir(tmp.path())
+        .env("N_RULES_JS_ENTRY", "/fake/n-rules.js")
+        .env("N_RULES_JS_RUNTIME", &stub)
+        .args(["hook", "--stop"]);
+    // Payload без жодного шляху: для `--stop` він нічого не вирішує.
+    let out = run_with_stdin(command, br#"{"tool_name":"Bash"}"#);
+
+    assert_eq!(out.status.code(), Some(0));
+    assert!(
+        stdout(&out).starts_with("/fake/n-rules.js hook --stop\n"),
+        "stdout: {}",
+        stdout(&out)
+    );
 }
 
 #[cfg(unix)]
