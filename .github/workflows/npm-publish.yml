@@ -351,12 +351,16 @@ jobs:
         continue-on-error: true
         run: |
           # bun.lock мусить оновитися разом із пінами, інакше наступний
-          # frozen-lockfile install у CI впаде на розбіжності. Точковий
-          # `bun update <pkg>` (exact-піни щойно синхронізовано) замість повного
-          # install: перегенеровує лише ці записи lock. Ретраї — на лаг
-          # реплікації registry одразу після publish.
+          # frozen-lockfile install у CI впаде на розбіжності. `bun update`
+          # запускається З ТЕКИ ВОРКСПЕЙСА, що декларує ці залежності, а НЕ з
+          # кореня: у корені `bun update <pkg>` для пакета, якого нема в
+          # кореневому package.json, ДОДАЄ його в кореневі `dependencies` — ця
+          # правка кореневого маніфеста не потрапляє в `git add` нижче, а
+          # отруєний lock потрапляє. Наслідок — вічний дрейф lock⇄manifest і
+          # `lockfile had changes, but lockfile is frozen` у КОЖНОМУ наступному
+          # CI-прогоні. Ретраї — на лаг реплікації registry одразу після publish.
           n=0
-          until bun update @7n/llm-lib-darwin-arm64 @7n/llm-lib-linux-x64; do
+          until (cd llm-lib && bun update @7n/llm-lib-darwin-arm64 @7n/llm-lib-linux-x64); do
             n=$((n + 1))
             [ "$n" -ge 5 ] && { echo "::warning::registry не віддає нові платформні версії — піни лишаються незакоміченими"; exit 1; }
             sleep 15
@@ -447,11 +451,17 @@ jobs:
       # піни `npm/package.json` ⇄ `npm/packages/rules-*` відстають від registry
       # в git після release-коміту (ризик 7 спеки rules-v2-rust-core-migration).
       # Гейт — лише darwin/linux: win32-x64 до bootstrap-публікації (див.
-      # BOOTSTRAP-НОТАТКУ вище) падає на КОЖНОМУ релізі, і вимога його успіху
+      # BOOTSTRAP-НОТАТКУ вище) падав на КОЖНОМУ релізі, і вимога його успіху
       # блокувала синк назавжди — git-піни застрягли на 1.66.0 при registry
-      # 1.73.0. win32 у `bun update` — умовно, за фактичним успіхом publish;
-      # його пін у npm/package.json все одно синхронізується кроком «Sync
-      # platform versions» (optional-залежність, 404 при install толерується).
+      # 1.73.0 (bootstrap виконано 2026-08-01, далі win32 іде через OIDC).
+      #
+      # `bun update` — з теки `npm/` і з УСІМА трьома іменами (та сама причина,
+      # що й у llm-lib-кроці вище: у корені bun дописав би їх у кореневі
+      # `dependencies`, які не комітяться, і lock би вічно дрейфував). Усі три
+      # піни маніфестів уже підняті кроком «Sync platform versions», тож lock
+      # мусить відобразити всі три; якщо якоїсь версії ще нема в registry —
+      # update падає, ретраїться, і НІЧОГО не комітиться: git лишається
+      # консистентним на попередніх пінах (fail-safe замість часткового синку).
       - name: Commit синк платформних пінів (rules)
         if: >-
           needs.changes.outputs.native == 'true' &&
@@ -459,16 +469,9 @@ jobs:
           steps.publish-rules-darwin-arm64.outcome == 'success' &&
           steps.publish-rules-linux-x64.outcome == 'success'
         continue-on-error: true
-        env:
-          WIN32_PUBLISHED: ${{ steps.publish-rules-win32-x64.outcome }}
         run: |
-          if [ "$WIN32_PUBLISHED" = "success" ]; then
-            update_pins() { bun update @7n/rules-darwin-arm64 @7n/rules-linux-x64 @7n/rules-win32-x64; }
-          else
-            update_pins() { bun update @7n/rules-darwin-arm64 @7n/rules-linux-x64; }
-          fi
           n=0
-          until update_pins; do
+          until (cd npm && bun update @7n/rules-darwin-arm64 @7n/rules-linux-x64 @7n/rules-win32-x64); do
             n=$((n + 1))
             [ "$n" -ge 5 ] && { echo "::warning::registry не віддає нові платформні версії — піни лишаються незакоміченими"; exit 1; }
             sleep 15
