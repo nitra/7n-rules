@@ -208,6 +208,10 @@ const VITEST_API_CONVENTIONS_MAIN_MJS_PATH = join(
   'vitest-api-conventions',
   'main.mjs'
 )
+// Батч 9: `vue/packages` — останній придатний до порту концерн lang-js
+// (доккомент секції «Батч 9» у `crates/plugin-lang-js/src/lib.rs`).
+const VUE_PACKAGES_MAIN_MJS_PATH = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'vue', 'packages', 'main.mjs')
+const VUE_PACKAGES_CONCERN_KEY = 'vue/packages'
 const BUN_LAYOUT_CONCERN_KEY = 'bun/layout'
 const STYLE_TOOLING_CONCERN_KEY = 'style/tooling'
 const SANDBOX_AWARE_TEST_CONCERN_KEY = 'test/sandbox-aware-test'
@@ -3004,6 +3008,262 @@ describe('wasm-plugin parity — test/vitest-api-conventions (JS канон vs w
       const { js, wasm } = await runVitestApiBoth(dir)
       expect(wasm).toEqual(js)
       expect(js).toEqual([])
+    })
+  })
+})
+
+describe('wasm-plugin parity — vue/packages (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
+  const runVuePackagesBoth = dir =>
+    runFullScopeBoth(VUE_PACKAGES_MAIN_MJS_PATH, VUE_PACKAGES_CONCERN_KEY, 'vue', 'packages', dir)
+
+  /** Кореневий `package.json` Vue-додатка з повним набором vitest-devDeps. */
+  const APP_PKG_JSON = JSON.stringify({
+    name: 'app',
+    dependencies: { vue: '^3.6.0' },
+    devDependencies: { vitest: '1', '@vitest/coverage-v8': '1', '@stryker-mutator/vitest-runner': '1' }
+  })
+
+  /** Vite-конфіг без жодного порушення (AutoImport покриває `'vue'`). */
+  const CLEAN_VITE_CONFIG =
+    "export default { css: { transformer: 'lightningcss' }, plugins: [VueMacros({}), AutoImport({ imports: ['vue'] })] }\n"
+
+  /**
+   * Розкладає чистий Vue-пакет у корені tmp-дерева.
+   * @param {string} dir корінь tmp-дерева
+   * @returns {Promise<void>}
+   */
+  async function writeCleanVueApp(dir) {
+    await writeFileDeep(dir, 'package.json', APP_PKG_JSON)
+    await writeFileDeep(dir, '.vscode/extensions.json', JSON.stringify({ recommendations: ['Vue.volar'] }))
+    await writeFileDeep(dir, 'jsconfig.json', '{}')
+    await writeFileDeep(dir, 'src/vite-env.d.ts', '/// <reference types="vite/client" />\n')
+    await writeFileDeep(dir, 'vite.config.js', CLEAN_VITE_CONFIG)
+  }
+
+  test('успіх: чистий Vue-пакет — жодного violation з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeCleanVueApp(dir)
+      const { js, wasm } = await runVuePackagesBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('успіх: репо без vue у dependencies — концерн мовчить у обох', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'package.json', JSON.stringify({ name: 'plain' }))
+      const { js, wasm } = await runVuePackagesBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('порушення: немає Vue.volar і двох кореневих vitest-devDeps', async () => {
+    await withTmpDir(async dir => {
+      await writeCleanVueApp(dir)
+      await writeFileDeep(
+        dir,
+        'package.json',
+        JSON.stringify({ name: 'app', dependencies: { vue: '^3.6.0' }, devDependencies: { vitest: '1' } })
+      )
+      await writeFileDeep(
+        dir,
+        '.vscode/extensions.json',
+        JSON.stringify({ recommendations: ['dbaeumer.vscode-eslint'] })
+      )
+      const { js, wasm } = await runVuePackagesBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(3)
+      expect(js[0].reason).toBe('packages')
+      expect(js[0].message).toBe('extensions.json не містить Vue.volar — додай до recommendations')
+      expect(js[1].message).toContain("'@vitest/coverage-v8'")
+      expect(js[2].message).toContain("'@stryker-mutator/vitest-runner'")
+    })
+  })
+
+  test('порушення: немає src/vite-env.d.ts — перевірка обривається на першому fail', async () => {
+    await withTmpDir(async dir => {
+      await writeCleanVueApp(dir)
+      const { rm } = await import('node:fs/promises')
+      await rm(join(dir, 'src/vite-env.d.ts'))
+      const { js, wasm } = await runVuePackagesBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].message).toContain('[корінь] немає src/vite-env.d.ts')
+    })
+  })
+
+  test('порушення: vite.config без lightningcss/VueMacros/AutoImport — три однакові violations', async () => {
+    await withTmpDir(async dir => {
+      await writeCleanVueApp(dir)
+      await writeFileDeep(dir, 'vite.config.js', 'export default {}\n')
+      const { js, wasm } = await runVuePackagesBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(3)
+      expect(js[0].message).toContain('lightningcss')
+      expect(js[1].message).toBe('[корінь] vite.config.js не містить VueMacros')
+      expect(js[2].message).toBe('[корінь] vite.config.js не містить AutoImport')
+    })
+  })
+
+  test('порушення: AutoImport без `vue` у imports — value-імпорти НЕ перевіряються, лише сам конфіг', async () => {
+    await withTmpDir(async dir => {
+      await writeCleanVueApp(dir)
+      await writeFileDeep(
+        dir,
+        'vite.config.js',
+        "export default { css: { transformer: 'lightningcss' }, plugins: [VueMacros({}), AutoImport({ imports: ['quasar'] })] }\n"
+      )
+      await writeFileDeep(dir, 'src/Page.vue', "<script setup>\nimport { ref } from 'vue'\n</script>\n")
+      const { js, wasm } = await runVuePackagesBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].message).toContain("AutoImport не містить 'vue' у imports")
+    })
+  })
+
+  // Номер рядка — по ВИТЯГНУТИХ `<script>`-блоках SFC, не по сирому файлу
+  // (доккомент секції «Батч 9» у `crates/plugin-lang-js/src/lib.rs`).
+  test('порушення: явний value-імпорт з `vue` у .vue — рядок рахується по script-блоку', async () => {
+    await withTmpDir(async dir => {
+      await writeCleanVueApp(dir)
+      await writeFileDeep(
+        dir,
+        'src/Page.vue',
+        "<template><div /></template>\n<script setup>\nimport { ref } from 'vue'\n</script>\n"
+      )
+      const { js, wasm } = await runVuePackagesBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].message).toBe(
+        "[корінь] src/Page.vue:2 — прибери явний value-імпорт з 'vue' (unplugin-auto-import): import { ref } from 'vue'"
+      )
+    })
+  })
+
+  test('успіх: type-only й side-effect імпорти з `vue` дозволені обома', async () => {
+    await withTmpDir(async dir => {
+      await writeCleanVueApp(dir)
+      await writeFileDeep(
+        dir,
+        'src/types.ts',
+        "import type { Ref } from 'vue'\nimport { type ComputedRef } from 'vue'\nimport 'vue'\n"
+      )
+      const { js, wasm } = await runVuePackagesBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('успіх: тести, `__tests__` і `.d.ts` поза перевіркою auto-import у обох', async () => {
+    await withTmpDir(async dir => {
+      await writeCleanVueApp(dir)
+      await writeFileDeep(dir, 'src/a.test.ts', "import { ref } from 'vue'\n")
+      await writeFileDeep(dir, 'src/__tests__/b.ts', "import { ref } from 'vue'\n")
+      await writeFileDeep(dir, 'src/auto-imports.d.ts', "import { ref } from 'vue'\n")
+      const { js, wasm } = await runVuePackagesBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('порушення: імпорт Node-нативного модуля у .vue SFC', async () => {
+    await withTmpDir(async dir => {
+      await writeCleanVueApp(dir)
+      await writeFileDeep(dir, 'src/Fs.vue', "<script setup>\nimport { readFile } from 'node:fs/promises'\n</script>\n")
+      const { js, wasm } = await runVuePackagesBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].message).toContain("імпорт Node-нативного модуля 'node:fs/promises' у .vue заборонено")
+    })
+  })
+
+  test('успіх: той самий Node-імпорт у .ts (не SFC) — обидві реалізації мовчать', async () => {
+    await withTmpDir(async dir => {
+      await writeCleanVueApp(dir)
+      await writeFileDeep(dir, 'src/server.ts', "import { join } from 'node:path'\n")
+      const { js, wasm } = await runVuePackagesBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('порушення: згадка `esbuild` у .md — той самий rel:line і фрагмент', async () => {
+    await withTmpDir(async dir => {
+      await writeCleanVueApp(dir)
+      await writeFileDeep(dir, 'docs/build.md', '# Збірка\n\nМи використовуємо esbuild.\n')
+      const { js, wasm } = await runVuePackagesBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].message).toBe(
+        "[корінь] docs/build.md:3 — знайдено 'esbuild'. Замінити на 'rolldown'. Фрагмент: Ми використовуємо esbuild."
+      )
+    })
+  })
+
+  test('край: `esbuild` у lock-файлі ігнорується обома', async () => {
+    await withTmpDir(async dir => {
+      await writeCleanVueApp(dir)
+      await writeFileDeep(dir, 'bun.lock', 'esbuild\n')
+      const { js, wasm } = await runVuePackagesBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('край: понад 30 згадок `esbuild` — обидві дають 30 + підсумкову', async () => {
+    await withTmpDir(async dir => {
+      await writeCleanVueApp(dir)
+      await writeFileDeep(dir, 'notes.md', 'esbuild\n'.repeat(40))
+      const { js, wasm } = await runVuePackagesBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(31)
+      expect(js[30].message).toBe("[корінь] показано перші 30 збігів 'esbuild' (замінити на 'rolldown')")
+    })
+  })
+
+  test('успіх: бібліотека компонентів (vue у peerDependencies) — auto-import не вимагається', async () => {
+    await withTmpDir(async dir => {
+      await writeCleanVueApp(dir)
+      await writeFileDeep(
+        dir,
+        'package.json',
+        JSON.stringify({
+          name: 'ui',
+          dependencies: { vue: '^3.6.0' },
+          peerDependencies: { vue: '^3.6.0' },
+          devDependencies: { vitest: '1', '@vitest/coverage-v8': '1', '@stryker-mutator/vitest-runner': '1' }
+        })
+      )
+      await writeFileDeep(dir, 'vite.config.js', 'export default {}\n')
+      await writeFileDeep(dir, 'src/Widget.vue', "<script setup>\nimport { ref } from 'vue'\n</script>\n")
+      const { js, wasm } = await runVuePackagesBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('workspace-пакет: префікс повідомлень — шлях пакета, не «корінь»', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(
+        dir,
+        'package.json',
+        JSON.stringify({
+          name: 'root',
+          workspaces: ['packages/*'],
+          devDependencies: { vitest: '1', '@vitest/coverage-v8': '1', '@stryker-mutator/vitest-runner': '1' }
+        })
+      )
+      await writeFileDeep(dir, '.vscode/extensions.json', JSON.stringify({ recommendations: ['Vue.volar'] }))
+      await writeFileDeep(
+        dir,
+        'packages/site/package.json',
+        JSON.stringify({ name: 'site', dependencies: { vue: '^3.6.0' } })
+      )
+      const { js, wasm } = await runVuePackagesBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js.length).toBeGreaterThan(0)
+      expect(js.every(v => v.message.startsWith('[packages/site] '))).toBe(true)
     })
   })
 })

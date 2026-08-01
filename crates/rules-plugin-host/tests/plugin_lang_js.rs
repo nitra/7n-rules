@@ -79,6 +79,7 @@ const CONCERN_BUN_LAYOUT: &str = "bun/layout";
 const CONCERN_STYLE_TOOLING: &str = "style/tooling";
 const CONCERN_SANDBOX_AWARE_TEST: &str = "test/sandbox-aware-test";
 const CONCERN_VITEST_API_CONVENTIONS: &str = "test/vitest-api-conventions";
+const CONCERN_VUE_PACKAGES: &str = "vue/packages";
 
 /// Абсолютний шлях до зібраного `.wasm`-компонента (`crates/plugin-lang-js/build.sh`)
 /// — `wasm32-wasip2`/`release`.
@@ -106,7 +107,7 @@ fn host() -> PluginHost {
 }
 
 #[test]
-fn describe_declares_all_thirty_two_concerns_with_expected_scopes() {
+fn describe_declares_all_thirty_three_concerns_with_expected_scopes() {
     let path = require_fixture();
     let plugin = host()
         .load(&path, PLUGIN_WORLD_VERSION)
@@ -127,8 +128,9 @@ fn describe_declares_all_thirty_two_concerns_with_expected_scopes() {
     // header_doc_pointer, package_structure) і `js/dep-policy` — секція
     // «Батч 7» там само. Батч 8 додає `bun/layout`, `style/tooling`,
     // `test/sandbox-aware-test` і `test/vitest-api-conventions` — секція
-    // «Батч 8» там само.
-    assert_eq!(manifest.concerns.len(), 32);
+    // «Батч 8» там само. Батч 9 додає `vue/packages` — останній придатний
+    // до порту концерн lang-js (секція «Батч 9» там само).
+    assert_eq!(manifest.concerns.len(), 33);
 
     let tfm = manifest
         .concerns
@@ -1955,5 +1957,82 @@ fn detect_vitest_api_conventions_flags_to_be_with_literal_argument() {
             .starts_with("tests/api.test.mjs:1: expect(...).toBe(...)"),
         "фактично: {}",
         diagnostics[0].message
+    );
+}
+
+/// Батч 9: `vue/packages` — сукупний прогін по чистому Vue-пакету (жодної
+/// діагностики) і по пакету з трьома різними класами порушень.
+#[test]
+fn detect_vue_packages_flags_vue_import_node_import_and_esbuild() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let clean_files = vec![
+        batch_file(
+            "package.json",
+            "{\"name\":\"app\",\"dependencies\":{\"vue\":\"^3.6.0\"},\
+             \"devDependencies\":{\"vitest\":\"1\",\"@vitest/coverage-v8\":\"1\",\
+             \"@stryker-mutator/vitest-runner\":\"1\"}}",
+        ),
+        batch_file(
+            ".vscode/extensions.json",
+            "{\"recommendations\":[\"Vue.volar\"]}",
+        ),
+        batch_file("jsconfig.json", "{}"),
+        batch_file(
+            "src/vite-env.d.ts",
+            "/// <reference types=\"vite/client\" />\n",
+        ),
+        batch_file(
+            "vite.config.js",
+            "export default { css: { transformer: 'lightningcss' }, \
+             plugins: [VueMacros({}), AutoImport({ imports: ['vue'] })] }\n",
+        ),
+    ];
+
+    assert!(plugin
+        .detect(&DetectBatch {
+            concern_id: CONCERN_VUE_PACKAGES.to_string(),
+            files: clean_files.clone(),
+        })
+        .expect("detect не мав провалитись")
+        .is_empty());
+
+    let mut dirty = clean_files;
+    dirty.push(batch_file(
+        "src/Page.vue",
+        "<template><div /></template>\n<script setup>\nimport { ref } from 'vue'\n</script>\n",
+    ));
+    dirty.push(batch_file(
+        "src/Fs.vue",
+        "<script setup>\nimport { readFile } from 'node:fs/promises'\n</script>\n",
+    ));
+    dirty.push(batch_file("docs/build.md", "esbuild ще тут\n"));
+
+    let diagnostics = plugin
+        .detect(&DetectBatch {
+            concern_id: CONCERN_VUE_PACKAGES.to_string(),
+            files: dirty,
+        })
+        .expect("detect не мав провалитись");
+    assert_eq!(diagnostics.len(), 3);
+    assert!(diagnostics.iter().all(|d| d.reason == "packages"));
+    assert!(diagnostics.iter().all(|d| d.file.is_none()));
+    assert_eq!(
+        diagnostics[0].message,
+        "[корінь] src/Page.vue:2 — прибери явний value-імпорт з 'vue' \
+         (unplugin-auto-import): import { ref } from 'vue'"
+    );
+    assert!(
+        diagnostics[1]
+            .message
+            .starts_with("[корінь] src/Fs.vue:2 — імпорт Node-нативного модуля 'node:fs/promises'"),
+        "фактично: {}",
+        diagnostics[1].message
+    );
+    assert_eq!(
+        diagnostics[2].message,
+        "[корінь] docs/build.md:1 — знайдено 'esbuild'. Замінити на 'rolldown'. \
+         Фрагмент: esbuild ще тут"
     );
 }
