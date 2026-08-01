@@ -75,6 +75,10 @@ const CONCERN_SKILL_META: &str = "npm-module/skill_meta";
 const CONCERN_HEADER_DOC_POINTER: &str = "npm-module/header_doc_pointer";
 const CONCERN_PACKAGE_STRUCTURE: &str = "npm-module/package_structure";
 const CONCERN_DEP_POLICY: &str = "js/dep-policy";
+const CONCERN_BUN_LAYOUT: &str = "bun/layout";
+const CONCERN_STYLE_TOOLING: &str = "style/tooling";
+const CONCERN_SANDBOX_AWARE_TEST: &str = "test/sandbox-aware-test";
+const CONCERN_VITEST_API_CONVENTIONS: &str = "test/vitest-api-conventions";
 
 /// Абсолютний шлях до зібраного `.wasm`-компонента (`crates/plugin-lang-js/build.sh`)
 /// — `wasm32-wasip2`/`release`.
@@ -102,7 +106,7 @@ fn host() -> PluginHost {
 }
 
 #[test]
-fn describe_declares_all_twenty_eight_concerns_with_expected_scopes() {
+fn describe_declares_all_thirty_two_concerns_with_expected_scopes() {
     let path = require_fixture();
     let plugin = host()
         .load(&path, PLUGIN_WORLD_VERSION)
@@ -121,8 +125,10 @@ fn describe_declares_all_twenty_eight_concerns_with_expected_scopes() {
     // (`js-bun-db`, `js-bun-redis`, `js-mssql`) — секція «Батч 6» там само.
     // Батч 7 додає кластер `npm-module/*` (rule_meta, skill_meta,
     // header_doc_pointer, package_structure) і `js/dep-policy` — секція
-    // «Батч 7» там само.
-    assert_eq!(manifest.concerns.len(), 28);
+    // «Батч 7» там само. Батч 8 додає `bun/layout`, `style/tooling`,
+    // `test/sandbox-aware-test` і `test/vitest-api-conventions` — секція
+    // «Батч 8» там само.
+    assert_eq!(manifest.concerns.len(), 32);
 
     let tfm = manifest
         .concerns
@@ -1790,4 +1796,164 @@ fn detect_dep_policy_flags_banned_specifiers_only_in_real_import_positions() {
         .message
         .starts_with("src/hit.mjs: заборонений"));
     assert!(diagnostics[1].message.contains("@as-integrations/fastify"));
+}
+
+// --- батч 8: bun/layout, style/tooling, test/sandbox-aware-test,
+//     test/vitest-api-conventions ---
+
+#[test]
+fn detect_bun_layout_passes_on_canonical_bun_root() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let batch = DetectBatch {
+        concern_id: CONCERN_BUN_LAYOUT.to_string(),
+        files: vec![
+            batch_file("bun.lock", ""),
+            batch_file("bunfig.toml", "[install]\nlinker = \"hoisted\"\n"),
+            batch_file("package.json", "{ \"name\": \"app\" }\n"),
+        ],
+    };
+
+    assert!(plugin
+        .detect(&batch)
+        .expect("detect не мав провалитись")
+        .is_empty());
+}
+
+#[test]
+fn detect_bun_layout_flags_foreign_lockfiles_and_missing_bun_artifacts() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let batch = DetectBatch {
+        concern_id: CONCERN_BUN_LAYOUT.to_string(),
+        files: vec![
+            batch_file("package-lock.json", "{}\n"),
+            // Каталог `.yarn/` реконструюється з батча — файл під ним.
+            batch_file(".yarn/install-state.gz", ""),
+            batch_file("package.json", "{}\n"),
+        ],
+    };
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    let messages: Vec<&str> = diagnostics.iter().map(|d| d.message.as_str()).collect();
+    assert_eq!(
+        messages,
+        vec![
+            "Знайдено заборонений файл: package-lock.json — видали його",
+            "Знайдено директорію .yarn — видали її",
+            "Відсутній bun.lock — запусти bun i",
+            "Відсутній bunfig.toml — створи з [install] linker = \"hoisted\" (bun.mdc)",
+        ]
+    );
+    assert!(diagnostics.iter().all(|d| d.reason == "layout"));
+}
+
+#[test]
+fn detect_style_tooling_passes_with_config_and_dist_ignore() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let batch = DetectBatch {
+        concern_id: CONCERN_STYLE_TOOLING.to_string(),
+        files: vec![
+            batch_file(
+                "package.json",
+                "{ \"stylelint\": { \"extends\": \"@nitra/stylelint-config\" } }\n",
+            ),
+            batch_file(".stylelintignore", "dist/\n"),
+        ],
+    };
+
+    assert!(plugin
+        .detect(&batch)
+        .expect("detect не мав провалитись")
+        .is_empty());
+}
+
+#[test]
+fn detect_style_tooling_flags_missing_config_and_ignore() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let batch = DetectBatch {
+        concern_id: CONCERN_STYLE_TOOLING.to_string(),
+        files: vec![batch_file("package.json", "{ \"name\": \"app\" }\n")],
+    };
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    assert_eq!(diagnostics.len(), 2);
+    assert!(diagnostics.iter().all(|d| d.reason == "tooling"));
+    assert!(diagnostics[0]
+        .message
+        .starts_with("Немає конфігу stylelint"));
+    assert_eq!(
+        diagnostics[1].message,
+        ".stylelintignore не існує — створи з вмістом: dist/"
+    );
+}
+
+#[test]
+fn detect_sandbox_aware_test_flags_unguarded_deep_navigation() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let batch = DetectBatch {
+        concern_id: CONCERN_SANDBOX_AWARE_TEST.to_string(),
+        files: vec![
+            batch_file(
+                "tests/deep.test.mjs",
+                "import { join } from 'node:path'\n\
+                 const root = join(import.meta.dirname, '..', '..', '..', '..')\n",
+            ),
+            batch_file(
+                "tests/guarded.test.mjs",
+                "import { join } from 'node:path'\n\
+                 const root = join(import.meta.dirname, '..', '..', '..', '..')\n\
+                 await withTmpDir(async dir => {})\n",
+            ),
+        ],
+    };
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].reason, "sandbox-aware-test");
+    assert!(diagnostics[0].file.is_none());
+    assert!(
+        diagnostics[0]
+            .message
+            .starts_with("tests/deep.test.mjs: import.meta deep navigation"),
+        "фактично: {}",
+        diagnostics[0].message
+    );
+}
+
+#[test]
+fn detect_vitest_api_conventions_flags_to_be_with_literal_argument() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let batch = DetectBatch {
+        concern_id: CONCERN_VITEST_API_CONVENTIONS.to_string(),
+        files: vec![
+            batch_file(
+                "tests/api.test.mjs",
+                "expect(a).toBe({ x: 1 })\nexpect(b).toBe(['x'].join('\\n'))\n",
+            ),
+            batch_file("src/api.mjs", "expect(c).toBe([1])\n"),
+        ],
+    };
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].reason, "vitest-api-conventions");
+    assert_eq!(diagnostics[0].file.as_deref(), Some("tests/api.test.mjs"));
+    assert!(
+        diagnostics[0]
+            .message
+            .starts_with("tests/api.test.mjs:1: expect(...).toBe(...)"),
+        "фактично: {}",
+        diagnostics[0].message
+    );
 }
