@@ -691,6 +691,99 @@ fn detect_no_bun_test_import_flags_fixable_import() {
     assert_eq!(specifiers, vec!["test".to_string(), "expect".to_string()]);
 }
 
+/// Живий смок пілота fix-контуру contract v3 (порт видаленого
+/// `fix-no-bun-test-import.mjs`): detect → fix через РЕАЛЬНИЙ host-виклик
+/// (`LoadedPlugin::fix`, включно з host-валідацією плану) — той самий
+/// сценарій, що й видалений JS-кейс «T0-fix: fixable import переписується
+/// на vitest, тест-код не чіпається».
+#[test]
+fn fix_no_bun_test_import_builds_rewrite_plan_via_host_call() {
+    use rules_contract::fix::{FileEdit, FixRequest};
+
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let bun_test = ["bun", "test"].join(":");
+    let files = vec![SourceFile {
+        path: "tests/foo.test.mjs".to_string(),
+        content: format!(
+            "import {{ describe, test, expect, beforeEach }} from '{bun_test}'\n\n\
+             describe('x', () => {{\n  beforeEach(() => {{}})\n  test('ok', () => expect(1).toBe(1))\n}})\n"
+        ),
+    }];
+    let batch = DetectBatch {
+        concern_id: CONCERN_NO_BUN_TEST_IMPORT.to_string(),
+        files: files.clone(),
+    };
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    assert_eq!(diagnostics.len(), 1);
+
+    let request = FixRequest {
+        concern_id: CONCERN_NO_BUN_TEST_IMPORT.to_string(),
+        files: files.clone(),
+        diagnostics,
+    };
+    let plan = plugin.fix(&request).expect("fix не мав провалитись");
+    assert_eq!(plan.edits.len(), 1);
+    let content = match &plan.edits[0] {
+        FileEdit::Write(write) => {
+            assert_eq!(write.path, "tests/foo.test.mjs");
+            write.content.clone()
+        }
+        other => panic!("очікували write-edit, отримали {other:?}"),
+    };
+    assert!(content.contains("from 'vitest'"));
+    assert!(!content.contains(&bun_test));
+    assert!(content.contains("test('ok', () => expect(1).toBe(1))"));
+
+    // Re-detect по вмісту з плану — канонічний вердикт: порушення закрито.
+    let after = plugin
+        .detect(&DetectBatch {
+            concern_id: CONCERN_NO_BUN_TEST_IMPORT.to_string(),
+            files: vec![SourceFile {
+                path: "tests/foo.test.mjs".to_string(),
+                content,
+            }],
+        })
+        .expect("re-detect не мав провалитись");
+    assert!(after.is_empty());
+}
+
+/// Не-fixable import (mock) — fix повертає порожній план, violation
+/// лишається (дзеркало видаленого JS-кейсу «не-fixable import лишається
+/// недоторканим»).
+#[test]
+fn fix_no_bun_test_import_returns_empty_plan_for_unfixable_import() {
+    use rules_contract::fix::FixRequest;
+
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let bun_test = ["bun", "test"].join(":");
+    let files = vec![SourceFile {
+        path: "tests/foo.test.mjs".to_string(),
+        content: format!(
+            "import {{ test, mock }} from '{bun_test}'\ntest('x', () => mock(() => 1))\n"
+        ),
+    }];
+    let diagnostics = plugin
+        .detect(&DetectBatch {
+            concern_id: CONCERN_NO_BUN_TEST_IMPORT.to_string(),
+            files: files.clone(),
+        })
+        .expect("detect не мав провалитись");
+    assert_eq!(diagnostics.len(), 1);
+
+    let plan = plugin
+        .fix(&FixRequest {
+            concern_id: CONCERN_NO_BUN_TEST_IMPORT.to_string(),
+            files,
+            diagnostics,
+        })
+        .expect("fix не мав провалитись");
+    assert!(plan.edits.is_empty());
+}
+
 /// Той самий сценарій, що й JS-тест «успіх: import з vitest → без violations».
 #[test]
 fn detect_no_bun_test_import_passes_for_vitest_import() {

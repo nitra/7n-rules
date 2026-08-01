@@ -38,9 +38,24 @@ const FS_PROBE_CONCERN_ID: &str = "test/guest-echo-fs-probe";
 /// тестує ОБИДВІ гілки, підмінюючи `ToolResolver` між прогонами.
 const TOOL_ECHO_CONCERN_ID: &str = "test/guest-tool-echo";
 
+/// `concern-id` fix-контуру (активація host-виклику `export fix`, доккомент
+/// `wit/world.wit` біля `export fix`): `fix()` повертає детермінований
+/// НЕПОРОЖНІЙ план — по одному `write`-edit-у на кожен файл запиту, чий
+/// вміст містить `BROKEN` (замінюється на `FIXED`), плюс `delete`-edit для
+/// кожної діагностики з `reason == "guest-delete"` і заповненим `file` —
+/// contract-test-kit звіряє обидві гілки `file-edit` на одному виклику.
+const FIX_REWRITE_CONCERN_ID: &str = "test/guest-fix-rewrite";
+
+/// `concern-id`, чий `fix()` навмисно повертає план із `..`-шляхом
+/// (`../escape.txt`) — contract-test-kit звіряє, що host-валідатор
+/// (`rules-contract::validators::fix`) відхиляє такий план типізовано
+/// (`PluginHostError::InvalidContractData`), не застосовуючи його.
+const FIX_ESCAPE_CONCERN_ID: &str = "test/guest-fix-escape";
+
 /// Guest-реалізація world `plugin` — концерн-заглушка `test/guest-echo`,
-/// fs-preopen тест-хук `test/guest-echo-fs-probe` і run-tool тест-хук
-/// `test/guest-tool-echo`.
+/// fs-preopen тест-хук `test/guest-echo-fs-probe`, run-tool тест-хук
+/// `test/guest-tool-echo` і fix-хуки `test/guest-fix-rewrite`/
+/// `test/guest-fix-escape`.
 struct GuestEcho;
 
 impl Guest for GuestEcho {
@@ -64,6 +79,16 @@ impl Guest for GuestEcho {
                 },
                 ConcernContribution {
                     key: TOOL_ECHO_CONCERN_ID.to_string(),
+                    scope: ConcernScope::PerFile,
+                    glob: vec![],
+                },
+                ConcernContribution {
+                    key: FIX_REWRITE_CONCERN_ID.to_string(),
+                    scope: ConcernScope::PerFile,
+                    glob: vec![],
+                },
+                ConcernContribution {
+                    key: FIX_ESCAPE_CONCERN_ID.to_string(),
                     scope: ConcernScope::PerFile,
                     glob: vec![],
                 },
@@ -107,7 +132,24 @@ impl Guest for GuestEcho {
         diagnostics
     }
 
-    fn fix(_request: FixRequest) -> FixPlan {
+    fn fix(request: FixRequest) -> FixPlan {
+        if request.concern_id == FIX_REWRITE_CONCERN_ID {
+            return fix_rewrite_plan(&request);
+        }
+        if request.concern_id == FIX_ESCAPE_CONCERN_ID {
+            // Навмисно невалідний план (доккомент [`FIX_ESCAPE_CONCERN_ID`])
+            // — host МАЄ відхилити його ДО передачі оркестрації.
+            return FixPlan {
+                edits: vec![FileEdit::Write(WriteFile {
+                    path: "../escape.txt".to_string(),
+                    content: "escape".to_string(),
+                })],
+            };
+        }
+        // Дефолт для решти концернів — порожній план («нічого не чинити»):
+        // саме ця заглушка гарантує сумісність активації host-виклику fix
+        // для плагінів без власної fix-логіки (доккомент `wit/world.wit`
+        // біля `export fix`; contract-test-kit: `fix_returns_empty_plan`).
         FixPlan { edits: vec![] }
     }
 
@@ -118,6 +160,31 @@ impl Guest for GuestEcho {
     fn docgen_render(_request: DocgenRequest) -> Result<DocOutput, DomainError> {
         Err(DomainError::NotSupported)
     }
+}
+
+/// Детермінований непорожній план для [`FIX_REWRITE_CONCERN_ID`] (доккомент
+/// константи): `write` на кожен файл із `BROKEN` у вмісті (заміна на
+/// `FIXED`), `delete` на кожну діагностику з `reason == "guest-delete"` і
+/// заповненим `file`. Файли без `BROKEN` пропускаються — план лишається
+/// мінімальним (той самий контракт «порожній план = нічого не чинити»).
+fn fix_rewrite_plan(request: &FixRequest) -> FixPlan {
+    let mut edits = Vec::new();
+    for file in &request.files {
+        if file.content.contains("BROKEN") {
+            edits.push(FileEdit::Write(WriteFile {
+                path: file.path.clone(),
+                content: file.content.replace("BROKEN", "FIXED"),
+            }));
+        }
+    }
+    for diagnostic in &request.diagnostics {
+        if diagnostic.reason == "guest-delete" {
+            if let Some(path) = &diagnostic.file {
+                edits.push(FileEdit::Delete(path.clone()));
+            }
+        }
+    }
+    FixPlan { edits }
 }
 
 /// Один спробний `std::fs::read_to_string` за довільним відносним шляхом —

@@ -14,6 +14,21 @@
 //! `n-rules:plugin@3.x`, якщо розмір payload-у стане проблемою для великих
 //! файлів із малими правками).
 //!
+//! # Ці типи — спільні для wasm- І builtin-шляху (злиття дзеркала)
+//!
+//! Від fix-контуру contract v3 (host-виклик `export fix`) [`FixPlan`]/
+//! [`FileEdit`]/[`WriteFile`] — єдине означення для обох шляхів:
+//! `rules-core` (builtin T0-фікси, `crates/rules-core/src/concerns/fix.rs`)
+//! реекспортує їх звідси замість колишнього структурного дзеркала — напрямок
+//! залежності `rules-core` → `rules-contract` — саме той, що документує
+//! `crate`-doc-коментар `lib.rs` («Залежність — лише в один бік»). Похідні
+//! `PartialEq`/`Eq` додані задля цього злиття (порівняння планів у тестах
+//! builtin-фіксів).
+//!
+//! План від wasm-плагіна — недовірений вхід: перед передачею оркестрації
+//! хост валідує його ([`crate::validators::fix::validate_fix_plan`] —
+//! safe-path + ліміти розміру).
+//!
 //! [`Diagnostic`]: crate::diagnostic::Diagnostic
 
 use serde::{Deserialize, Serialize};
@@ -23,7 +38,7 @@ use crate::diagnostic::Diagnostic;
 
 /// Записати файл — повний новий вміст (точний відповідник WIT
 /// `record write-file`).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WriteFile {
     pub path: String,
     pub content: String,
@@ -33,7 +48,7 @@ pub struct WriteFile {
 /// `variant file-edit`. serde-тег `type` (`"write"`/`"delete"`) — явний
 /// discriminant, бо WIT variant-и не серіалізуються в JSON автоматично
 /// (це вибір Rust-боку DTO, не частина WIT ABI).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum FileEdit {
     /// Записати файл (створити чи перезаписати) — повний новий вміст.
@@ -53,7 +68,7 @@ pub struct FixRequest {
 
 /// Результат `fix` — впорядкований список файлових операцій; порожній
 /// список = «fix для цього запиту нічого не змінює».
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct FixPlan {
     pub edits: Vec<FileEdit>,
 }

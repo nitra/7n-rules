@@ -71,6 +71,14 @@ impl LoadedPlugin {
     }
 
     /// lint-домен: побудова fix-plan-у для підмножини діагностик `detect`.
+    ///
+    /// План — недовірений вхід від guest-коду: перед поверненням він
+    /// валідується host-валідатором
+    /// [`rules_contract::validators::fix::validate_fix_plan`] (safe
+    /// repo-relative шляхи, ліміти розміру — доккомент модуля валідатора);
+    /// будь-яке порушення відхиляє план ЦІЛКОМ типізованою помилкою
+    /// [`PluginHostError::InvalidContractData`] (не часткове застосування) —
+    /// той самий контракт, що конверсія `diagnostic.data` у `detect`.
     pub fn fix(&mut self, request: &FixRequest) -> Result<FixPlan, PluginHostError> {
         let wit_request = convert::fix_request_to_wit(request);
         let plan = self
@@ -80,7 +88,14 @@ impl LoadedPlugin {
                 function: "fix",
                 source: err.into(),
             })?;
-        Ok(convert::fix_plan_from_wit(plan))
+        let plan = convert::fix_plan_from_wit(plan);
+        rules_contract::validators::fix::validate_fix_plan(&plan).map_err(|errors| {
+            PluginHostError::InvalidContractData(format!(
+                "fix-plan відхилено: {}",
+                errors.join("; ")
+            ))
+        })?;
+        Ok(plan)
     }
 
     /// Дренує буфер логів, захоплених host-функцією `log` (plugin → host)

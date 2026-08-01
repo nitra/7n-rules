@@ -7,3 +7,8 @@
 /// `npm/scripts/lib/slot-contracts-ci.mjs`
 /// (`validateCiArtifactPayload`/`isSafeRepoRelativePath`/`isSafeTemplateRelPath`/`CI_ARTIFACT_ID_RE`).
 pub mod ci_artifact;
+/// Валідатор [`crate::fix::FixPlan`]-ів wasm-плагінів — safe-path (переюз
+/// `ci_artifact::is_safe_repo_relative_path`) і ліміти розміру; викликається
+/// хостом (`rules-plugin-host::LoadedPlugin::fix`) до передачі плану
+/// оркестрації.
+pub mod fix;

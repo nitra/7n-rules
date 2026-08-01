@@ -117,22 +117,6 @@ const NO_BUN_TEST_IMPORT_MAIN_MJS_PATH = join(
   'no-bun-test-import',
   'main.mjs'
 )
-/**
- * T0-фікс `no-bun-test-import` — лишається JS (доккомент модуля,
- * `crates/plugin-lang-js/src/lib.rs`): `fix-no-bun-test-import.mjs`'s
- * `patterns[0].test`/`apply` мають працювати НАПРЯМУ з wasm-violations
- * (T0-критичний ризик задачі Q2 батч 2, перевірений тестом «T0-смок» у
- * `describe('wasm-plugin parity — test/no-bun-test-import …')` нижче).
- */
-const NO_BUN_TEST_IMPORT_FIX_MJS_PATH = join(
-  REPO_ROOT,
-  'plugins',
-  'lang-js',
-  'rules',
-  'test',
-  'no-bun-test-import',
-  'fix-no-bun-test-import.mjs'
-)
 const UTILS_IMPORTS_MAIN_MJS_PATH = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'js', 'utils_imports', 'main.mjs')
 const NO_RELATIVE_FS_PATH_MAIN_MJS_PATH = join(
   REPO_ROOT,
@@ -646,16 +630,18 @@ describe('wasm-plugin parity — test/no-bun-test-import (JS канон vs wasm 
   })
 
   /**
-   * T0-СМОК (задача Q2 батч 2, головний ризик): `fix-no-bun-test-import.mjs`
-   * лишається JS-модулем, детектор — тепер wasm. Живий прогін: tempdir із
-   * порушенням → `detect` через wasm (`runWasmConcern`, ідентичний виклик, що
-   * продакшн-диспетчеризація після `node npm/scripts/build-wasm-plugins.mjs`) →
-   * `patterns[0].test`/`apply` фіксера напряму на wasm-violations (не на
-   * JS-violations) → повторний wasm-detect має дати 0. Якби форма
-   * wasm-violation (reason/data.fixable/file) розходилась із тим, що чекає
-   * `test`/`apply` фіксера, `test()` не спрацював би або `apply()` впав.
+   * FIX-СМОК (пілот fix-контуру contract v3 — заміна колишнього «T0-смоку»
+   * задачі Q2 батч 2, коли фікс ще лишався JS-модулем): детектор І фіксер
+   * тепер wasm. Живий прогін: tempdir із порушенням → `detect` через wasm
+   * (`runWasmConcern`) → план `export fix` через napi (`runWasmConcernFix`,
+   * той самий виклик, що синтетичний `wasm-fix:*` T0Pattern у `run-fix.mjs`)
+   * напряму на wasm-violations → застосування write-edit-ів → повторний
+   * wasm-detect має дати 0. Якби форма wasm-violation
+   * (reason/data.fixable/file) розходилась із тим, що чекає guest-фікс
+   * (`fix_no_bun_test_import`, `crates/plugin-lang-js`), план вийшов би
+   * порожнім і re-detect лишився б червоним.
    */
-  test('T0-смок: fix-no-bun-test-import.mjs патчить файл напряму з wasm-violations, повторний wasm-detect → 0', async () => {
+  test('fix-смок: план export fix (runWasmConcernFix) чинить файл напряму з wasm-violations, повторний wasm-detect → 0', async () => {
     await withTmpDir(async dir => {
       const { mkdir, readFile } = await import('node:fs/promises')
       await mkdir(join(dir, 'tests'), { recursive: true })
@@ -670,18 +656,14 @@ describe('wasm-plugin parity — test/no-bun-test-import (JS канон vs wasm 
       expect(wasmBefore[0].reason).toBe('bun-test-import')
       expect(wasmBefore[0].data.fixable).toBe(true)
 
-      // eslint-disable-next-line no-unsanitized/method
-      const { patterns } = await import(pathToFileURL(NO_BUN_TEST_IMPORT_FIX_MJS_PATH).href)
-      const fixCtx = {
-        cwd: dir,
-        ruleId: 'test',
-        concernId: 'no-bun-test-import',
-        recordWrite() {
-          /* no-op у тестовому контексті */
-        }
-      }
-      for (const pattern of patterns) {
-        if (pattern.test(wasmBefore)) await pattern.apply(wasmBefore, fixCtx)
+      const plan = loadNative().runWasmConcernFix(WASM_PATH, NO_BUN_TEST_IMPORT_CONCERN_KEY, dir, wasmBefore)
+      expect(plan.edits).toHaveLength(1)
+      expect(plan.edits[0]).toMatchObject({ type: 'write', path: 'tests/foo.test.mjs' })
+      // Застосування — дзеркало `wasmFixPattern.apply` (`run-fix.mjs`);
+      // повний dispatch-шлях (loadT0Patterns → runFixPipeline) звіряє
+      // `wasm-fix-e2e.test.mjs`.
+      for (const edit of plan.edits) {
+        if (edit.type === 'write') await writeFile(join(dir, edit.path), edit.content)
       }
 
       const wasmAfter = loadNative().runWasmConcern(WASM_PATH, NO_BUN_TEST_IMPORT_CONCERN_KEY, dir, null).violations
