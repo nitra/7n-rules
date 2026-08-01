@@ -1,5 +1,32 @@
 # Changelog
 
+## [1.72.0] - 2026-08-01
+
+### Added
+
+- Фаза 7 v2 (T1, четвертий зріз): native fix-домен для builtin-концернів —
+пілот на двох T0-фіксах. `run_concern_fix` у `crates/rules-core/src/concerns/fix.rs`
+будує декларативний `FixPlan`/`FileEdit`/`WriteFile` (форма дзеркалить
+`rules-contract::fix` БЕЗ залежності на цей крейт — план злиття задокументовано
+в doc-коменті модуля, за зразком diagnostics DTO фази 5) для `doc-files/marksman_config`
+(копіювання canonical baseline — тепер вбудований у бінарник через `include_str!`)
+і `hasura/migrations` (видалення заборонених `down.sql`); реєстр `NATIVE_FIXES`.
+napi-біндінг `runNativeConcernFix` (`crates/rules-napi/src/lib.rs`) повертає план
+або `null` для ключів поза реєстром. `run-fix.mjs`: `loadT0Patterns` синтезує
+T0Pattern-обгортку над native-планом (`test()` = «план непорожній», `apply()`
+застосовує `write`/`delete`-операції з `ctx.recordWrite` ПЕРЕД кожною мутацією —
+rollback-контракт) замість dynamic import() JS fix-файлу; два JS T0-фікси
+(`fix-marksman_config.mjs`, `fix-migrations.mjs`) видалені, їхні тести
+переведені на native dispatch.
+
+**Зміна семантики**: install-sanity-guard старої JS-версії marksman
+(«canonical baseline відсутній на диску — перевстанови @7n/rules») недосяжний
+у native-фіксі — baseline вшитий у бінарник на етапі компіляції, тож клас
+помилки «baseline відсутній» структурно неможливий для native-шляху. Свідома
+зміна поведінки зламаної інсталяції, задокументована в `fix.rs` і в оновленому
+тесті `marksman_config.test.mjs`.
+- Перші AST-концерни у wasm (батч 3 §3.5.5 за AST-стратегією): `js/utils_imports` і `test/no-relative-fs-path` через oxc_parser у guest-компоненті (пін =0.137.0 синхронно з npm oxc-parser + mirror-версійний тест; size-budget 2.5 MB дотримано — 1.92 MB)
+
 ## [1.71.0] - 2026-07-31
 
 ### Added
