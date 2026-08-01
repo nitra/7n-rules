@@ -9,21 +9,20 @@
  * (`crates/rules-napi` → `crates/plugin-lang-js`), звіряючи, що `violations`
  * ідентичні (reason/message/file/severity біт-у-біт) — для перших семи
  * концернів (задачі N2 + Q1 батч 1), `test/no-console-store-restore`/
- * `test/no-bun-test-import` (задача Q2 батч 2, справжній 1:1-порт) і
- * `js/utils_imports`/`test/no-relative-fs-path` (задача Q3, справжні
- * AST-концерни через `oxc_parser` — byte-exact через ТОЙ САМИЙ движок, не
- * наближення). Це доводить конвеєр «wasm-компонент → napi-міст →
- * JS-diagnostics-форма», не замінює JS-канон.
+ * `test/no-bun-test-import` (задача Q2 батч 2, справжній 1:1-порт),
+ * `js/utils_imports`/`test/no-relative-fs-path` (задача Q3) і
+ * `js-bun-redis/imports`/`js-mssql/deps`/`js-bun-db/safety` (задача Q4
+ * батч 4 — де-скоуп батчу 2 знято: regex-groundwork замінено справжніми
+ * AST-портами, доккомент секції «Батч 4» у
+ * `crates/plugin-lang-js/src/lib.rs`) — усі п'ять AST-концернів byte-exact
+ * через ТОЙ САМИЙ движок `oxc_parser`, не наближення. Це доводить конвеєр
+ * «wasm-компонент → napi-міст → JS-diagnostics-форма», не замінює JS-канон.
  *
- * `js-bun-redis/imports`/`js-bun-db/safety`/`js-mssql/deps` (задача Q2
- * батч 2) — СВІДОМО БЕЗ parity-тестів тут (рішення оркестратора після звіту
- * батчу 2): JS-оригінали побудовані на справжньому oxc-parser AST, а
- * Rust-порт — лише regex-наближення (доккомент «Регекс-наближення»,
- * `crates/plugin-lang-js/src/lib.rs`), тож він НЕ в контрибуції `describe()`
- * (concern-и недосяжні через production-диспетчеризацію) — твердження
- * «wasm ⇄ JS парні» тут було б оманливим. Юніт-рівневі тести самих
- * detect-функцій лишаються в `crates/plugin-lang-js/src/lib.rs`
- * (`#[cfg(test)] mod tests`), не тут.
+ * Фікстури AST-концернів батчу 4 навмисно покривають місця, де regex брехав
+ * би, а AST — ні: імпорти в коментарях/рядкових літералах, дубль-діагностики
+ * tagged template (обидва боки віддають ДВІ ідентичні — задокументована
+ * особливість walk-обходу JS-оригіналу), guard лише в найближчому блоці,
+ * невалідний JSON у package.json.
  *
  * `vue/tfm-translations` фікстури дзеркалять
  * `plugins/lang-js/rules/vue/tfm-translations/tests/tfm-translations.test.mjs`
@@ -46,7 +45,12 @@
  * `test/no-console-store-restore` — `test/no-console-store-restore/tests/no-console-store-restore.test.mjs`;
  * `test/no-bun-test-import` — `test/no-bun-test-import/tests/no-bun-test-import.test.mjs`;
  * `js/utils_imports` — `js/utils_imports/tests/utils_imports.test.mjs`;
- * `test/no-relative-fs-path` — `test/no-relative-fs-path/tests/no-relative-fs-path.test.mjs`.
+ * `test/no-relative-fs-path` — `test/no-relative-fs-path/tests/no-relative-fs-path.test.mjs`;
+ * `js-bun-redis/imports`/`js-mssql/deps`/`js-bun-db/safety` (задача Q4
+ * батч 4) — фікстури дзеркалять unit-тести `#[cfg(test)]`
+ * `crates/plugin-lang-js/src/lib.rs` і golden-тести
+ * `crates/rules-plugin-host/tests/plugin_lang_js.rs` (у самих JS-концернів
+ * тек `tests/` немає — їхні сканери покриті тестами lib-модулів).
  *
  * Останній describe-блок (`size-budget`) — окремо від parity: заміряє
  * реальний `plugin_lang_js.wasm` проти бюджету 2,5 MB (задача Q3, спека
@@ -139,6 +143,17 @@ const NO_RELATIVE_FS_PATH_MAIN_MJS_PATH = join(
   'no-relative-fs-path',
   'main.mjs'
 )
+const REDIS_IMPORTS_MAIN_MJS_PATH = join(
+  REPO_ROOT,
+  'plugins',
+  'lang-js',
+  'rules',
+  'js-bun-redis',
+  'imports',
+  'main.mjs'
+)
+const MSSQL_DEPS_MAIN_MJS_PATH = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'js-mssql', 'deps', 'main.mjs')
+const BUN_DB_SAFETY_MAIN_MJS_PATH = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'js-bun-db', 'safety', 'main.mjs')
 const TFM_CONCERN_KEY = 'vue/tfm-translations'
 const GAP_CONCERN_KEY = 'style/gap'
 const POOL_FORKS_CONCERN_KEY = 'test/vitest-config-pool-forks'
@@ -150,6 +165,9 @@ const NO_CONSOLE_STORE_RESTORE_CONCERN_KEY = 'test/no-console-store-restore'
 const NO_BUN_TEST_IMPORT_CONCERN_KEY = 'test/no-bun-test-import'
 const UTILS_IMPORTS_CONCERN_KEY = 'js/utils_imports'
 const NO_RELATIVE_FS_PATH_CONCERN_KEY = 'test/no-relative-fs-path'
+const REDIS_IMPORTS_CONCERN_KEY = 'js-bun-redis/imports'
+const MSSQL_DEPS_CONCERN_KEY = 'js-mssql/deps'
+const BUN_DB_SAFETY_CONCERN_KEY = 'js-bun-db/safety'
 
 /** Size-budget компонента (задача Q3, спека `docs/specs/2026-08-01-wasm-ast-strategy.md`, розділ «Рішення» п.2). */
 const WASM_SIZE_BUDGET_BYTES = 2.5 * 1024 * 1024
@@ -840,6 +858,396 @@ describe('wasm-plugin parity — test/no-relative-fs-path (JS канон vs wasm
   })
 })
 
+describe('wasm-plugin parity — js-bun-redis/imports (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q4 AST-концерн)', () => {
+  const runRedisImportsBoth = dir =>
+    runFullScopeBoth(REDIS_IMPORTS_MAIN_MJS_PATH, REDIS_IMPORTS_CONCERN_KEY, 'js-bun-redis', 'imports', dir)
+
+  test('без package.json у корені → без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'src'), { recursive: true })
+      await writeFile(join(dir, 'src/cache.mjs'), "import Redis from 'ioredis'\n")
+      const { js, wasm } = await runRedisImportsBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('порушення: import з ioredis → однакове violation з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'src'), { recursive: true })
+      await writeFile(join(dir, 'package.json'), '{"name":"t"}\n')
+      await writeFile(join(dir, 'src/cache.mjs'), "import Redis from 'ioredis'\nexport const r = new Redis()\n")
+      const { js, wasm } = await runRedisImportsBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('imports')
+      expect(js[0].message).toContain("заміни 'ioredis'")
+    })
+  })
+
+  test('успіх: згадки в коментарях і рядкових літералах → без порушень (AST, не regex)', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'src'), { recursive: true })
+      await writeFile(join(dir, 'package.json'), '{"name":"t"}\n')
+      await writeFile(
+        join(dir, 'src/cache.mjs'),
+        "// import Redis from 'ioredis'\nconst s = \"require('redis')\"\nexport const y = s\n"
+      )
+      const { js, wasm } = await runRedisImportsBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('порушення: require і динамічний import → однакові 2 violations', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'src'), { recursive: true })
+      await writeFile(join(dir, 'package.json'), '{"name":"t"}\n')
+      await writeFile(join(dir, 'src/a.cjs'), "const Redis = require('ioredis')\n")
+      await writeFile(join(dir, 'src/b.mjs'), "export const load = () => import('redis')\n")
+      const { js, wasm } = await runRedisImportsBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(2)
+    })
+  })
+
+  test('порядок: require перед import у файлі → однаковий (двофазний) порядок violations', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'src'), { recursive: true })
+      await writeFile(join(dir, 'package.json'), '{"name":"t"}\n')
+      await writeFile(join(dir, 'src/mixed.cjs'), "const a = require('redis')\nimport Redis from 'ioredis'\n")
+      const { js, wasm } = await runRedisImportsBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(2)
+    })
+  })
+
+  test('успіх: redis-mock не зачіпається → без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'src'), { recursive: true })
+      await writeFile(join(dir, 'package.json'), '{"name":"t"}\n')
+      await writeFile(join(dir, 'src/mock.mjs'), "import RedisMock from 'redis-mock'\nexport const m = RedisMock\n")
+      const { js, wasm } = await runRedisImportsBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('успіх: .d.ts з імпортом ioredis ігнорується → без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'src'), { recursive: true })
+      await writeFile(join(dir, 'package.json'), '{"name":"t"}\n')
+      await writeFile(join(dir, 'src/types.d.ts'), "import Redis from 'ioredis'\nexport type R = Redis\n")
+      const { js, wasm } = await runRedisImportsBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+})
+
+describe('wasm-plugin parity — js-mssql/deps (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q4 AST-концерн)', () => {
+  const runMssqlDepsBoth = dir =>
+    runFullScopeBoth(MSSQL_DEPS_MAIN_MJS_PATH, MSSQL_DEPS_CONCERN_KEY, 'js-mssql', 'deps', dir)
+
+  test('успіх: без dependencies.mssql джерела не скануються → без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'src'), { recursive: true })
+      await writeFile(join(dir, 'package.json'), '{"name":"t"}\n')
+      await writeFile(
+        join(dir, 'src/db.ts'),
+        'export function getUser() {\n  const pool = new sql.ConnectionPool(config)\n  return pool\n}\n'
+      )
+      const { js, wasm } = await runMssqlDepsBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('порушення: версія нижче мінімуму → однакове violation з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'package.json'), '{"name":"t","dependencies":{"mssql":"^10.0.0"}}\n')
+      const { js, wasm } = await runMssqlDepsBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('deps')
+      expect(js[0].message).toContain('>=12.5.0')
+    })
+  })
+
+  test('порушення: невалідний JSON у вкладеному package.json → однакове violation навіть без mssql', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'sub'), { recursive: true })
+      await writeFile(join(dir, 'package.json'), '{"name":"t"}\n')
+      await writeFile(join(dir, 'sub/package.json'), 'NOT_VALID_JSON\n')
+      const { js, wasm } = await runMssqlDepsBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].message).toContain('невалідний JSON')
+    })
+  })
+
+  test('порушення: new sql.ConnectionPool у функції → однакове violation з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'src'), { recursive: true })
+      await writeFile(join(dir, 'package.json'), '{"name":"t","dependencies":{"mssql":"^12.5.0"}}\n')
+      await writeFile(
+        join(dir, 'src/handler.ts'),
+        'export async function handler() {\n  const pool = new sql.ConnectionPool(config)\n  await pool.connect()\n}\n'
+      )
+      const { js, wasm } = await runMssqlDepsBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].message).toContain('singleton sql.ConnectionPool')
+    })
+  })
+
+  test('порушення: query(`...`) не tagged → однакове violation; tagged query`...` — чисто', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'src'), { recursive: true })
+      await writeFile(join(dir, 'package.json'), '{"name":"t","dependencies":{"mssql":"^12.5.0"}}\n')
+      await writeFile(
+        join(dir, 'src/bad.ts'),
+        `export async function findUser(userId) {\n  return pool.request().query(\`SELECT * FROM users WHERE id = \${userId}\`)\n}\n`
+      )
+      await writeFile(
+        join(dir, 'src/ok.ts'),
+        `export async function findUser2(userId) {\n  return pool.request().query\`SELECT * FROM users WHERE id = \${userId}\`\n}\n`
+      )
+      const { js, wasm } = await runMssqlDepsBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].message).toContain('не tagged template')
+    })
+  })
+
+  test('порушення: IN-плейсхолдер без числового парсера і guard → однакові 2 violations', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'src'), { recursive: true })
+      await writeFile(join(dir, 'package.json'), '{"name":"t","dependencies":{"mssql":"^12.5.0"}}\n')
+      await writeFile(
+        join(dir, 'src/db.ts'),
+        `export function f(ids) {\n  return pool.request().query\`SELECT 1 FROM t WHERE id IN (\${ids})\`\n}\n`
+      )
+      const { js, wasm } = await runMssqlDepsBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(2)
+    })
+  })
+
+  test('успіх: parseInt-трасування + guard на пустоту → без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'src'), { recursive: true })
+      await writeFile(join(dir, 'package.json'), '{"name":"t","dependencies":{"mssql":"^12.5.0"}}\n')
+      await writeFile(
+        join(dir, 'src/db.ts'),
+        `export function f(raw) {\n  const ids = raw.map(x => parseInt(x, 10)).filter(n => !Number.isNaN(n))\n  if (!ids.length) throw new Error('empty')\n  return pool.request().query\`SELECT 1 FROM t WHERE id IN (\${ids})\`\n}\n`
+      )
+      const { js, wasm } = await runMssqlDepsBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+})
+
+describe('wasm-plugin parity — js-bun-db/safety (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q4 AST-концерн)', () => {
+  const runBunDbSafetyBoth = dir =>
+    runFullScopeBoth(BUN_DB_SAFETY_MAIN_MJS_PATH, BUN_DB_SAFETY_CONCERN_KEY, 'js-bun-db', 'safety', dir)
+
+  test('успіх: singleton new SQL + tagged template → без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'src'), { recursive: true })
+      await writeFile(join(dir, 'package.json'), '{"name":"t"}\n')
+      await writeFile(
+        join(dir, 'src/db.ts'),
+        `import { SQL, sql } from 'bun'\nexport const db = new SQL(process.env.DATABASE_URL)\nexport async function getUser(id) {\n  return sql\`SELECT * FROM users WHERE id = \${id}\`\n}\n`
+      )
+      const { js, wasm } = await runBunDbSafetyBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('порушення: new SQL(...) всередині функції → однакове violation з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'src'), { recursive: true })
+      await writeFile(join(dir, 'package.json'), '{"name":"t"}\n')
+      await writeFile(
+        join(dir, 'src/db.ts'),
+        `import { SQL } from 'bun'\nexport function getUser(id) {\n  const db = new SQL(process.env.DATABASE_URL)\n  return db\`SELECT * FROM users WHERE id = \${id}\`\n}\n`
+      )
+      const { js, wasm } = await runBunDbSafetyBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('safety')
+      expect(js[0].message).toContain('new SQL(...)')
+    })
+  })
+
+  test('порушення: sql.unsafe без маркера → однакове violation; з маркером — чисто', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'src'), { recursive: true })
+      await writeFile(join(dir, 'package.json'), '{"name":"t"}\n')
+      await writeFile(
+        join(dir, 'src/bad.ts'),
+        "import { sql } from 'bun'\nexport const ping = () => sql.unsafe('SELECT 1')\n"
+      )
+      await writeFile(
+        join(dir, 'src/ok.ts'),
+        "import { sql } from 'bun'\nexport const ping2 = () => sql.unsafe('SELECT 1') // n-rules:allow-unsafe: ping\n"
+      )
+      const { js, wasm } = await runBunDbSafetyBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].message).toContain('sql.unsafe(...) заборонено за замовчуванням')
+    })
+  })
+
+  test('порушення: sql.unsafe(інтерпольований template) навіть з маркером → однакове violation', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'src'), { recursive: true })
+      await writeFile(join(dir, 'package.json'), '{"name":"t"}\n')
+      await writeFile(
+        join(dir, 'src/migrate.ts'),
+        `import { sql } from 'bun'\nconst TABLE = 'users_2026'\nexport async function migrate() {\n  // n-rules:allow-unsafe: DDL\n  return sql.unsafe(\`CREATE TABLE \${TABLE} (id int)\`)\n}\n`
+      )
+      const { js, wasm } = await runBunDbSafetyBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].message).toContain('template-літералом')
+    })
+  })
+
+  test('порушення: tagged .join у IN → однакові ЧОТИРИ violations (дубль-обхід tagged, як у JS)', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'src'), { recursive: true })
+      await writeFile(join(dir, 'package.json'), '{"name":"t"}\n')
+      await writeFile(
+        join(dir, 'src/db.ts'),
+        `import { sql } from 'bun'\nexport async function findMany(ids) {\n  return sql\`SELECT * FROM users WHERE id IN (\${ids.join(',')})\`\n}\n`
+      )
+      const { js, wasm } = await runBunDbSafetyBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(4)
+    })
+  })
+
+  test('успіх: guard у тому самому блоці → без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'src'), { recursive: true })
+      await writeFile(join(dir, 'package.json'), '{"name":"t"}\n')
+      await writeFile(
+        join(dir, 'src/db.ts'),
+        `import { sql } from 'bun'\nexport function f(ids) {\n  if (!ids.length) throw new Error('empty')\n  return sql\`SELECT 1 FROM t WHERE id IN (\${ids})\`\n}\n`
+      )
+      const { js, wasm } = await runBunDbSafetyBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('порушення: guard лише у зовнішньому блоці → однакові violations (найближчий блок, як у JS)', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'src'), { recursive: true })
+      await writeFile(join(dir, 'package.json'), '{"name":"t"}\n')
+      await writeFile(
+        join(dir, 'src/db.ts'),
+        `import { sql } from 'bun'\nexport function f(ids, x) {\n  if (!ids.length) throw new Error('empty')\n  if (x) {\n    return sql\`SELECT 1 FROM t WHERE id IN (\${ids})\`\n  }\n  return null\n}\n`
+      )
+      const { js, wasm } = await runBunDbSafetyBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(2)
+      expect(js[0].message).toContain('перед IN-списком "ids"')
+    })
+  })
+
+  test('порушення: dependencies.pg без LISTEN/NOTIFY → однакові dep- та import-violations', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'src'), { recursive: true })
+      await writeFile(join(dir, 'package.json'), '{"name":"t","dependencies":{"pg":"^8.0.0"}}\n')
+      await writeFile(
+        join(dir, 'src/app.ts'),
+        "import { Client } from 'pg'\nconst client = new Client()\nexport const findUser = id => client.query('SELECT * FROM users WHERE id = $1', [id])\n"
+      )
+      const { js, wasm } = await runBunDbSafetyBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(2)
+      expect(js[0].message).toContain('dependencies.pg заборонено')
+      expect(js[1].message).toContain("import 'pg' дозволено лише")
+    })
+  })
+
+  test('успіх: dependencies.pg виправдано LISTEN/NOTIFY → без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'src'), { recursive: true })
+      await writeFile(join(dir, 'package.json'), '{"name":"t","dependencies":{"pg":"^8.0.0"}}\n')
+      await writeFile(
+        join(dir, 'src/pg-listen.ts'),
+        "import { Client } from 'pg'\nconst client = new Client()\nexport async function start() {\n  await client.query('LISTEN orders_channel')\n  client.on('notification', msg => console.log(msg))\n}\n"
+      )
+      const { js, wasm } = await runBunDbSafetyBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('успіх: sql.unsafe у коментарі та new SQL у рядку → без порушень (AST, не regex)', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'src'), { recursive: true })
+      await writeFile(join(dir, 'package.json'), '{"name":"t"}\n')
+      await writeFile(
+        join(dir, 'src/db.ts'),
+        `import { sql } from 'bun'\n// sql.unsafe('SELECT 1')\nconst s = "new SQL(url)"\nexport const ping = () => sql\`SELECT \${s}\`\n`
+      )
+      const { js, wasm } = await runBunDbSafetyBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('порушення: sql.array(arr) без типу → однакове violation; з типом — чисто', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'src'), { recursive: true })
+      await writeFile(join(dir, 'package.json'), '{"name":"t"}\n')
+      await writeFile(
+        join(dir, 'src/bad.ts'),
+        `import { sql } from 'bun'\nexport const q = ids => sql\`SELECT \${sql.array(ids)}\`\n`
+      )
+      await writeFile(
+        join(dir, 'src/ok.ts'),
+        `import { sql } from 'bun'\nexport const q2 = ids => sql\`SELECT \${sql.array(ids, 'int8')}\`\n`
+      )
+      const { js, wasm } = await runBunDbSafetyBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].message).toContain('sql.array(arr) без другого аргументу')
+    })
+  })
+})
+
 describe('wasm-plugin — size-budget (задача Q3, спека `docs/specs/2026-08-01-wasm-ast-strategy.md`, розділ «Рішення» п.2)', () => {
   test(`plugin_lang_js.wasm не перевищує бюджет ${WASM_SIZE_BUDGET_BYTES} байт (2.5 MB)`, async () => {
     const { stat } = await import('node:fs/promises')
@@ -848,14 +1256,8 @@ describe('wasm-plugin — size-budget (задача Q3, спека `docs/specs/2
   })
 })
 
-// `js-bun-redis/imports`/`js-bun-db/safety`/`js-mssql/deps` — СВІДОМО БЕЗ
-// JS⇄wasm parity-тестів тут (де-скоуп рішенням оркестратора після звіту
-// батчу 2, доккомент модуля вище й `crates/plugin-lang-js/src/lib.rs`
-// секція «Регекс-наближення»): concern-и НЕ в контрибуції `describe()`, тож
-// НЕМАЄ production-шляху, де wasm-вихід міг би «підмінити» JS-канон —
-// твердження «wasm ⇄ JS еквівалентні» тут було б оманливим (regex-
-// наближення AST-оригіналу навмисно НЕ byte-exact). Юніт-рівневі тести самих
-// pure-функцій (`detect_redis_imports`/`detect_bun_db_safety`/
-// `detect_mssql_deps` і хелпери) лишаються в
-// `crates/plugin-lang-js/src/lib.rs` (`#[cfg(test)] mod tests`) — Rust-крейт
-// єдине місце, де ці функції взагалі викликаються.
+// `js-bun-redis/imports`/`js-mssql/deps`/`js-bun-db/safety` — parity-тести
+// ВИЩЕ (задача Q4 батч 4): де-скоуп батчу 2 знято, wasm-реалізації — справжні
+// AST-порти через той самий `oxc_parser`, концерни В контрибуції `describe()`
+// (production-шлях shadowing-у існує, тому byte-exact parity — обов'язковий
+// гейт, як для решти концернів).
