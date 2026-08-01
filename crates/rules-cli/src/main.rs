@@ -1,4 +1,6 @@
-//! Rust CLI `@7n/rules` — фаза 8 (інверсія entrypoint), зріз 1: скелет.
+//! cspell:ignore портовні ранери
+//!
+//! Rust CLI `@7n/rules` — фаза 8 (інверсія entrypoint), зрізи 1–2.
 //!
 //! Drop-in обгортка над чинною CLI-поверхнею `npx @7n/rules` (мінідизайн
 //! `docs/specs/2026-08-01-rules-cli-phase8-skeleton.md`): плаский роутер argv
@@ -14,12 +16,24 @@
 //! - `changed-files` — plumbing-команда поверх готових
 //!   `rules_core::changed_files`/`changed_base` ([`changed_files_cmd`]).
 //!
+//! Зріз 2 додає дві портовні команди класу (б) інвентаризації:
+//!
+//! - `skill list` — перелік скілів пакета ([`skill_cmd`], ядро —
+//!   `rules_core::skills`);
+//! - `rename-yaml-extensions` — перейменування k8s/`.github` YAML
+//!   ([`rename_yaml_cmd`], ядро — `rules_core::rename_yaml`); перша
+//!   МУТУЮЧА native-команда.
+//!
 //! Решта (включно з дефолтним sync без підкоманди та legacy-аліасами
 //! `lint-*`) — транзитна делегація, перелік скорочується по зрізах фази 8.
 
 mod changed_files_cmd;
+mod cursor_ignore;
 mod git_policy;
 mod js_fallback;
+mod paths;
+mod rename_yaml_cmd;
+mod skill_cmd;
 
 use std::env;
 use std::process::ExitCode;
@@ -34,12 +48,17 @@ fn main() -> ExitCode {
     run(&args)
 }
 
-/// Роутер argv: native-команди зрізу 1 або делегація в JS-entrypoint.
+/// Роутер argv: native-команди зрізів 1–2 або делегація в JS-entrypoint.
 /// Окремо від `main` — щоб інтеграційні тести й майбутні зрізи бачили
 /// одну точку диспатчу.
 fn run(args: &[String]) -> ExitCode {
     match args.first().map(String::as_str) {
         Some("changed-files") => changed_files_cmd::run(&args[1..]),
+        Some("rename-yaml-extensions") => rename_yaml_cmd::run(&args[1..]),
+        // Нативний лише `skill list`; JS дивиться теж тільки на перший
+        // аргумент після `skill` (зайві — ігнорує), решта підкоманд —
+        // LLM/агентні ранери, делегуються.
+        Some("skill") if args.get(1).map(String::as_str) == Some("list") => skill_cmd::run_list(),
         // `lint --help`/`-h` — чиста довідка (у JS — без root-guard і
         // мутацій devDependencies), перший повністю нативний шлях реальної
         // чинної поверхні. Будь-який інший `lint` — делегація.

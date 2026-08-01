@@ -66,6 +66,28 @@ fn resolve_entry(cwd: &Path) -> Result<PathBuf, String> {
     ))
 }
 
+/// Корінь установленого пакета `@7n/rules` — каталог, у якому лежать
+/// `skills/`, `rules/`, `scripts/`. Резолвиться через той самий каскад, що й
+/// entrypoint ([`resolve_entry`]), бо entrypoint завжди `<root>/bin/n-rules.js`
+/// — це Rust-відповідник `resolveBundledPackageRoot`
+/// (`npm/scripts/skills-cli.mjs`), який теж рахує корінь від розташування
+/// власного модуля, а не від cwd. Потрібен native-командам, що читають
+/// РЕСУРСИ пакета (наразі `skill list`).
+pub fn package_root(cwd: &Path) -> Result<PathBuf, String> {
+    let entry = resolve_entry(cwd)?;
+    entry
+        .parent()
+        .and_then(Path::parent)
+        .map(Path::to_path_buf)
+        .ok_or_else(|| {
+            format!(
+                "rules-cli: не вдалося визначити корінь пакета {PACKAGE_NAME} зі шляху \
+                 entrypoint «{}» (очікується <корінь>/bin/n-rules.js).",
+                entry.display()
+            )
+        })
+}
+
 /// Запускає entrypoint заданим runtime; stdio успадковується (дефолт
 /// `Command::status`), argv передається без змін.
 fn spawn_status(

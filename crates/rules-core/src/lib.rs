@@ -34,8 +34,18 @@ pub mod lint_plan;
 /// `lint_plan`: `sortViolations`/`renderViolations`/exit-code гілка
 /// `detectAll` з `run-detectors.mjs`/`render.mjs`).
 pub mod lint_render;
+/// `locale_compare` — наближення ICU root collation
+/// (`String.prototype.localeCompare`) для портів JS-сортувань списків, які
+/// потрапляють у вивід CLI (зріз 2 фази 8).
+pub mod locale;
+/// `rename_yaml_extensions` — порт `npm/scripts/rename-yaml-extensions.mjs`
+/// (зріз 2 фази 8).
+pub mod rename_yaml;
 /// `walk_dir` — native filesystem scan, точний порт `walkDir` (D1 фази 4а).
 pub mod scan;
+/// `list_skill_ids` — порт `listSkillIds` (`npm/scripts/skills-cli.mjs`),
+/// рушій `skill list` (зріз 2 фази 8).
+pub mod skills;
 /// Worktree lifecycle через `mt-core` (Р3 спеки, фаза 2 задача B1).
 pub mod worktree;
 
