@@ -350,17 +350,24 @@ jobs:
           steps.publish-llm-lib-linux-x64.outcome == 'success'
         continue-on-error: true
         run: |
-          # bun.lock мусить оновитися разом із пінами, інакше наступний
-          # frozen-lockfile install у CI впаде на розбіжності. `bun update`
-          # запускається З ТЕКИ ВОРКСПЕЙСА, що декларує ці залежності, а НЕ з
-          # кореня: у корені `bun update <pkg>` для пакета, якого нема в
-          # кореневому package.json, ДОДАЄ його в кореневі `dependencies` — ця
-          # правка кореневого маніфеста не потрапляє в `git add` нижче, а
-          # отруєний lock потрапляє. Наслідок — вічний дрейф lock⇄manifest і
-          # `lockfile had changes, but lockfile is frozen` у КОЖНОМУ наступному
-          # CI-прогоні. Ретраї — на лаг реплікації registry одразу після publish.
+          # n-rules:allow-bun-install — свідомий виняток із ga/workflow_common:
+          # composite `setup-bun-deps` робить `--frozen-lockfile`, а цей крок
+          # навпаки мусить ПЕРЕгенерувати lock під щойно підняті піни.
+          #
+          # Саме `bun install`, і НЕ `bun update` — обидві його форми вже
+          # ламали main:
+          #   • з кореня `bun update <pkg>` для пакета, якого нема в кореневому
+          #     package.json, ДОПИСУЄ його в кореневі `dependencies`; правка
+          #     кореневого маніфеста не потрапляє в `git add` нижче, а отруєний
+          #     lock потрапляє;
+          #   • з теки воркспейса `bun update` ЗАТИРАЄ на порожній рядок піни
+          #     тих optional-платформ, які не ставляться на runner-і (реліз
+          #     1.76.0: linux/win32 → "").
+          # `bun install` маніфести не чіпає взагалі — лише зводить lock під
+          # них; піни вже проставив крок «Sync platform versions».
+          # Ретраї — на лаг реплікації registry одразу після publish.
           n=0
-          until (cd llm-lib && bun update @7n/llm-lib-darwin-arm64 @7n/llm-lib-linux-x64); do
+          until bun install; do
             n=$((n + 1))
             [ "$n" -ge 5 ] && { echo "::warning::registry не віддає нові платформні версії — піни лишаються незакоміченими"; exit 1; }
             sleep 15
@@ -455,13 +462,8 @@ jobs:
       # блокувала синк назавжди — git-піни застрягли на 1.66.0 при registry
       # 1.73.0 (bootstrap виконано 2026-08-01, далі win32 іде через OIDC).
       #
-      # `bun update` — з теки `npm/` і з УСІМА трьома іменами (та сама причина,
-      # що й у llm-lib-кроці вище: у корені bun дописав би їх у кореневі
-      # `dependencies`, які не комітяться, і lock би вічно дрейфував). Усі три
-      # піни маніфестів уже підняті кроком «Sync platform versions», тож lock
-      # мусить відобразити всі три; якщо якоїсь версії ще нема в registry —
-      # update падає, ретраїться, і НІЧОГО не комітиться: git лишається
-      # консистентним на попередніх пінах (fail-safe замість часткового синку).
+      # Механіка регенерації lock — доккомент llm-lib-кроку вище (чому саме
+      # `bun install`, і чому жодна з форм `bun update` тут не працює).
       - name: Commit синк платформних пінів (rules)
         if: >-
           needs.changes.outputs.native == 'true' &&
@@ -470,8 +472,9 @@ jobs:
           steps.publish-rules-linux-x64.outcome == 'success'
         continue-on-error: true
         run: |
+          # n-rules:allow-bun-install — див. llm-lib-крок вище.
           n=0
-          until (cd npm && bun update @7n/rules-darwin-arm64 @7n/rules-linux-x64 @7n/rules-win32-x64); do
+          until bun install; do
             n=$((n + 1))
             [ "$n" -ge 5 ] && { echo "::warning::registry не віддає нові платформні версії — піни лишаються незакоміченими"; exit 1; }
             sleep 15

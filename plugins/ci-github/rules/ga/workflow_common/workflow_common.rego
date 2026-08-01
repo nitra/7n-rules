@@ -93,12 +93,23 @@ all_flat_steps contains entry if {
 }
 
 # ── deny: заборонені setup-bun/cache/install у будь-якому кроці ────────────
+#
+# Санкціонований виняток — маркер `n-rules:allow-<pattern>` у самому кроці
+# (`bun install` → `n-rules:allow-bun-install`). Потрібен там, де composite
+# `setup-bun-deps` принципово не підходить: він робить `--frozen-lockfile`, а
+# крок навмисно ПЕРЕгенеровує lock (реліз-синк платформних пінів). Маркер
+# живе в тілі кроку, тож виняток вузький (лише цей крок), видимий у diff-і й
+# вимагає свідомого рішення автора — на відміну від синоніма команди, який
+# обходив би правило нишком.
+allow_marker(pattern) := sprintf("n-rules:allow-%s", [replace(pattern, " ", "-")])
 
 deny contains msg if {
 	some entry in all_flat_steps
 	some pattern, hint in forbidden_step_substrings
-	step_uses_or_run_blob(entry.step) != ""
-	contains(step_uses_or_run_blob(entry.step), pattern)
+	blob := step_uses_or_run_blob(entry.step)
+	blob != ""
+	contains(blob, pattern)
+	not contains(blob, allow_marker(pattern))
 	msg := sprintf("jobs.%s.steps[%d]: %s (ga.mdc)", [entry.job_id, entry.step_index, hint])
 }
 
