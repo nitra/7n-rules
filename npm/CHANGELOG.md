@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.73.0] - 2026-08-01
+
+### Changed
+
+- Фаза 7 v2 (T2, п'ятий зріз): native fix plans розгорнуто з пілота на решту
+T0-фіксів, що портуються — `tauri/gitignore_target` (splice відсутніх ignore-entries
+з `violation.data.missing`), `tauri/linux_deps` (вставка apt-кроку перед
+`dtolnay/rust-toolchain` / дописування канонічних пакетів зі збереженням
+shell-continuation), `tauri/cargo_mutants_config` (canonical baseline /
+append-блок лише відсутніх ключів після rescan `src-tauri/`-каталогів) і
+`hasura/internal_urls` (rewrite `service`/`namespace` сегментів
+`HASURA_GRAPHQL_ENDPOINT` проти `hasura/k8s/base/{svc-hl,namespace}.yaml` зі
+збереженням `cluster`/`port`); реєстр `NATIVE_FIXES` тепер шість ключів,
+чотири JS fix-файли видалені, їхні тести переведені на dispatch-рівень
+(`loadT0Patterns`/`runNativeConcernFix`) з rollback-контракт-тестами через
+реальний `snapshot.rollback()`. `tauri/release` (format-preserving
+YAML-редагування + git-субпроцес) і `image-avif/avif_generation` (генерація
+AVIF зовнішнім `npx @nitra/minify-image`) свідомо лишаються JS — причини
+задокументовано в doc-коменті `crates/rules-core/src/concerns/fix.rs`.
+
 ## [1.72.0] - 2026-08-01
 
 ### Added
