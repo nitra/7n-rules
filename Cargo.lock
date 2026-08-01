@@ -3679,6 +3679,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "rules-cli"
+version = "0.1.0"
+dependencies = [
+ "rules-core",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "rules-contract"
 version = "0.1.0"
 dependencies = [

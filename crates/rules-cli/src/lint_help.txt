@@ -1,0 +1,45 @@
+Використання: npx @7n/rules lint [rule|concern ...] [прапори]
+
+За замовчуванням лінт іде дельтою (змінені файли vs origin) і одразу
+виправляє (auto-fix: oxfmt/eslint --fix/stylelint --fix + LLM-ladder).
+
+Прапори:
+  --full          Прогін по всьому репозиторію (конформність), не лише дельта.
+                  Один --full на машину: паралельні запуски стають у чергу
+                  й бачать живий прогрес активного прогону.
+  --no-fix        Лише детекція, без мутацій.
+  --cwd <path>    Робочий каталог (корінь прогону) замість поточного —
+                  root-guard, .n-rules.json і devDependencies читаються
+                  з нього.
+  --path <dir>    Звузити файловий набір до піддиректорії, лишивши корінь
+                  прогону незмінним (config/root-guard — з поточного каталогу
+                  чи --cwd). Дефолт — ПЕРЕТИН піддерева з git-дельтою
+                  (vs merge-base main/origin/main або --base), лише per-file
+                  правила (сервіс-орієнтований CI-канон). З --full — все
+                  піддерево, full-scope правила при спрацюванні йдуть по
+                  всьому репо (історична поведінка; без machine-wide локу).
+                  Сумісний із позиційним rule/concern-фільтром
+                  (lint js --path run/nexus).
+  --base <ref>    Явна база дельти (merge-base HEAD <ref>) замість каскаду
+                  main → origin/main — для CI-чекаутів.
+  --repo-wide     ЛИШЕ full-scope правила (knip, jscpd, dep-policy тощо),
+                  весь репозиторій — окремий CI-workflow, що не гейтить
+                  деплой сервісів. Не поєднується з --path/фільтром.
+  --verbose       Розширений вивід детекції та виправлення.
+  --help, -h      Ця довідка.
+
+Позиційні аргументи — фільтр за назвою правила чи concern, наприклад:
+  npx @7n/rules lint ga rego k8s docker text
+
+Приклади:
+  npx @7n/rules lint
+  npx @7n/rules lint --full
+  npx @7n/rules lint --no-fix eslint
+  npx @7n/rules lint --cwd ./packages/foo --verbose
+  npx @7n/rules lint js --path run/nexus --no-fix --base origin/main
+  npx @7n/rules lint --repo-wide --no-fix
+
+Skip-логіка CI (яка джоба взагалі потрібна): npx @7n/rules ci plan
+  ci plan [--path <dir>] [--base <ref>] [--github|--azure|--json]
+  --github → outputs у $GITHUB_OUTPUT; --azure → ##vso-рядки в stdout.
+

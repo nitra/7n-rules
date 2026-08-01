@@ -46,8 +46,11 @@ jobs:
       # Без цього vitest падає на hard error native-loader-а (npm/scripts/lib/native.mjs):
       # без JS-fallback (Р1 спеки rules-v2-rust-core-migration) delta-lint і Stop-hook
       # хук-тести не мають чим резолвити rules-napi аддон на свіжому checkout.
-      - name: Build rules-napi addon
-        run: cargo build --release -p rules-napi
+      # rules-cli — parity-гейт зрізу 1 фази 8 (rules-cli-parity.test.mjs,
+      # `docs/specs/2026-08-01-rules-cli-phase8-skeleton.md`): тест hard-error-ить
+      # без зібраного бінаря (той самий Р1-мотив, що й у loader-а аддона).
+      - name: Build rules-napi addon + rules-cli binary
+        run: cargo build --release -p rules-napi -p rules-cli
 
       # Реальний wasm-плагін lang-js (задача N2) — JS wasm-dispatch тести
       # (доккомент кроку вище) падають з чіткою помилкою на свіжому checkout
