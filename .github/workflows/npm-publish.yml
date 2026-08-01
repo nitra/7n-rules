@@ -446,17 +446,29 @@ jobs:
       # Дзеркало «Commit синк платформних пінів» вище для @7n/llm-lib: без цього
       # піни `npm/package.json` ⇄ `npm/packages/rules-*` відстають від registry
       # в git після release-коміту (ризик 7 спеки rules-v2-rust-core-migration).
+      # Гейт — лише darwin/linux: win32-x64 до bootstrap-публікації (див.
+      # BOOTSTRAP-НОТАТКУ вище) падає на КОЖНОМУ релізі, і вимога його успіху
+      # блокувала синк назавжди — git-піни застрягли на 1.66.0 при registry
+      # 1.73.0. win32 у `bun update` — умовно, за фактичним успіхом publish;
+      # його пін у npm/package.json все одно синхронізується кроком «Sync
+      # platform versions» (optional-залежність, 404 при install толерується).
       - name: Commit синк платформних пінів (rules)
         if: >-
           needs.changes.outputs.native == 'true' &&
           contains(fromJSON(steps.release.outputs.workspaces), 'npm') &&
           steps.publish-rules-darwin-arm64.outcome == 'success' &&
-          steps.publish-rules-linux-x64.outcome == 'success' &&
-          steps.publish-rules-win32-x64.outcome == 'success'
+          steps.publish-rules-linux-x64.outcome == 'success'
         continue-on-error: true
+        env:
+          WIN32_PUBLISHED: ${{ steps.publish-rules-win32-x64.outcome }}
         run: |
+          if [ "$WIN32_PUBLISHED" = "success" ]; then
+            update_pins() { bun update @7n/rules-darwin-arm64 @7n/rules-linux-x64 @7n/rules-win32-x64; }
+          else
+            update_pins() { bun update @7n/rules-darwin-arm64 @7n/rules-linux-x64; }
+          fi
           n=0
-          until bun update @7n/rules-darwin-arm64 @7n/rules-linux-x64 @7n/rules-win32-x64; do
+          until update_pins; do
             n=$((n + 1))
             [ "$n" -ge 5 ] && { echo "::warning::registry не віддає нові платформні версії — піни лишаються незакоміченими"; exit 1; }
             sleep 15
