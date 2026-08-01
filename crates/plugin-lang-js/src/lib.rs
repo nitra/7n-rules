@@ -1,10 +1,10 @@
 //! wasm-компонент `n-rules:plugin@3.0.0` — `lang-js/wasm-concerns` (задачі N2,
-//! Q1 батч 1, Q2 батч 2, Q3, Q4 батч 4 та батчі 5–7, спека
+//! Q1 батч 1, Q2 батч 2, Q3, Q4 батч 4 та батчі 5–8, спека
 //! `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md` §3.5.5 і
 //! `docs/specs/2026-08-01-wasm-ast-strategy.md`),
 //! створений за флоу скіла `npm/skills/wasm-plugin/` (scaffold → реалізація →
-//! golden-тести). ДВАДЦЯТЬ ВІСІМ концернів у контрибуції (перелік нижче —
-//! перші чотирнадцять; батчі 5–7 описані в доккоментах однойменних секцій
+//! golden-тести). ТРИДЦЯТЬ ДВА концерни у контрибуції (перелік нижче —
+//! перші чотирнадцять; батчі 5–8 описані в доккоментах однойменних секцій
 //! нижче за текстом), порт чинних
 //! JS-оригіналів — справжній 1:1, той самий `reason`/`message` біт-у-біт
 //! (parity-дисципліна СКІЛа не допускає shadowing regex-наближенням
@@ -3696,6 +3696,53 @@ fn build_manifest() -> Manifest {
                 scope: ConcernScope::Full,
                 glob: vec!["**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}".to_string()],
             },
+            ConcernContribution {
+                key: CONCERN_BUN_LAYOUT.to_string(),
+                scope: ConcernScope::Full,
+                // Кореневі імена без `**/` — `existsSync(join(cwd, …))`
+                // JS-канону дивиться ЛИШЕ корінь. `.yarn` поруч із
+                // `.yarn/**` — доккомент секції «Батч 8», підсекція «Глоби
+                // контрибуцій».
+                glob: vec![
+                    "package-lock.json".to_string(),
+                    "yarn.lock".to_string(),
+                    "pnpm-lock.yaml".to_string(),
+                    ".yarnrc.yml".to_string(),
+                    ".yarn".to_string(),
+                    ".yarn/**".to_string(),
+                    "bun.lock".to_string(),
+                    "bunfig.toml".to_string(),
+                    "package.json".to_string(),
+                ],
+            },
+            ConcernContribution {
+                key: CONCERN_STYLE_TOOLING.to_string(),
+                scope: ConcernScope::Full,
+                // Той самий кореневий принцип; brace-форми
+                // `concern.json` (`.stylelintrc.{json,js,cjs,mjs}`)
+                // розгорнуті в явні імена [`STYLELINT_CONFIG_FILES`].
+                glob: vec![
+                    "package.json".to_string(),
+                    ".stylelintrc.json".to_string(),
+                    ".stylelintrc.js".to_string(),
+                    ".stylelintrc.cjs".to_string(),
+                    ".stylelintrc.mjs".to_string(),
+                    "stylelint.config.js".to_string(),
+                    "stylelint.config.cjs".to_string(),
+                    "stylelint.config.mjs".to_string(),
+                    ".stylelintignore".to_string(),
+                ],
+            },
+            ConcernContribution {
+                key: CONCERN_SANDBOX_AWARE_TEST.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec!["**/*.test.mjs".to_string(), "**/*.test.js".to_string()],
+            },
+            ConcernContribution {
+                key: CONCERN_VITEST_API_CONVENTIONS.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec!["**/*.test.mjs".to_string(), "**/*.test.js".to_string()],
+            },
         ],
         ci_artifacts: vec![],
         capabilities: Capabilities {
@@ -7144,7 +7191,472 @@ fn detect_dep_policy(files: &[SourceFile]) -> Vec<Diagnostic> {
     diagnostics
 }
 
-/// Guest-реалізація world `plugin` — двадцять вісім контрибуцій ([`CONCERN_TFM`],
+// =====================================================================
+// Батч 8 (§3.5.5): чотири «файлово-структурні» концерни без жодного
+// зовнішнього тула — `bun/layout`, `style/tooling`,
+// `test/sandbox-aware-test`, `test/vitest-api-conventions`.
+//
+// # Чому саме ці чотири (і чому решта JS-канону лишилась)
+//
+// Інвентар lang-js на момент батчу — 76 `concern.json`, з них 39 із
+// `export lint`. Після батчу 7 портовано 28; із 14, що лишались, ЧОТИРИ
+// портуються чисто (цей батч), решта десять — ні, і причини різні за
+// класом, не за складністю:
+//
+// - `bun/licensee`, `style/lint`, `js/eslint`, `js/jscpd_duplicates` —
+//   detector'и-обгортки навколо ЗАПУСКУ зовнішнього процесу
+//   (`bun x licensee`, `stylelint`, `bunx eslint`, `bunx jscpd`): їхній вихід
+//   — розібраний stdout/exit-code тула, не аналіз вмісту файлів. Контракт v3
+//   має `run-tool`, але жоден із цих тулів не задекларований у
+//   `manifest.tools`, і сама семантика («порушення = те, що сказав чужий
+//   лінтер») не дає byte-exact parity без вшивання версії тула.
+// - `js/knip` — programmatic API `knip` (JS-модуль, не CLI), поза
+//   `run-tool`-контрактом узагалі.
+// - `js-run/runtime` — усередині кличе `runConftestBatch` (conftest/OPA
+//   підпроцес) плюс шість lib-сканерів; та сама причина, що вище.
+// - `test/stryker_config` — резолвить canonical baseline-файли, що лежать
+//   у ПАКЕТІ (`<concern>/data/**`), а не в repo споживача: порт вимагає
+//   вшити ці дані у компонент (той самий клас, що `js/check` — окремий
+//   батч, свідоме рішення про розмір).
+// - `js/check` — потребує вшитих canonical-json data-файлів (клас вище).
+// - `js/doc_comments` — UTF-16-офсети napi-`oxc-parser` проти UTF-8-офсетів
+//   crate-`oxc_parser`; розвʼязне, але потребує окремого свідомого рішення
+//   про офсети, не побічного ефекту цього батчу.
+// - `vue/packages` — єдиний із десяти, що портується технічно (чистий
+//   FS+regex, жодного зовнішнього тула): 577 рядків, десяток під-перевірок
+//   із власними текстами, плюс `getMonorepoPackageRootDirs`
+//   (workspace-глоби) і `lib/vue-forbidden-imports.mjs`. Причина відкласти —
+//   ОБСЯГ, не бюджет: батч 8 коштував 9,6 KB (2 385 161 → 2 395 019 байт),
+//   тож розмір тут не обмежує. Наступний кандидат.
+//
+// # Глоби контрибуцій
+//
+// Той самий принцип, що батч 7: batch несе РІВНО те, що JS-канон читає з
+// диска. `bun/layout` і `style/tooling` перелічують конкретні кореневі
+// імена (`existsSync(join(cwd, …))` — лише корінь, не `**/`);
+// `test/sandbox-aware-test`/`test/vitest-api-conventions` беруть ті самі два
+// глоби `**/*.test.{mjs,js}`, що вже мають `test/no-process-chdir` і
+// `test/no-relative-fs-path`.
+//
+// Одна ШИРША за `concern.json` позиція: до `.yarn/**` додано `.yarn` —
+// JS-канон робить `existsSync(join(cwd, '.yarn'))`, що true і для
+// каталогу, і для ФАЙЛУ з таким імʼям; без другого глоба файл `.yarn` не
+// потрапив би в батч і порт мовчки б його не побачив.
+//
+// # Задокументовані розбіжності (фікстури їх не торкаються)
+//
+// 1. **Порожній каталог `.yarn/`**: git не трекає порожні каталоги, а
+//    host-батч — список ФАЙЛІВ, тож `existsSync('.yarn')` JS-канону =
+//    `true`, а [`batch_dir_exists`] = `false` (успадкована мікро-розбіжність
+//    5 секції «Батч 5», не нова).
+// 2. **Невалідний JSON у кореневому `package.json`** (`style/tooling`):
+//    `JSON.parse` JS-канону — БЕЗ `try/catch`, виняток вилітає з `lint()`
+//    і весь концерн падає (exit 2); порт через [`parse_json_tolerant`]
+//    трактує це як «поля `stylelint` немає» (розбіжність 1 секції «Батч 7»,
+//    той самий skip-not-crash дух).
+// 3. **`.cursorignore`**: JS-канон `test/sandbox-aware-test` і
+//    `test/vitest-api-conventions` звужує `walkDir` через
+//    `loadCursorIgnorePaths`, host-збірка батчу — ні. Успадкована
+//    розбіжність усіх full-scope портів з батчу 4.
+// 4. **Вікно 400 «символів»** ([`has_deep_meta_navigation`]): JS
+//    `body.slice(i, i + 400)` рахує UTF-16 code units, Rust-порт —
+//    БАЙТИ (з корекцією до char boundary, аби не панікувати). На ASCII
+//    (усе, де цей концерн реально спрацьовує — шляхи й `'..'`-літерали)
+//    тотожно; на кириличному коментарі всередині вікна Rust-вікно коротше.
+//    Той самий клас, що baseline-розбіжність офсетів
+//    ([`line_number_at_offset`]).
+// 5. **`\s` у `skipWhitespace`** ([`vitest_api_skip_whitespace`]): JS
+//    `/\s/u` матчить і non-ASCII пробіли (` `, ` `, `﻿`),
+//    байтовий сканер порту — лише ASCII-набір. Між `.toBe(` і `{`/`[`
+//    non-ASCII пробіл — синтаксично валідний, але не трапляється в коді.
+//
+// # Чому байтовий сканер, а не `Vec<char>` (`test/vitest-api-conventions`)
+//
+// JS-оригінал індексує `body[i]` по UTF-16 code units і порівнює ЛИШЕ з
+// ASCII-символами (`{`, `[`, `}`, `]`, лапки, `\`, `)`). У UTF-8
+// продовжувальні байти багатобайтового символу завжди `>= 0x80`, тож жоден
+// із них не може випадково збігтись з ASCII-літералом — байтовий обхід дає
+// той самий результат, що code-unit-обхід, без алокації `Vec<char>`.
+
+/// Ключ контрибуції `bun/layout` (батч 8).
+const CONCERN_BUN_LAYOUT: &str = "bun/layout";
+
+/// Ключ контрибуції `style/tooling` (батч 8).
+const CONCERN_STYLE_TOOLING: &str = "style/tooling";
+
+/// Ключ контрибуції `test/sandbox-aware-test` (батч 8).
+const CONCERN_SANDBOX_AWARE_TEST: &str = "test/sandbox-aware-test";
+
+/// Ключ контрибуції `test/vitest-api-conventions` (батч 8).
+const CONCERN_VITEST_API_CONVENTIONS: &str = "test/vitest-api-conventions";
+
+/// `reason` діагностик `bun/layout` — усі `fail()` `main.mjs` без другого
+/// аргументу, тож дефолт `ctx.concernId` = bare `"layout"` (той самий мотив,
+/// що [`RULE_META_REASON`]).
+const BUN_LAYOUT_REASON: &str = "layout";
+
+/// `reason` діагностик `style/tooling` — той самий мотив.
+const STYLE_TOOLING_REASON: &str = "tooling";
+
+/// `reason` діагностик `test/sandbox-aware-test` — той самий мотив.
+const SANDBOX_AWARE_TEST_REASON: &str = "sandbox-aware-test";
+
+/// `reason` діагностик `test/vitest-api-conventions` — той самий мотив.
+const VITEST_API_CONVENTIONS_REASON: &str = "vitest-api-conventions";
+
+/// Заборонені кореневі lock/конфіг-файли чужих пакет-менеджерів — точний
+/// порт масиву-літерала у `lint()` (`bun/layout/main.mjs:21`), порядок
+/// значущий (визначає порядок діагностик).
+const BUN_LAYOUT_FORBIDDEN_FILES: [&str; 4] = [
+    "package-lock.json",
+    "yarn.lock",
+    "pnpm-lock.yaml",
+    ".yarnrc.yml",
+];
+
+/// Зовнішні файли конфігу stylelint, які підхоплює cosmiconfig — точний
+/// порт `STYLELINT_CONFIG_FILES` (`style/tooling/main.mjs:10-18`).
+const STYLELINT_CONFIG_FILES: [&str; 7] = [
+    ".stylelintrc.json",
+    ".stylelintrc.js",
+    ".stylelintrc.cjs",
+    ".stylelintrc.mjs",
+    "stylelint.config.js",
+    "stylelint.config.cjs",
+    "stylelint.config.mjs",
+];
+
+/// Вживання `import.meta.dirname`/`import.meta.url` — точний порт `RE`
+/// (`sandbox-aware-test/main.mjs:26`).
+const IMPORT_META_NAV_PATTERN: &str = r"import\.meta\.(?:dirname|url)\b";
+
+/// Рядковий літерал `'..'`/`".."` — точний порт другого regex
+/// `hasDeepMetaNavigation` (`sandbox-aware-test/main.mjs:30`).
+const DOT_DOT_LITERAL_PATTERN: &str = r#"'\.\.'|"\.\.""#;
+
+/// Захист через тимчасову пісочницю — точний порт `WITH_TMP_DIR_RE`
+/// (`sandbox-aware-test/main.mjs:37`).
+const WITH_TMP_DIR_PATTERN: &str = r"\bwithTmpDir\b";
+
+/// Захист через явний skip у Stryker-sandbox — точний порт
+/// `SKIP_IF_STRYKER_RE` (`sandbox-aware-test/main.mjs:40`).
+const SKIP_IF_STRYKER_PATTERN: &str =
+    r"\btest\.skipIf\s*\(\s*(?:env|process\.env)\.STRYKER_MUTATOR_WORKER\b";
+
+/// Мінімальна кількість `'..'`-літералів у вікні, що робить навігацію
+/// «глибокою» — точний порт `if (dots >= 4)`
+/// (`sandbox-aware-test/main.mjs:32`).
+const DEEP_NAV_MIN_DOTS: usize = 4;
+
+/// Розмір вікна після вживання `import.meta.*` — точний порт
+/// `body.slice(match.index, match.index + 400)`
+/// (`sandbox-aware-test/main.mjs:29`), у БАЙТАХ (розбіжність 4 секції).
+const DEEP_NAV_WINDOW: usize = 400;
+
+/// Виклик `.toBe(` — точний порт `TO_BE_CALL_RE`
+/// (`vitest-api-conventions/main.mjs:14`).
+const TO_BE_CALL_PATTERN: &str = r"\.toBe\(";
+
+/// Діагностика форми `fail(msg)` (без `file`/`data`) — дефолтний `reason`
+/// `createViolationReporter` уже підставлений викликачем.
+fn plain_violation(reason: &str, message: String) -> Diagnostic {
+    Diagnostic {
+        reason: reason.to_string(),
+        message,
+        file: None,
+        severity: Severity::Error,
+        data: None,
+    }
+}
+
+/// Точний порт `lint()` `bun/layout`
+/// (`plugins/lang-js/rules/bun/layout/main.mjs:16-52`) — WHOLE-BATCH,
+/// суто `existsSync`-перевірки кореня репо (жодного читання вмісту).
+/// Порядок діагностик — точний порядок гілок JS-оригіналу.
+fn detect_bun_layout(files: &[SourceFile]) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+    for name in BUN_LAYOUT_FORBIDDEN_FILES {
+        if batch_file(files, name).is_some() {
+            diagnostics.push(plain_violation(
+                BUN_LAYOUT_REASON,
+                format!("Знайдено заборонений файл: {name} — видали його"),
+            ));
+        }
+    }
+    if batch_dir_exists(files, ".yarn") {
+        diagnostics.push(plain_violation(
+            BUN_LAYOUT_REASON,
+            "Знайдено директорію .yarn — видали її".to_string(),
+        ));
+    }
+    if batch_file(files, "bun.lock").is_none() {
+        diagnostics.push(plain_violation(
+            BUN_LAYOUT_REASON,
+            "Відсутній bun.lock — запусти bun i".to_string(),
+        ));
+    }
+    if batch_file(files, "bunfig.toml").is_none() {
+        diagnostics.push(plain_violation(
+            BUN_LAYOUT_REASON,
+            "Відсутній bunfig.toml — створи з [install] linker = \"hoisted\" (bun.mdc)".to_string(),
+        ));
+    }
+    if batch_file(files, "package.json").is_none() {
+        diagnostics.push(plain_violation(
+            BUN_LAYOUT_REASON,
+            "Відсутній package.json у корені".to_string(),
+        ));
+    }
+    diagnostics
+}
+
+/// Точний порт `checkStylelintConfigPresence`
+/// (`style/tooling/main.mjs:27-39`): без кореневого `package.json` перевірка
+/// взагалі не виконується (`return` до будь-якого `fail`). Умова
+/// `pkg.stylelint && typeof pkg.stylelint === 'object'` істинна і для
+/// МАСИВУ (`typeof [] === 'object'`) — тому `Object | Array`, а не лише
+/// `Object`.
+fn stylelint_config_present(files: &[SourceFile]) -> Option<bool> {
+    let pkg = batch_file(files, "package.json")?;
+    let has_field = parse_json_tolerant(&pkg.content)
+        .and_then(|json| json.get("stylelint").cloned())
+        .is_some_and(|value| {
+            matches!(
+                value,
+                serde_json::Value::Object(_) | serde_json::Value::Array(_)
+            )
+        });
+    let has_external_cfg = STYLELINT_CONFIG_FILES
+        .iter()
+        .any(|name| batch_file(files, name).is_some());
+    Some(has_field || has_external_cfg)
+}
+
+/// Точний порт `lint()` `style/tooling`
+/// (`plugins/lang-js/rules/style/tooling/main.mjs:51-73`) — WHOLE-BATCH:
+/// конфіг stylelint (поле в `package.json` АБО зовнішній файл) плюс рядок
+/// `dist/` у `.stylelintignore`.
+fn detect_style_tooling(files: &[SourceFile]) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+    if stylelint_config_present(files) == Some(false) {
+        diagnostics.push(plain_violation(
+            STYLE_TOOLING_REASON,
+            "Немає конфігу stylelint — додай \"stylelint\": { \"extends\": \
+             \"@nitra/stylelint-config\" } до package.json"
+                .to_string(),
+        ));
+    }
+    match batch_file(files, ".stylelintignore") {
+        Some(ignore) => {
+            if !ignore
+                .content
+                .split('\n')
+                .any(|line| line.trim() == "dist/")
+            {
+                diagnostics.push(plain_violation(
+                    STYLE_TOOLING_REASON,
+                    ".stylelintignore не містить рядка dist/ — додай його (style.mdc)".to_string(),
+                ));
+            }
+        }
+        None => diagnostics.push(plain_violation(
+            STYLE_TOOLING_REASON,
+            ".stylelintignore не існує — створи з вмістом: dist/".to_string(),
+        )),
+    }
+    diagnostics
+}
+
+/// Найбільша позиція `<= limit`, що є межею символу — байтовий еквівалент
+/// «обрізати вікно», який не панікує на кириличному вмісті (розбіжність 4
+/// секції).
+fn clamp_to_char_boundary(content: &str, limit: usize) -> usize {
+    let mut end = limit.min(content.len());
+    while end > 0 && !content.is_char_boundary(end) {
+        end -= 1;
+    }
+    end
+}
+
+/// Точний порт `hasDeepMetaNavigation`
+/// (`sandbox-aware-test/main.mjs:25-34`): для КОЖНОГО вживання
+/// `import.meta.dirname|url` рахує `'..'`/`".."` у вікні
+/// [`DEEP_NAV_WINDOW`] і повертає `true` на першому вікні з
+/// [`DEEP_NAV_MIN_DOTS`]+ літералами.
+fn has_deep_meta_navigation(content: &str, nav_re: &regex::Regex, dots_re: &regex::Regex) -> bool {
+    for m in nav_re.find_iter(content) {
+        let end = clamp_to_char_boundary(content, m.start() + DEEP_NAV_WINDOW);
+        if dots_re.find_iter(&content[m.start()..end]).count() >= DEEP_NAV_MIN_DOTS {
+            return true;
+        }
+    }
+    false
+}
+
+/// Точний порт `lint()` `test/sandbox-aware-test`
+/// (`plugins/lang-js/rules/test/sandbox-aware-test/main.mjs:50-88`) —
+/// WHOLE-BATCH, гість-фільтр [`is_test_file_no_process_chdir`] (той самий
+/// предикат `isTestFile`, що решта test-концернів). `pass`-гілка
+/// (`Усі N тестові файли sandbox-aware`) — no-op у
+/// `createViolationReporter`, тож ззовні не спостережувана.
+fn detect_sandbox_aware_test(files: &[SourceFile]) -> Vec<Diagnostic> {
+    let nav_re =
+        regex::Regex::new(IMPORT_META_NAV_PATTERN).expect("IMPORT_META_NAV_PATTERN валідний");
+    let dots_re =
+        regex::Regex::new(DOT_DOT_LITERAL_PATTERN).expect("DOT_DOT_LITERAL_PATTERN валідний");
+    let with_tmp_dir_re =
+        regex::Regex::new(WITH_TMP_DIR_PATTERN).expect("WITH_TMP_DIR_PATTERN валідний");
+    let skip_if_re =
+        regex::Regex::new(SKIP_IF_STRYKER_PATTERN).expect("SKIP_IF_STRYKER_PATTERN валідний");
+
+    let mut diagnostics = Vec::new();
+    for file in files {
+        if !is_test_file_no_process_chdir(&file.path) {
+            continue;
+        }
+        if !has_deep_meta_navigation(&file.content, &nav_re, &dots_re) {
+            continue;
+        }
+        if with_tmp_dir_re.is_match(&file.content) || skip_if_re.is_match(&file.content) {
+            continue;
+        }
+        diagnostics.push(plain_violation(
+            SANDBOX_AWARE_TEST_REASON,
+            format!(
+                "{}: import.meta deep navigation (≥4 рівні ..) без ізоляції — оберни у \
+                 withTmpDir() або захисти test.skipIf(env.STRYKER_MUTATOR_WORKER) (test.mdc, \
+                 sandbox-aware-test)",
+                file.path
+            ),
+        ));
+    }
+    diagnostics
+}
+
+/// Чи байт — whitespace у сенсі JS `/\s/u` (ASCII-підмножина, розбіжність 5
+/// секції): пробіл, `\t`, `\n`, `\v`, `\f`, `\r`.
+fn is_js_ascii_whitespace(byte: u8) -> bool {
+    matches!(byte, b' ' | b'\t' | b'\n' | 0x0b | 0x0c | b'\r')
+}
+
+/// Точний порт `skipWhitespace` (`vitest-api-conventions/main.mjs:28-32`)
+/// над байтами (доккомент секції, «Чому байтовий сканер»).
+fn vitest_api_skip_whitespace(body: &[u8], from: usize) -> usize {
+    let mut i = from;
+    while i < body.len() && is_js_ascii_whitespace(body[i]) {
+        i += 1;
+    }
+    i
+}
+
+/// Точний порт `findMatchingBracketEnd`
+/// (`vitest-api-conventions/main.mjs:59-98`): індекс одразу за парною
+/// дужкою, що закриває `body[open_index]`; `None` — незбалансовано (та сама
+/// «здаємось»-гілка, що JS-оригінал). Дужки всередині рядкових/template-
+/// літералів ігноруються, `\` екранує наступний байт.
+fn find_matching_bracket_end(body: &[u8], open_index: usize) -> Option<usize> {
+    let mut stack = vec![body[open_index]];
+    let mut i = open_index + 1;
+    let mut quote: Option<u8> = None;
+
+    while i < body.len() {
+        let ch = body[i];
+        if let Some(q) = quote {
+            if ch == b'\\' {
+                i += 2;
+            } else {
+                if ch == q {
+                    quote = None;
+                }
+                i += 1;
+            }
+            continue;
+        }
+        if matches!(ch, b'"' | b'\'' | b'`') {
+            quote = Some(ch);
+            i += 1;
+            continue;
+        }
+        if matches!(ch, b'{' | b'[') {
+            stack.push(ch);
+            i += 1;
+            continue;
+        }
+        let open = match ch {
+            b'}' => Some(b'{'),
+            b']' => Some(b'['),
+            _ => None,
+        };
+        if let Some(open) = open {
+            if stack.last() != Some(&open) {
+                return None;
+            }
+            stack.pop();
+            if stack.is_empty() {
+                return Some(i + 1);
+            }
+        }
+        i += 1;
+    }
+
+    None
+}
+
+/// Точний порт `findOffenders` (`vitest-api-conventions/main.mjs:106-123`):
+/// 1-індексовані рядки викликів `.toBe(` з АРГУМЕНТОМ-літералом
+/// (`{…}`/`[…]`), до якого нічого не приєднано, окрім опційних пробілів
+/// і `)`.
+fn find_to_be_literal_offenders(content: &str, to_be_re: &regex::Regex) -> Vec<usize> {
+    let body = content.as_bytes();
+    let mut offenders = Vec::new();
+    for m in to_be_re.find_iter(content) {
+        let arg_start = vitest_api_skip_whitespace(body, m.end());
+        if !matches!(body.get(arg_start), Some(b'{') | Some(b'[')) {
+            continue;
+        }
+        let Some(after_literal) = find_matching_bracket_end(body, arg_start) else {
+            continue;
+        };
+        let after_ws = vitest_api_skip_whitespace(body, after_literal);
+        if body.get(after_ws) != Some(&b')') {
+            continue;
+        }
+        offenders.push(line_number_at_offset(content, m.start()));
+    }
+    offenders
+}
+
+/// Точний порт `lint()` `test/vitest-api-conventions`
+/// (`plugins/lang-js/rules/test/vitest-api-conventions/main.mjs:132-153`) —
+/// WHOLE-BATCH через спільний `collectTestFileOffenders`-скелет; на відміну
+/// від решти test-концернів батчу, `fail(msg, { file })` заповнює
+/// `diagnostic.file`.
+fn detect_vitest_api_conventions(files: &[SourceFile]) -> Vec<Diagnostic> {
+    let to_be_re = regex::Regex::new(TO_BE_CALL_PATTERN).expect("TO_BE_CALL_PATTERN валідний");
+    let mut diagnostics = Vec::new();
+    for file in files {
+        if !is_test_file_no_process_chdir(&file.path) {
+            continue;
+        }
+        for line in find_to_be_literal_offenders(&file.content, &to_be_re) {
+            diagnostics.push(Diagnostic {
+                reason: VITEST_API_CONVENTIONS_REASON.to_string(),
+                message: format!(
+                    "{}:{line}: expect(...).toBe(...) з об'єктним/масивним літералом завжди false \
+                     (Object.is на новому посиланні) — використовуй toEqual (test.mdc, \
+                     vitest-api-conventions)",
+                    file.path
+                ),
+                file: Some(file.path.clone()),
+                severity: Severity::Error,
+                data: None,
+            });
+        }
+    }
+    diagnostics
+}
+
+/// Guest-реалізація world `plugin` — тридцять дві контрибуції ([`CONCERN_TFM`],
 /// [`CONCERN_GAP`], [`CONCERN_POOL_FORKS`], [`CONCERN_NO_PROCESS_CHDIR`],
 /// [`CONCERN_ADMIN_TABLE`], [`CONCERN_QUASAR_FIXES`], [`CONCERN_LOCATION`],
 /// [`CONCERN_NO_CONSOLE_STORE_RESTORE`], [`CONCERN_NO_BUN_TEST_IMPORT`],
@@ -7158,7 +7670,10 @@ fn detect_dep_policy(files: &[SourceFile]) -> Vec<Diagnostic> {
 /// [`CONCERN_REDIS_PACKAGE_JSON`], [`CONCERN_MSSQL_PACKAGE_JSON`] — батч 6;
 /// [`CONCERN_RULE_META`], [`CONCERN_SKILL_META`],
 /// [`CONCERN_HEADER_DOC_POINTER`], [`CONCERN_PACKAGE_STRUCTURE`],
-/// [`CONCERN_DEP_POLICY`] — батч 7, доккомент секції «Батч 7» вище).
+/// [`CONCERN_DEP_POLICY`] — батч 7, доккомент секції «Батч 7» вище;
+/// [`CONCERN_BUN_LAYOUT`], [`CONCERN_STYLE_TOOLING`],
+/// [`CONCERN_SANDBOX_AWARE_TEST`], [`CONCERN_VITEST_API_CONVENTIONS`] —
+/// батч 8, доккомент секції «Батч 8» вище).
 struct LangJs;
 
 impl Guest for LangJs {
@@ -7284,6 +7799,22 @@ impl Guest for LangJs {
             CONCERN_DEP_POLICY => {
                 report_progress(total, total);
                 detect_dep_policy(&batch.files)
+            }
+            CONCERN_BUN_LAYOUT => {
+                report_progress(total, total);
+                detect_bun_layout(&batch.files)
+            }
+            CONCERN_STYLE_TOOLING => {
+                report_progress(total, total);
+                detect_style_tooling(&batch.files)
+            }
+            CONCERN_SANDBOX_AWARE_TEST => {
+                report_progress(total, total);
+                detect_sandbox_aware_test(&batch.files)
+            }
+            CONCERN_VITEST_API_CONVENTIONS => {
+                report_progress(total, total);
+                detect_vitest_api_conventions(&batch.files)
             }
             _ => {
                 let mut diagnostics = Vec::new();
@@ -9378,7 +9909,7 @@ mod tests {
     // --- маніфест ---
 
     #[test]
-    fn build_manifest_declares_all_twenty_eight_concerns_with_expected_scopes() {
+    fn build_manifest_declares_all_thirty_two_concerns_with_expected_scopes() {
         let manifest = build_manifest();
         // Задача Q4 батч 4: `CONCERN_REDIS_IMPORTS`/`CONCERN_MSSQL_DEPS`/
         // `CONCERN_BUN_DB_SAFETY` тепер У контрибуції (AST-порти, де-скоуп
@@ -9386,8 +9917,10 @@ mod tests {
         // концернів storybook-сімейства (доккомент секції «Батч 5»), батч 6 —
         // `test/storybook-vitest-config` і три rego-порти `*/package_json`
         // (доккомент секції «Батч 6»), батч 7 — чотири `npm-module/*` і
-        // `js/dep-policy` (доккомент секції «Батч 7»).
-        assert_eq!(manifest.concerns.len(), 28);
+        // `js/dep-policy` (доккомент секції «Батч 7»), батч 8 — `bun/layout`,
+        // `style/tooling`, `test/sandbox-aware-test` і
+        // `test/vitest-api-conventions` (доккомент секції «Батч 8»).
+        assert_eq!(manifest.concerns.len(), 32);
         let tfm = manifest
             .concerns
             .iter()
@@ -9422,6 +9955,10 @@ mod tests {
             CONCERN_HEADER_DOC_POINTER,
             CONCERN_PACKAGE_STRUCTURE,
             CONCERN_DEP_POLICY,
+            CONCERN_BUN_LAYOUT,
+            CONCERN_STYLE_TOOLING,
+            CONCERN_SANDBOX_AWARE_TEST,
+            CONCERN_VITEST_API_CONVENTIONS,
         ] {
             let contribution = manifest
                 .concerns
@@ -9709,5 +10246,312 @@ mod tests {
         assert!(diagnostics[0]
             .message
             .starts_with("src/ua.mjs: заборонений"));
+    }
+
+    // --- Батч 8: bun/layout ---
+
+    /// Мінімально «чистий» корінь: обидва обовʼязкові файли на місці, жодного
+    /// забороненого — нуль діагностик.
+    fn bun_layout_clean_root() -> Vec<SourceFile> {
+        vec![
+            src("bun.lock", ""),
+            src("bunfig.toml", "[install]\nlinker = \"hoisted\"\n"),
+            src("package.json", "{}\n"),
+        ]
+    }
+
+    #[test]
+    fn detect_bun_layout_passes_on_canonical_root() {
+        assert!(detect_bun_layout(&bun_layout_clean_root()).is_empty());
+    }
+
+    #[test]
+    fn detect_bun_layout_flags_each_forbidden_lockfile_in_declared_order() {
+        let mut files = bun_layout_clean_root();
+        files.push(src("yarn.lock", ""));
+        files.push(src("package-lock.json", "{}"));
+        let diagnostics = detect_bun_layout(&files);
+        let messages: Vec<&str> = diagnostics.iter().map(|d| d.message.as_str()).collect();
+        assert_eq!(
+            messages,
+            vec![
+                "Знайдено заборонений файл: package-lock.json — видали його",
+                "Знайдено заборонений файл: yarn.lock — видали його",
+            ]
+        );
+        assert!(diagnostics.iter().all(|d| d.reason == BUN_LAYOUT_REASON));
+        assert!(diagnostics.iter().all(|d| d.file.is_none()));
+    }
+
+    #[test]
+    fn detect_bun_layout_flags_yarn_dir_reconstructed_from_batch() {
+        let mut files = bun_layout_clean_root();
+        files.push(src(".yarn/cache/foo.zip", ""));
+        let diagnostics = detect_bun_layout(&files);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(
+            diagnostics[0].message,
+            "Знайдено директорію .yarn — видали її"
+        );
+    }
+
+    #[test]
+    fn detect_bun_layout_flags_missing_required_files() {
+        let diagnostics = detect_bun_layout(&[]);
+        let messages: Vec<&str> = diagnostics.iter().map(|d| d.message.as_str()).collect();
+        assert_eq!(
+            messages,
+            vec![
+                "Відсутній bun.lock — запусти bun i",
+                "Відсутній bunfig.toml — створи з [install] linker = \"hoisted\" (bun.mdc)",
+                "Відсутній package.json у корені",
+            ]
+        );
+    }
+
+    #[test]
+    fn detect_bun_layout_ignores_nested_lockfiles() {
+        // Глоби контрибуції кореневі — вкладений `sub/yarn.lock` у батч не
+        // потрапляє; тут перевіряємо, що навіть якби потрапив, детектор
+        // порівнює ПОВНИЙ шлях, як `existsSync(join(cwd, f))`.
+        let mut files = bun_layout_clean_root();
+        files.push(src("sub/yarn.lock", ""));
+        assert!(detect_bun_layout(&files).is_empty());
+    }
+
+    // --- Батч 8: style/tooling ---
+
+    #[test]
+    fn detect_style_tooling_passes_with_field_and_dist_ignore() {
+        let files = vec![
+            src(
+                "package.json",
+                "{ \"stylelint\": { \"extends\": \"@nitra/stylelint-config\" } }",
+            ),
+            src(".stylelintignore", "dist/\n"),
+        ];
+        assert!(detect_style_tooling(&files).is_empty());
+    }
+
+    #[test]
+    fn detect_style_tooling_accepts_external_config_file() {
+        let files = vec![
+            src("package.json", "{}"),
+            src("stylelint.config.mjs", "export default {}\n"),
+            src(".stylelintignore", "  dist/  \n"),
+        ];
+        assert!(detect_style_tooling(&files).is_empty());
+    }
+
+    #[test]
+    fn detect_style_tooling_flags_missing_config_and_ignore_file() {
+        let files = vec![src("package.json", "{}")];
+        let diagnostics = detect_style_tooling(&files);
+        assert_eq!(diagnostics.len(), 2);
+        assert!(diagnostics[0]
+            .message
+            .starts_with("Немає конфігу stylelint"));
+        assert_eq!(
+            diagnostics[1].message,
+            ".stylelintignore не існує — створи з вмістом: dist/"
+        );
+        assert!(diagnostics.iter().all(|d| d.reason == STYLE_TOOLING_REASON));
+    }
+
+    #[test]
+    fn detect_style_tooling_flags_ignore_without_dist_line() {
+        let files = vec![
+            src("package.json", "{ \"stylelint\": {} }"),
+            src(".stylelintignore", "build/\ncoverage/\n"),
+        ];
+        let diagnostics = detect_style_tooling(&files);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(
+            diagnostics[0].message,
+            ".stylelintignore не містить рядка dist/ — додай його (style.mdc)"
+        );
+    }
+
+    #[test]
+    fn detect_style_tooling_skips_config_check_without_root_package_json() {
+        // Без кореневого `package.json` JS-канон робить `return` ДО будь-якого
+        // `fail` — лишається тільки `.stylelintignore`-гілка.
+        let files = vec![src(".stylelintignore", "dist/\n")];
+        assert!(detect_style_tooling(&files).is_empty());
+    }
+
+    #[test]
+    fn detect_style_tooling_treats_non_object_stylelint_field_as_absent() {
+        // `pkg.stylelint && typeof pkg.stylelint === 'object'` — рядок falsy
+        // для цієї умови, масив — truthy (`typeof [] === 'object'`).
+        let string_field = vec![
+            src(
+                "package.json",
+                "{ \"stylelint\": \"@nitra/stylelint-config\" }",
+            ),
+            src(".stylelintignore", "dist/\n"),
+        ];
+        assert_eq!(detect_style_tooling(&string_field).len(), 1);
+        let array_field = vec![
+            src("package.json", "{ \"stylelint\": [] }"),
+            src(".stylelintignore", "dist/\n"),
+        ];
+        assert!(detect_style_tooling(&array_field).is_empty());
+    }
+
+    // --- Батч 8: test/sandbox-aware-test ---
+
+    /// Тіло з `import.meta.dirname` і чотирма `'..'`-літералами у вікні.
+    const DEEP_NAV_BODY: &str =
+        "import { join } from 'node:path'\nconst root = join(import.meta.dirname, '..', '..', '..', '..')\n";
+
+    #[test]
+    fn detect_sandbox_aware_test_flags_unguarded_deep_navigation() {
+        let files = vec![src("tests/deep.test.mjs", DEEP_NAV_BODY)];
+        let diagnostics = detect_sandbox_aware_test(&files);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].reason, SANDBOX_AWARE_TEST_REASON);
+        assert!(diagnostics[0].file.is_none());
+        assert!(diagnostics[0].message.starts_with("tests/deep.test.mjs: "));
+        assert!(diagnostics[0].message.contains("withTmpDir()"));
+    }
+
+    #[test]
+    fn detect_sandbox_aware_test_accepts_with_tmp_dir_guard() {
+        let body = format!("{DEEP_NAV_BODY}await withTmpDir(async dir => {{}})\n");
+        let files = vec![src("tests/deep.test.mjs", &body)];
+        assert!(detect_sandbox_aware_test(&files).is_empty());
+    }
+
+    #[test]
+    fn detect_sandbox_aware_test_accepts_stryker_skip_if_guard() {
+        for guard in [
+            "test.skipIf(env.STRYKER_MUTATOR_WORKER)('x', () => {})\n",
+            "test.skipIf( process.env.STRYKER_MUTATOR_WORKER )('x', () => {})\n",
+        ] {
+            let body = format!("{DEEP_NAV_BODY}{guard}");
+            let files = vec![src("tests/deep.test.mjs", &body)];
+            assert!(
+                detect_sandbox_aware_test(&files).is_empty(),
+                "guard: {guard}"
+            );
+        }
+    }
+
+    #[test]
+    fn detect_sandbox_aware_test_ignores_shallow_navigation() {
+        let files = vec![src(
+            "tests/shallow.test.mjs",
+            "const root = join(import.meta.dirname, '..', '..', '..')\n",
+        )];
+        assert!(detect_sandbox_aware_test(&files).is_empty());
+    }
+
+    #[test]
+    fn detect_sandbox_aware_test_ignores_dots_outside_window() {
+        // `'..'`-літерали далі за 400 байтів від вживання `import.meta.*` у
+        // вікно не потрапляють — точний порт `body.slice(i, i + 400)`.
+        let filler = "x".repeat(420);
+        let body = format!(
+            "const d = import.meta.dirname\n// {filler}\nconst r = join(d, '..', '..', '..', '..')\n"
+        );
+        let files = vec![src("tests/far.test.mjs", &body)];
+        assert!(detect_sandbox_aware_test(&files).is_empty());
+    }
+
+    #[test]
+    fn detect_sandbox_aware_test_ignores_non_test_files() {
+        let files = vec![src("src/deep.mjs", DEEP_NAV_BODY)];
+        assert!(detect_sandbox_aware_test(&files).is_empty());
+    }
+
+    #[test]
+    fn has_deep_meta_navigation_does_not_panic_on_multibyte_window_edge() {
+        // Розбіжність 4 секції «Батч 8»: вікно ріжеться по БАЙТАХ, тож межа
+        // може впасти всередину кириличного символу — [`clamp_to_char_boundary`]
+        // мусить це витримати.
+        let nav_re = regex::Regex::new(IMPORT_META_NAV_PATTERN).unwrap();
+        let dots_re = regex::Regex::new(DOT_DOT_LITERAL_PATTERN).unwrap();
+        let body = format!("import.meta.url{}", "ї".repeat(300));
+        assert!(!has_deep_meta_navigation(&body, &nav_re, &dots_re));
+    }
+
+    // --- Батч 8: test/vitest-api-conventions ---
+
+    #[test]
+    fn detect_vitest_api_conventions_flags_object_and_array_literals() {
+        let files = vec![src(
+            "tests/api.test.mjs",
+            "expect(a).toBe({ x: 1 })\nexpect(b).toBe([1, 2])\n",
+        )];
+        let diagnostics = detect_vitest_api_conventions(&files);
+        assert_eq!(diagnostics.len(), 2);
+        assert_eq!(diagnostics[0].reason, VITEST_API_CONVENTIONS_REASON);
+        assert_eq!(diagnostics[0].file.as_deref(), Some("tests/api.test.mjs"));
+        assert!(diagnostics[0]
+            .message
+            .starts_with("tests/api.test.mjs:1: expect(...).toBe(...)"));
+        assert!(diagnostics[1]
+            .message
+            .starts_with("tests/api.test.mjs:2: expect(...).toBe(...)"));
+    }
+
+    #[test]
+    fn detect_vitest_api_conventions_ignores_chained_literal_result() {
+        // `.toBe([...].join('\n'))` — результат `.join()` рядок-примітив,
+        // не масив-посилання; після літерала стоїть НЕ `)`.
+        let files = vec![src(
+            "tests/api.test.mjs",
+            "expect(a).toBe(['x', 'y'].join('\\n'))\n",
+        )];
+        assert!(detect_vitest_api_conventions(&files).is_empty());
+    }
+
+    #[test]
+    fn detect_vitest_api_conventions_ignores_primitive_arguments() {
+        let files = vec![src(
+            "tests/api.test.mjs",
+            "expect(a).toBe(1)\nexpect(b).toBe('x')\nexpect(c).toBe(undefined)\n",
+        )];
+        assert!(detect_vitest_api_conventions(&files).is_empty());
+    }
+
+    #[test]
+    fn detect_vitest_api_conventions_survives_brackets_inside_string_literals() {
+        let files = vec![src(
+            "tests/api.test.mjs",
+            "expect(a).toBe({ s: '}', t: \"]\", u: `}` })\n",
+        )];
+        assert_eq!(detect_vitest_api_conventions(&files).len(), 1);
+    }
+
+    #[test]
+    fn detect_vitest_api_conventions_skips_unbalanced_brackets() {
+        let files = vec![src("tests/api.test.mjs", "expect(a).toBe({ x: 1\n")];
+        assert!(detect_vitest_api_conventions(&files).is_empty());
+    }
+
+    #[test]
+    fn detect_vitest_api_conventions_allows_whitespace_around_literal() {
+        let files = vec![src(
+            "tests/api.test.mjs",
+            "expect(a).toBe(\n  { x: 1 }\n)\n",
+        )];
+        let diagnostics = detect_vitest_api_conventions(&files);
+        assert_eq!(diagnostics.len(), 1);
+        // Рядок рахується від позиції `.toBe(`, не від літерала.
+        assert!(diagnostics[0].message.starts_with("tests/api.test.mjs:1:"));
+    }
+
+    #[test]
+    fn detect_vitest_api_conventions_ignores_non_test_files() {
+        let files = vec![src("src/api.mjs", "expect(a).toBe({ x: 1 })\n")];
+        assert!(detect_vitest_api_conventions(&files).is_empty());
+    }
+
+    #[test]
+    fn find_matching_bracket_end_handles_escaped_quote() {
+        let body = b"{ s: 'a\\'}' }";
+        assert_eq!(find_matching_bracket_end(body, 0), Some(body.len()));
     }
 }

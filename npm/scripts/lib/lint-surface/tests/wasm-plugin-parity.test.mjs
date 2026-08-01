@@ -186,6 +186,32 @@ const SKILL_META_MAIN_MJS_PATH = join(NPM_MODULE_RULES_DIR, 'skill_meta', 'main.
 const HEADER_DOC_POINTER_MAIN_MJS_PATH = join(NPM_MODULE_RULES_DIR, 'header_doc_pointer', 'main.mjs')
 const PACKAGE_STRUCTURE_MAIN_MJS_PATH = join(NPM_MODULE_RULES_DIR, 'package_structure', 'main.mjs')
 const DEP_POLICY_MAIN_MJS_PATH = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'js', 'dep-policy', 'main.mjs')
+// Батч 8: чотири «файлово-структурні» концерни без зовнішнього тула
+// (доккомент секції «Батч 8» у `crates/plugin-lang-js/src/lib.rs`).
+const BUN_LAYOUT_MAIN_MJS_PATH = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'bun', 'layout', 'main.mjs')
+const STYLE_TOOLING_MAIN_MJS_PATH = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'style', 'tooling', 'main.mjs')
+const SANDBOX_AWARE_TEST_MAIN_MJS_PATH = join(
+  REPO_ROOT,
+  'plugins',
+  'lang-js',
+  'rules',
+  'test',
+  'sandbox-aware-test',
+  'main.mjs'
+)
+const VITEST_API_CONVENTIONS_MAIN_MJS_PATH = join(
+  REPO_ROOT,
+  'plugins',
+  'lang-js',
+  'rules',
+  'test',
+  'vitest-api-conventions',
+  'main.mjs'
+)
+const BUN_LAYOUT_CONCERN_KEY = 'bun/layout'
+const STYLE_TOOLING_CONCERN_KEY = 'style/tooling'
+const SANDBOX_AWARE_TEST_CONCERN_KEY = 'test/sandbox-aware-test'
+const VITEST_API_CONVENTIONS_CONCERN_KEY = 'test/vitest-api-conventions'
 const RULE_META_CONCERN_KEY = 'npm-module/rule_meta'
 const SKILL_META_CONCERN_KEY = 'npm-module/skill_meta'
 const HEADER_DOC_POINTER_CONCERN_KEY = 'npm-module/header_doc_pointer'
@@ -2618,6 +2644,366 @@ describe('wasm-plugin parity — js/dep-policy (JS канон vs wasm plugin-lan
       expect(js).toHaveLength(2)
       expect(js[0].message).toContain('@nitra/as-integrations-fastify')
       expect(js[1].message).toContain('ua-parser-js')
+    })
+  })
+})
+
+// Батч 8 (§3.5.5): чотири «файлово-структурні» концерни без зовнішнього тула.
+// Усі full-scope, той самий [`runFullScopeBoth`]. `bun/layout` і
+// `style/tooling` — чисті `existsSync`-перевірки кореня (доводять, що
+// host-побудований батч еквівалентний FS-обходу JS-канону);
+// `test/sandbox-aware-test` і `test/vitest-api-conventions` — сканери тіл
+// `*.test.{mjs,js}`, дзеркало
+// `plugins/lang-js/rules/test/<concern>/tests/*.test.mjs` там, де вони є.
+describe('wasm-plugin parity — bun/layout (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
+  const runBunLayoutBoth = dir =>
+    runFullScopeBoth(BUN_LAYOUT_MAIN_MJS_PATH, BUN_LAYOUT_CONCERN_KEY, 'bun', 'layout', dir)
+
+  test('успіх: bun.lock + bunfig.toml + package.json → без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'bun.lock', '')
+      await writeFileDeep(dir, 'bunfig.toml', '[install]\nlinker = "hoisted"\n')
+      await writeFileDeep(dir, 'package.json', '{ "name": "app" }\n')
+      const { js, wasm } = await runBunLayoutBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('порушення: порожній корінь → три однакові violations у тому самому порядку', async () => {
+    await withTmpDir(async dir => {
+      const { js, wasm } = await runBunLayoutBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js.map(v => v.message)).toEqual([
+        'Відсутній bun.lock — запусти bun i',
+        'Відсутній bunfig.toml — створи з [install] linker = "hoisted" (bun.mdc)',
+        'Відсутній package.json у корені'
+      ])
+      expect(js.every(v => v.reason === 'layout')).toBe(true)
+    })
+  })
+
+  test('порушення: усі чотири заборонені lock/конфіг-файли — порядок масиву канону', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'bun.lock', '')
+      await writeFileDeep(dir, 'bunfig.toml', '[install]\n')
+      await writeFileDeep(dir, 'package.json', '{}\n')
+      for (const f of ['package-lock.json', 'yarn.lock', 'pnpm-lock.yaml', '.yarnrc.yml']) {
+        await writeFileDeep(dir, f, '')
+      }
+      const { js, wasm } = await runBunLayoutBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js.map(v => v.message)).toEqual([
+        'Знайдено заборонений файл: package-lock.json — видали його',
+        'Знайдено заборонений файл: yarn.lock — видали його',
+        'Знайдено заборонений файл: pnpm-lock.yaml — видали його',
+        'Знайдено заборонений файл: .yarnrc.yml — видали його'
+      ])
+    })
+  })
+
+  // Каталог `.yarn/` wasm-порт реконструює з батча (`.yarn/**` у глобі
+  // контрибуції) — саме тут «файл під каталогом» має дати той самий сигнал,
+  // що `existsSync(join(cwd, '.yarn'))` JS-канону.
+  test('порушення: непорожній .yarn/ → однакове violation з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'bun.lock', '')
+      await writeFileDeep(dir, 'bunfig.toml', '[install]\n')
+      await writeFileDeep(dir, 'package.json', '{}\n')
+      await writeFileDeep(dir, '.yarn/install-state.gz', 'x')
+      const { js, wasm } = await runBunLayoutBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].message).toBe('Знайдено директорію .yarn — видали її')
+    })
+  })
+
+  test('край: файл (не каталог) з іменем .yarn теж рахується — глоб контрибуції ширший за concern.json', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'bun.lock', '')
+      await writeFileDeep(dir, 'bunfig.toml', '[install]\n')
+      await writeFileDeep(dir, 'package.json', '{}\n')
+      await writeFileDeep(dir, '.yarn', '')
+      const { js, wasm } = await runBunLayoutBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js.map(v => v.message)).toEqual(['Знайдено директорію .yarn — видали її'])
+    })
+  })
+
+  test('край: вкладені lock-файли підпакетів корінь не чіпають (existsSync лише cwd)', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'bun.lock', '')
+      await writeFileDeep(dir, 'bunfig.toml', '[install]\n')
+      await writeFileDeep(dir, 'package.json', '{}\n')
+      await writeFileDeep(dir, 'packages/ui/yarn.lock', '')
+      const { js, wasm } = await runBunLayoutBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+})
+
+describe('wasm-plugin parity — style/tooling (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
+  const runStyleToolingBoth = dir =>
+    runFullScopeBoth(STYLE_TOOLING_MAIN_MJS_PATH, STYLE_TOOLING_CONCERN_KEY, 'style', 'tooling', dir)
+
+  test('успіх: поле stylelint у package.json + .stylelintignore з dist/ → без порушень', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'package.json', JSON.stringify({ stylelint: { extends: '@nitra/stylelint-config' } }))
+      await writeFileDeep(dir, '.stylelintignore', 'dist/\n')
+      const { js, wasm } = await runStyleToolingBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('успіх: зовнішній stylelint.config.mjs замість поля + dist/ з пробілами навколо', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'package.json', '{}\n')
+      await writeFileDeep(dir, 'stylelint.config.mjs', 'export default {}\n')
+      await writeFileDeep(dir, '.stylelintignore', '  dist/  \n')
+      const { js, wasm } = await runStyleToolingBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('порушення: ні конфігу, ні .stylelintignore → два однакові violations у тому самому порядку', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'package.json', '{ "name": "app" }\n')
+      const { js, wasm } = await runStyleToolingBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(2)
+      expect(js[0].message).toContain('Немає конфігу stylelint')
+      expect(js[1].message).toBe('.stylelintignore не існує — створи з вмістом: dist/')
+      expect(js.every(v => v.reason === 'tooling')).toBe(true)
+    })
+  })
+
+  test('порушення: .stylelintignore без рядка dist/ → однакове violation', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'package.json', JSON.stringify({ stylelint: {} }))
+      await writeFileDeep(dir, '.stylelintignore', 'build/\ncoverage/\n')
+      const { js, wasm } = await runStyleToolingBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].message).toBe('.stylelintignore не містить рядка dist/ — додай його (style.mdc)')
+    })
+  })
+
+  test('край: без кореневого package.json перевірка конфігу пропускається (лишається лише ignore-гілка)', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, '.stylelintignore', 'dist/\n')
+      const { js, wasm } = await runStyleToolingBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  // `pkg.stylelint && typeof pkg.stylelint === 'object'` — рядок не проходить,
+  // а МАСИВ проходить (`typeof [] === 'object'`); порт мусить відтворити
+  // саме цю JS-семантику, а не «об'єкт».
+  test('край: stylelint-рядок не рахується конфігом, а stylelint-масив — рахується', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'package.json', JSON.stringify({ stylelint: '@nitra/stylelint-config' }))
+      await writeFileDeep(dir, '.stylelintignore', 'dist/\n')
+      const asString = await runStyleToolingBoth(dir)
+      expect(asString.wasm).toEqual(asString.js)
+      expect(asString.js).toHaveLength(1)
+
+      await writeFileDeep(dir, 'package.json', JSON.stringify({ stylelint: [] }))
+      const asArray = await runStyleToolingBoth(dir)
+      expect(asArray.wasm).toEqual(asArray.js)
+      expect(asArray.js).toEqual([])
+    })
+  })
+})
+
+describe('wasm-plugin parity — test/sandbox-aware-test (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
+  const runSandboxBoth = dir =>
+    runFullScopeBoth(
+      SANDBOX_AWARE_TEST_MAIN_MJS_PATH,
+      SANDBOX_AWARE_TEST_CONCERN_KEY,
+      'test',
+      'sandbox-aware-test',
+      dir
+    )
+
+  /** Тіло з `import.meta.dirname` і чотирма `'..'`-літералами у вікні 400. */
+  const DEEP_NAV_BODY =
+    "import { join } from 'node:path'\nconst root = join(import.meta.dirname, '..', '..', '..', '..')\n"
+
+  test('порушення: глибока import.meta-навігація без ізоляції → однакове violation', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'tests/deep.test.mjs', DEEP_NAV_BODY)
+      const { js, wasm } = await runSandboxBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('sandbox-aware-test')
+      expect(js[0].message).toContain('tests/deep.test.mjs: import.meta deep navigation')
+    })
+  })
+
+  test('успіх: та сама навігація під withTmpDir() → тиша з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'tests/deep.test.mjs', `${DEEP_NAV_BODY}await withTmpDir(async d => {})\n`)
+      const { js, wasm } = await runSandboxBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('успіх: захист test.skipIf(process.env.STRYKER_MUTATOR_WORKER) з пробілами', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(
+        dir,
+        'tests/deep.test.mjs',
+        `${DEEP_NAV_BODY}test.skipIf( process.env.STRYKER_MUTATOR_WORKER )('x', () => {})\n`
+      )
+      const { js, wasm } = await runSandboxBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('успіх: лише три рівні .. → не «глибока» навігація', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(
+        dir,
+        'tests/shallow.test.mjs',
+        "import { join } from 'node:path'\nconst r = join(import.meta.dirname, '..', '..', '..')\n"
+      )
+      const { js, wasm } = await runSandboxBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  // Вікно 400 символів після вживання `import.meta.*` — літерали за його
+  // межами не рахуються (обидві сторони).
+  test('край: `..`-літерали далі за 400 символів у вікно не потрапляють', async () => {
+    await withTmpDir(async dir => {
+      const filler = 'x'.repeat(420)
+      await writeFileDeep(
+        dir,
+        'tests/far.test.mjs',
+        `const d = import.meta.dirname\n// ${filler}\nconst r = join(d, '..', '..', '..', '..')\n`
+      )
+      const { js, wasm } = await runSandboxBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('край: не-тестовий файл із тим самим тілом ігнорується обома', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'src/deep.mjs', DEEP_NAV_BODY)
+      const { js, wasm } = await runSandboxBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+})
+
+describe('wasm-plugin parity — test/vitest-api-conventions (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
+  const runVitestApiBoth = dir =>
+    runFullScopeBoth(
+      VITEST_API_CONVENTIONS_MAIN_MJS_PATH,
+      VITEST_API_CONVENTIONS_CONCERN_KEY,
+      'test',
+      'vitest-api-conventions',
+      dir
+    )
+
+  // Сам концерн — ТЕКСТОВИЙ сканер, а цей файл теж `*.test.mjs`, тож
+  // літеральний `.toBe(` у фікстурах позначив би власні рядки цього файлу як
+  // порушення під час `lint --full`. Складаємо виклик із частин, аби
+  // послідовність `.toBe(` у ВИХІДНОМУ тексті не зустрічалась.
+  const TO_BE = '.toBe'
+  /**
+   * Текст фікстури `expect(<recv>)<TO_BE>(<arg>)` без літерального `.toBe(`
+   * у цьому файлі.
+   * @param {string} recv вираз-приймач усередині `expect(...)`
+   * @param {string} arg текст аргументу матчера
+   * @returns {string} рядок коду фікстури
+   */
+  const expectToBe = (recv, arg) => `expect(${recv})${TO_BE}(${arg})`
+
+  test('порушення: toBe з об’єктним і масивним літералами → два однакові violations з file', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'tests/api.test.mjs', `${expectToBe('a', '{ x: 1 }')}\n${expectToBe('b', '[1, 2]')}\n`)
+      const { js, wasm } = await runVitestApiBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(2)
+      expect(js[0].reason).toBe('vitest-api-conventions')
+      expect(js[0].file).toBe('tests/api.test.mjs')
+      expect(js[0].message).toContain('tests/api.test.mjs:1: expect(...)')
+      expect(js[1].message).toContain('tests/api.test.mjs:2: expect(...)')
+    })
+  })
+
+  test('успіх: літерал із приєднаним .join() — результат рядок, не посилання', async () => {
+    await withTmpDir(async dir => {
+      const arg = String.raw`['x', 'y'].join('\n')`
+      await writeFileDeep(dir, 'tests/api.test.mjs', `${expectToBe('a', arg)}\n`)
+      const { js, wasm } = await runVitestApiBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('успіх: примітивні аргументи toBe не чіпаються', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(
+        dir,
+        'tests/api.test.mjs',
+        `${expectToBe('a', '1')}\n${expectToBe('b', "'x'")}\n${expectToBe('c', 'undefined')}\n`
+      )
+      const { js, wasm } = await runVitestApiBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  // Дужки всередині рядкових/template-літералів не збивають сканер балансу —
+  // саме тут байтовий порт мусить збігтись із UTF-16-сканером JS.
+  test('край: дужки у рядкових і template-літералах усередині об’єкта', async () => {
+    await withTmpDir(async dir => {
+      const templateBrace = ['`', '}', '`'].join('')
+      const arg = `{ s: '}', t: "]", u: ${templateBrace} }`
+      const body = `${expectToBe('a', arg)}\n`
+      await writeFileDeep(dir, 'tests/api.test.mjs', body)
+      const { js, wasm } = await runVitestApiBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+    })
+  })
+
+  test('край: незбалансовані дужки — обидві сторони «здаються» без violation', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'tests/api.test.mjs', `${expectToBe('a', '{ x: 1')}\n`)
+      const { js, wasm } = await runVitestApiBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('край: багаторядковий літерал — рядок рахується від позиції виклику', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'tests/api.test.mjs', `// прелюдія\n${expectToBe('a', '\n  { x: 1 }\n')}\n`)
+      const { js, wasm } = await runVitestApiBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].message).toContain('tests/api.test.mjs:2:')
+    })
+  })
+
+  test('край: не-тестовий файл із тим самим викликом ігнорується обома', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'src/api.mjs', `${expectToBe('a', '{ x: 1 }')}\n`)
+      const { js, wasm } = await runVitestApiBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
     })
   })
 })
