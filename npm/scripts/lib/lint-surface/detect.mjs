@@ -40,6 +40,62 @@ function getNativeConcernKeys() {
 }
 
 /**
+ * Кеш ключів native-концернів, що вміють делегувати назад JS-канону.
+ * @type {Set<string> | null}
+ */
+let nativeDelegatingKeys = null
+
+/**
+ * Лениво резолвить множину «делегувальних» native-ключів
+ * (`listNativeDelegatingConcerns()`, дзеркало `NATIVE_DELEGATING_CONCERNS`
+ * у `crates/rules-core/src/concerns/mod.rs`).
+ *
+ * Такий concern має native-порт, але той може виявитись незастосовним у
+ * поточному оточенні (наразі єдина причина — зовнішній лінт-тул не
+ * встановлено, а встановлювати його вміє лише JS через `ensureTool`); тоді
+ * native повертає помилку з маркером {@link nativeDelegateMarker}, і виклик
+ * іде в `import(main.mjs)`.
+ *
+ * Guard на відсутність експорту потрібен для **старшого** аддона: platform-
+ * підпакети (`@7n/rules-<platform>-<arch>`) містять уже зібраний `.node`, і
+ * якщо він старіший за цей JS, функції там немає. Тоді делегувальних ключів
+ * просто нема — і `listNativeConcerns()` того ж старого аддона так само не
+ * містить нових ключів, тож concern штатно піде в `main.mjs`.
+ * @returns {Set<string>} множина делегувальних native-ключів
+ */
+function getNativeDelegatingKeys() {
+  if (nativeDelegatingKeys === null) {
+    const addon = loadNative()
+    nativeDelegatingKeys = new Set(
+      typeof addon.listNativeDelegatingConcerns === 'function' ? addon.listNativeDelegatingConcerns() : []
+    )
+  }
+  return nativeDelegatingKeys
+}
+
+/**
+ * Префікс повідомлення про делегування (`RulesError::NativeDelegate`) —
+ * napi переносить лише текст помилки, тож розпізнавання йде по рядку.
+ * Джерело правди — Rust-константа `NATIVE_DELEGATE_MARKER`, взята з аддона.
+ * @returns {string} маркер-префікс
+ */
+function nativeDelegateMarker() {
+  const addon = loadNative()
+  return typeof addon.nativeDelegateMarker === 'function' ? addon.nativeDelegateMarker() : ''
+}
+
+/**
+ * Чи є помилка native-виклику сигналом «делегуй JS-канону», а не збоєм.
+ * @param {unknown} error помилка з `runNativeConcern`.
+ * @returns {boolean} true, якщо це делегування.
+ */
+function isNativeDelegateSignal(error) {
+  const marker = nativeDelegateMarker()
+  if (marker === '') return false
+  return typeof error?.message === 'string' && error.message.includes(marker)
+}
+
+/**
  * Чи є `ruleId/concernId` builtin-native концерном (у registry
  * `NATIVE_CONCERNS` аддона) — той самий предикат, що перша гілка
  * {@link runConcernDetector} використовує для маршрутизації, винесений
@@ -47,12 +103,19 @@ function getNativeConcernKeys() {
  * `partitionPlanIntoSegments`, R2 зрізу 3 фази 7): суцільні прогони
  * builtin-native items групуються в один `runNativeConcernsBatch`-виклик
  * замість N окремих `runConcernDetector`.
+ *
+ * Делегувальні ключі ({@link getNativeDelegatingKeys}) навмисно виключені:
+ * batch-шлях (`runNativeSegmentSync`) синхронний і не вміє дочекатись
+ * async-фолбеку на `import(main.mjs)`, тож такий concern завжди йде
+ * окремим `single`-сегментом через {@link runConcernDetector}, де фолбек є.
+ * На маршрутизацію «native чи JS» це не впливає — лише на батчинг.
  * @param {string} ruleId id правила.
  * @param {string} concernId id concern-а.
- * @returns {boolean} true, якщо ключ належить `NATIVE_CONCERNS`.
+ * @returns {boolean} true, якщо ключ належить `NATIVE_CONCERNS` і не є делегувальним.
  */
 export function isBuiltinNativeConcern(ruleId, concernId) {
-  return getNativeConcernKeys().has(`${ruleId}/${concernId}`)
+  const key = `${ruleId}/${concernId}`
+  return getNativeConcernKeys().has(key) && !getNativeDelegatingKeys().has(key)
 }
 
 /**
@@ -221,12 +284,21 @@ export async function runConcernDetector(concern, ctx) {
   const nativeKey = `${ctx.ruleId}/${ctx.concernId}`
   if (getNativeConcernKeys().has(nativeKey)) {
     let raw
+    let delegated = false
     try {
       raw = loadNative().runNativeConcern(nativeKey, ctx.cwd, ctx.files ?? null)
     } catch (error) {
-      throw new DetectorError(ctx.ruleId, ctx.concernId, `native concern кинув: ${error.message}`)
+      // Делегування (`RulesError::NativeDelegate`) — НЕ збій: native-порт
+      // свідомо віддає керування JS-канону, бо не може виконатись у цьому
+      // оточенні (наразі: зовнішній лінт-тул не встановлено, а встановлює
+      // його лише `ensureTool` на боці JS). Провалюємось у `main.mjs`-гілку
+      // нижче — той самий skip-not-crash, що вже діє для wasm-плагінів.
+      if (!isNativeDelegateSignal(error)) {
+        throw new DetectorError(ctx.ruleId, ctx.concernId, `native concern кинув: ${error.message}`)
+      }
+      delegated = true
     }
-    return normalizeResult(raw, ctx)
+    if (!delegated) return normalizeResult(raw, ctx)
   }
 
   const wasmConcernMap = await resolveWasmConcernMap(ctx.cwd)

@@ -163,6 +163,41 @@ pub fn walk_dir(dir: String, extra_ignore_globs: Vec<String>) -> Vec<String> {
     rules_core::scan::walk_dir(&PathBuf::from(dir), &extra_ignore_globs)
 }
 
+/// `k8s`-корені під `dir` — тонкий binding над
+/// [`rules_core::concerns::k8s_common::find_k8s_roots`], точний порт
+/// `findK8sRoots` (`npm/rules/k8s/manifests/main.mjs`).
+///
+/// - `dir` — корінь репо;
+/// - `ignore_paths` — абсолютні шляхи каталогів із `.cursorignore`
+///   (той самий вхід, що дає JS `loadCursorIgnorePaths`).
+///
+/// Повертає **абсолютні** шляхи, відсортовані `localeCompare` — як JS-версія.
+/// Експонується заради parity-гейту JS ⇄ native і як спільна база для решти
+/// k8s-концернів.
+///
+/// `js_name` — інакше napi зробив би `findK8SRoots` (він трактує `k8s` як
+/// `k`+`8`+`S`); тримаємо JS-ім'я тотожним експорту JS-канону `findK8sRoots`.
+#[napi(js_name = "findK8sRoots")]
+pub fn find_k8s_roots(dir: String, ignore_paths: Vec<String>) -> Vec<String> {
+    rules_core::concerns::k8s_common::find_k8s_roots(&PathBuf::from(dir), &ignore_paths)
+        .into_iter()
+        .map(|p| p.to_string_lossy().into_owned())
+        .collect()
+}
+
+/// Усі `*.yaml`/`*.yml` під `dir`, чий шлях містить сегмент `k8s` — тонкий
+/// binding над [`rules_core::concerns::k8s_common::find_k8s_yaml_files`],
+/// точний порт `findK8sYamlFiles` (`npm/rules/k8s/manifests/main.mjs`).
+/// Контракт аргументів і сортування — як у [`find_k8s_roots`]; `js_name` —
+/// з тієї ж причини, що там.
+#[napi(js_name = "findK8sYamlFiles")]
+pub fn find_k8s_yaml_files(dir: String, ignore_paths: Vec<String>) -> Vec<String> {
+    rules_core::concerns::k8s_common::find_k8s_yaml_files(&PathBuf::from(dir), &ignore_paths)
+        .into_iter()
+        .map(|p| p.to_string_lossy().into_owned())
+        .collect()
+}
+
 /// Ключі native-портованих concern-ів (`ruleId/concernId`) — тонкий binding
 /// над [`rules_core::concerns::NATIVE_CONCERNS`] (E1 фази 5). JS-оркестратор
 /// звіряє належність concern-а до цього списку — основа маршрутизації
@@ -174,6 +209,29 @@ pub fn list_native_concerns() -> Vec<String> {
         .iter()
         .map(|s| (*s).to_string())
         .collect()
+}
+
+/// Підмножина [`list_native_concerns`], чий native-порт може віддати
+/// керування назад JS-канону — тонкий binding над
+/// [`rules_core::concerns::NATIVE_DELEGATING_CONCERNS`].
+///
+/// JS-бік (`detect.mjs`) виключає ці ключі з batch-сегментів планувальника й
+/// ловить для них маркер делегування, падаючи на `import(main.mjs)`.
+#[napi]
+pub fn list_native_delegating_concerns() -> Vec<String> {
+    rules_core::concerns::NATIVE_DELEGATING_CONCERNS
+        .iter()
+        .map(|s| (*s).to_string())
+        .collect()
+}
+
+/// Маркер-префікс повідомлення про делегування —
+/// [`rules_core::NATIVE_DELEGATE_MARKER`]. Napi переносить лише текст
+/// помилки, тож JS-бік розпізнає делегування саме за цим рядком; віддаємо
+/// його з аддона, щоб не було двох незалежних копій константи.
+#[napi]
+pub fn native_delegate_marker() -> String {
+    rules_core::NATIVE_DELEGATE_MARKER.to_string()
 }
 
 /// Запускає native-порт concern-а за ключем — тонкий binding над

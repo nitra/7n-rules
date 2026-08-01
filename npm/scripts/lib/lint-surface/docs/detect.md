@@ -31,6 +31,19 @@ Native-портовані concern-и (`NATIVE_CONCERNS` registry аддона, E
 `import(main.mjs)` (перехідне співіснування двох реалізацій під час міграції
 закінчується видаленням JS-гілки — тут вона вже видалена для пілотів).
 
+Виняток — **делегувальні** native-концерни
+(`listNativeDelegatingConcerns`, дзеркало `NATIVE_DELEGATING_CONCERNS` у
+`crates/rules-core/src/concerns/mod.rs`). Їхній native-порт може виявитись
+незастосовним у поточному оточенні (єдина чинна причина — зовнішній лінт-тул
+не встановлено, а встановлює його лише `ensureTool` на боці JS): тоді native
+повертає помилку з маркером `nativeDelegateMarker()`, і замість
+`DetectorError` виклик провалюється в гілку `import(main.mjs)` нижче — той
+самий skip-not-crash, що вже діє для wasm-плагінів. Для таких концернів
+`main.mjs` **обовʼязковий** (це не подвійна реалізація, а прописаний
+fallback), і `isBuiltinNativeConcern` навмисно повертає для них `false`, щоб
+планувальник (`run-detectors.mjs::partitionPlanIntoSegments`) не заганяв їх у
+синхронний batch-сегмент, який не вміє дочекатись async-фолбеку.
+
 Далі — wasm-плагіни plugin contract v3 (`resolveWasmConcernMap`,
 `wasm-plugins.mjs`, задача K фази 6, спека
 `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md` §3.3/§3.4): якщо

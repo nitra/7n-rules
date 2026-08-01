@@ -46,6 +46,10 @@ mod hasura_internal_urls;
 mod hasura_migrations;
 mod image_avif_generation;
 mod image_compress_package_setup;
+/// Спільний шар відкриття файлів k8s-кластера (`findK8sRoots`/
+/// `findK8sYamlFiles` та предикати шляхів) — база для всіх k8s-концернів.
+pub mod k8s_common;
+mod k8s_kubeconform;
 mod marksman_config;
 mod package_manifest;
 mod rego_tooling;
@@ -79,6 +83,7 @@ pub use hasura_internal_urls::hasura_internal_urls;
 pub use hasura_migrations::hasura_migrations;
 pub use image_avif_generation::image_avif_generation;
 pub use image_compress_package_setup::image_compress_package_setup;
+pub use k8s_kubeconform::k8s_kubeconform;
 pub use marksman_config::marksman_config;
 pub use rego_tooling::rego_tooling;
 pub use sample_secret::sample_secret;
@@ -123,7 +128,28 @@ pub const NATIVE_CONCERNS: &[&str] = &[
     "adr/hooks",
     "capacitor/platforms",
     "image-avif/avif_generation",
+    "k8s/kubeconform",
 ];
+
+/// Підмножина [`NATIVE_CONCERNS`], чий native-порт може віддати керування
+/// назад JS-канону ([`crate::RulesError::NativeDelegate`]) замість повернути
+/// результат.
+///
+/// Мотив — концерни навколо зовнішніх лінт-тулів: резолвити вже встановлений
+/// бінарник `rules-core` вміє ([`crate::tool_resolve`]), а **встановлювати**
+/// його (brew/scoop/GitHub Release + міжпроцесний лок) — ні, і заводити в
+/// офлайнове ядро лінту HTTP-клієнт заради цього не варто. Мовчки пропустити
+/// перевірку не можна (fail-open на ефемерному CI-раннері з порожнім кешем),
+/// тож native повертає делегування, а `main.mjs` доводить справу до кінця
+/// через `ensureTool`.
+///
+/// JS-бік використовує цей список ДВІЧІ:
+/// 1. `detect.mjs::runConcernDetector` — ловить маркер
+///    [`crate::NATIVE_DELEGATE_MARKER`] і падає на `import(main.mjs)`;
+/// 2. `detect.mjs::isBuiltinNativeConcern` — виключає ці ключі з батч-сегментів
+///    планувальника (`run-detectors.mjs::partitionPlanIntoSegments`), бо
+///    batch-шлях синхронний і не вміє дочекатись async JS-фолбеку.
+pub const NATIVE_DELEGATING_CONCERNS: &[&str] = &["k8s/kubeconform"];
 
 /// Запускає native-порт concern-а за ключем `ruleId/concernId`.
 ///
@@ -168,6 +194,11 @@ pub fn run_concern(
         "adr/hooks" => Ok(adr_hooks(cwd)),
         "capacitor/platforms" => Ok(capacitor_platforms(cwd)),
         "image-avif/avif_generation" => Ok(image_avif_generation(cwd)),
+        // `verbose: false` — napi-контракт `run_native_concern` не переносить
+        // `ctx.verbose`, а той прапорець у JS-версії керує ЛИШЕ тим, чи
+        // видно сирий вивід тула (`stdio: 'inherit'`); на набір violations
+        // він не впливає, тож паритет результату збережено.
+        "k8s/kubeconform" => k8s_kubeconform(cwd, files, false),
         other => Err(RulesError::Concern(format!(
             "невідомий native concern: {other}"
         ))),
@@ -179,7 +210,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn native_concerns_lists_all_twenty_six_entries() {
+    fn native_concerns_lists_all_twenty_seven_entries() {
         assert_eq!(
             NATIVE_CONCERNS,
             &[
@@ -209,8 +240,32 @@ mod tests {
                 "adr/hooks",
                 "capacitor/platforms",
                 "image-avif/avif_generation",
+                "k8s/kubeconform",
             ]
         );
+    }
+
+    /// Кожен делегувальний ключ має бути й у основному registry — інакше
+    /// JS-бік виключив би з батчу concern, якого там ніколи й не було.
+    #[test]
+    fn delegating_concerns_are_subset_of_native_concerns() {
+        for key in NATIVE_DELEGATING_CONCERNS {
+            assert!(
+                NATIVE_CONCERNS.contains(key),
+                "делегувальний ключ {key} відсутній у NATIVE_CONCERNS"
+            );
+        }
+    }
+
+    /// `k8s/kubeconform` на дереві без жодного `k8s/**/*.yaml` повертає
+    /// порожній результат ще ДО резолву тула — тобто registry-диспатч
+    /// працює й на машині без `kubeconform`.
+    #[test]
+    fn run_concern_dispatches_k8s_kubeconform_key() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        assert!(run_concern("k8s/kubeconform", tmp.path(), None)
+            .unwrap()
+            .is_empty());
     }
 
     #[test]

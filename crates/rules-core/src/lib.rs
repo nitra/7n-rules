@@ -56,8 +56,19 @@ pub mod scan;
 /// `list_skill_ids` — порт `listSkillIds` (`npm/scripts/skills-cli.mjs`),
 /// рушій `skill list` (зріз 2 фази 8).
 pub mod skills;
+/// `resolve_cmd`/`resolve_provisioned_tool` — native-резолв зовнішніх
+/// CLI-тулів (дзеркало перших двох кроків `ensureTool`), потрібний
+/// концернам, що спавнять зовнішній лінт-тул.
+pub mod tool_resolve;
 /// Worktree lifecycle через `mt-core` (Р3 спеки, фаза 2 задача B1).
 pub mod worktree;
+
+/// Префікс повідомлення [`RulesError::NativeDelegate`]. JS-диспетчер
+/// (`npm/scripts/lib/lint-surface/detect.mjs`) розпізнає делегування саме за
+/// цим маркером у тексті napi-помилки: napi переносить лише рядок, тож тип
+/// помилки через межу не виживає. Константа — єдине джерело правди для обох
+/// боків (JS-копія звіряється тестом).
+pub const NATIVE_DELEGATE_MARKER: &str = "n-rules:native-delegate";
 
 /// Помилка `rules-core`. Навмисно плоска, за зразком `llm_lib::LlmError` —
 /// категорії додаються варіантами по мірі міграції use case-ів.
@@ -72,4 +83,16 @@ pub enum RulesError {
     /// Помилка native-concern registry (невідомий ключ — E1 фази 5).
     #[error("{0}")]
     Concern(String),
+    /// Native-порт концерну не може виконатись у цьому оточенні й вимагає
+    /// падіння назад на JS-канон (`main.mjs`) — НЕ помилка прогону.
+    ///
+    /// Єдиний чинний привід: зовнішній лінт-тул не встановлено, а
+    /// встановлювати його вміє лише JS (`ensureTool` — brew/scoop/GitHub
+    /// Release, доккомент [`crate::tool_resolve`]). Пропустити перевірку тут
+    /// не можна (fail-open), тому native свідомо віддає керування назад.
+    ///
+    /// Текст завжди починається з [`NATIVE_DELEGATE_MARKER`] — це те, що
+    /// бачить JS-бік після napi-конверсії в рядок.
+    #[error("{NATIVE_DELEGATE_MARKER}: {0}")]
+    NativeDelegate(String),
 }

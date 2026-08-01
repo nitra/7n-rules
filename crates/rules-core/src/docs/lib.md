@@ -15,7 +15,8 @@ Rust-ядро `@7n/rules` — з часом бере на себе deterministic
 
 ## Публічний API
 
-- RulesError — Помилка `rules-core`. Навмисно плоска, за зразком `llm_lib::LlmError` — категорії додаються варіантами по мірі міграції use case-ів.
+- RulesError — Помилка `rules-core`. Навмисно плоска, за зразком `llm_lib::LlmError` — категорії додаються варіантами по мірі міграції use case-ів. Варіант `NativeDelegate` — не збій, а сигнал «цей native-порт не може виконатись у поточному оточенні, віддай виклик JS-канону `main.mjs`»; його текст завжди починається з `NATIVE_DELEGATE_MARKER`, бо через napi-межу переживає лише рядок.
+- NATIVE_DELEGATE_MARKER — префікс повідомлення `RulesError::NativeDelegate`, спільне джерело правди для Rust- і JS-боку.
 
 ## Гарантії поведінки
 

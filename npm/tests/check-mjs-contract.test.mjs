@@ -21,6 +21,17 @@ import { realRepoRoot } from '../scripts/utils/test-helpers.mjs'
  */
 const NATIVE_CONCERNS = new Set(loadNative().listNativeConcerns())
 
+/**
+ * Делегувальні native-концерни (`listNativeDelegatingConcerns`): їхній
+ * native-порт може віддати керування назад JS-канону, коли не може
+ * виконатись у поточному оточенні (зовнішній лінт-тул не встановлено, а
+ * встановлює його лише `ensureTool` на боці JS). Для них `main.mjs`
+ * **обов'язковий** — це не подвійна реалізація, а прописаний fallback.
+ */
+const NATIVE_DELEGATING_CONCERNS = new Set(
+  typeof loadNative().listNativeDelegatingConcerns === 'function' ? loadNative().listNativeDelegatingConcerns() : []
+)
+
 const RULES_DIR = new URL('../rules/', import.meta.url).pathname
 // Через realRepoRoot, не відносно тестового файлу: sandbox-копія Stryker містить лише npm/.
 const PLUGINS_DIR = join(realRepoRoot(), 'plugins')
@@ -155,7 +166,7 @@ describe('concern contract — усі правила', () => {
       const concerns = await listConcerns(ruleDir)
       const lintConcerns = concerns.filter(c => c.meta.lint !== undefined && c.meta.lint !== null)
       for (const c of lintConcerns) {
-        if (NATIVE_CONCERNS.has(`${id}/${c.name}`)) {
+        if (NATIVE_CONCERNS.has(`${id}/${c.name}`) && !NATIVE_DELEGATING_CONCERNS.has(`${id}/${c.name}`)) {
           // Native-концерн: main.mjs відсутній навмисно, і зворотно — якщо
           // main.mjs існує, це подвійна реалізація (заборонена, Р1 спеки).
           expect(existsSync(join(c.dir, 'main.mjs')), `${id}/${c.name}: подвійна реалізація main.mjs + native`).toBe(
