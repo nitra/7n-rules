@@ -70,6 +70,11 @@ const CONCERN_STORYBOOK_VITEST_CONFIG: &str = "test/storybook-vitest-config";
 const CONCERN_BUN_DB_PACKAGE_JSON: &str = "js-bun-db/package_json";
 const CONCERN_REDIS_PACKAGE_JSON: &str = "js-bun-redis/package_json";
 const CONCERN_MSSQL_PACKAGE_JSON: &str = "js-mssql/package_json";
+const CONCERN_RULE_META: &str = "npm-module/rule_meta";
+const CONCERN_SKILL_META: &str = "npm-module/skill_meta";
+const CONCERN_HEADER_DOC_POINTER: &str = "npm-module/header_doc_pointer";
+const CONCERN_PACKAGE_STRUCTURE: &str = "npm-module/package_structure";
+const CONCERN_DEP_POLICY: &str = "js/dep-policy";
 
 /// Абсолютний шлях до зібраного `.wasm`-компонента (`crates/plugin-lang-js/build.sh`)
 /// — `wasm32-wasip2`/`release`.
@@ -97,7 +102,7 @@ fn host() -> PluginHost {
 }
 
 #[test]
-fn describe_declares_all_twenty_three_concerns_with_expected_scopes() {
+fn describe_declares_all_twenty_eight_concerns_with_expected_scopes() {
     let path = require_fixture();
     let plugin = host()
         .load(&path, PLUGIN_WORLD_VERSION)
@@ -114,7 +119,10 @@ fn describe_declares_all_twenty_three_concerns_with_expected_scopes() {
     // Батч 6 додає `test/storybook-vitest-config` (розблоковано слотом
     // `repo-root@1` host-контексту) і три rego-порти `*/package_json`
     // (`js-bun-db`, `js-bun-redis`, `js-mssql`) — секція «Батч 6» там само.
-    assert_eq!(manifest.concerns.len(), 23);
+    // Батч 7 додає кластер `npm-module/*` (rule_meta, skill_meta,
+    // header_doc_pointer, package_structure) і `js/dep-policy` — секція
+    // «Батч 7» там само.
+    assert_eq!(manifest.concerns.len(), 28);
 
     let tfm = manifest
         .concerns
@@ -1571,4 +1579,215 @@ fn fix_returns_empty_plan() {
     };
     let plan = plugin.fix(&request).expect("fix не мав провалитись");
     assert!(plan.edits.is_empty());
+}
+
+// ---------------------------------------------------------------------
+// Батч 7 (§3.5.5): кластер `npm-module/*` + `js/dep-policy` — golden-тести
+// через РЕАЛЬНИЙ `PluginHost` (unit-тести крейта ганяють ті самі чисті
+// функції на host-таргеті; тут доводиться, що вони так само працюють
+// всередині wasm-компонента за справжнім ABI).
+
+/// Мінімальний конструктор елемента батча.
+fn batch_file(path: &str, content: &str) -> SourceFile {
+    SourceFile {
+        path: path.to_string(),
+        content: content.to_string(),
+    }
+}
+
+#[test]
+fn detect_rule_meta_validates_rule_metadata_from_batch() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let batch = DetectBatch {
+        concern_id: CONCERN_RULE_META.to_string(),
+        files: vec![
+            batch_file("npm/rules/a-ok/main.mdc", "# ok\n"),
+            batch_file("npm/rules/a-ok/main.json", "{\"auto\":\"завжди\"}"),
+            batch_file(
+                "npm/rules/b-bad/main.json",
+                "{\"auto\":{\"predicate\":\"nope\"}}",
+            ),
+            batch_file("npm/rules/c-nojson/main.mdc", "# c\n"),
+        ],
+    };
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    let messages: Vec<&str> = diagnostics.iter().map(|d| d.message.as_str()).collect();
+    assert_eq!(
+        messages,
+        vec![
+            "rules/b-bad: відсутній main.mdc — обов'язковий (scripts.mdc)",
+            "rules/b-bad: main.json — невідомий predicate \"nope\" (немає в RULE_PREDICATES)",
+            "rules/c-nojson: відсутній або невалідний main.json",
+        ]
+    );
+    assert_eq!(diagnostics[0].reason, "rule_meta");
+    assert_eq!(diagnostics[0].severity, Severity::Error);
+    assert!(diagnostics[0].file.is_none());
+}
+
+#[test]
+fn detect_skill_meta_validates_skill_metadata_from_batch() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let batch = DetectBatch {
+        concern_id: CONCERN_SKILL_META.to_string(),
+        files: vec![
+            batch_file("npm/skills/n-lint/main.json", "{\"worktree\":false}"),
+            batch_file(
+                "npm/skills/n-taze/main.json",
+                "{\"worktree\":true,\"requireRoot\":false}",
+            ),
+        ],
+    };
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].reason, "skill_meta");
+    assert_eq!(
+        diagnostics[0].message,
+        "skills/n-taze: requireRoot:false суперечить worktree:true \
+         (worktree вже вимагає кореня — прибери поле)"
+    );
+}
+
+#[test]
+fn detect_header_doc_pointer_flags_narrative_jsdoc_next_to_docs() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let batch = DetectBatch {
+        concern_id: CONCERN_HEADER_DOC_POINTER.to_string(),
+        files: vec![
+            batch_file("npm/rules/n-js/js/docs/scan.md", "# scan\n"),
+            batch_file(
+                "npm/rules/n-js/js/scan.mjs",
+                "/**\n * Огляд.\n * Деталі.\n */\nexport const x = 1\n",
+            ),
+            // pointer поряд з docs — без порушення.
+            batch_file("npm/rules/n-js/js/docs/ok.md", "# ok\n"),
+            batch_file(
+                "npm/rules/n-js/js/ok.mjs",
+                "/** @see ./docs/ok.md */\nexport const y = 1\n",
+            ),
+            // Наратив БЕЗ docs поряд — теж без порушення.
+            batch_file(
+                "npm/rules/n-js/js/free.mjs",
+                "/**\n * Огляд.\n * Деталі.\n */\nexport const z = 1\n",
+            ),
+        ],
+    };
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].reason, "header_doc_pointer");
+    assert_eq!(
+        diagnostics[0].message,
+        "npm/rules/n-js/js/scan.mjs: docs/scan.md вже описує поведінку — \
+         module-level JSDoc має бути pointer (≤1 рядок, зараз 2)"
+    );
+}
+
+#[test]
+fn detect_package_structure_reports_missing_pieces_in_canonical_order() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let batch = DetectBatch {
+        concern_id: CONCERN_PACKAGE_STRUCTURE.to_string(),
+        files: vec![batch_file("readme.md", "# x\n")],
+    };
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    let messages: Vec<&str> = diagnostics.iter().map(|d| d.message.as_str()).collect();
+    assert_eq!(
+        messages,
+        vec![
+            "package.json не існує",
+            "npm/ директорія не існує",
+            "npm/package.json не існує — створи package.json для npm модуля",
+            "Без .js під npm/src потрібен npm/tsconfig.emit-types.json \
+             (див. npm-module.mdc: emit через tsconfig, без штучного src/index.js)",
+            "Очікується hk.pkl або .config/hk.pkl з pre-commit і tsc (npm-module.mdc)",
+            ".github/workflows/ не існує",
+            "Відсутній .github/workflows/npm-publish.yml (npm-module.mdc: npm publish)",
+        ]
+    );
+    assert!(diagnostics.iter().all(|d| d.reason == "package_structure"));
+}
+
+#[test]
+fn detect_package_structure_flags_tests_inside_published_files() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let batch = DetectBatch {
+        concern_id: CONCERN_PACKAGE_STRUCTURE.to_string(),
+        files: vec![
+            batch_file("package.json", "{\"workspaces\":[\"npm\"]}"),
+            batch_file(
+                "npm/package.json",
+                "{\"types\":\"./types/index.d.ts\",\"files\":[\"lib\",\"!**/*.test.mjs\"]}",
+            ),
+            batch_file("npm/types/index.d.ts", "export {}\n"),
+            batch_file("npm/tsconfig.emit-types.json", "{}\n"),
+            batch_file("npm/lib/ok.mjs", "export const ok = 1\n"),
+            batch_file("npm/lib/util.test.mjs", "export const t = 1\n"),
+            batch_file(
+                "npm/lib/sneaky.mjs",
+                "import { describe } from 'vitest'\nexport const s = describe\n",
+            ),
+            batch_file(
+                "hk.pkl",
+                "[\"pre-commit\"] bunx -p typescript tsc -p npm/tsconfig.emit-types.json\n\
+                 [\"npm-changelog\"] N_RULES_CHANGELOG_AUTOFIX=1 lint changelog\n",
+            ),
+            batch_file(".github/workflows/npm-publish.yml", "name: publish\n"),
+        ],
+    };
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    assert_eq!(diagnostics.len(), 1);
+    assert!(
+        diagnostics[0]
+            .message
+            .starts_with("npm/lib/sneaky.mjs: імпорт test-фреймворку \"vitest\""),
+        "фактично: {}",
+        diagnostics[0].message
+    );
+}
+
+#[test]
+fn detect_dep_policy_flags_banned_specifiers_only_in_real_import_positions() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let batch = DetectBatch {
+        concern_id: CONCERN_DEP_POLICY.to_string(),
+        files: vec![
+            batch_file(
+                "src/noise.mjs",
+                "// import x from 'ua-parser-js'\nexport const s = \"ua-parser-js\"\n",
+            ),
+            batch_file(
+                "src/hit.mjs",
+                "import UAParser from 'ua-parser-js'\nexport const p = UAParser\n",
+            ),
+            batch_file(
+                "src/req.cjs",
+                "const f = require('@nitra/as-integrations-fastify')\nmodule.exports = f\n",
+            ),
+        ],
+    };
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    assert_eq!(diagnostics.len(), 2);
+    assert!(diagnostics.iter().all(|d| d.reason == "dep-policy"));
+    assert!(diagnostics[0]
+        .message
+        .starts_with("src/hit.mjs: заборонений"));
+    assert!(diagnostics[1].message.contains("@as-integrations/fastify"));
 }

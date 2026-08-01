@@ -175,6 +175,24 @@ const STORYBOOK_VITEST_CONFIG_CONCERN_KEY = 'test/storybook-vitest-config'
 const BUN_DB_PACKAGE_JSON_CONCERN_KEY = 'js-bun-db/package_json'
 const REDIS_PACKAGE_JSON_CONCERN_KEY = 'js-bun-redis/package_json'
 const MSSQL_PACKAGE_JSON_CONCERN_KEY = 'js-mssql/package_json'
+// Батч 7 (§3.5.5): кластер `npm-module/*` (метадані-перевірки, що в JS-каноні
+// ходять `readdirSync`/`walkDir` по `npm/rules`, `npm/skills`, `npm/`) плюс
+// AST-концерн `js/dep-policy`. Глоби контрибуцій цих пʼятьох СВІДОМО вужчі за
+// `concern.json.lint.glob` — доккомент секції «Батч 7» у
+// `crates/plugin-lang-js/src/lib.rs`.
+const NPM_MODULE_RULES_DIR = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'npm-module')
+const RULE_META_MAIN_MJS_PATH = join(NPM_MODULE_RULES_DIR, 'rule_meta', 'main.mjs')
+const SKILL_META_MAIN_MJS_PATH = join(NPM_MODULE_RULES_DIR, 'skill_meta', 'main.mjs')
+const HEADER_DOC_POINTER_MAIN_MJS_PATH = join(NPM_MODULE_RULES_DIR, 'header_doc_pointer', 'main.mjs')
+const PACKAGE_STRUCTURE_MAIN_MJS_PATH = join(NPM_MODULE_RULES_DIR, 'package_structure', 'main.mjs')
+const DEP_POLICY_MAIN_MJS_PATH = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'js', 'dep-policy', 'main.mjs')
+const RULE_META_CONCERN_KEY = 'npm-module/rule_meta'
+const SKILL_META_CONCERN_KEY = 'npm-module/skill_meta'
+const HEADER_DOC_POINTER_CONCERN_KEY = 'npm-module/header_doc_pointer'
+const PACKAGE_STRUCTURE_CONCERN_KEY = 'npm-module/package_structure'
+const DEP_POLICY_CONCERN_KEY = 'js/dep-policy'
+/** Реєстр предикатів — джерело правди анти-дрейф-тесту `RULE_PREDICATE_NAMES`. */
+const RULE_PREDICATES_PATH = join(REPO_ROOT, 'npm', 'scripts', 'lib', 'rule-predicates.mjs')
 
 /** Size-budget компонента (задача Q3, спека `docs/specs/2026-08-01-wasm-ast-strategy.md`, розділ «Рішення» п.2). */
 const WASM_SIZE_BUDGET_BYTES = 2.5 * 1024 * 1024
@@ -1913,6 +1931,693 @@ describe('wasm-plugin parity — js-mssql/package_json (rego-канон чере
       const { js, wasm } = await runPolicyBoth('js-mssql', 'package_json', MSSQL_PACKAGE_JSON_CONCERN_KEY, dir)
       expect(wasm).toEqual(js)
       expect(js).toEqual([])
+    })
+  })
+})
+
+// Батч 7 (§3.5.5): кластер `npm-module/*` + `js/dep-policy`. Усі п'ять —
+// full-scope (`concern.json.lint.scope: "full"`), тож той самий
+// [`runFullScopeBoth`], що решта: JS-канон сам ходить диском
+// (`readdirSync`/`walkDir`), wasm-порт бачить host-побудований батч — саме
+// цю еквівалентність фікстури й доводять.
+/**
+ * Компаратор для звірки НАБОРУ violations, коли їх порядок задає
+ * `readdirSync` JS-канону. Знахідка батчу 7: цей порядок РУНТАЙМ-ЗАЛЕЖНИЙ —
+ * node на APFS віддає імена вже відсортованими, bun (`bun run --bun vitest`)
+ * віддає їх у сирому порядку каталогу (жива фікстура: `a, c, d, b`).
+ * `readdirSync` порядку не гарантує ні в node-, ні в bun-доці, тож це
+ * недетермінізм самого JS-канону, а не розбіжність порту: wasm-порт
+ * детермінований (байтово-лексикографічний, `BTreeSet` у
+ * [`batch_child_dirs`]). Тому мульти-каталогові фікстури звіряють байт-у-байт
+ * НАБІР (усі поля кожного violation), а не позицію в масиві; одно-каталогові
+ * лишаються на прямому `toEqual`, де порядок задає сам концерн.
+ * @param {{ message: string }} a перший violation
+ * @param {{ message: string }} b другий violation
+ * @returns {number} порядок сортування за `message`
+ */
+function byMessage(a, b) {
+  if (a.message === b.message) return 0
+  return a.message < b.message ? -1 : 1
+}
+
+describe('wasm-plugin parity — npm-module/rule_meta (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
+  const runRuleMetaBoth = dir =>
+    runFullScopeBoth(RULE_META_MAIN_MJS_PATH, RULE_META_CONCERN_KEY, 'npm-module', 'rule_meta', dir)
+
+  test('успіх: npm/rules/ відсутній → без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'package.json', '{}\n')
+      const { js, wasm } = await runRuleMetaBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('успіх: валідне правило (main.mdc + main.json з auto "завжди") → тиша з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'npm/rules/n-js/main.mdc', '# n-js\n')
+      await writeFileDeep(dir, 'npm/rules/n-js/main.json', JSON.stringify({ auto: 'завжди' }))
+      const { js, wasm } = await runRuleMetaBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('порушення: відсутній main.mdc + залишковий auto.md → два ідентичні violations у тому самому порядку', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'npm/rules/n-js/auto.md', 'завжди\n')
+      await writeFileDeep(dir, 'npm/rules/n-js/main.json', JSON.stringify({ auto: 'завжди' }))
+      const { js, wasm } = await runRuleMetaBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(2)
+      expect(js[0].message).toContain('залишковий auto.md')
+      expect(js[1].message).toContain('відсутній main.mdc')
+      expect(js[0].reason).toBe('rule_meta')
+    })
+  })
+
+  test('порушення: main.json відсутній / битий JSON / масив / скаляр → однакове «відсутній або невалідний»', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'npm/rules/a-missing/main.mdc', '#\n')
+      await writeFileDeep(dir, 'npm/rules/b-broken/main.mdc', '#\n')
+      await writeFileDeep(dir, 'npm/rules/b-broken/main.json', '{ не json')
+      await writeFileDeep(dir, 'npm/rules/c-array/main.mdc', '#\n')
+      await writeFileDeep(dir, 'npm/rules/c-array/main.json', '[1, 2]')
+      await writeFileDeep(dir, 'npm/rules/d-scalar/main.mdc', '#\n')
+      await writeFileDeep(dir, 'npm/rules/d-scalar/main.json', 'null')
+      const { js, wasm } = await runRuleMetaBoth(dir)
+      expect(wasm.toSorted(byMessage)).toEqual(js.toSorted(byMessage))
+      expect(js).toHaveLength(4)
+      expect(js.map(v => v.message).toSorted()).toEqual([
+        'rules/a-missing: відсутній або невалідний main.json',
+        'rules/b-broken: відсутній або невалідний main.json',
+        'rules/c-array: відсутній або невалідний main.json',
+        'rules/d-scalar: відсутній або невалідний main.json'
+      ])
+    })
+  })
+
+  test('порушення: нерозпізнане auto (порожній масив / {glob:[]} / {predicate:""} / число)', async () => {
+    await withTmpDir(async dir => {
+      for (const [id, auto] of [
+        ['a', []],
+        ['b', { glob: [] }],
+        ['c', { predicate: '' }],
+        ['d', 7]
+      ]) {
+        await writeFileDeep(dir, `npm/rules/${id}/main.mdc`, '#\n')
+        await writeFileDeep(dir, `npm/rules/${id}/main.json`, JSON.stringify({ auto }))
+      }
+      const { js, wasm } = await runRuleMetaBoth(dir)
+      expect(wasm.toSorted(byMessage)).toEqual(js.toSorted(byMessage))
+      expect(js).toHaveLength(4)
+      expect(js.every(v => v.message.includes('main.json.auto нерозпізнане'))).toBe(true)
+    })
+  })
+
+  // Тонкість `String()`-семантики, яку wasm-порт мусить відтворити точно:
+  // елемент масиву стрінгується ОКРЕМО (`String(null)` === `"null"` →
+  // валідний), а от ВКЛАДЕНИЙ порожній масив дає `""` → нерозпізнане.
+  test('край: auto-масив із порожніх рядків і [[]] нерозпізнаний, а [null] і {glob:"x"} — валідні', async () => {
+    await withTmpDir(async dir => {
+      for (const [id, auto] of [
+        ['a-blank', ['  ', '']],
+        ['b-null', [null]],
+        ['c-glob-string', { glob: 'src/**' }],
+        ['d-nested-empty', [[]]]
+      ]) {
+        await writeFileDeep(dir, `npm/rules/${id}/main.mdc`, '#\n')
+        await writeFileDeep(dir, `npm/rules/${id}/main.json`, JSON.stringify({ auto }))
+      }
+      const { js, wasm } = await runRuleMetaBoth(dir)
+      expect(wasm.toSorted(byMessage)).toEqual(js.toSorted(byMessage))
+      expect(js.map(v => v.message.slice(0, 14)).toSorted()).toEqual(['rules/a-blank:', 'rules/d-nested'])
+    })
+  })
+
+  test('порушення: скасовані поля lint і llmFix → два violations у порядку lint → llmFix', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'npm/rules/n-js/main.mdc', '#\n')
+      await writeFileDeep(
+        dir,
+        'npm/rules/n-js/main.json',
+        JSON.stringify({ auto: 'завжди', lint: { scope: 'full' }, llmFix: true })
+      )
+      const { js, wasm } = await runRuleMetaBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(2)
+      expect(js[0].message).toContain('main.json.lint скасовано')
+      expect(js[1].message).toContain('main.json.llmFix скасовано')
+    })
+  })
+
+  test('порушення: невідомий predicate → ідентичне повідомлення з назвою предиката', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'npm/rules/n-js/main.mdc', '#\n')
+      await writeFileDeep(dir, 'npm/rules/n-js/main.json', JSON.stringify({ auto: { predicate: 'noSuchThing' } }))
+      const { js, wasm } = await runRuleMetaBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].message).toBe('rules/n-js: main.json — невідомий predicate "noSuchThing" (немає в RULE_PREDICATES)')
+    })
+  })
+
+  // Анти-дрейф: список предикатів у wasm-порті (`RULE_PREDICATE_NAMES`) —
+  // копія реєстру `RULE_PREDICATES`. Тест ітерує РЕАЛЬНІ ключі реєстру, тож
+  // новий предикат у JS без оновлення Rust одразу завалить parity.
+  test('анти-дрейф: КОЖЕН ключ реального RULE_PREDICATES приймають обидві реалізації', async () => {
+    // file:// URL зібраний з `realRepoRoot()` + константних сегментів (той
+    // самий мотив, що [`runTfmBoth`]) — не вхід ззовні.
+    // eslint-disable-next-line no-unsanitized/method
+    const { RULE_PREDICATES } = await import(pathToFileURL(RULE_PREDICATES_PATH).href)
+    const names = Object.keys(RULE_PREDICATES)
+    expect(names.length).toBeGreaterThan(0)
+    await withTmpDir(async dir => {
+      for (const name of names) {
+        await writeFileDeep(dir, `npm/rules/${name}/main.mdc`, '#\n')
+        await writeFileDeep(dir, `npm/rules/${name}/main.json`, JSON.stringify({ auto: { predicate: name } }))
+      }
+      const { js, wasm } = await runRuleMetaBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('край: каталог із крапки та файл прямо в npm/rules/ ігноруються обома реалізаціями', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'npm/rules/.cache/main.json', 'null')
+      await writeFileDeep(dir, 'npm/rules/README.md', '# rules\n')
+      await writeFileDeep(dir, 'npm/rules/ok/main.mdc', '#\n')
+      await writeFileDeep(dir, 'npm/rules/ok/main.json', '{}')
+      const { js, wasm } = await runRuleMetaBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+})
+
+describe('wasm-plugin parity — npm-module/skill_meta (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
+  const runSkillMetaBoth = dir =>
+    runFullScopeBoth(SKILL_META_MAIN_MJS_PATH, SKILL_META_CONCERN_KEY, 'npm-module', 'skill_meta', dir)
+
+  test('успіх: npm/skills/ відсутній → без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'package.json', '{}\n')
+      const { js, wasm } = await runSkillMetaBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('успіх: валідний скіл (worktree:false, auto-масив, tier) → тиша з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(
+        dir,
+        'npm/skills/n-lint/main.json',
+        JSON.stringify({ worktree: false, auto: ['n-js'], tier: 'avg' })
+      )
+      const { js, wasm } = await runSkillMetaBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('порушення: main.json відсутній → «відсутній або невалідний» з формою очікуваного обʼєкта', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'npm/skills/n-lint/SKILL.md', '# skill\n')
+      const { js, wasm } = await runSkillMetaBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([
+        {
+          reason: 'skill_meta',
+          severity: 'error',
+          message: 'skills/n-lint: відсутній або невалідний main.json (очікується {"auto"?, "worktree": bool})'
+        }
+      ])
+    })
+  })
+
+  test('порушення: усі поля биті → пʼять violations у канонічному порядку', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'npm/skills/n-lint/auto.md', 'завжди\n')
+      await writeFileDeep(
+        dir,
+        'npm/skills/n-lint/main.json',
+        JSON.stringify({ worktree: 'yes', auto: [], requireRoot: 'no', tier: 'ultra' })
+      )
+      const { js, wasm } = await runSkillMetaBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js.map(v => v.message)).toEqual([
+        'skills/n-lint: залишковий auto.md — видали (метадані тепер у main.json)',
+        'skills/n-lint: main.json.worktree має бути boolean',
+        'skills/n-lint: main.json.auto нерозпізнане — очікується "завжди" або непорожній масив правил',
+        'skills/n-lint: main.json.requireRoot має бути boolean',
+        'skills/n-lint: main.json.tier має бути "min" | "avg" | "max"'
+      ])
+    })
+  })
+
+  test('порушення: requireRoot:false при worktree:true → конфлікт-повідомлення з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'npm/skills/n-taze/main.json', JSON.stringify({ worktree: true, requireRoot: false }))
+      const { js, wasm } = await runSkillMetaBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].message).toContain('requireRoot:false суперечить worktree:true')
+    })
+  })
+
+  test('край: auto:"завжди" валідне, а auto:"інколи" — ні (кілька скілів у лексикографічному порядку)', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'npm/skills/a-ok/main.json', JSON.stringify({ worktree: true, auto: 'завжди' }))
+      await writeFileDeep(dir, 'npm/skills/b-bad/main.json', JSON.stringify({ worktree: true, auto: 'інколи' }))
+      const { js, wasm } = await runSkillMetaBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].message).toContain('skills/b-bad')
+    })
+  })
+})
+
+describe('wasm-plugin parity — npm-module/header_doc_pointer (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
+  const runHeaderDocPointerBoth = dir =>
+    runFullScopeBoth(
+      HEADER_DOC_POINTER_MAIN_MJS_PATH,
+      HEADER_DOC_POINTER_CONCERN_KEY,
+      'npm-module',
+      'header_doc_pointer',
+      dir
+    )
+
+  test('успіх: docs/ немає → наратив у header-JSDoc дозволений обом реалізаціям', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(
+        dir,
+        'npm/rules/n-js/js/scan.mjs',
+        '/**\n * Перший рядок.\n * Другий рядок.\n * Третій рядок.\n */\nexport const x = 1\n'
+      )
+      const { js, wasm } = await runHeaderDocPointerBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('успіх: pointer-JSDoc (один рядок) поряд із docs/ → тиша з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'npm/rules/n-js/js/docs/scan.md', '# scan\n')
+      await writeFileDeep(dir, 'npm/rules/n-js/js/scan.mjs', '/** @see ./docs/scan.md */\nexport const x = 1\n')
+      const { js, wasm } = await runHeaderDocPointerBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('порушення: наратив у header-JSDoc при наявному docs/ → ідентичне violation із лічильником рядків', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'npm/skills/n-lint/js/docs/run.md', '# run\n')
+      await writeFileDeep(
+        dir,
+        'npm/skills/n-lint/js/run.mjs',
+        '/**\n * Огляд.\n *\n * Деталі поведінки.\n */\nimport { x } from "y"\nexport const z = x\n'
+      )
+      const { js, wasm } = await runHeaderDocPointerBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([
+        {
+          reason: 'header_doc_pointer',
+          severity: 'error',
+          message:
+            'npm/skills/n-lint/js/run.mjs: docs/run.md вже описує поведінку — module-level JSDoc має бути pointer (≤1 рядок, зараз 2)'
+        }
+      ])
+    })
+  })
+
+  test('край: JSDoc ПІСЛЯ першого import/export не рахується module-level (regex-межа, не AST)', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'npm/rules/n-js/js/docs/late.md', '# late\n')
+      await writeFileDeep(
+        dir,
+        'npm/rules/n-js/js/late.mjs',
+        'import { a } from "b"\n\n/**\n * Наратив.\n * Ще наратив.\n */\nexport const c = a\n'
+      )
+      const { js, wasm } = await runHeaderDocPointerBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('край: *.test.mjs і не-.mjs пропускаються, вкладені підкаталоги js/ не скануються', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'npm/rules/n-js/js/docs/a.md', '# a\n')
+      await writeFileDeep(
+        dir,
+        'npm/rules/n-js/js/a.test.mjs',
+        '/**\n * Наратив.\n * Ще наратив.\n */\nexport const t = 1\n'
+      )
+      await writeFileDeep(dir, 'npm/rules/n-js/js/docs/b.md', '# b\n')
+      await writeFileDeep(dir, 'npm/rules/n-js/js/b.js', '/**\n * Наратив.\n * Ще.\n */\nexport const b = 1\n')
+      const { js, wasm } = await runHeaderDocPointerBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('край: JSDoc у рядковому літералі до першого import — обидві реалізації беруть його однаково (regex-канон)', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'npm/rules/n-js/js/docs/lit.md', '# lit\n')
+      await writeFileDeep(
+        dir,
+        'npm/rules/n-js/js/lit.mjs',
+        'const s = "/**\\n * один\\n * два\\n */"\nexport const q = s\n'
+      )
+      const { js, wasm } = await runHeaderDocPointerBoth(dir)
+      expect(wasm).toEqual(js)
+    })
+  })
+
+  test('порушення: обидва base-сегменти (npm/rules і npm/skills) у порядку rules → skills', async () => {
+    await withTmpDir(async dir => {
+      for (const base of ['npm/rules', 'npm/skills']) {
+        await writeFileDeep(dir, `${base}/x/js/docs/m.md`, '# m\n')
+        await writeFileDeep(dir, `${base}/x/js/m.mjs`, '/**\n * а.\n * б.\n */\nexport const m = 1\n')
+      }
+      const { js, wasm } = await runHeaderDocPointerBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js.map(v => v.message.split(':', 1)[0])).toEqual(['npm/rules/x/js/m.mjs', 'npm/skills/x/js/m.mjs'])
+    })
+  })
+})
+
+describe('wasm-plugin parity — npm-module/package_structure (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
+  const runPackageStructureBoth = dir =>
+    runFullScopeBoth(
+      PACKAGE_STRUCTURE_MAIN_MJS_PATH,
+      PACKAGE_STRUCTURE_CONCERN_KEY,
+      'npm-module',
+      'package_structure',
+      dir
+    )
+
+  /**
+   * Мінімальний канонічний npm-monorepo (усе на місці) — база, від якої
+   * фікстури нижче ВІДНІМАЮТЬ по одному факту.
+   * @param {string} dir корінь tmp-дерева
+   * @returns {Promise<void>}
+   */
+  async function writeCanonicalNpmModule(dir) {
+    await writeFileDeep(dir, 'package.json', JSON.stringify({ name: 'root', workspaces: ['npm'] }))
+    await writeFileDeep(dir, 'npm/package.json', JSON.stringify({ name: '@x/y', types: './types/index.d.ts' }))
+    await writeFileDeep(dir, 'npm/types/index.d.ts', 'export {}\n')
+    await writeFileDeep(dir, 'npm/tsconfig.emit-types.json', '{}\n')
+    await writeFileDeep(
+      dir,
+      'hk.pkl',
+      'hooks {\n  ["pre-commit"] {\n    steps { ["tsc"] { glob = "x"; check = "bunx -p typescript tsc -p npm/tsconfig.emit-types.json" } }\n  }\n  ["npm-changelog"] {\n    fix = "N_RULES_CHANGELOG_AUTOFIX=1 npx @7n/rules lint changelog"\n  }\n}\n'
+    )
+    await writeFileDeep(dir, '.github/workflows/npm-publish.yml', 'name: publish\n')
+  }
+
+  test('успіх: канонічний npm-monorepo → тиша з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeCanonicalNpmModule(dir)
+      const { js, wasm } = await runPackageStructureBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('порушення: порожній репозиторій → повний набір structural-violations у канонічному порядку', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'readme.md', '# x\n')
+      const { js, wasm } = await runPackageStructureBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js.map(v => v.message)).toEqual([
+        'package.json не існує',
+        'npm/ директорія не існує',
+        'npm/package.json не існує — створи package.json для npm модуля',
+        'Без .js під npm/src потрібен npm/tsconfig.emit-types.json (див. npm-module.mdc: emit через tsconfig, без штучного src/index.js)',
+        'Очікується hk.pkl або .config/hk.pkl з pre-commit і tsc (npm-module.mdc)',
+        '.github/workflows/ не існує',
+        'Відсутній .github/workflows/npm-publish.yml (npm-module.mdc: npm publish)'
+      ])
+      expect(js.every(v => v.reason === 'package_structure')).toBe(true)
+    })
+  })
+
+  test('порушення: layout npm/src з .js → інший набір hk-фрагментів (types/index.d.ts на місці)', async () => {
+    await withTmpDir(async dir => {
+      await writeCanonicalNpmModule(dir)
+      await writeFileDeep(dir, 'npm/src/index.js', 'export const a = 1\n')
+      const { js, wasm } = await runPackageStructureBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js.map(v => v.message)).toEqual([
+        'hk.pkl: онови pre-commit крок (npm-module.mdc); не знайдено: src/**/*.js, --declaration, --allowJs, --emitDeclarationOnly, --outDir types, --skipLibCheck'
+      ])
+    })
+  })
+
+  test('порушення: layout npm/src з .js без npm/types/index.d.ts → src-специфічне повідомлення про types', async () => {
+    await withTmpDir(async dir => {
+      await writeCanonicalNpmModule(dir)
+      await writeFileDeep(dir, 'npm/src/index.js', 'export const a = 1\n')
+      await writeFileDeep(dir, 'npm/package.json', JSON.stringify({ name: '@x/y' }))
+      const { rm } = await import('node:fs/promises')
+      await rm(join(dir, 'npm/types/index.d.ts'))
+      const { js, wasm } = await runPackageStructureBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js[0].message).toBe('Відсутній npm/types/index.d.ts (згенеруй tsc з npm-module.mdc)')
+    })
+  })
+
+  test('порушення: types вказує поза ./types/ → String(typesField) у повідомленні', async () => {
+    await withTmpDir(async dir => {
+      await writeCanonicalNpmModule(dir)
+      await writeFileDeep(dir, 'npm/package.json', JSON.stringify({ name: '@x/y', types: './dist/index.d.ts' }))
+      const { js, wasm } = await runPackageStructureBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].message).toBe('Файл для поля types не знайдено або шлях не під ./types/ — ./dist/index.d.ts')
+    })
+  })
+
+  test('край: types відсутнє зовсім → String(undefined) === "undefined" з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeCanonicalNpmModule(dir)
+      await writeFileDeep(dir, 'npm/package.json', JSON.stringify({ name: '@x/y' }))
+      const { js, wasm } = await runPackageStructureBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].message).toBe('Файл для поля types не знайдено або шлях не під ./types/ — undefined')
+    })
+  })
+
+  test('порушення: застарілий "check changelog" у hk.pkl витісняє перевірку кроку npm-changelog', async () => {
+    await withTmpDir(async dir => {
+      await writeCanonicalNpmModule(dir)
+      await writeFileDeep(
+        dir,
+        'hk.pkl',
+        'hooks {\n  ["pre-commit"] { check = "bunx -p typescript tsc -p npm/tsconfig.emit-types.json && npx @7n/rules check changelog" }\n}\n'
+      )
+      const { js, wasm } = await runPackageStructureBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].message).toContain('застарілий виклик "check changelog"')
+    })
+  })
+
+  test('порушення: тести у tarball — каталог, імʼя файлу й імпорт фреймворку', async () => {
+    await withTmpDir(async dir => {
+      await writeCanonicalNpmModule(dir)
+      await writeFileDeep(
+        dir,
+        'npm/package.json',
+        JSON.stringify({ name: '@x/y', types: './types/index.d.ts', files: ['lib'] })
+      )
+      await writeFileDeep(dir, 'npm/lib/ok.mjs', 'export const ok = 1\n')
+      await writeFileDeep(dir, 'npm/lib/fixtures/data.json', '{}\n')
+      await writeFileDeep(dir, 'npm/lib/util.test.mjs', 'export const t = 1\n')
+      await writeFileDeep(dir, 'npm/lib/hidden.mjs', "import { test } from 'vitest'\nexport const h = test\n")
+      const { js, wasm } = await runPackageStructureBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js.map(v => v.message.split(' — ', 1)[0])).toEqual([
+        'npm/lib/fixtures/data.json: test-style каталог "fixtures/"',
+        'npm/lib/hidden.mjs: імпорт test-фреймворку "vitest"',
+        "npm/lib/util.test.mjs: test-style ім'я файлу"
+      ])
+    })
+  })
+
+  test('край: негативний glob у files виключає файл з tarball-простору обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeCanonicalNpmModule(dir)
+      await writeFileDeep(
+        dir,
+        'npm/package.json',
+        JSON.stringify({
+          name: '@x/y',
+          types: './types/index.d.ts',
+          files: ['lib', '!**/fixtures/**', '!**/*.test.mjs']
+        })
+      )
+      await writeFileDeep(dir, 'npm/lib/ok.mjs', 'export const ok = 1\n')
+      await writeFileDeep(dir, 'npm/lib/fixtures/data.json', '{}\n')
+      await writeFileDeep(dir, 'npm/lib/util.test.mjs', 'export const t = 1\n')
+      const { js, wasm } = await runPackageStructureBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('край: carve-out rules/<rule-name>/ — правило з id "test" НЕ є test-fixture', async () => {
+    await withTmpDir(async dir => {
+      await writeCanonicalNpmModule(dir)
+      await writeFileDeep(
+        dir,
+        'npm/package.json',
+        JSON.stringify({ name: '@x/y', types: './types/index.d.ts', files: ['rules'] })
+      )
+      await writeFileDeep(dir, 'npm/rules/test/main.mdc', '# test rule\n')
+      await writeFileDeep(dir, 'npm/rules/n-js/tests/deep.mjs', 'export const d = 1\n')
+      const { js, wasm } = await runPackageStructureBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js.map(v => v.message.split(' — ', 1)[0])).toEqual([
+        'npm/rules/n-js/tests/deep.mjs: test-style каталог "tests/"'
+      ])
+    })
+  })
+
+  test('край: `require`/динамічний import test-фреймворку ловиться так само, як статичний', async () => {
+    await withTmpDir(async dir => {
+      await writeCanonicalNpmModule(dir)
+      await writeFileDeep(
+        dir,
+        'npm/package.json',
+        JSON.stringify({ name: '@x/y', types: './types/index.d.ts', files: ['lib'] })
+      )
+      await writeFileDeep(dir, 'npm/lib/a.cjs', "const { test } = require('node:test')\nmodule.exports = test\n")
+      await writeFileDeep(dir, 'npm/lib/b.mjs', "export const load = () => import('mocha')\n")
+      // Рядок/коментар зі згадкою vitest — НЕ імпорт (тут regex збрехав би, AST — ні).
+      await writeFileDeep(dir, 'npm/lib/c.mjs', "// import { it } from 'vitest'\nexport const s = \"from 'vitest'\"\n")
+      const { js, wasm } = await runPackageStructureBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js.map(v => v.message.split(' — ', 1)[0])).toEqual([
+        'npm/lib/a.cjs: імпорт test-фреймворку "node:test"',
+        'npm/lib/b.mjs: імпорт test-фреймворку "mocha"'
+      ])
+    })
+  })
+
+  test('край: files-запис — окремий ФАЙЛ, а не каталог (сирий рядок запису в шляху)', async () => {
+    await withTmpDir(async dir => {
+      await writeCanonicalNpmModule(dir)
+      await writeFileDeep(
+        dir,
+        'npm/package.json',
+        JSON.stringify({ name: '@x/y', types: './types/index.d.ts', files: ['spec.mjs', 'missing.mjs'] })
+      )
+      await writeFileDeep(dir, 'npm/spec.mjs', 'export const s = 1\n')
+      const { js, wasm } = await runPackageStructureBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+})
+
+describe('wasm-plugin parity — js/dep-policy (JS канон vs wasm plugin-lang-js, full-scope міст, AST-концерн)', () => {
+  const runDepPolicyBoth = dir =>
+    runFullScopeBoth(DEP_POLICY_MAIN_MJS_PATH, DEP_POLICY_CONCERN_KEY, 'js', 'dep-policy', dir)
+
+  test('успіх: дозволені імпорти → без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'src/app.mjs', "import bowser from 'bowser'\nexport const b = bowser\n")
+      const { js, wasm } = await runDepPolicyBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('порушення: статичний import ua-parser-js → ідентичне violation з підказкою про bowser', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'src/ua.mjs', "import UAParser from 'ua-parser-js'\nexport const p = UAParser\n")
+      const { js, wasm } = await runDepPolicyBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('dep-policy')
+      expect(js[0].message).toBe(
+        "src/ua.mjs: заборонений import 'ua-parser-js' — замінити на bowser (MIT, ~6 KB) — npm i bowser. " +
+          'ua-parser-js v2 змінив ліцензію на AGPL-3.0, несумісну з комерційним використанням (js.mdc dep-policy)'
+      )
+    })
+  })
+
+  test('порушення: require і динамічний import ловляться так само, як статичний', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'a.cjs', "const f = require('@nitra/as-integrations-fastify')\nmodule.exports = f\n")
+      await writeFileDeep(dir, 'b.mjs', "export const load = () => import('@nitra/as-integrations-fastify')\n")
+      const { js, wasm } = await runDepPolicyBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(2)
+      expect(js.map(v => v.message.split(':', 1)[0])).toEqual(['a.cjs', 'b.mjs'])
+    })
+  })
+
+  test('край: згадки в коментарі, рядку й шаблонному літералі — НЕ порушення (тут regex збрехав би)', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(
+        dir,
+        'src/noise.mjs',
+        [
+          "// import UAParser from 'ua-parser-js'",
+          "/* require('ua-parser-js') */",
+          'export const s = "import x from \'ua-parser-js\'"',
+          'export const t = `ua-parser-js`',
+          "export const u = 'ua-parser-js'"
+        ].join('\n') + '\n'
+      )
+      const { js, wasm } = await runDepPolicyBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('край: субшлях забороненого пакета дозволений (точна рівність specifier-а)', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'src/sub.mjs', "import x from 'ua-parser-js/helpers'\nexport const s = x\n")
+      const { js, wasm } = await runDepPolicyBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  // Синтаксично БИТИЙ файл сюди свідомо не входить — розбіжність 6
+  // (доккомент секції «Батч 7» у `crates/plugin-lang-js/src/lib.rs`):
+  // `extractImportSpecifiers` не звіряє `result.errors`, тож обидві сторони
+  // читають частковий AST, але глибина recovery в napi-`oxc-parser` і
+  // `oxc_parser`-crate різна.
+  test('край: TS-джерело з type-import ловиться так само, як звичайний import', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'src/ok.ts', "import type { X } from 'ua-parser-js'\nexport type Y = X\n")
+      await writeFileDeep(dir, 'src/plain.mts', "import x from 'ua-parser-js'\nexport const p = x\n")
+      const { js, wasm } = await runDepPolicyBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js.map(v => v.message.split(':', 1)[0])).toEqual(['src/ok.ts', 'src/plain.mts'])
+    })
+  })
+
+  test('край: два порушення в одному файлі — статичне перед walk-знахідкою (двофазний порядок канону)', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(
+        dir,
+        'src/mix.mjs',
+        "const legacy = require('ua-parser-js')\nimport fastify from '@nitra/as-integrations-fastify'\nexport const m = [legacy, fastify]\n"
+      )
+      const { js, wasm } = await runDepPolicyBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(2)
+      expect(js[0].message).toContain('@nitra/as-integrations-fastify')
+      expect(js[1].message).toContain('ua-parser-js')
     })
   })
 })

@@ -1,9 +1,11 @@
 //! wasm-компонент `n-rules:plugin@3.0.0` — `lang-js/wasm-concerns` (задачі N2,
-//! Q1 батч 1, Q2 батч 2, Q3 та Q4 батч 4, спека
+//! Q1 батч 1, Q2 батч 2, Q3, Q4 батч 4 та батчі 5–7, спека
 //! `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md` §3.5.5 і
 //! `docs/specs/2026-08-01-wasm-ast-strategy.md`),
 //! створений за флоу скіла `npm/skills/wasm-plugin/` (scaffold → реалізація →
-//! golden-тести). ЧОТИРНАДЦЯТЬ концернів у контрибуції, порт чинних
+//! golden-тести). ДВАДЦЯТЬ ВІСІМ концернів у контрибуції (перелік нижче —
+//! перші чотирнадцять; батчі 5–7 описані в доккоментах однойменних секцій
+//! нижче за текстом), порт чинних
 //! JS-оригіналів — справжній 1:1, той самий `reason`/`message` біт-у-біт
 //! (parity-дисципліна СКІЛа не допускає shadowing regex-наближенням
 //! AST-оригіналу в контрибуції — рішення оркестратора після звіту батчу 2;
@@ -3119,13 +3121,24 @@ fn is_parent_relative_import(src: &str) -> bool {
 /// містить ЛИШЕ `ImportDeclaration.source` (НЕ `export … from`/`export *
 /// from` — ці не є "static import"), тому [`visit_import_declaration`] —
 /// повний еквівалент, без окремого проходу `Program.body`.
+///
+/// **Два буфери, не один** (виправлено батчем 7 — прихована розбіжність
+/// порядку, знайдена фікстурою `js/dep-policy` «два порушення в одному
+/// файлі»): JS-оригінал спочатку зливає УВЕСЬ `parsed.module.staticImports`,
+/// і лише потім ходить деревом за `import()`/`require()`. Тому у файлі, де
+/// `require('a')` стоїть ВИЩЕ за `import b from 'x'`, JS віддає
+/// `['x', 'a']`, а не порядок рядків. Один спільний `Vec` (як було до
+/// батчу 7) віддавав DFS-порядок — той самий двофазний прийом, що
+/// [`RedisImportVisitor`] батчу 4.
 struct ImportSourceVisitor {
-    sources: Vec<String>,
+    static_sources: Vec<String>,
+    walk_sources: Vec<String>,
 }
 
 impl<'a> Visit<'a> for ImportSourceVisitor {
     fn visit_import_declaration(&mut self, it: &ImportDeclaration<'a>) {
-        self.sources.push(it.source.value.as_str().to_string());
+        self.static_sources
+            .push(it.source.value.as_str().to_string());
         // Навмисно БЕЗ `walk_import_declaration(self, it)` — специфікатори
         // (`{ a, b as c }`) не містять вкладених `import()`/`require()`,
         // яких мали б стосуватись інші visit-гілки цього visitor-а.
@@ -3133,7 +3146,7 @@ impl<'a> Visit<'a> for ImportSourceVisitor {
 
     fn visit_import_expression(&mut self, it: &ImportExpression<'a>) {
         if let Expression::StringLiteral(lit) = &it.source {
-            self.sources.push(lit.value.as_str().to_string());
+            self.walk_sources.push(lit.value.as_str().to_string());
         }
         // JS-оригінал `dynamicImportModule` теж повертає `null` (пропускає)
         // для нелітерального аргументу (`import(computed())`) — той самий
@@ -3145,7 +3158,7 @@ impl<'a> Visit<'a> for ImportSourceVisitor {
         if let Expression::Identifier(ident) = &it.callee {
             if ident.name.as_str() == "require" {
                 if let Some(Argument::StringLiteral(lit)) = it.arguments.first() {
-                    self.sources.push(lit.value.as_str().to_string());
+                    self.walk_sources.push(lit.value.as_str().to_string());
                 }
             }
         }
@@ -3166,10 +3179,13 @@ fn extract_import_sources(content: &str, file_path: &str) -> Vec<String> {
     let source_type = SourceType::from_path(file_path).unwrap_or_default();
     let ret = Parser::new(&allocator, content, source_type).parse();
     let mut visitor = ImportSourceVisitor {
-        sources: Vec::new(),
+        static_sources: Vec::new(),
+        walk_sources: Vec::new(),
     };
     visitor.visit_program(&ret.program);
-    visitor.sources
+    let mut sources = visitor.static_sources;
+    sources.extend(visitor.walk_sources);
+    sources
 }
 
 /// Чи `path` (posix-relative від cwd, гарантовано містить сегмент `utils`
@@ -3632,6 +3648,53 @@ fn build_manifest() -> Manifest {
                 key: CONCERN_MSSQL_PACKAGE_JSON.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec!["**/package.json".to_string()],
+            },
+            // Батч 7: кластер `npm-module/*` + `js/dep-policy`. Глоби трьох
+            // метадані-концернів СВІДОМО ВУЖЧІ за `concern.json.lint.glob`
+            // (доккомент секції «Батч 7»): batch має містити рівно те, що
+            // JS-канон читає з диска — `npm/rules/*/*` замість
+            // `npm/rules/**/main.json`+…, чотири `*/js/*`-глоби замість
+            // `**/*` цілого репо.
+            ConcernContribution {
+                key: CONCERN_RULE_META.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec!["npm/rules/*/*".to_string()],
+            },
+            ConcernContribution {
+                key: CONCERN_SKILL_META.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec!["npm/skills/*/*".to_string()],
+            },
+            ConcernContribution {
+                key: CONCERN_HEADER_DOC_POINTER.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec![
+                    "npm/rules/*/js/*".to_string(),
+                    "npm/rules/*/js/docs/*".to_string(),
+                    "npm/skills/*/js/*".to_string(),
+                    "npm/skills/*/js/docs/*".to_string(),
+                ],
+            },
+            // `**/*` `concern.json` звужено до реально читаного JS-каноном
+            // простору: корінь-`package.json`, увесь `npm/` (tarball-простір
+            // `files`), hk-конфіг і workflow-и. Літерал `npm` — щоб гілка
+            // «`npm` є ФАЙЛОМ, а не каталогом» лишалась спостережуваною.
+            ConcernContribution {
+                key: CONCERN_PACKAGE_STRUCTURE.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec![
+                    "package.json".to_string(),
+                    "npm".to_string(),
+                    "npm/**".to_string(),
+                    "hk.pkl".to_string(),
+                    ".config/hk.pkl".to_string(),
+                    ".github/workflows/**".to_string(),
+                ],
+            },
+            ConcernContribution {
+                key: CONCERN_DEP_POLICY.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec!["**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}".to_string()],
             },
         ],
         ci_artifacts: vec![],
@@ -6009,7 +6072,1079 @@ fn detect_mssql_package_json(files: &[SourceFile]) -> Vec<Diagnostic> {
     diagnostics
 }
 
-/// Guest-реалізація world `plugin` — дев'ятнадцять контрибуцій ([`CONCERN_TFM`],
+// =====================================================================
+// Батч 7 (§3.5.5): кластер `npm-module/*` (метадані-перевірки, чотири
+// концерни) плюс AST-концерн `js/dep-policy`.
+//
+// # Спільний прийом: `readdirSync` → реконструкція з батча
+//
+// Усі чотири `npm-module`-концерни JS-канону ходять диском самі
+// (`readdirSync(npm/rules)`, `readdir(npm/skills/<id>/js)`, `walkDir(npm/…)`),
+// а wasm-плагін бачить лише host-побудований batch. Реконструкція точна, бо
+// каталог = префікс шляху: [`batch_child_dirs`] віддає імена піддиректорій
+// першого рівня, [`batch_dir_entries`] — файли БЕЗПОСЕРЕДНЬО в каталозі.
+// Порядок обходу: `readdirSync` на APFS/ext4 віддає імена вже
+// відсортованими (перевірено живою фікстурою на цій машині), host-батч теж
+// байтово-лексикографічний (`rules_core::scan::walk_dir` сортує явно), тож
+// порядок діагностик збігається. `BTreeSet` тут — саме цей інваріант,
+// а не «зручний контейнер».
+//
+// Глоби контрибуцій СВІДОМО вужчі за `concern.json.lint.glob` там, де це
+// точно (не наближено) покриває те, що JS-канон реально читає з диска:
+// `npm-module/rule_meta` — `npm/rules/*/*` (JS читає ЛИШЕ прямих дітей
+// каталогу правила: `main.json`/`main.mdc`/`auto.md`), `skill_meta` —
+// `npm/skills/*/*`, `header_doc_pointer` — чотири `*/js/*`-глоби замість
+// `**/*` цілого репо. Мотив той самий, що ширші глоби батчу 5, лише в
+// протилежний бік: batch має містити РІВНО те, що канон читає — ні менше
+// (тоді розбіжність), ні більше (тоді кожен lint-прогін тягне через ABI
+// мегабайти дарма). `npm-module/package_structure` — єдиний, кому потрібен
+// увесь `npm/**` (він реально сканує tarball-простір `files`).
+//
+// # Задокументовані розбіжності (фікстури їх не торкаються)
+//
+// 1. **Невалідний JSON у `npm/package.json`**: JS-канон
+//    (`checkNoTestsInPublishedFiles`/`checkNpmPackageJson`) кличе `JSON.parse`
+//    БЕЗ `try/catch` — виняток вилітає з `lint()` і стає `DetectorError`
+//    (exit 2, весь концерн падає); wasm-порт пропускає перевірку
+//    ([`parse_json_tolerant`] → `None`). Той самий skip-not-crash дух, що
+//    розбіжність 1 секції «Батч 6».
+// 2. **Порожній каталог**: git не трекає порожні каталоги, а host-батч —
+//    список ФАЙЛІВ, тож `existsSync(<порожній каталог>)` JS-канону = `true`,
+//    а [`batch_dir_exists`] = `false` (та сама мікро-розбіжність 5 секції
+//    «Батч 5»). Стосується `.github/workflows/` без жодного workflow і
+//    каталогу правила взагалі без прямих файлів.
+// 3. **`.cursorignore`**: `js/dep-policy` і `package_structure` JS-канону
+//    звужують `walkDir` через `loadCursorIgnorePaths`, host-збірка батчу —
+//    ні (`build_full_scope_files` кличе `walk_dir(cwd, &[])`). Успадкована
+//    розбіжність усіх full-scope портів починаючи з батчу 4, не нова.
+// 4. **Сортування рядків**: JS `Array.prototype.sort` — по UTF-16 code
+//    units, `BTreeSet<String>` — байтово (UTF-8). Для ASCII-шляхів (усе,
+//    що реально лежить у `npm/`) порядок тотожний.
+// 5. **Невалідний glob у негативному патерні `files`**: `new RegExp` JS-боку
+//    кинув би `SyntaxError` (весь концерн — exit 2), [`glob_to_regex`]
+//    віддає `None` і патерн просто нічого не виключає.
+// 6. **Синтаксично БИТИЙ JS-файл** (стосується `js/dep-policy`, а через
+//    спільний [`extract_import_sources`] — і `js/utils_imports`):
+//    `extractImportSpecifiers` НЕ звіряє `result.errors`, тож обидві
+//    сторони читають частковий AST, але глибина error-recovery в
+//    napi-`oxc-parser` і в crate-`oxc_parser` різна — на файлі
+//    `import x from 'ua-parser-js'` + `const = = =` JS ще бачить імпорт, а
+//    guest уже ні (живий прогін, батч 7). Виміряно й задокументовано, а не
+//    «підігнано»: підганяти тут нема за що — це внутрішня поведінка
+//    відновлення парсера, не наша логіка.
+//
+// # `js/dep-policy` — найчистіший порт цього батчу
+//
+// `reporter.pass()` у `createViolationReporter` — no-op, тож `files.length`
+// з pass-повідомлення JS-канону НЕ спостережуване ззовні: єдиний вихід
+// концерну — `fail`-и по забороненим specifier-ам. Тому питання «чи батч
+// хоста збігається з `walkDir` до одного файлу» тут взагалі не виникає —
+// на відміну від `js-bun-redis/imports` батчу 4. Сам скан — той самий
+// [`extract_import_sources`] (`ImportDeclaration` + `import()` + `require()`),
+// що `js/utils_imports`.
+
+/// Ключ контрибуції `npm-module/rule_meta` (батч 7).
+const CONCERN_RULE_META: &str = "npm-module/rule_meta";
+
+/// Ключ контрибуції `npm-module/skill_meta` (батч 7).
+const CONCERN_SKILL_META: &str = "npm-module/skill_meta";
+
+/// Ключ контрибуції `npm-module/header_doc_pointer` (батч 7).
+const CONCERN_HEADER_DOC_POINTER: &str = "npm-module/header_doc_pointer";
+
+/// Ключ контрибуції `npm-module/package_structure` (батч 7).
+const CONCERN_PACKAGE_STRUCTURE: &str = "npm-module/package_structure";
+
+/// Ключ контрибуції `js/dep-policy` (батч 7).
+const CONCERN_DEP_POLICY: &str = "js/dep-policy";
+
+/// `reason` діагностик `npm-module/rule_meta` — усі `fail()` у `main.mjs`
+/// без другого аргументу, тож дефолт `ctx.concernId` = bare `"rule_meta"`
+/// (той самий мотив, що [`UTILS_IMPORTS_VIOLATION_REASON`]).
+const RULE_META_REASON: &str = "rule_meta";
+
+/// `reason` діагностик `npm-module/skill_meta` — той самий мотив.
+const SKILL_META_REASON: &str = "skill_meta";
+
+/// `reason` діагностик `npm-module/header_doc_pointer` — той самий мотив.
+const HEADER_DOC_POINTER_REASON: &str = "header_doc_pointer";
+
+/// `reason` діагностик `npm-module/package_structure` — той самий мотив.
+const PACKAGE_STRUCTURE_REASON: &str = "package_structure";
+
+/// `reason` діагностик `js/dep-policy` — той самий мотив (bare `concernId`,
+/// без `js/`-префікса).
+const DEP_POLICY_REASON: &str = "dep-policy";
+
+/// Літерал безумовної активації — точний порт `RULE_ALWAYS`/`SKILL_ALWAYS`
+/// (`npm/scripts/lib/rule-meta.mjs`, `npm/scripts/lib/skill-meta.mjs`).
+const META_ALWAYS: &str = "завжди";
+
+/// Імена предикатів реєстру `RULE_PREDICATES`
+/// (`npm/scripts/lib/rule-predicates.mjs`) — `rule_meta` перевіряє САМЕ
+/// наявність ключа (`Object.hasOwn`), самі реалізації для діагностики не
+/// потрібні. Дрейф (новий предикат у JS без оновлення цього списку) ловить
+/// parity-тест `предикати RULE_PREDICATES` — він ітерує реальний
+/// `Object.keys(RULE_PREDICATES)` і ганяє кожен через ОБИДВІ реалізації.
+const RULE_PREDICATE_NAMES: [&str; 6] = [
+    "repoUrlMarker",
+    "depInAnyPackageJson",
+    "gqlTaggedTemplate",
+    "hasuraConfigMarker",
+    "jsBunDbSignal",
+    "nestedPackageWithoutVite",
+];
+
+/// Допустимі тири скіла — точний порт `SKILL_TIERS`
+/// (`npm/scripts/lib/skill-meta.mjs`).
+const SKILL_TIERS: [&str; 3] = ["min", "avg", "max"];
+
+/// Каталоги, що за конвенцією тримають тести/фікстури — точний порт
+/// `TEST_DIR_NAMES` (`package_structure/main.mjs:26`).
+const PUBLISHED_TEST_DIR_NAMES: [&str; 6] = [
+    "tests",
+    "__tests__",
+    "fixtures",
+    "__fixtures__",
+    "spec",
+    "test",
+];
+
+/// Модулі, імпорт яких видає test-файл — точний порт
+/// `TEST_FRAMEWORK_MODULES` (`package_structure/main.mjs:41-51`).
+const TEST_FRAMEWORK_MODULES: [&str; 9] = [
+    "bun:test",
+    "node:test",
+    "vitest",
+    "@jest/globals",
+    "jest",
+    "mocha",
+    "ava",
+    "tap",
+    "tape",
+];
+
+/// Точний порт `TEST_FILE_PATTERNS[0]`
+/// (`/^.+\.(test|spec)\.[cm]?[jt]sx?$/iu`, `package_structure/main.mjs:35`).
+const PUBLISHED_TEST_FILE_PATTERN: &str = r"(?i)^.+\.(test|spec)\.[cm]?[jt]sx?$";
+
+/// Точний порт `JS_LIKE_EXT_RE` (`/\.[cm]?[jt]sx?$/iu`,
+/// `package_structure/main.mjs:38`).
+const JS_LIKE_EXT_PATTERN: &str = r"(?i)\.[cm]?[jt]sx?$";
+
+/// Точний порт `DEPRECATED_CHECK_CHANGELOG_RE` (`/\bcheck\s+changelog\b/u`,
+/// `package_structure/main.mjs:127`).
+const DEPRECATED_CHECK_CHANGELOG_PATTERN: &str = r"\bcheck\s+changelog\b";
+
+/// Перший JSDoc-блок (не-жадібний) — точний порт `MODULE_JSDOC_RE`
+/// (`/\/\*\*[\s\S]*?\*\//`, `header_doc_pointer/main.mjs:9`); `[\s\S]` →
+/// `(?s).` (у Rust `regex` `.` за замовчуванням НЕ матчить `\n`).
+const MODULE_JSDOC_PATTERN: &str = r"(?s)/\*\*.*?\*/";
+
+/// `import`/`export` на початку рядка — точний порт `CODE_START_RE`
+/// (`/^(?:import|export)\b/m`, `header_doc_pointer/main.mjs:15`).
+const CODE_START_PATTERN: &str = r"(?m)^(?:import|export)\b";
+
+/// Провідний `*`-відступ рядка JSDoc — точний порт `STAR_INDENT_RE`
+/// (`/^\s*\*\s?/`, `header_doc_pointer/main.mjs:18`).
+const STAR_INDENT_PATTERN: &str = r"^\s*\*\s?";
+
+/// Спецсимволи RegExp, що в glob лишаються літералами — точний порт
+/// `REGEX_SPECIAL_IN_GLOB` (`npm/scripts/lib/glob-to-regex.mjs:9`).
+const GLOB_REGEX_SPECIAL: [char; 12] =
+    ['.', '+', '^', '$', '{', '}', '(', ')', '|', '[', ']', '\\'];
+
+/// Заборонені import-specifier-и та підказка про заміну — точний порт
+/// `BANNED_SPECIFIERS` (`js/dep-policy/main.mjs:23-29`), порядок як у Map
+/// (для лукапу неважливий, лишений 1:1 для звірки очима).
+const DEP_POLICY_BANNED_SPECIFIERS: [(&str, &str); 2] = [
+    (
+        "@nitra/as-integrations-fastify",
+        "використовуй @as-integrations/fastify",
+    ),
+    (
+        "ua-parser-js",
+        "замінити на bowser (MIT, ~6 KB) — npm i bowser. ua-parser-js v2 змінив \
+         ліцензію на AGPL-3.0, несумісну з комерційним використанням",
+    ),
+];
+
+// ---------------------------------------------------------------------
+// Реконструкція каталогів із батча
+
+/// Імена піддиректорій ПЕРШОГО рівня під `base` — batch-відповідник
+/// `readdirSync(base, { withFileTypes: true })` з фільтрами
+/// `entry.isDirectory()` (запис має бути КАТАЛОГОМ: у батчі це означає, що
+/// під ним лежить хоч один файл) і `!entry.name.startsWith('.')`.
+/// `BTreeSet` — байтово-лексикографічний порядок (доккомент секції).
+fn batch_child_dirs(files: &[SourceFile], base: &str) -> Vec<String> {
+    let prefix = format!("{base}/");
+    let mut names: BTreeSet<String> = BTreeSet::new();
+    for file in files {
+        let Some(rest) = file.path.strip_prefix(&prefix) else {
+            continue;
+        };
+        let mut segments = rest.split('/');
+        let Some(name) = segments.next() else {
+            continue;
+        };
+        // Немає наступного сегмента → `rest` — файл ПРЯМО в `base`, не
+        // каталог (JS-фільтр `entry.isDirectory()`).
+        if segments.next().is_none() || name.is_empty() || name.starts_with('.') {
+            continue;
+        }
+        names.insert(name.to_string());
+    }
+    names.into_iter().collect()
+}
+
+/// Файли БЕЗПОСЕРЕДНЬО в каталозі `dir` (без рекурсії) — batch-відповідник
+/// `readdir(dir, { withFileTypes: true })` + `entry.isFile()`.
+fn batch_dir_entries<'a>(files: &'a [SourceFile], dir: &str) -> Vec<&'a SourceFile> {
+    let prefix = format!("{dir}/");
+    let mut out: Vec<&SourceFile> = files
+        .iter()
+        .filter(|f| {
+            f.path
+                .strip_prefix(&prefix)
+                .is_some_and(|rest| !rest.is_empty() && !rest.contains('/'))
+        })
+        .collect();
+    out.sort_by(|a, b| a.path.cmp(&b.path));
+    out
+}
+
+// ---------------------------------------------------------------------
+// `npm-module/rule_meta` і `npm-module/skill_meta`
+
+/// Чи `String(value).trim()` — порожній рядок. Єдине, що з JS-семантики
+/// `String()` у `parseRuleAutoSpec`/`parseSkillAutoSpec` реально впливає на
+/// діагностику: самі рядки нікуди не друкуються, важлива лише
+/// «непорожність» після trim. `null`→`"null"`, число/булеве/обʼєкт — завжди
+/// непорожні; масив із ≥2 елементів завжди дає кому від `join(',')`.
+fn js_string_is_blank(value: &serde_json::Value) -> bool {
+    match value {
+        serde_json::Value::String(s) => s.trim().is_empty(),
+        serde_json::Value::Array(items) => match items.len() {
+            0 => true,
+            1 => js_array_element_is_blank(&items[0]),
+            _ => false,
+        },
+        _ => false,
+    }
+}
+
+/// Те саме для ЕЛЕМЕНТА масиву: `Array.prototype.join` перетворює `null` на
+/// порожній рядок (на відміну від `String(null)` === `"null"`).
+fn js_array_element_is_blank(value: &serde_json::Value) -> bool {
+    matches!(value, serde_json::Value::Null) || js_string_is_blank(value)
+}
+
+/// Чи `value` — непорожній після `String(...).trim()` масив (спільна гілка
+/// `parseRuleAutoSpec`/`parseSkillAutoSpec`: `["rule", …]`).
+fn auto_spec_array_is_valid(items: &[serde_json::Value]) -> bool {
+    items.iter().any(|item| !js_string_is_blank(item))
+}
+
+/// Розпізнаний `main.json.auto` правила — точний порт `parseRuleAutoSpec`
+/// (`npm/scripts/lib/rule-meta.mjs:27-49`). `None` = «формат не розпізнано»
+/// (JS `null`), `Some(None)` = розпізнано без предиката, `Some(Some(name))`
+/// = `{ predicate }`.
+#[allow(clippy::option_option)]
+fn parse_rule_auto_spec(value: &serde_json::Value) -> Option<Option<String>> {
+    if value.as_str() == Some(META_ALWAYS) {
+        return Some(None);
+    }
+    if let serde_json::Value::Array(items) = value {
+        return auto_spec_array_is_valid(items).then_some(None);
+    }
+    let serde_json::Value::Object(obj) = value else {
+        return None;
+    };
+    if let Some(raw) = obj.get("glob") {
+        let has_glob = match raw {
+            serde_json::Value::Array(items) => items
+                .iter()
+                .any(|g| g.as_str().is_some_and(|s| !s.is_empty())),
+            other => other.as_str().is_some_and(|s| !s.is_empty()),
+        };
+        return has_glob.then_some(None);
+    }
+    if let Some(raw) = obj.get("predicate") {
+        return match raw.as_str() {
+            Some(name) if !name.is_empty() => Some(Some(name.to_string())),
+            _ => None,
+        };
+    }
+    None
+}
+
+/// Точний порт `parseSkillAutoSpec` (`npm/scripts/lib/skill-meta.mjs:39-49`)
+/// — на відміну від правила, ЛИШЕ `"завжди"` або непорожній масив.
+fn skill_auto_spec_is_valid(value: &serde_json::Value) -> bool {
+    if value.as_str() == Some(META_ALWAYS) {
+        return true;
+    }
+    match value {
+        serde_json::Value::Array(items) => auto_spec_array_is_valid(items),
+        _ => false,
+    }
+}
+
+/// Точний порт `readRuleMetaRaw`/`readSkillMetaRaw` (один алгоритм у двох
+/// файлах): немає `main.json` / невалідний JSON / не plain-object → `None`.
+fn read_meta_raw(
+    files: &[SourceFile],
+    dir: &str,
+) -> Option<serde_json::Map<String, serde_json::Value>> {
+    let file = batch_file(files, &format!("{dir}/main.json"))?;
+    match parse_json_tolerant(&file.content) {
+        Some(serde_json::Value::Object(obj)) => Some(obj),
+        _ => None,
+    }
+}
+
+/// Точний порт `checkRule` (`npm-module/rule_meta/main.mjs:70-97`) — pass-и
+/// JS-канону no-op (`createViolationReporter`), тож локальний `ruleOk`
+/// спостережуваного ефекту не має і сюди не переноситься.
+fn check_rule_meta_one(
+    files: &[SourceFile],
+    id: &str,
+    rule_dir: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut fail = |message: String| {
+        diagnostics.push(Diagnostic {
+            reason: RULE_META_REASON.to_string(),
+            message,
+            file: None,
+            severity: Severity::Error,
+            data: None,
+        });
+    };
+
+    if batch_file(files, &format!("{rule_dir}/auto.md")).is_some() {
+        fail(format!(
+            "rules/{id}: залишковий auto.md — видали (метадані тепер у main.json)"
+        ));
+    }
+    if batch_file(files, &format!("{rule_dir}/main.mdc")).is_none() {
+        fail(format!(
+            "rules/{id}: відсутній main.mdc — обов'язковий (scripts.mdc)"
+        ));
+    }
+
+    let Some(raw) = read_meta_raw(files, rule_dir) else {
+        fail(format!("rules/{id}: відсутній або невалідний main.json"));
+        return;
+    };
+
+    if let Some(auto) = raw.get("auto") {
+        match parse_rule_auto_spec(auto) {
+            None => fail(format!(
+                "rules/{id}: main.json.auto нерозпізнане (очікується \"завжди\" / масив / {{glob}} / {{predicate}})"
+            )),
+            Some(Some(predicate)) if !RULE_PREDICATE_NAMES.contains(&predicate.as_str()) => {
+                fail(format!(
+                    "rules/{id}: main.json — невідомий predicate \"{predicate}\" (немає в RULE_PREDICATES)"
+                ));
+            }
+            Some(_) => {}
+        }
+    }
+    if raw.contains_key("lint") {
+        fail(format!(
+            "rules/{id}: main.json.lint скасовано — lint-scope декларується у <concern>/concern.json#lint"
+        ));
+    }
+    if raw.contains_key("llmFix") {
+        fail(format!(
+            "rules/{id}: main.json.llmFix скасовано — fix-можливість = наявність fix-*.mjs/fix-worker.mjs у концерні"
+        ));
+    }
+}
+
+/// Точний порт `lint()` `npm-module/rule_meta` (`main.mjs:104-119`) —
+/// WHOLE-BATCH: немає `npm/rules/` (жодного файлу під ним у батчі) → без
+/// діагностик (JS-гілка `pass('npm/rules/ відсутній …')`).
+fn detect_rule_meta(files: &[SourceFile]) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+    if !batch_dir_exists(files, "npm/rules") {
+        return diagnostics;
+    }
+    for id in batch_child_dirs(files, "npm/rules") {
+        let rule_dir = format!("npm/rules/{id}");
+        check_rule_meta_one(files, &id, &rule_dir, &mut diagnostics);
+    }
+    diagnostics
+}
+
+/// Точний порт `checkSkillFields` (`npm-module/skill_meta/main.mjs:15-41`) —
+/// порядок перевірок (worktree → auto → requireRoot → конфлікт → tier)
+/// дослівний, бо він і задає порядок діагностик.
+fn check_skill_meta_fields(
+    id: &str,
+    raw: &serde_json::Map<String, serde_json::Value>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut fail = |message: String| {
+        diagnostics.push(Diagnostic {
+            reason: SKILL_META_REASON.to_string(),
+            message,
+            file: None,
+            severity: Severity::Error,
+            data: None,
+        });
+    };
+
+    let worktree = raw.get("worktree");
+    if !matches!(worktree, Some(serde_json::Value::Bool(_))) {
+        fail(format!("skills/{id}: main.json.worktree має бути boolean"));
+    }
+    if let Some(auto) = raw.get("auto") {
+        if !skill_auto_spec_is_valid(auto) {
+            fail(format!(
+                "skills/{id}: main.json.auto нерозпізнане — очікується \"завжди\" або непорожній масив правил"
+            ));
+        }
+    }
+    let require_root = raw.get("requireRoot");
+    if let Some(value) = require_root {
+        if !value.is_boolean() {
+            fail(format!(
+                "skills/{id}: main.json.requireRoot має бути boolean"
+            ));
+        }
+    }
+    if worktree == Some(&serde_json::Value::Bool(true))
+        && require_root == Some(&serde_json::Value::Bool(false))
+    {
+        fail(format!(
+            "skills/{id}: requireRoot:false суперечить worktree:true (worktree вже вимагає кореня — прибери поле)"
+        ));
+    }
+    if let Some(tier) = raw.get("tier") {
+        if !tier.as_str().is_some_and(|t| SKILL_TIERS.contains(&t)) {
+            let tier_list = SKILL_TIERS
+                .iter()
+                .map(|t| format!("\"{t}\""))
+                .collect::<Vec<_>>()
+                .join(" | ");
+            fail(format!("skills/{id}: main.json.tier має бути {tier_list}"));
+        }
+    }
+}
+
+/// Точний порт `lint()` `npm-module/skill_meta` (`main.mjs:50-90`).
+fn detect_skill_meta(files: &[SourceFile]) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+    if !batch_dir_exists(files, "npm/skills") {
+        return diagnostics;
+    }
+    for id in batch_child_dirs(files, "npm/skills") {
+        let skill_dir = format!("npm/skills/{id}");
+        if batch_file(files, &format!("{skill_dir}/auto.md")).is_some() {
+            diagnostics.push(Diagnostic {
+                reason: SKILL_META_REASON.to_string(),
+                message: format!(
+                    "skills/{id}: залишковий auto.md — видали (метадані тепер у main.json)"
+                ),
+                file: None,
+                severity: Severity::Error,
+                data: None,
+            });
+        }
+        let Some(raw) = read_meta_raw(files, &skill_dir) else {
+            diagnostics.push(Diagnostic {
+                reason: SKILL_META_REASON.to_string(),
+                message: format!(
+                    "skills/{id}: відсутній або невалідний main.json (очікується {{\"auto\"?, \"worktree\": bool}})"
+                ),
+                file: None,
+                severity: Severity::Error,
+                data: None,
+            });
+            continue;
+        };
+        check_skill_meta_fields(&id, &raw, &mut diagnostics);
+    }
+    diagnostics
+}
+
+// ---------------------------------------------------------------------
+// `npm-module/header_doc_pointer`
+
+/// Кількість непорожніх рядків у тілі JSDoc-блоку — точний порт
+/// `contentLineCount` (`header_doc_pointer/main.mjs:25-30`): без першого й
+/// останнього рядка, після зрізання провідного `*`-відступу.
+fn jsdoc_content_line_count(block: &str) -> usize {
+    let star_re = regex::Regex::new(STAR_INDENT_PATTERN).expect("STAR_INDENT_PATTERN валідний");
+    let lines: Vec<&str> = block.split('\n').collect();
+    if lines.len() <= 2 {
+        return 0;
+    }
+    lines[1..lines.len() - 1]
+        .iter()
+        .filter(|line| !star_re.replace(line, "").chars().all(char::is_whitespace))
+        .count()
+}
+
+/// Module-level JSDoc або `None` — точний порт `moduleJsDoc`
+/// (`header_doc_pointer/main.mjs:37-42`): шукаємо ЛИШЕ в префіксі до
+/// першого рядка, що починається з `import`/`export`.
+fn module_jsdoc(source: &str) -> Option<String> {
+    let code_start_re = regex::Regex::new(CODE_START_PATTERN).expect("CODE_START_PATTERN валідний");
+    let prefix = match code_start_re.find(source) {
+        Some(m) => &source[..m.start()],
+        None => source,
+    };
+    let jsdoc_re = regex::Regex::new(MODULE_JSDOC_PATTERN).expect("MODULE_JSDOC_PATTERN валідний");
+    jsdoc_re.find(prefix).map(|m| m.as_str().to_string())
+}
+
+/// Точний порт `checkJsDir` (`header_doc_pointer/main.mjs:87-92`) з
+/// вкладеним `checkSourceFile`: `isSourceMjs` (не-тестовий `.mjs`),
+/// існування `docs/<stem>.md` поряд, module-level JSDoc > 1 рядка.
+fn check_header_doc_pointer_js_dir(
+    files: &[SourceFile],
+    js_dir: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for file in batch_dir_entries(files, js_dir) {
+        let name = posix_basename(&file.path);
+        if !name.ends_with(".mjs") || name.ends_with(".test.mjs") {
+            continue;
+        }
+        let stem = &name[..name.len() - ".mjs".len()];
+        if batch_file(files, &format!("{js_dir}/docs/{stem}.md")).is_none() {
+            continue;
+        }
+        let Some(block) = module_jsdoc(&file.content) else {
+            continue;
+        };
+        let count = jsdoc_content_line_count(&block);
+        if count > 1 {
+            diagnostics.push(Diagnostic {
+                reason: HEADER_DOC_POINTER_REASON.to_string(),
+                message: format!(
+                    "{}: docs/{stem}.md вже описує поведінку — module-level JSDoc має бути \
+                     pointer (≤1 рядок, зараз {count})",
+                    file.path
+                ),
+                file: None,
+                severity: Severity::Error,
+                data: None,
+            });
+        }
+    }
+}
+
+/// Точний порт `lint()` `npm-module/header_doc_pointer`
+/// (`main.mjs:120-131`): два base-сегменти, всередині — правила/скіли з
+/// каталогом `js/`.
+fn detect_header_doc_pointer(files: &[SourceFile]) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+    for base in ["npm/rules", "npm/skills"] {
+        if !batch_dir_exists(files, base) {
+            continue;
+        }
+        for id in batch_child_dirs(files, base) {
+            let js_dir = format!("{base}/{id}/js");
+            if !batch_dir_exists(files, &js_dir) {
+                continue;
+            }
+            check_header_doc_pointer_js_dir(files, &js_dir, &mut diagnostics);
+        }
+    }
+    diagnostics
+}
+
+// ---------------------------------------------------------------------
+// `npm-module/package_structure`
+
+/// Точний порт `globToRegex` (`npm/scripts/lib/glob-to-regex.mjs:26-73`) —
+/// та сама послідовність підстановок `__GLOBSTAR__`. `None` — регекс не
+/// скомпілювався (розбіжність 5 доккоменту секції).
+fn glob_to_regex(glob: &str) -> Option<regex::Regex> {
+    let tokens: Vec<String> = glob
+        .split('/')
+        .map(|part| {
+            if part == "**" {
+                return "__GLOBSTAR__".to_string();
+            }
+            let mut out = String::new();
+            let mut brace_depth = 0usize;
+            for c in part.chars() {
+                match c {
+                    '*' => {
+                        out.push_str("[^/]*");
+                        continue;
+                    }
+                    '?' => {
+                        out.push_str("[^/]");
+                        continue;
+                    }
+                    '{' => {
+                        out.push_str("(?:");
+                        brace_depth += 1;
+                        continue;
+                    }
+                    '}' if brace_depth > 0 => {
+                        out.push(')');
+                        brace_depth -= 1;
+                        continue;
+                    }
+                    ',' if brace_depth > 0 => {
+                        out.push('|');
+                        continue;
+                    }
+                    _ => {}
+                }
+                if GLOB_REGEX_SPECIAL.contains(&c) {
+                    out.push('\\');
+                }
+                out.push(c);
+            }
+            out
+        })
+        .collect();
+    let mut re = tokens.join("/");
+    re = re.replace("/__GLOBSTAR__/", "(?:/.*/|/)");
+    if let Some(rest) = re.strip_prefix("__GLOBSTAR__/") {
+        re = format!("(?:.*/)?{rest}");
+    }
+    if let Some(head) = re.strip_suffix("/__GLOBSTAR__") {
+        re = format!("{head}(?:/.*)?");
+    }
+    re = re.replace("__GLOBSTAR__", ".*");
+    regex::Regex::new(&format!("^{re}$")).ok()
+}
+
+/// Точний порт `collectPublishedFiles` (`package_structure/main.mjs:224-250`):
+/// позитивні записи `files` (файл — СИРИЙ рядок запису, каталог — обхід
+/// піддерева), мінус негативні glob-и, відсортовано.
+fn collect_published_files(files: &[SourceFile], files_field: &[serde_json::Value]) -> Vec<String> {
+    let negatives: Vec<regex::Regex> = files_field
+        .iter()
+        .filter_map(|v| v.as_str())
+        .filter(|s| s.starts_with('!'))
+        .filter_map(|s| glob_to_regex(&s[1..]))
+        .collect();
+
+    let mut collected: BTreeSet<String> = BTreeSet::new();
+    for entry in files_field
+        .iter()
+        .filter_map(|v| v.as_str())
+        .filter(|s| !s.starts_with('!'))
+    {
+        let Some(normalized) = normalize_rel_path(entry) else {
+            continue;
+        };
+        let full = format!("npm/{normalized}");
+        if batch_file(files, &full).is_some() {
+            // `collected.add(entry)` JS-оригіналу — саме СИРИЙ запис
+            // (не нормалізований `join`-шлях), відтворено дослівно.
+            collected.insert(entry.to_string());
+            continue;
+        }
+        if !batch_dir_exists(files, &full) {
+            continue;
+        }
+        let prefix = format!("{full}/");
+        for file in files {
+            if let Some(rest) = file.path.strip_prefix(&prefix) {
+                collected.insert(format!("{normalized}/{rest}"));
+            }
+        }
+    }
+
+    collected
+        .into_iter()
+        .filter(|rel| !negatives.iter().any(|re| re.is_match(rel)))
+        .collect()
+}
+
+/// Visitor `findTestFrameworkImport` (`package_structure/main.mjs:260-288`):
+/// СПОЧАТКУ `module.staticImports` (source order), потім walk-прохід
+/// (`require` перевіряється ПЕРЕД динамічним `import()` у тому самому
+/// вузлі) — два буфери, як [`RedisImportVisitor`].
+struct TestFrameworkImportVisitor {
+    static_hit: Option<String>,
+    walk_hit: Option<String>,
+}
+
+impl<'a> Visit<'a> for TestFrameworkImportVisitor {
+    fn visit_import_declaration(&mut self, it: &ImportDeclaration<'a>) {
+        let module = it.source.value.as_str();
+        if self.static_hit.is_none() && TEST_FRAMEWORK_MODULES.contains(&module) {
+            self.static_hit = Some(module.to_string());
+        }
+    }
+
+    fn visit_call_expression(&mut self, it: &CallExpression<'a>) {
+        if self.walk_hit.is_none() {
+            if let Expression::Identifier(ident) = &it.callee {
+                if ident.name == "require" {
+                    if let Some(Argument::StringLiteral(lit)) = it.arguments.first() {
+                        let module = lit.value.as_str();
+                        if TEST_FRAMEWORK_MODULES.contains(&module) {
+                            self.walk_hit = Some(module.to_string());
+                        }
+                    }
+                }
+            }
+        }
+        walk_call_expression(self, it);
+    }
+
+    fn visit_import_expression(&mut self, it: &ImportExpression<'a>) {
+        if self.walk_hit.is_none() {
+            if let Expression::StringLiteral(lit) = &it.source {
+                let module = lit.value.as_str();
+                if TEST_FRAMEWORK_MODULES.contains(&module) {
+                    self.walk_hit = Some(module.to_string());
+                }
+            }
+        }
+        walk_import_expression(self, it);
+    }
+}
+
+/// Точний порт `findTestFrameworkImport` — синтаксична помилка (`errors`
+/// непорожній) дає `None`, як і JS-оригінал.
+fn find_test_framework_import(content: &str, virtual_path: &str) -> Option<String> {
+    let allocator = Allocator::default();
+    let ret = Parser::new(&allocator, content, scan_source_type(virtual_path)).parse();
+    if !ret.diagnostics.is_empty() {
+        return None;
+    }
+    let mut visitor = TestFrameworkImportVisitor {
+        static_hit: None,
+        walk_hit: None,
+    };
+    visitor.visit_program(&ret.program);
+    visitor.static_hit.or(visitor.walk_hit)
+}
+
+/// Точний порт `classifyPublishedFileAsTest`
+/// (`package_structure/main.mjs:303-321`) — включно з carve-out для
+/// `rules/<rule-name>/…` (сегмент з індексом 1 — назва правила, не каталог).
+fn classify_published_file_as_test(files: &[SourceFile], rel_path: &str) -> Option<String> {
+    let segments: Vec<&str> = rel_path.split('/').collect();
+    let base = *segments.last()?;
+    let dirs = &segments[..segments.len() - 1];
+
+    let test_dir = dirs.iter().enumerate().find_map(|(idx, seg)| {
+        if idx == 1 && dirs.first() == Some(&"rules") {
+            return None;
+        }
+        PUBLISHED_TEST_DIR_NAMES
+            .contains(&seg.to_lowercase().as_str())
+            .then_some(*seg)
+    });
+    if let Some(dir) = test_dir {
+        return Some(format!("test-style каталог \"{dir}/\""));
+    }
+
+    let test_name_re = regex::Regex::new(PUBLISHED_TEST_FILE_PATTERN)
+        .expect("PUBLISHED_TEST_FILE_PATTERN валідний");
+    if test_name_re.is_match(base) {
+        return Some("test-style ім'я файлу".to_string());
+    }
+
+    let js_like_re = regex::Regex::new(JS_LIKE_EXT_PATTERN).expect("JS_LIKE_EXT_PATTERN валідний");
+    if js_like_re.is_match(base) {
+        let file = batch_file(files, &format!("npm/{rel_path}"))?;
+        if let Some(module) = find_test_framework_import(&file.content, rel_path) {
+            return Some(format!("імпорт test-фреймворку \"{module}\""));
+        }
+    }
+    None
+}
+
+/// Точний порт `checkNoTestsInPublishedFiles`
+/// (`package_structure/main.mjs:332-353`).
+fn check_no_tests_in_published_files(files: &[SourceFile], diagnostics: &mut Vec<Diagnostic>) {
+    let Some(pkg_file) = batch_file(files, "npm/package.json") else {
+        return;
+    };
+    // Розбіжність 1 (доккомент секції): JS кидає на битому JSON.
+    let Some(pkg) = parse_json_tolerant(&pkg_file.content) else {
+        return;
+    };
+    let Some(files_field) = pkg.get("files").and_then(|v| v.as_array()) else {
+        return;
+    };
+    for rel in collect_published_files(files, files_field) {
+        if let Some(reason) = classify_published_file_as_test(files, &rel) {
+            diagnostics.push(Diagnostic {
+                reason: PACKAGE_STRUCTURE_REASON.to_string(),
+                message: format!(
+                    "npm/{rel}: {reason} — додай у \"files\" у npm/package.json негативний glob, \
+                     що виключає цей файл з tarball (наприклад \"!**/*.test.mjs\", \
+                     \"!**/fixtures/**\", \"!**/*_test.rego\") (npm-module.mdc)"
+                ),
+                file: None,
+                severity: Severity::Error,
+                data: None,
+            });
+        }
+    }
+}
+
+/// `String(value)` для повідомлення про поле `types` — `undefined` (ключа
+/// немає) і `null` мають ВЛАСНІ рядкові форми, решта — [`js_display_json`].
+fn js_string_of_field(value: Option<&serde_json::Value>) -> String {
+    match value {
+        None => "undefined".to_string(),
+        Some(serde_json::Value::Null) => "null".to_string(),
+        Some(other) => js_display_json(other),
+    }
+}
+
+/// Точний порт `npmTypesFileFromPackageField`
+/// (`package_structure/main.mjs:146-152`).
+fn npm_types_file_from_package_field(value: Option<&serde_json::Value>) -> Option<String> {
+    let raw = value?.as_str()?;
+    if !raw.starts_with("./types/") {
+        return None;
+    }
+    Some(format!("npm/{}", &raw[2..]))
+}
+
+/// Точний порт `checkNpmPackageJson` (`package_structure/main.mjs:163-178`).
+fn check_npm_package_json_types(
+    files: &[SourceFile],
+    use_src_js_layout: bool,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(pkg_file) = batch_file(files, "npm/package.json") else {
+        return;
+    };
+    // Розбіжність 1 (доккомент секції).
+    let Some(pkg) = parse_json_tolerant(&pkg_file.content) else {
+        return;
+    };
+    let types_field = pkg.get("types");
+
+    let types_rel = if use_src_js_layout {
+        Some("npm/types/index.d.ts".to_string())
+    } else {
+        npm_types_file_from_package_field(types_field)
+    };
+    let ok = types_rel
+        .as_deref()
+        .is_some_and(|rel| batch_file(files, rel).is_some());
+    if ok {
+        return;
+    }
+    let message = if use_src_js_layout {
+        "Відсутній npm/types/index.d.ts (згенеруй tsc з npm-module.mdc)".to_string()
+    } else {
+        format!(
+            "Файл для поля types не знайдено або шлях не під ./types/ — {}",
+            js_string_of_field(types_field)
+        )
+    };
+    diagnostics.push(Diagnostic {
+        reason: PACKAGE_STRUCTURE_REASON.to_string(),
+        message,
+        file: None,
+        severity: Severity::Error,
+        data: None,
+    });
+}
+
+/// Відсутні підрядки hk-конфіга — точний порт трьох `missingHk*Fragments`
+/// (`package_structure/main.mjs:99-139`) одним фільтром.
+fn missing_hk_fragments(hk_text: &str, needed: &[&str]) -> Vec<String> {
+    needed
+        .iter()
+        .filter(|fragment| !hk_text.contains(**fragment))
+        .map(|fragment| (*fragment).to_string())
+        .collect()
+}
+
+/// Точний порт hk-гілки `lint()` (`package_structure/main.mjs:412-437`).
+fn check_hk_config(
+    files: &[SourceFile],
+    use_src_js_layout: bool,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut fail = |message: String| {
+        diagnostics.push(Diagnostic {
+            reason: PACKAGE_STRUCTURE_REASON.to_string(),
+            message,
+            file: None,
+            severity: Severity::Error,
+            data: None,
+        });
+    };
+
+    let hk = ["hk.pkl", ".config/hk.pkl"]
+        .into_iter()
+        .find_map(|path| batch_file(files, path).map(|f| (path, f)));
+    let Some((hk_path, hk_file)) = hk else {
+        fail(
+            "Очікується hk.pkl або .config/hk.pkl з pre-commit і tsc (npm-module.mdc)".to_string(),
+        );
+        return;
+    };
+    let hk_text = &hk_file.content;
+
+    let needed: &[&str] = if use_src_js_layout {
+        &[
+            "[\"pre-commit\"]",
+            "bunx -p typescript tsc",
+            "src/**/*.js",
+            "--declaration",
+            "--allowJs",
+            "--emitDeclarationOnly",
+            "--outDir types",
+            "--skipLibCheck",
+        ]
+    } else {
+        &[
+            "[\"pre-commit\"]",
+            "bunx -p typescript tsc",
+            "tsconfig.emit-types.json",
+        ]
+    };
+    let missing = missing_hk_fragments(hk_text, needed);
+    if !missing.is_empty() {
+        fail(format!(
+            "{hk_path}: онови pre-commit крок (npm-module.mdc); не знайдено: {}",
+            missing.join(", ")
+        ));
+    }
+
+    let deprecated_re = regex::Regex::new(DEPRECATED_CHECK_CHANGELOG_PATTERN)
+        .expect("DEPRECATED_CHECK_CHANGELOG_PATTERN валідний");
+    if deprecated_re.is_match(hk_text) {
+        fail(format!(
+            "{hk_path}: крок містить застарілий виклик \"check changelog\" — команду `check` \
+             прибрано в v14 (уніфікована поверхня `lint`). Заміни на \
+             \"npx @7n/rules lint changelog\" (npm-module.mdc)"
+        ));
+        return;
+    }
+    let missing_changelog = missing_hk_fragments(
+        hk_text,
+        &[
+            "[\"npm-changelog\"]",
+            "N_RULES_CHANGELOG_AUTOFIX=1",
+            "lint changelog",
+        ],
+    );
+    if !missing_changelog.is_empty() {
+        fail(format!(
+            "{hk_path}: онови крок npm-changelog (npm-module.mdc); не знайдено: {}",
+            missing_changelog.join(", ")
+        ));
+    }
+}
+
+/// Точний порт `lint()` `npm-module/package_structure`
+/// (`main.mjs:394-448`) — WHOLE-BATCH, порядок перевірок дослівний.
+fn detect_package_structure(files: &[SourceFile]) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+    let push = |message: String, out: &mut Vec<Diagnostic>| {
+        out.push(Diagnostic {
+            reason: PACKAGE_STRUCTURE_REASON.to_string(),
+            message,
+            file: None,
+            severity: Severity::Error,
+            data: None,
+        });
+    };
+
+    // checkNpmModuleBasicStructure
+    if batch_file(files, "package.json").is_none() {
+        push("package.json не існує".to_string(), &mut diagnostics);
+    }
+    if batch_file(files, "npm").is_some() {
+        // `npm` — звичайний файл: `existsSync` true, `stat().isDirectory()` false.
+        push("npm має бути директорією".to_string(), &mut diagnostics);
+    } else if !batch_dir_exists(files, "npm") {
+        push("npm/ директорія не існує".to_string(), &mut diagnostics);
+    }
+    if batch_file(files, "npm/package.json").is_none() {
+        push(
+            "npm/package.json не існує — створи package.json для npm модуля".to_string(),
+            &mut diagnostics,
+        );
+    }
+
+    check_no_tests_in_published_files(files, &mut diagnostics);
+
+    // npmSrcTreeHasJsFile
+    let use_src_js_layout = batch_dir_exists(files, "npm/src")
+        && files
+            .iter()
+            .any(|f| f.path.starts_with("npm/src/") && f.path.ends_with(".js"));
+
+    check_npm_package_json_types(files, use_src_js_layout, &mut diagnostics);
+
+    if !use_src_js_layout && batch_file(files, "npm/tsconfig.emit-types.json").is_none() {
+        push(
+            "Без .js під npm/src потрібен npm/tsconfig.emit-types.json (див. npm-module.mdc: \
+             emit через tsconfig, без штучного src/index.js)"
+                .to_string(),
+            &mut diagnostics,
+        );
+    }
+
+    check_hk_config(files, use_src_js_layout, &mut diagnostics);
+
+    if !batch_dir_exists(files, ".github/workflows") {
+        push(".github/workflows/ не існує".to_string(), &mut diagnostics);
+    }
+    if batch_file(files, ".github/workflows/npm-publish.yml").is_none() {
+        push(
+            "Відсутній .github/workflows/npm-publish.yml (npm-module.mdc: npm publish)".to_string(),
+            &mut diagnostics,
+        );
+    }
+
+    diagnostics
+}
+
+// ---------------------------------------------------------------------
+// `js/dep-policy`
+
+/// Точний порт `lint()` `js/dep-policy` (`main.mjs:66-98`) — WHOLE-BATCH:
+/// для кожного JS/TS-джерела всі import-specifier-и
+/// ([`extract_import_sources`], той самий двофазний порядок «статичні,
+/// потім walk», що JS-оригінал) звіряються з [`DEP_POLICY_BANNED_SPECIFIERS`].
+fn detect_dep_policy(files: &[SourceFile]) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+    for file in files {
+        if !is_js_ts_source_file(&file.path) {
+            continue;
+        }
+        for spec in extract_import_sources(&file.content, &file.path) {
+            let Some((_, hint)) = DEP_POLICY_BANNED_SPECIFIERS
+                .iter()
+                .find(|(banned, _)| *banned == spec)
+            else {
+                continue;
+            };
+            diagnostics.push(Diagnostic {
+                reason: DEP_POLICY_REASON.to_string(),
+                message: format!(
+                    "{}: заборонений import '{spec}' — {hint} (js.mdc dep-policy)",
+                    file.path
+                ),
+                file: None,
+                severity: Severity::Error,
+                data: None,
+            });
+        }
+    }
+    diagnostics
+}
+
+/// Guest-реалізація world `plugin` — двадцять вісім контрибуцій ([`CONCERN_TFM`],
 /// [`CONCERN_GAP`], [`CONCERN_POOL_FORKS`], [`CONCERN_NO_PROCESS_CHDIR`],
 /// [`CONCERN_ADMIN_TABLE`], [`CONCERN_QUASAR_FIXES`], [`CONCERN_LOCATION`],
 /// [`CONCERN_NO_CONSOLE_STORE_RESTORE`], [`CONCERN_NO_BUN_TEST_IMPORT`],
@@ -6018,7 +7153,12 @@ fn detect_mssql_package_json(files: &[SourceFile]) -> Vec<Diagnostic> {
 /// [`CONCERN_BUN_DB_SAFETY`] — батч 4, задача Q4; [`CONCERN_STORYBOOK_SCOPE`],
 /// [`CONCERN_STORYBOOK_HYGIENE`], [`CONCERN_STORYBOOK_PAGE_COVERAGE`],
 /// [`CONCERN_STORYBOOK_SCAFFOLD`], [`CONCERN_STORYBOOK_CI`] — батч 5,
-/// storybook-сімейство, доккомент секції «Батч 5» вище).
+/// storybook-сімейство, доккомент секції «Батч 5» вище;
+/// [`CONCERN_STORYBOOK_VITEST_CONFIG`], [`CONCERN_BUN_DB_PACKAGE_JSON`],
+/// [`CONCERN_REDIS_PACKAGE_JSON`], [`CONCERN_MSSQL_PACKAGE_JSON`] — батч 6;
+/// [`CONCERN_RULE_META`], [`CONCERN_SKILL_META`],
+/// [`CONCERN_HEADER_DOC_POINTER`], [`CONCERN_PACKAGE_STRUCTURE`],
+/// [`CONCERN_DEP_POLICY`] — батч 7, доккомент секції «Батч 7» вище).
 struct LangJs;
 
 impl Guest for LangJs {
@@ -6124,6 +7264,26 @@ impl Guest for LangJs {
             CONCERN_MSSQL_PACKAGE_JSON => {
                 report_progress(total, total);
                 detect_mssql_package_json(&batch.files)
+            }
+            CONCERN_RULE_META => {
+                report_progress(total, total);
+                detect_rule_meta(&batch.files)
+            }
+            CONCERN_SKILL_META => {
+                report_progress(total, total);
+                detect_skill_meta(&batch.files)
+            }
+            CONCERN_HEADER_DOC_POINTER => {
+                report_progress(total, total);
+                detect_header_doc_pointer(&batch.files)
+            }
+            CONCERN_PACKAGE_STRUCTURE => {
+                report_progress(total, total);
+                detect_package_structure(&batch.files)
+            }
+            CONCERN_DEP_POLICY => {
+                report_progress(total, total);
+                detect_dep_policy(&batch.files)
             }
             _ => {
                 let mut diagnostics = Vec::new();
@@ -8218,15 +9378,16 @@ mod tests {
     // --- маніфест ---
 
     #[test]
-    fn build_manifest_declares_all_twenty_three_concerns_with_expected_scopes() {
+    fn build_manifest_declares_all_twenty_eight_concerns_with_expected_scopes() {
         let manifest = build_manifest();
         // Задача Q4 батч 4: `CONCERN_REDIS_IMPORTS`/`CONCERN_MSSQL_DEPS`/
         // `CONCERN_BUN_DB_SAFETY` тепер У контрибуції (AST-порти, де-скоуп
         // батчу 2 знято — доккомент модуля вище). Батч 5 додає п'ять
         // концернів storybook-сімейства (доккомент секції «Батч 5»), батч 6 —
         // `test/storybook-vitest-config` і три rego-порти `*/package_json`
-        // (доккомент секції «Батч 6»).
-        assert_eq!(manifest.concerns.len(), 23);
+        // (доккомент секції «Батч 6»), батч 7 — чотири `npm-module/*` і
+        // `js/dep-policy` (доккомент секції «Батч 7»).
+        assert_eq!(manifest.concerns.len(), 28);
         let tfm = manifest
             .concerns
             .iter()
@@ -8256,6 +9417,11 @@ mod tests {
             CONCERN_BUN_DB_PACKAGE_JSON,
             CONCERN_REDIS_PACKAGE_JSON,
             CONCERN_MSSQL_PACKAGE_JSON,
+            CONCERN_RULE_META,
+            CONCERN_SKILL_META,
+            CONCERN_HEADER_DOC_POINTER,
+            CONCERN_PACKAGE_STRUCTURE,
+            CONCERN_DEP_POLICY,
         ] {
             let contribution = manifest
                 .concerns
@@ -8329,5 +9495,219 @@ mod tests {
         assert!(manifest.capabilities.fs_read.is_empty());
         assert!(!manifest.capabilities.network);
         assert_eq!(manifest.domains, vec![Domain::Lint]);
+    }
+
+    /// `plugin.toml` — статичний дублікат `describe()` (доккомент самого
+    /// файлу). Батч 6 оновив `build_manifest`, але НЕ `plugin.toml` — файл
+    /// проїхав із дев'ятнадцятьма контрибуціями проти двадцяти трьох у
+    /// рантаймі, і ніщо про це не сигналило. Цей тест — гейт від повторення:
+    /// набір `key = "…"` у маніфесті-довіднику мусить точно збігатись із
+    /// набором ключів `describe()`. Парсер навмисно примітивний (рядки
+    /// `key = "..."`), щоб не тягнути toml-залежність у крейт.
+    #[test]
+    fn plugin_toml_concern_keys_match_describe() {
+        let toml_src = include_str!("../plugin.toml");
+        let mut declared: Vec<&str> = toml_src
+            .lines()
+            .filter_map(|line| line.trim().strip_prefix("key = \""))
+            .filter_map(|rest| rest.strip_suffix('"'))
+            .collect();
+        declared.sort_unstable();
+        let mut runtime: Vec<String> = build_manifest()
+            .concerns
+            .into_iter()
+            .map(|c| c.key)
+            .collect();
+        runtime.sort();
+        assert_eq!(
+            declared,
+            runtime.iter().map(String::as_str).collect::<Vec<_>>(),
+            "plugin.toml розійшовся з describe() — синхронізуй маніфест-довідник"
+        );
+    }
+
+    // --- батч 7: `npm-module/*` + `js/dep-policy` ---
+
+    /// Компактний конструктор елемента батча для тестів батчу 7 (фікстури
+    /// цього кластера — це десятки дрібних файлів, інлайнити `SourceFile {}`
+    /// щоразу нечитабельно).
+    fn src(path: &str, content: &str) -> SourceFile {
+        SourceFile {
+            path: path.to_string(),
+            content: content.to_string(),
+        }
+    }
+
+    #[test]
+    fn batch_child_dirs_skips_plain_files_and_dot_dirs() {
+        let files = vec![
+            src("npm/rules/README.md", ""),
+            src("npm/rules/.cache/x.json", ""),
+            src("npm/rules/zeta/main.json", ""),
+            src("npm/rules/alpha/js/deep.mjs", ""),
+        ];
+        assert_eq!(batch_child_dirs(&files, "npm/rules"), vec!["alpha", "zeta"]);
+    }
+
+    #[test]
+    fn batch_dir_entries_returns_only_direct_children() {
+        let files = vec![
+            src("a/js/one.mjs", ""),
+            src("a/js/docs/one.md", ""),
+            src("a/other.mjs", ""),
+        ];
+        let entries: Vec<&str> = batch_dir_entries(&files, "a/js")
+            .into_iter()
+            .map(|f| f.path.as_str())
+            .collect();
+        assert_eq!(entries, vec!["a/js/one.mjs"]);
+    }
+
+    #[test]
+    fn js_string_is_blank_mirrors_js_string_semantics() {
+        // `String(null)` === "null" (непорожньо), але `[null]` join-иться в "".
+        assert!(!js_string_is_blank(&serde_json::json!(null)));
+        assert!(js_string_is_blank(&serde_json::json!([null])));
+        assert!(js_string_is_blank(&serde_json::json!([])));
+        assert!(js_string_is_blank(&serde_json::json!("   ")));
+        // Два елементи → join(',') завжди дає кому → непорожньо.
+        assert!(!js_string_is_blank(&serde_json::json!([null, null])));
+        assert!(!js_string_is_blank(&serde_json::json!({})));
+        assert!(!js_string_is_blank(&serde_json::json!(0)));
+    }
+
+    #[test]
+    fn parse_rule_auto_spec_covers_all_four_shapes() {
+        assert!(parse_rule_auto_spec(&serde_json::json!("завжди")).is_some());
+        assert!(parse_rule_auto_spec(&serde_json::json!(["n-js"])).is_some());
+        assert!(parse_rule_auto_spec(&serde_json::json!({ "glob": "src/**" })).is_some());
+        assert_eq!(
+            parse_rule_auto_spec(&serde_json::json!({ "predicate": "repoUrlMarker" })),
+            Some(Some("repoUrlMarker".to_string()))
+        );
+        assert!(parse_rule_auto_spec(&serde_json::json!([])).is_none());
+        assert!(parse_rule_auto_spec(&serde_json::json!({ "glob": [] })).is_none());
+        assert!(parse_rule_auto_spec(&serde_json::json!({ "predicate": "" })).is_none());
+        assert!(parse_rule_auto_spec(&serde_json::json!(7)).is_none());
+    }
+
+    #[test]
+    fn detect_rule_meta_reports_missing_mdc_and_residual_auto_md_in_order() {
+        let files = vec![
+            src("npm/rules/n-js/auto.md", "завжди\n"),
+            src("npm/rules/n-js/main.json", r#"{"auto": "завжди"}"#),
+        ];
+        let diagnostics = detect_rule_meta(&files);
+        assert_eq!(diagnostics.len(), 2);
+        assert!(diagnostics[0].message.contains("залишковий auto.md"));
+        assert!(diagnostics[1].message.contains("відсутній main.mdc"));
+        assert_eq!(diagnostics[0].reason, RULE_META_REASON);
+    }
+
+    #[test]
+    fn detect_skill_meta_emits_all_field_violations_in_canonical_order() {
+        let files = vec![src(
+            "npm/skills/n-lint/main.json",
+            r#"{"worktree": "yes", "auto": [], "requireRoot": "no", "tier": "ultra"}"#,
+        )];
+        let diagnostics = detect_skill_meta(&files);
+        let messages: Vec<&str> = diagnostics
+            .iter()
+            .map(|d| d.message.as_str())
+            .map(|m| m.split(": ").nth(1).unwrap_or(m))
+            .collect();
+        assert_eq!(
+            messages,
+            vec![
+                "main.json.worktree має бути boolean",
+                "main.json.auto нерозпізнане — очікується \"завжди\" або непорожній масив правил",
+                "main.json.requireRoot має бути boolean",
+                "main.json.tier має бути \"min\" | \"avg\" | \"max\"",
+            ]
+        );
+    }
+
+    #[test]
+    fn module_jsdoc_stops_at_first_import_or_export_line() {
+        assert_eq!(
+            module_jsdoc("/** pointer */\nexport const a = 1\n").as_deref(),
+            Some("/** pointer */")
+        );
+        // JSDoc ПІСЛЯ першого `export` — не module-level (regex-межа канону).
+        assert!(module_jsdoc("export const a = 1\n/** пізно */\n").is_none());
+    }
+
+    #[test]
+    fn jsdoc_content_line_count_strips_star_indent() {
+        assert_eq!(jsdoc_content_line_count("/** pointer */"), 0);
+        assert_eq!(jsdoc_content_line_count("/**\n * один\n */"), 1);
+        assert_eq!(jsdoc_content_line_count("/**\n * один\n *\n * два\n */"), 2);
+    }
+
+    #[test]
+    fn glob_to_regex_ports_globstar_braces_and_specials() {
+        let re = glob_to_regex("**/*.test.mjs").expect("валідний glob");
+        assert!(re.is_match("a/b/x.test.mjs"));
+        assert!(re.is_match("x.test.mjs"));
+        assert!(!re.is_match("x.mjs"));
+        let braces = glob_to_regex("*.{png,jpg}").expect("валідний glob");
+        assert!(braces.is_match("a.png"));
+        assert!(braces.is_match("a.jpg"));
+        assert!(!braces.is_match("a.gif"));
+        let nested = glob_to_regex("**/fixtures/**").expect("валідний glob");
+        assert!(nested.is_match("rules/x/fixtures/y.json"));
+        assert!(!nested.is_match("rules/x/tests/y.json"));
+    }
+
+    #[test]
+    fn classify_published_file_carves_out_rule_name_segment() {
+        let files = vec![src("npm/rules/test/main.mdc", "")];
+        // `rules/<rule-name>/…` — сегмент з індексом 1 не є test-каталогом.
+        assert!(classify_published_file_as_test(&files, "rules/test/main.mdc").is_none());
+        assert_eq!(
+            classify_published_file_as_test(&files, "rules/n-js/tests/x.json"),
+            Some("test-style каталог \"tests/\"".to_string())
+        );
+    }
+
+    #[test]
+    fn find_test_framework_import_prefers_static_over_walk() {
+        let content = "const a = require('mocha')\nimport { test } from 'vitest'\n";
+        assert_eq!(
+            find_test_framework_import(content, "x.mjs"),
+            Some("vitest".to_string())
+        );
+        assert_eq!(
+            find_test_framework_import("// import { it } from 'vitest'\n", "x.mjs"),
+            None
+        );
+    }
+
+    #[test]
+    fn extract_import_sources_puts_static_imports_before_walk_hits() {
+        // Регресія батчу 7: `require` НА РЯДОК ВИЩЕ статичного імпорту, а
+        // JS-канон однаково віддає статичний першим (двофазний порядок).
+        let sources = extract_import_sources(
+            "const legacy = require('a')\nimport b from 'x'\nexport const c = [legacy, b]\n",
+            "mix.mjs",
+        );
+        assert_eq!(sources, vec!["x".to_string(), "a".to_string()]);
+    }
+
+    #[test]
+    fn detect_dep_policy_ignores_comments_strings_and_subpaths() {
+        let files = vec![src(
+            "src/noise.mjs",
+            "// import x from 'ua-parser-js'\nexport const s = \"ua-parser-js\"\n\
+             import ok from 'ua-parser-js/helpers'\nexport const o = ok\n",
+        )];
+        assert!(detect_dep_policy(&files).is_empty());
+        let hit = vec![src("src/ua.mjs", "import p from 'ua-parser-js'\n")];
+        let diagnostics = detect_dep_policy(&hit);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].reason, DEP_POLICY_REASON);
+        assert!(diagnostics[0]
+            .message
+            .starts_with("src/ua.mjs: заборонений"));
     }
 }

@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 license = "Apache-2.0"
-description = "wasm-компонент n-rules:plugin@3.0.0 — lang-js/wasm-concerns (vue/tfm-translations, style/gap, test/vitest-config-pool-forks, test/no-process-chdir, style/admin_table, style/quasar_fixes, test/location, test/no-console-store-restore, test/no-bun-test-import, js/utils_imports, test/no-relative-fs-path, js-bun-redis/imports, js-mssql/deps, js-bun-db/safety)"
+description = "wasm-компонент n-rules:plugin@3.0.0 — lang-js/wasm-concerns (28 контрибуцій: vue/tfm-translations, style/gap, style/admin_table, style/quasar_fixes, test/* — location, no-process-chdir, no-console-store-restore, no-bun-test-import, no-relative-fs-path, vitest-config-pool-forks, storybook-сімейство і storybook-vitest-config, js/utils_imports, js/dep-policy, js-bun-redis/*, js-mssql/*, js-bun-db/*, npm-module/* — rule_meta, skill_meta, header_doc_pointer, package_structure)"
 
 [lib]
 # `cdylib` — обов'язково: `wasm32-wasip2` виводить готовий Component Model
