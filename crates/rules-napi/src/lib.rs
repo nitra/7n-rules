@@ -651,6 +651,9 @@ pub fn run_wasm_concern_fix(
     let resolver = build_tool_resolver(tool_paths);
     let plan = with_loaded_plugin(&wasm_path, |plugin| {
         plugin.set_tool_resolver(resolver);
+        // Слот `repo-root@1` host-контексту (доккомент `wit/world.wit` біля
+        // `import host-context`) — той самий `cwd`, що резолвить `files`.
+        plugin.set_repo_root(Some(cwd.clone()));
         plugin
             .fix(&FixRequest {
                 concern_id: key.clone(),
@@ -704,6 +707,11 @@ pub fn run_wasm_concern(
             files: source_files,
         };
         plugin.set_tool_resolver(resolver);
+        // Слот `repo-root@1` host-контексту (доккомент `wit/world.wit` біля
+        // `import host-context`) — той самий `cwd`, від якого збудовано
+        // batch: концерни з абсолютними шляхами у `diagnostic.data`
+        // (`test/storybook-vitest-config`) резолвлять їх guest-side.
+        plugin.set_repo_root(Some(cwd.clone()));
         plugin.detect(&batch).map_err(to_wasm_napi_err)
     })?;
     Ok(serde_json::json!({ "violations": diagnostics }))

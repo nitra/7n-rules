@@ -46,6 +46,18 @@ const TOOL_ECHO_CONCERN_ID: &str = "test/guest-tool-echo";
 /// contract-test-kit звіряє обидві гілки `file-edit` на одному виклику.
 const FIX_REWRITE_CONCERN_ID: &str = "test/guest-fix-rewrite";
 
+/// `concern-id` host-context тест-хука (slot-канал host-контексту, доккомент
+/// `wit/world.wit` біля `import host-context`, батч 6 §3.5.5): кличе
+/// `host-context("repo-root@1")` і `host-context("no-such-slot@1")` та
+/// повертає ОДНУ діагностику з обома результатами в `data` —
+/// contract-test-kit звіряє режим guest-а З викликом імпорту (значення при
+/// виставленому `LoadedPlugin::set_repo_root`, `null` без нього, `null` для
+/// невідомого слоту — skip-not-crash). Режим guest-а БЕЗ виклику фіксує
+/// template-guest скіла (`tests/wasm_plugin_skill_smoke.rs`) — він
+/// компілюється без жодної згадки `host-context` і інстанціюється тим самим
+/// linker-ом без змін.
+const CONTEXT_ECHO_CONCERN_ID: &str = "test/guest-context-echo";
+
 /// `concern-id`, чий `fix()` навмисно повертає план із `..`-шляхом
 /// (`../escape.txt`) — contract-test-kit звіряє, що host-валідатор
 /// (`rules-contract::validators::fix`) відхиляє такий план типізовано
@@ -83,6 +95,11 @@ impl Guest for GuestEcho {
                     glob: vec![],
                 },
                 ConcernContribution {
+                    key: CONTEXT_ECHO_CONCERN_ID.to_string(),
+                    scope: ConcernScope::PerFile,
+                    glob: vec![],
+                },
+                ConcernContribution {
                     key: FIX_REWRITE_CONCERN_ID.to_string(),
                     scope: ConcernScope::PerFile,
                     glob: vec![],
@@ -112,6 +129,9 @@ impl Guest for GuestEcho {
         }
         if batch.concern_id == TOOL_ECHO_CONCERN_ID {
             return vec![tool_echo_diagnostic()];
+        }
+        if batch.concern_id == CONTEXT_ECHO_CONCERN_ID {
+            return vec![context_echo_diagnostic()];
         }
         let total = batch.files.len() as u32;
         let mut diagnostics = Vec::with_capacity(batch.files.len());
@@ -228,6 +248,38 @@ fn tool_echo_diagnostic() -> Diagnostic {
         file: None,
         severity: Severity::Warn,
         data: Some(format!("{{\"status\":{status_json},\"ok\":{ok}}}")),
+    }
+}
+
+/// Один виклик `host-context` для відомого (`repo-root@1`) і невідомого
+/// (`no-such-slot@1`) слотів — доккомент [`CONTEXT_ECHO_CONCERN_ID`]
+/// пояснює обидва режими, які contract-test-kit звіряє на цій діагностиці.
+/// `data` — вручну зібраний JSON-рядок (той самий мотив, що
+/// [`fs_probe_diagnostic`]); значення слоту екранується як JSON-рядок
+/// найпростішим способом (шляхи фікстур не містять лапок і зворотних слешів —
+/// достатньо огорнути в лапки, спецсимволи в тест-кіті не використовуються).
+fn context_echo_diagnostic() -> Diagnostic {
+    let repo_root = host_context("repo-root@1");
+    let unknown = host_context("no-such-slot@1");
+    let repo_root_json = match &repo_root {
+        Some(value) => format!("\"{value}\""),
+        None => "null".to_string(),
+    };
+    let unknown_json = match &unknown {
+        Some(value) => format!("\"{value}\""),
+        None => "null".to_string(),
+    };
+    Diagnostic {
+        reason: "context-echo".to_string(),
+        message: format!(
+            "context-echo: repo_root={}",
+            repo_root.as_deref().unwrap_or("<none>")
+        ),
+        file: None,
+        severity: Severity::Warn,
+        data: Some(format!(
+            "{{\"repo_root\":{repo_root_json},\"unknown_slot\":{unknown_json}}}"
+        )),
     }
 }
 

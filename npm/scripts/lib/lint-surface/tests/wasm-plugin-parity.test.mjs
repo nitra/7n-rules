@@ -167,6 +167,14 @@ const STORYBOOK_HYGIENE_CONCERN_KEY = 'test/storybook-hygiene'
 const STORYBOOK_PAGE_COVERAGE_CONCERN_KEY = 'test/storybook-page-coverage'
 const STORYBOOK_SCAFFOLD_CONCERN_KEY = 'test/storybook-scaffold'
 const STORYBOOK_CI_CONCERN_KEY = 'test/storybook-ci'
+// Батч 6 (§3.5.5): `test/storybook-vitest-config` (JS-канон, full-scope) плюс
+// три rego-концерни `*/package_json` — у них НЕМАЄ `main.mjs`, канон
+// виконує conftest через `evaluatePolicyConcern` ([`runPolicyBoth`]).
+const STORYBOOK_VITEST_CONFIG_MAIN_MJS_PATH = join(STORYBOOK_RULES_DIR, 'storybook-vitest-config', 'main.mjs')
+const STORYBOOK_VITEST_CONFIG_CONCERN_KEY = 'test/storybook-vitest-config'
+const BUN_DB_PACKAGE_JSON_CONCERN_KEY = 'js-bun-db/package_json'
+const REDIS_PACKAGE_JSON_CONCERN_KEY = 'js-bun-redis/package_json'
+const MSSQL_PACKAGE_JSON_CONCERN_KEY = 'js-mssql/package_json'
 
 /** Size-budget компонента (задача Q3, спека `docs/specs/2026-08-01-wasm-ast-strategy.md`, розділ «Рішення» п.2). */
 const WASM_SIZE_BUDGET_BYTES = 2.5 * 1024 * 1024
@@ -1636,6 +1644,273 @@ describe('wasm-plugin parity — test/storybook-ci (JS канон vs wasm plugin
     await withTmpDir(async dir => {
       await writeFileDeep(dir, 'package.json', JSON.stringify({ name: 'root' }, null, 2))
       const { js, wasm } = await runCiBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+})
+
+/**
+ * Мінімальний Vue-**застосунок** `apps/web` у скоупі Storybook: workspaces +
+ * `dependencies.vue` + `src/pages/*.vue` ПЛЮС обовʼязковий прапорець
+ * `storybook.detectApps` — app-гілка `collectInScopeVuePackages` (хвиля 2a)
+ * без нього не вмикається взагалі. Маркери storybook-project для app ширші
+ * за library: додатково quasar()/AutoImport()/Pages().
+ * @param {string} dir корінь tmp-дерева
+ * @returns {Promise<void>}
+ */
+async function writeStorybookAppFixture(dir) {
+  await writeFileDeep(dir, 'package.json', JSON.stringify({ name: 'root', workspaces: ['apps/*'] }, null, 2))
+  await writeFileDeep(dir, '.n-rules.json', JSON.stringify({ storybook: { detectApps: true } }))
+  await writeFileDeep(
+    dir,
+    'apps/web/package.json',
+    JSON.stringify({ name: 'web', dependencies: { vue: '^3.6.0', quasar: '^2.0.0' } }, null, 2)
+  )
+  for (let i = 0; i < 3; i++) {
+    await writeFileDeep(dir, `apps/web/src/pages/Page${i}.vue`, '<template><div/></template>\n')
+  }
+}
+
+describe('wasm-plugin parity — test/storybook-vitest-config (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
+  const runVitestConfigBoth = dir =>
+    runFullScopeBoth(
+      STORYBOOK_VITEST_CONFIG_MAIN_MJS_PATH,
+      STORYBOOK_VITEST_CONFIG_CONCERN_KEY,
+      'test',
+      'storybook-vitest-config',
+      dir
+    )
+
+  test('порушення: бібліотека у скоупі без vitest.config.* → ідентичне vitest-config-missing (з data.rootDir/type)', async () => {
+    await withTmpDir(async dir => {
+      await writeStorybookLibraryFixture(dir)
+      const { js, wasm } = await runVitestConfigBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('vitest-config-missing')
+      expect(js[0].data).toEqual({ rootDir: 'packages/ui', type: 'library' })
+    })
+  })
+
+  test('порушення: конфіг без test-блоку → unresolvable І stryker-перевірка (вона НЕ припиняється early-return-ом)', async () => {
+    await withTmpDir(async dir => {
+      await writeStorybookLibraryFixture(dir)
+      await writeFileDeep(dir, 'packages/ui/vitest.config.mjs', 'export default { plugins: [] }\n')
+      const { js, wasm } = await runVitestConfigBoth(dir)
+      expect(wasm).toEqual(js)
+      // `checkStrykerConfigPresence` у JS-каноні кличеться з `checkPackage`
+      // ПІСЛЯ `checkVitestConfigContent` — early-return-и останнього її не
+      // скасовують (порт зберігає саме цей порядок).
+      expect(js.map(v => v.reason)).toEqual(['vitest-config-unresolvable', 'stryker-config-missing'])
+    })
+  })
+
+  test('порушення: test.projects відсутній → data.vitestConfigPath АБСОЛЮТНИЙ на обох боках (слот repo-root@1)', async () => {
+    await withTmpDir(async dir => {
+      await writeStorybookLibraryFixture(dir)
+      await writeFileDeep(
+        dir,
+        'packages/ui/vitest.config.mjs',
+        "import { defineConfig } from 'vitest/config'\nexport default defineConfig({ test: { globals: true } })\n"
+      )
+      await writeFileDeep(dir, 'packages/ui/vitest.stryker.config.mjs', 'export default {}\n')
+      const { js, wasm } = await runVitestConfigBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js.map(v => v.reason)).toEqual(['unit-project-missing', 'storybook-project-missing'])
+      // Саме це поле було блокером батчу 5: JS-канон кладе join(absDir, name),
+      // wasm бере корінь зі слоту `repo-root@1` host-контексту.
+      expect(js[0].data.vitestConfigPath).toBe(join(dir, 'packages/ui/vitest.config.mjs'))
+    })
+  })
+
+  test('порушення: test.projects — не статичний масив → ідентичне projects-dynamic', async () => {
+    await withTmpDir(async dir => {
+      await writeStorybookLibraryFixture(dir)
+      await writeFileDeep(
+        dir,
+        'packages/ui/vitest.config.mjs',
+        "import { defineConfig } from 'vitest/config'\nconst projects = []\nexport default defineConfig({ test: { projects } })\n"
+      )
+      await writeFileDeep(dir, 'packages/ui/vitest.stryker.config.mjs', 'export default {}\n')
+      const { js, wasm } = await runVitestConfigBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js.map(v => v.reason)).toEqual(['projects-dynamic'])
+    })
+  })
+
+  test('порушення: storybook-project без канонічних маркерів → ідентичний список підказок (app-гілка)', async () => {
+    await withTmpDir(async dir => {
+      await writeStorybookAppFixture(dir)
+      await writeFileDeep(
+        dir,
+        'apps/web/vitest.config.mjs',
+        "import { defineConfig } from 'vitest/config'\n" +
+          "export default defineConfig({ test: { projects: [{ name: 'unit' }, { name: 'storybook' }] } })\n"
+      )
+      await writeFileDeep(dir, 'apps/web/vitest.stryker.config.mjs', 'export default {}\n')
+      const { js, wasm } = await runVitestConfigBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js.map(v => v.reason)).toEqual(['storybook-project-marker-missing'])
+      expect(js[0].message).toContain('Pages()-плагін')
+    })
+  })
+
+  test('порушення: канонічний vitest.config без vitest.stryker.config.* → ідентичне stryker-config-missing', async () => {
+    await withTmpDir(async dir => {
+      await writeStorybookLibraryFixture(dir)
+      await writeFileDeep(
+        dir,
+        'packages/ui/vitest.config.ts',
+        "import { defineConfig } from 'vitest/config'\n" +
+          "import { playwright } from '@vitest/browser-playwright'\n" +
+          'export default defineConfig({\n' +
+          '  test: {\n' +
+          '    projects: [\n' +
+          "      { name: 'unit' },\n" +
+          "      { name: 'storybook', test: { browser: { instances: [{ browser: 'chromium' }], provider: playwright() } }, plugins: [storybookTest({ configDir: '.storybook' })] }\n" +
+          '    ]\n' +
+          '  }\n' +
+          '})\n'
+      )
+      const { js, wasm } = await runVitestConfigBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js.map(v => v.reason)).toEqual(['stryker-config-missing'])
+    })
+  })
+
+  test('успіх: немає пакетів у скоупі → тиша з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'package.json', JSON.stringify({ name: 'root' }, null, 2))
+      const { js, wasm } = await runVitestConfigBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+})
+
+/**
+ * Спільна підмножина полів violation-а для звірки rego-канону з wasm-портом:
+ * policy-adapter додає ще `ruleId`/`concernId` (їх контракт wasm не має —
+ * їх проставляє `normalizeResult` у продакшн-диспетчеризації), тому звіряємо
+ * саме contract-поля, як решта parity-тестів після [`withDefaultSeverity`].
+ * @param {{ reason: string, message: string, file?: string, severity?: string }} v violation будь-якого боку
+ * @returns {object} нормалізована форма для порівняння
+ */
+function pickPolicyFields(v) {
+  return { reason: v.reason, message: v.message, file: v.file, severity: v.severity ?? 'error' }
+}
+
+/**
+ * Ганяє rego-концерн (`<rule>/package_json`) через КАНОН — policy-adapter
+ * `evaluatePolicyConcern` (той самий виклик, що робить `detect.mjs` для
+ * concern-ів без `main.mjs`: conftest із `--data` з `template/`) — і через
+ * `runWasmConcern` (`files: null`, full-scope міст), повертаючи обидва
+ * `violations` для звірки. `engine: 'rego'` — явна форма того, що
+ * `evaluatePolicyConcern` виводить із відсутнього `policy.engine`
+ * (не-`template` → rego-гілка).
+ * @param {string} ruleId `ctx.ruleId` (він же тека правила)
+ * @param {string} concernId `ctx.concernId` (він же тека концерну)
+ * @param {string} concernKey `ruleId/concernId` для wasm-виклику
+ * @param {string} dir абсолютний шлях tmp-дерева з фікстурами
+ * @returns {Promise<{ js: unknown[], wasm: unknown[] }>} результати обох реалізацій
+ */
+async function runPolicyBoth(ruleId, concernId, concernKey, dir) {
+  const { evaluatePolicyConcern } = await import('../policy-lint-adapter.mjs')
+  const jsResult = await evaluatePolicyConcern(
+    { cwd: dir, ruleId, concernId },
+    {
+      engine: 'rego',
+      policyDir: join(REPO_ROOT, 'plugins', 'lang-js', 'rules', ruleId, concernId),
+      files: { walkGlob: '**/package.json' }
+    }
+  )
+  const wasmResult = loadNative().runWasmConcern(WASM_PATH, concernKey, dir, null)
+  return {
+    js: jsResult.violations.map(v => pickPolicyFields(v)),
+    wasm: wasmResult.violations.map(v => pickPolicyFields(v))
+  }
+}
+
+describe('wasm-plugin parity — js-bun-db/package_json (rego-канон через conftest vs wasm plugin-lang-js)', () => {
+  test('порушення: обидві deny-залежності → ідентичні violations (лексикографічний порядок)', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(
+        dir,
+        'package.json',
+        JSON.stringify({ name: 'x', dependencies: { 'pg-format': '^1.0.0', mysql2: '^3.0.0' } }, null, 2)
+      )
+      const { js, wasm } = await runPolicyBoth('js-bun-db', 'package_json', BUN_DB_PACKAGE_JSON_CONCERN_KEY, dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(2)
+      expect(js[0].reason).toBe('policy-deny')
+    })
+  })
+
+  test('успіх: жодної deny-залежності → тиша з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'package.json', JSON.stringify({ name: 'x', dependencies: { vue: '^3.6.0' } }, null, 2))
+      const { js, wasm } = await runPolicyBoth('js-bun-db', 'package_json', BUN_DB_PACKAGE_JSON_CONCERN_KEY, dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+})
+
+describe('wasm-plugin parity — js-bun-redis/package_json (rego-канон через conftest vs wasm plugin-lang-js)', () => {
+  test('порушення: ioredis + @redis/client у вкладеному пакеті → ідентичні violations із relative file', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'package.json', JSON.stringify({ name: 'root' }, null, 2))
+      await writeFileDeep(
+        dir,
+        'packages/api/package.json',
+        JSON.stringify({ name: 'api', dependencies: { ioredis: '^5.0.0', '@redis/client': '^1.0.0' } }, null, 2)
+      )
+      const { js, wasm } = await runPolicyBoth('js-bun-redis', 'package_json', REDIS_PACKAGE_JSON_CONCERN_KEY, dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(2)
+      expect(js.every(v => v.file === 'packages/api/package.json')).toBe(true)
+    })
+  })
+
+  test('успіх: bun native redis (без deny-пакетів) → тиша з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'package.json', JSON.stringify({ name: 'x', dependencies: {} }, null, 2))
+      const { js, wasm } = await runPolicyBoth('js-bun-redis', 'package_json', REDIS_PACKAGE_JSON_CONCERN_KEY, dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+})
+
+describe('wasm-plugin parity — js-mssql/package_json (rego-канон через conftest vs wasm plugin-lang-js)', () => {
+  test('порушення: mssql нижче мінімуму → ідентичне повідомлення з %q-формою діапазону', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(
+        dir,
+        'package.json',
+        JSON.stringify({ name: 'x', dependencies: { mssql: '^10.0.0' } }, null, 2)
+      )
+      const { js, wasm } = await runPolicyBoth('js-mssql', 'package_json', MSSQL_PACKAGE_JSON_CONCERN_KEY, dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].message).toContain('"^10.0.0"')
+    })
+  })
+
+  test('успіх: mssql >= 12.5.0 і workspace:* → тиша з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(
+        dir,
+        'package.json',
+        JSON.stringify({ name: 'x', dependencies: { mssql: '^12.5.0' } }, null, 2)
+      )
+      await writeFileDeep(
+        dir,
+        'packages/db/package.json',
+        JSON.stringify({ name: 'db', dependencies: { mssql: 'workspace:*' } }, null, 2)
+      )
+      const { js, wasm } = await runPolicyBoth('js-mssql', 'package_json', MSSQL_PACKAGE_JSON_CONCERN_KEY, dir)
       expect(wasm).toEqual(js)
       expect(js).toEqual([])
     })
