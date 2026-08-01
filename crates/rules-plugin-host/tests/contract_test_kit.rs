@@ -27,6 +27,10 @@ const FS_PROBE_CONCERN_ID: &str = "test/guest-echo-fs-probe";
 /// `concern-id` run-tool тест-хука (задача N1, п.4) — дзеркало
 /// `test_plugin_guest::TOOL_ECHO_CONCERN_ID`.
 const TOOL_ECHO_CONCERN_ID: &str = "test/guest-tool-echo";
+/// `concern-id` host-context тест-хука (slot-канал host-контексту, доккомент
+/// `wit/world.wit` біля `import host-context`, батч 6 §3.5.5) — дзеркало
+/// `test_plugin_guest::CONTEXT_ECHO_CONCERN_ID`.
+const CONTEXT_ECHO_CONCERN_ID: &str = "test/guest-context-echo";
 
 /// Абсолютний шлях до зібраного `.wasm`-компонента фікстури
 /// (`crates/test-plugin-guest/build.sh`) — `wasm32-wasip2`/`release`,
@@ -316,6 +320,71 @@ fn fs_probe_without_declared_capability_gets_no_extra_access() {
         Some(&serde_json::Value::Bool(false)),
         "без preopen-шляхів читання ФС з guest-а МАЄ провалюватись: {data:?}"
     );
+}
+
+// --- host-context контур (slot-канал host-контексту, батч 6 §3.5.5) ---
+//
+// `test/guest-context-echo` (`crates/test-plugin-guest/src/lib.rs`) кличе
+// `host-context("repo-root@1")` і `host-context("no-such-slot@1")` та
+// відображає обидва результати у `data` однієї діагностики. Це — режим
+// guest-а З викликом нового імпорту; режим guest-а БЕЗ виклику (уже
+// пінований плагін, зібраний до появи `import host-context`) фіксує
+// template-guest скіла (`tests/wasm_plugin_skill_smoke.rs`): він не
+// референсить імпорт зовсім і інстанціюється тим самим linker-ом без змін —
+// саме тому додавання host-імпорту НЕ є breaking-зміною контракту
+// (доккомент `wit/world.wit` біля `import host-context`).
+
+/// Слот `repo-root@1` віддає значення, виставлене
+/// `LoadedPlugin::set_repo_root`, а невідомий слот — `none` (skip-not-crash).
+#[test]
+fn host_context_repo_root_slot_round_trips_when_set() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    plugin.set_repo_root(Some("/consumer/repo".to_string()));
+
+    let batch = DetectBatch {
+        concern_id: CONTEXT_ECHO_CONCERN_ID.to_string(),
+        files: vec![],
+    };
+    let diagnostics = plugin
+        .detect(&batch)
+        .expect("context-echo detect не мав провалитись");
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].reason, "context-echo");
+    let data = diagnostics[0]
+        .data
+        .as_ref()
+        .expect("context-echo діагностика повинна мати заповнений data");
+    assert_eq!(
+        data.get("repo_root"),
+        Some(&serde_json::Value::String("/consumer/repo".to_string())),
+        "слот repo-root@1 мав віддати виставлений корінь: {data:?}"
+    );
+    assert_eq!(
+        data.get("unknown_slot"),
+        Some(&serde_json::Value::Null),
+        "невідомий слот МАЄ віддавати none, не панікувати: {data:?}"
+    );
+}
+
+/// Без `set_repo_root` слот `repo-root@1` — `none`: guest мусить деградувати
+/// сам (доккомент `wit/world.wit`), хост не вигадує контекст.
+#[test]
+fn host_context_repo_root_slot_defaults_to_none() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let batch = DetectBatch {
+        concern_id: CONTEXT_ECHO_CONCERN_ID.to_string(),
+        files: vec![],
+    };
+    let diagnostics = plugin
+        .detect(&batch)
+        .expect("context-echo detect не мав провалитись без repo_root");
+    assert_eq!(diagnostics.len(), 1);
+    let data = diagnostics[0].data.as_ref().unwrap();
+    assert_eq!(data.get("repo_root"), Some(&serde_json::Value::Null));
+    assert_eq!(data.get("unknown_slot"), Some(&serde_json::Value::Null));
 }
 
 // --- run-tool контур (задача N1, п.5) ---

@@ -55,6 +55,18 @@ impl LoadedPlugin {
         self.store.data_mut().tool_resolver = resolver;
     }
 
+    /// Виставляє payload слоту `repo-root@1` host-функції `host-context`
+    /// (доккомент `wit/world.wit` біля `import host-context`): абсолютний
+    /// корінь consumer-репо поточного `detect`/`fix`-виклику — той самий
+    /// `cwd`, від якого рахуються posix-relative `SourceFile::path`. Той
+    /// самий мотив per-виклик підміни, що [`Self::set_tool_resolver`]:
+    /// `LoadedPlugin` кешується per-path на процес, а `cwd` приходить із
+    /// кожним napi-викликом окремо. `None` — прибрати контекст (guest
+    /// отримає `none` і деградує сам).
+    pub fn set_repo_root(&mut self, repo_root: Option<String>) {
+        self.store.data_mut().repo_root = repo_root;
+    }
+
     /// lint-домен: детекція діагностик по батчу файлів заявленого
     /// концерну. Той самий `Store`/`Instance`, що й попередні виклики цього
     /// `LoadedPlugin` (reuse).

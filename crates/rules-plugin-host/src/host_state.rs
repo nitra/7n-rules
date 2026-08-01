@@ -45,6 +45,14 @@ pub(crate) struct HostState {
     pub(crate) logs: RefCell<Vec<CapturedLog>>,
     pub(crate) progress: RefCell<Vec<CapturedProgress>>,
     pub(crate) tool_resolver: Arc<ToolResolver>,
+    /// Абсолютний корінь consumer-репо поточного виклику — payload слоту
+    /// `repo-root@1` host-функції `host-context` (доккомент `wit/world.wit`
+    /// біля `import host-context`). `None` — хост не має контексту (guest
+    /// отримує `none` і деградує сам). Виставляється per-виклик через
+    /// `LoadedPlugin::set_repo_root` (той самий мотив, що `tool_resolver`:
+    /// `LoadedPlugin` кешується per-path, а `cwd` приходить з кожним
+    /// napi-викликом окремо).
+    pub(crate) repo_root: Option<String>,
 }
 
 impl WasiView for HostState {
@@ -82,5 +90,15 @@ impl wit::PluginImports for HostState {
             level: crate::convert::log_level_from_wit(level),
             message,
         });
+    }
+
+    /// Slot-канал host-контексту (доккомент `wit/world.wit` біля
+    /// `import host-context`): відомий лише `repo-root@1`; невідомий slot →
+    /// `None` (skip-not-crash — guest мусить деградувати, не панікувати).
+    fn host_context(&mut self, slot: String) -> Option<String> {
+        match slot.as_str() {
+            "repo-root@1" => self.repo_root.clone(),
+            _ => None,
+        }
     }
 }

@@ -66,6 +66,10 @@ const CONCERN_STORYBOOK_HYGIENE: &str = "test/storybook-hygiene";
 const CONCERN_STORYBOOK_PAGE_COVERAGE: &str = "test/storybook-page-coverage";
 const CONCERN_STORYBOOK_SCAFFOLD: &str = "test/storybook-scaffold";
 const CONCERN_STORYBOOK_CI: &str = "test/storybook-ci";
+const CONCERN_STORYBOOK_VITEST_CONFIG: &str = "test/storybook-vitest-config";
+const CONCERN_BUN_DB_PACKAGE_JSON: &str = "js-bun-db/package_json";
+const CONCERN_REDIS_PACKAGE_JSON: &str = "js-bun-redis/package_json";
+const CONCERN_MSSQL_PACKAGE_JSON: &str = "js-mssql/package_json";
 
 /// Абсолютний шлях до зібраного `.wasm`-компонента (`crates/plugin-lang-js/build.sh`)
 /// — `wasm32-wasip2`/`release`.
@@ -93,7 +97,7 @@ fn host() -> PluginHost {
 }
 
 #[test]
-fn describe_declares_all_nineteen_concerns_with_expected_scopes() {
+fn describe_declares_all_twenty_three_concerns_with_expected_scopes() {
     let path = require_fixture();
     let plugin = host()
         .load(&path, PLUGIN_WORLD_VERSION)
@@ -107,7 +111,10 @@ fn describe_declares_all_nineteen_concerns_with_expected_scopes() {
     // `js-bun-db/safety` тепер У контрибуції (AST-порти, де-скоуп батчу 2
     // знято — доккомент `crates/plugin-lang-js/src/lib.rs`); батч 5 додає
     // п'ять концернів storybook-сімейства (секція «Батч 5» там само).
-    assert_eq!(manifest.concerns.len(), 19);
+    // Батч 6 додає `test/storybook-vitest-config` (розблоковано слотом
+    // `repo-root@1` host-контексту) і три rego-порти `*/package_json`
+    // (`js-bun-db`, `js-bun-redis`, `js-mssql`) — секція «Батч 6» там само.
+    assert_eq!(manifest.concerns.len(), 23);
 
     let tfm = manifest
         .concerns
@@ -1319,6 +1326,236 @@ fn detect_storybook_ci_reports_missing_repo_canon_files() {
     assert_eq!(
         diagnostics[1].file.as_deref(),
         Some(".github/workflows/lint-storybook.yml")
+    );
+}
+
+/// `test/storybook-vitest-config` (батч 6): бібліотека у скоупі без жодного
+/// `vitest.config.*` — одна діагностика `vitest-config-missing`; `data`
+/// містить `rootDir`/`type`, але НЕ `vitestConfigPath` (файлу ще немає).
+#[test]
+fn detect_storybook_vitest_config_reports_missing_config() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let batch = DetectBatch {
+        concern_id: CONCERN_STORYBOOK_VITEST_CONFIG.to_string(),
+        files: storybook_scope_fixture_files(),
+    };
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].reason, "vitest-config-missing");
+    assert_eq!(
+        diagnostics[0].file.as_deref(),
+        Some("packages/ui/vitest.config.mjs")
+    );
+    let data = diagnostics[0]
+        .data
+        .as_ref()
+        .expect("data має бути присутнім");
+    assert_eq!(data["rootDir"], "packages/ui");
+    assert_eq!(data["type"], "library");
+}
+
+/// `test/storybook-vitest-config` (батч 6): БЕЗ `set_repo_root` слот
+/// `repo-root@1` віддає `none` — задокументована деградація доккомента
+/// секції «Батч 6» (`crates/plugin-lang-js/src/lib.rs`): `vitestConfigPath`
+/// стає repo-relative замість абсолютного, детекція не падає. У проді
+/// `run_wasm_concern` завжди виставляє корінь (`crates/rules-napi`), тож
+/// саме цей тест фіксує поведінку хоста БЕЗ контексту.
+#[test]
+fn detect_storybook_vitest_config_degrades_without_repo_root_slot() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let mut files = storybook_scope_fixture_files();
+    files.push(SourceFile {
+        path: "packages/ui/vitest.config.mjs".to_string(),
+        content: "import { defineConfig } from 'vitest/config'\n\
+                  export default defineConfig({ test: { globals: true } })\n"
+            .to_string(),
+    });
+    files.push(SourceFile {
+        path: "packages/ui/vitest.stryker.config.mjs".to_string(),
+        content: "export default {}\n".to_string(),
+    });
+
+    let batch = DetectBatch {
+        concern_id: CONCERN_STORYBOOK_VITEST_CONFIG.to_string(),
+        files,
+    };
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    assert_eq!(diagnostics.len(), 2);
+    assert_eq!(diagnostics[0].reason, "unit-project-missing");
+    assert_eq!(diagnostics[1].reason, "storybook-project-missing");
+    let data = diagnostics[0]
+        .data
+        .as_ref()
+        .expect("data має бути присутнім");
+    assert_eq!(data["vitestConfigPath"], "packages/ui/vitest.config.mjs");
+}
+
+/// `test/storybook-vitest-config` (батч 6): той самий батч, але зі
+/// встановленим слотом `repo-root@1` — `vitestConfigPath` стає абсолютним
+/// (саме цього потребує JS-фіксер `fix-storybook-vitest-config.mjs`).
+#[test]
+fn detect_storybook_vitest_config_uses_repo_root_slot_for_absolute_path() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    plugin.set_repo_root(Some("/repo".to_string()));
+
+    let mut files = storybook_scope_fixture_files();
+    files.push(SourceFile {
+        path: "packages/ui/vitest.config.mjs".to_string(),
+        content: "import { defineConfig } from 'vitest/config'\n\
+                  export default defineConfig({ test: { globals: true } })\n"
+            .to_string(),
+    });
+    files.push(SourceFile {
+        path: "packages/ui/vitest.stryker.config.mjs".to_string(),
+        content: "export default {}\n".to_string(),
+    });
+
+    let batch = DetectBatch {
+        concern_id: CONCERN_STORYBOOK_VITEST_CONFIG.to_string(),
+        files,
+    };
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    let data = diagnostics[0]
+        .data
+        .as_ref()
+        .expect("data має бути присутнім");
+    assert_eq!(
+        data["vitestConfigPath"],
+        "/repo/packages/ui/vitest.config.mjs"
+    );
+}
+
+/// `test/storybook-vitest-config` (батч 6): відсутній лише ізольований
+/// stryker-конфіг поруч із канонічним `vitest.config.mjs`.
+#[test]
+fn detect_storybook_vitest_config_reports_missing_stryker_config() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let mut files = storybook_scope_fixture_files();
+    files.push(SourceFile {
+        path: "packages/ui/vitest.config.mjs".to_string(),
+        content: "import { defineConfig } from 'vitest/config'\n\
+                  import { playwright } from '@vitest/browser-playwright'\n\
+                  export default defineConfig({ test: { projects: [\n\
+                  { name: 'unit' },\n\
+                  { name: 'storybook', test: { browser: { instances: [{ browser: 'chromium' }], \
+                  provider: playwright() } }, plugins: [storybookTest({ configDir: '.storybook' \
+                  })] }\n\
+                  ] } })\n"
+            .to_string(),
+    });
+
+    let batch = DetectBatch {
+        concern_id: CONCERN_STORYBOOK_VITEST_CONFIG.to_string(),
+        files,
+    };
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].reason, "stryker-config-missing");
+    assert_eq!(
+        diagnostics[0].file.as_deref(),
+        Some("packages/ui/vitest.stryker.config.mjs")
+    );
+}
+
+/// `js-bun-db/package_json` (батч 6, rego-порт): обидві deny-залежності —
+/// дві діагностики `policy-deny` у лексикографічному порядку повідомлень.
+#[test]
+fn detect_bun_db_package_json_flags_denied_dependencies() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let batch = DetectBatch {
+        concern_id: CONCERN_BUN_DB_PACKAGE_JSON.to_string(),
+        files: vec![SourceFile {
+            path: "package.json".to_string(),
+            content: "{\"dependencies\":{\"pg-format\":\"^1.0.0\",\"mysql2\":\"^3.0.0\"}}\n"
+                .to_string(),
+        }],
+    };
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    assert_eq!(diagnostics.len(), 2);
+    assert!(diagnostics
+        .iter()
+        .all(|d| d.reason == "policy-deny" && d.file.as_deref() == Some("package.json")));
+    assert!(diagnostics[0].message.starts_with("dependencies.mysql2"));
+    assert!(diagnostics[1].message.starts_with("dependencies.pg-format"));
+}
+
+/// `js-bun-redis/package_json` (батч 6, rego-порт): deny-пакет у вкладеному
+/// `package.json` — `file` лишається repo-relative шляхом файлу батчу.
+#[test]
+fn detect_redis_package_json_flags_denied_dependency_in_nested_package() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let batch = DetectBatch {
+        concern_id: CONCERN_REDIS_PACKAGE_JSON.to_string(),
+        files: vec![
+            SourceFile {
+                path: "package.json".to_string(),
+                content: "{\"name\":\"root\"}\n".to_string(),
+            },
+            SourceFile {
+                path: "packages/api/package.json".to_string(),
+                content: "{\"dependencies\":{\"ioredis\":\"^5.0.0\"}}\n".to_string(),
+            },
+        ],
+    };
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].reason, "policy-deny");
+    assert_eq!(
+        diagnostics[0].file.as_deref(),
+        Some("packages/api/package.json")
+    );
+    assert!(diagnostics[0].message.contains("Bun native Redis"));
+}
+
+/// `js-mssql/package_json` (батч 6, rego-порт): нижча за мінімум версія —
+/// одна діагностика з `%q`-формою діапазону; `workspace:` і `>= 12.5.0` —
+/// тиша.
+#[test]
+fn detect_mssql_package_json_checks_minimum_version() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let batch = DetectBatch {
+        concern_id: CONCERN_MSSQL_PACKAGE_JSON.to_string(),
+        files: vec![
+            SourceFile {
+                path: "package.json".to_string(),
+                content: "{\"dependencies\":{\"mssql\":\"^10.0.0\"}}\n".to_string(),
+            },
+            SourceFile {
+                path: "packages/ok/package.json".to_string(),
+                content: "{\"dependencies\":{\"mssql\":\"^12.5.0\"}}\n".to_string(),
+            },
+            SourceFile {
+                path: "packages/ws/package.json".to_string(),
+                content: "{\"dependencies\":{\"mssql\":\"workspace:*\"}}\n".to_string(),
+            },
+        ],
+    };
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].reason, "policy-deny");
+    assert_eq!(
+        diagnostics[0].message,
+        "dependencies.mssql має бути >= 12.5.0 (зараз \"^10.0.0\") (js-mssql.mdc)"
     );
 }
 

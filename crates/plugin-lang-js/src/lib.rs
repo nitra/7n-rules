@@ -3601,6 +3601,38 @@ fn build_manifest() -> Manifest {
                     ".github/workflows/lint-storybook.yml".to_string(),
                 ],
             },
+            // Батч 6: storybook-vitest-config (глоб — scope-детекція батчу 5
+            // плюс самі конфіги) і три package_json rego-порти (лише
+            // `**/package.json`, як `policy.files.walkGlob` оригіналів).
+            ConcernContribution {
+                key: CONCERN_STORYBOOK_VITEST_CONFIG.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec![
+                    ".n-rules.json".to_string(),
+                    ".n-cursor.json".to_string(),
+                    "**/package.json".to_string(),
+                    "**/*.vue".to_string(),
+                    "**/vitest.config.mjs".to_string(),
+                    "**/vitest.config.js".to_string(),
+                    "**/vitest.config.ts".to_string(),
+                    "**/vitest.stryker.config.*".to_string(),
+                ],
+            },
+            ConcernContribution {
+                key: CONCERN_BUN_DB_PACKAGE_JSON.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec!["**/package.json".to_string()],
+            },
+            ConcernContribution {
+                key: CONCERN_REDIS_PACKAGE_JSON.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec!["**/package.json".to_string()],
+            },
+            ConcernContribution {
+                key: CONCERN_MSSQL_PACKAGE_JSON.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec!["**/package.json".to_string()],
+            },
         ],
         ci_artifacts: vec![],
         capabilities: Capabilities {
@@ -5244,6 +5276,739 @@ fn detect_storybook_ci(files: &[SourceFile]) -> Vec<Diagnostic> {
     diagnostics
 }
 
+// =====================================================================
+// Батч 6 (§3.5.5): `test/storybook-vitest-config` через слот `repo-root@1`
+// host-функції `host-context` + package_json-хвіст SQL/redis-правил.
+//
+// # `test/storybook-vitest-config` — розблоковано контрактним рішенням cwd
+//
+// Порт `plugins/lang-js/rules/test/storybook-vitest-config/main.mjs` поверх
+// спільної scope-детекції батчу 5 ([`collect_in_scope_vue_packages`]).
+// Блокер батчу 5 (задокументований у PR #354): JS-канон кладе АБСОЛЮТНИЙ
+// `vitestConfigPath` у `violation.data` (`join(absDir, name)`), і саме його
+// читає JS-фіксер `fix-storybook-vitest-config.mjs` — а WIT `detect-batch`
+// знає лише posix-relative шляхи. Розблоковано слотом `repo-root@1`
+// host-функції `host-context` (контрактне рішення — доккомент
+// `wit/world.wit` біля `import host-context`): [`Guest::detect`] читає слот
+// і передає значення в чистий [`detect_storybook_vitest_config`] аргументом
+// — сама функція лишається без host-імпортів (host-таргет unit-тести
+// кличуть її напряму, той самий мотив, що [`build_manifest`]).
+// `repo-root@1` = `none` (хост без контексту) — задокументована деградація:
+// `vitestConfigPath` стає repo-relative; на актуальному napi-хості цього ж
+// репозиторію (`run_wasm_concern` виставляє `set_repo_root(cwd)` перед
+// кожним `detect`) гілка недосяжна.
+//
+// AST-частина (`findTestObject`/`findProperty`/`classifyProjects`) — той
+// самий `oxc_parser`, що JS-канон (`parseModule` → `parseSync`): DFS
+// pre-order пошук першого `ObjectExpression` із property `test`, значення
+// якого — теж `ObjectExpression` ([`FindTestObjectVisitor`]); зрізи
+// елементів `test.projects` — байтові (`Span`), що для UTF-16-зрізів JS
+// `src.slice(start, end)` збігається на ASCII-конфігах (та сама
+// задокументована еквівалентність, що в mssql/bun-db сканерах батчу 4).
+//
+// # package_json-хвіст (`js-bun-db`/`js-bun-redis`/`js-mssql`)
+//
+// Фактичний перелік НЕ-портованого станом на батч 5 у трьох SQL/redis
+// правилах (звірено по `plugins/lang-js/rules/**`):
+//
+// - `js-bun-db/package_json`, `js-bun-redis/package_json`,
+//   `js-mssql/package_json` — НЕ JS-детектори, а Rego-полісі
+//   (`package_json.rego` + `template/package.json.deny.json`), які
+//   dispatch виконує через conftest (`evaluatePolicyConcern` →
+//   `runConftestBatch`, зовнішній тул). Тут — їх точний порт на
+//   `serde_json` (прецедент батчу 4): та сама форма violation, що віддає
+//   policy-adapter (`reason: "policy-deny"`, `message` — рядок rego-`deny`,
+//   `file` — relative шлях `package.json`), semantics звірені живим
+//   conftest-прогоном. Порядок кількох deny-повідомлень одного файлу —
+//   лексикографічний (OPA-set сортований, звірено живим прогоном) —
+//   [`detect_package_json_deny`] сортує явно.
+// - `js-bun-db/connection`, `js-bun-db/pg_format_identifiers`,
+//   `js-mssql/mssql-tvp` — `.mdc`-only концерни (guidance для LLM, без
+//   жодного детектора: ані `main.mjs`, ані `policy` у `concern.json`) —
+//   портувати НЕМА ЧОГО, це не де-скоуп.
+//
+// Розбіжності rego-портів (задокументовані, фікстури їх не торкаються):
+//
+// 1. Невалідний JSON у `package.json`: conftest валить ВЕСЬ прогін концерну
+//    (`Error: parse configurations`, порожній stdout → `runConftestBatch`
+//    кидає → `DetectorError`, exit 2); wasm-порт пропускає файл
+//    (`parse_json_tolerant` → `None`) — skip-not-crash дух контракту,
+//    «зламати весь лінт битим JSON-джерелом» відтворювати свідомо не
+//    стали.
+// 2. Порядок файлів: JS `resolveTargetFiles` сортує `localeCompare`,
+//    host-збірка батчу — байтово (та сама мікро-розбіжність 4 секції
+//    «Батч 5», [`locale_compare_approx`]) — для реалістичних шляхів
+//    порядок збігається.
+// 3. Go-стиль `%q` (`sprintf` rego) проти Rust `{:?}`: для ASCII-діапазонів
+//    версій (`"^10.0.0"`) — байт-у-байт той самий результат.
+
+/// Ключ контрибуції `test/storybook-vitest-config` (батч 6).
+const CONCERN_STORYBOOK_VITEST_CONFIG: &str = "test/storybook-vitest-config";
+
+/// Ключ контрибуції `js-bun-db/package_json` (батч 6, rego-порт).
+const CONCERN_BUN_DB_PACKAGE_JSON: &str = "js-bun-db/package_json";
+
+/// Ключ контрибуції `js-bun-redis/package_json` (батч 6, rego-порт).
+const CONCERN_REDIS_PACKAGE_JSON: &str = "js-bun-redis/package_json";
+
+/// Ключ контрибуції `js-mssql/package_json` (батч 6, rego-порт).
+const CONCERN_MSSQL_PACKAGE_JSON: &str = "js-mssql/package_json";
+
+/// `reason` діагностик rego-портів — точний відповідник
+/// `add('policy-deny', …)` у `evaluatePolicyConcern`
+/// (`npm/scripts/lib/lint-surface/policy-lint-adapter.mjs`).
+const POLICY_DENY_REASON: &str = "policy-deny";
+
+/// Канонічні назви vitest-конфіга пакета — точний порт `VITEST_CONFIG_NAMES`
+/// (`storybook-vitest-config/main.mjs:15`; ширший за [`VITEST_CONFIG_NAMES`]
+/// pool-forks-концерну — тут ще `.ts`).
+const STORYBOOK_VITEST_CONFIG_NAMES: [&str; 3] =
+    ["vitest.config.mjs", "vitest.config.js", "vitest.config.ts"];
+
+/// Скомпільовані маркер-regex-и storybook-запису `test.projects` — точні
+/// порти module-scope констант `storybook-vitest-config/main.mjs`
+/// (`UNIT_NAME_RE`…`VITE_PLUGIN_PAGES_RE`); `OnceLock` — компілюються раз на
+/// процес (той самий мотив, що [`extract_vue_script_blocks`]).
+struct VitestConfigMarkerRes {
+    unit_name: regex::Regex,
+    storybook_name: regex::Regex,
+    chromium: regex::Regex,
+    browser_key: regex::Regex,
+    stories: regex::Regex,
+    storybook_test_config_dir: regex::Regex,
+    provider_factory: regex::Regex,
+    quasar_plugin: regex::Regex,
+    auto_import_plugin: regex::Regex,
+    vite_plugin_pages: regex::Regex,
+}
+
+fn vitest_config_marker_res() -> &'static VitestConfigMarkerRes {
+    static RES: std::sync::OnceLock<VitestConfigMarkerRes> = std::sync::OnceLock::new();
+    RES.get_or_init(|| VitestConfigMarkerRes {
+        unit_name: regex::Regex::new(r#"name\s*:\s*['"]unit['"]"#).expect("UNIT_NAME_RE валідний"),
+        storybook_name: regex::Regex::new(r#"name\s*:\s*['"]storybook['"]"#)
+            .expect("STORYBOOK_NAME_RE валідний"),
+        chromium: regex::Regex::new("chromium").expect("CHROMIUM_RE валідний"),
+        browser_key: regex::Regex::new(r"\bbrowser\s*:").expect("BROWSER_KEY_RE валідний"),
+        stories: regex::Regex::new("(?i)stories").expect("STORIES_RE валідний"),
+        storybook_test_config_dir: regex::Regex::new(r"storybookTest\([^)]*configDir")
+            .expect("STORYBOOK_TEST_CONFIG_DIR_RE валідний"),
+        provider_factory: regex::Regex::new(r"provider\s*:\s*playwright\s*\(")
+            .expect("PROVIDER_FACTORY_RE валідний"),
+        quasar_plugin: regex::Regex::new(r"quasar\s*\(").expect("QUASAR_PLUGIN_RE валідний"),
+        auto_import_plugin: regex::Regex::new(r"AutoImport\s*\(")
+            .expect("AUTO_IMPORT_PLUGIN_RE валідний"),
+        vite_plugin_pages: regex::Regex::new(r"\bPages\s*\(")
+            .expect("VITE_PLUGIN_PAGES_RE валідний"),
+    })
+}
+
+/// Стан `test.projects` знайденого test-блоку — розгалуження
+/// `checkVitestConfigContent` після `findTestObject`.
+enum VitestProjectsState {
+    /// `findProperty(testObj, 'projects')` → null.
+    Missing,
+    /// `projects` є, але значення — не `ArrayExpression` (spread/змінна).
+    NotArray,
+    /// Статичний масив: чи є запис `unit` і текстовий зріз запису
+    /// `storybook` (останнього, як у JS-циклі `classifyProjects`).
+    Classified {
+        has_unit: bool,
+        storybook_slice: Option<String>,
+    },
+}
+
+/// Результат AST-аналізу vitest-конфіга — гілки `checkVitestConfigContent`.
+enum VitestConfigAnalysis {
+    /// `parsed.errors?.length` → «має syntax error».
+    SyntaxError,
+    /// `findTestObject` → null — test-блок не знайдено.
+    NoTestBlock,
+    /// test-блок знайдено — стан його `projects`.
+    Projects(VitestProjectsState),
+}
+
+/// Перша non-computed property `name` обʼєкта — точний порт `findProperty`
+/// (`storybook-vitest-config/main.mjs`): матчить `Identifier`-ключ за
+/// `name` АБО `StringLiteral`-ключ за `value` (числові/computed ключі —
+/// повз, як і в JS-предикаті).
+fn find_object_property<'b, 'a>(
+    obj: &'b ObjectExpression<'a>,
+    name: &str,
+) -> Option<&'b Expression<'a>> {
+    for kind in &obj.properties {
+        let ObjectPropertyKind::ObjectProperty(prop) = kind else {
+            continue;
+        };
+        if prop.computed {
+            continue;
+        }
+        let key_matches = match &prop.key {
+            PropertyKey::StaticIdentifier(ident) => ident.name == name,
+            PropertyKey::StringLiteral(lit) => lit.value == name,
+            _ => false,
+        };
+        if key_matches {
+            return Some(&prop.value);
+        }
+    }
+    None
+}
+
+/// Точний порт `classifyProjects` (`storybook-vitest-config/main.mjs`):
+/// обхід елементів `test.projects`, лише `ObjectExpression`-елементи, зріз
+/// джерела за `Span` (байтовий — доккомент секції).
+fn classify_vitest_projects(src: &str, arr: &oxc_ast::ast::ArrayExpression) -> VitestProjectsState {
+    let res = vitest_config_marker_res();
+    let mut has_unit = false;
+    let mut storybook_slice: Option<String> = None;
+    for element in &arr.elements {
+        let ArrayExpressionElement::ObjectExpression(obj) = element else {
+            continue;
+        };
+        let slice = &src[obj.span.start as usize..obj.span.end as usize];
+        if res.unit_name.is_match(slice) {
+            has_unit = true;
+        }
+        if res.storybook_name.is_match(slice) {
+            storybook_slice = Some(slice.to_string());
+        }
+    }
+    VitestProjectsState::Classified {
+        has_unit,
+        storybook_slice,
+    }
+}
+
+/// Visitor DFS pre-order пошуку першого `ObjectExpression` із property
+/// `test`, чиє значення — теж `ObjectExpression` — точний порт
+/// `findTestObjectIn` (`storybook-vitest-config/main.mjs`): вузол
+/// перевіряється ДО дітей, після першого збігу обхід зупиняється (guard
+/// `self.result.is_none()`), а аналіз `projects` виконується одразу в
+/// callback-у (visitor не може зберегти позичений AST-вузол — lifetime
+/// обмежений викликом).
+struct FindTestObjectVisitor<'src> {
+    src: &'src str,
+    result: Option<VitestProjectsState>,
+}
+
+impl<'a> Visit<'a> for FindTestObjectVisitor<'_> {
+    fn visit_object_expression(&mut self, it: &ObjectExpression<'a>) {
+        if self.result.is_some() {
+            return;
+        }
+        if let Some(Expression::ObjectExpression(test_obj)) = find_object_property(it, "test") {
+            self.result = Some(match find_object_property(test_obj, "projects") {
+                None => VitestProjectsState::Missing,
+                Some(Expression::ArrayExpression(arr)) => classify_vitest_projects(self.src, arr),
+                Some(_) => VitestProjectsState::NotArray,
+            });
+            return;
+        }
+        walk_object_expression(self, it);
+    }
+}
+
+/// AST-аналіз vitest-конфіга — порт звʼязки `parseModule`, `findTestObject`,
+/// `findProperty`, `classifyProjects`: мова за розширенням (`.ts` → ts,
+/// інакше module-JS — дзеркало `lang = ext === '.ts' ? 'ts' : 'js'` із
+/// `sourceType: 'module'`), файл із parse-помилками → syntax error гілка
+/// (структурний `oxc_parser::Parser::parse` не кидає — окрема JS-гілка
+/// «не парситься (…)» недосяжна тут, точний порт решти).
+fn analyze_vitest_config(config_name: &str, content: &str) -> VitestConfigAnalysis {
+    let allocator = Allocator::default();
+    let source_type = if config_name.ends_with(".ts") {
+        SourceType::ts()
+    } else {
+        SourceType::mjs()
+    };
+    let ret = Parser::new(&allocator, content, source_type).parse();
+    if ret.panicked || !ret.diagnostics.is_empty() {
+        return VitestConfigAnalysis::SyntaxError;
+    }
+    let mut visitor = FindTestObjectVisitor {
+        src: content,
+        result: None,
+    };
+    visitor.visit_program(&ret.program);
+    match visitor.result {
+        Some(state) => VitestConfigAnalysis::Projects(state),
+        None => VitestConfigAnalysis::NoTestBlock,
+    }
+}
+
+/// Точний порт `collectStorybookMarkerHints`
+/// (`storybook-vitest-config/main.mjs`): спільні маркери обох типів пакета
+/// плюс app-специфічні (хвиля 2a) — порядок підказок фіксований, як у JS.
+fn collect_storybook_marker_hints(storybook_slice: &str, kind: ScopePkgKind) -> Vec<String> {
+    let res = vitest_config_marker_res();
+    let mut hints: Vec<String> = Vec::new();
+    if !res.chromium.is_match(storybook_slice) {
+        hints.push("chromium-інстанс".to_string());
+    }
+    if !res.browser_key.is_match(storybook_slice) {
+        hints.push("browser-mode".to_string());
+    }
+    // `hasStoriesMarker`: явний stories-glob АБО `storybookTest({ configDir })`.
+    if !res.stories.is_match(storybook_slice)
+        && !res.storybook_test_config_dir.is_match(storybook_slice)
+    {
+        hints.push("stories-джерело (include або storybookTest({ configDir }))".to_string());
+    }
+    if !res.provider_factory.is_match(storybook_slice) {
+        hints.push(
+            "provider-factory (vitest v4: import { playwright } from '@vitest/browser-playwright')"
+                .to_string(),
+        );
+    }
+    if kind == ScopePkgKind::App {
+        if !res.quasar_plugin.is_match(storybook_slice) {
+            hints.push("quasar()-плагін (SCSS sassVariables для сторінок)".to_string());
+        }
+        if !res.auto_import_plugin.is_match(storybook_slice) {
+            hints.push("AutoImport()-плагін (auto-import globals сторінок)".to_string());
+        }
+        if !res.vite_plugin_pages.is_match(storybook_slice) {
+            hints.push("Pages()-плагін (обробник <route>-блоку)".to_string());
+        }
+    }
+    hints
+}
+
+/// `InScopePackage.type` у рядковій формі `data.type` (`'library'|'app'`).
+fn scope_pkg_kind_str(kind: ScopePkgKind) -> &'static str {
+    match kind {
+        ScopePkgKind::Library => "library",
+        ScopePkgKind::App => "app",
+    }
+}
+
+/// Абсолютний шлях файлу пакета — дзеркало `join(absDir, name)` JS-канону
+/// (`absDir = rootDir === '.' ? cwd : join(cwd, rootDir)`); без
+/// `repo-root@1` (хост-контекст відсутній) — repo-relative деградація
+/// (доккомент секції).
+fn abs_from_repo_root(repo_root: Option<&str>, rel: &str) -> String {
+    match repo_root {
+        Some(root) => format!("{root}/{rel}"),
+        None => rel.to_string(),
+    }
+}
+
+/// Контекст пакета для перевірок vitest-конфіга — порт `buildPackageCtx`
+/// (`storybook-vitest-config/main.mjs`): усе, що обидві перевірки
+/// (`checkVitestConfigContent` і `checkStrykerConfigPresence`) читають з
+/// одного місця.
+struct VitestPkgCtx<'p> {
+    /// `entry.rootDir` — posix-relative корінь пакета (`.` для кореня репо).
+    root_dir: &'p str,
+    /// Людський підпис пакета в повідомленнях ([`pkg_label`]).
+    label: String,
+    /// Префікс relative-шляхів повідомлень ([`pkg_rel_prefix`]).
+    rel_prefix: String,
+    /// Префікс шляхів у батчі ([`pkg_walk_prefix`]).
+    walk_prefix: String,
+    /// `entry.type` рядком (`'library'|'app'`).
+    kind_str: &'static str,
+    /// Тип пакета — потрібен app-гілці маркер-підказок.
+    kind: ScopePkgKind,
+    /// Назва знайденого конфіга (`vitest.config.mjs|js|ts`).
+    config_name: &'static str,
+    /// `${relPrefix}${basename(vitestConfigPath)}` — поле `file` діагностик.
+    rel_vitest_file: String,
+    /// `data.vitestConfigPath` — абсолютний за наявності слота `repo-root@1`
+    /// (доккомент секції «Батч 6»).
+    vitest_config_path: String,
+}
+
+/// Точний порт `checkPackage` (`storybook-vitest-config/main.mjs`): немає
+/// конфіга — одна діагностика й вихід; є — ЗАВЖДИ обидві перевірки поспіль
+/// (early-return-и живуть усередині [`check_vitest_config_content`], тож
+/// stryker-перевірка виконується навіть після них — саме так, як у JS).
+fn check_package_vitest_config(
+    files: &[SourceFile],
+    entry: &ScopePkg,
+    repo_root: Option<&str>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let root_dir = entry.root_dir.as_str();
+    let label = pkg_label(root_dir);
+    let rel_prefix = pkg_rel_prefix(root_dir);
+    let walk_prefix = pkg_walk_prefix(root_dir);
+    let kind_str = scope_pkg_kind_str(entry.kind);
+
+    // `resolveVitestConfigPath`: перший наявний за пріоритетом NAMES.
+    let found = STORYBOOK_VITEST_CONFIG_NAMES
+        .iter()
+        .find_map(|name| batch_file(files, &format!("{walk_prefix}{name}")).map(|f| (*name, f)));
+    let Some((config_name, config_file)) = found else {
+        diagnostics.push(Diagnostic {
+            reason: "vitest-config-missing".to_string(),
+            message: format!(
+                "[{label}] відсутній vitest.config.{{mjs,js,ts}} — канонічні projects \
+                 unit+storybook (vitest-config.mdc): npx @7n/rules fix storybook"
+            ),
+            file: Some(format!("{rel_prefix}vitest.config.mjs")),
+            severity: Severity::Error,
+            data: Some(serde_json::json!({ "rootDir": root_dir, "type": kind_str }).to_string()),
+        });
+        return;
+    };
+
+    let ctx = VitestPkgCtx {
+        root_dir,
+        label,
+        rel_vitest_file: format!("{rel_prefix}{config_name}"),
+        vitest_config_path: abs_from_repo_root(repo_root, &format!("{rel_prefix}{config_name}")),
+        rel_prefix,
+        walk_prefix,
+        kind_str,
+        kind: entry.kind,
+        config_name,
+    };
+
+    check_vitest_config_content(&ctx, &config_file.content, diagnostics);
+    check_stryker_config_presence(&ctx, files, diagnostics);
+}
+
+/// Точний порт `checkVitestConfigContent`
+/// (`storybook-vitest-config/main.mjs`) — усі early-return-и локальні для
+/// цієї перевірки (stryker-перевірка кличеться викликачем незалежно).
+fn check_vitest_config_content(
+    ctx: &VitestPkgCtx,
+    content: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let VitestPkgCtx {
+        root_dir,
+        label,
+        kind_str,
+        kind,
+        config_name,
+        rel_vitest_file,
+        vitest_config_path,
+        ..
+    } = ctx;
+    let data_full = serde_json::json!({
+        "rootDir": root_dir,
+        "type": kind_str,
+        "vitestConfigPath": vitest_config_path,
+    })
+    .to_string();
+
+    match analyze_vitest_config(config_name, content) {
+        VitestConfigAnalysis::SyntaxError => {
+            diagnostics.push(Diagnostic {
+                reason: "vitest-config-unresolvable".to_string(),
+                message: format!(
+                    "[{label}] {rel_vitest_file} має syntax error — перевір вручну \
+                     (vitest-config.mdc)"
+                ),
+                file: Some(rel_vitest_file.clone()),
+                severity: Severity::Error,
+                data: None,
+            });
+        }
+        VitestConfigAnalysis::NoTestBlock => {
+            diagnostics.push(Diagnostic {
+                reason: "vitest-config-unresolvable".to_string(),
+                message: format!(
+                    "[{label}] {rel_vitest_file}: не вдалось знайти test-блок (defineConfig({{ \
+                     test: {{...}} }})) — додай unit/storybook-projects вручну за template/ \
+                     (vitest-config.mdc)"
+                ),
+                file: Some(rel_vitest_file.clone()),
+                severity: Severity::Error,
+                data: None,
+            });
+        }
+        VitestConfigAnalysis::Projects(VitestProjectsState::Missing) => {
+            for which in ["unit", "storybook"] {
+                let reason = if which == "unit" {
+                    "unit-project-missing"
+                } else {
+                    "storybook-project-missing"
+                };
+                diagnostics.push(Diagnostic {
+                    reason: reason.to_string(),
+                    message: format!(
+                        "[{label}] {rel_vitest_file}: бракує test.projects ({which}) — npx \
+                         @7n/rules fix storybook (vitest-config.mdc)"
+                    ),
+                    file: Some(rel_vitest_file.clone()),
+                    severity: Severity::Error,
+                    data: Some(data_full.clone()),
+                });
+            }
+        }
+        VitestConfigAnalysis::Projects(VitestProjectsState::NotArray) => {
+            diagnostics.push(Diagnostic {
+                reason: "projects-dynamic".to_string(),
+                message: format!(
+                    "[{label}] {rel_vitest_file}: test.projects — не статичний масив \
+                     (spread/змінна) — додай unit/storybook-projects вручну (vitest-config.mdc)"
+                ),
+                file: Some(rel_vitest_file.clone()),
+                severity: Severity::Error,
+                data: None,
+            });
+        }
+        VitestConfigAnalysis::Projects(VitestProjectsState::Classified {
+            has_unit,
+            storybook_slice,
+        }) => {
+            if !has_unit {
+                diagnostics.push(Diagnostic {
+                    reason: "unit-project-missing".to_string(),
+                    message: format!(
+                        "[{label}] {rel_vitest_file}: test.projects без 'unit' — npx @7n/rules \
+                         fix storybook (vitest-config.mdc)"
+                    ),
+                    file: Some(rel_vitest_file.clone()),
+                    severity: Severity::Error,
+                    data: Some(data_full.clone()),
+                });
+            }
+            match storybook_slice {
+                Some(slice) => {
+                    let hints = collect_storybook_marker_hints(&slice, *kind);
+                    if !hints.is_empty() {
+                        diagnostics.push(Diagnostic {
+                            reason: "storybook-project-marker-missing".to_string(),
+                            message: format!(
+                                "[{label}] {rel_vitest_file}: storybook-project без канонічних \
+                                 маркерів — бракує: {} (vitest-config.mdc)",
+                                hints.join(", ")
+                            ),
+                            file: Some(rel_vitest_file.clone()),
+                            severity: Severity::Error,
+                            data: Some(
+                                serde_json::json!({ "rootDir": root_dir, "type": kind_str })
+                                    .to_string(),
+                            ),
+                        });
+                    }
+                }
+                None => {
+                    diagnostics.push(Diagnostic {
+                        reason: "storybook-project-missing".to_string(),
+                        message: format!(
+                            "[{label}] {rel_vitest_file}: test.projects без 'storybook' — npx \
+                             @7n/rules fix storybook (vitest-config.mdc)"
+                        ),
+                        file: Some(rel_vitest_file.clone()),
+                        severity: Severity::Error,
+                        data: Some(data_full.clone()),
+                    });
+                }
+            }
+        }
+    }
+}
+
+/// Точний порт `checkStrykerConfigPresence`
+/// (`storybook-vitest-config/main.mjs`): ізольований
+/// `vitest.stryker.config.*` поруч із конфігом (той самий каталог і
+/// розширення — дзеркало `strykerConfigPathFor`).
+fn check_stryker_config_presence(
+    ctx: &VitestPkgCtx,
+    files: &[SourceFile],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let VitestPkgCtx {
+        root_dir,
+        label,
+        rel_prefix,
+        walk_prefix,
+        config_name,
+        vitest_config_path,
+        ..
+    } = ctx;
+    let extension = config_name
+        .rsplit_once('.')
+        .map(|(_, ext)| ext)
+        .unwrap_or_default();
+    let stryker_name = format!("vitest.stryker.config.{extension}");
+    if batch_file(files, &format!("{walk_prefix}{stryker_name}")).is_none() {
+        let rel_stryker_file = format!("{rel_prefix}{stryker_name}");
+        diagnostics.push(Diagnostic {
+            reason: "stryker-config-missing".to_string(),
+            message: format!(
+                "[{label}] відсутній ізольований {rel_stryker_file} — \
+                 @stryker-mutator/vitest-runner крашиться на browser-mode projects: npx @7n/rules \
+                 fix storybook (vitest-config.mdc)"
+            ),
+            file: Some(rel_stryker_file),
+            severity: Severity::Error,
+            data: Some(
+                serde_json::json!({ "rootDir": root_dir, "vitestConfigPath": vitest_config_path })
+                    .to_string(),
+            ),
+        });
+    }
+}
+
+/// Точний порт `lint()` `test/storybook-vitest-config`
+/// (`storybook-vitest-config/main.mjs`) — WHOLE-BATCH поверх спільної
+/// scope-детекції батчу 5; `repo_root` — значення слота `repo-root@1`
+/// (доккомент секції «Батч 6»).
+fn detect_storybook_vitest_config(
+    files: &[SourceFile],
+    repo_root: Option<&str>,
+) -> Vec<Diagnostic> {
+    let pkgs = collect_in_scope_vue_packages(files);
+    if pkgs.is_empty() {
+        return Vec::new();
+    }
+    let mut diagnostics = Vec::new();
+    for entry in &pkgs {
+        check_package_vitest_config(files, entry, repo_root, &mut diagnostics);
+    }
+    diagnostics
+}
+
+/// Deny-таблиця `js-bun-db/package_json` — статичне дзеркало
+/// `plugins/lang-js/rules/js-bun-db/package_json/template/package.json.deny.json`
+/// (canonical лишається JSON-шаблон; дзеркальний тест — parity-фікстури
+/// `wasm-plugin-parity.test.mjs` проти живого conftest-прогону).
+const BUN_DB_PACKAGE_JSON_DENY: [(&str, &str); 2] = [
+    (
+        "pg-format",
+        "заміни на Bun native SQL — без ручного форматування (js-bun-db.mdc)",
+    ),
+    ("mysql2", "заміни на Bun native SQL (js-bun-db.mdc)"),
+];
+
+/// Deny-таблиця `js-bun-redis/package_json` — статичне дзеркало
+/// `plugins/lang-js/rules/js-bun-redis/package_json/template/package.json.deny.json`.
+const REDIS_PACKAGE_JSON_DENY: [(&str, &str); 8] = [
+    ("ioredis", "заміни на Bun native Redis (js-bun-redis.mdc)"),
+    (
+        "node-redis",
+        "заміни на Bun native Redis (js-bun-redis.mdc)",
+    ),
+    ("redis", "заміни на Bun native Redis (js-bun-redis.mdc)"),
+    (
+        "@redis/client",
+        "заміни на Bun native Redis (js-bun-redis.mdc)",
+    ),
+    (
+        "@redis/json",
+        "заміни на Bun native Redis (js-bun-redis.mdc)",
+    ),
+    (
+        "@redis/search",
+        "заміни на Bun native Redis (js-bun-redis.mdc)",
+    ),
+    (
+        "@redis/time-series",
+        "заміни на Bun native Redis (js-bun-redis.mdc)",
+    ),
+    (
+        "@redis/bloom",
+        "заміни на Bun native Redis (js-bun-redis.mdc)",
+    ),
+];
+
+/// Точний порт deny-правила `package_json.rego` js-bun-db/js-bun-redis:
+/// `some pkg, reason in data.template.deny.dependencies; pkg in
+/// object.keys(input.dependencies)` → `sprintf("dependencies.%s — %s")`.
+/// Повідомлення одного файлу сортуються лексикографічно — OPA-set
+/// детермінований і сортований (звірено живим conftest-прогоном, доккомент
+/// секції «Батч 6»).
+fn detect_package_json_deny(files: &[SourceFile], deny: &[(&str, &str)]) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+    for file in files {
+        if file.path != "package.json" && !file.path.ends_with("/package.json") {
+            continue;
+        }
+        // Невалідний JSON — задокументована розбіжність 1 секції «Батч 6».
+        let Some(pkg) = parse_json_tolerant(&file.content) else {
+            continue;
+        };
+        let Some(deps) = pkg.get("dependencies").and_then(|d| d.as_object()) else {
+            continue;
+        };
+        let mut messages: Vec<String> = deny
+            .iter()
+            .filter(|(name, _)| deps.contains_key(*name))
+            .map(|(name, reason)| format!("dependencies.{name} — {reason}"))
+            .collect();
+        messages.sort();
+        for message in messages {
+            diagnostics.push(Diagnostic {
+                reason: POLICY_DENY_REASON.to_string(),
+                message,
+                file: Some(file.path.clone()),
+                severity: Severity::Error,
+                data: None,
+            });
+        }
+    }
+    diagnostics
+}
+
+/// Точний порт `mssql_version_meets_min` (`js-mssql/package_json/
+/// package_json.rego`): `workspace:`-префікс (після trim) — OK; інакше
+/// диапазон розбивається на числові токени (`regex.split(\D+)` → непорожні
+/// → числа) і мінімум `>= 12.5.0` звіряється triple-compare-ом (менше трьох
+/// токенів — НЕ проходить, як у rego, де жодне з тіл не виводиться).
+fn mssql_version_meets_min(range: &str) -> bool {
+    if range.trim().starts_with("workspace:") {
+        return true;
+    }
+    let parts: Vec<u64> = range
+        .split(|c: char| !c.is_ascii_digit())
+        .filter(|token| !token.is_empty())
+        .map(|token| token.parse::<u64>().unwrap_or(u64::MAX))
+        .collect();
+    if parts.len() < 3 {
+        return false;
+    }
+    if parts[0] != 12 {
+        return parts[0] > 12;
+    }
+    // `parts[1] == 5 && parts[2] >= 0` — третя умова rego завжди істинна
+    // для невід'ємних токенів, лишається порівняння мінора.
+    parts[1] >= 5
+}
+
+/// Точний порт deny-правила `js-mssql/package_json/package_json.rego`:
+/// `dependencies.mssql` присутній і не проходить
+/// [`mssql_version_meets_min`] → повідомлення зі `sprintf`-`%q` формою
+/// діапазону (Rust `{:?}` — байт-у-байт для ASCII-діапазонів, розбіжність 3
+/// секції «Батч 6»).
+fn detect_mssql_package_json(files: &[SourceFile]) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+    for file in files {
+        if file.path != "package.json" && !file.path.ends_with("/package.json") {
+            continue;
+        }
+        let Some(pkg) = parse_json_tolerant(&file.content) else {
+            continue;
+        };
+        let Some(range) = pkg
+            .get("dependencies")
+            .and_then(|d| d.get("mssql"))
+            .and_then(|v| v.as_str())
+        else {
+            continue;
+        };
+        if range.is_empty() || mssql_version_meets_min(range) {
+            continue;
+        }
+        diagnostics.push(Diagnostic {
+            reason: POLICY_DENY_REASON.to_string(),
+            message: format!(
+                "dependencies.mssql має бути >= 12.5.0 (зараз {range:?}) (js-mssql.mdc)"
+            ),
+            file: Some(file.path.clone()),
+            severity: Severity::Error,
+            data: None,
+        });
+    }
+    diagnostics
+}
+
 /// Guest-реалізація world `plugin` — дев'ятнадцять контрибуцій ([`CONCERN_TFM`],
 /// [`CONCERN_GAP`], [`CONCERN_POOL_FORKS`], [`CONCERN_NO_PROCESS_CHDIR`],
 /// [`CONCERN_ADMIN_TABLE`], [`CONCERN_QUASAR_FIXES`], [`CONCERN_LOCATION`],
@@ -5339,6 +6104,26 @@ impl Guest for LangJs {
             CONCERN_STORYBOOK_CI => {
                 report_progress(total, total);
                 detect_storybook_ci(&batch.files)
+            }
+            CONCERN_STORYBOOK_VITEST_CONFIG => {
+                report_progress(total, total);
+                // Слот `repo-root@1` host-контексту читається лише тут (у
+                // host-import шарі), чиста функція отримує значення
+                // аргументом — доккомент секції «Батч 6».
+                let repo_root = host_context("repo-root@1");
+                detect_storybook_vitest_config(&batch.files, repo_root.as_deref())
+            }
+            CONCERN_BUN_DB_PACKAGE_JSON => {
+                report_progress(total, total);
+                detect_package_json_deny(&batch.files, &BUN_DB_PACKAGE_JSON_DENY)
+            }
+            CONCERN_REDIS_PACKAGE_JSON => {
+                report_progress(total, total);
+                detect_package_json_deny(&batch.files, &REDIS_PACKAGE_JSON_DENY)
+            }
+            CONCERN_MSSQL_PACKAGE_JSON => {
+                report_progress(total, total);
+                detect_mssql_package_json(&batch.files)
             }
             _ => {
                 let mut diagnostics = Vec::new();
@@ -7227,6 +8012,202 @@ mod tests {
         assert!(diagnostics[0].message.contains("install лише chromium"));
     }
 
+    // --- батч 6 ---
+
+    /// Бібліотека у скоупі + переданий вміст `vitest.config.mjs` (і, за
+    /// потреби, ізольований stryker-конфіг) — спільна фікстура тестів
+    /// `test/storybook-vitest-config`.
+    fn vitest_config_files(config: &str, with_stryker: bool) -> Vec<SourceFile> {
+        let mut files = vue_library_files(3);
+        files.push(source("packages/ui/vitest.config.mjs", config));
+        if with_stryker {
+            files.push(source(
+                "packages/ui/vitest.stryker.config.mjs",
+                "export default {}\n",
+            ));
+        }
+        files
+    }
+
+    #[test]
+    fn detect_storybook_vitest_config_reports_missing_config_with_data() {
+        let diagnostics = detect_storybook_vitest_config(&vue_library_files(3), None);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].reason, "vitest-config-missing");
+        assert_eq!(
+            diagnostics[0].file.as_deref(),
+            Some("packages/ui/vitest.config.mjs")
+        );
+        let data: serde_json::Value =
+            serde_json::from_str(diagnostics[0].data.as_deref().unwrap()).unwrap();
+        assert_eq!(data["rootDir"], "packages/ui");
+        assert_eq!(data["type"], "library");
+    }
+
+    #[test]
+    fn detect_storybook_vitest_config_stryker_check_survives_early_returns() {
+        // Порт `checkPackage`: early-return-и `checkVitestConfigContent` НЕ
+        // скасовують stryker-перевірку (вона в самому `checkPackage`).
+        let diagnostics = detect_storybook_vitest_config(
+            &vitest_config_files("export default {}\n", false),
+            None,
+        );
+        assert_eq!(
+            diagnostics
+                .iter()
+                .map(|d| d.reason.as_str())
+                .collect::<Vec<_>>(),
+            vec!["vitest-config-unresolvable", "stryker-config-missing"]
+        );
+    }
+
+    #[test]
+    fn detect_storybook_vitest_config_repo_root_slot_switches_path_form() {
+        let files = vitest_config_files(
+            "import { defineConfig } from 'vitest/config'\nexport default defineConfig({ test: { \
+             globals: true } })\n",
+            true,
+        );
+        // Без слота — repo-relative (задокументована деградація).
+        let degraded = detect_storybook_vitest_config(&files, None);
+        let data: serde_json::Value =
+            serde_json::from_str(degraded[0].data.as_deref().unwrap()).unwrap();
+        assert_eq!(data["vitestConfigPath"], "packages/ui/vitest.config.mjs");
+        // Зі слотом — абсолютний (саме його споживає JS-фіксер).
+        let absolute = detect_storybook_vitest_config(&files, Some("/repo"));
+        let data: serde_json::Value =
+            serde_json::from_str(absolute[0].data.as_deref().unwrap()).unwrap();
+        assert_eq!(
+            data["vitestConfigPath"],
+            "/repo/packages/ui/vitest.config.mjs"
+        );
+        assert_eq!(
+            absolute
+                .iter()
+                .map(|d| d.reason.as_str())
+                .collect::<Vec<_>>(),
+            vec!["unit-project-missing", "storybook-project-missing"]
+        );
+    }
+
+    #[test]
+    fn detect_storybook_vitest_config_flags_dynamic_projects() {
+        let diagnostics = detect_storybook_vitest_config(
+            &vitest_config_files(
+                "import { defineConfig } from 'vitest/config'\nconst projects = []\nexport default \
+                 defineConfig({ test: { projects } })\n",
+                true,
+            ),
+            None,
+        );
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].reason, "projects-dynamic");
+    }
+
+    #[test]
+    fn detect_storybook_vitest_config_lists_missing_storybook_markers() {
+        let diagnostics = detect_storybook_vitest_config(
+            &vitest_config_files(
+                "import { defineConfig } from 'vitest/config'\nexport default defineConfig({ \
+                 test: { projects: [{ name: 'unit' }, { name: 'storybook' }] } })\n",
+                true,
+            ),
+            None,
+        );
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].reason, "storybook-project-marker-missing");
+        // library-гілка: БЕЗ app-специфічних quasar/AutoImport/Pages підказок.
+        assert!(diagnostics[0].message.contains("chromium-інстанс"));
+        assert!(!diagnostics[0].message.contains("Pages()-плагін"));
+    }
+
+    #[test]
+    fn detect_storybook_vitest_config_canonical_config_is_silent() {
+        let diagnostics = detect_storybook_vitest_config(
+            &vitest_config_files(
+                "import { defineConfig } from 'vitest/config'\nimport { playwright } from \
+                 '@vitest/browser-playwright'\nexport default defineConfig({ test: { projects: [{ \
+                 name: 'unit' }, { name: 'storybook', test: { browser: { instances: [{ browser: \
+                 'chromium' }], provider: playwright() } }, plugins: [storybookTest({ configDir: \
+                 '.storybook' })] }] } })\n",
+                true,
+            ),
+            None,
+        );
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn detect_package_json_deny_sorts_messages_and_skips_broken_json() {
+        let files = vec![
+            source(
+                "package.json",
+                "{\"dependencies\":{\"pg-format\":\"^1.0.0\",\"mysql2\":\"^3.0.0\"}}",
+            ),
+            // Невалідний JSON — skip-not-crash (розбіжність 1 секції «Батч 6»).
+            source("packages/broken/package.json", "{ not json"),
+        ];
+        let diagnostics = detect_package_json_deny(&files, &BUN_DB_PACKAGE_JSON_DENY);
+        assert_eq!(diagnostics.len(), 2);
+        assert!(diagnostics.iter().all(|d| d.reason == POLICY_DENY_REASON));
+        assert_eq!(
+            diagnostics[0].message,
+            "dependencies.mysql2 — заміни на Bun native SQL (js-bun-db.mdc)"
+        );
+        assert!(diagnostics[1].message.starts_with("dependencies.pg-format"));
+    }
+
+    #[test]
+    fn detect_package_json_deny_redis_table_matches_nested_files() {
+        let files = vec![source(
+            "packages/api/package.json",
+            "{\"dependencies\":{\"@redis/bloom\":\"^1.0.0\",\"vue\":\"^3.6.0\"}}",
+        )];
+        let diagnostics = detect_package_json_deny(&files, &REDIS_PACKAGE_JSON_DENY);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(
+            diagnostics[0].file.as_deref(),
+            Some("packages/api/package.json")
+        );
+        assert!(diagnostics[0].message.contains("Bun native Redis"));
+    }
+
+    #[test]
+    fn mssql_version_meets_min_matches_rego_semantics() {
+        assert!(mssql_version_meets_min("workspace:*"));
+        assert!(mssql_version_meets_min("  workspace:^1"));
+        assert!(mssql_version_meets_min("^12.5.0"));
+        assert!(mssql_version_meets_min(">=12.6.1"));
+        assert!(mssql_version_meets_min("13.0.0"));
+        assert!(!mssql_version_meets_min("^12.4.9"));
+        assert!(!mssql_version_meets_min("^10.0.0"));
+        // Менше трьох числових токенів — жодне тіло rego не виводиться.
+        assert!(!mssql_version_meets_min("^12.5"));
+        assert!(!mssql_version_meets_min("latest"));
+    }
+
+    #[test]
+    fn detect_mssql_package_json_reports_quoted_range() {
+        let files = vec![
+            source("package.json", "{\"dependencies\":{\"mssql\":\"^10.0.0\"}}"),
+            source(
+                "packages/ok/package.json",
+                "{\"dependencies\":{\"mssql\":\"^12.5.0\"}}",
+            ),
+            source(
+                "packages/none/package.json",
+                "{\"dependencies\":{\"vue\":\"^3.6.0\"}}",
+            ),
+        ];
+        let diagnostics = detect_mssql_package_json(&files);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(
+            diagnostics[0].message,
+            "dependencies.mssql має бути >= 12.5.0 (зараз \"^10.0.0\") (js-mssql.mdc)"
+        );
+        assert_eq!(diagnostics[0].file.as_deref(), Some("package.json"));
+    }
+
     #[test]
     fn locale_compare_approx_orders_ascii_dirs_like_byte_sort() {
         let mut roots = vec!["packages/ui", "npm", "packages/app"];
@@ -7237,13 +8218,15 @@ mod tests {
     // --- маніфест ---
 
     #[test]
-    fn build_manifest_declares_all_nineteen_concerns_with_expected_scopes() {
+    fn build_manifest_declares_all_twenty_three_concerns_with_expected_scopes() {
         let manifest = build_manifest();
         // Задача Q4 батч 4: `CONCERN_REDIS_IMPORTS`/`CONCERN_MSSQL_DEPS`/
         // `CONCERN_BUN_DB_SAFETY` тепер У контрибуції (AST-порти, де-скоуп
         // батчу 2 знято — доккомент модуля вище). Батч 5 додає п'ять
-        // концернів storybook-сімейства (доккомент секції «Батч 5»).
-        assert_eq!(manifest.concerns.len(), 19);
+        // концернів storybook-сімейства (доккомент секції «Батч 5»), батч 6 —
+        // `test/storybook-vitest-config` і три rego-порти `*/package_json`
+        // (доккомент секції «Батч 6»).
+        assert_eq!(manifest.concerns.len(), 23);
         let tfm = manifest
             .concerns
             .iter()
@@ -7269,6 +8252,10 @@ mod tests {
             CONCERN_STORYBOOK_PAGE_COVERAGE,
             CONCERN_STORYBOOK_SCAFFOLD,
             CONCERN_STORYBOOK_CI,
+            CONCERN_STORYBOOK_VITEST_CONFIG,
+            CONCERN_BUN_DB_PACKAGE_JSON,
+            CONCERN_REDIS_PACKAGE_JSON,
+            CONCERN_MSSQL_PACKAGE_JSON,
         ] {
             let contribution = manifest
                 .concerns
@@ -7278,6 +8265,35 @@ mod tests {
             assert_eq!(contribution.scope, ConcernScope::Full);
             assert!(!contribution.glob.is_empty());
         }
+        // Батч 6: rego-порти ходять ЛИШЕ по `**/package.json` (дзеркало
+        // `policy.files.walkGlob` їхніх `concern.json`), а
+        // `storybook-vitest-config` — по scope-детекції плюс самі конфіги.
+        for key in [
+            CONCERN_BUN_DB_PACKAGE_JSON,
+            CONCERN_REDIS_PACKAGE_JSON,
+            CONCERN_MSSQL_PACKAGE_JSON,
+        ] {
+            let contribution = manifest
+                .concerns
+                .iter()
+                .find(|c| c.key == key)
+                .expect("контрибуція є (перевірено вище)");
+            assert_eq!(contribution.glob, vec!["**/package.json".to_string()]);
+        }
+        let vitest_config = manifest
+            .concerns
+            .iter()
+            .find(|c| c.key == CONCERN_STORYBOOK_VITEST_CONFIG)
+            .expect("контрибуція є (перевірено вище)");
+        assert!(vitest_config.glob.iter().any(|g| g == ".n-rules.json"));
+        assert!(vitest_config
+            .glob
+            .iter()
+            .any(|g| g == "**/vitest.config.mjs"));
+        assert!(vitest_config
+            .glob
+            .iter()
+            .any(|g| g == "**/vitest.stryker.config.*"));
         // Глоби storybook-сімейства (батч 5) мусять покривати `.n-rules.json`
         // і `**/package.json` — без них optOut/workspace-розгортання порту
         // «сліпі» (доккомент build_manifest, секція про ширші глоби).

@@ -285,4 +285,42 @@ world plugin {
 
   /// Структуроване логування в бік хоста.
   import log: func(level: log-level, message: string);
+
+  /// Host-контекст виконання — розширюваний slot-канал host → plugin
+  /// (рішення cwd-контексту batch-детекції, 2026-08-01, §3.5.5 батч 6:
+  /// розблоковує концерни, чий JS-канон кладе АБСОЛЮТНІ шляхи у
+  /// `diagnostic.data`, напр. `test/storybook-vitest-config` —
+  /// `data.vitestConfigPath`, який споживає JS-фіксер).
+  ///
+  /// # Чому host-імпорт, а не поле `detect-batch` (розглянуті варіанти)
+  ///
+  /// Розширення record `detect-batch` новим полем (навіть `option<...>`)
+  /// змінює ABI-форму типу: Component Model звіряє типи структурно, тож
+  /// уже піновані компоненти, зібрані під стару форму record-а, перестали б
+  /// інстанціюватись — breaking для ВСІХ guest-ів одразу. Новий import —
+  /// навпаки, additive: компонент, який його не референсить, лінкується як
+  /// раніше (host-`Linker` дозволяє «зайві» визначення), а потребує його
+  /// лише guest, свідомо зібраний під нову можливість. Той самий
+  /// additive-механізм без version bump, що вже пройшов активацію
+  /// `export fix` (доккомент вище) — задокументовано на місці, не мовчки.
+  /// Обидва режими фіксує contract-test-kit
+  /// (`crates/rules-plugin-host/tests/contract_test_kit.rs`: guest З
+  /// викликом — `test/guest-context-echo`; guest БЕЗ виклику — template-guest
+  /// скіла, `tests/wasm_plugin_skill_smoke.rs`, інстанціюється без змін).
+  ///
+  /// # Slot-механізм (рішення Л — незалежна еволюція payload-ів)
+  ///
+  /// `slot` — версіонований ідентифікатор `<name>@<major>` (та сама
+  /// конвенція, що слоти маніфеста, напр. `ci.artifact@1`): новий контекст
+  /// додається НОВИМ slot-id БЕЗ зміни цього world (жодного re-pin
+  /// guest-ів), несумісна зміна семантики payload-у — новий major slot-а,
+  /// не правка чинного. Невідомий slot → `none` (skip-not-crash, рішення З).
+  ///
+  /// Зареєстровані слоти:
+  /// - `repo-root@1` — абсолютний шлях кореня consumer-репо поточного
+  ///   `detect`/`fix`-виклику (той самий cwd, від якого рахуються
+  ///   posix-relative `source-file.path`); `none` — хост не має контексту,
+  ///   плагін мусить деградувати самостійно (напр. repo-relative шляхи
+  ///   замість абсолютних), не панікувати.
+  import host-context: func(slot: string) -> option<string>;
 }

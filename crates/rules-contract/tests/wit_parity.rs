@@ -86,7 +86,7 @@ fn world_plugin_has_required_exports_and_imports() {
             wit_parser::WorldKey::Interface(_) => None,
         })
         .collect();
-    for required in ["report-progress", "run-tool", "log"] {
+    for required in ["report-progress", "run-tool", "log", "host-context"] {
         assert!(
             import_names.contains(&required),
             "import `{required}` відсутній у world plugin (наявні: {import_names:?})"

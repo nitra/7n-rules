@@ -190,6 +190,10 @@ impl PluginHost {
             logs: Default::default(),
             progress: Default::default(),
             tool_resolver: Arc::clone(&self.tool_resolver),
+            // Контекст `repo-root@1` виставляється per-виклик через
+            // `LoadedPlugin::set_repo_root` (доккомент поля) — на момент
+            // load/instantiate його ще немає.
+            repo_root: None,
         })
     }
 }
