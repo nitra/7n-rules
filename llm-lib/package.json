@@ -56,8 +56,8 @@
     "access": "public"
   },
   "optionalDependencies": {
-    "@7n/llm-lib-darwin-arm64": "2.14.8",
-    "@7n/llm-lib-linux-x64": "2.14.8"
+    "@7n/llm-lib-darwin-arm64": "2.14.9",
+    "@7n/llm-lib-linux-x64": "2.14.9"
   },
   "peerDependencies": {
     "@earendil-works/pi-ai": "~0.80.10",

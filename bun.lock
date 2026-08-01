@@ -4,6 +4,10 @@
   "workspaces": {
     "": {
       "name": "mono",
+      "dependencies": {
+        "@7n/llm-lib-darwin-arm64": "^2.14.8",
+        "@7n/llm-lib-linux-x64": "^2.14.8",
+      },
       "devDependencies": {
         "@7n/rules": "workspace:*",
         "@7n/rules-ci-azure": "workspace:*",
@@ -37,7 +41,7 @@
     },
     "llm-lib": {
       "name": "@7n/llm-lib",
-      "version": "2.14.8",
+      "version": "2.14.9",
       "bin": {
         "n-llm-chains-report": "bin/chains-report.mjs",
       },
@@ -46,8 +50,8 @@
         "@earendil-works/pi-coding-agent": "~0.80.10",
       },
       "optionalDependencies": {
-        "@7n/llm-lib-darwin-arm64": "2.14.8",
-        "@7n/llm-lib-linux-x64": "2.14.8",
+        "@7n/llm-lib-darwin-arm64": "2.14.9",
+        "@7n/llm-lib-linux-x64": "2.14.9",
       },
       "peerDependencies": {
         "@earendil-works/pi-ai": "~0.80.10",
@@ -60,7 +64,7 @@
     },
     "npm": {
       "name": "@7n/rules",
-      "version": "1.74.1",
+      "version": "1.75.0",
       "bin": {
         "n-rules": "bin/n-rules.js",
         "n-cursor": "bin/n-rules.js",
@@ -112,7 +116,7 @@
     },
     "plugins/lang-js": {
       "name": "@7n/rules-lang-js",
-      "version": "0.25.3",
+      "version": "0.25.4",
       "dependencies": {
         "@vue/compiler-dom": "^3.0.0",
         "@vue/compiler-sfc": "^3.0.0",
