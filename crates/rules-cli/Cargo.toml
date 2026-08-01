@@ -1,0 +1,21 @@
+# cspell:ignore чинного
+[package]
+name = "rules-cli"
+version = "0.1.0"
+edition = "2021"
+description = "Rust CLI @7n/rules (фаза 8 — інверсія entrypoint): native-команди поверх rules-core + транзитна делегація решти у чинний JS-entrypoint"
+license = "Apache-2.0"
+
+[[bin]]
+name = "rules-cli"
+path = "src/main.rs"
+
+[dependencies]
+rules-core = { path = "../rules-core" }
+# Порт `readGitPolicy` (npm/scripts/lib/git-policy.mjs) — читання блока `git`
+# з `.n-rules.json`/`.n-cursor.json` для розгортання integration-кандидатів
+# дельти (рішення Д мінідизайну `docs/specs/2026-08-01-rules-cli-phase8-skeleton.md`).
+serde_json = "1"
+
+[dev-dependencies]
+tempfile = "3"
