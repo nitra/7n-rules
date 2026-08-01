@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.14.11] - 2026-08-01
+
+### Changed
+
+- chore(release): синк пінів платформних napi-пакетів @7n/llm-lib
+
 ## [2.14.10] - 2026-08-01
 
 ### Changed

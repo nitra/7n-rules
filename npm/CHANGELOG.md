@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.77.0] - 2026-08-01
+
+### Added
+
+- Rust CLI `rules-cli` виконує `skill list` і `rename-yaml-extensions` повністю нативно (зріз 2 фази 8), byte-exact із JS-еквівалентом — включно зі станом файлової системи після мутуючої команди
+- Батч 7 §3.5.5: кластер `npm-module/rule_meta|skill_meta|header_doc_pointer|package_structure` і AST-концерн `js/dep-policy` портовано у wasm-компонент lang-js (28 контрибуцій; size-budget 2.5 MB дотримано — 2.27 MB), `plugin.toml` синхронізовано з `describe()` і закрито новим гейт-тестом, а в спільному `extract_import_sources` виправлено прихований порядок (статичні імпорти мають передувати walk-знахідкам, як у JS-каноні)
+- Батч 8 §3.5.5: `bun/layout`, `style/tooling`, `test/sandbox-aware-test` і `test/vitest-api-conventions` портовано у wasm-компонент lang-js (32 контрибуції; size-budget 2.5 MB дотримано — 2.28 MB, +9,6 KB за батч). Решту JS-канону lang-js розібрано за класом причин: чотири концерни — обгортки навколо запуску зовнішнього тула (`licensee`/`stylelint`/`eslint`/`jscpd`), `js/knip` — programmatic API, `js-run/runtime` — conftest-підпроцес, `js/check` і `test/stryker_config` — потребують вшитих canonical-data файлів, `js/doc_comments` — окремого рішення про UTF-16-офсети; `vue/packages` лишається наступним кандидатом
+- Rust-CLI `rules-cli` виконує `ci plan` нативно у репозиторіях без плагінів (читання `.n-rules.json` і `concern.json`, активність доменів і всі формати виводу — у `rules-core`), а там, де паритет недосяжний без резолву плагінів, чесно делегує команду в JS
+
+### Fixed
+
+- Порядок рядків у native-виводі lint більше не розходиться з JS-каноном: сортування порушень перейшло з байтового порівняння на наближення ICU root collation — підкреслення тепер перед дефісом, а велика латинська літера після малої, як у `localeCompare`
+- Реліз більше не затирає платформні піни: синк lock перейшов з `bun update` (він переписує маніфести — з кореня дописував фантомні залежності, з теки воркспейса затирав піни неінстальовних платформ на порожній рядок) на `bun install`, який маніфести не чіпає; піни `@7n/rules-linux-x64` і `@7n/rules-win32-x64` відновлено, додано тест-гейт консистентності пінів
+
 ## [1.76.0] - 2026-08-01
 
 ### Added
