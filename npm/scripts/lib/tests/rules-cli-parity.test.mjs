@@ -437,3 +437,194 @@ describe('rules-cli: свідома розбіжність зрізу 2 — self
     })
   })
 })
+
+/**
+ * Готує git-фікстуру сервіс-орієнтованого репо: коміт, потім зміни в
+ * робочому дереві (саме їх бачить дельта `ci plan`).
+ * @param {string} dir tmpdir
+ * @param {string} [config] вміст `.n-rules.json` (порожній рядок — без конфігу)
+ * @returns {string} той самий dir
+ */
+function initCiFixture(dir, config = '{"rules":["text","doc-files"]}') {
+  writeFixtureFile(dir, 'run/svc/a.js', 'export const a = 1\n')
+  writeFixtureFile(dir, 'README.md', '# doc\n')
+  writeFixtureFile(dir, 'tests/fixture.txt', 'x\n')
+  if (config !== '') writeFixtureFile(dir, '.n-rules.json', config)
+  initRepo(dir)
+  writeFixtureFile(dir, 'run/svc/a.js', 'export const a = 2\n')
+  writeFixtureFile(dir, 'run/svc/b.md', 'ok\n')
+  return dir
+}
+
+/**
+ * Ганяє `ci plan` обома CLI в одному каталозі й звіряє все, що видно ззовні.
+ * `GITHUB_OUTPUT` роздільний, бо це append-файл — інакше другий прогін
+ * дописував би до першого.
+ * @param {string} dir корінь фікстури
+ * @param {string[]} args аргументи після `ci`
+ * @param {string} [ghDir] каталог для роздільних `$GITHUB_OUTPUT`
+ * @returns {{ native: object, js: object }} результати обох боків
+ */
+function runCiPlanBoth(dir, args, ghDir) {
+  const nativeEnv = { N_RULES_JS_ENTRY: JS_ENTRY }
+  const jsEnv = {}
+  if (ghDir) {
+    mkdirSync(ghDir, { recursive: true })
+    nativeEnv.GITHUB_OUTPUT = join(ghDir, 'native-output')
+    jsEnv.GITHUB_OUTPUT = join(ghDir, 'js-output')
+  }
+  const native = runRulesCli(['ci', ...args], dir, nativeEnv)
+  const js = spawnSync(execPath, [JS_ENTRY, 'ci', ...args], {
+    cwd: dir,
+    encoding: 'utf8',
+    env: { ...env, ...jsEnv }
+  })
+  expect(native.stdout).toBe(js.stdout)
+  expect(native.stderr).toBe(js.stderr)
+  expect(native.status).toBe(js.status)
+  return { native, js }
+}
+
+describe('rules-cli parity: ci plan', () => {
+  test('repo-wide дельта — людський вивід byte-exact', async () => {
+    await withTmpDir(dir => {
+      initCiFixture(dir)
+      const { native } = runCiPlanBoth(dir, ['plan'])
+      expect(native.status).toBe(0)
+      expect(native.stdout).toContain('📋 ci plan (весь репозиторій): 2 змінених файлів у наборі')
+      expect(native.stdout).toContain('any=true has_tests=true')
+    })
+  })
+
+  test('--path <dir> — перетин піддерева з дельтою', async () => {
+    await withTmpDir(dir => {
+      initCiFixture(dir)
+      const { native } = runCiPlanBoth(dir, ['plan', '--path', 'run/svc'])
+      expect(native.status).toBe(0)
+      expect(native.stdout).toContain('📋 ci plan (--path run/svc):')
+    })
+  })
+
+  test('--json — порядок ключів і відступ як у JSON.stringify(plan, null, 2)', async () => {
+    await withTmpDir(dir => {
+      initCiFixture(dir)
+      const { native } = runCiPlanBoth(dir, ['plan', '--json'])
+      const parsed = JSON.parse(native.stdout)
+      expect(Object.keys(parsed)).toEqual(['path', 'baseResolved', 'changedCount', 'hasChanges', 'hasTests', 'domains'])
+      expect(native.stdout).toContain('\n  "path": null,')
+    })
+  })
+
+  test('--azure — ##vso-рядки перед людським виводом', async () => {
+    await withTmpDir(dir => {
+      initCiFixture(dir)
+      const { native } = runCiPlanBoth(dir, ['plan', '--azure'])
+      expect(native.stdout).toContain('##vso[task.setvariable variable=any;isOutput=true]true')
+      expect(native.stdout).toContain('##vso[task.setvariable variable=domains;isOutput=true][')
+    })
+  })
+
+  test('--github — однаковий вміст $GITHUB_OUTPUT по обидва боки', async () => {
+    await withTmpDir(dir => {
+      const repo = join(dir, 'repo')
+      initCiFixture(repo)
+      runCiPlanBoth(repo, ['plan', '--github'], join(dir, 'gh'))
+      const nativeOutput = readFileSync(join(dir, 'gh', 'native-output'), 'utf8')
+      expect(nativeOutput).toBe(readFileSync(join(dir, 'gh', 'js-output'), 'utf8'))
+      expect(nativeOutput).toContain('any=true\n')
+      expect(nativeOutput.endsWith('\n')).toBe(true)
+    })
+  })
+
+  test('--github без GITHUB_OUTPUT — та сама помилка й код 1', async () => {
+    await withTmpDir(dir => {
+      initCiFixture(dir)
+      // Обидва боки успадковують env прогону — прибираємо змінну явно,
+      // інакше сам запуск у GitHub Actions робив би кейс недосяжним.
+      const cleanEnv = { ...env }
+      delete cleanEnv.GITHUB_OUTPUT
+      const native = spawnSync(resolveRulesCliBin(), ['ci', 'plan', '--github'], {
+        cwd: dir,
+        encoding: 'utf8',
+        env: { ...cleanEnv, N_RULES_JS_ENTRY: JS_ENTRY }
+      })
+      const js = spawnSync(execPath, [JS_ENTRY, 'ci', 'plan', '--github'], {
+        cwd: dir,
+        encoding: 'utf8',
+        env: cleanEnv
+      })
+      expect(native.stderr).toBe(js.stderr)
+      expect(native.status).toBe(js.status)
+      expect(native.status).toBe(1)
+      expect(native.stderr).toContain('GITHUB_OUTPUT відсутня')
+    })
+  })
+
+  test('порожній план — без конфігу жодне правило не enabled', async () => {
+    await withTmpDir(dir => {
+      initCiFixture(dir, '')
+      const { native } = runCiPlanBoth(dir, ['plan'])
+      expect(native.status).toBe(0)
+      expect(native.stdout).toBe(
+        '📋 ci plan (весь репозиторій): 2 змінених файлів у наборі\n  any=true has_tests=true\n'
+      )
+    })
+  })
+
+  test('правило з конфігу без каталогу — той самий warning у stderr', async () => {
+    await withTmpDir(dir => {
+      initCiFixture(dir, '{"rules":["text","такого-правила-немає"]}')
+      const { native } = runCiPlanBoth(dir, ['plan'])
+      expect(native.stderr).toContain('"такого-правила-немає" не знайдено НІ В ОДНОМУ з rulesDirs')
+    })
+  })
+
+  test.each([
+    ['неіснуючий каталог', ['plan', '--path', 'nope']],
+    ['файл замість каталогу', ['plan', '--path', 'README.md']],
+    ['вихід за межі кореня', ['plan', '--path', '../outside']],
+    ['невідома підкоманда', ['nonsense']],
+    ['підкоманда відсутня', []]
+  ])('крайовий кейс (%s) — той самий stderr і код 1', async (_name, args) => {
+    await withTmpDir(dir => {
+      initCiFixture(dir)
+      const { native } = runCiPlanBoth(dir, args)
+      expect(native.status).toBe(1)
+      expect(native.stdout).toBe('')
+    })
+  })
+
+  test('битий .n-rules.json — делегація в JS дає byte-exact вихід', async () => {
+    await withTmpDir(dir => {
+      initCiFixture(dir, '{ зламаний')
+      // Native не відтворює текст помилки рантайму, тому свідомо делегує;
+      // runtime фіксуємо, інакше bun і node дають різні тексти JSON-помилки
+      // (ризик 3 мінідизайну — розбіжність runtime-ів, не зрізу).
+      const native = runRulesCli(['ci', 'plan'], dir, {
+        N_RULES_JS_ENTRY: JS_ENTRY,
+        N_RULES_JS_RUNTIME: execPath
+      })
+      const js = runJsCli(['ci', 'plan'], dir)
+      expect(native.stderr).toBe(js.stderr)
+      expect(native.status).toBe(js.status)
+      expect(native.status).toBe(1)
+    })
+  })
+
+  test('встановлений плагін вимикає native-шлях — команда делегується', async () => {
+    await withTmpDir(dir => {
+      initCiFixture(dir)
+      writeFixtureFile(dir, 'node_modules/@7n/rules-lang-js/package.json', '{"name":"@7n/rules-lang-js"}')
+      // Недосяжний runtime доводить САМ факт делегації: якби шлях лишався
+      // native, прапорець нічого б не змінив.
+      const delegated = runRulesCli(['ci', 'plan'], dir, {
+        N_RULES_JS_ENTRY: JS_ENTRY,
+        N_RULES_JS_RUNTIME: 'definitely-not-a-runtime'
+      })
+      expect(delegated.status).toBe(1)
+      expect(delegated.stderr).toContain('не вдалося запустити definitely-not-a-runtime')
+      // А з робочим runtime — звичайний byte-exact паритет.
+      runCiPlanBoth(dir, ['plan'])
+    })
+  })
+})

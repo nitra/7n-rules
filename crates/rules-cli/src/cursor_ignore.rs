@@ -2,12 +2,17 @@
 //! разом із нормалізацією ignore-шляхів у глоби, яку JS робить уже в
 //! `walkDir` (`npm/scripts/utils/walkDir.mjs`).
 //!
-//! Два кроки склеєні тут навмисно: `rules_core::scan::walk_dir` приймає ВЖЕ
-//! нормалізовані relative-глоби (нормалізація завʼязана на корінь обходу й
-//! лишається поза ядром — доккомент `crates/rules-core/src/scan.rs`), а
-//! єдиний споживач цієї пари в CLI — `rename-yaml-extensions`. Той самий
-//! виняток із Р5, що й [`crate::git_policy`]: у native-entrypoint конфіг нема
-//! кому читати, крім самого Rust (рішення Д мінідизайну
+//! Два кроки лишаються РОЗДІЛЬНИМИ функціями, бо в JS вони теж роздільні і
+//! рахуються від РІЗНИХ коренів: `loadCursorIgnorePaths(cwd)` резолвить
+//! відносні шляхи від кореня репо, а `walkDir(target, …)` нормалізує їх у
+//! глоби вже від кореня ОБХОДУ. Для `rename-yaml-extensions` обидва корені
+//! збігаються (звідси зручний [`ignore_globs`]), для `ci plan --path` — ні
+//! (обхід іде по піддереву `--path`, конфіг лежить у корені).
+//! `rules_core::scan::walk_dir` приймає вже нормалізовані relative-глоби
+//! (нормалізація завʼязана на корінь обходу й лишається поза ядром —
+//! доккомент `crates/rules-core/src/scan.rs`). Той самий виняток із Р5, що й
+//! [`crate::git_policy`]: у native-entrypoint конфіг нема кому читати, крім
+//! самого Rust (рішення Д мінідизайну
 //! `docs/specs/2026-08-01-rules-cli-phase8-skeleton.md`).
 //!
 //! Порт 1:1 (усе — safe-by-default, як оригінал):
@@ -16,10 +21,10 @@
 //! - `ignore` не масив → порожній список; елементи не-рядки й порожні після
 //!   trim — пропускаються;
 //! - відносний шлях розв'язується від кореня, абсолютний береться як є;
-//! - шлях поза коренем або сам корінь (`relative` дає `..*` чи `""`) —
+//! - шлях поза коренем обходу або сам корінь (`relative` дає `..*` чи `""`) —
 //!   відкидається, решта стає глобом `<rel>/**`.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::paths;
 
@@ -27,27 +32,35 @@ use crate::paths;
 /// `LEGACY_CONFIG_FILE`).
 const CONFIG_FILES: [&str; 2] = [".n-rules.json", ".n-cursor.json"];
 
-/// Ignore-глоби для обходу `root`, готові до `rules_core::scan::walk_dir`.
-pub fn ignore_globs(root: &Path) -> Vec<String> {
+/// Абсолютні ignore-шляхи з конфігу `root` — порт `loadCursorIgnorePaths`
+/// (без нормалізації в глоби: вона залежить від кореня обходу).
+pub fn ignore_paths(root: &Path) -> Vec<PathBuf> {
     let Some(raw) = read_config(root) else {
         return Vec::new();
     };
     let Some(list) = raw.get("ignore").and_then(|value| value.as_array()) else {
         return Vec::new();
     };
+    list.iter()
+        .filter_map(|item| item.as_str().map(str::trim).filter(|v| !v.is_empty()))
+        .map(|value| paths::resolve(root, value))
+        .collect()
+}
 
-    let mut globs = Vec::new();
-    for item in list {
-        let Some(value) = item.as_str().map(str::trim).filter(|v| !v.is_empty()) else {
-            continue;
-        };
-        let rel = paths::relative_posix(root, &paths::resolve(root, value));
-        if rel.is_empty() || rel.starts_with("..") {
-            continue;
-        }
-        globs.push(format!("{rel}/**"));
-    }
-    globs
+/// Нормалізація ignore-шляхів у глоби відносно кореня ОБХОДУ — порт
+/// відповідного кроку `walkDir`.
+pub fn ignore_globs_for(walk_root: &Path, ignore_paths: &[PathBuf]) -> Vec<String> {
+    ignore_paths
+        .iter()
+        .map(|path| paths::relative_posix(walk_root, path))
+        .filter(|rel| !rel.is_empty() && !rel.starts_with(".."))
+        .map(|rel| format!("{rel}/**"))
+        .collect()
+}
+
+/// Ignore-глоби для обходу самого `root` (корінь конфігу = корінь обходу).
+pub fn ignore_globs(root: &Path) -> Vec<String> {
+    ignore_globs_for(root, &ignore_paths(root))
 }
 
 /// Читає перший наявний конфіг; помилка читання/парсингу → `None`

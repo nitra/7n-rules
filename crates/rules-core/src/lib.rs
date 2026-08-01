@@ -19,8 +19,18 @@ pub mod changed_base;
 /// `collect_changed_files`/`collect_changed_files_since` — перелік
 /// changed files через porcelain (C1 фази 3).
 pub mod changed_files;
+/// `compute_active_domains`/`build_ci_plan`/рендери — обчислювальне ядро
+/// `n-rules ci plan` (зріз 3 фази 8, `ci-plan.mjs`).
+pub mod ci_plan;
+/// `read_concern_meta`/`list_concerns`/`list_detector_concerns` — парсер
+/// `concern.json` і discovery поверхонь правила (зріз 3 фази 8,
+/// `concern-meta.mjs` + `asDetectorConcern` з `run-detectors.mjs`).
+pub mod concern_meta;
 /// Native-порти детермінованих concern-ів + registry (E1 фази 5).
 pub mod concerns;
+/// `read_n_rules_config_lite`/`is_rule_enabled`/`migrate_rule_ids` — читання
+/// `.n-rules.json` (зріз 3 фази 8, `read-n-rules-config-lite.mjs`).
+pub mod config;
 /// Diagnostics DTO (`Violation`/`Severity`) — versioned JSON-межа для
 /// detector-результатів (Р10 спеки, E1 фази 5).
 pub mod diagnostics;
