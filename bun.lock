@@ -66,7 +66,7 @@
         "n-cursor": "bin/n-rules.js",
       },
       "dependencies": {
-        "@7n/llm-lib": "2.14.11",
+        "@7n/llm-lib": "2.14.12",
         "ajv": "^8.20.0",
         "cli-progress": "^3.12.0",
         "github-actionlint": "^1.7.12",
@@ -83,9 +83,9 @@
         "zod": "^4.4.3",
       },
       "optionalDependencies": {
-        "@7n/rules-darwin-arm64": "1.77.0",
-        "@7n/rules-linux-x64": "1.77.0",
-        "@7n/rules-win32-x64": "1.77.0",
+        "@7n/rules-darwin-arm64": "1.78.0",
+        "@7n/rules-linux-x64": "1.78.0",
+        "@7n/rules-win32-x64": "1.78.0",
         "@earendil-works/pi-ai": "0.80.10",
         "@earendil-works/pi-coding-agent": "0.80.10",
       },
@@ -188,7 +188,7 @@
 
     "@7n/rules-ci-github": ["@7n/rules-ci-github@workspace:plugins/ci-github"],
 
-    "@7n/rules-darwin-arm64": ["@7n/rules-darwin-arm64@1.77.0", "", { "os": "darwin", "cpu": "arm64" }, "sha512-YzpnfxI+MIM6jfdbGCgJ2PSBKXiyItYCVA7ZOXv4ewNpeyfaV/okbY7TSTrFZgA40cpTxhlcCVGSGKFD5MGbqg=="],
+    "@7n/rules-darwin-arm64": ["@7n/rules-darwin-arm64@1.78.0", "", { "os": "darwin", "cpu": "arm64" }, "sha512-B/gqmt/MPdLzHjk9RFA7HGkdB/EqPlsSbBvgL+BPnPmQdHDGCzwY3xXJMDKEQjS2LzyKEi/1GbIj1Uz5XJnYEw=="],
 
     "@7n/rules-lang-js": ["@7n/rules-lang-js@workspace:plugins/lang-js"],
 
