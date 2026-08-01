@@ -68,7 +68,18 @@ const EXPECTED_LANG_JS_CONCERNS = [
   'test/storybook-hygiene',
   'test/storybook-page-coverage',
   'test/storybook-scaffold',
-  'test/storybook-ci'
+  'test/storybook-ci',
+  // Батч 6 (§3.5.5)
+  'test/storybook-vitest-config',
+  'js-bun-db/package_json',
+  'js-bun-redis/package_json',
+  'js-mssql/package_json',
+  // Батч 7 (§3.5.5)
+  'npm-module/rule_meta',
+  'npm-module/skill_meta',
+  'npm-module/header_doc_pointer',
+  'npm-module/package_structure',
+  'js/dep-policy'
 ]
 
 /** Валідний sha256-hex — той самий канон, що `SHA256_HEX_RE` у `wasm-plugins.mjs` (module-scope, без пере-компіляції на кожен виклик). */
