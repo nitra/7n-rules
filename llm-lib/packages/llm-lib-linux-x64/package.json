@@ -1,6 +1,6 @@
 {
   "name": "@7n/llm-lib-linux-x64",
-  "version": "2.14.10",
+  "version": "2.14.11",
   "description": "Prebuilt llm-lib napi addon for @7n/llm-lib — Linux x64 (glibc)",
   "license": "ISC",
   "author": "v@nitra.ai",
