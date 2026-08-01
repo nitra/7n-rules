@@ -3743,6 +3743,22 @@ fn build_manifest() -> Manifest {
                 scope: ConcernScope::Full,
                 glob: vec!["**/*.test.mjs".to_string(), "**/*.test.js".to_string()],
             },
+            ConcernContribution {
+                key: CONCERN_VUE_PACKAGES.to_string(),
+                scope: ConcernScope::Full,
+                // `concern.json` цього концерну глоба не має взагалі
+                // (`{ "lint": { "scope": "full" } }`) — тобто JS-канон бачив
+                // УВЕСЬ репозиторій. Явний перелік нижче — точний
+                // відповідник того, що канон реально читає з диска:
+                // `[cm]?[jt]sx?`+`.vue` (import-скани, `SOURCE_FILE_RE`),
+                // решта розширень — [`is_esbuild_scan_file`], плюс іменовані
+                // конфіги (доккомент секції «Батч 9», підсекція «Глоб
+                // контрибуції»).
+                glob: vec![
+                    "**/*.{js,jsx,mjs,mjsx,cjs,cjsx,ts,tsx,mts,mtsx,cts,ctsx}".to_string(),
+                    "**/*.{vue,json,jsonc,yaml,yml,md,mdc}".to_string(),
+                ],
+            },
         ],
         ci_artifacts: vec![],
         capabilities: Capabilities {
@@ -7656,7 +7672,770 @@ fn detect_vitest_api_conventions(files: &[SourceFile]) -> Vec<Diagnostic> {
     diagnostics
 }
 
-/// Guest-реалізація world `plugin` — тридцять дві контрибуції ([`CONCERN_TFM`],
+// =====================================================================
+// Батч 9 (§3.5.5): `vue/packages` — останній придатний до порту концерн
+// lang-js, названий наступним кандидатом у доккоменті секції «Батч 8».
+//
+// # Інвентаризація: чому цей концерн — один
+//
+// Інвентар lang-js на момент батчу — 97 каталогів `concern.json` під
+// `plugins/lang-js/rules/**`, з них 39 із `export lint` (решта — суто описові
+// концерни LLM-тіру без детектора, чисті rego-полісі й helper-модулі без
+// `lint`: `js/tooling`, `js/lint-findings`, `npm-module/applies`,
+// `test/storybook-adopt`). Після батчу 8 портовано 32; із 10, що лишались,
+// придатний до порту рівно один — цей. Решта дев'ять — три класи причин,
+// і причина в кожному класі структурна, не «складно»:
+//
+// 1. **Обгортка зовнішнього процесу** — `bun/licensee` (`bun x licensee`),
+//    `style/lint` (`stylelint`), `js/eslint` (`bunx eslint`/`bunx oxlint`),
+//    `js/jscpd_duplicates` (`bunx jscpd`), `js-run/runtime`
+//    (`runConftestBatch` → conftest/OPA). Вихід = розібраний stdout/exit-code
+//    чужого лінтера; `run-tool` контракту v3 це технічно вміє, але жоден із
+//    тулів не задекларований у `manifest.tools`, а byte-exact parity вимагав
+//    би ще й вшитої версії тула.
+// 2. **Поза `run-tool` узагалі** — `js/knip` кличе programmatic API пакета
+//    `knip` (JS-модуль у процесі, не CLI): у wasm-guest немає JS-рантайму.
+// 3. **Потребує поверхні, якої в контракті v3 немає**:
+//    - `js/check` — (а) читає canonical-json з ПАКЕТА `@7n/rules`
+//      (`<concern>/data/tooling/*.json`), а не з репо споживача: `detect-batch`
+//      несе лише файли репо, а `capabilities.fs_read` — доступ до диска, не до
+//      package-асетів гостя; (б) `checkKnipConfig` РОБИТЬ `copyFile` під час
+//      `detect` — запису на диск фаза детекту контракту v3 не має взагалі
+//      (мутації живуть лише у `FixPlan`).
+//    - `test/stryker_config` — той самий package-асет-клас, що (а) вище.
+//    - `js/doc_comments` — розвʼязне, але не безкоштовно: `data.{start,end}`
+//      діагностик (їх споживає T0-фіксер `fix-doc_comments.mjs`) — офсети
+//      napi-`oxc-parser` у UTF-16 code units, тоді як crate-`oxc_parser`
+//      віддає БАЙТИ. Byte-exact parity вимагає конверсії байт→UTF-16 на боці
+//      guest-а плюс порту T0-фіксера у `export fix` (інакше JS-фіксер
+//      отримав би офсети чужої системи координат і різав файл не там).
+//      Це окремий батч зі своїм fix-контуром, не побічний ефект цього.
+//
+// Тобто §3.5.5 після цього батчу фактично вичерпано: усе, що лишається,
+// потребує або декларації тулів у `manifest.tools` (клас 1), або розширення
+// контракту (клас 3), або не має сенсу взагалі (клас 2).
+//
+// # Глоб контрибуції
+//
+// Найширший у плагіні — і це не недогляд: `checkEsbuildMentions` JS-канону
+// обходить УСЕ дерево пакета й читає кожен `.md`/`.json`/`.yaml`/`.yml`
+// ([`is_esbuild_scan_file`]), тож batch має нести рівно те саме. Розширення
+// `[cm]?[jt]sx?` розгорнуте з `SOURCE_FILE_RE`
+// (`vue-forbidden-imports.mjs:26`) у явний brace-список.
+//
+// # Задокументовані розбіжності
+//
+// 1. **`.cursorignore` / `.n-rules.json` `ignore`**: JS-канон звужує
+//    `walkDir` через `loadCursorIgnorePaths(cwd)`, host-збірка батчу — ні
+//    (`build_full_scope_files` кличе `walk_dir(cwd, &[])`). Успадкована
+//    розбіжність усіх full-scope портів починаючи з батчу 4.
+// 2. **Невалідний JSON**: `collectVueRoots` і `checkVueVolarRecommendation`
+//    JS-канону роблять `JSON.parse` БЕЗ `try/catch` — виняток валить весь
+//    концерн (exit 2); порт через [`parse_json_tolerant`] трактує битий файл
+//    як «пакет не vue» / «немає `recommendations`». Той самий skip-not-crash
+//    дух, що розбіжність 2 секції «Батч 8». Виняток —
+//    `checkRootVitestDevDeps`: там `try/catch` є в оригіналі, тож гілка
+//    «не вдалося розпарсити» портується дослівно й parity точна.
+// 3. **Порожній каталог**: `existsSync(join(cwd, rootDir, f))` JS-канону
+//    true і для каталогу з таким імʼям; batch — список ФАЙЛІВ. Успадкована
+//    мікро-розбіжність 5 секції «Батч 5»; для `vite.config.*`/`jsconfig.json`/
+//    `src/vite-env.d.ts` каталог із таким імʼям — не сценарій.
+// 4. **Вікно 160 символів сніпета** ([`normalize_snippet_160`]): JS
+//    `slice(0, 160)` рахує UTF-16 code units, порт — `chars().take(160)`
+//    (code points). Для BMP-вмісту (усе, що трапляється в import-виразах)
+//    тотожно; різниця лише на surrogate-парах (емодзі в шляху імпорту).
+// 5. **`ukFilesCountPhrase`** (`main.mjs:154-167`) НЕ портовано свідомо:
+//    єдиний її споживач — `passFn(...)`, а `reporter.pass()`
+//    (`violation-reporter.mjs:30`) — no-op, тож текст не спостережуваний
+//    ззовні. Той самий мотив, що «`js/dep-policy` — найчистіший порт»
+//    (секція «Батч 7»).
+//
+// # Чому лінії рахуються по тексту скану, а не по сирому файлу
+//
+// `findForbiddenVueImportsInSourceFile`/`findForbiddenNodeImportsInVueFile`
+// віддають `offsetToLine(content, imp.start)`, де `content` — уже
+// ВИТЯГНУТІ `<script>`-блоки `.vue` ([`extract_vue_script_blocks`]), а не
+// сирий SFC. Це поведінка канону (номер рядка у `.vue` зміщений на розмір
+// `<template>`), і порт її відтворює 1:1, а не «виправляє».
+
+/// Ключ контрибуції `vue/packages` (батч 9).
+const CONCERN_VUE_PACKAGES: &str = "vue/packages";
+
+/// `reason` діагностик `vue/packages`: JS-канон кличе `fail(msg)` без
+/// другого аргументу, тож дефолт `ctx.concernId` = bare `"packages"` (той
+/// самий мотив, що [`BUN_LAYOUT_REASON`]).
+const VUE_PACKAGES_REASON: &str = "packages";
+
+/// Згадка `esbuild` як окремого слова — точний порт `ESBUILD_RE`
+/// (`vue/packages/main.mjs:18`).
+const ESBUILD_PATTERN: &str = r"\besbuild\b";
+
+/// Triple-slash `reference types="vite/client"` — точний порт
+/// `VITE_CLIENT_REFERENCE_RE` (`vue/packages/main.mjs:21`).
+const VITE_CLIENT_REFERENCE_PATTERN: &str =
+    r#"///\s*<reference\s+types\s*=\s*["']vite/client["']\s*/>"#;
+
+/// Тестовий файл за іменем — точний порт `TEST_SOURCE_FILE_RE`
+/// (`vue-forbidden-imports.mjs:27`).
+const TEST_SOURCE_FILE_PATTERN: &str = r"\.(?:test|spec)\.[cm]?[jt]sx?$";
+
+/// Кандидати vite-конфігу в порядку пошуку — точний порт `configFiles`
+/// (`vue/packages/main.mjs:269`); порядок значущий (перший знайдений виграє).
+const VITE_CONFIG_FILES: [&str; 3] = ["vite.config.js", "vite.config.ts", "vite.config.mjs"];
+
+/// Vitest-пакети, обовʼязкові в кореневому `devDependencies` — точний порт
+/// `ROOT_VITEST_DEV_DEPS` (`vue/packages/main.mjs:511`), порядок значущий
+/// (визначає порядок діагностик).
+const ROOT_VITEST_DEV_DEPS: [&str; 3] = [
+    "vitest",
+    "@vitest/coverage-v8",
+    "@stryker-mutator/vitest-runner",
+];
+
+/// Максимум зібраних `esbuild`-збігів — точний порт `const maxMatches = 30`
+/// (`vue/packages/main.mjs:124`).
+const ESBUILD_MAX_MATCHES: usize = 30;
+
+/// Токени vite-конфігу, обовʼязкові для НЕ-бібліотечного пакета — точний
+/// порт масиву `checks` (`vue/packages/main.mjs:293-296`): `(токен, суфікс
+/// повідомлення про відсутність)`.
+const VITE_REQUIRED_TOKENS: [&str; 2] = ["VueMacros", "AutoImport"];
+
+/// Стискає пробіли й обрізає до 160 символів — точний порт
+/// `normalizeSnippet` (`vue-forbidden-imports.mjs:70-72`). Окрема функція
+/// від [`normalize_snippet`] (`ast-scan-utils.mjs`) саме через межу: там
+/// 180, тут 160, і плутанина дала б розбіжність тексту повідомлення.
+fn normalize_snippet_160(s: &str) -> String {
+    static RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    let ws_re = RE.get_or_init(|| {
+        regex::Regex::new(SNIPPET_WHITESPACE_PATTERN).expect("SNIPPET_WHITESPACE_PATTERN валідний")
+    });
+    ws_re.replace_all(s, " ").trim().chars().take(160).collect()
+}
+
+/// Точний порт `packageLabel` (`vue/packages/main.mjs:145-147`).
+fn package_label(root_dir: &str) -> &str {
+    if root_dir == "." {
+        "корінь"
+    } else {
+        root_dir
+    }
+}
+
+/// Точний порт `isEsbuildScanFile` (`vue/packages/main.mjs:28-64`).
+/// Звертай увагу: lock-файли звіряються з ПОВНИМ відносним шляхом
+/// (`lower === 'bun.lock'`), а не з basename — тобто виключаються лише
+/// кореневі, як у JS-оригіналі.
+fn is_esbuild_scan_file(rel_posix: &str) -> bool {
+    if rel_posix.starts_with("node_modules/")
+        || rel_posix.starts_with("dist/")
+        || rel_posix.starts_with("build/")
+        || rel_posix.starts_with("coverage/")
+        || rel_posix.starts_with(".git/")
+    {
+        return false;
+    }
+    let lower = rel_posix.to_lowercase();
+    if matches!(
+        lower.as_str(),
+        "bun.lock" | "bun.lockb" | "package-lock.json" | "yarn.lock" | "pnpm-lock.yaml"
+    ) {
+        return false;
+    }
+    [
+        ".js", ".mjs", ".cjs", ".ts", ".tsx", ".vue", ".json", ".jsonc", ".yaml", ".yml", ".md",
+        ".mdc",
+    ]
+    .iter()
+    .any(|ext| lower.ends_with(ext))
+}
+
+/// Точний порт `shouldSkipFileForVueImportScan`
+/// (`vue-forbidden-imports.mjs:135-141`).
+fn should_skip_file_for_vue_import_scan(rel_posix: &str) -> bool {
+    let base = posix_basename(rel_posix);
+    if base == "auto-imports.d.ts" || base == "components.d.ts" {
+        return true;
+    }
+    rel_posix.ends_with(".d.ts")
+}
+
+/// Точний порт `shouldSkipFileForVueAutoImportScan`
+/// (`vue-forbidden-imports.mjs:150-156`).
+fn should_skip_file_for_vue_auto_import_scan(rel_posix: &str, test_re: &regex::Regex) -> bool {
+    if should_skip_file_for_vue_import_scan(rel_posix) {
+        return true;
+    }
+    rel_posix.contains("/__tests__/") || test_re.is_match(posix_basename(rel_posix))
+}
+
+/// Точний порт `isVueImportScanSourceFile` (`SOURCE_FILE_RE`,
+/// `vue-forbidden-imports.mjs:26`): `.vue` або `[cm]?[jt]sx?`.
+fn is_vue_import_scan_source_file(rel_path: &str) -> bool {
+    if rel_path.ends_with(".vue") {
+        return true;
+    }
+    let bytes = rel_path.as_bytes();
+    // Хвіст `[cm]?[jt]sx?` — максимум 4 символи після крапки.
+    for len in 2..=4usize {
+        if bytes.len() < len + 1 {
+            break;
+        }
+        let tail = &rel_path[rel_path.len() - len..];
+        if bytes[bytes.len() - len - 1] != b'.' {
+            continue;
+        }
+        let mut chars = tail.chars();
+        let mut c = chars.next().expect("непорожній хвіст");
+        if c == 'c' || c == 'm' {
+            let Some(next) = chars.next() else { continue };
+            c = next;
+        }
+        if c != 'j' && c != 't' {
+            continue;
+        }
+        let Some('s') = chars.next() else { continue };
+        match chars.next() {
+            None => return true,
+            Some('x') if chars.next().is_none() => return true,
+            _ => continue,
+        }
+    }
+    false
+}
+
+/// Віртуальний шлях для парсера — точний порт `virtualPathForParse`
+/// (`vue-forbidden-imports.mjs:91-96`): `.vue` розбирається як TypeScript.
+fn virtual_path_for_parse(rel_path: &str) -> String {
+    match rel_path.strip_suffix(".vue") {
+        Some(stem) => format!("{stem}.ts"),
+        None => rel_path.to_string(),
+    }
+}
+
+/// Один статичний імпорт у формі, потрібній обом сканерам
+/// (`result.module.staticImports[]` napi-`oxc-parser`).
+struct StaticImport {
+    /// `imp.start`/`imp.end` — span усієї `ImportDeclaration`.
+    span: Span,
+    /// `imp.moduleRequest.value`.
+    source: String,
+    /// `entries.length === 0 || entries.every(e => e.isType)` —
+    /// точний порт `isAllowedVueStaticImport`
+    /// (`vue-forbidden-imports.mjs:79-84`).
+    type_only_or_bare: bool,
+}
+
+/// Статичні імпорти вже підготовленого тексту (без `<template>`).
+/// `None` = «парсер віддав помилки» → обидва сканери повертають `[]`
+/// (`if (result.errors?.length) return []`, `vue-forbidden-imports.mjs:114`).
+fn collect_static_imports(content: &str, virtual_path: &str) -> Option<Vec<StaticImport>> {
+    let allocator = Allocator::default();
+    let ret = Parser::new(&allocator, content, scan_source_type(virtual_path)).parse();
+    if !ret.diagnostics.is_empty() {
+        return None;
+    }
+    let mut out = Vec::new();
+    for stmt in &ret.program.body {
+        let Statement::ImportDeclaration(decl) = stmt else {
+            continue;
+        };
+        let type_only_or_bare = match &decl.specifiers {
+            None => true,
+            Some(specs) if specs.is_empty() => true,
+            Some(specs) => {
+                decl.import_kind.is_type()
+                    || specs.iter().all(|spec| match spec {
+                        oxc_ast::ast::ImportDeclarationSpecifier::ImportSpecifier(named) => {
+                            named.import_kind.is_type()
+                        }
+                        _ => false,
+                    })
+            }
+        };
+        out.push(StaticImport {
+            span: decl.span,
+            source: decl.source.value.as_str().to_string(),
+            type_only_or_bare,
+        });
+    }
+    Some(out)
+}
+
+/// Знахідка сканера імпортів: `{ line, snippet }` (+ `specifier` для
+/// Node-сканера).
+struct ImportHit {
+    line: usize,
+    snippet: String,
+    specifier: String,
+}
+
+/// Точний порт `findForbiddenVueImportsInText`
+/// (`vue-forbidden-imports.mjs:105-128`).
+fn find_forbidden_vue_imports_in_text(content: &str, virtual_path: &str) -> Vec<ImportHit> {
+    let Some(imports) = collect_static_imports(content, virtual_path) else {
+        return Vec::new();
+    };
+    imports
+        .into_iter()
+        .filter(|imp| imp.source == "vue" && !imp.type_only_or_bare)
+        .map(|imp| ImportHit {
+            line: line_number_at_offset(content, imp.span.start as usize),
+            snippet: normalize_snippet_160(
+                &content[imp.span.start as usize..imp.span.end as usize],
+            ),
+            specifier: imp.source,
+        })
+        .collect()
+}
+
+/// Точний порт `findForbiddenNodeImportsInText`
+/// (`vue-forbidden-imports.mjs:214-239`).
+fn find_forbidden_node_imports_in_text(content: &str, virtual_path: &str) -> Vec<ImportHit> {
+    let Some(imports) = collect_static_imports(content, virtual_path) else {
+        return Vec::new();
+    };
+    imports
+        .into_iter()
+        .filter(|imp| is_node_builtin_specifier(&imp.source))
+        .map(|imp| ImportHit {
+            line: line_number_at_offset(content, imp.span.start as usize),
+            snippet: normalize_snippet_160(
+                &content[imp.span.start as usize..imp.span.end as usize],
+            ),
+            specifier: imp.source,
+        })
+        .collect()
+}
+
+/// Точний порт `findForbiddenVueImportsInSourceFile`
+/// (`vue-forbidden-imports.mjs:173-177`) — `contentForVueImportScan` +
+/// віртуальний `.ts`.
+fn find_forbidden_vue_imports_in_source_file(content: &str, rel_path: &str) -> Vec<ImportHit> {
+    let scan = if rel_path.ends_with(".vue") {
+        extract_vue_script_blocks(content)
+    } else {
+        content.to_string()
+    };
+    find_forbidden_vue_imports_in_text(&scan, &virtual_path_for_parse(rel_path))
+}
+
+/// Точний порт `findForbiddenNodeImportsInVueFile`
+/// (`vue-forbidden-imports.mjs:249-256`) — лише `.vue`, лише `<script>`.
+fn find_forbidden_node_imports_in_vue_file(content: &str, rel_path: &str) -> Vec<ImportHit> {
+    if !rel_path.ends_with(".vue") {
+        return Vec::new();
+    }
+    let scan = extract_vue_script_blocks(content);
+    find_forbidden_node_imports_in_text(&scan, &virtual_path_for_parse(rel_path))
+}
+
+/// Текст аргументів першого виклику `AutoImport(` зі збалансованими
+/// дужками — точний порт `extractAutoImportCallArgs`
+/// (`vue/packages/main.mjs:228-243`). Обхід байтовий: JS індексує по UTF-16
+/// code units, але порівнює лише з ASCII `(`/`)`, продовжувальні байти UTF-8
+/// завжди `>= 0x80` (той самий аргумент, що секція «Батч 8»).
+fn extract_auto_import_call_args(content: &str) -> Option<&str> {
+    const MARKER: &str = "AutoImport(";
+    let idx = content.find(MARKER)?;
+    let start = idx + MARKER.len();
+    let bytes = content.as_bytes();
+    let mut depth = 1usize;
+    for i in start..bytes.len() {
+        match bytes[i] {
+            b'(' => depth += 1,
+            b')' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(&content[start..i]);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+/// Точний порт `viteConfigHasVueInAutoImports`
+/// (`vue/packages/main.mjs:252-256`).
+fn vite_config_has_vue_in_auto_imports(content: &str) -> bool {
+    match extract_auto_import_call_args(content) {
+        Some(args) => args.contains("'vue'") || args.contains("\"vue\""),
+        None => false,
+    }
+}
+
+/// JS-truthiness JSON-значення (`pkg.dependencies?.vue` у `if`): `null`,
+/// `false`, `0`, `""` — falsy, решта — truthy.
+fn json_truthy(value: Option<&serde_json::Value>) -> bool {
+    match value {
+        None | Some(serde_json::Value::Null) => false,
+        Some(serde_json::Value::Bool(b)) => *b,
+        Some(serde_json::Value::String(s)) => !s.is_empty(),
+        Some(serde_json::Value::Number(n)) => n.as_f64().is_some_and(|f| f != 0.0),
+        Some(_) => true,
+    }
+}
+
+/// Файл пакета `root_dir` у батчі: `join(cwd, rootDir, rel)` JS-канону.
+fn pkg_file<'a>(files: &'a [SourceFile], root_dir: &str, rel: &str) -> Option<&'a SourceFile> {
+    batch_file(files, &format!("{}{rel}", pkg_walk_prefix(root_dir)))
+}
+
+/// Файли батча всередині walk-простору пакета, у порядку батча (він же —
+/// байтово-лексикографічний порядок `walk_dir`, тотожний `walkDir` JS-канону
+/// у межах піддерева), з відносним від кореня пакета шляхом.
+fn pkg_walk_files<'a>(
+    files: &'a [SourceFile],
+    root_dir: &str,
+) -> Vec<(&'a SourceFile, std::borrow::Cow<'a, str>)> {
+    let prefix = pkg_walk_prefix(root_dir);
+    files
+        .iter()
+        .filter_map(|file| {
+            if prefix.is_empty() {
+                Some((file, std::borrow::Cow::Borrowed(file.path.as_str())))
+            } else {
+                file.path
+                    .strip_prefix(prefix.as_str())
+                    .map(|rel| (file, std::borrow::Cow::Borrowed(rel)))
+            }
+        })
+        .collect()
+}
+
+/// Точний порт `checkViteClientEnvAndEditorConfig`
+/// (`vue/packages/main.mjs:178-205`).
+fn check_vite_client_env_and_editor_config(
+    files: &[SourceFile],
+    root_dir: &str,
+    prefix: &str,
+    out: &mut Vec<Diagnostic>,
+) {
+    let Some(env_file) = pkg_file(files, root_dir, "src/vite-env.d.ts") else {
+        out.push(plain_violation(
+            VUE_PACKAGES_REASON,
+            format!(
+                "{prefix}немає src/vite-env.d.ts — додай файл з рядком /// <reference types=\"vite/client\" /> \
+                 (інакше TS/Volar не бачать типів для імпортів асетів: png, avif, css як URL)."
+            ),
+        ));
+        return;
+    };
+    let vite_client_re = regex::Regex::new(VITE_CLIENT_REFERENCE_PATTERN)
+        .expect("VITE_CLIENT_REFERENCE_PATTERN валідний");
+    if !vite_client_re.is_match(&env_file.content) {
+        out.push(plain_violation(
+            VUE_PACKAGES_REASON,
+            format!(
+                "{prefix}src/vite-env.d.ts має містити /// <reference types=\"vite/client\" /> \
+                 (без цього імпорти статичних файлів у .vue дають «Cannot find module … type declarations»)."
+            ),
+        ));
+        return;
+    }
+    if pkg_file(files, root_dir, "jsconfig.json").is_none() {
+        out.push(plain_violation(
+            VUE_PACKAGES_REASON,
+            format!(
+                "{prefix}немає jsconfig.json у корені пакета — додай файл з \"include\": [\"src/**/*\"] тощо, \
+                 щоб IDE підхопила vite-env.d.ts і .vue."
+            ),
+        ));
+    }
+}
+
+/// Точний порт `checkViteConfig` (`vue/packages/main.mjs:268-325`) —
+/// повертає `hasVueAutoImport` для [`check_vue_import_violations`].
+fn check_vite_config(
+    files: &[SourceFile],
+    root_dir: &str,
+    is_component_library: bool,
+    prefix: &str,
+    out: &mut Vec<Diagnostic>,
+) -> bool {
+    let Some((vite_config, file)) = VITE_CONFIG_FILES
+        .iter()
+        .find_map(|name| pkg_file(files, root_dir, name).map(|file| (*name, file)))
+    else {
+        out.push(plain_violation(
+            VUE_PACKAGES_REASON,
+            format!("{prefix}немає vite.config.js|ts|mjs у каталозі пакета"),
+        ));
+        return false;
+    };
+    let content = &file.content;
+    let esbuild_re = regex::Regex::new(ESBUILD_PATTERN).expect("ESBUILD_PATTERN валідний");
+    if esbuild_re.is_match(content) {
+        out.push(plain_violation(
+            VUE_PACKAGES_REASON,
+            format!("{prefix}{vite_config} містить 'esbuild' — заміни на 'rolldown'"),
+        ));
+    }
+    if !is_component_library && !content.contains("lightningcss") {
+        out.push(plain_violation(
+            VUE_PACKAGES_REASON,
+            format!(
+                "{prefix}{vite_config} не містить css: {{ transformer: 'lightningcss' }} — \
+                 додай у vite.config і встанови lightningcss у devDependencies (vue.mdc)"
+            ),
+        ));
+    }
+    let has_vue_auto_import = vite_config_has_vue_in_auto_imports(content);
+    if !is_component_library {
+        for token in VITE_REQUIRED_TOKENS {
+            if !content.contains(token) {
+                out.push(plain_violation(
+                    VUE_PACKAGES_REASON,
+                    format!("{prefix}{vite_config} не містить {token}"),
+                ));
+            }
+        }
+        if content.contains("AutoImport(") && !has_vue_auto_import {
+            out.push(plain_violation(
+                VUE_PACKAGES_REASON,
+                format!(
+                    "{prefix}{vite_config}: AutoImport не містить 'vue' у imports — додай 'vue' \
+                     (інакше прибирати value-імпорти на кшталт `import {{ ref }} from 'vue'` \
+                     небезпечно: ref/createApp тощо нікому буде надати)"
+                ),
+            ));
+        }
+    }
+    if content.contains("process.env.npm_lifecycle_event") {
+        out.push(plain_violation(
+            VUE_PACKAGES_REASON,
+            format!(
+                "{prefix}{vite_config} використовує process.env.npm_lifecycle_event — у Bun це не працює. \
+                 Перенеси логіку на mode (defineConfig(({{ mode }}) => ...)) і передавай mode в helper-функції."
+            ),
+        ));
+    }
+    has_vue_auto_import
+}
+
+/// Точний порт `checkVueImportViolations` (`vue/packages/main.mjs:383-431`).
+fn check_vue_import_violations(
+    files: &[SourceFile],
+    root_dir: &str,
+    is_component_library: bool,
+    has_vue_auto_import: bool,
+    prefix: &str,
+    out: &mut Vec<Diagnostic>,
+) {
+    if is_component_library || !has_vue_auto_import {
+        return;
+    }
+    let test_re =
+        regex::Regex::new(TEST_SOURCE_FILE_PATTERN).expect("TEST_SOURCE_FILE_PATTERN валідний");
+    for (file, rel) in pkg_walk_files(files, root_dir) {
+        if should_skip_file_for_vue_auto_import_scan(&rel, &test_re)
+            || !is_vue_import_scan_source_file(&rel)
+        {
+            continue;
+        }
+        for hit in find_forbidden_vue_imports_in_source_file(&file.content, &rel) {
+            out.push(plain_violation(
+                VUE_PACKAGES_REASON,
+                format!(
+                    "{prefix}{rel}:{} — прибери явний value-імпорт з 'vue' (unplugin-auto-import): {}",
+                    hit.line, hit.snippet
+                ),
+            ));
+        }
+    }
+}
+
+/// Точний порт `checkVueNodeImportViolations`
+/// (`vue/packages/main.mjs:337-366`).
+fn check_vue_node_import_violations(
+    files: &[SourceFile],
+    root_dir: &str,
+    prefix: &str,
+    out: &mut Vec<Diagnostic>,
+) {
+    for (file, rel) in pkg_walk_files(files, root_dir) {
+        if should_skip_file_for_vue_import_scan(&rel) || !rel.ends_with(".vue") {
+            continue;
+        }
+        for hit in find_forbidden_node_imports_in_vue_file(&file.content, &rel) {
+            out.push(plain_violation(
+                VUE_PACKAGES_REASON,
+                format!(
+                    "{prefix}{rel}:{} — імпорт Node-нативного модуля '{}' у .vue заборонено \
+                     (SFC виконується в браузері, Node API недоступне). Винеси логіку у server-side утіліту. \
+                     Фрагмент: {}",
+                    hit.line, hit.specifier, hit.snippet
+                ),
+            ));
+        }
+    }
+}
+
+/// Точний порт `checkEsbuildMentions` + `collectEsbuildMatchesInFiles` +
+/// `appendEsbuildLineMatches` (`vue/packages/main.mjs:73-138`): збір
+/// зупиняється на [`ESBUILD_MAX_MATCHES`], і рівно на межі додається
+/// підсумкова діагностика «показано перші N».
+fn check_esbuild_mentions(
+    files: &[SourceFile],
+    root_dir: &str,
+    prefix: &str,
+    out: &mut Vec<Diagnostic>,
+) {
+    let esbuild_re = regex::Regex::new(ESBUILD_PATTERN).expect("ESBUILD_PATTERN валідний");
+    let mut matches: Vec<(String, usize, String)> = Vec::new();
+    'outer: for (file, rel) in pkg_walk_files(files, root_dir) {
+        if !is_esbuild_scan_file(&rel) {
+            continue;
+        }
+        if matches.len() >= ESBUILD_MAX_MATCHES {
+            break;
+        }
+        if !esbuild_re.is_match(&file.content) {
+            continue;
+        }
+        for (index, line) in file.content.split('\n').enumerate() {
+            if matches.len() >= ESBUILD_MAX_MATCHES {
+                break 'outer;
+            }
+            if esbuild_re.is_match(line) {
+                matches.push((rel.to_string(), index + 1, line.trim().to_string()));
+            }
+        }
+    }
+    if matches.is_empty() {
+        return;
+    }
+    for (rel, line, snippet) in &matches {
+        out.push(plain_violation(
+            VUE_PACKAGES_REASON,
+            format!("{prefix}{rel}:{line} — знайдено 'esbuild'. Замінити на 'rolldown'. Фрагмент: {snippet}"),
+        ));
+    }
+    if matches.len() >= ESBUILD_MAX_MATCHES {
+        out.push(plain_violation(
+            VUE_PACKAGES_REASON,
+            format!(
+                "{prefix}показано перші {ESBUILD_MAX_MATCHES} збігів 'esbuild' (замінити на 'rolldown')"
+            ),
+        ));
+    }
+}
+
+/// Точний порт `checkVueVolarRecommendation` (`vue/packages/main.mjs:495-507`).
+fn check_vue_volar_recommendation(files: &[SourceFile], out: &mut Vec<Diagnostic>) {
+    let Some(ext_file) = batch_file(files, ".vscode/extensions.json") else {
+        out.push(plain_violation(
+            VUE_PACKAGES_REASON,
+            "\
+.vscode/extensions.json не існує (для Vue-проєкту потрібна рекомендація Vue.volar)"
+                .to_string(),
+        ));
+        return;
+    };
+    let has_volar = parse_json_tolerant(&ext_file.content)
+        .and_then(|json| json.get("recommendations").cloned())
+        .and_then(|value| match value {
+            serde_json::Value::Array(items) => Some(items),
+            _ => None,
+        })
+        .is_some_and(|items| items.iter().any(|v| v.as_str() == Some("Vue.volar")));
+    if !has_volar {
+        out.push(plain_violation(
+            VUE_PACKAGES_REASON,
+            "extensions.json не містить Vue.volar — додай до recommendations".to_string(),
+        ));
+    }
+}
+
+/// Точний порт `checkRootVitestDevDeps` (`vue/packages/main.mjs:521-546`) —
+/// єдина гілка концерну з `try/catch` у JS-оригіналі, тож обидві помилкові
+/// гілки портуються дослівно (розбіжність 2 секції її не стосується).
+fn check_root_vitest_dev_deps(files: &[SourceFile], out: &mut Vec<Diagnostic>) {
+    let Some(root_pkg) = batch_file(files, "package.json") else {
+        out.push(plain_violation(
+            VUE_PACKAGES_REASON,
+            "vue: кореневий package.json не знайдено — неможливо перевірити vitest devDependencies"
+                .to_string(),
+        ));
+        return;
+    };
+    let Some(pkg) = parse_json_tolerant(&root_pkg.content) else {
+        out.push(plain_violation(
+            VUE_PACKAGES_REASON,
+            "vue: кореневий package.json не вдалося розпарсити — неможливо перевірити vitest devDependencies"
+                .to_string(),
+        ));
+        return;
+    };
+    let dev_deps: HashSet<&str> = match pkg.get("devDependencies") {
+        Some(serde_json::Value::Object(obj)) => obj.keys().map(String::as_str).collect(),
+        _ => HashSet::new(),
+    };
+    for name in ROOT_VITEST_DEV_DEPS {
+        if !dev_deps.contains(name) {
+            out.push(plain_violation(
+                VUE_PACKAGES_REASON,
+                format!(
+                    "vue: кореневий devDependencies не містить '{name}' — перенеси з Vue workspace \
+                     у корінь монорепо (vue.mdc testing)"
+                ),
+            ));
+        }
+    }
+}
+
+/// Точний порт `collectVueRoots` (`vue/packages/main.mjs:476-486`) у
+/// batch-простір: `(rootDir, isComponentLibrary)`.
+fn collect_vue_roots(files: &[SourceFile]) -> Vec<(String, bool)> {
+    let mut vue_roots = Vec::new();
+    for root in monorepo_package_root_dirs(files) {
+        let Some(file) = batch_file(files, &pkg_json_path(&root)) else {
+            continue;
+        };
+        // Розбіжність 2 секції: JS `JSON.parse` без try/catch валить концерн.
+        let Some(pkg) = parse_json_tolerant(&file.content) else {
+            continue;
+        };
+        if json_truthy(pkg.pointer("/dependencies/vue")) {
+            let is_component_library = json_truthy(pkg.pointer("/peerDependencies/vue"));
+            vue_roots.push((root, is_component_library));
+        }
+    }
+    vue_roots
+}
+
+/// Точний порт `lint()` `vue/packages` (`vue/packages/main.mjs:553-576`) —
+/// WHOLE-BATCH: порядок діагностик — Volar → кореневі vitest-devDeps →
+/// пер-пакетні перевірки у порядку [`monorepo_package_root_dirs`].
+fn detect_vue_packages(files: &[SourceFile]) -> Vec<Diagnostic> {
+    let vue_roots = collect_vue_roots(files);
+    if vue_roots.is_empty() {
+        return Vec::new();
+    }
+    let mut out = Vec::new();
+    check_vue_volar_recommendation(files, &mut out);
+    check_root_vitest_dev_deps(files, &mut out);
+    for (root_dir, is_component_library) in &vue_roots {
+        let prefix = format!("[{}] ", package_label(root_dir));
+        check_vite_client_env_and_editor_config(files, root_dir, &prefix, &mut out);
+        let has_vue_auto_import =
+            check_vite_config(files, root_dir, *is_component_library, &prefix, &mut out);
+        check_vue_import_violations(
+            files,
+            root_dir,
+            *is_component_library,
+            has_vue_auto_import,
+            &prefix,
+            &mut out,
+        );
+        check_vue_node_import_violations(files, root_dir, &prefix, &mut out);
+        check_esbuild_mentions(files, root_dir, &prefix, &mut out);
+    }
+    out
+}
+
+/// Guest-реалізація world `plugin` — тридцять три контрибуції ([`CONCERN_TFM`],
 /// [`CONCERN_GAP`], [`CONCERN_POOL_FORKS`], [`CONCERN_NO_PROCESS_CHDIR`],
 /// [`CONCERN_ADMIN_TABLE`], [`CONCERN_QUASAR_FIXES`], [`CONCERN_LOCATION`],
 /// [`CONCERN_NO_CONSOLE_STORE_RESTORE`], [`CONCERN_NO_BUN_TEST_IMPORT`],
@@ -7673,7 +8452,8 @@ fn detect_vitest_api_conventions(files: &[SourceFile]) -> Vec<Diagnostic> {
 /// [`CONCERN_DEP_POLICY`] — батч 7, доккомент секції «Батч 7» вище;
 /// [`CONCERN_BUN_LAYOUT`], [`CONCERN_STYLE_TOOLING`],
 /// [`CONCERN_SANDBOX_AWARE_TEST`], [`CONCERN_VITEST_API_CONVENTIONS`] —
-/// батч 8, доккомент секції «Батч 8» вище).
+/// батч 8, доккомент секції «Батч 8» вище; [`CONCERN_VUE_PACKAGES`] — батч 9,
+/// доккомент секції «Батч 9» вище).
 struct LangJs;
 
 impl Guest for LangJs {
@@ -7815,6 +8595,10 @@ impl Guest for LangJs {
             CONCERN_VITEST_API_CONVENTIONS => {
                 report_progress(total, total);
                 detect_vitest_api_conventions(&batch.files)
+            }
+            CONCERN_VUE_PACKAGES => {
+                report_progress(total, total);
+                detect_vue_packages(&batch.files)
             }
             _ => {
                 let mut diagnostics = Vec::new();
@@ -9909,7 +10693,7 @@ mod tests {
     // --- маніфест ---
 
     #[test]
-    fn build_manifest_declares_all_thirty_two_concerns_with_expected_scopes() {
+    fn build_manifest_declares_all_thirty_three_concerns_with_expected_scopes() {
         let manifest = build_manifest();
         // Задача Q4 батч 4: `CONCERN_REDIS_IMPORTS`/`CONCERN_MSSQL_DEPS`/
         // `CONCERN_BUN_DB_SAFETY` тепер У контрибуції (AST-порти, де-скоуп
@@ -9919,8 +10703,9 @@ mod tests {
         // (доккомент секції «Батч 6»), батч 7 — чотири `npm-module/*` і
         // `js/dep-policy` (доккомент секції «Батч 7»), батч 8 — `bun/layout`,
         // `style/tooling`, `test/sandbox-aware-test` і
-        // `test/vitest-api-conventions` (доккомент секції «Батч 8»).
-        assert_eq!(manifest.concerns.len(), 32);
+        // `test/vitest-api-conventions` (доккомент секції «Батч 8»), батч 9 —
+        // `vue/packages` (доккомент секції «Батч 9»).
+        assert_eq!(manifest.concerns.len(), 33);
         let tfm = manifest
             .concerns
             .iter()
@@ -9959,6 +10744,7 @@ mod tests {
             CONCERN_STYLE_TOOLING,
             CONCERN_SANDBOX_AWARE_TEST,
             CONCERN_VITEST_API_CONVENTIONS,
+            CONCERN_VUE_PACKAGES,
         ] {
             let contribution = manifest
                 .concerns
@@ -10553,5 +11339,316 @@ mod tests {
     fn find_matching_bracket_end_handles_escaped_quote() {
         let body = b"{ s: 'a\\'}' }";
         assert_eq!(find_matching_bracket_end(body, 0), Some(body.len()));
+    }
+
+    // -----------------------------------------------------------------
+    // Батч 9 — `vue/packages`
+
+    /// Канонічний `vite.config.js` Vue-додатка: усі токени на місці, жодної
+    /// згадки `esbuild`, `AutoImport` містить `'vue'` (тобто заборона явних
+    /// value-імпортів АКТИВНА).
+    const CLEAN_VITE_CONFIG: &str = "\
+import AutoImport from 'unplugin-auto-import/vite'\n\
+import VueMacros from 'unplugin-vue-macros/vite'\n\
+export default { css: { transformer: 'lightningcss' }, \
+plugins: [VueMacros({}), AutoImport({ imports: ['vue'] })] }\n";
+
+    /// Чистий Vue-репозиторій з одним пакетом у корені (жодного порушення).
+    fn vue_pkg_files() -> Vec<SourceFile> {
+        vec![
+            src(
+                "package.json",
+                "{\"name\":\"app\",\"dependencies\":{\"vue\":\"^3.6.0\"},\
+                 \"devDependencies\":{\"vitest\":\"1\",\"@vitest/coverage-v8\":\"1\",\
+                 \"@stryker-mutator/vitest-runner\":\"1\"}}",
+            ),
+            src(
+                ".vscode/extensions.json",
+                "{\"recommendations\":[\"Vue.volar\"]}",
+            ),
+            src("jsconfig.json", "{}"),
+            src(
+                "src/vite-env.d.ts",
+                "/// <reference types=\"vite/client\" />\n",
+            ),
+            src("vite.config.js", CLEAN_VITE_CONFIG),
+        ]
+    }
+
+    #[test]
+    fn detect_vue_packages_clean_repo_has_no_diagnostics() {
+        assert!(detect_vue_packages(&vue_pkg_files()).is_empty());
+    }
+
+    #[test]
+    fn detect_vue_packages_skips_repo_without_vue_dependency() {
+        let files = vec![src("package.json", "{\"name\":\"app\"}")];
+        assert!(detect_vue_packages(&files).is_empty());
+    }
+
+    #[test]
+    fn detect_vue_packages_reports_missing_volar_recommendation() {
+        let mut files = vue_pkg_files();
+        files.retain(|f| f.path != ".vscode/extensions.json");
+        let diagnostics = detect_vue_packages(&files);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].reason, VUE_PACKAGES_REASON);
+        assert_eq!(
+            diagnostics[0].message,
+            ".vscode/extensions.json не існує (для Vue-проєкту потрібна рекомендація Vue.volar)"
+        );
+    }
+
+    #[test]
+    fn detect_vue_packages_reports_each_missing_root_vitest_dev_dep() {
+        let mut files = vue_pkg_files();
+        files[0] = src(
+            "package.json",
+            "{\"name\":\"app\",\"dependencies\":{\"vue\":\"^3.6.0\"},\
+             \"devDependencies\":{\"vitest\":\"1\"}}",
+        );
+        let diagnostics = detect_vue_packages(&files);
+        assert_eq!(diagnostics.len(), 2);
+        assert_eq!(
+            diagnostics[0].message,
+            "vue: кореневий devDependencies не містить '@vitest/coverage-v8' — перенеси з Vue \
+             workspace у корінь монорепо (vue.mdc testing)"
+        );
+        assert!(diagnostics[1]
+            .message
+            .contains("'@stryker-mutator/vitest-runner'"));
+    }
+
+    #[test]
+    fn detect_vue_packages_reports_missing_vite_env_and_stops_that_check() {
+        let mut files = vue_pkg_files();
+        files.retain(|f| f.path != "src/vite-env.d.ts");
+        let diagnostics = detect_vue_packages(&files);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(
+            diagnostics[0].message,
+            "[корінь] немає src/vite-env.d.ts — додай файл з рядком \
+             /// <reference types=\"vite/client\" /> (інакше TS/Volar не бачать типів для \
+             імпортів асетів: png, avif, css як URL)."
+        );
+    }
+
+    #[test]
+    fn detect_vue_packages_reports_missing_jsconfig() {
+        let mut files = vue_pkg_files();
+        files.retain(|f| f.path != "jsconfig.json");
+        let diagnostics = detect_vue_packages(&files);
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0]
+            .message
+            .starts_with("[корінь] немає jsconfig.json у корені пакета"));
+    }
+
+    #[test]
+    fn detect_vue_packages_reports_vite_config_gaps() {
+        let mut files = vue_pkg_files();
+        files[4] = src("vite.config.js", "export default {}\n");
+        let messages: Vec<String> = detect_vue_packages(&files)
+            .into_iter()
+            .map(|d| d.message)
+            .collect();
+        assert_eq!(messages.len(), 3);
+        assert!(messages[0].contains("не містить css: { transformer: 'lightningcss' }"));
+        assert_eq!(messages[1], "[корінь] vite.config.js не містить VueMacros");
+        assert_eq!(messages[2], "[корінь] vite.config.js не містить AutoImport");
+    }
+
+    #[test]
+    fn detect_vue_packages_reports_auto_import_without_vue() {
+        let mut files = vue_pkg_files();
+        files[4] = src(
+            "vite.config.js",
+            "export default { css: { transformer: 'lightningcss' }, \
+             plugins: [VueMacros({}), AutoImport({ imports: ['quasar'] })] }\n",
+        );
+        let diagnostics = detect_vue_packages(&files);
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0]
+            .message
+            .contains("AutoImport не містить 'vue' у imports"));
+    }
+
+    #[test]
+    fn detect_vue_packages_flags_explicit_vue_value_import() {
+        let mut files = vue_pkg_files();
+        files.push(src(
+            "src/Page.vue",
+            "<template><div /></template>\n<script setup>\nimport { ref } from 'vue'\n</script>\n",
+        ));
+        let diagnostics = detect_vue_packages(&files);
+        assert_eq!(diagnostics.len(), 1);
+        // Рядок — по ВИТЯГНУТОМУ script-блоку, не по сирому SFC (доккомент секції).
+        assert_eq!(
+            diagnostics[0].message,
+            "[корінь] src/Page.vue:2 — прибери явний value-імпорт з 'vue' \
+             (unplugin-auto-import): import { ref } from 'vue'"
+        );
+    }
+
+    #[test]
+    fn detect_vue_packages_allows_type_only_and_side_effect_vue_imports() {
+        let mut files = vue_pkg_files();
+        files.push(src(
+            "src/types.ts",
+            "import type { Ref } from 'vue'\nimport { type ComputedRef } from 'vue'\nimport 'vue'\n",
+        ));
+        assert!(detect_vue_packages(&files).is_empty());
+    }
+
+    #[test]
+    fn detect_vue_packages_skips_vue_import_check_for_test_files_and_dts() {
+        let mut files = vue_pkg_files();
+        files.push(src("src/a.test.ts", "import { ref } from 'vue'\n"));
+        files.push(src("src/auto-imports.d.ts", "import { ref } from 'vue'\n"));
+        files.push(src("src/__tests__/b.ts", "import { ref } from 'vue'\n"));
+        assert!(detect_vue_packages(&files).is_empty());
+    }
+
+    #[test]
+    fn detect_vue_packages_flags_node_builtin_import_in_vue_sfc() {
+        let mut files = vue_pkg_files();
+        files.push(src(
+            "src/Bad.vue",
+            "<script setup>\nimport { readFile } from 'node:fs/promises'\n</script>\n",
+        ));
+        let diagnostics = detect_vue_packages(&files);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(
+            diagnostics[0].message,
+            "[корінь] src/Bad.vue:2 — імпорт Node-нативного модуля 'node:fs/promises' у .vue \
+             заборонено (SFC виконується в браузері, Node API недоступне). Винеси логіку у \
+             server-side утіліту. Фрагмент: import { readFile } from 'node:fs/promises'"
+        );
+    }
+
+    #[test]
+    fn detect_vue_packages_ignores_node_builtin_import_outside_vue() {
+        let mut files = vue_pkg_files();
+        files.push(src("src/server.ts", "import { join } from 'node:path'\n"));
+        assert!(detect_vue_packages(&files).is_empty());
+    }
+
+    #[test]
+    fn detect_vue_packages_flags_esbuild_mentions_with_line_and_snippet() {
+        let mut files = vue_pkg_files();
+        files.push(src(
+            "docs/build.md",
+            "# Збірка\n\nМи використовуємо esbuild.\n",
+        ));
+        let diagnostics = detect_vue_packages(&files);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(
+            diagnostics[0].message,
+            "[корінь] docs/build.md:3 — знайдено 'esbuild'. Замінити на 'rolldown'. \
+             Фрагмент: Ми використовуємо esbuild."
+        );
+    }
+
+    #[test]
+    fn detect_vue_packages_esbuild_scan_skips_lockfiles_and_node_modules() {
+        let mut files = vue_pkg_files();
+        files.push(src("bun.lock", "esbuild\n"));
+        files.push(src("node_modules/x/index.js", "esbuild\n"));
+        assert!(detect_vue_packages(&files).is_empty());
+    }
+
+    #[test]
+    fn detect_vue_packages_esbuild_scan_caps_at_thirty_matches() {
+        let mut files = vue_pkg_files();
+        let body: String = (0..40).map(|_| "esbuild\n").collect();
+        files.push(src("notes.md", &body));
+        let diagnostics = detect_vue_packages(&files);
+        // 30 знахідок + підсумкова «показано перші 30».
+        assert_eq!(diagnostics.len(), ESBUILD_MAX_MATCHES + 1);
+        assert_eq!(
+            diagnostics[ESBUILD_MAX_MATCHES].message,
+            "[корінь] показано перші 30 збігів 'esbuild' (замінити на 'rolldown')"
+        );
+    }
+
+    #[test]
+    fn detect_vue_packages_component_library_skips_auto_import_requirements() {
+        let mut files = vue_pkg_files();
+        files[0] = src(
+            "package.json",
+            "{\"name\":\"ui\",\"dependencies\":{\"vue\":\"^3.6.0\"},\
+             \"peerDependencies\":{\"vue\":\"^3.6.0\"},\
+             \"devDependencies\":{\"vitest\":\"1\",\"@vitest/coverage-v8\":\"1\",\
+             \"@stryker-mutator/vitest-runner\":\"1\"}}",
+        );
+        files[4] = src("vite.config.js", "export default {}\n");
+        // Бібліотека компонентів: ні lightningcss, ні VueMacros/AutoImport не вимагаються…
+        files.push(src(
+            "src/Widget.vue",
+            "<script setup>\nimport { ref } from 'vue'\n</script>\n",
+        ));
+        // …і явний value-імпорт з 'vue' дозволений.
+        assert!(detect_vue_packages(&files).is_empty());
+    }
+
+    #[test]
+    fn detect_vue_packages_prefixes_messages_with_workspace_dir() {
+        let files = vec![
+            src(
+                "package.json",
+                "{\"name\":\"root\",\"workspaces\":[\"packages/*\"],\
+                 \"devDependencies\":{\"vitest\":\"1\",\"@vitest/coverage-v8\":\"1\",\
+                 \"@stryker-mutator/vitest-runner\":\"1\"}}",
+            ),
+            src(
+                ".vscode/extensions.json",
+                "{\"recommendations\":[\"Vue.volar\"]}",
+            ),
+            src(
+                "packages/site/package.json",
+                "{\"name\":\"site\",\"dependencies\":{\"vue\":\"^3.6.0\"}}",
+            ),
+        ];
+        let diagnostics = detect_vue_packages(&files);
+        assert!(diagnostics
+            .iter()
+            .all(|d| d.message.starts_with("[packages/site] ")));
+    }
+
+    #[test]
+    fn is_vue_import_scan_source_file_matches_source_file_re() {
+        for path in [
+            "a.vue", "a.js", "a.jsx", "a.ts", "a.tsx", "a.mjs", "a.cjs", "a.mts", "a.cts", "a.ctsx",
+        ] {
+            assert!(is_vue_import_scan_source_file(path), "{path}");
+        }
+        for path in ["a.json", "a.md", "a.scss", "ajs", "a.d", "ats"] {
+            assert!(!is_vue_import_scan_source_file(path), "{path}");
+        }
+    }
+
+    #[test]
+    fn extract_auto_import_call_args_balances_nested_parens() {
+        assert_eq!(
+            extract_auto_import_call_args("AutoImport({ resolvers: [f()], imports: ['vue'] })"),
+            Some("{ resolvers: [f()], imports: ['vue'] }")
+        );
+        // Незбалансовані дужки → None (перевірка `'vue'` просто пропускається).
+        assert_eq!(extract_auto_import_call_args("AutoImport({ a: 1"), None);
+        assert!(!vite_config_has_vue_in_auto_imports(
+            "AutoImport({ imports: ['quasar'] })"
+        ));
+        assert!(vite_config_has_vue_in_auto_imports(
+            "AutoImport({ imports: [\"vue\"] })"
+        ));
+    }
+
+    #[test]
+    fn normalize_snippet_160_collapses_whitespace_and_truncates() {
+        assert_eq!(
+            normalize_snippet_160("  import {\n  ref\n} from 'vue'  "),
+            "import { ref } from 'vue'"
+        );
+        assert_eq!(normalize_snippet_160(&"я".repeat(200)).chars().count(), 160);
     }
 }
