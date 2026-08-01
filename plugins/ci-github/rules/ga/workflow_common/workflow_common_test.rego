@@ -150,3 +150,34 @@ test_missing_group_denied if {
 	some msg in workflow_common.deny with input as wf with data.template as template_data
 	contains(msg, "concurrency.group має бути")
 }
+
+# ── Маркер-виняток для заборонених підрядків ────────────────────────────────
+
+# Без маркера `bun install` у `run:` лишається забороненим.
+test_deny_bun_install_without_marker if {
+	wf := {"jobs": {"ci": {"steps": [{"run": "bun install"}]}}}
+	some msg in workflow_common.deny with input as wf with data.template as template_data
+	contains(msg, "замість bun install")
+}
+
+# З маркером — дозволено: крок навмисно перегенеровує lock (реліз-синк пінів),
+# де composite `setup-bun-deps` (він робить --frozen-lockfile) не підходить.
+test_allow_bun_install_with_marker if {
+	wf := {"jobs": {"ci": {"steps": [{"run": "# n-rules:allow-bun-install\nbun install"}]}}}
+	not bun_install_denied with input as wf with data.template as template_data
+}
+
+# Маркер вузький: дозволяє лише свій підрядок, не глушить інші заборони.
+test_marker_does_not_allow_other_patterns if {
+	wf := {"jobs": {"ci": {"steps": [{
+		"run": "# n-rules:allow-bun-install\nbun install",
+		"uses": "actions/cache@v5",
+	}]}}}
+	some msg in workflow_common.deny with input as wf with data.template as template_data
+	contains(msg, "замість actions/cache")
+}
+
+bun_install_denied if {
+	some msg in workflow_common.deny
+	contains(msg, "замість bun install")
+}

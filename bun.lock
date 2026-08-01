@@ -83,7 +83,7 @@
         "zod": "^4.4.3",
       },
       "optionalDependencies": {
-        "@7n/rules-darwin-arm64": "^1.76.0",
+        "@7n/rules-darwin-arm64": "1.76.0",
         "@7n/rules-linux-x64": "1.76.0",
         "@7n/rules-win32-x64": "1.76.0",
         "@earendil-works/pi-ai": "0.80.10",
@@ -199,6 +199,10 @@
     "@7n/rules-lang-python": ["@7n/rules-lang-python@workspace:plugins/lang-python"],
 
     "@7n/rules-lang-rust": ["@7n/rules-lang-rust@workspace:plugins/lang-rust"],
+
+    "@7n/rules-linux-x64": ["@7n/rules-linux-x64@1.76.0", "", { "os": "linux", "cpu": "x64" }, "sha512-RoJAFjqoS+NwEeA3Adj9CZnfgLztKb4J2JyDCFMGsN5aw8ifMu0OWtM9coY6MBOM1ICP8U11CB+d95QZ1ljgEQ=="],
+
+    "@7n/rules-win32-x64": ["@7n/rules-win32-x64@1.76.0", "", { "os": "win32", "cpu": "x64" }, "sha512-wyJ6P0hPwqlmGEyKYZGdemOd0c5480r9o1rCJp91pED+blBh3mOEMOkTHTmWwIeRiaPuIc4+JbUtvkdiiKP5NQ=="],
 
     "@anthropic-ai/sdk": ["@anthropic-ai/sdk@0.91.1", "", { "dependencies": { "json-schema-to-ts": "^3.1.1" }, "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" }, "optionalPeers": ["zod"], "bin": { "anthropic-ai-sdk": "bin/cli" } }, "sha512-LAmu761tSN9r66ixvmciswUj/ZC+1Q4iAfpedTfSVLeswRwnY3n2Nb6Tsk+cLPP28aLOPWeMgIuTuCcMC6W/iw=="],
 
