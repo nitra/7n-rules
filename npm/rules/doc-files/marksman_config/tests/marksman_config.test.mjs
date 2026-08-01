@@ -1,37 +1,47 @@
 /**
  * Тести правила doc-files.mdc (concern marksman_config): детектор відсутнього `.marksman.toml`
- * і T0-патерн копіювання canonical baseline.
+ * і T0-фікс копіювання canonical baseline.
  *
  * Детектор — через `runConcernDetector` (dispatch-рівень), не пряма функція: JS
  * `main.mjs` видалений (F2 фази 5 батчу 2), concern тепер живе лише в
  * `crates/rules-core/src/concerns/marksman_config.rs` і виконується через
- * native-гілку `runConcernDetector`. T0-фіксер (`fix-marksman_config.mjs`)
- * лишається JS (копіювання canonical baseline поза native-поверхнею) і
- * тестується напряму, як і раніше.
+ * native-гілку `runConcernDetector`.
+ *
+ * T0-фікс (T1 зрізу 4 фази 7): `fix-marksman_config.mjs` теж видалений — логіка
+ * копіювання baseline тепер у `crates/rules-core/src/concerns/fix.rs`
+ * (`run_concern_fix`), а JS-бік отримує синтетичний T0Pattern через
+ * `loadT0Patterns` (`run-fix.mjs`, реєстр `NATIVE_FIXES`). Тести нижче
+ * дзеркалять старі кейси через ЦЮ обгортку, не пряму функцію concern-а.
  */
 import { describe, expect, test } from 'vitest'
-import { readFile, rename, writeFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { runConcernDetector } from '../../../../scripts/lib/lint-surface/detect.mjs'
-import { patterns } from '../fix-marksman_config.mjs'
+import { loadT0Patterns } from '../../../../scripts/lib/lint-surface/run-fix.mjs'
+import { createSnapshot } from '../../../../scripts/lib/lint-surface/snapshot.mjs'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
-/** Абсолютний шлях теки концерну (тека з `concern.json`, без main.mjs — native-порт). */
+/** Абсолютний шлях теки концерну (тека з `concern.json`, без main.mjs/fix-*.mjs — native-порт). */
 const CONCERN_DIR = join(dirname(fileURLToPath(import.meta.url)), '..')
 const CONCERN = { dir: CONCERN_DIR }
 
-// Короткий формат ruleId/concernId — узгоджений з `NATIVE_CONCERNS` (`doc-files/marksman_config`).
+// Короткий формат ruleId/concernId — узгоджений з `NATIVE_CONCERNS`/`NATIVE_FIXES` (`doc-files/marksman_config`).
 const ruleId = 'doc-files'
 const concernId = 'marksman_config'
+const NATIVE_FIX_KEY = `${ruleId}/${concernId}`
 const lint = ctx => runConcernDetector(CONCERN, ctx)
+/** Резолвить синтетичний T0Pattern для `dir` (той самий, що бере реальний fix-pipeline). */
+const patternsFor = dir => loadT0Patterns(CONCERN_DIR, concernId, ruleId, dir)
 
 const CORE_SECTION_RE = /^\[core\]/m
 const COMPLETION_SECTION_RE = /^\[completion\]/m
 const CODE_ACTION_SECTION_RE = /^\[code_action\]/m
-const BROKEN_INSTALL_RE = /інсталяція @7n\/rules пошкоджена/
+const MISSING_VIOLATION = [
+  { reason: 'marksman-config-missing', message: '', data: { kind: 'marksman-config-missing' } }
+]
 
 describe('lint doc-files.marksman_config', () => {
   test('violation коли .marksman.toml відсутній', async () => {
@@ -51,18 +61,29 @@ describe('lint doc-files.marksman_config', () => {
   })
 })
 
-describe('T0 fix doc-files.marksman_config', () => {
-  const pattern = patterns.find(p => p.id === 'doc-files-marksman-config-missing')
-
-  test('pattern існує', () => {
-    expect(pattern).toBeDefined()
+describe('T0 fix doc-files.marksman_config (native-fix обгортка)', () => {
+  test('loadT0Patterns повертає синтетичний native-fix pattern', async () => {
+    await withTmpDir(async dir => {
+      const patterns = await patternsFor(dir)
+      expect(patterns).toHaveLength(1)
+      expect(patterns[0].id).toBe(`native-fix:${NATIVE_FIX_KEY}`)
+    })
   })
 
-  test('копіює baseline і повертає touchedFiles', async () => {
+  test('test(): true за наявності marksman-config-missing, false інакше', async () => {
     await withTmpDir(async dir => {
-      const violations = [{ reason: 'marksman-config-missing', message: '', data: { kind: 'marksman-config-missing' } }]
-      const ctx = { cwd: dir, ruleId, concernId }
-      const result = await pattern.apply(violations, ctx)
+      const [pattern] = await patternsFor(dir)
+      expect(pattern.test(MISSING_VIOLATION)).toBe(true)
+      expect(pattern.test([])).toBe(false)
+      expect(pattern.test([{ reason: 'other', message: 'm' }])).toBe(false)
+    })
+  })
+
+  test('копіює baseline і повертає touchedFiles (абсолютний шлях)', async () => {
+    await withTmpDir(async dir => {
+      const [pattern] = await patternsFor(dir)
+      const ctx = { cwd: dir, ruleId, concernId, recordWrite: () => {} }
+      const result = await pattern.apply(MISSING_VIOLATION, ctx)
       const target = join(dir, '.marksman.toml')
       expect(existsSync(target)).toBe(true)
       expect(result.touchedFiles).toHaveLength(1)
@@ -76,14 +97,14 @@ describe('T0 fix doc-files.marksman_config', () => {
 
   test('після T0 lint повертає 0 violations', async () => {
     await withTmpDir(async dir => {
-      const violations = [{ reason: 'marksman-config-missing', message: '', data: { kind: 'marksman-config-missing' } }]
-      await pattern.apply(violations, { cwd: dir, ruleId, concernId })
+      const [pattern] = await patternsFor(dir)
+      await pattern.apply(MISSING_VIOLATION, { cwd: dir, ruleId, concernId, recordWrite: () => {} })
       const { violations: after } = await lint({ cwd: dir, ruleId, concernId, files: undefined })
       expect(after).toHaveLength(0)
     })
   })
 
-  test('idempotency: існуючий файл не перетирається', async () => {
+  test('idempotency: існуючий файл не перетирається (detect уже чистий, apply не викликається)', async () => {
     await withTmpDir(async dir => {
       const target = join(dir, '.marksman.toml')
       const customContent = '# user-customized\n[core]\nmarkdown.glfm = false\n'
@@ -95,43 +116,65 @@ describe('T0 fix doc-files.marksman_config', () => {
       expect(await readFile(target, 'utf8')).toBe(customContent)
     })
   })
+
+  test('rollback-контракт: ctx.recordWrite викликається ДО запису — знята pre-image дає коректний rollback', async () => {
+    await withTmpDir(async dir => {
+      const target = join(dir, '.marksman.toml')
+      const snapshot = createSnapshot()
+      const [pattern] = await patternsFor(dir)
+
+      let existedAtRecordWriteTime = null
+      const ctx = {
+        cwd: dir,
+        ruleId,
+        concernId,
+        recordWrite: absPath => {
+          // Перевіряємо ПОРЯДОК: у момент виклику recordWrite файл ще НЕ
+          // записаний — інакше знята pre-image була б уже НОВИМ вмістом,
+          // і rollback не зміг би повернути стан «файл відсутній».
+          existedAtRecordWriteTime = existsSync(absPath)
+          snapshot.record(absPath)
+        }
+      }
+      expect(existsSync(target)).toBe(false)
+      await pattern.apply(MISSING_VIOLATION, ctx)
+      expect(existedAtRecordWriteTime).toBe(false)
+      expect(existsSync(target)).toBe(true)
+
+      snapshot.rollback()
+      // Pre-image була «відсутній» → rollback видаляє щойно створений файл.
+      expect(existsSync(target)).toBe(false)
+    })
+  })
 })
 
-describe('JS vs native: install-sanity baseline-check не портований (F2 фази 5 батчу 2)', () => {
-  // Стара JS-версія `main.mjs` (до видалення) мала гілку ДО перевірки target:
-  // якщо `MARKSMAN_BASELINE_PATH` (canonical baseline, що постачається разом
-  // із пакетом `@7n/rules`) відсутній на диску — детектор одразу видавав
-  // окреме дружнє порушення `canonical baseline не знайдено (...) — перевстанови
-  // @7n/rules` і завершувався, НЕ доходячи до перевірки `.marksman.toml` у cwd.
-  // Native-порт (`crates/rules-core/src/concerns/marksman_config.rs`) цю гілку
-  // свідомо не портує — задокументовано в doc-комент модуля: це install-sanity-check
-  // package-layout-у npm-пакета (властивість того, ДЕ й ЯК встановлений
-  // `@7n/rules`), не властивість `cwd`-репозиторію, який лінтиться. Native-бінар
-  // компілюється й публікується окремо і не знає, де на диску лежить `npm/rules/`
-  // consumer-репо, тож відтворити цю перевірку на native-стороні неможливо.
+describe('зміна семантики: install-guard недосяжний у native-фіксі (T1 зрізу 4 фази 7)', () => {
+  // Стара JS-версія `fix-marksman_config.mjs` (до видалення) перевіряла
+  // `existsSync(MARKSMAN_BASELINE_PATH)` ПЕРЕД копіюванням і кидала дружню
+  // помилку «інсталяція @7n/rules пошкоджена, перевстанови пакет», якщо
+  // canonical baseline був відсутній на диску (пошкоджений npm-пакет: обрізаний
+  // `files`-whitelist чи вручну зіпсований `node_modules`).
   //
-  // Розбіжність виявляється лише в рідкісному сценарії зламаної інсталяції пакета
-  // (`data/marksman_config/marksman.baseline.toml` відсутній — напр. пошкоджений
-  // `npm publish`/`files` whitelist чи вручну обрізаний `node_modules`), не в
-  // звичайному lint-прогоні по чистому cwd. Успадкований guard тепер живе на
-  // JS-боці T0-фіксу (`fix-marksman_config.mjs`): саме там відомий шлях baseline
-  // всередині пакета, і саме там ENOENT перетворюється на дружнє повідомлення
-  // «перевстанови пакет» (тест нижче).
-  test('T0 apply() дає дружнє повідомлення про зламану інсталяцію, коли canonical baseline відсутній', async () => {
-    const baselinePath = join(CONCERN_DIR, 'data', 'marksman_config', 'marksman.baseline.toml')
-    const backupPath = `${baselinePath}.test-backup`
-    await rename(baselinePath, backupPath)
-    try {
-      await withTmpDir(async dir => {
-        const pattern = patterns.find(p => p.id === 'doc-files-marksman-config-missing')
-        const violations = [
-          { reason: 'marksman-config-missing', message: '', data: { kind: 'marksman-config-missing' } }
-        ]
-        await expect(pattern.apply(violations, { cwd: dir, ruleId, concernId })).rejects.toThrow(BROKEN_INSTALL_RE)
-      })
-    } finally {
-      // Відновлюємо canonical baseline незалежно від результату тесту.
-      await rename(backupPath, baselinePath)
-    }
+  // Native-фікс (`crates/rules-core/src/concerns/fix.rs::marksman_config_fix`)
+  // вбудовує baseline у бінарник через `include_str!` НА ЕТАПІ КОМПІЛЯЦІЇ —
+  // сам файл стає частиною cdylib/бінаря, а не окремим on-disk-артефактом,
+  // який можна «загубити» під час встановлення npm-пакета. Клас помилки
+  // «baseline відсутній на диску» структурно неможливий для native-шляху:
+  // якщо аддон завантажився (пройшла звірка `contractVersion`), baseline
+  // ГАРАНТОВАНО є. Install-guard і його повідомлення «перевстанови пакет»
+  // НЕ портуються — немає стану, який вони мали б ловити. Це свідома зміна
+  // поведінки зламаної інсталяції (доккомент модуля `fix.rs`, секція «Зміна
+  // семантики»), не забутий кейс: цей тест документує нову поведінку замість
+  // старого `rejects.toThrow(BROKEN_INSTALL_RE)`.
+  test('apply() успішно копіює baseline незалежно від стану npm-пакета на диску (baseline вшитий у native)', async () => {
+    await withTmpDir(async dir => {
+      const [pattern] = await patternsFor(dir)
+      // На відміну від старої JS-версії, тут НЕМА диску-артефакту, який можна
+      // видалити, щоб відтворити «зламану інсталяцію» — baseline вшитий у
+      // скомпільований native-аддон. Просто перевіряємо: apply() не кидає.
+      await expect(
+        pattern.apply(MISSING_VIOLATION, { cwd: dir, ruleId, concernId, recordWrite: () => {} })
+      ).resolves.toMatchObject({ touchedFiles: [join(dir, '.marksman.toml')] })
+    })
   })
 })

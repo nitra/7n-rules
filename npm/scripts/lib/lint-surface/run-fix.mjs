@@ -15,13 +15,15 @@
  * @typedef {import('./ladder.mjs').Rung} Rung
  */
 import { existsSync, readFileSync } from 'node:fs'
-import { isAbsolute, join, relative, resolve } from 'node:path'
+import { mkdir, unlink, writeFile } from 'node:fs/promises'
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { isLocalModel, resolveModel } from '@7n/llm-lib/model-tiers'
 import { startChain } from '@7n/llm-lib/chain'
 import { writeTrace } from '@7n/llm-lib/trace'
 import { withTimeout } from '@7n/llm-lib/with-timeout'
+import { loadNative } from '../native.mjs'
 import { buildDetectPlan } from './run-detectors.mjs'
 import { runConcernDetector, DetectorError } from './detect.mjs'
 import { renderViolations } from './render.mjs'
@@ -67,12 +69,122 @@ function progressKey(item) {
 }
 
 /**
- * Завантажує structured T0-патерни concern-а з `fix-<concern>.mjs`.
+ * Кеш ключів native-fix concern-ів (`ruleId/concernId`), один на процес —
+ * той самий кеш-мотив, що `getNativeConcernKeys` у `detect.mjs` (T1 зрізу 4
+ * фази 7, `docs/specs/2026-07-30-rules-v2-rust-core-migration.md` §4).
+ * @type {Set<string> | null}
+ */
+let nativeFixKeys = null
+
+/**
+ * Лениво резолвить множину ключів native-fix-ів з аддона (`listNativeFixes()`).
+ * @returns {Set<string>} Множина ключів native-fix-ів (`ruleId/concernId`).
+ */
+function getNativeFixKeys() {
+  if (nativeFixKeys === null) {
+    nativeFixKeys = new Set(loadNative().listNativeFixes())
+  }
+  return nativeFixKeys
+}
+
+/**
+ * Кеш native fix-плану за identity `violations`-масиву — `applyT0`
+ * (`test()` → `apply()`) передає ОДИН і той самий масив в обидва виклики
+ * одного проходу, тож другий native-виклик не потрібен: `apply()` переюзає
+ * вже порахований план замість повторного napi-hop-у.
+ * @type {WeakMap<LintViolation[], { edits: Array<{ type: string, path: string, content?: string }> } | null>}
+ */
+const nativeFixPlanCache = new WeakMap()
+
+/**
+ * Викликає `runNativeConcernFix` і кешує результат під identity `violations`.
+ * @param {string} key `ruleId/concernId` native-fix concern-а.
+ * @param {string} cwd Абсолютний корінь consumer-репо.
+ * @param {LintViolation[]} violations Порушення concern-а (той самий вхід у test() і apply()).
+ * @returns {{ edits: Array<{ type: string, path: string, content?: string }> } | null} План або `null` (concern без native-фікса).
+ */
+function computeNativeFixPlan(key, cwd, violations) {
+  if (nativeFixPlanCache.has(violations)) return nativeFixPlanCache.get(violations)
+  const plan = loadNative().runNativeConcernFix(key, cwd, violations) ?? null
+  nativeFixPlanCache.set(violations, plan)
+  return plan
+}
+
+/**
+ * Синтезує T0Pattern-обгортку над native fix-планом (T1 зрізу 4 фази 7,
+ * `crates/rules-core/src/concerns/fix.rs`) — та сама форма, що ручний
+ * `fix-<concern>.mjs`, без dynamic import() JS-файлу concern-а.
+ *
+ * `cwd` вшитий у замикання: `T0Pattern.test(violations)` не приймає `ctx`
+ * (типізація `types.mjs`), тож native-виклик у `test()` не може прочитати
+ * `ctx.cwd` — натомість [`loadT0Patterns`] будує цей патерн ОДРАЗУ з відомим
+ * `cwd` виклику. `test()` = «native-план для цих violations непорожній»
+ * (сам native-фікс вирішує застосовність — доккомент `run_concern_fix`);
+ * `apply()` перевикористовує ТОЙ САМИЙ кешований план ({@link computeNativeFixPlan}).
+ *
+ * Rollback-контракт: `ctx.recordWrite?.(abs)` викликається ПЕРЕД кожною
+ * файловою мутацією (write чи delete) — той самий обов'язок реєстрації, що
+ * документує `FixContext.recordWrite` (`types.mjs`), незалежно від того, чи
+ * реальний виклик у T0-фазі передає непорожній `recordWrite` (T0 — permanent,
+ * поза rollback, доккомент модуля вище): контракт однаковий для будь-якого
+ * caller-а цього патерну, включно з тестами, де `ctx.recordWrite` інжектяться
+ * як мок/шпигун.
+ * @param {string} key `ruleId/concernId` native-fix concern-а.
+ * @param {string} cwd Абсолютний корінь consumer-репо.
+ * @returns {T0Pattern} Синтетичний патерн.
+ */
+function nativeFixPattern(key, cwd) {
+  return {
+    id: `native-fix:${key}`,
+    test: violations => {
+      const plan = computeNativeFixPlan(key, cwd, violations)
+      return plan !== null && plan.edits.length > 0
+    },
+    apply: async (violations, ctx) => {
+      const plan = computeNativeFixPlan(key, cwd, violations)
+      const touchedFiles = []
+      for (const edit of plan?.edits ?? []) {
+        const abs = join(cwd, edit.path)
+        if (edit.type === 'write') {
+          ctx.recordWrite?.(abs)
+          await mkdir(dirname(abs), { recursive: true })
+          await writeFile(abs, edit.content, 'utf8')
+          touchedFiles.push(abs)
+        } else if (edit.type === 'delete') {
+          ctx.recordWrite?.(abs)
+          try {
+            await unlink(abs)
+            touchedFiles.push(abs)
+          } catch {
+            // Файл уже відсутній — best-effort, той самий дух, що старий
+            // JS-фіксер (`fix-migrations.mjs`, до видалення T1 зрізу 4).
+          }
+        }
+      }
+      return touchedFiles.length > 0
+        ? { touchedFiles, message: `native fix ${key}: ${touchedFiles.length} файл(ів)` }
+        : { touchedFiles: [] }
+    }
+  }
+}
+
+/**
+ * Завантажує structured T0-патерни concern-а. Native-fix реєстр
+ * (`NATIVE_FIXES`, T1 зрізу 4 фази 7) має пріоритет: якщо `ruleId/concernId`
+ * у реєстрі, повертається синтетичний T0Pattern над native-планом
+ * ([`nativeFixPattern`]) замість dynamic import() `fix-<concern>.mjs` —
+ * той самий поділ пріоритету, що `runConcernDetector` для native-детекторів
+ * (`detect.mjs`: native має абсолютний пріоритет ПЕРЕД резолвом `main.mjs`).
+ * Інакше — стара поведінка: dynamic import() `fix-<concern>.mjs`, якщо файл є.
  * @param {string} concernDir Директорія concern-а, де шукати fix-модуль.
  * @param {string} concernName Ім'я concern-а для формування назви fix-файлу.
- * @returns {Promise<T0Pattern[]>} Масив T0-патернів або порожній, якщо файл відсутній.
+ * @param {string} ruleId Id правила (для `ruleId/concernId`-ключа native-fix реєстру).
+ * @param {string} cwd Абсолютний корінь consumer-репо (вшивається у синтетичний патерн).
+ * @returns {Promise<T0Pattern[]>} Масив T0-патернів або порожній, якщо немає ані native, ані fix-файлу.
  */
-async function loadT0Patterns(concernDir, concernName) {
+export async function loadT0Patterns(concernDir, concernName, ruleId, cwd) {
+  const nativeKey = `${ruleId}/${concernName}`
+  if (getNativeFixKeys().has(nativeKey)) return [nativeFixPattern(nativeKey, cwd)]
   const fixPath = join(concernDir, `fix-${concernName}.mjs`)
   if (!existsSync(fixPath)) return []
   try {
@@ -681,7 +793,7 @@ async function fixConcernCore(item, initialViolations, deps, chain, chainExtra, 
   const lintCtx = { cwd, ruleId, concernId: concernName, concernDir, files: item.files, verbose }
 
   // ── T0 (детермінований, permanent) ──
-  const patterns = deps.t0Override ?? (await loadT0Patterns(concernDir, concernName))
+  const patterns = deps.t0Override ?? (await loadT0Patterns(concernDir, concernName, ruleId, cwd))
   const t0 = await runT0Phase(item, initialViolations, patterns, lintCtx, cwd, log, progress, verbose)
   noteT0Phase(t0, chainExtra, touchedAbs)
   if (t0.closed) return true
@@ -877,7 +989,7 @@ export async function runFixPipeline(opts) {
         item,
         deps.t0For
           ? (deps.t0For(item.entry) ?? [])
-          : await loadT0Patterns(item.entry.concern.dir, item.entry.concern.name)
+          : await loadT0Patterns(item.entry.concern.dir, item.entry.concern.name, item.entry.ruleId, cwd)
       ])
     )
   )

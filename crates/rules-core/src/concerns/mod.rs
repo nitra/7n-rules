@@ -36,6 +36,9 @@ mod dremio_logging;
 mod env_dns;
 mod find_src_tauri;
 mod firebase_hosting;
+/// Native fix-домен для builtin-концернів (T1 зрізу 4 фази 7) —
+/// [`fix::run_concern_fix`] + реєстр [`fix::NATIVE_FIXES`].
+pub mod fix;
 mod forbidden_prettier;
 mod gha_workflow;
 mod glob_compat;
@@ -60,6 +63,7 @@ mod text_formatting;
 mod workspaces;
 
 pub use batch::{run_concerns_batch, BatchItem, BatchItemResult};
+pub use fix::{run_concern_fix, FileEdit, FixPlan, WriteFile, NATIVE_FIXES};
 
 pub use abie_hc_pairing::hc_pairing as abie_hc_pairing;
 pub use abie_ua_http_route::ua_http_route as abie_ua_http_route;

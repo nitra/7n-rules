@@ -277,6 +277,69 @@ pub fn run_native_concerns_batch(
     Ok(serde_json::json!({ "results": results }))
 }
 
+/// Ключі native-портованих fix-ів (`ruleId/concernId`) — тонкий binding над
+/// [`rules_core::concerns::NATIVE_FIXES`] (T1 зрізу 4 фази 7,
+/// `docs/specs/2026-07-30-rules-v2-rust-core-migration.md` §4). JS-обгортка
+/// (`run-fix.mjs`) звіряє належність `ruleId/concernId`-ключа до цього
+/// списку, щоб вирішити, чи синтезувати `T0Pattern` над native-планом, чи
+/// шукати `fix-<concern>.mjs` на диску (той самий поділ відповідальності, що
+/// [`list_native_concerns`] для детекторів).
+#[napi]
+pub fn list_native_fixes() -> Vec<String> {
+    rules_core::concerns::NATIVE_FIXES
+        .iter()
+        .map(|s| (*s).to_string())
+        .collect()
+}
+
+/// Будує fix-plan native-fix-концерну за ключем — тонкий binding над
+/// [`rules_core::concerns::run_concern_fix`] (T1 зрізу 4 фази 7).
+///
+/// Повертає `Some({ "edits": [...] })` — точна форма `FixPlan` (`type`-тег
+/// `"write"`/`"delete"` на кожному елементі `edits`, доккомент модуля
+/// `rules_core::concerns::fix`), АБО `None` (JS-бік бачить `null`), якщо
+/// `key` не належить [`list_native_fixes`] — на відміну від
+/// [`run_native_concern`] (кидає на невідомому ключі, бо JS-бік ЗАВЖДИ
+/// звіряє належність через [`list_native_concerns`] ДО виклику), тут
+/// null-семантика — навмисно другий, самодостатній шлях перевірки
+/// застосовності: JS-обгортка (`run-fix.mjs`) може викликати цю функцію
+/// напряму без окремого membership-чеку через [`list_native_fixes`] і
+/// трактувати `null` як «немає native-фікса для цього concern-а» (той самий
+/// смисл, що дав би відсутній `fix-<concern>.mjs` на диску).
+///
+/// Порожній (не `null`) `edits` = «concern МАЄ native-фікс, але для ЦИХ
+/// violations фіксити нічого» (native-план сам вирішує застосовність —
+/// доккомент `run_concern_fix`, той самий контракт, що замінює окремий
+/// `T0Pattern.test()` на JS-боці).
+///
+/// - `key` — `ruleId/concernId`.
+/// - `cwd` — абсолютний корінь consumer-репо.
+/// - `violations` — JSON-масив, що десеріалізується у
+///   `Vec<rules_core::diagnostics::Violation>` (підмножина результату
+///   `detect` для цього concern-а — той самий вхід, що `FixRequest::diagnostics`
+///   у `rules-contract::fix`).
+#[napi]
+pub fn run_native_concern_fix(
+    key: String,
+    cwd: String,
+    violations: serde_json::Value,
+) -> Result<Option<serde_json::Value>> {
+    if !rules_core::concerns::NATIVE_FIXES.contains(&key.as_str()) {
+        return Ok(None);
+    }
+    let parsed: Vec<rules_core::diagnostics::Violation> = serde_json::from_value(violations)
+        .map_err(|err| {
+            Error::from_reason(format!("runNativeConcernFix: невалідний вхід: {err}"))
+        })?;
+    let plan = rules_core::concerns::run_concern_fix(&key, &PathBuf::from(cwd), &parsed)
+        .map_err(to_napi_err)?;
+    serde_json::to_value(plan).map(Some).map_err(|err| {
+        Error::from_reason(format!(
+            "runNativeConcernFix: серіалізація плану провалилась: {err}"
+        ))
+    })
+}
+
 /// Рахує lint-план — тонкий binding над [`rules_core::lint_plan::build_lint_plan`]
 /// (P1 фази 7, `docs/specs/2026-07-30-rules-v2-rust-core-migration.md` §4):
 /// порт `buildPlan` + усіх п'ять builders з
