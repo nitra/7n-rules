@@ -49,3 +49,24 @@ members = [
 # без `--target` компілюють і "пропускають" цей крейт на host-таргеті без
 # помилок лінкування (перевірено: `cargo build -p test-plugin-guest`,
 # `cargo test --workspace` — обидва проходять на aarch64-apple-darwin).
+
+# Per-package size-оптимізація `plugin-lang-js` (задача Q3, спека
+# `docs/specs/2026-08-01-wasm-ast-strategy.md`, розділ «Рішення» п.2 —
+# size-budget 2.5 MB на компонент, спайк S1 показав oxc_parser сам собою
+# додає 549 KB–869 KB залежно від профілю). `rust/workspace_root`
+# (`plugins/lang-rust/rules/rust/workspace_root/workspace_root.mdc`) забороняє
+# БУДЬ-ЯКИЙ `[profile.*]` у не-кореневому `Cargo.toml` — єдиний дозволений
+# механізм тут: per-package override у КОРЕНЕВОМУ `[profile.release]`
+# (ЦЕЙ блок нижче — НЕ сам `[profile.release]`, який свідомо лишається
+# відсутнім/дефолтним для решти workspace, задача явно забороняла його
+# чіпати). Cargo НЕ дозволяє per-package override для `lto`/`panic`/`rpath`
+# (лише для профілю в цілому) — тож агресивна комбінація зі спайка
+# (opt-level="z"+lto+strip+panic=abort+codegen-units=1, 549 KB) тут
+# недосяжна повністю; підмножина, доступна per-package
+# (`opt-level`/`codegen-units`/`strip`), застосована нижче — виміряний
+# результат задокументовано в `crates/plugin-lang-js/src/lib.rs` (доккомент
+# модуля, розділ AST-концернів) і у звіті задачі Q3.
+[profile.release.package."plugin-lang-js"]
+opt-level = "z"
+codegen-units = 1
+strip = true

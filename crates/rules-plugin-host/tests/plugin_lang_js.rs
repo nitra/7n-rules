@@ -1,15 +1,16 @@
 //! Прогін детекту фікстурою реального wasm-компонента `plugin-lang-js`
-//! (задачі N2, Q1 батч 1 та Q2 батч 2 — де-скоуп до byte-exact-парних
+//! (задачі N2, Q1 батч 1, Q2 батч 2 та Q3 — де-скоуп до byte-exact-парних
 //! концернів, спека
-//! `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md` §3.5.5) —
+//! `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md` §3.5.5 і
+//! `docs/specs/2026-08-01-wasm-ast-strategy.md`) —
 //! за зразком `tests/contract_test_kit.rs` (той самий `require_fixture`-мотив:
 //! якщо `.wasm` відсутній, тест падає з точною командою збірки, не мовчазним
 //! skip). Замінює виведений пілотний golden-тест
 //! (`crates/plugin-lang-js-pilot`, видалений цією ж задачею) — покриває усі
-//! девʼять концернів у контрибуції цього плагіна.
+//! одинадцять концернів у контрибуції цього плагіна.
 //!
 //! Звіряє реальний end-to-end прогін через [`PluginHost`]: `describe()`
-//! декларує всі девʼять концернів з очікуваними `scope`/`glob`, `detect()`
+//! декларує всі одинадцять концернів з очікуваними `scope`/`glob`, `detect()`
 //! на фікстурах з `main.mjs` кожного JS-оригіналу
 //! (`plugins/lang-js/rules/vue/tfm-translations/main.mjs`,
 //! `plugins/lang-js/rules/style/gap/main.mjs`,
@@ -19,9 +20,13 @@
 //! `plugins/lang-js/rules/style/quasar_fixes/main.mjs`,
 //! `plugins/lang-js/rules/test/location/main.mjs`,
 //! `plugins/lang-js/rules/test/no-console-store-restore/main.mjs`,
-//! `plugins/lang-js/rules/test/no-bun-test-import/main.mjs`) дає той самий
-//! violation, що й JS-оригінали біт-у-біт (`reason`/`message`). Parity з
-//! JS-боку звіряє окремий vitest-тест
+//! `plugins/lang-js/rules/test/no-bun-test-import/main.mjs`,
+//! `plugins/lang-js/rules/js/utils_imports/main.mjs`,
+//! `plugins/lang-js/rules/test/no-relative-fs-path/main.mjs`) дає той самий
+//! violation, що й JS-оригінали біт-у-біт (`reason`/`message`). Останні два
+//! — справжні AST-концерни через `oxc_parser` (задача Q3), не regex-порт —
+//! byte-exact parity через ТОЙ САМИЙ движок, що JS-канон. Parity з JS-боку
+//! звіряє окремий vitest-тест
 //! `npm/scripts/lib/lint-surface/tests/wasm-plugin-parity.test.mjs` на цих
 //! самих фікстурах.
 //!
@@ -53,6 +58,8 @@ const CONCERN_QUASAR_FIXES: &str = "style/quasar_fixes";
 const CONCERN_LOCATION: &str = "test/location";
 const CONCERN_NO_CONSOLE_STORE_RESTORE: &str = "test/no-console-store-restore";
 const CONCERN_NO_BUN_TEST_IMPORT: &str = "test/no-bun-test-import";
+const CONCERN_UTILS_IMPORTS: &str = "js/utils_imports";
+const CONCERN_NO_RELATIVE_FS_PATH: &str = "test/no-relative-fs-path";
 
 /// Абсолютний шлях до зібраного `.wasm`-компонента (`crates/plugin-lang-js/build.sh`)
 /// — `wasm32-wasip2`/`release`.
@@ -80,7 +87,7 @@ fn host() -> PluginHost {
 }
 
 #[test]
-fn describe_declares_all_nine_concerns_with_expected_scopes() {
+fn describe_declares_all_eleven_concerns_with_expected_scopes() {
     let path = require_fixture();
     let plugin = host()
         .load(&path, PLUGIN_WORLD_VERSION)
@@ -93,7 +100,7 @@ fn describe_declares_all_nine_concerns_with_expected_scopes() {
     // Де-скоуп (рішення оркестратора): `js-bun-redis/imports`/
     // `js-bun-db/safety`/`js-mssql/deps` НЕ в контрибуції (groundwork,
     // доккомент модуля вище й `crates/plugin-lang-js/src/lib.rs`).
-    assert_eq!(manifest.concerns.len(), 9);
+    assert_eq!(manifest.concerns.len(), 11);
 
     let tfm = manifest
         .concerns
@@ -169,6 +176,25 @@ fn describe_declares_all_nine_concerns_with_expected_scopes() {
         .expect("test/no-bun-test-import має бути в маніфесті");
     assert_eq!(no_bun_test.scope, ConcernScope::Full);
     assert!(no_bun_test.glob.iter().any(|g| g.contains("test.mjs")));
+
+    let utils_imports = manifest
+        .concerns
+        .iter()
+        .find(|c| c.key == CONCERN_UTILS_IMPORTS)
+        .expect("js/utils_imports має бути в маніфесті (задача Q3, AST через oxc_parser)");
+    assert_eq!(utils_imports.scope, ConcernScope::Full);
+    assert!(utils_imports.glob.iter().any(|g| g.contains("utils")));
+
+    let no_relative_fs_path = manifest
+        .concerns
+        .iter()
+        .find(|c| c.key == CONCERN_NO_RELATIVE_FS_PATH)
+        .expect("test/no-relative-fs-path має бути в маніфесті (задача Q3, AST через oxc_parser)");
+    assert_eq!(no_relative_fs_path.scope, ConcernScope::Full);
+    assert!(no_relative_fs_path
+        .glob
+        .iter()
+        .any(|g| g.contains("test.mjs")));
 
     // `js-bun-redis/imports`/`js-bun-db/safety`/`js-mssql/deps` — свідомо
     // ВІДСУТНІ в маніфесті (де-скоуп, доккомент модуля вище).
@@ -668,6 +694,142 @@ fn detect_no_bun_test_import_passes_for_vitest_import() {
             path: "tests/foo.test.mjs".to_string(),
             content: "import { describe, test, expect } from 'vitest'\ntest('ok', () => {})\n"
                 .to_string(),
+        }],
+    };
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    assert!(diagnostics.is_empty());
+}
+
+// --- js/utils_imports (задача Q3, AST-концерн через oxc_parser) ---
+// Фікстури дзеркалять `plugins/lang-js/rules/js/utils_imports/tests/utils_imports.test.mjs`.
+
+/// Той самий сценарій, що й JS-тест «utils/ з забороненим ../ імпортом →
+/// exit 1».
+#[test]
+fn detect_utils_imports_flags_parent_relative_import() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let batch = DetectBatch {
+        concern_id: CONCERN_UTILS_IMPORTS.to_string(),
+        files: vec![SourceFile {
+            path: "utils/bad.mjs".to_string(),
+            content: "import { config } from '../lib/config.mjs'\nexport const x = config\n"
+                .to_string(),
+        }],
+    };
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].reason, "utils_imports");
+    assert_eq!(diagnostics[0].severity, Severity::Error);
+    assert!(diagnostics[0].file.is_none());
+    assert!(diagnostics[0].message.contains("../lib/config.mjs"));
+}
+
+/// Той самий сценарій, що й JS-тест «utils/ з bare package import → exit 0».
+#[test]
+fn detect_utils_imports_passes_for_bare_package_import() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let batch = DetectBatch {
+        concern_id: CONCERN_UTILS_IMPORTS.to_string(),
+        files: vec![SourceFile {
+            path: "utils/fmt.mjs".to_string(),
+            content: "import { parse } from 'yaml'\nexport const p = parse\n".to_string(),
+        }],
+    };
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    assert!(diagnostics.is_empty());
+}
+
+/// Той самий сценарій, що й JS-тест «файл у utils/__fixtures__/ ігнорується».
+#[test]
+fn detect_utils_imports_ignores_fixtures_subdir() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let batch = DetectBatch {
+        concern_id: CONCERN_UTILS_IMPORTS.to_string(),
+        files: vec![SourceFile {
+            path: "utils/__fixtures__/data.mjs".to_string(),
+            content: "import { x } from '../../other.mjs'\n".to_string(),
+        }],
+    };
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    assert!(diagnostics.is_empty());
+}
+
+// --- test/no-relative-fs-path (задача Q3, AST-концерн через oxc_parser) ---
+// Фікстури дзеркалять
+// `plugins/lang-js/rules/test/no-relative-fs-path/tests/no-relative-fs-path.test.mjs`.
+
+const NO_RELATIVE_FS_PATH_HEAD: &str =
+    "import { writeFile, copyFile, mkdir } from 'node:fs/promises'\n";
+
+/// Той самий сценарій, що й JS-тест «порушення: writeFile('foo.json', …) →
+/// exit 1».
+#[test]
+fn detect_no_relative_fs_path_flags_relative_first_arg() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let batch = DetectBatch {
+        concern_id: CONCERN_NO_RELATIVE_FS_PATH.to_string(),
+        files: vec![SourceFile {
+            path: "tests/foo.test.mjs".to_string(),
+            content: format!(
+                "{NO_RELATIVE_FS_PATH_HEAD}await writeFile('foo.json', 'x', 'utf8')\n"
+            ),
+        }],
+    };
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].reason, "no-relative-fs-path");
+    assert_eq!(diagnostics[0].severity, Severity::Error);
+    assert!(diagnostics[0].file.is_none());
+    assert!(diagnostics[0].message.contains("writeFile"));
+    assert!(diagnostics[0].message.contains("1-й аргумент"));
+}
+
+/// Той самий сценарій, що й JS-тест «успіх: тест з join(dir, …) → exit 0».
+#[test]
+fn detect_no_relative_fs_path_passes_when_join_used() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let batch = DetectBatch {
+        concern_id: CONCERN_NO_RELATIVE_FS_PATH.to_string(),
+        files: vec![SourceFile {
+            path: "tests/foo.test.mjs".to_string(),
+            content: format!(
+                "{NO_RELATIVE_FS_PATH_HEAD}await writeFile(join(dir, 'foo.json'), 'x', 'utf8')\n"
+            ),
+        }],
+    };
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    assert!(diagnostics.is_empty());
+}
+
+/// Той самий сценарій, що й JS-тест «не-тестові файли не скануються».
+#[test]
+fn detect_no_relative_fs_path_ignores_non_test_files() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let batch = DetectBatch {
+        concern_id: CONCERN_NO_RELATIVE_FS_PATH.to_string(),
+        files: vec![SourceFile {
+            path: "src/helper.mjs".to_string(),
+            content: format!(
+                "{NO_RELATIVE_FS_PATH_HEAD}export async function fn() {{ await writeFile('any.json', 'x') }}\n"
+            ),
         }],
     };
 

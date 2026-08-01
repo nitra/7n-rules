@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 license = "Apache-2.0"
-description = "wasm-компонент n-rules:plugin@3.0.0 — lang-js/wasm-concerns (vue/tfm-translations, style/gap, test/vitest-config-pool-forks, test/no-process-chdir, style/admin_table, style/quasar_fixes, test/location, test/no-console-store-restore, test/no-bun-test-import)"
+description = "wasm-компонент n-rules:plugin@3.0.0 — lang-js/wasm-concerns (vue/tfm-translations, style/gap, test/vitest-config-pool-forks, test/no-process-chdir, style/admin_table, style/quasar_fixes, test/location, test/no-console-store-restore, test/no-bun-test-import, js/utils_imports, test/no-relative-fs-path)"
 
 [lib]
 # `cdylib` — обов'язково: `wasm32-wasip2` виводить готовий Component Model
@@ -30,3 +30,21 @@ wit-bindgen = "0.60"
 # оркестратора — regex-наближення AST-оригіналу не проходить parity-гейт для
 # shadowing, доккомент секції «Регекс-наближення» в `src/lib.rs`).
 regex = "1"
+# AST-концерни (задача Q3, `docs/specs/2026-08-01-wasm-ast-strategy.md`,
+# розділ «Рішення» п.1): `js/utils_imports`/`test/no-relative-fs-path`
+# JS-оригінали парсять напряму через npm `oxc-parser` — byte-exact parity
+# вимагає ТОГО САМОГО двигуна на боці guest-а. Пін синхронізовано з
+# `npm/package.json:dependencies.oxc-parser` (точна версія, не caret-діапазон
+# — той самий мотив, що `wit-bindgen` вище); дзеркальний тест версій —
+# `npm/scripts/lib/lint-surface/tests/oxc-version-pin.test.mjs`. Парсер живе
+# прямо в guest-компоненті (без host-медіації) — рішення спайка S1, жодного
+# нового host-контракту чи WIT-розширення не потрібно.
+oxc_parser = "=0.137.0"
+oxc_ast = "=0.137.0"
+oxc_allocator = "=0.137.0"
+oxc_span = "=0.137.0"
+# Visitor-трейт для повного обходу AST (динамічний `import()`, `require()` —
+# можуть бути ГЛИБОКО вкладені, не лише на верхньому рівні `Program.body`,
+# на відміну від `ImportDeclaration`, валідного лише на toplevel) — та сама
+# версія, той самий репозиторій `oxc-project/oxc`, що решта `oxc_*` вище.
+oxc_ast_visit = "=0.137.0"

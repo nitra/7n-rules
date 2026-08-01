@@ -12,15 +12,17 @@
  * `file://`-URL (node-`fetch` не вміє `file:`-схему — стаб замінює транспорт,
  * не сам retrieval-контур), sha256 — справжній хеш файлу.
  *
- * Передостанній describe-блок (задача Q1 батч 1) звіряє САМЕ dispatch-shadowing
- * ЧЕРЕЗ вбудовану таблицю `npm/wasm-plugins/builtin-pins.json`
- * (`readBuiltinPinsConfig`, доккомент `wasm-plugins.mjs`) — tmp-репо БЕЗ жодного
- * `wasmPlugins` у `.n-rules.json`: якщо `node npm/scripts/build-wasm-plugins.mjs`
- * зібрав `plugin-lang-js` локально, `runConcernDetector` для одного з
- * пʼяти нових full-scope концернів (`style/admin_table`) МАЄ знайти violation
- * через builtin-таблицю без ручного піна — точна перевірка вимоги «живий
- * shadowing-смок» задачі Q1. Guard-описаний `existsSync(BUILTIN_PINS_PATH)`
- * той самий skip-not-crash мотив, що `wasm-builtin-pins.test.mjs`.
+ * Передостанній describe-блок (задача Q1 батч 1, доповнено задачею Q3) звіряє
+ * САМЕ dispatch-shadowing ЧЕРЕЗ вбудовану таблицю
+ * `npm/wasm-plugins/builtin-pins.json` (`readBuiltinPinsConfig`, доккомент
+ * `wasm-plugins.mjs`) — tmp-репо БЕЗ жодного `wasmPlugins` у `.n-rules.json`:
+ * якщо `node npm/scripts/build-wasm-plugins.mjs` зібрав `plugin-lang-js`
+ * локально, `runConcernDetector` для `style/admin_table` (regex-порт,
+ * задача Q1) і `js/utils_imports` (справжній AST-концерн через `oxc_parser`,
+ * задача Q3) МАЄ знайти violation через builtin-таблицю без ручного піна —
+ * точна перевірка вимоги «живий shadowing-смок» для ОБОХ класів концернів.
+ * Guard-описаний `existsSync(BUILTIN_PINS_PATH)` той самий skip-not-crash
+ * мотив, що `wasm-builtin-pins.test.mjs`.
  */
 import { createHash } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
@@ -185,6 +187,40 @@ describe('runConcernDetector — wasm-dispatch (plugin contract v3, задача
             concernId: 'location',
             reason: 'location',
             message: expect.stringContaining('rules/foo/bar/tests/check.test.mjs'),
+            severity: 'error'
+          }
+        ])
+      })
+    })
+
+    /**
+     * Задача Q3 (`docs/specs/2026-08-01-wasm-ast-strategy.md`): перший
+     * AST-концерн (справжній `oxc_parser`, не regex) через builtin-таблицю —
+     * доводить, що dispatch-shadowing працює однаково для AST- і
+     * regex-порту-концернів, не лише для тих, що вже покривали попередні
+     * задачі.
+     */
+    test('js/utils_imports: tmp-репо БЕЗ wasmPlugins у .n-rules.json → AST-violation усе одно йде через builtin wasm-таблицю', async () => {
+      await withTmpDir(async dir => {
+        await writeFile(join(dir, '.n-rules.json'), JSON.stringify({ rules: ['js'] }), 'utf8')
+        const { mkdir } = await import('node:fs/promises')
+        await mkdir(join(dir, 'utils'), { recursive: true })
+        await writeFile(
+          join(dir, 'utils', 'bad.mjs'),
+          "import { config } from '../lib/config.mjs'\nexport const x = config\n",
+          'utf8'
+        )
+        const concern = { name: 'utils_imports', dir: join(dir, 'rules', 'js', 'utils_imports') }
+        const ctx = { cwd: dir, ruleId: 'js', concernId: 'utils_imports', files: undefined }
+
+        const result = await runConcernDetector(concern, ctx)
+
+        expect(result.violations).toEqual([
+          {
+            ruleId: 'js',
+            concernId: 'utils_imports',
+            reason: 'utils_imports',
+            message: expect.stringContaining('../lib/config.mjs'),
             severity: 'error'
           }
         ])
