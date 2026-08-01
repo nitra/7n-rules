@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.76.0] - 2026-08-01
+
+### Added
+
+- Фаза 8 зріз 1 (спека 2026-08-01-rules-cli-phase8-skeleton): скелет Rust CLI `crates/rules-cli` — нативні `lint --help` і plumbing `changed-files` поверх rules-core, транзитна делегація решти команд у JS-entrypoint (bun/node, argv-passthrough) і byte-exact parity-гейт `rules-cli-parity.test.mjs`
+- Батч 6 §3.5.5: `test/storybook-vitest-config` і три rego-концерни `js-bun-db|js-bun-redis|js-mssql/package_json` портовано у wasm-компонент lang-js (23 контрибуції; size-budget 2.5 MB дотримано — 2.24 MB). Блокер батчу 5 (абсолютний `data.vitestConfigPath`, який споживає JS-фіксер) знято новим additive host-імпортом `host-context: func(slot) -> option<string>` зі слотом `repo-root@1` — розширення WIT-`record` зламало б ABI усіх запінених guest-ів, окремий import лінкується лише тим, хто його референсить. Rego-порти звірені байт-у-байт із живим conftest-прогоном через `evaluatePolicyConcern`; `js-bun-db/connection`, `js-bun-db/pg_format_identifiers`, `js-mssql/mssql-tvp` — `.mdc`-only guidance без детектора, портувати нема чого
+
+### Fixed
+
+- Усунуто корінь повторюваних падінь CI `lockfile had changes, but lockfile is frozen`: кроки синку платформних пінів у релізі запускали `bun update` з кореня репо, через що bun дописував платформні пакети в кореневі `dependencies` — ця правка не потрапляла в коміт, а отруєний `bun.lock` потрапляв; тепер `bun update` виконується з теки воркспейса, що декларує ці залежності
+
 ## [1.75.0] - 2026-08-01
 
 ### Added
