@@ -1,7 +1,7 @@
-# Фаза 8 — інверсія entrypoint: мінідизайн і скелет `rules-cli` (зріз 1)
+# Фаза 8 — інверсія entrypoint: мінідизайн і скелет `rules-cli`
 
 **Дата:** 2026-08-01
-**Статус:** погоджено — зріз 1 реалізується цим самим PR
+**Статус:** погоджено; зріз 1 — виконано, зріз 2 — виконано (розділ 8)
 **Зв'язані документи:** `docs/specs/2026-07-30-rules-v2-rust-core-migration.md`
 (фаза 8 — «інверсія entrypoint: Rust CLI», рішення Р1–Р10),
 `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md` (node-free plugin
@@ -34,10 +34,10 @@ host — передумова інверсії), `npm/bin/n-rules-cli.mjs` (чи
 | `lint --help` | статична довідка | (б) | **→ native у зрізі 1** (найдешевший parity-кейс реальної поверхні) |
 | `hook --post-tool-use` / `--stop` | thin-обгортка над `detectAll` для Claude/Cursor/Codex hooks | (а) | успадковує стан `lint`; головний виграш інверсії — node-старт зникає з найчастішого виклику (зріз 4) |
 | `ci plan` | read-only skip-логіка CI-канону | (б) | потребує портів `loadEnabledLintRules` (meta.json + конфіг) — зріз 3 |
-| `rename-yaml-extensions` | перейменування k8s/GA yaml-розширень | (б) | дрібний, зріз 3 |
+| `rename-yaml-extensions` | перейменування k8s/GA yaml-розширень | (б) | **→ native у зрізі 2** |
 | `release` | version bump + CHANGELOG з `.changes/*` | (б) | детермінований; низький пріоритет (рідкий виклик, CI-only) |
 | `taze` | semver-diff через слот `taze.provider@1` | (в) | контрибуції слота — JS-модулі плагінів; до wasm-слотів лишається JS |
-| `skill list` | перелік скілів пакета | (б) | дрібний, зріз 3 |
+| `skill list` | перелік скілів пакета | (б) | **→ native у зрізі 2** |
 | `skill taze\|git-reconcile`, `skill pi\|cursor\|codex <id>` | JS-оркестровані/агентні ранери скілів | (в) | LLM/агентний інтерактив |
 | `adr-normalize-local` | локальний LLM-конвеєр ADR-нормалізації | (в) | LLM-контур |
 | `docs domains\|build\|publish` | package knowledge (LLM projection) | (в) | LLM-контур |
@@ -128,12 +128,13 @@ rules-cli (bin, crates/rules-cli)
 
 ## 5. Стратегія міграції по зрізах
 
-1. **Зріз 1 (цей PR)** — скелет: роутер + делегація + `lint --help` +
+1. **Зріз 1 (виконано)** — скелет: роутер + делегація + `lint --help` +
    `changed-files`, parity-тести, workspace-CI (rules-cli збирається і
    тестується існуючими джобами; у `test.yml` бінар додається до
    cargo-build-кроку для parity-тесту).
-2. **Зріз 2** — порт read-only plumbing без нових передумов:
-   `skill list`, `rename-yaml-extensions`.
+2. **Зріз 2 (виконано, розділ 8)** — `skill list` і
+   `rename-yaml-extensions` без нових передумов (друга виявилась мутуючою,
+   не read-only — уточнення до формулювання плану).
 3. **Зріз 3** — конфіг/meta.json у Rust (`.n-rules.json`, `rules/<id>/meta.json`,
    discovery концернів через `rules-core`): розблоковує `ci plan`; ревізія
    рішення Б (clap).
@@ -180,3 +181,69 @@ rules-cli (bin, crates/rules-cli)
 5. **Cargo.lock-конфлікти** з паралельними wasm-батчами (спільний lock).
    Мітигація — зріз 1 не додає нових зовнішніх крейтів (лише workspace-члена),
    конфлікт зводиться до тривіального re-merge.
+
+## 8. Зріз 2 — `skill list` і `rename-yaml-extensions` (виконано)
+
+### 8.1 Що з'явилось
+
+| Модуль | Роль |
+|---|---|
+| `rules_core::skills` | порт `listSkillIds` (`npm/scripts/skills-cli.mjs`) |
+| `rules_core::rename_yaml` | порт `npm/scripts/rename-yaml-extensions.mjs` поверх `scan::walk_dir` |
+| `rules_core::locale` | порт `String.prototype.localeCompare` (див. 8.2) |
+| `rules_cli::skill_cmd` | `skill list` — вивід поверх `rules_core::skills` |
+| `rules_cli::rename_yaml_cmd` | CLI-шар `bin/rename-yaml-extensions.mjs` |
+| `rules_cli::cursor_ignore` | `loadCursorIgnorePaths` + нормалізація ignore-глобів |
+| `rules_cli::paths` | лексичні `path.resolve`/`path.relative` |
+
+Межа Д дотримана: ядро (`rules-core`) не знає ні про argv, ні про конфіг —
+`rename_yaml_extensions` приймає вже нормалізовані ignore-глоби, як і
+`walk_dir`; читання `.n-rules.json` лишилось у `rules-cli` поруч із
+`git_policy`. Нових зовнішніх крейтів зріз не додає (ризик 5 лишається
+тривіальним re-merge `Cargo.lock`).
+
+`skill list` резолвить `skills/` від КОРЕНЯ ПАКЕТА через той самий каскад,
+що й делегація (`js_fallback::package_root` = `<entry>/../..`) — Rust-дзеркало
+`resolveBundledPackageRoot`, який теж рахує корінь від розташування власного
+модуля, а не від cwd.
+
+### 8.2 Відхилення від плану
+
+- **`localeCompare` довелось портувати окремим модулем.** План цього не
+  передбачав; попередні зрізи (`lint_render`) обходились байтовим `str::cmp`
+  з аргументом «для ASCII порядки збігаються». Для поверхонь зрізу 2 це
+  НЕ так: ICU root ставить `_` перед `-` (`"a_b" < "a-b"`) і сортує великі
+  літери ПІСЛЯ малих (`"Z" > "a"`), а і id скілів, і шляхи маніфестів
+  (`k8s/api_gateway.yml`) такі символи містять. `rules_core::locale` — модель
+  спрощеного UCA (первинна вага + третинна на регістр), звірена живим Node.
+  Межа: діакритична латиниця (`é`, `ä`) сортується після `z` замість
+  «поруч із базовою літерою» — зафіксовано тестом, для kebab-case поверхонь
+  недосяжно. Те саме припущення в `lint_render` лишилось незміненим (окрема
+  поверхня, окремий parity-гейт) — кандидат на ревізію в наступному зрізі.
+- **`rename-yaml-extensions` — мутуюча, а не read-only.** План описував
+  зріз 2 як «порт read-only plumbing». Наслідок для гейта: parity-тест звіряє
+  не лише stdout/stderr/exit-код, а й СТАН ФАЙЛОВОЇ СИСТЕМИ — обидва CLI
+  ганяються на двох ідентичних копіях дерева, зліпки порівнюються повністю
+  (шлях + вміст). Плюс окремі кейси на ідемпотентність і на «нуль зайвих
+  записів» (`--dry-run`, конфлікт цілі).
+- **Self-upgrade `devDependencies` навмисно НЕ портовано.** JS-роутер перед
+  кожною командою, окрім `ci`, кличе `ensureNRulesInRootDevDependencies(cwd)`:
+  якщо в cwd лежить `package.json` із полем `workspaces`, він дописує/піднімає
+  пін `@7n/rules` і друкує рядок у stderr — тобто чинний JS `skill list`
+  МУТУЄ `package.json`. Це поверхня sync/дистрибуції, не семантика команд, і
+  вона зникає у зрізі 5 (npm-`bin` стає launcher-ом бінаря), тож native-шлях
+  її не відтворює: read-only команда лишається read-only. Розбіжність не
+  мовчазна — на неї є окремий тест у `rules-cli-parity.test.mjs`, який
+  фіксує обидва боки (JS мутує, native — ні).
+- **Дві межі порту, недосяжні за нормального ходу** (обидві задокументовані
+  доккоментами): текст errno-помилки Node при `skills/`-не-каталозі та при
+  падінні самого `rename(2)` не відтворюється дослівно — це формат
+  повідомлення рантайму, а не семантика.
+
+### 8.3 Що лишається до зрізу 3
+
+Незмінно: конфіг/meta.json у Rust (`.n-rules.json` цілком, а не лише блоки
+`git`/`ignore`, `rules/<id>/meta.json`, discovery концернів) → розблоковує
+`ci plan`; там-таки ревізія рішення Б (clap) — після зрізу 2 ручний парсинг
+має вже три різні стилі прапорців (`--cwd <val>`, `--root=<val>`, голі
+булеві), тобто аргумент «дублювання логіки» дозрів.
