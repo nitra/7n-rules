@@ -4,6 +4,10 @@
   "workspaces": {
     "": {
       "name": "mono",
+      "dependencies": {
+        "@7n/llm-lib-darwin-arm64": "^2.14.7",
+        "@7n/llm-lib-linux-x64": "^2.14.7",
+      },
       "devDependencies": {
         "@7n/rules": "workspace:*",
         "@7n/rules-ci-azure": "workspace:*",
@@ -37,7 +41,7 @@
     },
     "llm-lib": {
       "name": "@7n/llm-lib",
-      "version": "2.14.7",
+      "version": "2.14.8",
       "bin": {
         "n-llm-chains-report": "bin/chains-report.mjs",
       },
@@ -46,8 +50,8 @@
         "@earendil-works/pi-coding-agent": "~0.80.10",
       },
       "optionalDependencies": {
-        "@7n/llm-lib-darwin-arm64": "2.14.7",
-        "@7n/llm-lib-linux-x64": "2.14.7",
+        "@7n/llm-lib-darwin-arm64": "2.14.8",
+        "@7n/llm-lib-linux-x64": "2.14.8",
       },
       "peerDependencies": {
         "@earendil-works/pi-ai": "~0.80.10",
@@ -60,7 +64,7 @@
     },
     "npm": {
       "name": "@7n/rules",
-      "version": "1.74.0",
+      "version": "1.74.1",
       "bin": {
         "n-rules": "bin/n-rules.js",
         "n-cursor": "bin/n-rules.js",
@@ -180,9 +184,9 @@
   "packages": {
     "@7n/llm-lib": ["@7n/llm-lib@workspace:llm-lib"],
 
-    "@7n/llm-lib-darwin-arm64": ["@7n/llm-lib-darwin-arm64@2.14.6", "", { "os": "darwin", "cpu": "arm64" }, "sha512-KSOFfj34ac78CXBL7w1es/PYX3QR/sDIq/LXHfIlyjGioQYMaqVpq6eN3I0BPmBrotbR0wt1A50ZvI2bK47YxA=="],
+    "@7n/llm-lib-darwin-arm64": ["@7n/llm-lib-darwin-arm64@2.14.7", "", { "os": "darwin", "cpu": "arm64" }, "sha512-5LNSXaWHqr+UV5JRrsBlYsa7iyyMsUO5vc6zDn0Ev6unljSugsxegKNRFjmRKpGcEuWZyqgJjNRQme0wHWPGSg=="],
 
-    "@7n/llm-lib-linux-x64": ["@7n/llm-lib-linux-x64@2.14.6", "", { "os": "linux", "cpu": "x64" }, "sha512-9pBnEJyRGOO4sO69viFl1jVSTqlJlph3OTR4MpNvIeU/3jm9qsCqvtT7DW4fniSCSbE5KGBXfs7MAlEnW5clUw=="],
+    "@7n/llm-lib-linux-x64": ["@7n/llm-lib-linux-x64@2.14.7", "", { "os": "linux", "cpu": "x64" }, "sha512-SuG/pChMRSY8PsGySUMbbxxScErFTqJcGd+K8cznjhMkNkvcGERBgMkax5XpolYHEQ4Xm4pWulS4+v9xR3d10A=="],
 
     "@7n/rules": ["@7n/rules@workspace:npm"],
 
