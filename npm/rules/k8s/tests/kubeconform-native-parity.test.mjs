@@ -18,19 +18,75 @@
  * (`fixtures/kubeconform-parity-runner.mjs`): під Bun запис у `process.env` не
  * доходить до нативного `environ`, тож підставити стаб у `PATH` для Rust-боку
  * можна лише через `env` дочірнього процесу.
+ *
+ * # Чому гейт бере аддон із `target/`, а не через `loadNative()`
+ *
+ * `resolveNativeAddon` (`npm/scripts/lib/native.mjs`) віддає пріоритет
+ * platform-пакету `@7n/rules-<platform>-<arch>`, а той у монорепо —
+ * **закомічений** `.node`, який оновлюється лише на релізі. Тобто до релізу
+ * `loadNative()` віддає збірку БЕЗ щойно доданих концернів, і parity-гейт
+ * перевіряв би стару поверхню. Тут аддон береться напряму з `target/`
+ * (`cargo build --release -p rules-napi` — той самий крок, що в `test.yml`),
+ * а дочірні процеси отримують його через `N_RULES_NATIVE_ADDON`. Немає
+ * збірки — гейт пропускається з явною причиною, а не «зеленіє» мовчки.
  */
 import { describe, expect, test } from 'vitest'
 import { spawnSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { chmod, mkdir, writeFile } from 'node:fs/promises'
 import { delimiter, dirname, join } from 'node:path'
-import { env, execPath, platform } from 'node:process'
+import process, { env, execPath, platform } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 import { findK8sRoots, findK8sYamlFiles } from '../manifests/main.mjs'
-import { loadNative } from '../../../scripts/lib/native.mjs'
-import { withTmpDir } from '../../../scripts/utils/test-helpers.mjs'
+import { realRepoRoot, withTmpDir } from '../../../scripts/utils/test-helpers.mjs'
 
 const RUNNER = join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'kubeconform-parity-runner.mjs')
+
+/**
+ * Ім'я cdylib-файлу `rules-napi` для поточної платформи (на Windows — без
+ * `lib`-префікса, конвенція MSVC).
+ * @returns {string} ім'я бібліотеки
+ */
+function cdylibName() {
+  if (platform === 'darwin') return 'librules_napi.dylib'
+  if (platform === 'win32') return 'rules_napi.dll'
+  return 'librules_napi.so'
+}
+
+/**
+ * Шлях до свіжозібраного аддона: явний `N_RULES_NATIVE_ADDON`, інакше
+ * `target/{release,debug}/`. `null` — збірки немає (див. доккомент модуля).
+ * @returns {string | null} шлях до аддона або null
+ */
+function freshAddonPath() {
+  if (env.N_RULES_NATIVE_ADDON) return env.N_RULES_NATIVE_ADDON
+  for (const profile of ['release', 'debug']) {
+    const candidate = join(realRepoRoot(), 'target', profile, cdylibName())
+    if (existsSync(candidate)) return candidate
+  }
+  return null
+}
+
+const ADDON_PATH = freshAddonPath()
+
+/**
+ * Завантажує свіжий аддон напряму через `dlopen` — так само, як це робить
+ * `native.mjs`, але без його пріоритету platform-підпакета.
+ * @returns {Record<string, (...args: never[]) => unknown>} exports аддона
+ */
+function freshAddon() {
+  const mod = { exports: {} }
+  process.dlopen(mod, ADDON_PATH)
+  return mod.exports
+}
+
+// Пропуск має бути ГУЧНИМ: мовчазно зелений parity-гейт гірший за червоний.
+if (ADDON_PATH === null) {
+  console.warn(
+    '⚠️ k8s/kubeconform parity-гейт пропущено: немає збірки rules-napi у target/ — прогони `cargo build --release -p rules-napi`'
+  )
+}
 
 /**
  * Створює файл разом із батьківськими каталогами.
@@ -88,7 +144,7 @@ async function makeKubeconformStub(root, exitCode) {
 function runDetector(mode, root, extraEnv) {
   const result = spawnSync(execPath, [RUNNER, mode, root], {
     encoding: 'utf8',
-    env: { ...env, ...extraEnv }
+    env: { ...env, N_RULES_NATIVE_ADDON: ADDON_PATH, ...extraEnv }
   })
   expect(result.error, `спавн раннера (${mode}) провалився`).toBeUndefined()
   expect(result.stdout, `раннер (${mode}) не вивів JSON; stderr: ${result.stderr}`).not.toBe('')
@@ -104,12 +160,12 @@ function envWithStub(stubDir) {
   return { PATH: `${stubDir}${delimiter}${env.PATH ?? ''}` }
 }
 
-describe('k8s_common ⇄ manifests/main.mjs — шар відкриття файлів', () => {
+describe.skipIf(ADDON_PATH === null)('k8s_common ⇄ manifests/main.mjs — шар відкриття файлів', () => {
   test('findK8sRoots: native і JS дають однаковий список коренів', async () => {
     await withTmpDir(async root => {
       await seedK8sTree(root)
       const js = await findK8sRoots(root, [])
-      const native = loadNative().findK8sRoots(root, [])
+      const native = freshAddon().findK8sRoots(root, [])
       expect(native).toEqual(js)
       // Санітарна перевірка, що фікстура взагалі щось знайшла (інакше
       // порівняння двох порожніх масивів нічого б не доводило).
@@ -121,7 +177,7 @@ describe('k8s_common ⇄ manifests/main.mjs — шар відкриття фай
     await withTmpDir(async root => {
       await seedK8sTree(root)
       const js = await findK8sYamlFiles(root, [])
-      const native = loadNative().findK8sYamlFiles(root, [])
+      const native = freshAddon().findK8sYamlFiles(root, [])
       expect(native).toEqual(js)
       expect(js.some(f => f.endsWith('legacy.yml'))).toBe(true)
       expect(js.some(f => f.includes('.github'))).toBe(false)
@@ -132,8 +188,8 @@ describe('k8s_common ⇄ manifests/main.mjs — шар відкриття фай
     await withTmpDir(async root => {
       await seedK8sTree(root)
       const ignore = [join(root, 'svc-b')]
-      expect(loadNative().findK8sRoots(root, ignore)).toEqual(await findK8sRoots(root, ignore))
-      expect(loadNative().findK8sYamlFiles(root, ignore)).toEqual(await findK8sYamlFiles(root, ignore))
+      expect(freshAddon().findK8sRoots(root, ignore)).toEqual(await findK8sRoots(root, ignore))
+      expect(freshAddon().findK8sYamlFiles(root, ignore)).toEqual(await findK8sYamlFiles(root, ignore))
       expect(await findK8sRoots(root, ignore)).toHaveLength(1)
     })
   })
@@ -141,8 +197,8 @@ describe('k8s_common ⇄ manifests/main.mjs — шар відкриття фай
   test('дерево без k8s: обидві реалізації дають порожньо', async () => {
     await withTmpDir(async root => {
       await write(root, 'src/app.yaml', 'a: 1\n')
-      expect(loadNative().findK8sRoots(root, [])).toEqual(await findK8sRoots(root, []))
-      expect(loadNative().findK8sRoots(root, [])).toEqual([])
+      expect(freshAddon().findK8sRoots(root, [])).toEqual(await findK8sRoots(root, []))
+      expect(freshAddon().findK8sRoots(root, [])).toEqual([])
     })
   })
 
@@ -151,13 +207,13 @@ describe('k8s_common ⇄ manifests/main.mjs — шар відкриття фай
       const root = join(outer, 'k8s')
       await write(root, 'src/app.yaml', 'a: 1\n')
       await write(root, 'svc/k8s/base/deploy.yaml', 'kind: Deployment\n')
-      expect(loadNative().findK8sYamlFiles(root, [])).toEqual(await findK8sYamlFiles(root, []))
+      expect(freshAddon().findK8sYamlFiles(root, [])).toEqual(await findK8sYamlFiles(root, []))
       expect(await findK8sYamlFiles(root, [])).toHaveLength(1)
     })
   })
 })
 
-describe('k8s/kubeconform — native ⇄ JS на однакових деревах', () => {
+describe.skipIf(ADDON_PATH === null)('k8s/kubeconform — native ⇄ JS на однакових деревах', () => {
   test('стаб exit 0: обидві гілки без порушень', async () => {
     await withTmpDir(async root => {
       await seedK8sTree(root)
@@ -212,11 +268,11 @@ describe('k8s/kubeconform — native ⇄ JS на однакових дерева
   })
 })
 
-describe('k8s/kubeconform — делегування назад JS-канону', () => {
+describe.skipIf(ADDON_PATH === null)('k8s/kubeconform — делегування назад JS-канону', () => {
   test('тул не встановлено, але цілі є → native кидає маркер делегування', async () => {
     await withTmpDir(async root => {
       await seedK8sTree(root)
-      const marker = loadNative().nativeDelegateMarker()
+      const marker = freshAddon().nativeDelegateMarker()
       const native = runDetector('native', root, {
         PATH: join(root, 'no-such-bin'),
         N_CURSOR_TOOL_CACHE_DIR: join(root, 'empty-cache'),
@@ -228,7 +284,7 @@ describe('k8s/kubeconform — делегування назад JS-канону'
   })
 
   test('registry: k8s/kubeconform зареєстрований і позначений як делегувальний', () => {
-    const addon = loadNative()
+    const addon = freshAddon()
     expect(addon.listNativeConcerns()).toContain('k8s/kubeconform')
     expect(addon.listNativeDelegatingConcerns()).toContain('k8s/kubeconform')
     expect(addon.nativeDelegateMarker()).not.toBe('')
