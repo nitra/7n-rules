@@ -1,4 +1,4 @@
-//! cspell:ignore портовна EPIPE
+//! cspell:ignore портовна EPIPE рантаймів рантаймом
 //!
 //! Транзитна делегація непортованих команд у чинний JS-entrypoint
 //! (`npm/bin/n-rules.js`) — рішення В/Г мінідизайну
@@ -122,6 +122,19 @@ pub fn delegate(args: &[String]) -> ExitCode {
     delegate_with_stdin(args, None)
 }
 
+/// Порядок JS-рантаймів для спроби спавна (`N_RULES_JS_RUNTIME` → `bun` →
+/// `node`). Спільний для делегації команд і для мосту ([`crate::bridge`]) —
+/// щоб «яким рантаймом виконується JS-бік» мало ОДНЕ джерело правди.
+pub fn runtimes() -> Vec<String> {
+    match std::env::var("N_RULES_JS_RUNTIME")
+        .ok()
+        .filter(|v| !v.is_empty())
+    {
+        Some(runtime) => vec![runtime],
+        None => vec!["bun".to_string(), "node".to_string()],
+    }
+}
+
 /// Те саме, що [`delegate`], але з явно переграним stdin — для команд, яким
 /// native-шар мусив прочитати stdin, щоб вирішити, чи гілка портовна
 /// (`hook --post-tool-use`, [`crate::hook_cmd`]). Без цього делегований
@@ -136,13 +149,7 @@ pub fn delegate_with_stdin(args: &[String], stdin_bytes: Option<&[u8]>) -> ExitC
         }
     };
 
-    let forced_runtime = std::env::var("N_RULES_JS_RUNTIME")
-        .ok()
-        .filter(|v| !v.is_empty());
-    let runtimes: Vec<String> = match forced_runtime {
-        Some(runtime) => vec![runtime],
-        None => vec!["bun".to_string(), "node".to_string()],
-    };
+    let runtimes = runtimes();
 
     for (i, runtime) in runtimes.iter().enumerate() {
         match spawn_status(runtime, &entry, args, stdin_bytes) {
