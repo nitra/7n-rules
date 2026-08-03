@@ -40,14 +40,14 @@ function nativeAddonAvailable() {
 }
 
 describe('isLocalModel', () => {
-  test('omlx-провайдер — локальний (дефолт N_LLM_LOCAL_PROVIDERS)', () => {
-    expect(isLocalModel('omlx/gemma-4-e4b')).toBe(true)
+  test('local-openai-провайдер — локальний за дефолтом (generic-слот omlx/litellm/turbofieldfare/...)', () => {
+    expect(isLocalModel('local-openai/gemma-4-26b-awq')).toBe(true)
     expect(isLocalModel('openai/gpt-5.5')).toBe(false)
     expect(isLocalModel('anthropic/claude-fable-5')).toBe(false)
   })
 
-  test('litellm-провайдер — теж локальний за дефолтом (перемикач omlx/litellm через тир-env)', () => {
-    expect(isLocalModel('litellm/gemma-4-26b-awq')).toBe(true)
+  test('голий omlx-префікс більше не local — злито в local-openai (свідомий breaking change)', () => {
+    expect(isLocalModel('omlx/gemma-4-e4b')).toBe(false)
   })
 
   test('порожній/malformed spec — не локальний', () => {

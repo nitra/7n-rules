@@ -184,10 +184,13 @@ where
 
 /// Провайдер, для якого сьогодні розгорнутий справжній `/v1/batches`
 /// litellm-adapter (спека `2026-07-27-batch-local-avg-real-batches.md`,
-/// рішення Б: тир-правило «litellm-провайдер ⇒ справжній batch»). Єдине
-/// місце цього рядка — розширення на інший провайдер зі своїм Batch API
+/// рішення Б: тир-правило «litellm-провайдер ⇒ справжній batch»); ключ у
+/// `local_providers`-мапі — generic `local-openai` (`local-providers.mjs`),
+/// не буквально `"litellm"` — той самий слот тепер покриває будь-який
+/// кастомний OpenAI-сумісний сервер, litellm-проксі зокрема. Єдине місце
+/// цього рядка — розширення на інший провайдер зі своїм Batch API
 /// міняє лише цю константу, не виклик-сайти.
-const REMOTE_BATCH_PROVIDER: &str = "litellm";
+const REMOTE_BATCH_PROVIDER: &str = "local-openai";
 
 /// Вибір бекенда для [`dispatch`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -509,14 +512,14 @@ mod tests {
     async fn dispatch_never_probes_for_non_remote_provider() {
         let mut providers = std::collections::HashMap::new();
         // Порт 1 — привілейований, гарантовано нічого не слухає; якби Auto
-        // помилково пробував "omlx" (не REMOTE_BATCH_PROVIDER), проба
-        // зависла б чи провалилась замість тихого short-circuit на 0 items.
-        providers.insert("omlx".to_string(), provider("http://127.0.0.1:1/v1/"));
+        // помилково пробував "other-provider" (не REMOTE_BATCH_PROVIDER),
+        // проба зависла б чи провалилась замість тихого short-circuit на 0 items.
+        providers.insert("other-provider".to_string(), provider("http://127.0.0.1:1/v1/"));
         let cascade = LocalCloud::new(providers);
 
         let results = dispatch(
             &cascade,
-            "omlx/some-model",
+            "other-provider/some-model",
             Vec::new(),
             Backend::Auto,
             &BatchConfig::default(),
@@ -530,7 +533,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn dispatch_auto_falls_back_to_emulation_when_litellm_probe_fails() {
+    async fn dispatch_auto_falls_back_to_emulation_when_local_openai_probe_fails() {
         let mut providers = std::collections::HashMap::new();
         // Порт узятий і відразу звільнений — жоден слухач не піднятий, тож
         // capability-проба гарантовано провалюється (адаптер "недоступний").
@@ -538,14 +541,14 @@ mod tests {
         let addr = listener.local_addr().expect("addr");
         drop(listener);
         providers.insert(
-            "litellm".to_string(),
+            "local-openai".to_string(),
             provider(&format!("http://{addr}/v1/")),
         );
         let cascade = LocalCloud::new(providers);
 
         let results = dispatch(
             &cascade,
-            "litellm/gemma-4-26b-awq",
+            "local-openai/gemma-4-26b-awq",
             Vec::new(),
             Backend::Auto,
             &BatchConfig::default(),
@@ -559,17 +562,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn dispatch_emulated_ignores_litellm_provider() {
+    async fn dispatch_emulated_ignores_local_openai_provider() {
         let mut providers = std::collections::HashMap::new();
-        providers.insert("litellm".to_string(), provider("http://127.0.0.1:1/v1/"));
+        providers.insert("local-openai".to_string(), provider("http://127.0.0.1:1/v1/"));
         let cascade = LocalCloud::new(providers);
 
-        // Backend::Emulated форсує емуляцію навіть для litellm — з 0 items
-        // це доводиться відсутністю HTTP-виклику (інакше проба чи HTTP до
-        // непіднятого порту 1 провалили б виклик мережевою помилкою).
+        // Backend::Emulated форсує емуляцію навіть для local-openai — з 0
+        // items це доводиться відсутністю HTTP-виклику (інакше проба чи HTTP
+        // до непіднятого порту 1 провалили б виклик мережевою помилкою).
         let results = dispatch(
             &cascade,
-            "litellm/gemma-4-26b-awq",
+            "local-openai/gemma-4-26b-awq",
             Vec::new(),
             Backend::Emulated,
             &BatchConfig::default(),
@@ -588,7 +591,7 @@ mod tests {
 
         let results = dispatch(
             &cascade,
-            "litellm/gemma-4-26b-awq",
+            "local-openai/gemma-4-26b-awq",
             Vec::new(),
             Backend::OpenAiBatches,
             &BatchConfig::default(),

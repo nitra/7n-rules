@@ -173,7 +173,7 @@ impl LocalCloud {
     }
 
     /// Конфіг зареєстрованого локального провайдера за префіксом (`omlx`,
-    /// `litellm` тощо) — `None`, якщо провайдер не зареєстрований у мапі,
+    /// `local-openai` тощо) — `None`, якщо провайдер не зареєстрований у мапі,
     /// переданій у [`Self::new`].
     #[must_use]
     pub fn provider_config(&self, provider: &str) -> Option<&LocalProvider> {
