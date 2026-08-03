@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.14.14] - 2026-08-03
+
+### Changed
+
+- feat(llm-lib): add turbofieldfare local provider (#374); chore(release): синк пінів платформних napi-пакетів @7n/llm-lib
+
 ## [2.14.13] - 2026-08-03
 
 ### Changed
