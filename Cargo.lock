@@ -3325,6 +3325,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
+ "toml",
  "wit-bindgen",
 ]
 

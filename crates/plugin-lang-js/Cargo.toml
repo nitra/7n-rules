@@ -66,3 +66,12 @@ serde_json = "1"
 # `Visitor`/`MapAccess` доступні лише через явний імпорт. Derive НЕ вмикаємо —
 # impl написаний вручну.
 serde = "1"
+
+[dev-dependencies]
+# Anti-drift тест `plugin_toml_concern_keys_match_describe` парсить
+# `plugin.toml` СПРАВЖНІМ TOML-парсером, а не порядковим скануванням: лише так
+# ловиться клас дрейфу «поле опинилось після заголовка `[[concerns]]`» (TOML
+# відніс би його до останнього елемента масиву, а не до кореня маніфеста).
+# Той самий мінор, що `crates/rules-core` — резолвиться з Cargo.lock кореня.
+# Dev-only: у wasm32-wasip2 cdylib не потрапляє.
+toml = "0.8"
