@@ -22,7 +22,7 @@
  * (ladder/manual).
  */
 import { existsSync } from 'node:fs'
-import { readFile, writeFile } from 'node:fs/promises'
+import { copyFile, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import {
@@ -31,7 +31,14 @@ import {
   ESLINT_CONFIG_VUE_WORKSPACE,
   planEslintConfigFix
 } from './eslint-config.mjs'
-import { OXLINT_CANONICAL_JSON_PATH, OXLINTRC_DRIFT, OXLINTRC_MISSING, planOxlintrcFix } from '../tooling/main.mjs'
+import {
+  KNIP_CANONICAL_JSON_PATH,
+  KNIP_MISSING,
+  OXLINT_CANONICAL_JSON_PATH,
+  OXLINTRC_DRIFT,
+  OXLINTRC_MISSING,
+  planOxlintrcFix
+} from '../tooling/main.mjs'
 
 const ESLINT_CONFIG_REASONS = new Set([ESLINT_CONFIG_MISSING, ESLINT_CONFIG_IGNORES, ESLINT_CONFIG_VUE_WORKSPACE])
 const OXLINTRC_REASONS = new Set([OXLINTRC_MISSING, OXLINTRC_DRIFT])
@@ -77,6 +84,29 @@ export const patterns = [
       ctx.recordWrite?.(oxPath)
       await writeFile(oxPath, `${JSON.stringify(merged, null, 2)}\n`, 'utf8')
       return { touchedFiles: [oxPath], message: '.oxlintrc.json: T0 merge до канону oxlint (@7n/rules)' }
+    }
+  },
+  {
+    // Раніше цю копію робив САМ детектор під час фази detect (і звітував
+    // `pass`) — див. доккомент `checkKnipConfig` у `main.mjs` і рішення Ґ
+    // спеки `docs/specs/2026-08-01-plugin-contract-v31-surfaces.md`. Тепер
+    // це звичайний T0, як `js-check-oxlintrc` вище.
+    id: 'js-check-knip',
+    test: violations => violations.some(v => v.reason === KNIP_MISSING),
+    apply: async (violations, ctx) => {
+      // Пошкоджена інсталяція пакета: канону немає — писати нічого, порушення
+      // лишається (раніше цю гілку детектор звітував як fail сам).
+      if (!existsSync(KNIP_CANONICAL_JSON_PATH)) return { touchedFiles: [] }
+      const knipPath = join(ctx.cwd, 'knip.json')
+      // Ідемпотентність: якщо файл уже з'явився (інший фіксер, паралельний
+      // прогін) — не перезаписуємо чужий вміст.
+      if (existsSync(knipPath)) return { touchedFiles: [] }
+      ctx.recordWrite?.(knipPath)
+      await copyFile(KNIP_CANONICAL_JSON_PATH, knipPath)
+      return {
+        touchedFiles: [knipPath],
+        message: 'knip.json створено з канонічного knip-canonical.json (@7n/rules)'
+      }
     }
   }
 ]

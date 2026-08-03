@@ -3323,6 +3323,7 @@ dependencies = [
  "oxc_span",
  "oxc_syntax",
  "regex",
+ "serde",
  "serde_json",
  "wit-bindgen",
 ]

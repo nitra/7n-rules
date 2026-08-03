@@ -212,6 +212,23 @@ const VITEST_API_CONVENTIONS_MAIN_MJS_PATH = join(
 // (доккомент секції «Батч 9» у `crates/plugin-lang-js/src/lib.rs`).
 const VUE_PACKAGES_MAIN_MJS_PATH = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'vue', 'packages', 'main.mjs')
 const VUE_PACKAGES_CONCERN_KEY = 'vue/packages'
+// Зріз 1 контракту v3.1 (`docs/specs/2026-08-01-plugin-contract-v31-surfaces.md`,
+// §7): `test/stryker_config` — секція «Зріз 1» у `crates/plugin-lang-js/src/lib.rs`.
+const STRYKER_CONFIG_MAIN_MJS_PATH = join(
+  REPO_ROOT,
+  'plugins',
+  'lang-js',
+  'rules',
+  'test',
+  'stryker_config',
+  'main.mjs'
+)
+const STRYKER_CONFIG_CONCERN_KEY = 'test/stryker_config'
+// Зріз 2 контракту v3.1: `js/check` — секція «Зріз 2» у
+// `crates/plugin-lang-js/src/lib.rs` (вшитий канон oxlint + рефакторинг
+// рішення Ґ, через який `knip.json` став спостережуваним порушенням).
+const JS_CHECK_MAIN_MJS_PATH = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'js', 'check', 'main.mjs')
+const JS_CHECK_CONCERN_KEY = 'js/check'
 const BUN_LAYOUT_CONCERN_KEY = 'bun/layout'
 const STYLE_TOOLING_CONCERN_KEY = 'style/tooling'
 const SANDBOX_AWARE_TEST_CONCERN_KEY = 'test/sandbox-aware-test'
@@ -3264,6 +3281,479 @@ describe('wasm-plugin parity — vue/packages (JS канон vs wasm plugin-lang
       expect(wasm).toEqual(js)
       expect(js.length).toBeGreaterThan(0)
       expect(js.every(v => v.message.startsWith('[packages/site] '))).toBe(true)
+    })
+  })
+})
+
+describe('wasm-plugin parity — test/stryker_config (JS канон vs wasm plugin-lang-js, зріз 1 контракту v3.1)', () => {
+  const runStrykerBoth = dir =>
+    runFullScopeBoth(STRYKER_CONFIG_MAIN_MJS_PATH, STRYKER_CONFIG_CONCERN_KEY, 'test', 'stryker_config', dir)
+
+  /** `.n-rules.json` з увімкненим правилом `js` — без нього концерн мовчить (self-gate). */
+  const writeJsEnabled = dir => writeFileDeep(dir, '.n-rules.json', JSON.stringify({ rules: ['js', 'test'] }))
+
+  test('self-gate: без `.n-rules.json` обидві реалізації мовчать', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'package.json', JSON.stringify({ name: 'app' }))
+      const { js, wasm } = await runStrykerBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('self-gate: `js` у `disable-rules` — обидві реалізації мовчать', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, '.n-rules.json', JSON.stringify({ rules: ['js'], 'disable-rules': ['js'] }))
+      await writeFileDeep(dir, 'package.json', JSON.stringify({ name: 'app' }))
+      const { js, wasm } = await runStrykerBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('fatal: js увімкнено, але кореневого package.json немає', async () => {
+    await withTmpDir(async dir => {
+      await writeJsEnabled(dir)
+      const { js, wasm } = await runStrykerBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('stryker_config')
+      expect(js[0].message).toBe('test: js enabled, але кореневий package.json не знайдено (test.mdc)')
+    })
+  })
+
+  test('порожній single-package репо: stryker + vitest baseline + .gitignore', async () => {
+    await withTmpDir(async dir => {
+      await writeJsEnabled(dir)
+      await writeFileDeep(dir, 'package.json', JSON.stringify({ name: 'app' }))
+      const { js, wasm } = await runStrykerBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(3)
+      expect(js.map(v => v.reason)).toEqual(['stryker-config-missing', 'stryker-config-missing', 'gitignore-missing'])
+      expect(js.map(v => v.file)).toEqual(['stryker.config.mjs', 'vitest.config.mjs', undefined])
+    })
+  })
+
+  test('legacy `vitest.config.js` не плодить `.mjs`-порушення', async () => {
+    await withTmpDir(async dir => {
+      await writeJsEnabled(dir)
+      await writeFileDeep(dir, 'package.json', JSON.stringify({ name: 'app' }))
+      await writeFileDeep(dir, 'vitest.config.js', 'export default {}\n')
+      await writeFileDeep(dir, '.gitignore', '**/reports/stryker/\n**/coverage/\n')
+      const { js, wasm } = await runStrykerBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].file).toBe('stryker.config.mjs')
+    })
+  })
+
+  test('vue-root: додається baseline vue-macros ignorer-плагіна', async () => {
+    await withTmpDir(async dir => {
+      await writeJsEnabled(dir)
+      await writeFileDeep(dir, 'package.json', JSON.stringify({ name: 'app' }))
+      await writeFileDeep(dir, 'src/App.vue', '<template><div /></template>\n')
+      await writeFileDeep(dir, '.gitignore', '**/reports/stryker/\n**/coverage/\n')
+      const { js, wasm } = await runStrykerBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js.map(v => v.file)).toEqual(['stryker.config.mjs', 'stryker-vue-macros-ignorer.mjs', 'vitest.config.mjs'])
+    })
+  })
+
+  test('`.vue` лише під `src/dist/` — не vue-root в обох реалізаціях (VUE_GLOB_IGNORE)', async () => {
+    await withTmpDir(async dir => {
+      await writeJsEnabled(dir)
+      await writeFileDeep(dir, 'package.json', JSON.stringify({ name: 'app' }))
+      await writeFileDeep(dir, 'src/dist/App.vue', '<template><div /></template>\n')
+      await writeFileDeep(dir, '.gitignore', '**/reports/stryker/\n**/coverage/\n')
+      const { js, wasm } = await runStrykerBoth(dir)
+      expect(wasm).toEqual(js)
+      // Немає дії `stryker-vue-macros-ignorer.mjs` — саме це відрізняє
+      // vue-root від звичайного.
+      expect(js.map(v => v.file)).toEqual(['stryker.config.mjs', 'vitest.config.mjs'])
+    })
+  })
+
+  test('vue-root із наявним stryker-конфігом без ignorer-а: augment-порушення', async () => {
+    await withTmpDir(async dir => {
+      await writeJsEnabled(dir)
+      await writeFileDeep(dir, 'package.json', JSON.stringify({ name: 'app' }))
+      await writeFileDeep(dir, 'src/App.vue', '<template><div /></template>\n')
+      await writeFileDeep(dir, 'stryker.config.mjs', "export default {\n  testRunner: 'vitest'\n}\n")
+      await writeFileDeep(dir, 'vitest.config.mjs', 'export default {}\n')
+      await writeFileDeep(dir, '.gitignore', '**/reports/stryker/\n**/coverage/\n')
+      const { js, wasm } = await runStrykerBoth(dir)
+      expect(wasm).toEqual(js)
+      // Порядок фіксований `lint()`: спершу ВСІ baseline-дії, потім augment-и.
+      expect(js).toHaveLength(2)
+      expect(js[0].reason).toBe('stryker-config-missing')
+      expect(js[0].file).toBe('stryker-vue-macros-ignorer.mjs')
+      expect(js[1].reason).toBe('stryker-vue-augment')
+      expect(js[1].file).toBe('stryker.config.mjs')
+    })
+  })
+
+  test('vue-root із повністю зареєстрованим ignorer-ом: augment — no-op', async () => {
+    await withTmpDir(async dir => {
+      await writeJsEnabled(dir)
+      await writeFileDeep(dir, 'package.json', JSON.stringify({ name: 'app' }))
+      await writeFileDeep(dir, 'src/App.vue', '<template><div /></template>\n')
+      await writeFileDeep(
+        dir,
+        'stryker.config.mjs',
+        'export default {\n' +
+          "  plugins: ['@stryker-mutator/vitest-runner', './stryker-vue-macros-ignorer.mjs'],\n" +
+          "  ignorers: ['vue-macros']\n" +
+          '}\n'
+      )
+      await writeFileDeep(dir, 'stryker-vue-macros-ignorer.mjs', 'export const strykerPlugins = []\n')
+      await writeFileDeep(dir, 'vitest.config.mjs', 'export default {}\n')
+      await writeFileDeep(dir, '.gitignore', '**/reports/stryker/\n**/coverage/\n')
+      const { js, wasm } = await runStrykerBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('augment неможливий: non-literal default export', async () => {
+    await withTmpDir(async dir => {
+      await writeJsEnabled(dir)
+      await writeFileDeep(dir, 'package.json', JSON.stringify({ name: 'app' }))
+      await writeFileDeep(dir, 'src/App.vue', '<template><div /></template>\n')
+      await writeFileDeep(dir, 'stryker.config.mjs', 'export default defineConfig({ plugins: [] })\n')
+      await writeFileDeep(dir, 'stryker-vue-macros-ignorer.mjs', 'export const strykerPlugins = []\n')
+      await writeFileDeep(dir, 'vitest.config.mjs', 'export default {}\n')
+      await writeFileDeep(dir, '.gitignore', '**/reports/stryker/\n**/coverage/\n')
+      const { js, wasm } = await runStrykerBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('stryker-vue-augment-fail')
+      expect(js[0].message).toContain('non-literal default export')
+    })
+  })
+
+  test('augment неможливий: динамічний `plugins` (spread)', async () => {
+    await withTmpDir(async dir => {
+      await writeJsEnabled(dir)
+      await writeFileDeep(dir, 'package.json', JSON.stringify({ name: 'app' }))
+      await writeFileDeep(dir, 'src/App.vue', '<template><div /></template>\n')
+      await writeFileDeep(dir, 'stryker.config.mjs', 'const base = []\nexport default {\n  plugins: [...base]\n}\n')
+      await writeFileDeep(dir, 'stryker-vue-macros-ignorer.mjs', 'export const strykerPlugins = []\n')
+      await writeFileDeep(dir, 'vitest.config.mjs', 'export default {}\n')
+      await writeFileDeep(dir, '.gitignore', '**/reports/stryker/\n**/coverage/\n')
+      const { js, wasm } = await runStrykerBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('stryker-vue-augment-fail')
+      expect(js[0].message).toContain('динамічний вираз (spread/computed)')
+    })
+  })
+
+  // Ця фікстура тримає живим твердження «повідомлення парсера в обох
+  // реалізаціях однакове»: JS-бік — napi `oxc-parser`, guest — crate
+  // `oxc_parser`, обидва пін 0.137.0 (`oxc-version-pin.test.mjs`). Розійдуться
+  // піни — розійдеться текст, і саме цей тест це побачить.
+  test('augment неможливий: syntax error — текст повідомлення парсера збігається побайтово', async () => {
+    await withTmpDir(async dir => {
+      await writeJsEnabled(dir)
+      await writeFileDeep(dir, 'package.json', JSON.stringify({ name: 'app' }))
+      await writeFileDeep(dir, 'src/App.vue', '<template><div /></template>\n')
+      await writeFileDeep(dir, 'stryker.config.mjs', 'export default {\n  plugins: [\n}\n')
+      await writeFileDeep(dir, 'stryker-vue-macros-ignorer.mjs', 'export const strykerPlugins = []\n')
+      await writeFileDeep(dir, 'vitest.config.mjs', 'export default {}\n')
+      await writeFileDeep(dir, '.gitignore', '**/reports/stryker/\n**/coverage/\n')
+      const { js, wasm } = await runStrykerBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('stryker-vue-augment-fail')
+      expect(js[0].message).toContain('має syntax error')
+    })
+  })
+
+  test('монорепо: workspaces-глоб розгортається в кілька js-roots', async () => {
+    await withTmpDir(async dir => {
+      await writeJsEnabled(dir)
+      await writeFileDeep(dir, 'package.json', JSON.stringify({ name: 'root', workspaces: ['packages/*'] }))
+      await writeFileDeep(dir, 'packages/app/package.json', JSON.stringify({ name: 'app' }))
+      await writeFileDeep(dir, 'packages/ui/package.json', JSON.stringify({ name: 'ui' }))
+      await writeFileDeep(dir, '.gitignore', '**/reports/stryker/\n**/coverage/\n')
+      const { js, wasm } = await runStrykerBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js.map(v => v.file)).toEqual([
+        'packages/app/stryker.config.mjs',
+        'packages/app/vitest.config.mjs',
+        'packages/ui/stryker.config.mjs',
+        'packages/ui/vitest.config.mjs'
+      ])
+    })
+  })
+
+  test('`.gitignore` містить лише частину патернів — у тексті лишається лише відсутній', async () => {
+    await withTmpDir(async dir => {
+      await writeJsEnabled(dir)
+      await writeFileDeep(dir, 'package.json', JSON.stringify({ name: 'app' }))
+      await writeFileDeep(dir, 'stryker.config.mjs', "export default { testRunner: 'vitest' }\n")
+      await writeFileDeep(dir, 'vitest.config.mjs', 'export default {}\n')
+      await writeFileDeep(dir, '.gitignore', '  **/coverage/  \n')
+      const { js, wasm } = await runStrykerBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('gitignore-missing')
+      expect(js[0].message).toBe(
+        '.gitignore: бракує тест-патернів (**/reports/stryker/) — запусти `npx @7n/rules lint test` (test.mdc)'
+      )
+    })
+  })
+})
+
+describe('wasm-plugin parity — js/check (JS канон vs wasm plugin-lang-js, зріз 2 контракту v3.1)', () => {
+  const runJsCheckBoth = dir => runFullScopeBoth(JS_CHECK_MAIN_MJS_PATH, JS_CHECK_CONCERN_KEY, 'js', 'check', dir)
+
+  /** Вміст `eslint.config.js`, що проходить усі три текстові перевірки. */
+  const eslintConfigWith = args =>
+    `import { getConfig } from '@nitra/eslint-config'\n\nexport default [\n  {\n    ignores: ['**/auto-imports.d.ts']\n  },\n  ...getConfig(${args})\n]\n`
+
+  /** Канон oxlint із пакета — той самий файл, що вшито в компонент. */
+  const readOxlintCanonical = async () => {
+    const { readFile } = await import('node:fs/promises')
+    return readFile(
+      join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'js', 'tooling', 'data', 'tooling', 'oxlint-canonical.json'),
+      'utf8'
+    )
+  }
+
+  test('порожній репо — три порушення в тому самому порядку', async () => {
+    await withTmpDir(async dir => {
+      const { js, wasm } = await runJsCheckBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js.map(v => v.reason)).toEqual(['eslint-config-missing', 'oxlintrc-missing', 'knip-missing'])
+    })
+  })
+
+  // Зафіксована ЗМІНА ПОВЕДІНКИ (рішення Ґ спеки v3.1): раніше JS-канон тут
+  // тихо створював `knip.json` і не звітував нічого. Тепер обидві реалізації
+  // звітують порушення, і дерево лишається недоторканим.
+  test('відсутній knip.json — порушення `knip-missing`, дерево не мутоване жодною реалізацією', async () => {
+    await withTmpDir(async dir => {
+      const { existsSync } = await import('node:fs')
+      await writeFileDeep(dir, 'eslint.config.js', eslintConfigWith("{ node: ['.'] }"))
+      await writeFileDeep(dir, '.oxlintrc.json', await readOxlintCanonical())
+      const { js, wasm } = await runJsCheckBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('knip-missing')
+      expect(js[0].message).toBe('knip.json відсутній — T0 створить його з канону пакета @7n/rules (js.mdc)')
+      expect(existsSync(join(dir, 'knip.json'))).toBe(false)
+    })
+  })
+
+  test('канонічний `.oxlintrc.json` — жодного drift-порушення в обох реалізаціях', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'eslint.config.js', eslintConfigWith("{ node: ['.'] }"))
+      await writeFileDeep(dir, '.oxlintrc.json', await readOxlintCanonical())
+      await writeFileDeep(dir, 'knip.json', '{}\n')
+      const { js, wasm } = await runJsCheckBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('`.oxlintrc.json` із вирізаним правилом — текст drift-повідомлення збігається побайтово', async () => {
+    await withTmpDir(async dir => {
+      const canonical = JSON.parse(await readOxlintCanonical())
+      delete canonical.rules.eqeqeq
+      await writeFileDeep(dir, 'eslint.config.js', eslintConfigWith("{ node: ['.'] }"))
+      await writeFileDeep(dir, '.oxlintrc.json', JSON.stringify(canonical, null, 2))
+      await writeFileDeep(dir, 'knip.json', '{}\n')
+      const { js, wasm } = await runJsCheckBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('oxlintrc-drift')
+      expect(js[0].message).toBe(
+        '.oxlintrc.json: rules["eqeqeq"] очікується ["deny","always",{"null":"ignore"}], зараз undefined'
+      )
+    })
+  })
+
+  test('`.oxlintrc.json` із вилученими jsPlugins/ignorePatterns — порядок повідомлень за порядком ключів канону', async () => {
+    await withTmpDir(async dir => {
+      const canonical = JSON.parse(await readOxlintCanonical())
+      canonical.jsPlugins = []
+      canonical.ignorePatterns = []
+      await writeFileDeep(dir, 'eslint.config.js', eslintConfigWith("{ node: ['.'] }"))
+      await writeFileDeep(dir, '.oxlintrc.json', JSON.stringify(canonical, null, 2))
+      await writeFileDeep(dir, 'knip.json', '{}\n')
+      const { js, wasm } = await runJsCheckBoth(dir)
+      expect(wasm).toEqual(js)
+      // jsPlugins стоїть у каноні ПЕРЕД ignorePatterns — і саме такий порядок
+      // мають обидві реалізації (алфавітний дав би зворотний).
+      expect(js).toHaveLength(2)
+      expect(js[0].message).toContain('jsPlugins має містити канонічні plugins')
+      expect(js[1].message).toContain('ignorePatterns має містити канонічні патерни')
+    })
+  })
+
+  test('невалідний `.oxlintrc.json` — однакове повідомлення й жодного drift-у', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'eslint.config.js', eslintConfigWith("{ node: ['.'] }"))
+      await writeFileDeep(dir, '.oxlintrc.json', '{ not json')
+      await writeFileDeep(dir, 'knip.json', '{}\n')
+      const { js, wasm } = await runJsCheckBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].message).toBe('.oxlintrc.json не є валідним JSON')
+    })
+  })
+
+  test('eslint.config без getConfig/@nitra/ignores — три текстові порушення в порядку канону', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'eslint.config.mjs', 'export default []\n')
+      await writeFileDeep(dir, '.oxlintrc.json', await readOxlintCanonical())
+      await writeFileDeep(dir, 'knip.json', '{}\n')
+      const { js, wasm } = await runJsCheckBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js.map(v => v.message)).toEqual([
+        'eslint.config.mjs: потрібен виклик getConfig (js.mdc)',
+        'eslint.config.mjs: імпортуй getConfig з @nitra/eslint-config',
+        'eslint.config.mjs: додай у ignores запис **/auto-imports.d.ts (js.mdc)'
+      ])
+    })
+  })
+
+  test('vue-воркспейс (за залежністю) поза `vue: [...]` — однакове порушення', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'eslint.config.js', eslintConfigWith("{ node: ['app'] }"))
+      await writeFileDeep(dir, 'package.json', JSON.stringify({ name: 'root', type: 'module', workspaces: ['app'] }))
+      await writeFileDeep(
+        dir,
+        'app/package.json',
+        JSON.stringify({
+          name: 'app',
+          type: 'module',
+          engines: { node: '>=24', bun: '>=1.3' },
+          dependencies: { vue: '^3.6.0' }
+        })
+      )
+      await writeFileDeep(dir, '.oxlintrc.json', await readOxlintCanonical())
+      await writeFileDeep(dir, 'knip.json', '{}\n')
+      const { js, wasm } = await runJsCheckBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('eslint-config-vue-workspace')
+      expect(js[0].message).toContain("воркспейс 'app' містить Vue-код")
+    })
+  })
+
+  test('vue-воркспейс (за `.vue`-файлом, glob-патерн workspaces) — однакове порушення', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'eslint.config.js', eslintConfigWith("{ node: ['packages/ui'] }"))
+      await writeFileDeep(
+        dir,
+        'package.json',
+        JSON.stringify({ name: 'root', type: 'module', workspaces: ['packages/*'] })
+      )
+      await writeFileDeep(
+        dir,
+        'packages/ui/package.json',
+        JSON.stringify({ name: 'ui', type: 'module', engines: { node: '>=24', bun: '>=1.3' } })
+      )
+      await writeFileDeep(dir, 'packages/ui/src/Widget.vue', '<template><div /></template>\n')
+      await writeFileDeep(dir, '.oxlintrc.json', await readOxlintCanonical())
+      await writeFileDeep(dir, 'knip.json', '{}\n')
+      const { js, wasm } = await runJsCheckBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('eslint-config-vue-workspace')
+      expect(js[0].message).toContain("воркспейс 'packages/ui' містить Vue-код")
+    })
+  })
+
+  test('`.vue` під `dist/` не робить воркспейс vue-воркспейсом (ignore globby)', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'eslint.config.js', eslintConfigWith("{ node: ['app'] }"))
+      await writeFileDeep(dir, 'package.json', JSON.stringify({ name: 'root', type: 'module', workspaces: ['app'] }))
+      await writeFileDeep(
+        dir,
+        'app/package.json',
+        JSON.stringify({ name: 'app', type: 'module', engines: { node: '>=24', bun: '>=1.3' } })
+      )
+      await writeFileDeep(dir, 'app/dist/Bundled.vue', '<template><div /></template>\n')
+      await writeFileDeep(dir, '.oxlintrc.json', await readOxlintCanonical())
+      await writeFileDeep(dir, 'knip.json', '{}\n')
+      const { js, wasm } = await runJsCheckBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('workspace-`package.json` без type/engines — три порушення в порядку канону', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'eslint.config.js', eslintConfigWith("{ node: ['app'] }"))
+      await writeFileDeep(dir, 'package.json', JSON.stringify({ name: 'root', type: 'module', workspaces: ['app'] }))
+      await writeFileDeep(dir, 'app/package.json', JSON.stringify({ name: 'app' }))
+      await writeFileDeep(dir, '.oxlintrc.json', await readOxlintCanonical())
+      await writeFileDeep(dir, 'knip.json', '{}\n')
+      const { js, wasm } = await runJsCheckBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js.map(v => v.message)).toEqual([
+        'app/package.json: має містити "type": "module" (js.mdc)',
+        'app/package.json не містить engines.node — додай: "engines": { "node": ">=24" }',
+        'app/package.json не містить engines.bun — додай: "engines": { "bun": ">=1.3" }'
+      ])
+    })
+  })
+
+  test('engines нижче порогів — однаковий текст порогових повідомлень', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'eslint.config.js', eslintConfigWith("{ node: ['app'] }"))
+      await writeFileDeep(dir, 'package.json', JSON.stringify({ name: 'root', type: 'module', workspaces: ['app'] }))
+      await writeFileDeep(
+        dir,
+        'app/package.json',
+        JSON.stringify({ name: 'app', type: 'module', engines: { node: '>=22.1', bun: '^1.2.9' } })
+      )
+      await writeFileDeep(dir, '.oxlintrc.json', await readOxlintCanonical())
+      await writeFileDeep(dir, 'knip.json', '{}\n')
+      const { js, wasm } = await runJsCheckBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js.map(v => v.message)).toEqual([
+        'app/package.json: engines.node ">=22.1" — має бути >=24',
+        'app/package.json: engines.bun "^1.2.9" — має бути >=1.3'
+      ])
+    })
+  })
+
+  test('`lint.yml` дублює кроки lint-js.yml — однакове порушення', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'eslint.config.js', eslintConfigWith("{ node: ['.'] }"))
+      await writeFileDeep(dir, '.oxlintrc.json', await readOxlintCanonical())
+      await writeFileDeep(dir, 'knip.json', '{}\n')
+      await writeFileDeep(
+        dir,
+        '.github/workflows/lint.yml',
+        'jobs:\n  a:\n    steps:\n      - run: bunx oxlint\n      - run: bunx eslint\n      - run: jscpd\n'
+      )
+      const { js, wasm } = await runJsCheckBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].message).toBe(
+        '.github/workflows/lint.yml дублює кроки lint-js.yml — залиш один workflow на лінт JS (js.mdc)'
+      )
+    })
+  })
+
+  test('застарілі конфіги ESLint — по одному порушенню на кожен, у фіксованому порядку', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'eslint.config.js', eslintConfigWith("{ node: ['.'] }"))
+      await writeFileDeep(dir, '.oxlintrc.json', await readOxlintCanonical())
+      await writeFileDeep(dir, 'knip.json', '{}\n')
+      await writeFileDeep(dir, '.eslintrc', '{}\n')
+      await writeFileDeep(dir, '.eslintrc.yml', 'root: true\n')
+      const { js, wasm } = await runJsCheckBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js.map(v => v.message)).toEqual([
+        'Знайдено застарілий конфіг ESLint: .eslintrc — видали, використовуй flat config',
+        'Знайдено застарілий конфіг ESLint: .eslintrc.yml — видали, використовуй flat config'
+      ])
     })
   })
 })

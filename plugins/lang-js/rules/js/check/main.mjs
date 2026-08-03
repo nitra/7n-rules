@@ -1,12 +1,12 @@
 /** @see ./docs/tooling.md */
 import { existsSync } from 'node:fs'
-import { copyFile, readFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { createViolationReporter } from '@7n/rules/scripts/lib/lint-surface/violation-reporter.mjs'
 
 import {
-  KNIP_CANONICAL_JSON_PATH,
+  KNIP_MISSING,
   OXLINT_CANONICAL_JSON_PATH,
   OXLINTRC_DRIFT,
   OXLINTRC_MISSING,
@@ -260,30 +260,30 @@ async function checkLintJsWorkflows(passFn, failFn, cwd) {
 }
 
 /**
- * Перевіряє наявність `knip.json` у корені проєкту. Якщо файл відсутній —
- * копіює канонічний `knip-canonical.json` з пакета `@7n/rules` як стартовий
- * baseline; зміст подальших модифікацій локально не валідується (`entry` /
- * `project` / `ignore` / `ignoreDependencies` / `ignoreBinaries` дозволені
- * будь-які; це side effect — описано у js.mdc).
+ * Перевіряє наявність `knip.json` у корені проєкту. Read-only: відсутність —
+ * звичайне порушення (`KNIP_MISSING`), яке детерміновано знімає T0
+ * (`fix-check.mjs`, патерн `js-check-knip`, копія канонічного
+ * `knip-canonical.json` з пакета `@7n/rules`). Зміст уже наявного файлу
+ * локально не валідується (`entry` / `project` / `ignore` /
+ * `ignoreDependencies` / `ignoreBinaries` дозволені будь-які).
+ *
+ * До 2026-08-01 ця функція сама робила `copyFile` під час фази **detect** і
+ * звітувала `pass` — тобто порушення не було спостережуваним взагалі, а
+ * `lint --no-fix` мутував дерево споживача. Спека контракту плагінів v3.1
+ * (`docs/specs/2026-08-01-plugin-contract-v31-surfaces.md`, рішення Ґ)
+ * класифікувала це як дефект концерну (fix, замаскований під detect), а не
+ * як потребу в поверхні «запис під час detect»: у моделі контракту всі
+ * мутації живуть у `FixPlan`/T0, який хост валідує й застосовує.
  * @param {(msg: string) => void} passFn callback при успішній перевірці
- * @param {(msg: string) => void} failFn callback при помилці
+ * @param {(msg: string, reason?: string) => void} failFn callback при помилці
  * @param {string} cwd корінь репозиторію
  */
-async function checkKnipConfig(passFn, failFn, cwd) {
-  const knipPath = join(cwd, 'knip.json')
-  if (existsSync(knipPath)) {
+function checkKnipConfig(passFn, failFn, cwd) {
+  if (existsSync(join(cwd, 'knip.json'))) {
     passFn('knip.json існує')
     return
   }
-  if (!existsSync(KNIP_CANONICAL_JSON_PATH)) {
-    failFn(
-      `knip.json відсутній, і канонічний шаблон у пакеті не знайдено (${KNIP_CANONICAL_JSON_PATH}) — ` +
-        'перевстанови @7n/rules'
-    )
-    return
-  }
-  await copyFile(KNIP_CANONICAL_JSON_PATH, knipPath)
-  passFn('knip.json створено з канонічного npm/rules/js/tooling/data/tooling/knip-canonical.json (js.mdc)')
+  failFn('knip.json відсутній — T0 створить його з канону пакета @7n/rules (js.mdc)', KNIP_MISSING)
 }
 
 /**
@@ -300,7 +300,7 @@ export async function lint(ctx) {
   await checkPackageJsonJsLint(pass, fail, cwd)
   await checkOxlintRc(pass, fail, cwd)
   await checkLintJsWorkflows(pass, fail, cwd)
-  await checkKnipConfig(pass, fail, cwd)
+  checkKnipConfig(pass, fail, cwd)
 
   for (const dup of ['.eslintrc', '.eslintrc.js', '.eslintrc.json', '.eslintrc.yml']) {
     if (existsSync(join(cwd, dup))) fail(`Знайдено застарілий конфіг ESLint: ${dup} — видали, використовуй flat config`)

@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: plugins/lang-js/rules/js/check/main.mjs
 docgen:
-  crc: 1da6a724
+  crc: 59674b79
   model: manual
 ---
 
@@ -11,7 +11,7 @@ docgen:
 
 Detector concern-а `js/check`: read-only перевірка відповідності проєкту правилам
 `js.mdc`. Накопичує порушення через violation-reporter і повертає їх runner-у;
-нічого не друкує і (за одним винятком — baseline `knip.json`) нічого не пише.
+нічого не друкує і нічого не пише.
 
 ## Поведінка
 
@@ -33,8 +33,12 @@ Detector concern-а `js/check`: read-only перевірка відповідн�
   детерміновано виправляє T0 `fix-check.mjs` (патерн `js-check-oxlintrc`).
 - `.github/workflows/lint-js.yml`: існує; `lint.yml` (якщо є) не дублює
   oxlint/eslint/jscpd кроки.
-- `knip.json`: якщо відсутній — копіюється канонічний baseline із пакета
-  (side effect, описаний у js.mdc); подальший вміст локально не валідується.
+- `knip.json`: існує — reason `knip-missing` за відсутності; вміст наявного
+  файлу локально не валідується. Копію канонічного baseline робить T0
+  `fix-check.mjs` (патерн `js-check-knip`), а НЕ детектор: до 2026-08-01
+  копіювання жило прямо у фазі detect і звітувало `pass`, тож порушення було
+  неспостережуваним, а `lint --no-fix` мутував дерево (спека
+  `docs/specs/2026-08-01-plugin-contract-v31-surfaces.md`, рішення Ґ).
 - Застарілі конфіги ESLint (`.eslintrc`, `.eslintrc.js`, `.eslintrc.json`,
   `.eslintrc.yml`) — порушення: лише flat config.
 
@@ -44,5 +48,6 @@ Detector concern-а `js/check`: read-only перевірка відповідн�
 
 ## Гарантії поведінки
 
-- Read-only, крім єдиного side effect — створення `knip.json` з канону.
+- Повністю read-only: жодна перевірка не пише у ФС (усі мутації — у T0
+  `fix-check.mjs`).
 - Порушення повертаються reporter-ом, не друкуються.

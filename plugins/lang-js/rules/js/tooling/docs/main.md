@@ -3,7 +3,7 @@ type: JS Module
 title: main.mjs
 resource: plugins/lang-js/rules/js/tooling/main.mjs
 docgen:
-  crc: 3f619362
+  crc: 073b19ff
   model: omlx/gemma-4-e2b-it-4bit
   tier: local-min
   score: 95
@@ -23,6 +23,10 @@ T0-автофіксу `js/check` (`fix-check.mjs`), без LLM.
   канонічних JSON-конфігів `oxlint`/`knip` у цьому пакеті.
 - `OXLINTRC_MISSING` / `OXLINTRC_DRIFT` — стабільні reason-коди для
   порушень `.oxlintrc.json` (відсутній файл / розходження з каноном).
+- `KNIP_MISSING` — reason-код відсутнього `knip.json`. До 2026-08-01 такого
+  порушення не існувало: детектор `js/check` сам копіював канон під час
+  detect і звітував `pass` (спека
+  `docs/specs/2026-08-01-plugin-contract-v31-surfaces.md`, рішення Ґ).
 - `verifyOxlintRcAgainstCanonical(cfg, canonical)` вимагає точний збіг
   canonical rules, але дозволяє project-specific `rules`, `ignorePatterns`
   та `jsPlugins`; кожен canonical plugin однаково лишається обов'язковим.
@@ -33,6 +37,7 @@ T0-автофіксу `js/check` (`fix-check.mjs`), без LLM.
 
 - `OXLINT_CANONICAL_JSON_PATH` / `KNIP_CANONICAL_JSON_PATH` — шляхи до canonical JSON.
 - `OXLINTRC_MISSING` / `OXLINTRC_DRIFT` — reason-коди порушень `.oxlintrc.json`.
+- `KNIP_MISSING` — reason-код відсутнього `knip.json` (T0 `js-check-knip`).
 - `verifyOxlintRcAgainstCanonical(cfg, canonical)` → `{ ok, failures }` — перевірка конфігу.
 - `planOxlintrcFix(actual, canonical)` → злитий `.oxlintrc.json` для T0-фіксу.
 
