@@ -75,6 +75,14 @@ globset = "0.4"
 # genai/tokio/reqwest/agent-client-protocol стеку `agents`-фічі (ACP/batch/
 # local_cloud), непотрібного lint-адону.
 llm-lib = { path = "../../llm-lib/crates/llm-lib", default-features = false }
+# Резолв зовнішнього CLI-тула в PATH (`tool_resolve::resolve_cmd`) —
+# бібліотечний крейт замість ручного скану `PATH`+`PATHEXT`: активно
+# підтримуваний, широковживаний (canonical `which(1)`-еквівалент екосистеми),
+# і сам не спавнить субпроцес `which`/`where` (чисті `stat`/`access`-виклики
+# через `libc`) — той самий клас гарантії, що й у ручного порту, який він
+# заміняє (doc-комент `tool_resolve`: чому не субпроцес). Default-фіча
+# `real-sys` — досить, `regex`/`tracing` не потрібні.
+which = "8"
 
 [dev-dependencies]
 tempfile = "3"

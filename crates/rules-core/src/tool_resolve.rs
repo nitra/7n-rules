@@ -23,91 +23,55 @@
 //! доводить встановлення до кінця. Деталі контракту — доккомент
 //! [`crate::concerns::NATIVE_DELEGATING_CONCERNS`].
 //!
-//! # Паритет із `resolve-cmd.mjs`
+//! # Чому crate `which`, а не ручний порт `resolve-cmd.mjs`
 //!
-//! [`resolve_cmd`] — точний порт `resolveCmd`
-//! (`npm/scripts/utils/resolve-cmd.mjs:50-60`): чистий скан каталогів `PATH`
-//! без субпроцесу `which`/`where`, `PATH` читається на кожен виклик (щоб
-//! runtime-підміна в тестах була видима), на Windows додаються суфікси з
-//! `PATHEXT`. «Виконуваний» = існує, є звичайним файлом і має x-біт (POSIX);
-//! на Windows x-біта нема — достатньо того, що це файл із відомим суфіксом,
-//! як і в JS (`accessSync(X_OK)` на Windows завжди проходить для наявного
-//! файлу).
+//! JS-канон (`npm/scripts/utils/resolve-cmd.mjs`) навмисно уникає
+//! субпроцесу `which`/`where` — доккомент там фіксує реальний інцидент:
+//! `spawn` під навантаженим повним тест-прогоном транзієнтно падав
+//! (`EAGAIN`), і "команда є" перетворювалось на `null`. Це обмеження про
+//! **субпроцес**, не про бібліотечний код — crate `which` (docs.rs/which)
+//! сам нічого не спавнить: пряме `stat`/`access` через `libc`, той самий
+//! клас виклику, що й ручний скан, який він тут заміняє.
+//!
+//! Перша версія цього модуля була буквальним 1:1-портом
+//! `resolveCmd`/`candidateSuffixes`/`isExecutableFile` — з розрахунком на
+//! parity з JS. Але точний порт тут не мета сам по собі: `which` —
+//! активно підтримуваний, широко вживаний крейт, який покриває ті самі
+//! кейси (POSIX x-біт, Windows `PATHEXT`, симлінки) повніше й перевіреніше
+//! за ручний код, який довелось би самим супроводжувати на кожен ОС-edge-
+//! кейс. Заміна не змінює зовнішній контракт [`resolve_cmd`]/
+//! [`resolve_provisioned_tool`] — той самий тестовий набір нижче
+//! підтверджує поведінкову еквівалентність, а не побайтовий паритет
+//! реалізації.
+//!
+//! Явний список каталогів (для [`resolve_cmd_in`]/тестів) передається в
+//! `which::which_in` як PATH-подібний рядок через `env::join_paths` — так
+//! підміна кандидатів лишається "чистою" (без мутації процес-глобального
+//! `PATH`, яка ламала б паралельні тести крейта, що спавнять `git`), а не
+//! через окремий ручний цикл.
 
 use std::path::{Path, PathBuf};
 
-/// Дефолтний `PATHEXT` Windows, якщо змінна не виставлена — той самий
-/// список, що `WINDOWS_DEFAULT_PATHEXT` (`resolve-cmd.mjs:18`).
-const WINDOWS_DEFAULT_PATHEXT: &str = ".COM;.EXE;.BAT;.CMD";
-
-/// Чи є шлях виконуваним звичайним файлом — порт `isExecutableFile`
-/// (`resolve-cmd.mjs:25-33`). Тека з іменем команди не вважається збігом.
-fn is_executable_file(path: &Path) -> bool {
-    let Ok(meta) = std::fs::metadata(path) else {
-        return false;
-    };
-    if !meta.is_file() {
-        return false;
-    }
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        // `accessSync(path, X_OK)` перевіряє ефективний доступ поточного
-        // процесу; тут — наявність будь-якого x-біта. Для реальних
-        // PATH-каталогів (0755-бінарники) це той самий вислід, а різниця
-        // проявилась би лише на екзотичних ACL, яких у lint-контурі немає.
-        meta.permissions().mode() & 0o111 != 0
-    }
-    #[cfg(not(unix))]
-    {
-        true
-    }
-}
-
-/// Суфікси-кандидати імені команди — порт `candidateSuffixes`
-/// (`resolve-cmd.mjs:40-43`): POSIX — лише саме ім'я; Windows — саме ім'я
-/// плюс розширення з `PATHEXT`.
-fn candidate_suffixes() -> Vec<String> {
-    if !cfg!(windows) {
-        return vec![String::new()];
-    }
-    let pathext = std::env::var("PATHEXT").unwrap_or_else(|_| WINDOWS_DEFAULT_PATHEXT.to_string());
-    let mut out = vec![String::new()];
-    out.extend(
-        pathext
-            .split(';')
-            .filter(|s| !s.is_empty())
-            .map(str::to_string),
-    );
-    out
-}
-
-/// Скан явного списку каталогів — «чисте» ядро [`resolve_cmd`] без читання
-/// оточення. Винесене окремо саме заради тестів: підміна процес-глобального
-/// `PATH` ламала б будь-який паралельний тест крейта, що спавнить `git`
-/// (`worktree`/`changed_files`).
+/// Скан явного списку каталогів — «чисте» ядро [`resolve_cmd`]/
+/// [`resolve_provisioned_tool`] без читання процес-глобального `PATH`.
+/// Порожні елементи `dirs` відкидаються ДО `join_paths`: порожній
+/// PATH-сегмент традиційно означає "поточний каталог", а не "пропустити" —
+/// такої семантики тут бути не повинно (той самий інвариант, що мав ручний
+/// скан).
 fn resolve_cmd_in(cmd: &str, dirs: &[PathBuf]) -> Option<PathBuf> {
-    let suffixes = candidate_suffixes();
-    for dir in dirs {
-        if dir.as_os_str().is_empty() {
-            continue;
-        }
-        for suffix in &suffixes {
-            let candidate = dir.join(format!("{cmd}{suffix}"));
-            if is_executable_file(&candidate) {
-                return Some(candidate);
-            }
-        }
+    let non_empty: Vec<&PathBuf> = dirs.iter().filter(|d| !d.as_os_str().is_empty()).collect();
+    if non_empty.is_empty() {
+        return None;
     }
-    None
+    let joined = std::env::join_paths(non_empty).ok()?;
+    which::which_in(cmd, Some(joined), ".").ok()
 }
 
-/// Абсолютний шлях до команди в `PATH` або `None` — точний порт `resolveCmd`
-/// (`resolve-cmd.mjs:50-60`). `PATH` читається на кожен виклик (як і в JS).
+/// Абсолютний шлях до команди в `PATH` або `None`. `PATH` читається на
+/// кожен виклик (крейт сам читає оточення при кожному виклику) — жодного
+/// кешування між викликами.
 pub fn resolve_cmd(cmd: &str) -> Option<PathBuf> {
-    let path_var = std::env::var("PATH").unwrap_or_default();
-    let dirs: Vec<PathBuf> = std::env::split_paths(&path_var).collect();
-    resolve_cmd_in(cmd, &dirs)
+    which::which(cmd).ok()
 }
 
 /// Каталог керованого кешу бінарників — порт `getCacheDir`
@@ -191,7 +155,7 @@ mod tests {
         fs::set_permissions(path, fs::Permissions::from_mode(0o755)).unwrap();
     }
 
-    /// `resolveCmd` знаходить виконуваний файл у каталозі-кандидаті.
+    /// `resolve_cmd_in` знаходить виконуваний файл у каталозі-кандидаті.
     ///
     /// Тести навмисно НЕ підміняють процес-глобальний `PATH`: у тому ж
     /// процесі паралельно біжать тести `worktree`/`changed_files`, які
@@ -208,7 +172,7 @@ mod tests {
         );
     }
 
-    /// Тека з іменем команди — не збіг (`isExecutableFile` вимагає файл).
+    /// Тека з іменем команди — не збіг (`which` вимагає звичайний файл).
     #[cfg(unix)]
     #[test]
     fn resolve_cmd_ignores_directory_with_command_name() {
