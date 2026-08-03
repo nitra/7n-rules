@@ -47,8 +47,7 @@
  * fail-soft, а stop-at-first-error живе у викликача).
  */
 import { createConnection } from 'node:net'
-import { dirname, join } from 'node:path'
-import { argv, env, exit, exitCode } from 'node:process'
+import { argv, env, exit } from 'node:process'
 import { pathToFileURL } from 'node:url'
 
 /** Версія протоколу мосту; Rust-бік звіряє її fail-closed на `hello`. */
@@ -240,10 +239,8 @@ if (argv[1] !== undefined && import.meta.url === pathToFileURL(argv[1]).href) {
   // самий прапорець, що виставляє JS-роутер перед підкомандами-оркестраторами.
   env.ADR_HOOKS_SKIP = '1'
   await serveBridge(socketPath)
-  exit(exitCode ?? 0)
+  // Явний `exit` — концерн міг лишити «висіти» таймер чи дескриптор
+  // (типово: не закритий watcher зовнішнього тула), і без цього процес
+  // пережив би закритий сокет, а Rust-бік чекав би на нього у `Drop`.
+  exit(0)
 }
-
-// `join`/`dirname` лишаються доступними для майбутніх ops, що читатимуть
-// ресурси пакета; поки не використовуються — не імпортуємо зайвого.
-void join
-void dirname
