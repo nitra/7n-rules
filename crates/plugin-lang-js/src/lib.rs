@@ -12721,28 +12721,84 @@ mod tests {
     /// файлу). Батч 6 оновив `build_manifest`, але НЕ `plugin.toml` — файл
     /// проїхав із дев'ятнадцятьма контрибуціями проти двадцяти трьох у
     /// рантаймі, і ніщо про це не сигналило. Цей тест — гейт від повторення:
-    /// набір `key = "…"` у маніфесті-довіднику мусить точно збігатись із
-    /// набором ключів `describe()`. Парсер навмисно примітивний (рядки
-    /// `key = "..."`), щоб не тягнути toml-залежність у крейт.
+    /// набір `key = "…"`, `tools` і `ci_artifacts` у маніфесті-довіднику
+    /// мусять точно збігатись із тим, що повертає `describe()`.
+    ///
+    /// Парсинг — справжнім TOML-парсером (dev-only `toml`), а НЕ порядковим
+    /// скануванням рядків, як було раніше: попередній примітивний варіант
+    /// пропустив другий клас дрейфу — `ci_artifacts = []`/`tools = []` стояли
+    /// ПІСЛЯ останнього заголовка `[[concerns]]`, тож TOML читав їх як поля
+    /// останнього концерну, а не як top-level поля маніфеста. Порядкове
+    /// сканування такого не бачить у принципі (рядок присутній — і байдуже
+    /// де), структурний парсинг ловить це напряму.
     #[test]
     fn plugin_toml_concern_keys_match_describe() {
-        let toml_src = include_str!("../plugin.toml");
-        let mut declared: Vec<&str> = toml_src
-            .lines()
-            .filter_map(|line| line.trim().strip_prefix("key = \""))
-            .filter_map(|rest| rest.strip_suffix('"'))
+        let manifest: toml::Table = include_str!("../plugin.toml")
+            .parse()
+            .expect("plugin.toml має бути валідним TOML");
+        let runtime = build_manifest();
+
+        // Ключі концернів — той самий гейт, що й до батчу 6, але тепер із
+        // масиву `concerns`, а не з довільних рядків файлу.
+        // `get(...)`, а не індексація: індексація `toml::Table` панікує
+        // безликим «no entry found for key» ще ДО `.as_array()`, і саме
+        // діагностика про неправильне розташування поля губиться.
+        let mut declared: Vec<&str> = manifest
+            .get("concerns")
+            .and_then(|v| v.as_array())
+            .expect("`concerns` — array of tables у корені маніфеста")
+            .iter()
+            .map(|c| c["key"].as_str().expect("`key` — рядок"))
             .collect();
         declared.sort_unstable();
-        let mut runtime: Vec<String> = build_manifest()
-            .concerns
-            .into_iter()
-            .map(|c| c.key)
-            .collect();
-        runtime.sort();
+        let mut runtime_keys: Vec<&str> = runtime.concerns.iter().map(|c| c.key.as_str()).collect();
+        runtime_keys.sort_unstable();
         assert_eq!(
-            declared,
-            runtime.iter().map(String::as_str).collect::<Vec<_>>(),
-            "plugin.toml розійшовся з describe() — синхронізуй маніфест-довідник"
+            declared, runtime_keys,
+            "plugin.toml розійшовся з describe() по concerns — синхронізуй маніфест-довідник"
+        );
+
+        // `tools` шукається В КОРЕНІ таблиці — сам пошук тут і є перевіркою
+        // розташування: якщо ключ з'їхав під `[[concerns]]`, у корені його
+        // просто немає.
+        let declared_tools: Vec<&str> = manifest
+            .get("tools")
+            .and_then(|v| v.as_array())
+            .expect(
+                "`tools` мусить бути top-level масивом маніфеста — якщо він стоїть ПІСЛЯ \
+                 заголовка `[[concerns]]`, TOML читає його як поле останнього концерну; \
+                 перенеси до `id`/`version`/`world_version`/`domains`",
+            )
+            .iter()
+            .map(|t| t.as_str().expect("елемент `tools` — рядок"))
+            .collect();
+        assert_eq!(
+            declared_tools,
+            runtime.tools.iter().map(String::as_str).collect::<Vec<_>>(),
+            "plugin.toml розійшовся з describe() по tools"
+        );
+
+        // `ci_artifacts` — так само з кореня; звіряємо `artifact_id`-и
+        // (ідентичність дескриптора) плюс їх кількість.
+        let declared_artifacts: Vec<&str> = manifest
+            .get("ci_artifacts")
+            .and_then(|v| v.as_array())
+            .expect(
+                "`ci_artifacts` мусить бути top-level масивом маніфеста — якщо він стоїть \
+                 ПІСЛЯ заголовка `[[concerns]]`, TOML читає його як поле останнього концерну; \
+                 перенеси до `id`/`version`/`world_version`/`domains`",
+            )
+            .iter()
+            .map(|a| a["artifact_id"].as_str().expect("`artifact_id` — рядок"))
+            .collect();
+        assert_eq!(
+            declared_artifacts,
+            runtime
+                .ci_artifacts
+                .iter()
+                .map(|a| a.artifact_id.as_str())
+                .collect::<Vec<_>>(),
+            "plugin.toml розійшовся з describe() по ci_artifacts"
         );
     }
 
