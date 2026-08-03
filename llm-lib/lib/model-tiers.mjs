@@ -118,7 +118,7 @@ export function formatModelSpec(model) {
 
 /** Провайдери, що вважаються локальними. Override: `N_LLM_LOCAL_PROVIDERS` (кома-список). */
 const LOCAL_PROVIDERS = new Set(
-  (env.N_LLM_LOCAL_PROVIDERS ?? 'omlx,litellm')
+  (env.N_LLM_LOCAL_PROVIDERS ?? 'omlx,litellm,turbofieldfare')
     .split(',')
     .map(p => p.trim())
     .filter(Boolean)
@@ -126,8 +126,8 @@ const LOCAL_PROVIDERS = new Set(
 
 /**
  * Чи model-spec вказує на локальну модель: збіг з одним із LOCAL_* тирів
- * АБО провайдер з `N_LLM_LOCAL_PROVIDERS` (дефолт `omlx,litellm`). Обидва
- * провайдери можуть бути зареєстровані в `localProviders`-конфізі одночасно
+ * АБО провайдер з `N_LLM_LOCAL_PROVIDERS` (дефолт `omlx,litellm,turbofieldfare`).
+ * Усі провайдери можуть бути зареєстровані в `localProviders`-конфізі одночасно
  * (див. `local-providers.mjs`) — "активний" завжди рівно один, бо
  * `LocalCloud` викликає клієнта за провайдер-префіксом фактичного
  * model-spec, не за наявністю запису в мапі. Використовується

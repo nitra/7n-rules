@@ -17,6 +17,8 @@ const PROVIDER_ENV_KEYS = [
   'N_OMLX_API_KEY',
   'N_LITELLM_BASE_URL',
   'N_LITELLM_API_KEY',
+  'N_TURBOFIELDFARE_BASE_URL',
+  'N_TURBOFIELDFARE_API_KEY',
   // Без префікса — власна конвенція серверів (fallback для apiKey): теж ambient-небезпечні.
   'OMLX_API_KEY',
   'LITELLM_API_KEY'
@@ -41,17 +43,18 @@ afterEach(() => {
 })
 
 describe('defaultLocalProviders', () => {
-  test('без env — дефолтні baseUrl для omlx і litellm, apiKey null', async () => {
+  test('без env — дефолтні baseUrl для omlx, litellm і turbofieldfare, apiKey null', async () => {
     const { defaultLocalProviders } = await import('../lib/local-providers.mjs')
     expect(defaultLocalProviders()).toEqual({
       omlx: { baseUrl: 'http://127.0.0.1:8000/v1/', apiKey: null },
-      litellm: { baseUrl: 'https://llm.7n.ai/v1/', apiKey: null }
+      litellm: { baseUrl: 'https://llm.7n.ai/v1/', apiKey: null },
+      turbofieldfare: { baseUrl: 'http://127.0.0.1:8080/v1/', apiKey: null }
     })
   })
 
-  test('обидва провайдери завжди присутні одночасно (жоден не вимикається іншим)', async () => {
+  test('усі провайдери завжди присутні одночасно (жоден не вимикається іншим)', async () => {
     const { defaultLocalProviders } = await import('../lib/local-providers.mjs')
-    expect(Object.keys(defaultLocalProviders()).toSorted()).toEqual(['litellm', 'omlx'])
+    expect(Object.keys(defaultLocalProviders()).toSorted()).toEqual(['litellm', 'omlx', 'turbofieldfare'])
   })
 
   test('N_OMLX_BASE_URL/N_OMLX_API_KEY перекривають дефолт omlx', async () => {
@@ -88,5 +91,15 @@ describe('defaultLocalProviders', () => {
     vi.stubEnv('N_OMLX_API_KEY', 'prefixed-wins')
     const { defaultLocalProviders } = await import('../lib/local-providers.mjs')
     expect(defaultLocalProviders().omlx.apiKey).toBe('prefixed-wins')
+  })
+
+  test('N_TURBOFIELDFARE_BASE_URL/N_TURBOFIELDFARE_API_KEY перекривають дефолт turbofieldfare', async () => {
+    vi.stubEnv('N_TURBOFIELDFARE_BASE_URL', 'http://127.0.0.1:9080/v1/')
+    vi.stubEnv('N_TURBOFIELDFARE_API_KEY', 'turbofieldfare-key')
+    const { defaultLocalProviders } = await import('../lib/local-providers.mjs')
+    expect(defaultLocalProviders().turbofieldfare).toEqual({
+      baseUrl: 'http://127.0.0.1:9080/v1/',
+      apiKey: 'turbofieldfare-key'
+    })
   })
 })
