@@ -230,7 +230,7 @@ pub struct BatchConfigInput {
     pub concurrency: Option<u32>,
     /// Вибір бекенда: `"emulated"` | `"openai-batches"` | `"auto"` (дефолт) —
     /// `"auto"` пробує справжній `/v1/batches` лише коли резолвлений
-    /// провайдер `litellm` (кешована мережева проба на процес).
+    /// провайдер `local-openai` (кешована мережева проба на процес).
     pub backend: Option<String>,
     /// Пауза між `GET /v1/batches/{id}` у мілісекундах (лише справжній backend).
     pub poll_interval_ms: Option<u32>,

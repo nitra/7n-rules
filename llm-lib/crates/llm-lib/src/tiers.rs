@@ -119,7 +119,7 @@ pub fn parse_model_spec(spec: &str) -> Result<(&str, &str), String> {
 /// Провайдери, що вважаються локальними за замовчуванням (без
 /// `N_LLM_LOCAL_PROVIDERS`-override) — порт дефолту `LOCAL_PROVIDERS`
 /// (`model-tiers.mjs:121`).
-const DEFAULT_LOCAL_PROVIDERS: &str = "omlx,litellm";
+const DEFAULT_LOCAL_PROVIDERS: &str = "omlx,local-openai";
 
 /// Провайдери, що вважаються локальними — точний порт `LOCAL_PROVIDERS`
 /// (`model-tiers.mjs:120-125`). Читає `N_LLM_LOCAL_PROVIDERS` заново на
@@ -131,7 +131,7 @@ const DEFAULT_LOCAL_PROVIDERS: &str = "omlx,litellm";
 ///
 /// **Нюанс `??` проти "порожній рядок = не задано"**: на відміну від решти
 /// `tiers.rs` (`env_var`, де порожній рядок трактується як відсутній), тут —
-/// точна калька JS `env.N_LLM_LOCAL_PROVIDERS ?? 'omlx,litellm'`: `??`
+/// точна калька JS `env.N_LLM_LOCAL_PROVIDERS ?? 'omlx,local-openai'`: `??`
 /// спрацьовує лише на `null`/`undefined`, тобто **порожній рядок означає
 /// «явно порожній список»**, не «дефолт». `unwrap_or_else` тут — навмисно
 /// (не `env_var()`-хелпер): він підставляє дефолт лише коли змінна взагалі
@@ -146,7 +146,7 @@ fn local_providers() -> Vec<String> {
 }
 
 /// Чи `spec` вказує на локальну модель: збіг з одним із `LOCAL_*` тирів АБО
-/// провайдер входить у `N_LLM_LOCAL_PROVIDERS` (дефолт `omlx,litellm`) —
+/// провайдер входить у `N_LLM_LOCAL_PROVIDERS` (дефолт `omlx,local-openai`) —
 /// точний порт `isLocalModel` (`model-tiers.mjs:138-143`).
 #[must_use]
 pub fn is_local_model(spec: &str) -> bool {
@@ -306,10 +306,12 @@ mod tests {
     }
 
     #[test]
-    fn is_local_model_default_providers_omlx_and_litellm() {
+    fn is_local_model_default_providers_omlx_and_local_openai() {
         with_env(&[], || {
             assert!(is_local_model("omlx/gemma-4-e4b-it-OptiQ-4bit"));
-            assert!(is_local_model("litellm/whatever"));
+            assert!(is_local_model("local-openai/whatever"));
+            // "openai" — реальний cloud-provider prefix (genai/AdapterKind::OpenAI),
+            // не local-openai слот: не повинен колізувати з local-мапою.
             assert!(!is_local_model("openai/gpt-5.4-mini"));
         });
     }
@@ -341,7 +343,7 @@ mod tests {
         // НЕ підставляє дефолт (JS ?? семантика, doc-комент local_providers()).
         with_env(&[("N_LLM_LOCAL_PROVIDERS", "")], || {
             assert!(!is_local_model("omlx/gemma"));
-            assert!(!is_local_model("litellm/x"));
+            assert!(!is_local_model("local-openai/x"));
         });
     }
 

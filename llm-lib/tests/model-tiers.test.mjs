@@ -46,12 +46,8 @@ describe('isLocalModel', () => {
     expect(isLocalModel('anthropic/claude-fable-5')).toBe(false)
   })
 
-  test('litellm-провайдер — теж локальний за дефолтом (перемикач omlx/litellm через тир-env)', () => {
-    expect(isLocalModel('litellm/gemma-4-26b-awq')).toBe(true)
-  })
-
-  test('turbofieldfare-провайдер — теж локальний за дефолтом', () => {
-    expect(isLocalModel('turbofieldfare/gemma-4-26b-a4b-it')).toBe(true)
+  test('local-openai-провайдер — теж локальний за дефолтом (generic-слот litellm/turbofieldfare/...)', () => {
+    expect(isLocalModel('local-openai/gemma-4-26b-awq')).toBe(true)
   })
 
   test('порожній/malformed spec — не локальний', () => {

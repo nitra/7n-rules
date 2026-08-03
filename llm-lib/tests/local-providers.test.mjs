@@ -7,21 +7,18 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 // інакше фейлить літерал як «справжній» http-URL (канон — llm-lib/tests/web-tools.test.mjs).
 const COLON_SLASH = '://'
 const HTTP = 'http' + COLON_SLASH
-const INTERNAL_LITELLM_URL = `${HTTP}litellm-service.litellm.svc.n.internal:4000/v1/`
+const INTERNAL_OPENAI_URL = `${HTTP}litellm-service.litellm.svc.n.internal:4000/v1/`
 
-// Оточення розробника/CI може мати справжні N_OMLX_*/N_LITELLM_* — тести
+// Оточення розробника/CI може мати справжні N_OMLX_*/N_LOCAL_OPENAI_* — тести
 // «без env» і override-тести мають стартувати з чистого стану, інакше
-// ambient-ключ (напр. N_LITELLM_API_KEY) просочується в дефолтну мапу.
+// ambient-ключ (напр. N_LOCAL_OPENAI_API_KEY) просочується в дефолтну мапу.
 const PROVIDER_ENV_KEYS = [
   'N_OMLX_BASE_URL',
   'N_OMLX_API_KEY',
-  'N_LITELLM_BASE_URL',
-  'N_LITELLM_API_KEY',
-  'N_TURBOFIELDFARE_BASE_URL',
-  'N_TURBOFIELDFARE_API_KEY',
-  // Без префікса — власна конвенція серверів (fallback для apiKey): теж ambient-небезпечні.
-  'OMLX_API_KEY',
-  'LITELLM_API_KEY'
+  'N_LOCAL_OPENAI_BASE_URL',
+  'N_LOCAL_OPENAI_API_KEY',
+  // Без префікса — власна конвенція omlx-сервера (fallback для apiKey): теж ambient-небезпечна.
+  'OMLX_API_KEY'
 ]
 /** @type {Record<string, string | undefined>} */
 const ambientEnv = {}
@@ -43,18 +40,17 @@ afterEach(() => {
 })
 
 describe('defaultLocalProviders', () => {
-  test('без env — дефолтні baseUrl для omlx, litellm і turbofieldfare, apiKey null', async () => {
+  test('без env — дефолтні baseUrl для omlx і local-openai, apiKey null', async () => {
     const { defaultLocalProviders } = await import('../lib/local-providers.mjs')
     expect(defaultLocalProviders()).toEqual({
       omlx: { baseUrl: 'http://127.0.0.1:8000/v1/', apiKey: null },
-      litellm: { baseUrl: 'https://llm.7n.ai/v1/', apiKey: null },
-      turbofieldfare: { baseUrl: 'http://127.0.0.1:8080/v1/', apiKey: null }
+      'local-openai': { baseUrl: 'https://llm.7n.ai/v1/', apiKey: null }
     })
   })
 
-  test('усі провайдери завжди присутні одночасно (жоден не вимикається іншим)', async () => {
+  test('обидва провайдери завжди присутні одночасно (жоден не вимикається іншим)', async () => {
     const { defaultLocalProviders } = await import('../lib/local-providers.mjs')
-    expect(Object.keys(defaultLocalProviders()).toSorted()).toEqual(['litellm', 'omlx', 'turbofieldfare'])
+    expect(Object.keys(defaultLocalProviders()).toSorted()).toEqual(['local-openai', 'omlx'])
   })
 
   test('N_OMLX_BASE_URL/N_OMLX_API_KEY перекривають дефолт omlx', async () => {
@@ -67,23 +63,22 @@ describe('defaultLocalProviders', () => {
     })
   })
 
-  test('N_LITELLM_BASE_URL/N_LITELLM_API_KEY перекривають дефолт litellm', async () => {
-    vi.stubEnv('N_LITELLM_BASE_URL', INTERNAL_LITELLM_URL)
-    vi.stubEnv('N_LITELLM_API_KEY', 'litellm-key')
+  test('N_LOCAL_OPENAI_BASE_URL/N_LOCAL_OPENAI_API_KEY перекривають дефолт local-openai — незалежно від того, який сервер за ним стоїть (litellm, turbofieldfare, ...)', async () => {
+    vi.stubEnv('N_LOCAL_OPENAI_BASE_URL', INTERNAL_OPENAI_URL)
+    vi.stubEnv('N_LOCAL_OPENAI_API_KEY', 'local-openai-key')
     const { defaultLocalProviders } = await import('../lib/local-providers.mjs')
-    expect(defaultLocalProviders().litellm).toEqual({
-      baseUrl: INTERNAL_LITELLM_URL,
-      apiKey: 'litellm-key'
+    expect(defaultLocalProviders()['local-openai']).toEqual({
+      baseUrl: INTERNAL_OPENAI_URL,
+      apiKey: 'local-openai-key'
     })
   })
 
-  test('apiKey-fallback без префікса: OMLX_API_KEY/LITELLM_API_KEY (конвенція серверів)', async () => {
+  test('apiKey-fallback без префікса: OMLX_API_KEY (конвенція omlx-сервера) — local-openai такої конвенції не має', async () => {
     vi.stubEnv('OMLX_API_KEY', 'server-omlx-key')
-    vi.stubEnv('LITELLM_API_KEY', 'server-litellm-key')
     const { defaultLocalProviders } = await import('../lib/local-providers.mjs')
     const providers = defaultLocalProviders()
     expect(providers.omlx.apiKey).toBe('server-omlx-key')
-    expect(providers.litellm.apiKey).toBe('server-litellm-key')
+    expect(providers['local-openai'].apiKey).toBeNull()
   })
 
   test('N_-префіксований ключ має пріоритет над fallback без префікса', async () => {
@@ -91,15 +86,5 @@ describe('defaultLocalProviders', () => {
     vi.stubEnv('N_OMLX_API_KEY', 'prefixed-wins')
     const { defaultLocalProviders } = await import('../lib/local-providers.mjs')
     expect(defaultLocalProviders().omlx.apiKey).toBe('prefixed-wins')
-  })
-
-  test('N_TURBOFIELDFARE_BASE_URL/N_TURBOFIELDFARE_API_KEY перекривають дефолт turbofieldfare', async () => {
-    vi.stubEnv('N_TURBOFIELDFARE_BASE_URL', 'http://127.0.0.1:9080/v1/')
-    vi.stubEnv('N_TURBOFIELDFARE_API_KEY', 'turbofieldfare-key')
-    const { defaultLocalProviders } = await import('../lib/local-providers.mjs')
-    expect(defaultLocalProviders().turbofieldfare).toEqual({
-      baseUrl: 'http://127.0.0.1:9080/v1/',
-      apiKey: 'turbofieldfare-key'
-    })
   })
 })
