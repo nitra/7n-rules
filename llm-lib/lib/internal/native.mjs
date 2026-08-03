@@ -2,14 +2,24 @@
  * Loader napi-аддона `llm-lib` (Rust-ядро `llm-lib/crates/llm-lib-napi`
  * → `llm-lib`) — за зразком `mt/npm/lib/core/native.mjs`.
  *
- * Порядок пошуку:
+ * Порядок пошуку (залежить від оточення — див. [`isSourceTree`]):
  *   1. N_LLM_LIB_NATIVE_ADDON — явний override шляху до аддона (dev / CI / тести).
- *   2. Platform-підпакет `@7n/llm-lib-<platform>-<arch>` (napi-артефакт
- *      `llm-lib-napi.<triple>.node`).
- *   3. Dev-fallback: `<repoRoot>/target/release|debug/` (сирий cdylib з
- *      `cargo build -p llm-lib-napi`) та вивід `napi build` у
+ *   2. **Лише у вихідному дереві** (`<repoRoot>/llm-lib/crates/llm-lib-napi/Cargo.toml`
+ *      існує): локальна збірка `<repoRoot>/target/release|debug/` (сирий cdylib
+ *      з `cargo build -p llm-lib-napi`) та вивід `napi build` у
  *      `llm-lib/crates/llm-lib-napi/`.
- *   4. Інакше — зрозуміла помилка з підказкою.
+ *   3. Platform-підпакет `@7n/llm-lib-<platform>-<arch>` (napi-артефакт
+ *      `llm-lib-napi.<triple>.node`).
+ *   4. Той самий fallback на локальну збірку поза вихідним деревом
+ *      (у продакшені поведінка така сама, як до фіксу).
+ *   5. Інакше — зрозуміла помилка з підказкою.
+ *
+ * ЧОМУ порядок різний (симетрично до `npm/scripts/lib/native.mjs`, фікс
+ * 2026-08-03): у репо локальний `cargo build -p llm-lib-napi` мовчки
+ * перекривався опублікованим підпакетом із `node_modules` — правки Rust-ядра
+ * не проявлялися, а «фейли LLM-контуру» діагностувалися як помилки коду.
+ * У користувача ж підпакет — єдине авторитетне джерело (запінений lockstep до
+ * версії `@7n/llm-lib`), тож сторонній `target/` поруч не має його перебивати.
  *
  * Аддон завантажується через `process.dlopen` — працює і для `.node`, і для
  * сирих cdylib (`.dylib`/`.so`). Результат кешується (одне завантаження на процес).
@@ -57,6 +67,19 @@ function cdylibName(platform) {
 }
 
 /**
+ * Чи запущено loader із вихідного дерева репо (dev-машина або CI), а не з
+ * встановленого пакета `@7n/llm-lib`. Маркер — `llm-lib/crates/llm-lib-napi/Cargo.toml`
+ * поруч із `repoRoot`: у репо він закомічений завжди, а `files` пакета
+ * (`bin`, `lib`, …) `crates/` не відвантажує — у проді маркера немає.
+ * @param {string} repoRoot корінь, від якого рахуються кандидати
+ * @param {(p: string) => boolean} exists перевірка існування (ін'єкція для тестів)
+ * @returns {boolean} true — вихідне дерево репо
+ */
+function isSourceTree(repoRoot, exists) {
+  return exists(join(repoRoot, 'llm-lib', 'crates', 'llm-lib-napi', 'Cargo.toml'))
+}
+
+/**
  * Резолвить шлях до napi-аддона `llm-lib`.
  * @param {{
  *   env?: Record<string, string | undefined>,
@@ -83,27 +106,41 @@ export function resolveNativeAddon(deps = {}) {
   const key = `${platform}-${arch}`
   const suffix = NAPI_SUFFIXES[key]
 
-  // 2. Platform-підпакет.
-  if (suffix) {
-    try {
-      return requireResolve(`@7n/llm-lib-${key}/llm-lib-napi.${suffix}.node`)
-    } catch {
-      // не встановлено — пробуємо dev-fallback
-    }
-  }
-
-  // 3. Dev-fallback: cargo-збірка (сирий cdylib) або вивід napi build.
+  // Кандидати локальної збірки: сирий cdylib з `cargo build -p llm-lib-napi`
+  // (release перед debug) і вивід `napi build` у `llm-lib/crates/llm-lib-napi/`.
   const candidates = Array.from(['release', 'debug'], profile =>
     join(repoRoot, 'target', profile, cdylibName(platform))
   )
   if (suffix) {
     candidates.push(join(repoRoot, 'llm-lib', 'crates', 'llm-lib-napi', `llm-lib-napi.${suffix}.node`))
   }
-  for (const candidate of candidates) {
-    if (exists(candidate)) return candidate
+
+  // 2. Вихідне дерево (dev / CI цього репо): локальна збірка — перша, інакше
+  // свіжий `cargo build -p llm-lib-napi` мовчки перекривався б підпакетом.
+  const fromSource = isSourceTree(repoRoot, exists)
+  if (fromSource) {
+    for (const candidate of candidates) {
+      if (exists(candidate)) return candidate
+    }
   }
 
-  // 4. Помилка з підказкою.
+  // 3. Platform-підпакет — авторитетне джерело у користувача (прод).
+  if (suffix) {
+    try {
+      return requireResolve(`@7n/llm-lib-${key}/llm-lib-napi.${suffix}.node`)
+    } catch {
+      // не встановлено — пробуємо локальну збірку
+    }
+  }
+
+  // 4. Локальна збірка поза вихідним деревом (поведінка така сама, як до фіксу).
+  if (!fromSource) {
+    for (const candidate of candidates) {
+      if (exists(candidate)) return candidate
+    }
+  }
+
+  // 5. Помилка з підказкою.
   throw new Error(
     `llm-lib native addon: немає збірки для "${key}". ` +
       `Постав N_LLM_LIB_NATIVE_ADDON=/шлях/до/аддона, додай підпакет @7n/llm-lib-${key}, ` +

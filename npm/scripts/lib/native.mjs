@@ -3,13 +3,34 @@
  * за зразком `llm-lib/lib/internal/native.mjs` (T2 фази 1,
  * `docs/specs/2026-07-30-rules-v2-rust-core-migration.md`).
  *
- * Порядок пошуку:
+ * Порядок пошуку (залежить від оточення — див. [`isSourceTree`]):
  *   1. N_RULES_NATIVE_ADDON — явний override шляху до аддона (dev / CI / тести).
- *   2. Platform-підпакет `@7n/rules-<platform>-<arch>` (napi-артефакт
- *      `rules-napi.<triple>.node`).
- *   3. Dev-fallback: `<repoRoot>/target/release|debug/` (сирий cdylib з
+ *   2. **Лише у вихідному дереві** (`<repoRoot>/crates/rules-napi/Cargo.toml`
+ *      існує — тобто dev-машина або CI цього репо): локальна збірка
+ *      `<repoRoot>/target/release|debug/` (сирий cdylib з
  *      `cargo build -p rules-napi`) та вивід `napi build` у `crates/rules-napi/`.
- *   4. Інакше — зрозуміла помилка з підказкою `cargo build --release -p rules-napi`.
+ *   3. Platform-підпакет `@7n/rules-<platform>-<arch>` (napi-артефакт
+ *      `rules-napi.<triple>.node`).
+ *   4. Той самий fallback на локальну збірку для НЕ-вихідного дерева
+ *      (продакшен без підпакета) — поведінка така сама, як до фіксу.
+ *   5. Інакше — зрозуміла помилка з підказкою `cargo build --release -p rules-napi`.
+ *
+ * ЧОМУ порядок різний для вихідного дерева і проду (регресія 2026-08-03):
+ * до фіксу підпакет стояв перед локальною збіркою БЕЗУМОВНО, тож у репо
+ * (dev і CI) `cargo build -p rules-napi` збирав аддон, який loader потім НЕ
+ * брав — вантажився **опублікований** `@7n/rules-<key>` із `node_modules`.
+ * Будь-який тест нової native-поверхні перевіряв попередню збірку, а зелений
+ * результат нічого не доводив. У CI це ще й недетерміноване: platform-пакет
+ * потрапляє в `bun.lock` лише тоді, коли lock востаннє регенерували на тій
+ * самій платформі (пор. `git show 581082ef:bun.lock` — `@7n/rules-linux-x64`
+ * був у lock, тобто ubuntu-runner тестував registry-аддон 1.76.0).
+ * Зворотний безумовний порядок («target завжди перший») теж хибний — у
+ * користувача підпакет є **єдиним** авторитетним артефактом, запіненим
+ * lockstep до версії `@7n/rules` і звіреним за `contractVersion()`; сторонній
+ * `target/release/librules_napi.*`, що випадково опинився поруч зі
+ * встановленим пакетом, не має його перебивати. Тому дискримінатор — не
+ * евристика (`CI`, `NODE_ENV`), а факт наявності вихідних файлів аддона поруч
+ * із loader-ом.
  *
  * Аддон завантажується через `process.dlopen` — працює і для `.node`, і для
  * сирих cdylib (`.dylib`/`.so`/`.dll`), і під bun (не лише node). Результат
@@ -74,6 +95,39 @@ function cdylibName(platform) {
 }
 
 /**
+ * Чи запущено loader із вихідного дерева репо (dev-машина або CI), а не з
+ * встановленого пакета `@7n/rules`. Маркер — `crates/rules-napi/Cargo.toml`
+ * поруч із `repoRoot`: у репо він закомічений завжди, а у встановленому
+ * пакеті `repoRoot` дорівнює `<node_modules>/@7n`, де жодних `crates/` немає.
+ * Саме факт наявності вихідних файлів (а не env-евристика на кшталт `CI`) вирішує,
+ * що локальна збірка `target/` авторитетніша за опублікований підпакет.
+ * @param {string} repoRoot корінь, від якого рахуються кандидати
+ * @param {(p: string) => boolean} exists перевірка існування (ін'єкція для тестів)
+ * @returns {boolean} true — вихідне дерево репо
+ */
+function isSourceTree(repoRoot, exists) {
+  return exists(join(repoRoot, 'crates', 'rules-napi', 'Cargo.toml'))
+}
+
+/**
+ * Кандидати локальної збірки: сирий cdylib з `cargo build -p rules-napi`
+ * (release перемагає debug) і вивід `napi build` у `crates/rules-napi/`.
+ * @param {string} repoRoot корінь репо
+ * @param {string} platform process.platform
+ * @param {string | undefined} suffix napi-суфікс артефакта для платформи
+ * @returns {string[]} шляхи-кандидати в порядку пріоритету
+ */
+function localBuildCandidates(repoRoot, platform, suffix) {
+  const candidates = Array.from(['release', 'debug'], profile =>
+    join(repoRoot, 'target', profile, cdylibName(platform))
+  )
+  if (suffix) {
+    candidates.push(join(repoRoot, 'crates', 'rules-napi', `rules-napi.${suffix}.node`))
+  }
+  return candidates
+}
+
+/**
  * Резолвить шлях до napi-аддона `rules-core`.
  * @param {{
  *   env?: Record<string, string | undefined>,
@@ -99,28 +153,35 @@ export function resolveNativeAddon(deps = {}) {
 
   const key = `${platform}-${arch}`
   const suffix = NAPI_SUFFIXES[key]
+  const candidates = localBuildCandidates(repoRoot, platform, suffix)
 
-  // 2. Platform-підпакет.
+  // 2. Вихідне дерево (dev / CI цього репо): локальна збірка — перша.
+  // Інакше свіжий `cargo build -p rules-napi` мовчки перекривався б
+  // опублікованим підпакетом, і тести перевіряли б попередню збірку.
+  const fromSource = isSourceTree(repoRoot, exists)
+  if (fromSource) {
+    for (const candidate of candidates) {
+      if (exists(candidate)) return candidate
+    }
+  }
+
+  // 3. Platform-підпакет — авторитетне джерело у користувача (прод).
   if (suffix) {
     try {
       return requireResolve(`@7n/rules-${key}/rules-napi.${suffix}.node`)
     } catch {
-      // не встановлено — пробуємо dev-fallback
+      // не встановлено — пробуємо локальну збірку
     }
   }
 
-  // 3. Dev-fallback: cargo-збірка (сирий cdylib) або вивід napi build.
-  const candidates = Array.from(['release', 'debug'], profile =>
-    join(repoRoot, 'target', profile, cdylibName(platform))
-  )
-  if (suffix) {
-    candidates.push(join(repoRoot, 'crates', 'rules-napi', `rules-napi.${suffix}.node`))
-  }
-  for (const candidate of candidates) {
-    if (exists(candidate)) return candidate
+  // 4. Локальна збірка поза вихідним деревом (поведінка така сама, як до фіксу).
+  if (!fromSource) {
+    for (const candidate of candidates) {
+      if (exists(candidate)) return candidate
+    }
   }
 
-  // 4. Помилка з підказкою.
+  // 5. Помилка з підказкою.
   throw new Error(
     `rules native addon: немає збірки для "${key}". ` +
       `Постав N_RULES_NATIVE_ADDON=/шлях/до/аддона, додай підпакет @7n/rules-${key}, ` +

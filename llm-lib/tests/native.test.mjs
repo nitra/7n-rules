@@ -1,7 +1,8 @@
 /**
  * Резолвінг napi-аддона `lib/internal/native.mjs`: порядок пошуку
- * (env-override → platform-підпакет → dev-fallback cargo/napi build →
- * помилка з підказкою) на ін'єктованих deps, без реального dlopen.
+ * (env-override → локальна збірка у вихідному дереві → platform-підпакет →
+ * локальна збірка поза вихідним деревом → помилка з підказкою) на
+ * ін'єктованих deps, без реального dlopen.
  */
 
 import { describe, expect, test } from 'vitest'
@@ -10,6 +11,17 @@ import { loadNative, resolveNativeAddon } from '../lib/internal/native.mjs'
 
 const ADDON_HINT_RE = /llm-lib native addon/
 const UNKNOWN_PLATFORM_RE = /win32-x64[\s\S]*N_LLM_LIB_NATIVE_ADDON/
+/** Маркер вихідного дерева — його наявність перемикає порядок джерел. */
+const SOURCE_MARKER = '/repo/llm-lib/crates/llm-lib-napi/Cargo.toml'
+
+/**
+ * existsSync, що бачить лише перелічені шляхи.
+ * @param {string[]} present наявні шляхи
+ * @returns {(p: string) => boolean} предикат
+ */
+function only(present) {
+  return p => present.includes(p)
+}
 
 /**
  * Базові deps: відома платформа, нічого не встановлено і не збудовано.
@@ -74,7 +86,9 @@ describe('resolveNativeAddon (порядок пошуку)', () => {
         })
       )
     ).toThrow(ADDON_HINT_RE)
+    // Перша перевірка — маркер вихідного дерева (він обирає порядок джерел).
     expect(seen).toEqual([
+      SOURCE_MARKER,
       '/repo/target/release/libllm_lib_napi.so',
       '/repo/target/debug/libllm_lib_napi.so',
       '/repo/llm-lib/crates/llm-lib-napi/llm-lib-napi.linux-x64-gnu.node'
@@ -83,6 +97,40 @@ describe('resolveNativeAddon (порядок пошуку)', () => {
 
   test('невідома платформа: без підпакета/суфікса — помилка з підказкою про N_LLM_LIB_NATIVE_ADDON', () => {
     expect(() => resolveNativeAddon(baseDeps({ platform: 'win32', arch: 'x64' }))).toThrow(UNKNOWN_PLATFORM_RE)
+  })
+})
+
+// Симетрично до `npm/scripts/lib/tests/native.test.mjs`: локальна збірка
+// перемагає підпакет ЛИШЕ у вихідному дереві, у проді — навпаки (фікс 2026-08-03).
+describe('resolveNativeAddon (вихідне дерево vs прод)', () => {
+  test('вихідне дерево: локальна збірка перемагає встановлений підпакет', () => {
+    const p = resolveNativeAddon(
+      baseDeps({
+        existsSync: only([SOURCE_MARKER, '/repo/target/release/libllm_lib_napi.dylib']),
+        requireResolve: id => `/nm/${id}`
+      })
+    )
+    expect(p).toBe('/repo/target/release/libllm_lib_napi.dylib')
+  })
+
+  test('вихідне дерево без локальної збірки: підпакет лишається наступним джерелом', () => {
+    const p = resolveNativeAddon(baseDeps({ existsSync: only([SOURCE_MARKER]), requireResolve: id => `/nm/${id}` }))
+    expect(p).toBe('/nm/@7n/llm-lib-darwin-arm64/llm-lib-napi.darwin-arm64.node')
+  })
+
+  test('продакшен (без вихідних файлів): підпакет перемагає сторонній target/ поруч', () => {
+    const p = resolveNativeAddon(
+      baseDeps({
+        existsSync: only(['/repo/target/release/libllm_lib_napi.dylib']),
+        requireResolve: id => `/nm/${id}`
+      })
+    )
+    expect(p).toBe('/nm/@7n/llm-lib-darwin-arm64/llm-lib-napi.darwin-arm64.node')
+  })
+
+  test('продакшен без підпакета: локальна збірка лишається останнім fallback-ом', () => {
+    const p = resolveNativeAddon(baseDeps({ existsSync: only(['/repo/target/debug/libllm_lib_napi.dylib']) }))
+    expect(p).toBe('/repo/target/debug/libllm_lib_napi.dylib')
   })
 })
 
