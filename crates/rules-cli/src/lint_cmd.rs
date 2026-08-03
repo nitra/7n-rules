@@ -1,0 +1,787 @@
+//! cspell:ignore детектори оркестратором резолвної батчиться
+//!
+//! `lint --no-fix` як ОСНОВНИЙ шлях виконання в Rust — інверсія мосту (Р12
+//! спеки `docs/specs/2026-07-30-rules-v2-rust-core-migration.md`).
+//!
+//! Досі оркестрував JS (`detectAll` у `run-detectors.mjs`), а Rust відповідав
+//! на його запити через napi. Тут порядок зворотний: план, диспатч,
+//! сортування, рендер і exit-код рахує `rules-core`, а node — дочірній
+//! процес-виконавець залишку ([`crate::bridge`]).
+//!
+//! # Що робить Rust, а що — міст
+//!
+//! | Крок | Де |
+//! |---|---|
+//! | резолв плагінів (`resolveRulesDirs`/`getActiveCapabilities`) | міст (блокер зрізу 3: ~1200 рядків JS-автодетекту) |
+//! | дискавері `concern.json` + `asDetectorConcern` | Rust (`rules_core::concern_meta`) |
+//! | capability-фільтр | Rust |
+//! | rule-level gate `<rule>/applies/main.mjs` | міст (ВИКОНУВАНИЙ JS-модуль) |
+//! | `enabledRuleIds` + warning про правила без концернів | Rust (`rules_core::config`) |
+//! | дельта (`resolveChangedBase`/`collectChangedFilesSince`) | Rust (`rules_core::changed_*`) |
+//! | план (`buildPlan` × 5 режимів) | Rust (`rules_core::lint_plan`) |
+//! | виконання 26 native-концернів | Rust (`rules_core::concerns::batch`) |
+//! | виконання концернів із `main.mjs`/policy | міст (батчем, не по одному) |
+//! | сортування/рендер/exit-код | Rust (`rules_core::lint_render`) |
+//!
+//! # Гейт: новий шлях НЕ дефолтний
+//!
+//! Паритет неповний (див. нижче), тож native-шлях вмикається явно:
+//! `--native-detect` або `N_RULES_NATIVE_LINT=1`. Без цього — та сама чесна
+//! делегація в JS-CLI, що й для решти команд.
+//!
+//! Native-шлях також ВІДМОВЛЯЄТЬСЯ (делегує) там, де паритет недосяжний
+//! цим зрізом:
+//! - без `--no-fix` (fix-пайплайн — T0-патерни + LLM-ladder — не портовано);
+//! - з `--path` (перетин піддерева з дельтою живе в `path-scope.mjs`);
+//! - якщо план зачепив wasm-концерн (виконання wasm через
+//!   `rules-plugin-host` — окремий зріз; мовчазна розбіжність гірша
+//!   за делегацію).
+//!
+//! # Свідомі розбіжності (не покрито цим зрізом)
+//!
+//! - **Глобальна черга `--full`** (`lint-lock.mjs`) і worktree-ізоляція:
+//!   detect-only прогін нічого не мутує, тож чергу native-шлях не бере.
+//! - **Progress-бар TTY** (`progress.mjs`) — вивід прогресу не відтворюється.
+//! - **`N_RULES_LINT_CONCURRENCY>1`** (experimental two-lane scheduler) —
+//!   native-шлях завжди послідовний, як і дефолт JS.
+//! - **Self-upgrade `devDependencies`** — та сама свідома розбіжність, що
+//!   для зрізів 2–4 (розділ 8.2 мінідизайну): read-only команда лишається
+//!   read-only.
+//! - **Порядок рядків `--verbose`.** JS друкує `🔍 …` перед КОЖНИМ концерном
+//!   по ходу виконання; тут — перед кожним СЕГМЕНТОМ одразу за всі його
+//!   items, бо сегмент виконується одним викликом (native-батч або один
+//!   `detect` мосту). Набір і формат рядків ті самі, чергування з виводом
+//!   самих концернів — інше. Це прямий наслідок батчингу, не недогляд.
+//! - **Валідація форми violations від native-концернів.** JS проганяє й
+//!   native-результат через `normalizeViolation` (перевірка
+//!   posix-relative `file` тощо); тут native-концерни віддають уже типізований
+//!   `diagnostics::Violation`, тож перевіряється лише те, що виражає тип.
+//!   Для концернів МОСТУ валідація не зникає — її робить той самий
+//!   `normalizeResult` усередині `runConcernDetector`.
+
+use std::collections::{BTreeMap, HashSet};
+use std::path::{Path, PathBuf};
+use std::process::ExitCode;
+
+use rules_core::concern_meta::{ConcernMeta, LintScope};
+use rules_core::config::LiteConfig;
+use rules_core::lint_plan::{BuildLintPlanInput, ConcernPlanInput, LintSurfaceInput, PlanItem};
+use rules_core::lint_render::{LintViolation, SortAndRenderInput};
+use serde_json::{json, Value};
+
+use crate::bridge::Bridge;
+use crate::{git_policy, js_fallback, paths};
+
+/// Прапорець вмикання native-шляху (поряд із env `N_RULES_NATIVE_LINT`).
+const NATIVE_FLAG: &str = "--native-detect";
+/// Env-вмикач native-шляху — для хуків/CI, куди argv не дотягнутись.
+const NATIVE_ENV: &str = "N_RULES_NATIVE_LINT";
+
+/// Чому native-шлях відмовився і команда пішла в JS-CLI.
+enum Bail {
+    /// Делегувати з тим самим argv (паритет недосяжний цим зрізом).
+    Delegate(String),
+    /// Помилка, яку нема сенсу маскувати делегацією.
+    Fail(String),
+}
+
+/// Розібрані аргументи `lint` — підмножина, яку розуміє native-шлях
+/// (дзеркало `case 'lint'` у `npm/bin/n-rules-cli.mjs`).
+#[derive(Debug)]
+struct LintArgs {
+    cwd: PathBuf,
+    base_ref: Option<String>,
+    repo_wide: bool,
+    full: bool,
+    verbose: bool,
+    rules: Vec<String>,
+}
+
+/// Чи ввімкнено native-шлях (прапорець або env).
+fn native_enabled(args: &[String]) -> bool {
+    if args.iter().any(|a| a == NATIVE_FLAG) {
+        return true;
+    }
+    std::env::var(NATIVE_ENV).is_ok_and(|v| v == "1" || v == "true")
+}
+
+/// Розбір argv `lint` — дослівне дзеркало JS-парсера (`indexOf`-семантика,
+/// позиційні аргументи як scoped rule-id після `migrateRuleIds`).
+/// `--native-detect` — власний прапорець native-шляху, у переліку правил не
+/// зʼявляється (починається з `-`, тож JS-фільтр його теж відкидає).
+fn parse_args(args: &[String], process_cwd: &Path) -> Result<LintArgs, String> {
+    let index_of = |needle: &str| args.iter().position(|a| a == needle);
+    let cwd_idx = index_of("--cwd");
+    let path_idx = index_of("--path");
+    let base_idx = index_of("--base");
+    let repo_wide = args.iter().any(|a| a == "--repo-wide");
+
+    let cwd = match cwd_idx {
+        Some(idx) => paths::resolve(process_cwd, args.get(idx + 1).map_or("", String::as_str)),
+        None => process_cwd.to_path_buf(),
+    };
+    let base_ref = base_idx.and_then(|idx| args.get(idx + 1).cloned());
+
+    let positional: Vec<String> = args
+        .iter()
+        .enumerate()
+        .filter(|(i, a)| {
+            !a.starts_with('-')
+                && cwd_idx.is_none_or(|idx| *i != idx + 1)
+                && path_idx.is_none_or(|idx| *i != idx + 1)
+                && base_idx.is_none_or(|idx| *i != idx + 1)
+        })
+        .map(|(_, a)| a.clone())
+        .collect();
+    let rules = rules_core::config::migrate_rule_ids(&positional);
+
+    if repo_wide && (path_idx.is_some() || !rules.is_empty()) {
+        return Err(
+            "--repo-wide не поєднується з --path чи scoped rule/concern фільтром — оберіть щось одне"
+                .to_string(),
+        );
+    }
+
+    Ok(LintArgs {
+        cwd,
+        base_ref,
+        repo_wide,
+        // `--full` неактивний разом із `--path`/`--repo-wide` — той самий
+        // предикат, що в JS (`--path` тут і так веде до делегації).
+        full: args.iter().any(|a| a == "--full") && path_idx.is_none() && !repo_wide,
+        verbose: args.iter().any(|a| a == "--verbose"),
+        rules,
+    })
+}
+
+/// Точка входу підкоманди. `args` — argv ПІСЛЯ `lint`.
+pub fn run(args: &[String]) -> ExitCode {
+    if !native_enabled(args) {
+        return delegate(args);
+    }
+    if !args.iter().any(|a| a == "--no-fix") {
+        eprintln!(
+            "ℹ️ rules-cli lint: native-шлях покриває лише --no-fix (fix-пайплайн не портовано) — делегую в JS-CLI."
+        );
+        return delegate(args);
+    }
+    if args.iter().any(|a| a == "--path") {
+        eprintln!("ℹ️ rules-cli lint: --path не покрито native-шляхом — делегую в JS-CLI.");
+        return delegate(args);
+    }
+
+    let process_cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let parsed = match parse_args(args, &process_cwd) {
+        Ok(parsed) => parsed,
+        Err(message) => {
+            eprintln!("❌ {message}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    match run_native(&parsed, &process_cwd) {
+        Ok(code) => ExitCode::from(code),
+        Err(Bail::Delegate(reason)) => {
+            eprintln!("ℹ️ rules-cli lint: {reason} — делегую в JS-CLI.");
+            delegate(args)
+        }
+        Err(Bail::Fail(message)) => {
+            eprintln!("❌ {message}");
+            ExitCode::from(2)
+        }
+    }
+}
+
+/// Делегація з відрізаним власним прапорцем: JS-CLI про `--native-detect`
+/// не знає (він його мовчки проігнорував би, але чистий argv надійніший).
+fn delegate(args: &[String]) -> ExitCode {
+    let mut argv = vec!["lint".to_string()];
+    argv.extend(args.iter().filter(|a| *a != NATIVE_FLAG).cloned());
+    js_fallback::delegate(&argv)
+}
+
+/// Повний native-прогін: дискавері → план → диспатч → рендер.
+fn run_native(args: &LintArgs, process_cwd: &Path) -> Result<u8, Bail> {
+    let config = rules_core::config::read_n_rules_config_lite(&args.cwd)
+        .map_err(|error| Bail::Delegate(format!("конфіг не читається ({error})")))?;
+
+    let package_root = js_fallback::package_root(process_cwd).map_err(Bail::Fail)?;
+    let mut bridge = Bridge::start(&package_root).map_err(Bail::Fail)?;
+
+    // `N_RULES_RULES_DIR` — тестовий seam (дзеркало `opts.rulesDir` у
+    // `detectAll`, якого JS-CLI теж не виставляє прапорцем): дає parity-тесту
+    // прогнати синтетичний rules-каталог замість вбудованого.
+    let mut discover_payload = json!({ "cwd": args.cwd.to_string_lossy() });
+    if let Ok(rules_dir) = std::env::var("N_RULES_RULES_DIR") {
+        if !rules_dir.is_empty() {
+            discover_payload["rulesDir"] = json!(rules_dir);
+        }
+    }
+    let discovered = bridge
+        .call("discover", discover_payload)
+        .map_err(Bail::Fail)?;
+    let rules_dirs: Vec<PathBuf> = string_array(&discovered, "rulesDirs")
+        .into_iter()
+        .map(PathBuf::from)
+        .collect();
+    let capabilities: HashSet<String> = string_array(&discovered, "capabilities")
+        .into_iter()
+        .collect();
+    let wasm_keys: HashSet<String> = string_array(&discovered, "wasmConcernKeys")
+        .into_iter()
+        .collect();
+
+    let by_rule = discover_by_rule(&rules_dirs);
+    let by_rule = filter_by_capabilities(by_rule, &capabilities);
+    let by_rule = filter_by_applies(by_rule, &args.cwd, &mut bridge)?;
+
+    let plan = build_plan(args, &config, &by_rule, &rules_dirs)?;
+
+    // Гейт wasm — ДО будь-якого виконання: інакше концерн просто мовчки
+    // не відпрацював би (порожні violations читаються як «чисто»).
+    if let Some(key) = plan
+        .iter()
+        .map(|item| format!("{}/{}", item.rule_id, item.concern_id))
+        .find(|key| wasm_keys.contains(key))
+    {
+        return Err(Bail::Delegate(format!(
+            "план містить wasm-концерн «{key}», який native-шлях цього зрізу не виконує"
+        )));
+    }
+
+    let (violations, infra_message) = execute_plan(&plan, args, &by_rule, &mut bridge)?;
+
+    let result = rules_core::lint_render::sort_and_render_violations(&SortAndRenderInput {
+        violations,
+        infra_message: infra_message.clone(),
+    });
+    if let Some(message) = infra_message {
+        println!("💥 {message}");
+        return Ok(result.exit_code);
+    }
+    if !result.sorted.is_empty() {
+        print!("{}", result.rendered);
+    }
+    Ok(result.exit_code)
+}
+
+/// Рядковий масив із JSON-відповіді мосту (відсутнє поле → порожньо).
+fn string_array(value: &Value, key: &str) -> Vec<String> {
+    value
+        .get(key)
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Дискавері концернів по всіх rules-каталогах — порт
+/// `readLintConcernsByRuleMulti`: правила зливаються за id, концерни за
+/// іменем, перший власник виграє (ядро → плагіни в порядку списку).
+/// Правило без жодного detector-концерну в результат не потрапляє (та сама
+/// умова `concerns.length > 0`, що в JS).
+fn discover_by_rule(rules_dirs: &[PathBuf]) -> BTreeMap<String, Vec<ConcernMeta>> {
+    let mut merged: BTreeMap<String, Vec<ConcernMeta>> = BTreeMap::new();
+    for dir in rules_dirs {
+        for rule_id in rules_core::concern_meta::subdirectory_names(dir) {
+            let concerns = rules_core::concern_meta::list_detector_concerns(&dir.join(&rule_id));
+            if concerns.is_empty() {
+                continue;
+            }
+            match merged.get_mut(&rule_id) {
+                None => {
+                    merged.insert(rule_id, concerns);
+                }
+                Some(existing) => {
+                    let seen: HashSet<String> = existing.iter().map(|c| c.name.clone()).collect();
+                    for concern in concerns {
+                        if !seen.contains(&concern.name) {
+                            existing.push(concern);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    merged
+}
+
+/// Порт `filterByCapabilities`: концерн із незадоволеним
+/// `requires.capability` відкидається; правило без жодного вцілілого
+/// концерну зникає цілком.
+fn filter_by_capabilities(
+    by_rule: BTreeMap<String, Vec<ConcernMeta>>,
+    capabilities: &HashSet<String>,
+) -> BTreeMap<String, Vec<ConcernMeta>> {
+    by_rule
+        .into_iter()
+        .filter_map(|(rule_id, concerns)| {
+            let kept: Vec<ConcernMeta> = concerns
+                .into_iter()
+                .filter(|c| {
+                    c.requires_capability
+                        .as_ref()
+                        .is_none_or(|cap| capabilities.contains(cap))
+                })
+                .collect();
+            (!kept.is_empty()).then_some((rule_id, kept))
+        })
+        .collect()
+}
+
+/// Порт `filterByRuleApplies`: правило з наявним `<rule>/applies/main.mjs`
+/// проходить лише за позитивним вердиктом gate-а. Сам gate — виконуваний
+/// JS-модуль, тож він і лишається на мосту; Rust вирішує, кого питати
+/// (є файл?) і що робити з помилкою (fail-closed, як у JS, де `applies`
+/// кидає нагору).
+fn filter_by_applies(
+    by_rule: BTreeMap<String, Vec<ConcernMeta>>,
+    cwd: &Path,
+    bridge: &mut Bridge,
+) -> Result<BTreeMap<String, Vec<ConcernMeta>>, Bail> {
+    let mut gated: Vec<(String, PathBuf)> = Vec::new();
+    for (rule_id, concerns) in &by_rule {
+        let Some(first) = concerns.first() else {
+            continue;
+        };
+        let Some(rule_dir) = first.dir.parent() else {
+            continue;
+        };
+        let applies_path = rule_dir.join("applies").join("main.mjs");
+        if applies_path.is_file() {
+            gated.push((rule_id.clone(), applies_path));
+        }
+    }
+    if gated.is_empty() {
+        return Ok(by_rule);
+    }
+
+    let payload = json!({
+        "cwd": cwd.to_string_lossy(),
+        "rules": gated.iter().map(|(rule_id, path)| json!({
+            "ruleId": rule_id,
+            "appliesPath": path.to_string_lossy(),
+        })).collect::<Vec<_>>(),
+    });
+    let response = bridge.call("applies", payload).map_err(Bail::Fail)?;
+    let verdicts = response.get("verdicts").cloned().unwrap_or(json!({}));
+
+    let mut out = BTreeMap::new();
+    for (rule_id, concerns) in by_rule {
+        let Some(verdict) = verdicts.get(&rule_id) else {
+            out.insert(rule_id, concerns);
+            continue;
+        };
+        if let Some(error) = verdict.get("error").and_then(Value::as_str) {
+            return Err(Bail::Fail(error.to_string()));
+        }
+        if verdict.get("applies").and_then(Value::as_bool) == Some(true) {
+            out.insert(rule_id, concerns);
+        }
+    }
+    Ok(out)
+}
+
+/// Порт диспетчера `buildPlan`: вибір режиму + ліниве обчислення саме тих
+/// входів, які цей режим використовує (дельта — git-виклик, `enabledRuleIds`
+/// — конфіг + warning).
+fn build_plan(
+    args: &LintArgs,
+    config: &LiteConfig,
+    by_rule: &BTreeMap<String, Vec<ConcernMeta>>,
+    rules_dirs: &[PathBuf],
+) -> Result<Vec<PlanItem>, Bail> {
+    let by_rule_dto = to_plan_dto(by_rule);
+
+    // scoped: усі lint-concerns названих правил, whole-repo.
+    if !args.rules.is_empty() {
+        return Ok(rules_core::lint_plan::build_lint_plan(
+            &BuildLintPlanInput {
+                mode: "scoped".to_string(),
+                by_rule: by_rule_dto,
+                rules: args.rules.clone(),
+                explicit_files: Vec::new(),
+                enabled_rule_ids: Vec::new(),
+                changed: Vec::new(),
+                path_mode: false,
+            },
+        ));
+    }
+
+    let enabled = enabled_rule_ids(by_rule, config, rules_dirs);
+
+    let (mode, changed) = if args.repo_wide {
+        ("repoWide", Vec::new())
+    } else if args.full {
+        ("full", Vec::new())
+    } else {
+        ("delta", collect_changed(args)?)
+    };
+
+    Ok(rules_core::lint_plan::build_lint_plan(
+        &BuildLintPlanInput {
+            mode: mode.to_string(),
+            by_rule: by_rule_dto,
+            rules: Vec::new(),
+            explicit_files: Vec::new(),
+            enabled_rule_ids: enabled,
+            changed,
+            path_mode: false,
+        },
+    ))
+}
+
+/// Мінімальний DTO концернів для планувальника — рівно те, що читають
+/// builders (порт `toByRuleDto`).
+fn to_plan_dto(
+    by_rule: &BTreeMap<String, Vec<ConcernMeta>>,
+) -> BTreeMap<String, Vec<ConcernPlanInput>> {
+    by_rule
+        .iter()
+        .map(|(rule_id, concerns)| {
+            let items = concerns
+                .iter()
+                .map(|c| {
+                    let lint = c.lint.as_ref();
+                    ConcernPlanInput {
+                        name: c.name.clone(),
+                        lint: LintSurfaceInput {
+                            scope: match lint.map(|l| l.scope) {
+                                Some(LintScope::PerFile) => "per-file".to_string(),
+                                _ => "full".to_string(),
+                            },
+                            glob: lint.map(|l| l.glob.clone()).unwrap_or_default(),
+                        },
+                    }
+                })
+                .collect();
+            (rule_id.clone(), items)
+        })
+        .collect()
+}
+
+/// Порт `enabledRuleIds` (+ `warnAboutRulesWithoutConcerns`): без конфігу
+/// делта/full-режими не мають активних правил узагалі.
+fn enabled_rule_ids(
+    by_rule: &BTreeMap<String, Vec<ConcernMeta>>,
+    config: &LiteConfig,
+    rules_dirs: &[PathBuf],
+) -> Vec<String> {
+    if !config.exists {
+        return Vec::new();
+    }
+    warn_about_rules_without_concerns(by_rule, config, rules_dirs);
+    by_rule
+        .keys()
+        .filter(|id| rules_core::config::is_rule_enabled(config, id))
+        .cloned()
+        .collect()
+}
+
+/// Порт `warnAboutRulesWithoutConcerns` — попередження про rule-id з
+/// конфігу, яких немає ЖОДНИМ каталогом у rulesDirs (типово правило
+/// переїхало в плагін, якого консюмер не підключив).
+fn warn_about_rules_without_concerns(
+    by_rule: &BTreeMap<String, Vec<ConcernMeta>>,
+    config: &LiteConfig,
+    rules_dirs: &[PathBuf],
+) {
+    let missing: Vec<&String> = config
+        .rules
+        .iter()
+        .filter(|id| !by_rule.contains_key(*id))
+        .collect();
+    if missing.is_empty() {
+        return;
+    }
+    let all_dir_names: HashSet<String> = rules_dirs
+        .iter()
+        .flat_map(|dir| rules_core::concern_meta::subdirectory_names(dir))
+        .collect();
+    for rule_id in missing {
+        if all_dir_names.contains(rule_id) {
+            continue;
+        }
+        eprintln!(
+            "⚠️  .n-rules.json: правило \"{rule_id}\" не знайдено НІ В ОДНОМУ з rulesDirs (ні в ядрі, ні в \
+підключених плагінах \"plugins\") — перевірки для нього НЕ виконуються. Якщо правило нещодавно \
+переїхало в окремий плагін, додай відповідний пакет у \"plugins\" (і в devDependencies)."
+        );
+    }
+}
+
+/// Дельта-набір: merge-base за Git policy (або явний `--base`) →
+/// `collectChangedFilesSince`. Без резолвної бази — робоче дерево vs HEAD
+/// (та сама fail-open поведінка, що в `changed-files --delta`).
+fn collect_changed(args: &LintArgs) -> Result<Vec<String>, Bail> {
+    let candidates = if args.base_ref.is_some() {
+        Vec::new()
+    } else {
+        git_policy::integration_candidates(&args.cwd)
+    };
+    let base = rules_core::changed_base::resolve_changed_base(
+        &args.cwd,
+        &candidates,
+        args.base_ref.as_deref(),
+    )
+    .map_err(|error| Bail::Fail(format!("rules-cli lint: {error}")))?;
+    match base {
+        Some(sha) => rules_core::changed_files::collect_changed_files_since(&args.cwd, Some(&sha))
+            .map_err(|error| Bail::Fail(format!("rules-cli lint: {error}"))),
+        None => Ok(rules_core::changed_files::collect_changed_files(&args.cwd)),
+    }
+}
+
+/// Сегмент плану: суцільний прогін builtin-native концернів або суцільний
+/// прогін тих, що виконує міст. Порядок плану зберігається — зливаються
+/// лише СУСІДНІ однотипні items (порт `partitionPlanIntoSegments`, тільки
+/// тут «решта» теж батчиться, бо міст приймає батч).
+struct Segment<'a> {
+    native: bool,
+    items: Vec<&'a PlanItem>,
+}
+
+/// Партиціонує план на суцільні сегменти за типом виконавця.
+fn partition(plan: &[PlanItem]) -> Vec<Segment<'_>> {
+    let mut segments: Vec<Segment<'_>> = Vec::new();
+    for item in plan {
+        let key = format!("{}/{}", item.rule_id, item.concern_id);
+        let native = rules_core::concerns::NATIVE_CONCERNS.contains(&key.as_str());
+        match segments.last_mut() {
+            Some(last) if last.native == native => last.items.push(item),
+            _ => segments.push(Segment {
+                native,
+                items: vec![item],
+            }),
+        }
+    }
+    segments
+}
+
+/// Виконує план по сегментах. Перша інфра-помилка зупиняє прогін і стає
+/// `infraMessage` (той самий fail-closed контракт, що `DetectorError` у
+/// `detectPlanSequentially` → exit 2); уже зібрані violations лишаються.
+fn execute_plan(
+    plan: &[PlanItem],
+    args: &LintArgs,
+    by_rule: &BTreeMap<String, Vec<ConcernMeta>>,
+    bridge: &mut Bridge,
+) -> Result<(Vec<LintViolation>, Option<String>), Bail> {
+    let mut violations: Vec<LintViolation> = Vec::new();
+    for segment in partition(plan) {
+        if args.verbose {
+            for item in &segment.items {
+                log_pre_run(item, by_rule);
+            }
+        }
+        let outcome = if segment.native {
+            run_native_segment(&segment.items, &args.cwd)
+        } else {
+            run_bridge_segment(&segment.items, args, by_rule, bridge)?
+        };
+        violations.extend(outcome.0);
+        if let Some(message) = outcome.1 {
+            return Ok((violations, Some(message)));
+        }
+    }
+    Ok((violations, None))
+}
+
+/// Verbose-рядок перед концерном — той самий формат, що `runPlanItem`.
+fn log_pre_run(item: &PlanItem, by_rule: &BTreeMap<String, Vec<ConcernMeta>>) {
+    let scope = by_rule
+        .get(&item.rule_id)
+        .and_then(|concerns| concerns.iter().find(|c| c.name == item.concern_id))
+        .and_then(|c| c.lint.as_ref())
+        .map_or("full", |l| match l.scope {
+            LintScope::PerFile => "per-file",
+            LintScope::Full => "full",
+        });
+    let count = match &item.files {
+        None => "весь репо".to_string(),
+        Some(files) => format!("{} файл(ів)", files.len()),
+    };
+    println!(
+        "  🔍 {}/{}  [{scope}]  → {count}",
+        item.rule_id, item.concern_id
+    );
+}
+
+/// Виконує суцільний native-сегмент одним batch-викликом ядра. Ядро доводить
+/// батч до кінця (fail-soft `run_concerns_batch`), стоп на першій помилці
+/// робить цей цикл — той самий поділ, що в `runNativeSegmentSync`.
+fn run_native_segment(items: &[&PlanItem], cwd: &Path) -> (Vec<LintViolation>, Option<String>) {
+    let batch: Vec<rules_core::concerns::BatchItem> = items
+        .iter()
+        .map(|item| rules_core::concerns::BatchItem {
+            key: format!("{}/{}", item.rule_id, item.concern_id),
+            cwd: cwd.to_path_buf(),
+            files: item.files.clone(),
+        })
+        .collect();
+    let results = rules_core::concerns::run_concerns_batch(&batch, |_, _| {});
+
+    let mut violations = Vec::new();
+    for (i, outcome) in results.iter().enumerate() {
+        let item = items[i];
+        match &outcome.result {
+            Err(error) => {
+                // Той самий текст, що `detect.mjs` для native-гілки, у тій
+                // самій обгортці `DetectorError`.
+                return (
+                    violations,
+                    Some(format!(
+                        "detector {}/{}: native concern кинув: {error}",
+                        item.rule_id, item.concern_id
+                    )),
+                );
+            }
+            Ok(raw) => violations.extend(raw.iter().map(|v| LintViolation {
+                rule_id: item.rule_id.clone(),
+                concern_id: item.concern_id.clone(),
+                reason: v.reason.clone(),
+                message: v.message.clone(),
+                file: v.file.clone(),
+                severity: v.severity,
+                data: v.data.clone(),
+            })),
+        }
+    }
+    (violations, None)
+}
+
+/// Виконує суцільний сегмент концернів мосту ОДНИМ запитом `detect`.
+fn run_bridge_segment(
+    items: &[&PlanItem],
+    args: &LintArgs,
+    by_rule: &BTreeMap<String, Vec<ConcernMeta>>,
+    bridge: &mut Bridge,
+) -> Result<(Vec<LintViolation>, Option<String>), Bail> {
+    let payload_items: Vec<Value> = items
+        .iter()
+        .map(|item| {
+            let dir = by_rule
+                .get(&item.rule_id)
+                .and_then(|concerns| concerns.iter().find(|c| c.name == item.concern_id))
+                .map(|c| c.dir.to_string_lossy().to_string())
+                .unwrap_or_default();
+            json!({
+                "key": format!("{}/{}", item.rule_id, item.concern_id),
+                "ruleId": item.rule_id,
+                "concernId": item.concern_id,
+                "dir": dir,
+                "files": item.files,
+            })
+        })
+        .collect();
+    let response = bridge
+        .call(
+            "detect",
+            json!({
+                "cwd": args.cwd.to_string_lossy(),
+                "verbose": args.verbose,
+                "items": payload_items,
+            }),
+        )
+        .map_err(Bail::Fail)?;
+
+    let mut violations = Vec::new();
+    let results = response
+        .get("items")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    for (i, entry) in results.iter().enumerate() {
+        let item = items[i];
+        if let Some(error) = entry.get("error").and_then(Value::as_str) {
+            return Ok((violations, Some(error.to_string())));
+        }
+        let raw = entry.get("violations").cloned().unwrap_or(json!([]));
+        let parsed: Vec<LintViolation> = serde_json::from_value(raw).map_err(|error| {
+            Bail::Fail(format!(
+                "detector {}/{}: міст повернув невалідні violations: {error}",
+                item.rule_id, item.concern_id
+            ))
+        })?;
+        violations.extend(parsed);
+    }
+    Ok((violations, None))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn args(list: &[&str]) -> Vec<String> {
+        list.iter().map(|s| (*s).to_string()).collect()
+    }
+
+    #[test]
+    fn native_path_is_opt_in() {
+        assert!(!native_enabled(&args(["--no-fix"].as_slice())));
+        assert!(native_enabled(&args(["--no-fix", NATIVE_FLAG].as_slice())));
+    }
+
+    #[test]
+    fn positional_arguments_become_scoped_rules() {
+        let parsed = parse_args(
+            &args(["--cwd", "sub", "text", "--no-fix"].as_slice()),
+            Path::new("/repo"),
+        )
+        .unwrap();
+        assert_eq!(parsed.rules, vec!["text"]);
+        assert_eq!(parsed.cwd, PathBuf::from("/repo/sub"));
+        assert!(!parsed.full);
+    }
+
+    #[test]
+    fn base_ref_value_is_not_a_scoped_rule() {
+        let parsed = parse_args(
+            &args(["--base", "origin/main", "--no-fix"].as_slice()),
+            Path::new("/repo"),
+        )
+        .unwrap();
+        assert!(parsed.rules.is_empty());
+        assert_eq!(parsed.base_ref.as_deref(), Some("origin/main"));
+    }
+
+    #[test]
+    fn repo_wide_conflicts_with_scoped_rules() {
+        let error = parse_args(
+            &args(["--repo-wide", "text"].as_slice()),
+            Path::new("/repo"),
+        )
+        .unwrap_err();
+        assert!(error.contains("--repo-wide"), "{error}");
+    }
+
+    #[test]
+    fn partition_merges_adjacent_same_kind_items() {
+        let plan = vec![
+            PlanItem {
+                rule_id: "text".to_string(),
+                concern_id: "forbidden-prettier".to_string(),
+                files: None,
+            },
+            PlanItem {
+                rule_id: "security".to_string(),
+                concern_id: "sample_secret".to_string(),
+                files: None,
+            },
+            PlanItem {
+                rule_id: "text".to_string(),
+                concern_id: "cspell-fix".to_string(),
+                files: None,
+            },
+        ];
+        let segments = partition(&plan);
+        assert_eq!(segments.len(), 2);
+        assert!(segments[0].native);
+        assert_eq!(segments[0].items.len(), 2);
+        assert!(!segments[1].native);
+    }
+}

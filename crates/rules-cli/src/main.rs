@@ -43,6 +43,15 @@
 //!   латентності хука, тож обіцяний планом виграш зʼявиться лише разом із
 //!   портом самих детекторів, а не від інверсії entrypoint.
 //!
+//! Зріз 5 обертає МІСТ (Р12 спеки міграції): `lint` стає основним шляхом
+//! виконання, а node — дочірнім процесом-виконавцем залишку:
+//!
+//! - `lint --no-fix` ([`lint_cmd`]) — план, диспатч, сортування, рендер і
+//!   exit-код у `rules-core`; концерни з `main.mjs`/policy виконує ОДИН
+//!   дочірній node-процес на прогін ([`bridge`]). Шлях НЕ дефолтний
+//!   (`--native-detect`/`N_RULES_NATIVE_LINT=1`) і сам делегує все, де
+//!   паритет недосяжний — межі й вимірювання в доккоменті [`lint_cmd`].
+//!
 //! Решта (включно з дефолтним sync без підкоманди та legacy-аліасами
 //! `lint-*`) — транзитна делегація, перелік скорочується по зрізах фази 8.
 //!
@@ -58,12 +67,14 @@
 //! автогенеровані help/usage/error — тут заборонена (довідка байтово
 //! успадкована з JS).
 
+mod bridge;
 mod changed_files_cmd;
 mod ci_cmd;
 mod cursor_ignore;
 mod git_policy;
 mod hook_cmd;
 mod js_fallback;
+mod lint_cmd;
 mod paths;
 mod rename_yaml_cmd;
 mod skill_cmd;
@@ -105,6 +116,10 @@ fn run(args: &[String]) -> ExitCode {
             print!("{LINT_HELP}");
             ExitCode::SUCCESS
         }
+        // Зріз 5 (Р12): `lint` як основний шлях виконання. Native-контур
+        // вмикається явно (`--native-detect`/`N_RULES_NATIVE_LINT=1`) і сам
+        // делегує все, де паритет недосяжний — доккомент `lint_cmd`.
+        Some("lint") => lint_cmd::run(&args[1..]),
         _ => js_fallback::delegate(args),
     }
 }
