@@ -35,6 +35,9 @@ function expectContractMismatch(fn, expected) {
   }
 }
 
+/** Маркер вихідного дерева — його наявність перемикає порядок джерел. */
+const SOURCE_MARKER = '/repo/crates/rules-napi/Cargo.toml'
+
 /**
  * Базові deps: відома платформа, нічого не встановлено і не збудовано.
  * @param {Record<string, unknown>} [overrides] точкові заміни полів
@@ -52,6 +55,15 @@ function baseDeps(overrides = {}) {
     repoRoot: '/repo',
     ...overrides
   }
+}
+
+/**
+ * existsSync, що бачить лише перелічені шляхи.
+ * @param {string[]} present наявні шляхи
+ * @returns {(p: string) => boolean} предикат
+ */
+function only(present) {
+  return p => present.includes(p)
 }
 
 describe('resolveNativeAddon (порядок пошуку)', () => {
@@ -103,7 +115,9 @@ describe('resolveNativeAddon (порядок пошуку)', () => {
         })
       )
     ).toThrow(ADDON_HINT_RE)
+    // Перша перевірка — маркер вихідного дерева (він обирає порядок джерел).
     expect(seen).toEqual([
+      SOURCE_MARKER,
       '/repo/target/release/librules_napi.so',
       '/repo/target/debug/librules_napi.so',
       '/repo/crates/rules-napi/rules-napi.linux-x64-gnu.node'
@@ -125,6 +139,7 @@ describe('resolveNativeAddon (порядок пошуку)', () => {
       )
     ).toThrow(ADDON_HINT_RE)
     expect(seen).toEqual([
+      SOURCE_MARKER,
       '/repo/target/release/rules_napi.dll',
       '/repo/target/debug/rules_napi.dll',
       '/repo/crates/rules-napi/rules-napi.win32-x64-msvc.node'
@@ -133,6 +148,55 @@ describe('resolveNativeAddon (порядок пошуку)', () => {
 
   test('невідома платформа (win32-arm64): без підпакета/суфікса — помилка з підказкою про N_RULES_NATIVE_ADDON', () => {
     expect(() => resolveNativeAddon(baseDeps({ platform: 'win32', arch: 'arm64' }))).toThrow(UNKNOWN_PLATFORM_RE)
+  })
+})
+
+// Регресія 2026-08-03: підпакет із node_modules стояв перед локальною збіркою
+// БЕЗУМОВНО, тож `cargo build -p rules-napi` у CI збирав аддон, якого loader не
+// брав. Дискримінатор — наявність вихідних файлів аддона (`crates/rules-napi/Cargo.toml`)
+// поруч із repoRoot, а не env-евристика.
+describe('resolveNativeAddon (вихідне дерево vs прод)', () => {
+  test('вихідне дерево: локальна збірка перемагає встановлений підпакет', () => {
+    const p = resolveNativeAddon(
+      baseDeps({
+        existsSync: only([SOURCE_MARKER, '/repo/target/release/librules_napi.dylib']),
+        requireResolve: id => `/nm/${id}`
+      })
+    )
+    expect(p).toBe('/repo/target/release/librules_napi.dylib')
+  })
+
+  test('вихідне дерево без локальної збірки: підпакет лишається наступним джерелом', () => {
+    const p = resolveNativeAddon(baseDeps({ existsSync: only([SOURCE_MARKER]), requireResolve: id => `/nm/${id}` }))
+    expect(p).toBe('/nm/@7n/rules-darwin-arm64/rules-napi.darwin-arm64.node')
+  })
+
+  test('продакшен (без вихідних файлів): підпакет перемагає сторонній target/ поруч', () => {
+    // У встановленому пакеті repoRoot = <node_modules>/@7n; випадковий
+    // target/release/librules_napi.* поруч не має перебивати запінений підпакет.
+    const p = resolveNativeAddon(
+      baseDeps({
+        existsSync: only(['/repo/target/release/librules_napi.dylib']),
+        requireResolve: id => `/nm/${id}`
+      })
+    )
+    expect(p).toBe('/nm/@7n/rules-darwin-arm64/rules-napi.darwin-arm64.node')
+  })
+
+  test('продакшен без підпакета: локальна збірка лишається останнім fallback-ом', () => {
+    const p = resolveNativeAddon(baseDeps({ existsSync: only(['/repo/target/debug/librules_napi.dylib']) }))
+    expect(p).toBe('/repo/target/debug/librules_napi.dylib')
+  })
+
+  test('override перемагає і вихідне дерево, і підпакет', () => {
+    const p = resolveNativeAddon(
+      baseDeps({
+        env: { N_RULES_NATIVE_ADDON: '/custom/addon.node' },
+        existsSync: () => true,
+        requireResolve: id => `/nm/${id}`
+      })
+    )
+    expect(p).toBe('/custom/addon.node')
   })
 })
 

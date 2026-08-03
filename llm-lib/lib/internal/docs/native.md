@@ -3,29 +3,49 @@ type: JS Module
 title: native.mjs
 resource: llm-lib/lib/internal/native.mjs
 docgen:
-  crc: 655cb048
-  model: openai-codex/gpt-5.5
-  tier: cloud-avg
-  score: 100
-  judgeModel: openai-codex/gpt-5.4-mini
+  crc: 35a583cb
+  model: omlx/gemma-4-e4b-it-OptiQ-4bit
+  tier: local-min
+  score: 70
 ---
 
 ## Огляд
 
-Файл підʼєднує Rust/NAPI native addon для `llm-lib` і є єдиною точкою вибору джерела: явний override через `N_LLM_LIB_NATIVE_ADDON`, платформний npm-пакет `@7n/llm-lib-<platform>-<arch>` з артефактом `llm-lib-napi.<triple>.node` або локальна dev-збірка. Публічні API `resolveNativeAddon` і `loadNative` потрібні, щоб споживачі отримували native exports з однаковою поведінкою в інсталяції, CI, тестах і локальній розробці. Завантаження виконується через `process.dlopen`, тому підтримуються і `.node`, і сирі cdylib (`.dylib`/`.so`); результат кешується як одне завантаження на процес. Непідтримані платформи завершуються зрозумілою помилкою без прихованого JS fallback.
+Loader napi-аддона `llm-lib` (Rust-ядро `llm-lib/crates/llm-lib-napi`
+→ `llm-lib`) — за зразком `mt/npm/lib/core/native.mjs`.
 
-## Поведінка
+Порядок пошуку (залежить від оточення — див. [`isSourceTree`]):
+  1. N_LLM_LIB_NATIVE_ADDON — явний override шляху до аддона (dev / CI / тести).
+  2. **Лише у вихідному дереві** (`<repoRoot>/llm-lib/crates/llm-lib-napi/Cargo.toml`
+     існує): локальна збірка `<repoRoot>/target/release|debug/` (сирий cdylib
+     з `cargo build -p llm-lib-napi`) та вивід `napi build` у
+     `llm-lib/crates/llm-lib-napi/`.
+  3. Platform-підпакет `@7n/llm-lib-<platform>-<arch>` (napi-артефакт
+     `llm-lib-napi.<triple>.node`).
+  4. Той самий fallback на локальну збірку поза вихідним деревом
+     (у продакшені поведінка така сама, як до фіксу).
+  5. Інакше — зрозуміла помилка з підказкою.
 
-`loadNative` отримує шлях від `resolveNativeAddon`, завантажує знайдений native addon і повертає його exports споживачам `llm-lib`. Результат завантаження зберігається в памʼяті процесу, тому наступні звернення повторно використовують той самий addon без нового пошуку та відкриття файлу.
+ЧОМУ порядок різний (симетрично до `npm/scripts/lib/native.mjs`, фікс
+2026-08-03): у репо локальний `cargo build -p llm-lib-napi` мовчки
+перекривався опублікованим підпакетом із `node_modules` — правки Rust-ядра
+не проявлялися, а «фейли LLM-контуру» діагностувалися як помилки коду.
+У користувача ж підпакет — єдине авторитетне джерело (запінений lockstep до
+версії `@7n/llm-lib`), тож сторонній `target/` поруч не має його перебивати.
 
-`resolveNativeAddon` визначає джерело native addon за єдиним порядком пріоритетів: явний шлях із середовища для dev/CI/тестів, платформний npm-підпакет для підтримуваної платформи, локальні dev-збірки Rust/NAPI, а потім помилка з інструкцією для користувача. Це дає однакову поведінку для встановленого пакета, локальної розробки й тестових сценаріїв.
-
-Якщо платформа не входить до свідомо підтриманих у v1 комбінацій, JavaScript fallback не використовується: потік завершується hard error. Це фіксує межу підтримки native-ядра замість прихованої деградації поведінки.
+Аддон завантажується через `process.dlopen` — працює і для `.node`, і для
+сирих cdylib (`.dylib`/`.so`). Результат кешується (одне завантаження на процес).
+Без JS-fallback на неоголошеній платформі — hard error, свідома межа v1
+(darwin-arm64, linux-x64), не регресія.
 
 ## Публічний API
 
 - resolveNativeAddon — Резолвить шлях до napi-аддона `llm-lib`.
 - loadNative — Кешований доступ до аддона (одне завантаження на процес).
+
+## Сценарії використання
+
+- `llm-lib/tests/native.test.mjs` (resolveNativeAddon (порядок пошуку); resolveNativeAddon (вихідне дерево vs прод)) — N_LLM_LIB_NATIVE_ADDON має найвищий пріоритет; platform-підпакет: резолвиться @7n/llm-lib-<key> з napi-суфіксом; linux-x64 мапиться на суфікс linux-x64-gnu; dev-fallback: release-cdylib перемагає debug; dev-fallback: на linux шукається .so, а останній кандидат — вивід napi build; ще 6
 
 ## Гарантії поведінки
 
