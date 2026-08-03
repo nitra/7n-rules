@@ -54,36 +54,61 @@ import { pathToFileURL } from 'node:url'
 export const BRIDGE_PROTOCOL_VERSION = 1
 
 /**
+ * Один запит протоколу. Поля, крім `id`/`op`, специфічні для операції —
+ * тому опційні: Rust шле рівно те, що потрібно обраній `op`.
+ * @typedef {object} BridgeRequest
+ * @property {number} id ідентифікатор запиту (повертається у відповіді)
+ * @property {string} op ім'я операції
+ * @property {string} [cwd] абсолютний корінь consumer-репо
+ * @property {string} [rulesDir] override базового rules-каталогу (`discover`)
+ * @property {{ ruleId: string, appliesPath: string }[]} [rules] правила з наявним gate-ом (`applies`)
+ * @property {boolean} [verbose] докладний режим (`detect`)
+ * @property {{ key: string, ruleId: string, concernId: string, dir: string, files: string[]|null }[]} [items] батч плану (`detect`)
+ */
+
+/**
  * `discover` — усе, що Rust не може порахувати сам: rules-каталоги після
  * резолву плагінів, активні capabilities і ключі wasm-концернів.
  *
  * `wasmConcernKeys` потрібні НЕ для виконання (wasm виконує host у Rust), а
  * для чесного гейта: якщо план зачепив wasm-концерн, native-шлях цього зрізу
  * віддає команду назад у JS-CLI замість мовчазної розбіжності.
- * @param {{ cwd: string, rulesDir?: string }} req запит (корінь репо + опційний базовий rules-каталог).
+ * @param {BridgeRequest} req запит (корінь репо + опційний базовий rules-каталог).
  * @returns {Promise<{ rulesDirs: string[], capabilities: string[], wasmConcernKeys: string[] }>} дані резолву.
  */
 async function opDiscover(req) {
   const { readNRulesConfigLite } = await import('../read-n-rules-config-lite.mjs')
   const { getActiveCapabilities, resolveRulesDirs } = await import('../plugin-slots.mjs')
   const { DEFAULT_RULES_DIR } = await import('./run-detectors.mjs')
-  const config = await readNRulesConfigLite(req.cwd)
+  const cwd = String(req.cwd)
+  const config = await readNRulesConfigLite(cwd)
   const base = req.rulesDir ?? DEFAULT_RULES_DIR
   // `allowInstall: false, quiet: true` — той самий hot-path-режим, що в
   // `effectiveRulesDirs`/`filterByCapabilities` (`run-detectors.mjs`).
-  const dirs = resolveRulesDirs(req.cwd, { plugins: config.plugins }, base, { allowInstall: false, quiet: true })
-  const caps = getActiveCapabilities(req.cwd, { plugins: config.plugins }, { allowInstall: false, quiet: true })
-  let wasmConcernKeys = []
+  const dirs = resolveRulesDirs(cwd, { plugins: config.plugins }, base, { allowInstall: false, quiet: true })
+  const caps = getActiveCapabilities(cwd, { plugins: config.plugins }, { allowInstall: false, quiet: true })
+  return {
+    rulesDirs: dirs.map(d => d.rulesDir),
+    capabilities: caps.values().toArray(),
+    wasmConcernKeys: await wasmConcernKeys(cwd)
+  }
+}
+
+/**
+ * Ключі wasm-концернів або порожній список. Резолв wasm-мапи вже сам ковтає
+ * збої окремих плагінів із `console.warn`; повна відмова резолву тут означає
+ * «wasm-контрибуцій немає» — той самий ефект, що порожня мапа в `detect.mjs`.
+ * @param {string} cwd абсолютний корінь consumer-репо.
+ * @returns {Promise<string[]>} ключі `ruleId/concernId` wasm-контрибуцій.
+ */
+async function wasmConcernKeys(cwd) {
   try {
     const { resolveWasmConcernMap } = await import('./wasm-plugins.mjs')
-    wasmConcernKeys = [...(await resolveWasmConcernMap(req.cwd)).keys()]
+    const map = await resolveWasmConcernMap(cwd)
+    return map.keys().toArray()
   } catch {
-    // Резолв wasm-мапи вже сам ковтає збої окремих плагінів із `console.warn`;
-    // повна відмова резолву тут означає «wasm-контрибуцій немає» — той самий
-    // ефект, що порожня мапа в `detect.mjs`.
-    wasmConcernKeys = []
+    return []
   }
-  return { rulesDirs: dirs.map(d => d.rulesDir), capabilities: [...caps], wasmConcernKeys }
 }
 
 /**
@@ -91,13 +116,13 @@ async function opDiscover(req) {
  * Дзеркало `filterByRuleApplies` (`run-detectors.mjs`) з однією відмінністю:
  * помилка gate-а не кидається тут, а повертається полем `error` — рішення
  * приймає Rust (той самий поділ, що для `detect`).
- * @param {{ cwd: string, rules: { ruleId: string, appliesPath: string }[] }} req правила з наявним `applies/main.mjs`.
+ * @param {BridgeRequest} req правила з наявним `applies/main.mjs`.
  * @returns {Promise<{ verdicts: Record<string, { applies?: boolean, error?: string }> }>} вердикти за rule-id.
  */
 async function opApplies(req) {
   /** @type {Record<string, { applies?: boolean, error?: string }>} */
   const verdicts = {}
-  for (const rule of req.rules) {
+  for (const rule of req.rules ?? []) {
     try {
       // eslint-disable-next-line no-unsanitized/method
       const mod = await import(pathToFileURL(rule.appliesPath).href)
@@ -130,7 +155,7 @@ async function opApplies(req) {
  * і НЕ зриває решту батчу. Текст помилки віддається як є — для `DetectorError`
  * це вже готовий рядок «detector ruleId/concernId: …», який Rust друкує
  * дослівно (`💥 …`), тож формат infra-повідомлення не роздвоюється.
- * @param {{ cwd: string, verbose?: boolean, items: { key: string, ruleId: string, concernId: string, dir: string, files: string[]|null }[] }} req батч плану.
+ * @param {BridgeRequest} req батч плану.
  * @returns {Promise<{ items: { key: string, violations?: unknown[], diagnostics?: unknown[], error?: string }[] }>} результати по items.
  */
 async function opDetect(req) {
@@ -138,7 +163,7 @@ async function opDetect(req) {
   const { runConcernDetector } = await import('./detect.mjs')
   /** @type {{ key: string, violations?: unknown[], diagnostics?: unknown[], error?: string }[]} */
   const out = []
-  for (const item of req.items) {
+  for (const item of req.items ?? []) {
     const concern = await readConcernMeta(item.dir, item.concernId)
     if (concern === null) {
       out.push({ key: item.key, error: `detector ${item.ruleId}/${item.concernId}: немає concern.json` })
@@ -165,7 +190,7 @@ async function opDetect(req) {
 
 /**
  * Диспатч одного запиту протоколу.
- * @param {{ op: string }} req розібраний запит.
+ * @param {BridgeRequest} req розібраний запит.
  * @returns {Promise<unknown>} результат операції.
  */
 async function dispatch(req) {
@@ -174,13 +199,13 @@ async function dispatch(req) {
       return { protocol: BRIDGE_PROTOCOL_VERSION }
     }
     case 'discover': {
-      return await opDiscover(/** @type {any} */ (req))
+      return await opDiscover(req)
     }
     case 'applies': {
-      return await opApplies(/** @type {any} */ (req))
+      return await opApplies(req)
     }
     case 'detect': {
-      return await opDetect(/** @type {any} */ (req))
+      return await opDetect(req)
     }
     default: {
       throw new Error(`невідома операція мосту: ${req.op}`)
@@ -190,42 +215,38 @@ async function dispatch(req) {
 
 /**
  * Підключається до сокета Rust-боку і обслуговує NDJSON-запити до його
- * закриття. Запити виконуються СТРОГО послідовно (`chain`) — Rust і так
- * шле по одному, а послідовність гарантує, що порядок відповідей збігається
- * з порядком запитів навіть якби він почав пайплайнити.
+ * закриття.
+ *
+ * `for await` по сокету, а не `socket.on('data')`: обробка запиту сама
+ * асинхронна, тож подієвий колбек вимагав би ручного ланцюжка промісів, щоб
+ * не переплутати порядок відповідей. Async-ітерація дає ту саму
+ * послідовність задарма — наступний chunk читається лише після `await`
+ * поточного запиту.
  * @param {string} socketPath шлях unix-сокета, який слухає `rules-cli`.
  * @returns {Promise<void>} завершується, коли сокет закрито.
  */
-export function serveBridge(socketPath) {
-  return new Promise((resolve, reject) => {
-    const socket = createConnection(socketPath)
-    let buffer = ''
-    /** Ланцюжок послідовного виконання запитів. */
-    let chain = Promise.resolve()
-    socket.on('error', reject)
-    socket.on('close', () => resolve())
-    socket.on('data', chunk => {
-      buffer += chunk.toString('utf8')
-      let nl = buffer.indexOf('\n')
-      while (nl !== -1) {
-        const line = buffer.slice(0, nl)
-        buffer = buffer.slice(nl + 1)
-        if (line.length > 0) {
-          const req = JSON.parse(line)
-          chain = chain.then(async () => {
-            let payload
-            try {
-              payload = { id: req.id, ok: true, result: await dispatch(req) }
-            } catch (error) {
-              payload = { id: req.id, ok: false, error: error?.message ?? String(error) }
-            }
-            socket.write(`${JSON.stringify(payload)}\n`)
-          })
+export async function serveBridge(socketPath) {
+  const socket = createConnection(socketPath)
+  let buffer = ''
+  for await (const chunk of socket) {
+    buffer += chunk.toString('utf8')
+    let nl = buffer.indexOf('\n')
+    while (nl !== -1) {
+      const line = buffer.slice(0, nl)
+      buffer = buffer.slice(nl + 1)
+      if (line.length > 0) {
+        const req = JSON.parse(line)
+        let payload
+        try {
+          payload = { id: req.id, ok: true, result: await dispatch(req) }
+        } catch (error) {
+          payload = { id: req.id, ok: false, error: error?.message ?? String(error) }
         }
-        nl = buffer.indexOf('\n')
+        socket.write(`${JSON.stringify(payload)}\n`)
       }
-    })
-  })
+      nl = buffer.indexOf('\n')
+    }
+  }
 }
 
 /** Точка входу: шлях сокета приходить аргументом або через `N_RULES_BRIDGE_SOCKET`. */

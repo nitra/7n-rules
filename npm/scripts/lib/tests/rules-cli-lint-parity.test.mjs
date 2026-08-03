@@ -137,7 +137,7 @@ describe('rules-cli lint: гейт вмикання native-шляху', () => {
    * `N_RULES_JS_RUNTIME` ні на що б не вплинув.
    */
   test('без прапорця — делегація (доведено недосяжним рантаймом)', async () => {
-    await withTmpDir(async dir => {
+    await withTmpDir(dir => {
       initRepo(dir, [])
       const result = spawnSync(resolveRulesCliBin(), ['lint', '--no-fix'], {
         cwd: dir,
@@ -149,7 +149,7 @@ describe('rules-cli lint: гейт вмикання native-шляху', () => {
   })
 
   test('з прапорцем, але без --no-fix — делегація (fix-пайплайн не портовано)', async () => {
-    await withTmpDir(async dir => {
+    await withTmpDir(dir => {
       initRepo(dir, [])
       const result = spawnSync(resolveRulesCliBin(), ['lint', '--native-detect'], {
         cwd: dir,
@@ -162,7 +162,7 @@ describe('rules-cli lint: гейт вмикання native-шляху', () => {
   })
 
   test('з --path — делегація (перетин піддерева з дельтою не портовано)', async () => {
-    await withTmpDir(async dir => {
+    await withTmpDir(dir => {
       initRepo(dir, [])
       const result = spawnSync(resolveRulesCliBin(), ['lint', '--no-fix', '--native-detect', '--path', 'src'], {
         cwd: dir,
@@ -182,7 +182,7 @@ describe('rules-cli lint: паритет на синтетичному rules-к�
    * Порядок груп у виводі й exit-код мусять збігтись байт-у-байт.
    */
   test('violations із JS-концернів рендеряться однаково (stdout/stderr/exit)', async () => {
-    await withTmpDir(async dir => {
+    await withTmpDir(dir => {
       const rulesDir = join(dir, 'synthetic-rules')
       writeConcern(
         rulesDir,
@@ -228,7 +228,7 @@ describe('rules-cli lint: паритет на синтетичному rules-к�
    * і обидва боки мусять дати рівно нуль байтів і exit 0.
    */
   test('порожній план — нуль байтів і exit 0 з обох боків', async () => {
-    await withTmpDir(async dir => {
+    await withTmpDir(dir => {
       const rulesDir = join(dir, 'synthetic-rules')
       writeConcern(
         rulesDir,
@@ -257,7 +257,7 @@ describe('rules-cli lint: паритет на синтетичному rules-к�
    * (його violation у виводі бути не може).
    */
   test('падіння концерну: той самий 💥-рядок, exit 2 і стоп прогону', async () => {
-    await withTmpDir(async dir => {
+    await withTmpDir(dir => {
       const rulesDir = join(dir, 'synthetic-rules')
       writeConcern(
         rulesDir,
@@ -297,7 +297,7 @@ describe('rules-cli lint: паритет на синтетичному rules-к�
    * результат прийшов тим самим батчем, що й помилка).
    */
   test('помилка одного концерну не з’їдає результати попередніх у батчі', async () => {
-    await withTmpDir(async dir => {
+    await withTmpDir(dir => {
       const rulesDir = join(dir, 'synthetic-rules')
       writeConcern(
         rulesDir,
@@ -340,7 +340,7 @@ describe('rules-cli lint: паритет на синтетичному rules-к�
    * повідомленні.
    */
   test('дельта: per-file концерн отримує саме змінений набір', async () => {
-    await withTmpDir(async dir => {
+    await withTmpDir(dir => {
       const rulesDir = join(dir, 'synthetic-rules')
       writeConcern(
         rulesDir,
@@ -371,7 +371,7 @@ describe('rules-cli lint: паритет на синтетичному rules-к�
    * незалежно від `.n-rules.json` і від дельти.
    */
   test('scoped: позиційний rule-id звужує план однаково', async () => {
-    await withTmpDir(async dir => {
+    await withTmpDir(dir => {
       const rulesDir = join(dir, 'synthetic-rules')
       writeConcern(
         rulesDir,
