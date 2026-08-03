@@ -512,14 +512,14 @@ mod tests {
     async fn dispatch_never_probes_for_non_remote_provider() {
         let mut providers = std::collections::HashMap::new();
         // Порт 1 — привілейований, гарантовано нічого не слухає; якби Auto
-        // помилково пробував "omlx" (не REMOTE_BATCH_PROVIDER), проба
-        // зависла б чи провалилась замість тихого short-circuit на 0 items.
-        providers.insert("omlx".to_string(), provider("http://127.0.0.1:1/v1/"));
+        // помилково пробував "other-provider" (не REMOTE_BATCH_PROVIDER),
+        // проба зависла б чи провалилась замість тихого short-circuit на 0 items.
+        providers.insert("other-provider".to_string(), provider("http://127.0.0.1:1/v1/"));
         let cascade = LocalCloud::new(providers);
 
         let results = dispatch(
             &cascade,
-            "omlx/some-model",
+            "other-provider/some-model",
             Vec::new(),
             Backend::Auto,
             &BatchConfig::default(),
