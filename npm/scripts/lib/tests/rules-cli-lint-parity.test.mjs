@@ -411,13 +411,21 @@ describe('rules-cli lint: паритет на реальному дельта-п
    *
    * Тест довгий (кожен бік — секунди), але саме він ловить розбіжність
    * дискавері/плану/порядку, якої синтетичні фікстури не бачать.
+   *
+   * ПЕРШИЙ прогін — прогрівальний і в порівнянні не бере участі: одноразові
+   * побічні ефекти (авто-встановлення зовнішніх тулів через `ensure-tool`,
+   * self-upgrade `devDependencies` JS-роутера) друкують у stderr лише раз, і
+   * без прогріву вони приписались би тому боку, що стартував першим.
    */
-  test('stdout/stderr/exit збігаються byte-exact', { timeout: 300_000 }, () => {
-    const js = spawnSync(execPath, [JS_ENTRY, 'lint', '--no-fix'], {
-      cwd: REPO_ROOT,
-      encoding: 'utf8',
-      env: { ...env }
-    })
+  test('stdout/stderr/exit збігаються byte-exact', { timeout: 600_000 }, () => {
+    const runJs = () =>
+      spawnSync(execPath, [JS_ENTRY, 'lint', '--no-fix'], {
+        cwd: REPO_ROOT,
+        encoding: 'utf8',
+        env: { ...env }
+      })
+    runJs()
+    const js = runJs()
     const native = runNativeLint([], REPO_ROOT)
     expect(native.stdout).toBe(js.stdout)
     expect(native.stderr).toBe(js.stderr)
