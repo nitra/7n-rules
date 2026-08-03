@@ -112,6 +112,15 @@ import exec-tool: func(request: tool-request) -> tool-result;
 
 **Семантика.** `exec-tool` — це `run-tool` плюс контекст; `run-tool`
 еквівалентний `exec-tool` з `cwd: none`, порожніми `env`/`scratch-*`.
+
+> **Звуження після рішення по провізіонінгу (2026-08-03, PR #368 п. 1).**
+> `exec-tool` **виконує вже зарезолвлений** тул і нічого не добуває. Добування
+> винесено з lint-рантайму в окрему команду `tools ensure` (CI-крок + dev-хук),
+> а `lint` працює fail-closed — це чинний режим `N_CURSOR_NO_AUTO_INSTALL`, не
+> нова поведінка. Для цього зрізу наслідок спрощувальний: хост на вході в
+> `detect-batch` уже має шляхи задекларованих тулів, тож `exec-tool` не
+> потребує ні мережі, ні cross-process лока, ні гілки auto-install; промах
+> резолву лишається тією самою типізованою помилкою (`status: none`).
 Незадекларований у `manifest.tools` тул — та сама типізована помилка в
 `tool-result` (`status: none`), що вже дає `ToolResolver::run`. Таймаут —
 той самий `DEFAULT_TOOL_TIMEOUT` (120 с). Вивід і далі
