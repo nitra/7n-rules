@@ -66,7 +66,7 @@
         "n-cursor": "bin/n-rules.js",
       },
       "dependencies": {
-        "@7n/llm-lib": "2.14.13",
+        "@7n/llm-lib": "2.14.14",
         "ajv": "^8.20.0",
         "cli-progress": "^3.12.0",
         "github-actionlint": "^1.7.12",
@@ -83,9 +83,9 @@
         "zod": "^4.4.3",
       },
       "optionalDependencies": {
-        "@7n/rules-darwin-arm64": "1.79.0",
-        "@7n/rules-linux-x64": "1.79.0",
-        "@7n/rules-win32-x64": "1.79.0",
+        "@7n/rules-darwin-arm64": "1.79.1",
+        "@7n/rules-linux-x64": "1.79.1",
+        "@7n/rules-win32-x64": "1.79.1",
         "@earendil-works/pi-ai": "0.80.10",
         "@earendil-works/pi-coding-agent": "0.80.10",
       },
@@ -186,7 +186,7 @@
 
     "@7n/rules-ci-github": ["@7n/rules-ci-github@workspace:plugins/ci-github"],
 
-    "@7n/rules-darwin-arm64": ["@7n/rules-darwin-arm64@1.79.0", "", { "os": "darwin", "cpu": "arm64" }, "sha512-olemofV+++4MsRDNJnDzFO+Ll+uwnineWL8G2Zud91+HmpaCFrdLp4YKotFwQnnU33KO1zyUgmEBPI31PooVTw=="],
+    "@7n/rules-darwin-arm64": ["@7n/rules-darwin-arm64@1.79.1", "", { "os": "darwin", "cpu": "arm64" }, "sha512-zi1f3FSzKzdvIS6b/Sa4beY+qMPx/HG+KB3hGj4nNx2j+yGBZLeoN2fF/pVS9AS8pQCjezekZ6d0D6BI94WW4g=="],
 
     "@7n/rules-lang-js": ["@7n/rules-lang-js@workspace:plugins/lang-js"],
 
@@ -196,7 +196,7 @@
 
     "@7n/rules-lang-rust": ["@7n/rules-lang-rust@workspace:plugins/lang-rust"],
 
-    "@7n/rules-linux-x64": ["@7n/rules-linux-x64@1.79.0", "", { "os": "linux", "cpu": "x64" }, "sha512-tyVhdy03G2rjKUNMJ6W5B+D2+OiR8lr2Y9nQjhT/Iz+iGIESSWFUx5G31zXA1u45xzWBqabc6Ea7waMCwbuSJQ=="],
+    "@7n/rules-linux-x64": ["@7n/rules-linux-x64@1.79.1", "", { "os": "linux", "cpu": "x64" }, "sha512-Oe9Xn22LwL2gwkTvrzu737YKWfUNbqtB17BHl7EkFMcmA8ud9HdvOGVQuNFAdhSvQHBHus4FpH/yvTcMYlnhlw=="],
 
     "@anthropic-ai/sdk": ["@anthropic-ai/sdk@0.91.1", "", { "dependencies": { "json-schema-to-ts": "^3.1.1" }, "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" }, "optionalPeers": ["zod"], "bin": { "anthropic-ai-sdk": "bin/cli" } }, "sha512-LAmu761tSN9r66ixvmciswUj/ZC+1Q4iAfpedTfSVLeswRwnY3n2Nb6Tsk+cLPP28aLOPWeMgIuTuCcMC6W/iw=="],
 
