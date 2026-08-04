@@ -175,7 +175,7 @@ function mapArch(nodeArch, style) {
  * @returns {string} готовий рядок
  */
 function renderToolTemplate(template, archStyle, ver) {
-  return template.replaceAll('{ver}', ver).replaceAll('{arch}', mapArch(arch, archStyle))
+  return template.replaceAll('{ver}', () => ver).replaceAll('{arch}', () => mapArch(arch, archStyle))
 }
 
 /**

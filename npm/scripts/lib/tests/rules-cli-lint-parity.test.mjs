@@ -2,7 +2,7 @@
 import { describe, expect, test } from 'vitest'
 import { spawnSync } from 'node:child_process'
 import { chmodSync, mkdirSync, writeFileSync } from 'node:fs'
-import { delimiter, dirname, join } from 'node:path'
+import { delimiter, join } from 'node:path'
 import { env, execPath } from 'node:process'
 
 import { jsEntryPath, realRepoRoot, resolveRulesCliBin, withTmpDir } from '../../utils/test-helpers.mjs'
