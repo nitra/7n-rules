@@ -37,7 +37,7 @@
     },
     "llm-lib": {
       "name": "@7n/llm-lib",
-      "version": "2.14.14",
+      "version": "2.14.15",
       "bin": {
         "n-llm-chains-report": "bin/chains-report.mjs",
       },
@@ -46,8 +46,8 @@
         "@earendil-works/pi-coding-agent": "~0.80.10",
       },
       "optionalDependencies": {
-        "@7n/llm-lib-darwin-arm64": "2.14.14",
-        "@7n/llm-lib-linux-x64": "2.14.14",
+        "@7n/llm-lib-darwin-arm64": "2.14.15",
+        "@7n/llm-lib-linux-x64": "2.14.15",
       },
       "peerDependencies": {
         "@earendil-works/pi-ai": "~0.80.10",
@@ -60,7 +60,7 @@
     },
     "npm": {
       "name": "@7n/rules",
-      "version": "1.79.1",
+      "version": "1.79.2",
       "bin": {
         "n-rules": "bin/n-rules.js",
         "n-cursor": "bin/n-rules.js",
@@ -179,6 +179,8 @@
   },
   "packages": {
     "@7n/llm-lib": ["@7n/llm-lib@workspace:llm-lib"],
+
+    "@7n/llm-lib-darwin-arm64": ["@7n/llm-lib-darwin-arm64@2.14.15", "", { "os": "darwin", "cpu": "arm64" }, "sha512-YXWELR4qdsLV8imq3O5iRqVzJBBerUN9doXYusTCuFxok9QiPPci3723ClciAIZa6l3yt81LXtHrjUvIPmT2vQ=="],
 
     "@7n/rules": ["@7n/rules@workspace:npm"],
 
