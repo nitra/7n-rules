@@ -44,15 +44,6 @@ export function realRepoRoot() {
 }
 
 /**
- * Резолвить шлях до зібраного бінаря `rules-cli` — той самий каскад, що loader
- * native-аддона (`npm/scripts/lib/native.mjs`): явний override
- * `N_RULES_CLI_BIN` → dev-збірка `target/{release,debug}`. Відсутність бінаря —
- * hard error з підказкою, а НЕ мовчазний skip: дірка в parity-гейті була б
- * невидимою (той самий Р1-мотив, що в loader-а аддона).
- * @returns {string} абсолютний шлях до бінаря `rules-cli`
- * @throws {Error} якщо бінар не зібрано і override не заданий
- */
-/**
  * Шлях до JS-entrypoint `npm/bin/n-rules.js` — еталон для parity-гейтів.
  * Живе тут, а не в кожному тесті окремо: два parity-набори рахували його
  * власними `HERE`/`REPO_ROOT`, і jscpd справедливо бачив у цьому клон.
@@ -62,6 +53,15 @@ export function jsEntryPath() {
   return join(realRepoRoot(), 'npm', 'bin', 'n-rules.js')
 }
 
+/**
+ * Резолвить шлях до зібраного бінаря `rules-cli` — той самий каскад, що loader
+ * native-аддона (`npm/scripts/lib/native.mjs`): явний override
+ * `N_RULES_CLI_BIN` → dev-збірка `target/{release,debug}`. Відсутність бінаря —
+ * hard error з підказкою, а НЕ мовчазний skip: дірка в parity-гейті була б
+ * невидимою (той самий Р1-мотив, що в loader-а аддона).
+ * @returns {string} абсолютний шлях до бінаря `rules-cli`
+ * @throws {Error} якщо бінар не зібрано і override не заданий
+ */
 export function resolveRulesCliBin() {
   const override = env.N_RULES_CLI_BIN
   if (override) return override
