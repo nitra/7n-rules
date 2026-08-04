@@ -11,7 +11,7 @@
  * `loadT0Patterns` (`run-fix.mjs`, реєстр `NATIVE_FIXES`). Тести нижче
  * дзеркалять старі кейси через ЦЮ обгортку, не пряму функцію concern-а.
  */
-import { describe, expect, test } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 import { existsSync } from 'node:fs'
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
@@ -30,7 +30,11 @@ const ruleId = 'hasura'
 const concernId = 'migrations'
 const ctxFor = dir => ({ cwd: dir, ruleId, concernId, files: undefined })
 const lint = ctx => runConcernDetector(CONCERN, ctx)
-/** Резолвить синтетичний T0Pattern для `dir` (той самий, що бере реальний fix-pipeline). */
+/**
+ * Резолвить синтетичний T0Pattern для `dir` (той самий, що бере реальний fix-pipeline).
+ * @param {string} dir тимчасова тека-репо тесту.
+ * @returns {Promise<import('../../../../scripts/lib/lint-surface/run-fix.mjs').T0Pattern[]>} патерни концерну.
+ */
 const patternsFor = dir => loadT0Patterns(CONCERN_DIR, concernId, ruleId, dir)
 
 const exists = async p => {
@@ -71,7 +75,7 @@ describe('native-fix hasura/migrations (обгортка над T0Pattern)', () 
       expect(before.length).toBe(1)
 
       const [pattern] = await patternsFor(dir)
-      const res = await pattern.apply(before, { ...ctxFor(dir), recordWrite: () => {} })
+      const res = await pattern.apply(before, { ...ctxFor(dir), recordWrite: vi.fn() })
       expect(res.touchedFiles).toHaveLength(1)
       // touchedFiles — абсолютні шляхи (доккомент `nativeFixPattern`, `run-fix.mjs`).
       expect(res.touchedFiles[0]).toBe(join(migDir, 'down.sql'))
@@ -87,7 +91,7 @@ describe('native-fix hasura/migrations (обгортка над T0Pattern)', () 
   test('apply: no-op, якщо порушень немає', async () => {
     await withTmpDir(async dir => {
       const [pattern] = await patternsFor(dir)
-      const res = await pattern.apply([], { ...ctxFor(dir), recordWrite: () => {} })
+      const res = await pattern.apply([], { ...ctxFor(dir), recordWrite: vi.fn() })
       expect(res.touchedFiles).toEqual([])
     })
   })

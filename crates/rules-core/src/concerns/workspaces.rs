@@ -132,6 +132,15 @@ pub fn get_monorepo_package_root_dirs(repo_root: &Path) -> Vec<String> {
         add_workspace_roots_by_pattern(&mut roots, repo_root, &pattern);
     }
 
+    sorted_workspace_roots(roots)
+}
+
+/// Детермінований хвіст обох збирачів коренів: відкидає ігноровані каталоги
+/// й сортує так, щоб `"."` завжди був першим (`workspaces.mjs:100-107`).
+/// Спільний для [`get_monorepo_package_root_dirs`] і
+/// [`crate::concerns::package_manifest::get_monorepo_project_root_dirs`] —
+/// раніше цей блок був копією в обох файлах.
+pub(crate) fn sorted_workspace_roots(roots: HashSet<String>) -> Vec<String> {
     let mut list: Vec<String> = roots
         .into_iter()
         .filter(|ws| !is_ignored_workspace_root(ws))
@@ -147,19 +156,11 @@ pub fn get_monorepo_package_root_dirs(repo_root: &Path) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
-
     use tempfile::TempDir;
 
     use super::*;
 
-    fn write(tmp: &TempDir, rel: &str, content: &str) {
-        let path = tmp.path().join(rel);
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).unwrap();
-        }
-        fs::write(path, content).unwrap();
-    }
+    use crate::concerns::test_support::write;
 
     // --- normalize_workspace_patterns: дзеркало tests/workspaces.test.mjs ---
 

@@ -509,7 +509,7 @@ function partitionPlanIntoSegments(plan) {
   /** @type {PlanItem[]} */
   let nativeRun = []
   const flushNativeRun = () => {
-    if (!(nativeRun.length > 0)) {
+    if (nativeRun.length === 0) {
       return
     }
 
@@ -526,6 +526,16 @@ function partitionPlanIntoSegments(plan) {
   }
   flushNativeRun()
   return segments
+}
+
+/**
+ * Ключ `ruleId/concernId` одного item-а плану — той самий формат, що вживають
+ * progress-репортер і повідомлення `DetectorError`.
+ * @param {PlanItem} item item плану.
+ * @returns {string} ключ `ruleId/concernId`.
+ */
+function planItemKey(item) {
+  return `${item.entry.ruleId}/${item.entry.concern.name}`
 }
 
 /**
@@ -558,11 +568,12 @@ function partitionPlanIntoSegments(plan) {
  *   виконані items (до першої помилки) і опційна помилка.
  */
 function runNativeSegmentSync(segmentItems, { cwd, verbose, progress, log }) {
-  const keyOf = item => `${item.entry.ruleId}/${item.entry.concern.name}`
-
-  /** Concern-start + verbose pre-run лог — той самий рядок, що runPlanItem. */
+  /**
+   * Concern-start + verbose pre-run лог — той самий рядок, що runPlanItem.
+   * @param {PlanItem} item item плану, який зараз стартує.
+   */
   const logPreRun = item => {
-    const key = keyOf(item)
+    const key = planItemKey(item)
     progress?.concernStart(key)
     if (verbose) {
       const countStr = item.files === undefined ? 'весь репо' : `${item.files.length} файл(ів)`
@@ -572,7 +583,7 @@ function runNativeSegmentSync(segmentItems, { cwd, verbose, progress, log }) {
   logPreRun(segmentItems[0])
 
   const batchItems = segmentItems.map(item => ({
-    key: keyOf(item),
+    key: planItemKey(item),
     cwd,
     // `?? null` — той самий контракт, що одиночний `runNativeConcern(nativeKey, ctx.cwd, ctx.files ?? null)`
     // у `detect.mjs`: `undefined` (whole-repo) не можна передати крізь JSON, native розрізняє `null`/`Some([])`.
@@ -587,7 +598,7 @@ function runNativeSegmentSync(segmentItems, { cwd, verbose, progress, log }) {
       stopped = true
       return
     }
-    const key = keyOf(segmentItems[idx])
+    const key = planItemKey(segmentItems[idx])
     progress?.detectSnapshot(key, payload.violationsCount)
     progress?.concernDone(key)
     idx += 1

@@ -13,7 +13,7 @@
  * `loadT0Patterns` (`run-fix.mjs`, реєстр `NATIVE_FIXES`). Тести нижче
  * дзеркалять старі кейси через ЦЮ обгортку, не пряму функцію concern-а.
  */
-import { describe, expect, test } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 import { readFile, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -33,7 +33,11 @@ const ruleId = 'doc-files'
 const concernId = 'marksman_config'
 const NATIVE_FIX_KEY = `${ruleId}/${concernId}`
 const lint = ctx => runConcernDetector(CONCERN, ctx)
-/** Резолвить синтетичний T0Pattern для `dir` (той самий, що бере реальний fix-pipeline). */
+/**
+ * Резолвить синтетичний T0Pattern для `dir` (той самий, що бере реальний fix-pipeline).
+ * @param {string} dir тимчасова тека-репо тесту.
+ * @returns {Promise<import('../../../../scripts/lib/lint-surface/run-fix.mjs').T0Pattern[]>} патерни концерну.
+ */
 const patternsFor = dir => loadT0Patterns(CONCERN_DIR, concernId, ruleId, dir)
 
 const CORE_SECTION_RE = /^\[core\]/m
@@ -82,7 +86,7 @@ describe('T0 fix doc-files.marksman_config (native-fix обгортка)', () =>
   test('копіює baseline і повертає touchedFiles (абсолютний шлях)', async () => {
     await withTmpDir(async dir => {
       const [pattern] = await patternsFor(dir)
-      const ctx = { cwd: dir, ruleId, concernId, recordWrite: () => {} }
+      const ctx = { cwd: dir, ruleId, concernId, recordWrite: vi.fn() }
       const result = await pattern.apply(MISSING_VIOLATION, ctx)
       const target = join(dir, '.marksman.toml')
       expect(existsSync(target)).toBe(true)
@@ -98,7 +102,7 @@ describe('T0 fix doc-files.marksman_config (native-fix обгортка)', () =>
   test('після T0 lint повертає 0 violations', async () => {
     await withTmpDir(async dir => {
       const [pattern] = await patternsFor(dir)
-      await pattern.apply(MISSING_VIOLATION, { cwd: dir, ruleId, concernId, recordWrite: () => {} })
+      await pattern.apply(MISSING_VIOLATION, { cwd: dir, ruleId, concernId, recordWrite: vi.fn() })
       const { violations: after } = await lint({ cwd: dir, ruleId, concernId, files: undefined })
       expect(after).toHaveLength(0)
     })
@@ -173,7 +177,7 @@ describe('зміна семантики: install-guard недосяжний у n
       // видалити, щоб відтворити «зламану інсталяцію» — baseline вшитий у
       // скомпільований native-аддон. Просто перевіряємо: apply() не кидає.
       await expect(
-        pattern.apply(MISSING_VIOLATION, { cwd: dir, ruleId, concernId, recordWrite: () => {} })
+        pattern.apply(MISSING_VIOLATION, { cwd: dir, ruleId, concernId, recordWrite: vi.fn() })
       ).resolves.toMatchObject({ touchedFiles: [join(dir, '.marksman.toml')] })
     })
   })

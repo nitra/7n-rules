@@ -366,9 +366,11 @@ per-file: пиши `detect_whole_batch(files: &[SourceFile]) -> Vec<Diagnostic>`
    `npm/scripts/lib/lint-surface/wasm-plugins.mjs`):
 
    ```json
-   "wasmPlugins": [
-     { "name": "<plugin-id>", "url": "https://…/<crate>.wasm", "sha256": "<64-hex>" }
-   ]
+   {
+     "wasmPlugins": [
+       { "name": "<plugin-id>", "url": "https://…/<crate>.wasm", "sha256": "<64-hex>" }
+     ]
+   }
    ```
 
    `url` — транспорт-агностичний (GitHub Releases — первинний для власних
@@ -382,9 +384,11 @@ per-file: пиши `detect_whole_batch(files: &[SourceFile]) -> Vec<Diagnostic>`
    під `env.CI`):
 
    ```json
-   "wasmPlugins": [
-     { "name": "<plugin-id>", "path": "./target/wasm32-wasip2/release/<crate>.wasm" }
-   ]
+   {
+     "wasmPlugins": [
+       { "name": "<plugin-id>", "path": "./target/wasm32-wasip2/release/<crate>.wasm" }
+     ]
+   }
    ```
 
 5. **TODO(v3-wasm-first-party-pins)**: вбудована таблиця `name → url+sha256`

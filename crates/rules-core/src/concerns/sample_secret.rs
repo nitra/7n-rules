@@ -121,19 +121,11 @@ pub fn sample_secret(cwd: &Path) -> Vec<Violation> {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
-
     use tempfile::TempDir;
 
     use super::*;
 
-    fn write(tmp: &TempDir, rel: &str, content: &str) {
-        let path = tmp.path().join(rel);
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).unwrap();
-        }
-        fs::write(path, content).unwrap();
-    }
+    use crate::concerns::test_support::write;
 
     /// Дзеркало «pass: прикладних файлів немає» (`tests/sample_secret.test.mjs:11-17`).
     #[test]

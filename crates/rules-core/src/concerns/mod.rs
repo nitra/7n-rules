@@ -59,6 +59,10 @@ mod tauri_release;
 mod tauri_tool_surface;
 mod tauri_updater;
 mod template_subset;
+/// Спільні тест-хелпери concern-модулів (лише `cfg(test)`) — одне джерело
+/// `write(&TempDir, rel, content)` замість 28 копій.
+#[cfg(test)]
+mod test_support;
 mod text_formatting;
 mod workspaces;
 
@@ -178,38 +182,23 @@ pub fn run_concern(
 mod tests {
     use super::*;
 
+    /// Change-detector реєстру: і склад, і ПОРЯДОК ключів. Очікування навмисно
+    /// одним рядком, а не 26-рядковим літералом-копією самої константи: та копія
+    /// давала jscpd-клон файла з самим собою (гейт `js/jscpd_duplicates`,
+    /// `Lint repo-wide`), не додаючи нічого до сили перевірки — будь-яка зміна
+    /// складу чи порядку так само валить цей assert.
     #[test]
     fn native_concerns_lists_all_twenty_six_entries() {
+        assert_eq!(NATIVE_CONCERNS.len(), 26);
         assert_eq!(
-            NATIVE_CONCERNS,
-            &[
-                "text/forbidden-prettier",
-                "security/sample_secret",
-                "k8s/dremio_logging",
-                "rego/tooling",
-                "doc-files/marksman_config",
-                "abie/firebase_hosting",
-                "abie/env_dns",
-                "hasura/migrations",
-                "image-compress/package_setup",
-                "tauri/cargo_mutants_config",
-                "tauri/gitignore_target",
-                "tauri/linux_deps",
-                "tauri/core_test_isolation",
-                "abie/hc_pairing",
-                "abie/ua_node_selector",
-                "abie/ua_http_route",
-                "hasura/internal_urls",
-                "text/formatting",
-                "tauri/release",
-                "tauri/updater",
-                "tauri/tool_surface",
-                "security/trufflehog",
-                "changelog/presence",
-                "adr/hooks",
-                "capacitor/platforms",
-                "image-avif/avif_generation",
-            ]
+            NATIVE_CONCERNS.join(" "),
+            "text/forbidden-prettier security/sample_secret k8s/dremio_logging rego/tooling \
+             doc-files/marksman_config abie/firebase_hosting abie/env_dns hasura/migrations \
+             image-compress/package_setup tauri/cargo_mutants_config tauri/gitignore_target \
+             tauri/linux_deps tauri/core_test_isolation abie/hc_pairing abie/ua_node_selector \
+             abie/ua_http_route hasura/internal_urls text/formatting tauri/release tauri/updater \
+             tauri/tool_surface security/trufflehog changelog/presence adr/hooks \
+             capacitor/platforms image-avif/avif_generation"
         );
     }
 

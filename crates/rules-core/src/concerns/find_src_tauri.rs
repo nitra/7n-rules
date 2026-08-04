@@ -42,19 +42,11 @@ pub(crate) fn relative_posix(base: &Path, target: &Path) -> String {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
-
     use tempfile::TempDir;
 
     use super::*;
 
-    fn write(tmp: &TempDir, rel: &str, content: &str) {
-        let path = tmp.path().join(rel);
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).unwrap();
-        }
-        fs::write(path, content).unwrap();
-    }
+    use crate::concerns::test_support::write;
 
     #[test]
     fn no_src_tauri_anywhere_is_empty() {

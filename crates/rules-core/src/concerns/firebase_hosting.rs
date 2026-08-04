@@ -106,16 +106,10 @@ mod tests {
 
     use super::*;
 
+    use crate::concerns::test_support::write;
+
     fn mkdir(tmp: &TempDir, rel: &str) {
         fs::create_dir_all(tmp.path().join(rel)).unwrap();
-    }
-
-    fn write(tmp: &TempDir, rel: &str, content: &str) {
-        let path = tmp.path().join(rel);
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).unwrap();
-        }
-        fs::write(path, content).unwrap();
     }
 
     /// «порожній каталог → clean» (`tests/firebase_hosting.test.mjs:18-23`).

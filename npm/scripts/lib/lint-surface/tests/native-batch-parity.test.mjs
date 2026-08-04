@@ -66,8 +66,30 @@ async function seedConcern(
   await writeFile(join(dir, 'main.mjs'), mainBody, 'utf8')
 }
 
-/** Ключ `ruleId/concernId` порядку, стійкий до відмінностей у `ran`-порядку між sequential/concurrent прогонами. */
+/**
+ * Ключ `ruleId/concernId` порядку, стійкий до відмінностей у `ran`-порядку між sequential/concurrent прогонами.
+ * @param {{ruleId: string, concern: {name: string}}} e запис `ran`.
+ * @returns {string} ключ `ruleId/concernId`.
+ */
 const keyOf = e => `${e.ruleId}/${e.concern.name}`
+
+/**
+ * Витягує `🔍 key [scope] → N` рядки незалежно від порядку прогону.
+ * @param {string[]} logs зібрані шматки логу.
+ * @returns {string[]} відсортовані pre-run рядки.
+ */
+const preRunLines = logs =>
+  logs
+    .join('')
+    .split('\n')
+    .filter(l => l.includes('🔍'))
+    .map(l => l.trim())
+    .toSorted()
+
+/** Тихий sink логів: ці тести звіряють повернений результат, а не вивід. */
+const silentLog = () => {
+  /* no-op */
+}
 
 describe('R2 зрізу 3 фази 7 — batch native-сегменти vs per-item (N_RULES_LINT_CONCURRENCY=1 vs >1)', () => {
   afterEach(() => {
@@ -100,10 +122,10 @@ describe('R2 зрізу 3 фази 7 — batch native-сегменти vs per-it
     await withTmpDir(async dir => {
       const rulesDir = await seedMixedRules(dir)
 
-      const batched = await detectAll({ rulesDir, cwd: dir, full: true, log: () => {} })
+      const batched = await detectAll({ rulesDir, cwd: dir, full: true, log: silentLog })
 
       vi.stubEnv('N_RULES_LINT_CONCURRENCY', '2')
-      const perItem = await detectAll({ rulesDir, cwd: dir, full: true, log: () => {} })
+      const perItem = await detectAll({ rulesDir, cwd: dir, full: true, log: silentLog })
       vi.unstubAllEnvs()
 
       expect(batched.exitCode).toBe(perItem.exitCode)
@@ -121,10 +143,10 @@ describe('R2 зрізу 3 фази 7 — batch native-сегменти vs per-it
       const rulesDir = await seedMixedRules(dir)
       await writeFile(join(dir, '.prettierrc'), '{}\n', 'utf8')
 
-      const batched = await detectAll({ rulesDir, cwd: dir, full: true, log: () => {} })
+      const batched = await detectAll({ rulesDir, cwd: dir, full: true, log: silentLog })
 
       vi.stubEnv('N_RULES_LINT_CONCURRENCY', '2')
-      const perItem = await detectAll({ rulesDir, cwd: dir, full: true, log: () => {} })
+      const perItem = await detectAll({ rulesDir, cwd: dir, full: true, log: silentLog })
       vi.unstubAllEnvs()
 
       expect(batched.exitCode).toBe(perItem.exitCode)
@@ -162,14 +184,6 @@ describe('R2 зрізу 3 фази 7 — batch native-сегменти vs per-it
       })
       vi.unstubAllEnvs()
 
-      /** Витягує `🔍 key [scope] → N` рядки незалежно від порядку прогону. */
-      const preRunLines = logs =>
-        logs
-          .join('')
-          .split('\n')
-          .filter(l => l.includes('🔍'))
-          .map(l => l.trim())
-          .toSorted()
       expect(preRunLines(batchedLogs)).toEqual(preRunLines(perItemLogs))
     })
   })
@@ -203,7 +217,7 @@ describe('R2 зрізу 3 фази 7 — DetectorError-семантика в nat
   test('помилка в середині batch-сегменту → exit 2, ran містить лише items ДО помилки', async () => {
     await withTmpDir(async dir => {
       const rulesDir = await seedErrorSegment(dir)
-      const r = await detectAll({ rulesDir, cwd: dir, files: ['src/index.mjs'], log: () => {} })
+      const r = await detectAll({ rulesDir, cwd: dir, files: ['src/index.mjs'], log: silentLog })
 
       expect(r.exitCode).toBe(2)
       // abie/env_dns, capacitor/platforms — АЛФАВІТНО ДО changelog/presence, виконались і зібрались;

@@ -8952,7 +8952,7 @@ fn new_property_edit(
 /// (стабільне, як `Array.prototype.toSorted`), щоб ранні офсети лишались
 /// валідними після вставок справа.
 fn apply_splice_edits(src: &str, mut edits: Vec<SpliceEdit>) -> String {
-    edits.sort_by(|a, b| b.pos.cmp(&a.pos));
+    edits.sort_by_key(|edit| std::cmp::Reverse(edit.pos));
     let mut out = src.to_string();
     for edit in edits {
         out.insert_str(edit.pos, &edit.text);
@@ -12577,8 +12577,7 @@ mod tests {
         assert_eq!(
             drift,
             vec![
-                "\u{2e}oxlintrc.json: rules[\"eqeqeq\"] очікується [\"deny\",\"always\",{\"null\":\"ignore\"}], зараз undefined"
-                    .replace("\u{2e}", ".")
+                ".oxlintrc.json: rules[\"eqeqeq\"] очікується [\"deny\",\"always\",{\"null\":\"ignore\"}], зараз undefined"
             ]
         );
     }

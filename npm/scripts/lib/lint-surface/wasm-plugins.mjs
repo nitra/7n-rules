@@ -424,7 +424,10 @@ async function resolveEntryPath(entry, ctx) {
     }
     return wasmPath
   }
-  return resolveUrlEntry(entry, ctx)
+  // `await` тут не зайвий: він тримає функцію `async`, а отже — єдиний
+  // `Promise<string|null>` контракт для ВСІХ гілок (builtin/dev повертають
+  // синхронні значення, url-гілка — проміс).
+  return await resolveUrlEntry(entry, ctx)
 }
 
 /**

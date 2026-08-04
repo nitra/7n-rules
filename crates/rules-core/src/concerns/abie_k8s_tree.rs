@@ -97,22 +97,14 @@ pub(crate) fn collect_deployment_dirs(
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
-
     use tempfile::TempDir;
 
     use super::*;
 
+    use crate::concerns::test_support::write;
+
     const DEPLOY_YAML: &str = "apiVersion: apps/v1\nkind: Deployment\nmetadata: { name: api }\nspec: { template: { spec: { containers: [{ name: c, image: x }] } } }\n";
     const SVC_YAML: &str = "apiVersion: v1\nkind: Service\nmetadata: { name: svc }\nspec: { selector: { app: x }, ports: [{ port: 80 }] }\n";
-
-    fn write(tmp: &TempDir, rel: &str, content: &str) {
-        let path = tmp.path().join(rel);
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).unwrap();
-        }
-        fs::write(path, content).unwrap();
-    }
 
     // --- find_k8s_yaml_files: дзеркало lib/tests/k8s-tree.test.mjs:28-123 ---
 

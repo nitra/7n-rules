@@ -476,19 +476,11 @@ pub fn capacitor_platforms(cwd: &Path) -> Vec<Violation> {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
-
     use tempfile::TempDir;
 
     use super::*;
 
-    fn write(tmp: &TempDir, rel: &str, content: &str) {
-        let path = tmp.path().join(rel);
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).unwrap();
-        }
-        fs::write(path, content).unwrap();
-    }
+    use crate::concerns::test_support::write;
 
     fn write_json(tmp: &TempDir, rel: &str, value: serde_json::Value) {
         write(tmp, rel, &value.to_string());
