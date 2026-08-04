@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.14.15] - 2026-08-04
+
+### Fixed
+
+- `cargo fmt` для `crates/llm-lib/src/batch.rs` — два `providers.insert(...)` у тестах local-cloud каскаду лишились неформатованими після додавання нового локального провайдера і валили `cargo fmt --all -- --check` (гейти `Lint Rust` і `rust/check` у `Lint repo-wide`)
+
 ## [2.14.14] - 2026-08-03
 
 ### Changed
