@@ -281,7 +281,7 @@ function computePluginList(root, declared, options) {
 export const KNOWN_PLUGIN_RANGES = Object.freeze({
   '@7n/rules-ci-github': '^2',
   '@7n/rules-ci-azure': '^2',
-  '@7n/rules-lang-js': '^0.25',
+  '@7n/rules-lang-js': '^0.26',
   '@7n/rules-lang-python': '^0.12',
   '@7n/rules-lang-rust': '^0.15',
   '@7n/rules-lang-php': '^0.3'
