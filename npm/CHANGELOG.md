@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.80.1] - 2026-08-04
+
+### Changed
+
+- release: @7n/llm-lib@2.14.16, @7n/rules@1.80.0
+
 ## [1.80.0] - 2026-08-04
 
 ### Changed
