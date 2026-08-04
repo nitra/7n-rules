@@ -458,7 +458,7 @@ describe('rules-cli lint: k8s/kubeconform у native-сегменті', () => {
    * «концерн мовчки не потрапив у план» (порожній план дав би exit 0).
    */
   test('невалідні маніфести (стаб exit 1) → violation і exit 1', async () => {
-    await withTmpDir(async dir => {
+    await withTmpDir(dir => {
       const stubDir = writeKubeconformStub(join(dir, 'stub-bin'), 1)
       const result = runK8sLint(dir, { PATH: `${stubDir}${delimiter}${env.PATH}` })
       expect(result.stdout).toContain('k8s/kubeconform')
@@ -469,7 +469,7 @@ describe('rules-cli lint: k8s/kubeconform у native-сегменті', () => {
 
   /** Той самий шлях із чистим тулом — жодного виводу й exit 0. */
   test('валідні маніфести (стаб exit 0) → чисто і exit 0', async () => {
-    await withTmpDir(async dir => {
+    await withTmpDir(dir => {
       const stubDir = writeKubeconformStub(join(dir, 'stub-bin'), 0)
       const result = runK8sLint(dir, { PATH: `${stubDir}${delimiter}${env.PATH}` })
       expect(result.stdout).toBe('')
@@ -484,7 +484,7 @@ describe('rules-cli lint: k8s/kubeconform у native-сегменті', () => {
    * ефемерному CI-раннері schema-валідація просто зникла б).
    */
   test('тула немає → exit 2 з install-підказкою, а не мовчазний пропуск', async () => {
-    await withTmpDir(async dir => {
+    await withTmpDir(dir => {
       const emptyBin = join(dir, 'empty-bin')
       const emptyCache = join(dir, 'empty-cache')
       mkdirSync(emptyBin, { recursive: true })
