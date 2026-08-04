@@ -52,6 +52,16 @@ jobs:
       - name: Build rules-napi addon + rules-cli binary
         run: cargo build --release -p rules-napi -p rules-cli
 
+      # Компенсація за прибране авто-встановлення тулів у native-концернах
+      # (PR #378): концерн `k8s/kubeconform` тепер падає fail-closed, якщо тула
+      # немає, а добування — окрема ЯВНА команда (мінідизайн
+      # `docs/specs/2026-08-04-tools-ensure-design.md`). Крок робить дві речі:
+      # ставить тул на ефемерний раннер і водночас перевіряє саму
+      # команду на Linux — тобто РІВНО тим шляхом (GitHub Release, делегація в
+      # `ensureToolAsync` через міст), якого стаби юніт-тестів не покривають.
+      - name: Ensure external lint tools
+        run: ./target/release/rules-cli tools ensure kubeconform
+
       # Реальний wasm-плагін lang-js (задача N2) — JS wasm-dispatch тести
       # (доккомент кроку вище) падають з чіткою помилкою на свіжому checkout
       # без цього кроку (той самий require_fixture-мотив, що в Rust-тестах).

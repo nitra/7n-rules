@@ -2,7 +2,11 @@
  * Авто-встановлення зовнішніх CLI-залежностей пакету `@7n/rules`.
  *
  * `ensureTool(toolId)` — єдиний seam резолву зовнішніх бінарників: PATH → кеш → авто-install → hard-fail.
- * Новий тул = один запис у реєстрі `TOOLS`, без дублювання install-логіки в кожному `lint.mjs`/`fix.mjs`.
+ * Новий тул = один запис у декларативному реєстрі `tools.json` (+ пін у `tool-pins.json`), без
+ * дублювання install-логіки в кожному `lint.mjs`/`fix.mjs`. Реєстр — ДАНІ, а не код, бо його читає
+ * ще й Rust-бік (`rules_core::tool_registry`, команда `n-rules tools ensure`): одне джерело правди
+ * замість двох таблиць, що розходяться непомітно (мінідизайн
+ * `docs/specs/2026-08-04-tools-ensure-design.md`).
  *
  * Версії GitHub Release-тулів (Linux/Windows-fallback install-шлях) — **закріплені** у
  * `tool-pins.json`, а не резолвляться як `latest` на кожен install: CI-runner-и ефемерні,
@@ -51,6 +55,9 @@ export const TOOL_PINS_MAX_AGE_DAYS = 30
 
 /** Абсолютний шлях до `tool-pins.json`, поряд із цим модулем. */
 const TOOL_PINS_PATH = join(dirname(fileURLToPath(import.meta.url)), 'tool-pins.json')
+
+/** Абсолютний шлях до декларативного реєстру тулів `tools.json`, поряд із цим модулем. */
+const TOOLS_REGISTRY_PATH = join(dirname(fileURLToPath(import.meta.url)), 'tools.json')
 
 /**
  * Читає `tool-pins.json` — синхронно, свіжим на кожен виклик (без module-level кешу),
@@ -158,109 +165,66 @@ function mapArch(nodeArch, style) {
  */
 
 /**
- * Реєстр install-стратегій. Експортовано read-only для `tool-pins-refresh.mjs`
- * (ітерує `entry.github`, щоб рефрешнути `tool-pins.json`) — не мутуй.
+ * Розгортає шаблон із `tools.json` у конкретний рядок: `{ver}` — закріплена
+ * версія, `{arch}` — архітектура у стилі запису (`entry.archStyle`).
+ * Замикання `asset`/`binFinder` будуються саме звідси — це єдине, що в
+ * реєстрі мусило бути кодом і стало даними.
+ * @param {string} template шаблон із плейсхолдерами `{ver}`/`{arch}`
+ * @param {string} archStyle стиль маппінгу архітектури запису
+ * @param {string} ver закріплена версія тула (без префікса тегу)
+ * @returns {string} готовий рядок
+ */
+function renderToolTemplate(template, archStyle, ver) {
+  return template.replaceAll('{ver}', () => ver).replaceAll('{arch}', () => mapArch(arch, archStyle))
+}
+
+/**
+ * Будує `TOOLS` із декларативного `tools.json`. Форма запису й сигнатури
+ * (`asset(ver)`, `binFinder(ver)`) навмисно ті самі, що були в літералі —
+ * споживачі (`tool-pins-refresh.mjs`, `installFromGithub`, тести) не знають
+ * про зміну джерела.
+ * @returns {Record<string, ToolEntry>} реєстр install-стратегій
+ */
+function readToolsRegistry() {
+  const { tools } = JSON.parse(readFileSync(TOOLS_REGISTRY_PATH, 'utf8'))
+  /** @type {Record<string, ToolEntry>} */
+  const registry = {}
+  for (const [toolId, raw] of Object.entries(tools)) {
+    registry[toolId] = {
+      brew: raw.brew,
+      scoop: raw.scoop,
+      github: raw.github,
+      archStyle: raw.archStyle,
+      archive: raw.archive,
+      tagPrefix: raw.tagPrefix,
+      asset: ver => renderToolTemplate(raw.asset, raw.archStyle, ver),
+      binFinder: raw.binPath === null ? null : ver => renderToolTemplate(raw.binPath, raw.archStyle, ver)
+    }
+  }
+  return registry
+}
+
+/**
+ * Реєстр install-стратегій — **похідний** від `tools.json` (єдине джерело
+ * правди, спільне з Rust-боком: `crates/rules-core/src/tool_registry.rs`
+ * вбудовує той самий файл на збірці; мінідизайн
+ * `docs/specs/2026-08-04-tools-ensure-design.md`, розділ 3). Експортовано
+ * read-only для `tool-pins-refresh.mjs` (ітерує `entry.github`, щоб рефрешнути
+ * `tool-pins.json`) — не мутуй.
+ *
+ * Два записи реєстру потребують пояснення, якого JSON не вміщає:
+ * - `mago.scoop = null` — manifest-у в ScoopInstaller/Extras немає (перевірено),
+ *   тож Windows іде через GitHub Release fallback; те саме для `regal` і
+ *   `dotenv-linter`;
+ * - `mago.tagPrefix = ''` — реліз тегується БЕЗ префікса `v` (тег `1.45.0`, не
+ *   `v1.45.0`, перевірено `gh api repos/carthage-software/mago/releases/latest
+ *   -q '.tag_name'`), а `mago.binPath` веде у підкаталог
+ *   `mago-<ver>-<arch>-unknown-linux-gnu/`, бо архів розпаковується не в корінь
+ *   (перевірено розпакуванням реального `.tar.gz`) — на відміну від
+ *   shellcheck-стилю.
  * @type {Record<string, ToolEntry>}
  */
-export const TOOLS = {
-  hk: {
-    brew: 'hk',
-    scoop: 'hk',
-    github: 'jdx/hk',
-    archStyle: 'hk',
-    asset: _ver => `hk-${mapArch(arch, 'hk')}-unknown-linux-gnu.tar.gz`,
-    binFinder: null
-  },
-  conftest: {
-    brew: 'conftest',
-    scoop: 'conftest',
-    github: 'open-policy-agent/conftest',
-    archStyle: 'conftest',
-    asset: ver => `conftest_${ver}_Linux_${mapArch(arch, 'conftest')}.tar.gz`,
-    binFinder: null
-  },
-  shellcheck: {
-    brew: 'shellcheck',
-    scoop: 'shellcheck',
-    github: 'koalaman/shellcheck',
-    archStyle: 'hk',
-    asset: ver => `shellcheck-v${ver}.linux.${mapArch(arch, 'hk')}.tar.xz`,
-    binFinder: ver => `shellcheck-v${ver}/shellcheck`
-  },
-  actionlint: {
-    brew: 'actionlint',
-    scoop: 'actionlint',
-    github: 'rhysd/actionlint',
-    archStyle: 'actionlint',
-    asset: ver => `actionlint_${ver}_linux_${mapArch(arch, 'actionlint')}.tar.gz`,
-    binFinder: null
-  },
-  'dotenv-linter': {
-    brew: 'dotenv-linter',
-    scoop: null,
-    github: 'dotenv-linter/dotenv-linter',
-    archStyle: 'hk',
-    asset: _ver => `dotenv-linter-linux-${mapArch(arch, 'hk')}.tar.gz`,
-    binFinder: null
-  },
-  opa: {
-    brew: 'opa',
-    scoop: 'opa',
-    github: 'open-policy-agent/opa',
-    archStyle: 'actionlint',
-    archive: false,
-    asset: _ver => `opa_linux_${mapArch(arch, 'actionlint')}`,
-    binFinder: null
-  },
-  regal: {
-    brew: 'regal',
-    scoop: null,
-    github: 'StyraInc/regal',
-    archStyle: 'conftest',
-    archive: false,
-    asset: _ver => `regal_Linux_${mapArch(arch, 'conftest')}`,
-    binFinder: null
-  },
-  hadolint: {
-    brew: 'hadolint',
-    scoop: 'hadolint',
-    github: 'hadolint/hadolint',
-    archStyle: 'conftest',
-    archive: false,
-    asset: _ver => `hadolint-linux-${mapArch(arch, 'conftest')}`,
-    binFinder: null
-  },
-  kubeconform: {
-    brew: 'kubeconform',
-    scoop: 'kubeconform',
-    github: 'yannh/kubeconform',
-    archStyle: 'actionlint',
-    asset: _ver => `kubeconform-linux-${mapArch(arch, 'actionlint')}.tar.gz`,
-    binFinder: null
-  },
-  kubescape: {
-    brew: 'kubescape',
-    scoop: 'kubescape',
-    github: 'kubescape/kubescape',
-    archStyle: 'actionlint',
-    archive: false,
-    asset: ver => `kubescape_${ver}_linux_${mapArch(arch, 'actionlint')}`,
-    binFinder: null
-  },
-  mago: {
-    brew: 'mago',
-    scoop: null, // немає manifest-у в ScoopInstaller/Extras (перевірено) — Windows іде через GitHub Release fallback
-    github: 'carthage-software/mago',
-    archStyle: 'hk',
-    // Реліз тегується БЕЗ префікса `v` (тег `1.45.0`, не `v1.45.0`) — перевірено
-    // `gh api repos/carthage-software/mago/releases/latest -q '.tag_name'`.
-    tagPrefix: '',
-    asset: ver => `mago-${ver}-${mapArch(arch, 'hk')}-unknown-linux-gnu.tar.gz`,
-    // Архів розпаковується у підкаталог `mago-<ver>-<arch>-unknown-linux-gnu/mago` (перевірено
-    // розпакуванням реального .tar.gz), а не в корінь — на відміну від shellcheck-стилю.
-    binFinder: ver => `mago-${ver}-${mapArch(arch, 'hk')}-unknown-linux-gnu/mago`
-  }
-}
+export const TOOLS = readToolsRegistry()
 
 /**
  * Заголовки авторизації GitHub для curl: `GITHUB_TOKEN`/`GH_TOKEN` з env, якщо є.

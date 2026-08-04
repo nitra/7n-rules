@@ -1,12 +1,11 @@
 // cspell:ignore протікла рантаймом
 import { describe, expect, test } from 'vitest'
 import { spawnSync } from 'node:child_process'
-import { chmodSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
-import { delimiter, dirname, join } from 'node:path'
+import { chmodSync, mkdirSync, writeFileSync } from 'node:fs'
+import { delimiter, join } from 'node:path'
 import { env, execPath } from 'node:process'
-import { fileURLToPath } from 'node:url'
 
-import { withTmpDir } from '../../utils/test-helpers.mjs'
+import { jsEntryPath, realRepoRoot, resolveRulesCliBin, withTmpDir } from '../../utils/test-helpers.mjs'
 
 /**
  * Parity-гейт ЗВОРОТНОГО МОСТУ (Р12 спеки
@@ -32,31 +31,9 @@ import { withTmpDir } from '../../utils/test-helpers.mjs'
  * навколо `detectAll`).
  */
 
-const HERE = dirname(fileURLToPath(import.meta.url))
-/** Корінь репо: npm/scripts/lib/tests → up 4. */
-const REPO_ROOT = join(HERE, '..', '..', '..', '..')
-const JS_ENTRY = join(REPO_ROOT, 'npm', 'bin', 'n-rules.js')
+const REPO_ROOT = realRepoRoot()
+const JS_ENTRY = jsEntryPath()
 const RUN_DETECTORS = join(REPO_ROOT, 'npm', 'scripts', 'lib', 'lint-surface', 'run-detectors.mjs')
-
-/**
- * Резолвить зібраний бінар `rules-cli` — той самий каскад, що в
- * `rules-cli-parity.test.mjs`: явний override → `target/{release,debug}`;
- * відсутність збірки — hard error з підказкою, не мовчазний skip.
- * @returns {string} шлях до бінаря
- */
-function resolveRulesCliBin() {
-  const override = env.N_RULES_CLI_BIN
-  if (override) return override
-  const name = process.platform === 'win32' ? 'rules-cli.exe' : 'rules-cli'
-  for (const profile of ['release', 'debug']) {
-    const candidate = join(REPO_ROOT, 'target', profile, name)
-    if (existsSync(candidate)) return candidate
-  }
-  throw new Error(
-    'rules-cli lint parity: немає збірки бінаря. Постав N_RULES_CLI_BIN=/шлях/до/rules-cli ' +
-      'або збери локально: cargo build --release -p rules-cli'
-  )
-}
 
 /**
  * Запускає native-шлях `lint`.

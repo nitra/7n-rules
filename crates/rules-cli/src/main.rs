@@ -52,6 +52,11 @@
 //!   (`--native-detect`/`N_RULES_NATIVE_LINT=1`) і сам делегує все, де
 //!   паритет недосяжний — межі й вимірювання в доккоменті [`lint_cmd`].
 //!
+//! Окремо від зрізів стоїть команда [`tools_cmd`] (`tools list`/`tools
+//! ensure`) — у JS-CLI такої поверхні немає взагалі: це компенсація за
+//! прибране авто-встановлення тулів у native-концернах (PR #378, мінідизайн
+//! `docs/specs/2026-08-04-tools-ensure-design.md`).
+//!
 //! Решта (включно з дефолтним sync без підкоманди та legacy-аліасами
 //! `lint-*`) — транзитна делегація, перелік скорочується по зрізах фази 8.
 //!
@@ -78,6 +83,8 @@ mod lint_cmd;
 mod paths;
 mod rename_yaml_cmd;
 mod skill_cmd;
+mod tool_lock;
+mod tools_cmd;
 
 use std::env;
 use std::process::ExitCode;
@@ -102,6 +109,10 @@ fn run(args: &[String]) -> ExitCode {
         // випадків віддала його в JS без змін (доккомент `ci_cmd`).
         Some("ci") => ci_cmd::run(args),
         Some("rename-yaml-extensions") => rename_yaml_cmd::run(&args[1..]),
+        // `tools` — НОВА команда, якої в JS-CLI немає взагалі (компенсація за
+        // прибране авто-встановлення в native-концернах, PR #378): делегувати
+        // її нікуди, вона нативна цілком ([`tools_cmd`]).
+        Some("tools") => tools_cmd::run(&args[1..]),
         // Повний argv (з `hook`) — делегація гілок, недосяжних для порту,
         // віддає його в JS без змін (доккомент `hook_cmd`).
         Some("hook") => hook_cmd::run(args),

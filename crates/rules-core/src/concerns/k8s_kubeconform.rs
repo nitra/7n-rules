@@ -52,17 +52,15 @@ use std::process::{Command, Stdio};
 use crate::concerns::cursor_ignore::load_cursor_ignore_paths;
 use crate::concerns::k8s_common::find_k8s_roots;
 use crate::diagnostics::{Severity, Violation};
-use crate::tool_resolve::{install_hint, resolve_provisioned_tool};
+use crate::tool_registry::install_hint_for;
+use crate::tool_resolve::resolve_provisioned_tool;
 use crate::RulesError;
 
-/// `toolId` у реєстрі `TOOLS` (`ensure-tool.mjs`) і водночас імʼя бінарника.
+/// `toolId` у спільному реєстрі тулів (`npm/scripts/lib/tools.json`) і
+/// водночас імʼя бінарника. Поля install-підказки (brew/scoop/github) беруться
+/// з того самого реєстру ([`crate::tool_registry::install_hint_for`]), а не
+/// дублюються тут константами.
 const TOOL_ID: &str = "kubeconform";
-
-/// Поля запису `TOOLS.kubeconform` (`ensure-tool.mjs`), потрібні для
-/// install-підказки fail-closed гілки.
-const TOOL_BREW: &str = "kubeconform";
-const TOOL_SCOOP: &str = "kubeconform";
-const TOOL_GITHUB: &str = "yannh/kubeconform";
 
 /// Пін версії Kubernetes для набору схем — дзеркало `KUBERNETES_VERSION`
 /// (`k8s/manifests/main.mjs:6810`), узгоджений із `YANNH_PIN` у `k8s.mdc`.
@@ -164,12 +162,13 @@ fn k8s_kubeconform_with(
     }
 
     let Some(bin) = resolve_tool(TOOL_ID) else {
-        return Err(RulesError::Concern(install_hint(
-            TOOL_ID,
-            TOOL_BREW,
-            Some(TOOL_SCOOP),
-            TOOL_GITHUB,
-        )));
+        // Тул є в реєстрі за конструкцією (тест `kubeconform_is_in_registry`),
+        // тож fallback лишається на випадок майбутнього переїзду ключа.
+        return Err(RulesError::Concern(
+            install_hint_for(TOOL_ID).unwrap_or_else(|| {
+                format!("{TOOL_ID} не знайдено ні в PATH, ні в керованому кеші бінарників.")
+            }),
+        ));
     };
 
     let code = run_kubeconform(&bin, cwd, &targets);
@@ -234,6 +233,15 @@ mod tests {
                 "/repo/k8s",
             ]
         );
+    }
+
+    /// Концерн бере install-підказку зі спільного реєстру тулів, тож ключ
+    /// мусить там бути — інакше fail-closed гілка деградує до загального
+    /// тексту без жодного маршруту встановлення.
+    #[test]
+    fn kubeconform_is_in_registry() {
+        let hint = crate::tool_registry::install_hint_for(TOOL_ID).unwrap();
+        assert!(hint.contains("Встанови:"), "{hint}");
     }
 
     /// Дельта-фільтр `YAML_EXT_RE` враховує регістр (`.YAML` не проходить).
