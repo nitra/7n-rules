@@ -141,8 +141,9 @@ function localBuildCandidates(repoRoot, platform, suffix) {
  * @returns {Error} готова помилка
  */
 function missingAddonError(key, detail = '') {
+  const attempt = detail ? ` (остання спроба: ${detail})` : ''
   return new Error(
-    `rules native addon: немає збірки для "${key}"${detail ? ` (остання спроба: ${detail})` : ''}. ` +
+    `rules native addon: немає збірки для "${key}"${attempt}. ` +
       `Постав N_RULES_NATIVE_ADDON=/шлях/до/аддона, додай підпакет @7n/rules-${key}, ` +
       `або збери локально: cargo build --release -p rules-napi`
   )

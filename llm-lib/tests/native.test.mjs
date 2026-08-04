@@ -10,6 +10,8 @@ import { describe, expect, test, vi } from 'vitest'
 import { loadNative, resolveNativeAddon } from '../lib/internal/native.mjs'
 
 const ADDON_HINT_RE = /llm-lib native addon/
+/** Усі кандидати ланцюга впали — помилка несе причину ОСТАННЬОЇ спроби. */
+const CHAIN_EXHAUSTED_RE = /llm-lib native addon[\s\S]*битий \/b\.node/
 const UNKNOWN_PLATFORM_RE = /win32-x64[\s\S]*N_LLM_LIB_NATIVE_ADDON/
 /** Маркер вихідного дерева — його наявність перемикає порядок джерел. */
 const SOURCE_MARKER = '/repo/llm-lib/crates/llm-lib-napi/Cargo.toml'
@@ -197,6 +199,6 @@ describe('loadNative (ланцюг кандидатів)', () => {
           throw new Error(`битий ${p}`)
         }
       })
-    ).toThrow(/llm-lib native addon[\s\S]*битий \/b\.node/)
+    ).toThrow(CHAIN_EXHAUSTED_RE)
   })
 })
