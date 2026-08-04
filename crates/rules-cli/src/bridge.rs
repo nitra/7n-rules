@@ -33,8 +33,9 @@ use serde_json::{json, Value};
 
 /// Версія протоколу; має збігтись із `BRIDGE_PROTOCOL_VERSION` JS-боку —
 /// звірка fail-closed (той самий enforcement-патерн, що `CONTRACT_VERSION`
-/// на napi-межі, Р10 спеки).
-const PROTOCOL_VERSION: u64 = 1;
+/// на napi-межі, Р10 спеки). `2` — з появою операції `ensureTool`
+/// (`crate::tools_cmd`).
+const PROTOCOL_VERSION: u64 = 2;
 
 /// Шлях JS-виконавця відносно кореня пакета `@7n/rules`.
 const HOST_REL: &str = "scripts/lib/lint-surface/bridge-host.mjs";
@@ -74,6 +75,20 @@ impl Bridge {
     /// дочірнього процесу успадковується від `rules-cli` — дзеркало
     /// JS-CLI, який теж не робить `chdir` під `--cwd`.
     pub fn start(package_root: &Path) -> Result<Self, String> {
+        Self::start_with_env(package_root, &[])
+    }
+
+    /// Те саме, що [`Bridge::start`], але з правками оточення дочірнього
+    /// процесу: `(ключ, Some(значення))` — виставити, `(ключ, None)` —
+    /// прибрати. Потрібне командам, для яких успадковане оточення означало б
+    /// не те саме, що для лінту: `tools ensure` знімає
+    /// `N_CURSOR_NO_AUTO_INSTALL`, бо явний запит користувача — не
+    /// «встановлення за спиною» (мінідизайн
+    /// `docs/specs/2026-08-04-tools-ensure-design.md`, розділ 7).
+    pub fn start_with_env(
+        package_root: &Path,
+        env_overrides: &[(&str, Option<&str>)],
+    ) -> Result<Self, String> {
         let host = package_root.join(HOST_REL);
         if !host.is_file() {
             return Err(format!(
@@ -90,7 +105,7 @@ impl Bridge {
             format!("rules-cli: сокет мосту не переводиться в nonblocking: {error}")
         })?;
 
-        let mut child = spawn_host(&host, &socket_path)?;
+        let mut child = spawn_host(&host, &socket_path, env_overrides)?;
         let stream = match accept_with_deadline(&listener, &mut child) {
             Ok(stream) => stream,
             Err(error) => {
@@ -187,11 +202,23 @@ impl Drop for Bridge {
 /// Спавнить JS-виконавця першим доступним рантаймом (`bun` → `node`, або
 /// примусовий `N_RULES_JS_RUNTIME`) — той самий порядок, що для делегації
 /// команд ([`crate::js_fallback`]).
-fn spawn_host(host: &Path, socket_path: &Path) -> Result<Child, String> {
+fn spawn_host(
+    host: &Path,
+    socket_path: &Path,
+    env_overrides: &[(&str, Option<&str>)],
+) -> Result<Child, String> {
     let runtimes = crate::js_fallback::runtimes();
     let mut last_error = None;
     for (i, runtime) in runtimes.iter().enumerate() {
-        match Command::new(runtime).arg(host).arg(socket_path).spawn() {
+        let mut command = Command::new(runtime);
+        command.arg(host).arg(socket_path);
+        for (key, value) in env_overrides {
+            match value {
+                Some(value) => command.env(key, value),
+                None => command.env_remove(key),
+            };
+        }
+        match command.spawn() {
             Ok(child) => return Ok(child),
             Err(error)
                 if error.kind() == std::io::ErrorKind::NotFound && i + 1 < runtimes.len() =>

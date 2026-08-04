@@ -44,6 +44,29 @@ export function realRepoRoot() {
 }
 
 /**
+ * Резолвить шлях до зібраного бінаря `rules-cli` — той самий каскад, що loader
+ * native-аддона (`npm/scripts/lib/native.mjs`): явний override
+ * `N_RULES_CLI_BIN` → dev-збірка `target/{release,debug}`. Відсутність бінаря —
+ * hard error з підказкою, а НЕ мовчазний skip: дірка в parity-гейті була б
+ * невидимою (той самий Р1-мотив, що в loader-а аддона).
+ * @returns {string} абсолютний шлях до бінаря `rules-cli`
+ * @throws {Error} якщо бінар не зібрано і override не заданий
+ */
+export function resolveRulesCliBin() {
+  const override = env.N_RULES_CLI_BIN
+  if (override) return override
+  const name = platform === 'win32' ? 'rules-cli.exe' : 'rules-cli'
+  for (const profile of ['release', 'debug']) {
+    const candidate = join(realRepoRoot(), 'target', profile, name)
+    if (existsSync(candidate)) return candidate
+  }
+  throw new Error(
+    'rules-cli parity: немає збірки бінаря. Постав N_RULES_CLI_BIN=/шлях/до/rules-cli ' +
+      'або збери локально: cargo build --release -p rules-cli'
+  )
+}
+
+/**
  * Створює тимчасову директорію, передає її абсолютний шлях у `fn`, потім
  * видаляє директорію. **НЕ** мутує `process.cwd()`.
  * @param {(dir: string) => void | Promise<void>} fn викликається з абсолютним шляхом до тимчасової директорії

@@ -3,7 +3,7 @@ type: JS Module
 title: ensure-tool.mjs
 resource: npm/scripts/lib/ensure-tool.mjs
 docgen:
-  crc: 16d91e8c
+  crc: 932fa40a
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 40
@@ -14,7 +14,11 @@ docgen:
 Авто-встановлення зовнішніх CLI-залежностей пакету `@7n/rules`.
 
 `ensureTool(toolId)` — єдиний seam резолву зовнішніх бінарників: PATH → кеш → авто-install → hard-fail.
-Новий тул = один запис у реєстрі `TOOLS`, без дублювання install-логіки в кожному `lint.mjs`/`fix.mjs`.
+Новий тул = один запис у декларативному реєстрі `tools.json` (+ пін у `tool-pins.json`), без
+дублювання install-логіки в кожному `lint.mjs`/`fix.mjs`. Реєстр — ДАНІ, а не код, бо його читає
+ще й Rust-бік (`rules_core::tool_registry`, команда `n-rules tools ensure`): одне джерело правди
+замість двох таблиць, що розходяться непомітно (мінідизайн
+`docs/specs/2026-08-04-tools-ensure-design.md`).
 
 Версії GitHub Release-тулів (Linux/Windows-fallback install-шлях) — **закріплені** у
 `tool-pins.json`, а не резолвляться як `latest` на кожен install: CI-runner-и ефемерні,
@@ -47,7 +51,9 @@ async-варіант для parallel lane `detectAll()`: внутрішньоп�
 обірваний download). Відрізняється від конфігураційних помилок (невідомий тул,
 `N_CURSOR_NO_AUTO_INSTALL`, відсутній curl) — споживачі розпізнають за `name`
 і можуть спрацювати fail-open замість валити весь прогін.
-- TOOLS — Реєстр install-стратегій. Експортовано read-only для `tool-pins-refresh.mjs`
+- TOOLS — Реєстр install-стратегій, **похідний** від `tools.json` (спільне з Rust джерело
+правди). Форма запису й сигнатури (`asset(ver)`, `binFinder(ver)`) незмінні — споживачі не
+знають про зміну джерела. Експортовано read-only для `tool-pins-refresh.mjs`
 (ітерує `entry.github`, щоб рефрешнути `tool-pins.json`) — не мутуй.
 - fetchLatestVersion — Отримує останній тег релізу: спершу GitHub API (з токеном за наявності), при збої —
 redirect-fallback повз API. Кидає `ToolProvisionError`, лише якщо не вдались обидва шляхи.

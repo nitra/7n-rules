@@ -3,7 +3,7 @@ type: JS Module
 title: test-helpers.mjs
 resource: npm/scripts/utils/test-helpers.mjs
 docgen:
-  crc: 8aaa1994
+  crc: 01548f97
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 75
@@ -37,6 +37,11 @@ vitest workers, що ділять один процес: один тест пе�
 Для тестів repo-інваріантів, яким потрібні файли поза пакетом (workflows,
 плагінні rules-теки, пін llm-lib) — такі файли не мутуються Stryker-ом, читати
 їх з реального дерева безпечно.
+- resolveRulesCliBin — Резолвить шлях до зібраного бінаря `rules-cli` — той самий каскад, що loader
+native-аддона: явний override `N_RULES_CLI_BIN` → dev-збірка `target/{release,debug}`.
+Відсутність бінаря — hard error з підказкою, а НЕ мовчазний skip: дірка в parity-гейті
+була б невидимою (той самий Р1-мотив, що в loader-а аддона). Спільний для трьох
+parity-наборів (`rules-cli-parity`, `rules-cli-lint-parity`, `tools-registry-parity`).
 - withTmpDir — Створює тимчасову директорію, передає її абсолютний шлях у `fn`, потім
 видаляє директорію. **НЕ** мутує `process.cwd()`.
 - writeJson — Записує JSON-файл з типовим форматуванням і завершальним переносом рядка.

@@ -56,6 +56,9 @@ pub mod scan;
 /// `list_skill_ids` — порт `listSkillIds` (`npm/scripts/skills-cli.mjs`),
 /// рушій `skill list` (зріз 2 фази 8).
 pub mod skills;
+/// Реєстр зовнішніх CLI-тулів (`tools.json` + `tool-pins.json`, спільні з
+/// JS-боком) — дані для команди `n-rules tools ensure` і install-підказок.
+pub mod tool_registry;
 /// `resolve_cmd`/`resolve_provisioned_tool`/`install_hint` — native-резолв
 /// зовнішніх CLI-тулів (дзеркало перших двох кроків `ensureTool`), потрібний
 /// концернам, що спавнять зовнішній лінт-тул.

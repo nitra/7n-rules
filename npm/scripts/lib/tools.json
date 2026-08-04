@@ -1,0 +1,114 @@
+{
+  "tools": {
+    "actionlint": {
+      "brew": "actionlint",
+      "scoop": "actionlint",
+      "github": "rhysd/actionlint",
+      "archStyle": "actionlint",
+      "archive": true,
+      "asset": "actionlint_{ver}_linux_{arch}.tar.gz",
+      "binPath": null,
+      "tagPrefix": "v"
+    },
+    "conftest": {
+      "brew": "conftest",
+      "scoop": "conftest",
+      "github": "open-policy-agent/conftest",
+      "archStyle": "conftest",
+      "archive": true,
+      "asset": "conftest_{ver}_Linux_{arch}.tar.gz",
+      "binPath": null,
+      "tagPrefix": "v"
+    },
+    "dotenv-linter": {
+      "brew": "dotenv-linter",
+      "scoop": null,
+      "github": "dotenv-linter/dotenv-linter",
+      "archStyle": "hk",
+      "archive": true,
+      "asset": "dotenv-linter-linux-{arch}.tar.gz",
+      "binPath": null,
+      "tagPrefix": "v"
+    },
+    "hadolint": {
+      "brew": "hadolint",
+      "scoop": "hadolint",
+      "github": "hadolint/hadolint",
+      "archStyle": "conftest",
+      "archive": false,
+      "asset": "hadolint-linux-{arch}",
+      "binPath": null,
+      "tagPrefix": "v"
+    },
+    "hk": {
+      "brew": "hk",
+      "scoop": "hk",
+      "github": "jdx/hk",
+      "archStyle": "hk",
+      "archive": true,
+      "asset": "hk-{arch}-unknown-linux-gnu.tar.gz",
+      "binPath": null,
+      "tagPrefix": "v"
+    },
+    "kubeconform": {
+      "brew": "kubeconform",
+      "scoop": "kubeconform",
+      "github": "yannh/kubeconform",
+      "archStyle": "actionlint",
+      "archive": true,
+      "asset": "kubeconform-linux-{arch}.tar.gz",
+      "binPath": null,
+      "tagPrefix": "v"
+    },
+    "kubescape": {
+      "brew": "kubescape",
+      "scoop": "kubescape",
+      "github": "kubescape/kubescape",
+      "archStyle": "actionlint",
+      "archive": false,
+      "asset": "kubescape_{ver}_linux_{arch}",
+      "binPath": null,
+      "tagPrefix": "v"
+    },
+    "mago": {
+      "brew": "mago",
+      "scoop": null,
+      "github": "carthage-software/mago",
+      "archStyle": "hk",
+      "archive": true,
+      "asset": "mago-{ver}-{arch}-unknown-linux-gnu.tar.gz",
+      "binPath": "mago-{ver}-{arch}-unknown-linux-gnu/mago",
+      "tagPrefix": ""
+    },
+    "opa": {
+      "brew": "opa",
+      "scoop": "opa",
+      "github": "open-policy-agent/opa",
+      "archStyle": "actionlint",
+      "archive": false,
+      "asset": "opa_linux_{arch}",
+      "binPath": null,
+      "tagPrefix": "v"
+    },
+    "regal": {
+      "brew": "regal",
+      "scoop": null,
+      "github": "StyraInc/regal",
+      "archStyle": "conftest",
+      "archive": false,
+      "asset": "regal_Linux_{arch}",
+      "binPath": null,
+      "tagPrefix": "v"
+    },
+    "shellcheck": {
+      "brew": "shellcheck",
+      "scoop": "shellcheck",
+      "github": "koalaman/shellcheck",
+      "archStyle": "hk",
+      "archive": true,
+      "asset": "shellcheck-v{ver}.linux.{arch}.tar.xz",
+      "binPath": "shellcheck-v{ver}/shellcheck",
+      "tagPrefix": "v"
+    }
+  }
+}

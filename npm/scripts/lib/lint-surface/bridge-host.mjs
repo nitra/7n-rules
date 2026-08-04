@@ -1,5 +1,5 @@
 /**
- * cspell:ignore NDJSON пайплайнити
+ * cspell:ignore NDJSON пайплайнити непортованим
  *
  * JS-бік ЗВОРОТНОГО МОСТУ (Р12 спеки `2026-07-30-rules-v2-rust-core-migration.md`):
  * тонкий виконавець залишку lint-поверхні, який запускає **Rust-CLI**
@@ -50,8 +50,15 @@ import { createConnection } from 'node:net'
 import { argv, env, exit } from 'node:process'
 import { pathToFileURL } from 'node:url'
 
-/** Версія протоколу мосту; Rust-бік звіряє її fail-closed на `hello`. */
-export const BRIDGE_PROTOCOL_VERSION = 1
+/**
+ * Версія протоколу мосту; Rust-бік звіряє її fail-closed на `hello`.
+ *
+ * `2` — додано операцію `ensureTool` (команда `n-rules tools ensure`,
+ * мінідизайн `docs/specs/2026-08-04-tools-ensure-design.md`): Rust-бік тепер
+ * розраховує на її наявність, тож старий host мусить бути відкинутий на
+ * handshake, а не отримати «невідома операція» посеред install-у.
+ */
+export const BRIDGE_PROTOCOL_VERSION = 2
 
 /**
  * Один запит протоколу. Поля, крім `id`/`op`, специфічні для операції —
@@ -189,6 +196,27 @@ async function opDetect(req) {
 }
 
 /**
+ * `ensureTool` — добування зовнішнього CLI-тула для команди `n-rules tools
+ * ensure` (мінідизайн `docs/specs/2026-08-04-tools-ensure-design.md`,
+ * розділ 4). Rust робить нативно те, що в Rust дешеве (резолв PATH/кеш,
+ * `brew`/`scoop`), і делегує сюди рівно ОДИН шлях — GitHub Release
+ * (завантаження + розпакування + атомарна публікація в кеш): другої
+ * реалізації того самого завантаження не заводиться, поки чинний
+ * `ensureToolAsync` усе одно потрібен непортованим споживачам.
+ *
+ * Міжпроцесний лок бере САМЕ ця функція (всередині `ensureToolAsync`) —
+ * Rust-бік під час делегації лока не тримає, інакше було б самоблокування.
+ * @param {BridgeRequest & { toolId?: string }} req запит із `toolId`.
+ * @returns {Promise<{ path: string }>} абсолютний шлях до готового бінарника.
+ */
+async function opEnsureTool(req) {
+  const { ensureToolAsync } = await import('../ensure-tool.mjs')
+  const toolId = String(req.toolId ?? '')
+  if (toolId === '') throw new Error('ensureTool: не задано toolId')
+  return { path: await ensureToolAsync(toolId) }
+}
+
+/**
  * Диспатч одного запиту протоколу.
  * @param {BridgeRequest} req розібраний запит.
  * @returns {Promise<unknown>} результат операції.
@@ -206,6 +234,9 @@ async function dispatch(req) {
     }
     case 'detect': {
       return await opDetect(req)
+    }
+    case 'ensureTool': {
+      return await opEnsureTool(req)
     }
     default: {
       throw new Error(`невідома операція мосту: ${req.op}`)

@@ -3684,7 +3684,9 @@ dependencies = [
 name = "rules-cli"
 version = "0.1.0"
 dependencies = [
+ "libc",
  "rules-core",
+ "serde",
  "serde_json",
  "tempfile",
 ]
