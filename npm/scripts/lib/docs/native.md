@@ -3,10 +3,10 @@ type: JS Module
 title: native.mjs
 resource: npm/scripts/lib/native.mjs
 docgen:
-  crc: 7fa632f2
+  crc: 49c1a451
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
-  score: 80
+  score: 70
 ---
 
 ## Огляд
@@ -15,13 +15,34 @@ Loader napi-аддона `rules-core` (`crates/rules-napi` → `rules-core`) —
 за зразком `llm-lib/lib/internal/native.mjs` (T2 фази 1,
 `docs/specs/2026-07-30-rules-v2-rust-core-migration.md`).
 
-Порядок пошуку:
+Порядок пошуку (залежить від оточення — див. [`isSourceTree`]):
   1. N_RULES_NATIVE_ADDON — явний override шляху до аддона (dev / CI / тести).
-  2. Platform-підпакет `@7n/rules-<platform>-<arch>` (napi-артефакт
-     `rules-napi.<triple>.node`).
-  3. Dev-fallback: `<repoRoot>/target/release|debug/` (сирий cdylib з
+  2. **Лише у вихідному дереві** (`<repoRoot>/crates/rules-napi/Cargo.toml`
+     існує — тобто dev-машина або CI цього репо): локальна збірка
+     `<repoRoot>/target/release|debug/` (сирий cdylib з
      `cargo build -p rules-napi`) та вивід `napi build` у `crates/rules-napi/`.
-  4. Інакше — зрозуміла помилка з підказкою `cargo build --release -p rules-napi`.
+  3. Platform-підпакет `@7n/rules-<platform>-<arch>` (napi-артефакт
+     `rules-napi.<triple>.node`).
+  4. Той самий fallback на локальну збірку для НЕ-вихідного дерева
+     (продакшен без підпакета) — поведінка така сама, як до фіксу.
+  5. Інакше — зрозуміла помилка з підказкою `cargo build --release -p rules-napi`.
+
+ЧОМУ порядок різний для вихідного дерева і проду (регресія 2026-08-03):
+до фіксу підпакет стояв перед локальною збіркою БЕЗУМОВНО, тож у репо
+(dev і CI) `cargo build -p rules-napi` збирав аддон, який loader потім НЕ
+брав — вантажився **опублікований** `@7n/rules-<key>` із `node_modules`.
+Будь-який тест нової native-поверхні перевіряв попередню збірку, а зелений
+результат нічого не доводив. У CI це ще й недетерміноване: platform-пакет
+потрапляє в `bun.lock` лише тоді, коли lock востаннє регенерували на тій
+самій платформі (пор. `git show 581082ef:bun.lock` — `@7n/rules-linux-x64`
+був у lock, тобто ubuntu-runner тестував registry-аддон 1.76.0).
+Зворотний безумовний порядок («target завжди перший») теж хибний — у
+користувача підпакет є **єдиним** авторитетним артефактом, запіненим
+lockstep до версії `@7n/rules` і звіреним за `contractVersion()`; сторонній
+`target/release/librules_napi.*`, що випадково опинився поруч зі
+встановленим пакетом, не має його перебивати. Тому дискримінатор — не
+евристика (`CI`, `NODE_ENV`), а факт наявності вихідних файлів аддона поруч
+із loader-ом.
 
 Аддон завантажується через `process.dlopen` — працює і для `.node`, і для
 сирих cdylib (`.dylib`/`.so`/`.dll`), і під bun (не лише node). Результат
@@ -46,7 +67,7 @@ enforcement-точка за зразком `requiresPluginApi`). Звірка �
 
 ## Сценарії використання
 
-- `npm/scripts/lib/tests/native.test.mjs` (resolveNativeAddon (порядок пошуку); loadNative (кеш процесу)) — N_RULES_NATIVE_ADDON має найвищий пріоритет; platform-підпакет: резолвиться @7n/rules-<key> з napi-суфіксом; linux-x64 мапиться на суфікс linux-x64-gnu; win32-x64 мапиться на суфікс win32-x64-msvc; dev-fallback: release-cdylib перемагає debug; ще 7
+- `npm/scripts/lib/tests/native.test.mjs` (resolveNativeAddon (порядок пошуку); resolveNativeAddon (вихідне дерево vs прод)) — N_RULES_NATIVE_ADDON має найвищий пріоритет; platform-підпакет: резолвиться @7n/rules-<key> з napi-суфіксом; linux-x64 мапиться на суфікс linux-x64-gnu; win32-x64 мапиться на суфікс win32-x64-msvc; dev-fallback: release-cdylib перемагає debug; ще 12
 
 ## Гарантії поведінки
 
