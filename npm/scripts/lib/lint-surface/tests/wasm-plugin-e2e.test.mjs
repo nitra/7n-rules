@@ -31,7 +31,7 @@ import { join } from 'node:path'
 import { env } from 'node:process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
-import { beforeEach, describe, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
 import { runConcernDetector } from '../detect.mjs'
 import { resetWasmConcernMapForTests } from '../wasm-plugins.mjs'
@@ -58,6 +58,19 @@ if (!hasBuiltinPins) {
 
 beforeEach(() => {
   resetWasmConcernMapForTests()
+  // `path`-пін — DEV-форма: `resolveEntryPath` свідомо пропускає її під `CI`
+  // (спека §3.4 — у CI дозволені лише `file`+`sha256` builtin і `url`+`sha256`).
+  // Обидва describe-блоки нижче тестують САМЕ dev-форму, тож на GitHub Actions
+  // вони давали `null` і падали фолбеком на неіснуючий `main.mjs`
+  // (`DetectorError: немає main.mjs`, червоний гейт Test на main 2026-08-04).
+  // Знімаємо `CI` на час цих тестів: сценарій «розробник із локально зібраним
+  // .wasm» за визначенням поза CI, і саме його ці тести й описують. Так тест
+  // однаково детермінований і локально, і на runner-і.
+  vi.stubEnv('CI', '')
+})
+
+afterEach(() => {
+  vi.unstubAllEnvs()
 })
 
 describe('runConcernDetector — wasm-dispatch (plugin contract v3, задача K)', () => {

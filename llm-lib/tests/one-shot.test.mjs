@@ -191,10 +191,12 @@ describe('runOneShot', () => {
       traceFields: () => ({ chainId: 'cid1', chainKind: 'k', chainUnit: 'u', chainStep: 3 }),
       headers: () => ({ 'X-Chain-Id': 'cid1' })
     }
-    await runOneShot({ messages: [{ role: 'user', content: 'x' }], modelSpec: 'omlx/x', chain, deps })
+    await runOneShot({ messages: [{ role: 'user', content: 'x' }], modelSpec: 'local-openai/x', chain, deps })
     expect(chain.nextStep).toHaveBeenCalledTimes(1)
-    expect(chain.note).toHaveBeenCalledWith(expect.objectContaining({ model: 'omlx/x', usage }))
-    // omlx — локальний провайдер → chain пішов у createSession (для headers-mixin)
+    expect(chain.note).toHaveBeenCalledWith(expect.objectContaining({ model: 'local-openai/x', usage }))
+    // `local-openai` — ЄДИНИЙ дефолтний локальний префікс (`LOCAL_PROVIDERS`,
+    // model-tiers.mjs; свідомий breaking change #374 — голий "omlx/…" відтоді
+    // класифікується як хмарний) → chain пішов у createSession (для headers-mixin)
     expect(deps.createSession).toHaveBeenCalledWith(expect.objectContaining({ chain }))
     expect(deps.trace).toHaveBeenCalledWith(
       expect.objectContaining({ chainId: 'cid1', chainStep: 3, promptHash: expect.stringMatching(RE_HEX16) })

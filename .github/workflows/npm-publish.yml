@@ -365,12 +365,46 @@ jobs:
           #     1.76.0: linux/win32 → "").
           # `bun install` маніфести не чіпає взагалі — лише зводить lock під
           # них; піни вже проставив крок «Sync platform versions».
+          #
+          # ЧЕКАННЯ РЕПЛІКАЦІЇ ПЕРЕД install (розбір 2026-08-04).
+          # Для optional-залежності, яку не вдалось резолвити, bun МОВЧКИ не
+          # пише резолвлений запис у lock і виходить з кодом 0 — а на наступних
+          # прогонах уже не резолвить її повторно (повторний резолв тригерить
+          # лише ЗМІНА піна; `bun install --force` теж не повертає запис). Один
+          # пропущений через лаг реплікації registry пакет зникає з bun.lock до
+          # наступного релізу — і `until bun install` цього не ловить, бо код
+          # виходу нульовий. Саме так `@7n/rules-win32-x64` (публікується
+          # ОСТАННІМ, install стартує ~1 с по тому) випав із lock на релізі
+          # 1.76.0 і не повертався; гейт `npm/scripts/lib/tests/platform-pins.test.mjs`
+          # тримав main червоним. Тому: спершу дочекатись, поки registry реально
+          # віддає кожну щойно опубліковану версію, і лише потім install.
+          VERSION=$(node -p "require('./llm-lib/package.json').version")
+          for pkg in llm-lib-darwin-arm64 llm-lib-linux-x64; do
+            n=0
+            until bun pm view "@7n/$pkg@$VERSION" version >/dev/null 2>&1; do
+              n=$((n + 1))
+              [ "$n" -ge 12 ] && { echo "::warning::registry не віддає @7n/$pkg@$VERSION — піни лишаються незакоміченими"; exit 1; }
+              echo "чекаю реплікацію @7n/$pkg@$VERSION ($n)"
+              sleep 10
+            done
+          done
           # Ретраї — на лаг реплікації registry одразу після publish.
           n=0
           until bun install; do
             n=$((n + 1))
             [ "$n" -ge 5 ] && { echo "::warning::registry не віддає нові платформні версії — піни лишаються незакоміченими"; exit 1; }
             sleep 15
+          done
+          # Гейт ПЕРЕД комітом: lock мусить резолвити кожну платформу саме на
+          # цю версію. Інакше коміт лишив би маніфест, що пінить версію, якої
+          # lock не резолвить (консюмер на цій платформі не дістав би аддон) —
+          # краще не комітити нічого, ніж половину: не перенесені піни підбере
+          # наступний реліз, а мовчазна дірка в lock живе до ручного втручання.
+          for pkg in llm-lib-darwin-arm64 llm-lib-linux-x64; do
+            grep -q "\"@7n/$pkg\": \[\"@7n/$pkg@$VERSION\"" bun.lock || {
+              echo "::warning::bun.lock не резолвить @7n/$pkg@$VERSION — синк не комітиться (див. доккомент кроку)"
+              exit 1
+            }
           done
           git add llm-lib/package.json llm-lib/packages/llm-lib-darwin-arm64/package.json llm-lib/packages/llm-lib-linux-x64/package.json bun.lock
           git commit -m "chore(release): синк пінів платформних napi-пакетів @7n/llm-lib"
@@ -457,27 +491,50 @@ jobs:
       # Дзеркало «Commit синк платформних пінів» вище для @7n/llm-lib: без цього
       # піни `npm/package.json` ⇄ `npm/packages/rules-*` відстають від registry
       # в git після release-коміту (ризик 7 спеки rules-v2-rust-core-migration).
-      # Гейт — лише darwin/linux: win32-x64 до bootstrap-публікації (див.
-      # BOOTSTRAP-НОТАТКУ вище) падав на КОЖНОМУ релізі, і вимога його успіху
-      # блокувала синк назавжди — git-піни застрягли на 1.66.0 при registry
-      # 1.73.0 (bootstrap виконано 2026-08-01, далі win32 іде через OIDC).
+      # Гейт — усі ТРИ платформи. До bootstrap-публікації (див. BOOTSTRAP-НОТАТКУ
+      # вище) win32-x64 падав на КОЖНОМУ релізі, і вимога його успіху блокувала
+      # синк назавжди — git-піни застрягли на 1.66.0 при registry 1.73.0; тому
+      # гейт тимчасово звузили до darwin/linux. Bootstrap виконано 2026-08-01,
+      # win32 іде через OIDC нарівні з рештою — і звужений гейт уже став
+      # шкідливим: крок «Sync platform versions» піднімає пін win32 БЕЗУМОВНО,
+      # тож при невдалій його публікації коміт приземлив би маніфест, що пінить
+      # неопубліковану версію (розбір 2026-08-04).
       #
       # Механіка регенерації lock — доккомент llm-lib-кроку вище (чому саме
-      # `bun install`, і чому жодна з форм `bun update` тут не працює).
+      # `bun install`, чому жодна з форм `bun update` тут не працює, і чому
+      # реплікацію registry треба дочекатись ПЕРЕД install, а lock — звірити
+      # ПЕРЕД комітом).
       - name: Commit синк платформних пінів (rules)
         if: >-
           needs.changes.outputs.native == 'true' &&
           contains(fromJSON(steps.release.outputs.workspaces), 'npm') &&
           steps.publish-rules-darwin-arm64.outcome == 'success' &&
-          steps.publish-rules-linux-x64.outcome == 'success'
+          steps.publish-rules-linux-x64.outcome == 'success' &&
+          steps.publish-rules-win32-x64.outcome == 'success'
         continue-on-error: true
         run: |
           # n-rules:allow-bun-install — див. llm-lib-крок вище.
+          VERSION=$(node -p "require('./npm/package.json').version")
+          for pkg in rules-darwin-arm64 rules-linux-x64 rules-win32-x64; do
+            n=0
+            until bun pm view "@7n/$pkg@$VERSION" version >/dev/null 2>&1; do
+              n=$((n + 1))
+              [ "$n" -ge 12 ] && { echo "::warning::registry не віддає @7n/$pkg@$VERSION — піни лишаються незакоміченими"; exit 1; }
+              echo "чекаю реплікацію @7n/$pkg@$VERSION ($n)"
+              sleep 10
+            done
+          done
           n=0
           until bun install; do
             n=$((n + 1))
             [ "$n" -ge 5 ] && { echo "::warning::registry не віддає нові платформні версії — піни лишаються незакоміченими"; exit 1; }
             sleep 15
+          done
+          for pkg in rules-darwin-arm64 rules-linux-x64 rules-win32-x64; do
+            grep -q "\"@7n/$pkg\": \[\"@7n/$pkg@$VERSION\"" bun.lock || {
+              echo "::warning::bun.lock не резолвить @7n/$pkg@$VERSION — синк не комітиться (див. доккомент llm-lib-кроку)"
+              exit 1
+            }
           done
           git add npm/package.json npm/packages/rules-darwin-arm64/package.json npm/packages/rules-linux-x64/package.json npm/packages/rules-win32-x64/package.json bun.lock
           git commit -m "chore(release): синк пінів платформних napi-пакетів @7n/rules"
