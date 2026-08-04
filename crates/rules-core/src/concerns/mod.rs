@@ -46,6 +46,10 @@ mod hasura_internal_urls;
 mod hasura_migrations;
 mod image_avif_generation;
 mod image_compress_package_setup;
+/// Спільний шар відкриття файлів k8s-кластера (`findK8sRoots` і його
+/// хелпери) — база концернів `npm/rules/k8s/**`.
+mod k8s_common;
+mod k8s_kubeconform;
 mod marksman_config;
 mod package_manifest;
 mod rego_tooling;
@@ -83,6 +87,7 @@ pub use hasura_internal_urls::hasura_internal_urls;
 pub use hasura_migrations::hasura_migrations;
 pub use image_avif_generation::image_avif_generation;
 pub use image_compress_package_setup::image_compress_package_setup;
+pub use k8s_kubeconform::k8s_kubeconform;
 pub use marksman_config::marksman_config;
 pub use rego_tooling::rego_tooling;
 pub use sample_secret::sample_secret;
@@ -127,6 +132,7 @@ pub const NATIVE_CONCERNS: &[&str] = &[
     "adr/hooks",
     "capacitor/platforms",
     "image-avif/avif_generation",
+    "k8s/kubeconform",
 ];
 
 /// Запускає native-порт concern-а за ключем `ruleId/concernId`.
@@ -172,6 +178,7 @@ pub fn run_concern(
         "adr/hooks" => Ok(adr_hooks(cwd)),
         "capacitor/platforms" => Ok(capacitor_platforms(cwd)),
         "image-avif/avif_generation" => Ok(image_avif_generation(cwd)),
+        "k8s/kubeconform" => k8s_kubeconform(cwd, files),
         other => Err(RulesError::Concern(format!(
             "невідомий native concern: {other}"
         ))),
@@ -188,8 +195,8 @@ mod tests {
     /// `Lint repo-wide`), не додаючи нічого до сили перевірки — будь-яка зміна
     /// складу чи порядку так само валить цей assert.
     #[test]
-    fn native_concerns_lists_all_twenty_six_entries() {
-        assert_eq!(NATIVE_CONCERNS.len(), 26);
+    fn native_concerns_lists_all_twenty_seven_entries() {
+        assert_eq!(NATIVE_CONCERNS.len(), 27);
         assert_eq!(
             NATIVE_CONCERNS.join(" "),
             "text/forbidden-prettier security/sample_secret k8s/dremio_logging rego/tooling \
@@ -198,8 +205,19 @@ mod tests {
              tauri/linux_deps tauri/core_test_isolation abie/hc_pairing abie/ua_node_selector \
              abie/ua_http_route hasura/internal_urls text/formatting tauri/release tauri/updater \
              tauri/tool_surface security/trufflehog changelog/presence adr/hooks \
-             capacitor/platforms image-avif/avif_generation"
+             capacitor/platforms image-avif/avif_generation k8s/kubeconform"
         );
+    }
+
+    /// `k8s/kubeconform` диспатчиться на свою функцію — smoke-перевірка самого
+    /// `match` у `run_concern`. Порожній tmp-каталог не має жодного `k8s`-кореня,
+    /// тож концерн віддає 0 violations, НЕ доходячи до резолву тула (інакше
+    /// результат залежав би від того, чи є `kubeconform` на машині тесту).
+    #[test]
+    fn run_concern_dispatches_k8s_kubeconform_key() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let violations = run_concern("k8s/kubeconform", tmp.path(), None).unwrap();
+        assert!(violations.is_empty());
     }
 
     #[test]

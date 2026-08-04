@@ -56,6 +56,10 @@ pub mod scan;
 /// `list_skill_ids` — порт `listSkillIds` (`npm/scripts/skills-cli.mjs`),
 /// рушій `skill list` (зріз 2 фази 8).
 pub mod skills;
+/// `resolve_cmd`/`resolve_provisioned_tool`/`install_hint` — native-резолв
+/// зовнішніх CLI-тулів (дзеркало перших двох кроків `ensureTool`), потрібний
+/// концернам, що спавнять зовнішній лінт-тул.
+pub mod tool_resolve;
 /// Worktree lifecycle через `mt-core` (Р3 спеки, фаза 2 задача B1).
 pub mod worktree;
 
