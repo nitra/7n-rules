@@ -117,19 +117,11 @@ pub fn tauri_linux_deps(cwd: &Path) -> Vec<Violation> {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
-
     use tempfile::TempDir;
 
     use super::*;
 
-    fn write(tmp: &TempDir, rel: &str, content: &str) {
-        let path = tmp.path().join(rel);
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).unwrap();
-        }
-        fs::write(path, content).unwrap();
-    }
+    use crate::concerns::test_support::write;
 
     fn make_src_tauri(tmp: &TempDir) {
         write(tmp, "src-tauri/Cargo.toml", "[package]\nname=\"t\"\n");

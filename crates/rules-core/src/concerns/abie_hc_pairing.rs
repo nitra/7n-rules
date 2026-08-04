@@ -74,12 +74,12 @@ pub fn hc_pairing(root: &Path) -> Vec<Violation> {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
-
     use tempfile::TempDir;
 
     use super::*;
+
     use crate::concerns::abie_hc_yaml::ABIE_HC_SCHEMA_URL;
+    use crate::concerns::test_support::write;
 
     const DEPLOYMENT_YAML: &str = "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: api\nspec:\n  replicas: 1\n  template:\n    metadata: { labels: { app: api } }\n    spec:\n      containers:\n        - { name: api, image: example/api:latest }\n";
 
@@ -87,14 +87,6 @@ mod tests {
         format!(
             "# yaml-language-server: $schema={ABIE_HC_SCHEMA_URL}\napiVersion: networking.gke.io/v1\nkind: HealthCheckPolicy\nmetadata:\n  name: api-hc\nspec: {{ default: {{ config: {{ type: HTTP }} }} }}\n"
         )
-    }
-
-    fn write(tmp: &TempDir, rel: &str, content: &str) {
-        let path = tmp.path().join(rel);
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).unwrap();
-        }
-        fs::write(path, content).unwrap();
     }
 
     // --- дзеркало tests/hc_pairing.test.mjs ---

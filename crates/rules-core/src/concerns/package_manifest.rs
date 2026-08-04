@@ -16,7 +16,9 @@ use std::collections::HashSet;
 use std::path::Path;
 
 use crate::concerns::glob_compat::scan_glob;
-use crate::concerns::workspaces::{get_monorepo_package_root_dirs, is_ignored_workspace_root};
+use crate::concerns::workspaces::{
+    get_monorepo_package_root_dirs, is_ignored_workspace_root, sorted_workspace_roots,
+};
 
 /// Posix-dirname з фолбеком на `"."` для файлів у корені — точний порт
 /// комбінації `dirname(join(repoRoot, relPy))` + `relative(repoRoot, ...)`
@@ -50,34 +52,16 @@ pub fn get_monorepo_project_root_dirs(repo_root: &Path) -> Vec<String> {
         }
     }
 
-    let mut list: Vec<String> = roots
-        .into_iter()
-        .filter(|ws| !is_ignored_workspace_root(ws))
-        .collect();
-    list.sort_by(|a, b| match (a.as_str(), b.as_str()) {
-        (".", ".") => std::cmp::Ordering::Equal,
-        (".", _) => std::cmp::Ordering::Less,
-        (_, ".") => std::cmp::Ordering::Greater,
-        _ => a.cmp(b),
-    });
-    list
+    sorted_workspace_roots(roots)
 }
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
-
     use tempfile::TempDir;
 
     use super::*;
 
-    fn write(tmp: &TempDir, rel: &str, content: &str) {
-        let path = tmp.path().join(rel);
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).unwrap();
-        }
-        fs::write(path, content).unwrap();
-    }
+    use crate::concerns::test_support::write;
 
     #[test]
     fn no_manifests_yields_only_dot() {

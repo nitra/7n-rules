@@ -80,11 +80,11 @@ pub fn ua_node_selector(root: &Path) -> Vec<Violation> {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
-
     use tempfile::TempDir;
 
     use super::*;
+
+    use crate::concerns::test_support::write;
 
     const DEPLOYMENT_YAML: &str = "apiVersion: apps/v1\nkind: Deployment\nmetadata: { name: api }\nspec:\n  template:\n    metadata: { labels: { app: api } }\n    spec: { containers: [{ name: api, image: example/api:latest }] }\n";
 
@@ -92,14 +92,6 @@ mod tests {
 
     const KUSTOMIZATION_WITHOUT_PATCH: &str =
         "apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\nresources:\n  - ../base\n";
-
-    fn write(tmp: &TempDir, rel: &str, content: &str) {
-        let path = tmp.path().join(rel);
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).unwrap();
-        }
-        fs::write(path, content).unwrap();
-    }
 
     // --- дзеркало tests/ua_node_selector.test.mjs ---
 

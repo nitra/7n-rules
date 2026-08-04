@@ -99,6 +99,7 @@ pub fn dremio_logging(cwd: &Path, files: Option<&[String]>) -> Vec<Violation> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::concerns::test_support::write;
 
     // --- zk_logback_root_level_violation: дзеркало tests/zk-logback-root-level.test.mjs ---
 
@@ -171,14 +172,6 @@ mod tests {
     }
 
     // --- dremio_logging(cwd, files): per-file detector-обгортка ---
-
-    fn write(tmp: &tempfile::TempDir, rel: &str, content: &str) {
-        let path = tmp.path().join(rel);
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).unwrap();
-        }
-        std::fs::write(path, content).unwrap();
-    }
 
     /// `files: None` → жодних ітерацій, жодних violations (дзеркало
     /// `ctx.files ?? []` при `undefined`, `main.mjs:55`).

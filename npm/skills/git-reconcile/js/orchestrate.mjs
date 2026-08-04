@@ -1540,6 +1540,8 @@ function unresolvedFiles(cwd, spawnFn) {
  * @param {string} cwd worktree
  * @param {typeof spawnSync} spawnFn інжект
  * @returns {{unresolvedPaths:string[],stagedPaths:string[],unstagedPaths:string[],commitsAhead:number}}
+ *   bounded зріз worktree: конфліктні/staged/unstaged шляхи (до 30 кожного) і
+ *   кількість комітів попереду policy-бази.
  */
 function retentionSnapshot(cwd, spawnFn) {
   const paths = args => git(args, cwd, spawnFn, { allowFailure: true }).stdout.split('\n').filter(Boolean).slice(0, 30)
@@ -2137,6 +2139,7 @@ async function applySource(args) {
  * fail-closed зупиняє transfer, а не перетворює його на cleanup-кандидат.
  * @param {string} text LLM response
  * @returns {{ok:true,value:{verdict:'proceed'|'obsolete',rationale:string}}|{ok:false,error:string}}
+ *   розпарсений verdict, або fail-closed `error` з причиною невалідності.
  */
 export function validateAppliedValueReview(text) {
   const value = parseJson(text, null)
@@ -2441,6 +2444,35 @@ export function commitPendingChanges(cwd, title, spawnFn = spawnSync) {
 }
 
 /**
+ * Формує keep-результат провального створення PR: forensic prune + bounded
+ * retention-зріз worktree, який навмисно НЕ прибирається, щоб підсумок показав,
+ * що саме лишилось доробити вручну. Винесено з `createPullRequest` окремою
+ * функцією — це суто error-шлях, який не додає нічого до читабельності
+ * happy-path pipeline.
+ * @param {unknown} error причина провалу (Error або setup-об'єкт із branch/worktree)
+ * @param {{cwd:string,branch:string}|undefined} worktree worktree, якщо встиг створитись
+ * @param {string|undefined} createdPr URL уже створеного PR, якщо встиг
+ * @param {(stage:string)=>void} onProgress прогрес-репортер
+ * @param {typeof spawnSync} spawnFn інжект
+ * @returns {{status:string,error:string,branch?:string,worktree?:string,url?:string}} keep-результат
+ */
+function failedPullRequestOutcome(error, worktree, createdPr, onProgress, spawnFn) {
+  const setup = /** @type {{branch?:string,worktree?:string}} */ (error)
+  if (worktree?.cwd) {
+    onProgress('prune forensic dependencies')
+    pruneForensicDependencies(worktree.cwd)
+  }
+  return {
+    status: 'failed',
+    error: error instanceof Error ? error.message : String(error),
+    branch: worktree?.branch ?? setup.branch,
+    worktree: worktree?.cwd ?? setup.worktree,
+    ...(worktree?.cwd && { retention: retentionSnapshot(worktree.cwd, spawnFn) }),
+    ...(createdPr && { url: createdPr })
+  }
+}
+
+/**
  * Створює один готовий PR. При будь-якому провалі worktree лишається для
  * ручного відновлення; прибирається тільки після успішних CI checks.
  * @param {object} args параметри
@@ -2598,19 +2630,7 @@ async function createPullRequest(args) {
     removeReconcileWorktree(worktree, rootCwd, spawnFn)
     return { status: 'pr-created', url: createdPr, branch: worktree.branch }
   } catch (error) {
-    const setup = /** @type {{branch?:string,worktree?:string}} */ (error)
-    if (worktree?.cwd) {
-      onProgress('prune forensic dependencies')
-      pruneForensicDependencies(worktree.cwd)
-    }
-    return {
-      status: 'failed',
-      error: error instanceof Error ? error.message : String(error),
-      branch: worktree?.branch ?? setup.branch,
-      worktree: worktree?.cwd ?? setup.worktree,
-      ...(worktree?.cwd && { retention: retentionSnapshot(worktree.cwd, spawnFn) }),
-      ...(createdPr && { url: createdPr })
-    }
+    return failedPullRequestOutcome(error, worktree, createdPr, onProgress, spawnFn)
   }
 }
 
@@ -3059,10 +3079,10 @@ export function formatReport({ inventory, results }) {
   lines.push(
     ...inventory.branches.map(branch => formatBranchReport(branch)).filter(Boolean),
     ...(inventory.stashes ?? []).map(stash => formatStashReport(stash)).filter(Boolean),
-    ...results.map(result => formatResultReport(result))
+    ...results.map(result => formatResultReport(result)),
+    ...formatRetainedWorktrees(results),
+    ...inventory.warnings.map(warning => `- ⚠️ ${warning}`)
   )
-  lines.push(...formatRetainedWorktrees(results))
-  for (const warning of inventory.warnings) lines.push(`- ⚠️ ${warning}`)
   return lines.join('\n')
 }
 

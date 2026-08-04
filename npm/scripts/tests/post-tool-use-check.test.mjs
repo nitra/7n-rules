@@ -56,7 +56,9 @@ describe('runPostToolUseCheckCli', () => {
   test('detect кидає → 1, помилка йде в інжектований log (не в stderr)', async () => {
     const detectFn = vi.fn(() => Promise.reject(new Error('boom')))
     const logged = []
-    const log = s => logged.push(s)
+    const log = s => {
+      logged.push(s)
+    }
     expect(await runPostToolUseCheckCli({ stdinJson: EDIT, detectFn, log })).toBe(1)
     expect(logged.join('')).toBe('post-tool-use-check: не вдалося запустити детект — boom\n')
   })

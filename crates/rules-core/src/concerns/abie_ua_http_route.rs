@@ -117,17 +117,11 @@ mod tests {
 
     use super::*;
 
+    use crate::concerns::test_support::write;
+
     const KUSTOMIZATION_WITH_VALID_PATCH: &str = "apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\nresources:\n  - ../base\npatches:\n  - target: { kind: HTTPRoute, name: api-route }\n    patch: |\n      - op: replace\n        path: /spec/hostnames\n        value:\n          - api.abie.app\n      - op: replace\n        path: /spec/parentRefs/0/namespace\n        value: ua\n";
 
     const KUSTOMIZATION_WITHOUT_HOSTNAMES: &str = "apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\nresources:\n  - ../base\npatches:\n  - target: { kind: HTTPRoute, name: api-route }\n    patch: |\n      - op: replace\n        path: /spec/parentRefs/0/namespace\n        value: ua\n";
-
-    fn write(tmp: &TempDir, rel: &str, content: &str) {
-        let path = tmp.path().join(rel);
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).unwrap();
-        }
-        fs::write(path, content).unwrap();
-    }
 
     // --- дзеркало tests/ua_http_route.test.mjs ---
 

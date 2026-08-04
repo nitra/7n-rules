@@ -169,19 +169,11 @@ pub fn tauri_tool_surface(cwd: &Path) -> Result<Vec<Violation>, RulesError> {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
-
     use tempfile::TempDir;
 
     use super::*;
 
-    fn write(tmp: &TempDir, rel: &str, content: &str) {
-        let path = tmp.path().join(rel);
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).unwrap();
-        }
-        fs::write(path, content).unwrap();
-    }
+    use crate::concerns::test_support::write;
 
     fn make_tauri_marker(tmp: &TempDir) {
         write(tmp, "tauri.conf.json", "{}\n");

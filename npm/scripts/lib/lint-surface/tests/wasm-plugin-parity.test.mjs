@@ -3289,7 +3289,11 @@ describe('wasm-plugin parity — test/stryker_config (JS канон vs wasm plug
   const runStrykerBoth = dir =>
     runFullScopeBoth(STRYKER_CONFIG_MAIN_MJS_PATH, STRYKER_CONFIG_CONCERN_KEY, 'test', 'stryker_config', dir)
 
-  /** `.n-rules.json` з увімкненим правилом `js` — без нього концерн мовчить (self-gate). */
+  /**
+   * `.n-rules.json` з увімкненим правилом `js` — без нього концерн мовчить (self-gate).
+   * @param {string} dir tmp-корінь репо тесту.
+   * @returns {Promise<void>} завершення запису.
+   */
   const writeJsEnabled = dir => writeFileDeep(dir, '.n-rules.json', JSON.stringify({ rules: ['js', 'test'] }))
 
   test('self-gate: без `.n-rules.json` обидві реалізації мовчать', async () => {
@@ -3505,14 +3509,21 @@ describe('wasm-plugin parity — test/stryker_config (JS канон vs wasm plug
   })
 })
 
+/**
+ * Вміст `eslint.config.js`, що проходить усі три текстові перевірки.
+ * @param {string} args аргументи виклику `getConfig(...)`.
+ * @returns {string} вміст файла конфігу.
+ */
+const eslintConfigWith = args =>
+  `import { getConfig } from '@nitra/eslint-config'\n\nexport default [\n  {\n    ignores: ['**/auto-imports.d.ts']\n  },\n  ...getConfig(${args})\n]\n`
+
 describe('wasm-plugin parity — js/check (JS канон vs wasm plugin-lang-js, зріз 2 контракту v3.1)', () => {
   const runJsCheckBoth = dir => runFullScopeBoth(JS_CHECK_MAIN_MJS_PATH, JS_CHECK_CONCERN_KEY, 'js', 'check', dir)
 
-  /** Вміст `eslint.config.js`, що проходить усі три текстові перевірки. */
-  const eslintConfigWith = args =>
-    `import { getConfig } from '@nitra/eslint-config'\n\nexport default [\n  {\n    ignores: ['**/auto-imports.d.ts']\n  },\n  ...getConfig(${args})\n]\n`
-
-  /** Канон oxlint із пакета — той самий файл, що вшито в компонент. */
+  /**
+   * Канон oxlint із пакета — той самий файл, що вшито в компонент.
+   * @returns {Promise<string>} вміст `oxlint-canonical.json`.
+   */
   const readOxlintCanonical = async () => {
     const { readFile } = await import('node:fs/promises')
     return readFile(

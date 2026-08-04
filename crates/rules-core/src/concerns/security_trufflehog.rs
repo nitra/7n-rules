@@ -64,21 +64,13 @@ pub fn security_trufflehog(cwd: &Path) -> Vec<Violation> {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
-
     use tempfile::TempDir;
 
     use super::*;
 
-    const CANON_EXCLUDE: &str = "(^|/)node_modules(/|$)\n(^|/)\\.git(/|$)\n(^|/)dist(/|$)\n(^|/)build(/|$)\n.*\\.lock$\n.*fixtures?/.*\n";
+    use crate::concerns::test_support::write;
 
-    fn write(tmp: &TempDir, rel: &str, content: &str) {
-        let path = tmp.path().join(rel);
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).unwrap();
-        }
-        fs::write(path, content).unwrap();
-    }
+    const CANON_EXCLUDE: &str = "(^|/)node_modules(/|$)\n(^|/)\\.git(/|$)\n(^|/)dist(/|$)\n(^|/)build(/|$)\n.*\\.lock$\n.*fixtures?/.*\n";
 
     #[test]
     fn fails_when_package_json_missing() {
