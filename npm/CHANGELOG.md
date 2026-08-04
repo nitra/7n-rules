@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.81.0] - 2026-08-04
+
+### Added
+
+- Команда `n-rules tools ensure [<тул>…] [--check]` і `n-rules tools list [--json]` у Rust-CLI — явне добування зовнішніх CLI-тулів замість авто-встановлення всередині лінту (компенсація за fail-closed `k8s/kubeconform` з PR #378; мінідизайн `docs/specs/2026-08-04-tools-ensure-design.md`). Реєстр тулів переїхав із коду в декларативний `npm/scripts/lib/tools.json` — **єдине джерело правди** для обох мов: JS `TOOLS` (`ensure-tool.mjs`) будується з нього, Rust (`rules_core::tool_registry`) вбудовує той самий файл на збірці; версії, як і раніше, в `tool-pins.json`. `brew`/`scoop` виконуються нативно під тим самим міжпроцесним локом, що бере JS (`ensure-tool/<toolId>`), а шлях GitHub Release делегується в чинний `ensureToolAsync` через зворотний міст (нова операція `ensureTool`, версія протоколу мосту 1 → 2) — другої реалізації завантаження не заводиться, поки JS-`ensureTool` усе одно потрібен тим споживачам, які ще не портовані. Крос-мовний дрейф гейтить `tools-registry-parity.test.mjs` (розгорнуті `asset`/`binPath` на закріпленій версії, тобто й мапінг архітектури)
+
 ## [1.80.1] - 2026-08-04
 
 ### Changed
