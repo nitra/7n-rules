@@ -2,7 +2,7 @@
 
 Rego-пакет: `k8s.hasura_httproute`
 
-**Цільові файли:** `hr.yaml` (або будь-який HTTPRoute з `kind: HTTPRoute`) у каталогах, де є Deployment з образом `hasura/graphql-engine`. JS знаходить пару Deployment–HTTPRoute через `collectHasuraDeploymentsAndHttpRoutes` і передає conftest з цим namespace.
+**Цільові файли:** `hr.yaml` (або будь-який HTTPRoute з `kind: HTTPRoute`) у каталогах, де є Deployment з образом `hasura/graphql-engine`. Пару Deployment–HTTPRoute (за спільним `metadata.name` у тому самому каталозі) знаходить native-концерн `k8s/hasura_httproute` (`rules_core::concerns::k8s_hasura_httproute`) і передає conftest із цим namespace.
 
 **Що перевіряється — канон 4 правил у `spec.rules` (у порядку):**
 
@@ -13,4 +13,4 @@ Rego-пакет: `k8s.hasura_httproute`
 
 `<prefix>` визначається автоматично як рядок до `/ql` у першому matching-правилі. Додаткові правила поверх канону дозволені.
 
-**Примітка:** cross-file прив'язка HTTPRoute до Deployment — JS (`validateHasuraHttpRouteCanon`).
+**Примітка:** cross-file прив'язка HTTPRoute до Deployment — native-гейт концерну, не rego.

@@ -15,9 +15,10 @@
 #   conftest test path/to/k8s/.../hr.yaml -p npm/policy/k8s/hasura_httproute \
 #     --namespace k8s.hasura_httproute
 #
-# Прив'язка Deployment-HTTPRoute (cross-file) — у JS (`validateHasuraHttpRouteCanon`,
-# `collectHasuraDeploymentsAndHttpRoutes`); JS викликає conftest з цією
-# намеспейс лише для відповідних HTTPRoute. JS authoritative.
+# Прив'язка Deployment-HTTPRoute (cross-file) — у native-концерні
+# `k8s/hasura_httproute` (`rules_core::concerns::k8s_hasura_httproute`); він
+# викликає conftest із цією намеспейс лише для відповідних HTTPRoute.
+# Rego authoritative для пер-документної валідації.
 #
 # Структура каталогу збігається зі шляхом пакету (regal: directory-package-mismatch).
 # Конвенція проєкту — `import rego.v1` + multi-value `deny contains msg if { … }`.

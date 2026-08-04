@@ -23,11 +23,11 @@
 #     -p npm/policy/k8s/hasura_configmap \
 #     --namespace k8s.hasura_configmap
 #
-# Прив'язка ConfigMap-Deployment cross-file — у JS (`rules/k8s/js/manifests.mjs`:
-# `validateHasuraConfigMapRemoteSchemaPermissions` шукає Hasura-Deployment
-# у тому ж dir-у і викликає conftest з цією намеспейс лише для відповідних
-# ConfigMap-ів). Rego authoritative для пер-документної валідації; JS лишає
-# лише cross-file orchestration.
+# Прив'язка ConfigMap-Deployment cross-file — у native-концерні
+# `k8s/hasura_configmap` (`rules_core::concerns::k8s_hasura_configmap`): він шукає
+# Hasura-Deployment у тому ж каталозі і викликає conftest із цією намеспейс лише
+# для відповідних ConfigMap-ів. Rego authoritative для пер-документної
+# валідації; концерн лишає собі тільки cross-file orchestration.
 #
 # Структура каталогу збігається зі шляхом пакету (regal: directory-package-mismatch).
 # Конвенція проєкту — `import rego.v1` + multi-value `deny contains msg if { … }`.

@@ -49,6 +49,11 @@ mod image_compress_package_setup;
 /// Спільний шар відкриття файлів k8s-кластера (`findK8sRoots` і його
 /// хелпери) — база концернів `npm/rules/k8s/**`.
 mod k8s_common;
+/// Спільний шар розпізнавання Hasura-маніфестів (гейти обох
+/// `k8s/hasura_*`-концернів) — база `npm/rules/k8s/hasura_*`.
+mod k8s_hasura;
+mod k8s_hasura_configmap;
+mod k8s_hasura_httproute;
 mod k8s_kubeconform;
 mod marksman_config;
 mod package_manifest;
@@ -87,6 +92,8 @@ pub use hasura_internal_urls::hasura_internal_urls;
 pub use hasura_migrations::hasura_migrations;
 pub use image_avif_generation::image_avif_generation;
 pub use image_compress_package_setup::image_compress_package_setup;
+pub use k8s_hasura_configmap::k8s_hasura_configmap;
+pub use k8s_hasura_httproute::k8s_hasura_httproute;
 pub use k8s_kubeconform::k8s_kubeconform;
 pub use marksman_config::marksman_config;
 pub use rego_tooling::rego_tooling;
@@ -133,6 +140,8 @@ pub const NATIVE_CONCERNS: &[&str] = &[
     "capacitor/platforms",
     "image-avif/avif_generation",
     "k8s/kubeconform",
+    "k8s/hasura_configmap",
+    "k8s/hasura_httproute",
 ];
 
 /// Запускає native-порт concern-а за ключем `ruleId/concernId`.
@@ -179,6 +188,8 @@ pub fn run_concern(
         "capacitor/platforms" => Ok(capacitor_platforms(cwd)),
         "image-avif/avif_generation" => Ok(image_avif_generation(cwd)),
         "k8s/kubeconform" => k8s_kubeconform(cwd, files),
+        "k8s/hasura_configmap" => k8s_hasura_configmap(cwd),
+        "k8s/hasura_httproute" => k8s_hasura_httproute(cwd),
         other => Err(RulesError::Concern(format!(
             "невідомий native concern: {other}"
         ))),
@@ -195,8 +206,8 @@ mod tests {
     /// `Lint repo-wide`), не додаючи нічого до сили перевірки — будь-яка зміна
     /// складу чи порядку так само валить цей assert.
     #[test]
-    fn native_concerns_lists_all_twenty_seven_entries() {
-        assert_eq!(NATIVE_CONCERNS.len(), 27);
+    fn native_concerns_lists_all_twenty_nine_entries() {
+        assert_eq!(NATIVE_CONCERNS.len(), 29);
         assert_eq!(
             NATIVE_CONCERNS.join(" "),
             "text/forbidden-prettier security/sample_secret k8s/dremio_logging rego/tooling \
@@ -205,7 +216,8 @@ mod tests {
              tauri/linux_deps tauri/core_test_isolation abie/hc_pairing abie/ua_node_selector \
              abie/ua_http_route hasura/internal_urls text/formatting tauri/release tauri/updater \
              tauri/tool_surface security/trufflehog changelog/presence adr/hooks \
-             capacitor/platforms image-avif/avif_generation k8s/kubeconform"
+             capacitor/platforms image-avif/avif_generation k8s/kubeconform \
+             k8s/hasura_configmap k8s/hasura_httproute"
         );
     }
 
@@ -218,6 +230,19 @@ mod tests {
         let tmp = tempfile::TempDir::new().unwrap();
         let violations = run_concern("k8s/kubeconform", tmp.path(), None).unwrap();
         assert!(violations.is_empty());
+    }
+
+    /// Обидва gated-детектори кластера диспатчаться на свої функції.
+    /// Порожній tmp-каталог не має жодного `*.yaml` під `k8s`, тож гейт
+    /// закритий і до резолву `conftest`/кореня пакета справа не доходить —
+    /// інакше результат залежав би від того, що встановлено на машині тесту.
+    #[test]
+    fn run_concern_dispatches_k8s_hasura_keys() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        for key in ["k8s/hasura_configmap", "k8s/hasura_httproute"] {
+            let violations = run_concern(key, tmp.path(), None).unwrap();
+            assert!(violations.is_empty(), "{key}");
+        }
     }
 
     #[test]

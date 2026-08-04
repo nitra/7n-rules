@@ -2270,21 +2270,7 @@ export function isHasuraDeploymentManifest(manifest) {
 }
 
 /**
- * Обов'язкові env-ключі у **`data`** ConfigMap для Hasura-Deployment (узгоджено з
- * rego-пакетом `k8s.hasura_configmap` та k8s.mdc). Лише для людиночитного pass-повідомлення —
- * авторитетна пер-документна валідація (наявність ключів і значення) живе в rego.
- */
-export const HASURA_REQUIRED_ENV_KEYS = [
-  'HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS',
-  'HASURA_GRAPHQL_ENABLE_RELAY',
-  'HASURA_GRAPHQL_ENABLE_TELEMETRY',
-  'HASURA_GRAPHQL_ENABLED_LOG_TYPES',
-  'HASURA_GRAPHQL_ENABLED_APIS',
-  'HASURA_GRAPHQL_DISABLE_EVENTING'
-]
-
-/**
- * Очікувані значення `HASURA_REQUIRED_ENV_KEYS` (дзеркалить `k8s.hasura_configmap.rego`).
+ * Очікувані значення обов'язкових `HASURA_GRAPHQL_*` env (дзеркалить `k8s.hasura_configmap.rego`).
  * `'true'`/`'false'` — приймаються як boolean або рядок (case-insensitive); рядкове значення
  * (наприклад `ENABLED_LOG_TYPES`) — точний exact match; `null` — ключ обов'язковий, значення
  * довільне (T0 проставляє дефолт `'true'`, якщо ключ відсутній).
@@ -3088,136 +3074,6 @@ async function validateSvcYamlAndSvcHlPairs(root, yamlFiles, fail) {
 }
 
 /**
- * Індексує Hasura-Deployment-и за каталогом (ключ — абсолютний шлях каталогу, значення — множина `metadata.name`).
- * Паралельно збирає всі `kind: HTTPRoute` Gateway API (`gateway.networking.k8s.io/*`) із doc-індексом.
- * @param {string[]} yamlFiles абсолютні шляхи до `*.yaml` під `k8s`
- * @returns {Promise<{
- *   hasuraByDir: Map<string, Set<string>>,
- *   httpRoutes: { abs: string, dir: string, docIndex: number, obj: Record<string, unknown> }[]
- * }>} індекс Hasura-Deployment-ів за каталогом і список HTTPRoute-документів
- */
-async function collectHasuraDeploymentsAndHttpRoutes(yamlFiles) {
-  /**
-  @type {Map<string, Set<string>>}
-   */
-  const hasuraByDir = new Map()
-  /**
-  @type {{ abs: string, dir: string, docIndex: number, obj: Record<string, unknown> }[]}
-   */
-  const httpRoutes = []
-
-  for (const abs of yamlFiles) {
-    await indexOneK8sYamlForHasuraCanon(abs, hasuraByDir, httpRoutes)
-  }
-
-  return { hasuraByDir, httpRoutes }
-}
-
-/**
- * Читає один YAML і додає Hasura-Deployment-и / HTTPRoute-документи до відповідних колекцій (нещасливі читання ігнорує).
- * @param {string} abs абсолютний шлях до файлу
- * @param {Map<string, Set<string>>} hasuraByDir індекс Hasura Deployment-ів за каталогом
- * @param {{ abs: string, dir: string, docIndex: number, obj: Record<string, unknown> }[]} httpRoutes колектор HTTPRoute-документів
- * @returns {Promise<void>} результат
- */
-async function indexOneK8sYamlForHasuraCanon(abs, hasuraByDir, httpRoutes) {
-  let raw
-  try {
-    raw = await readFile(abs, 'utf8')
-  } catch {
-    return
-  }
-  const lines = toLines(raw)
-  const body = lines.length > 0 && MODELINE_RE.test(lines[0]) ? yamlBodyAfterModeline(lines) : lines.join('\n')
-  /**
-  @type {import('yaml').Document[]}
-   */
-  let docs
-  try {
-    docs = parseAllDocuments(body)
-  } catch {
-    return
-  }
-  const dir = dirname(abs)
-
-  for (const [di, doc] of docs.entries()) {
-    if (doc.errors.length !== 0) {
-      continue
-    }
-
-    const rec = asPlainRecord(doc.toJSON())
-    if (rec !== null) {
-      recordHasuraDeploymentName(rec, dir, hasuraByDir)
-      const av = rec.apiVersion
-      if (rec.kind === 'HTTPRoute' && typeof av === 'string' && av.startsWith(GATEWAY_API_GROUP_PREFIX)) {
-        httpRoutes.push({ abs, dir, docIndex: di + 1, obj: rec })
-      }
-    }
-  }
-}
-
-/**
- * Якщо документ — Hasura-Deployment із непорожнім `metadata.name`, додає ім'я до індексу за каталогом.
- * @param {Record<string, unknown>} rec корінь YAML-документа
- * @param {string} dir абсолютний шлях до каталогу файлу
- * @param {Map<string, Set<string>>} hasuraByDir індекс Hasura Deployment-ів за каталогом (під час обходу в нього додаються імена)
- * @returns {void} результат
- */
-function recordHasuraDeploymentName(rec, dir, hasuraByDir) {
-  if (!isHasuraDeploymentManifest(rec)) return
-  const meta = asPlainRecord(rec.metadata)
-  const name = meta === null ? undefined : meta.name
-  if (typeof name !== 'string' || name === '') return
-  let set = hasuraByDir.get(dir)
-  if (set === undefined) {
-    set = new Set()
-    hasuraByDir.set(dir, set)
-  }
-  set.add(name)
-}
-
-/**
- * Для кожного `kind: HTTPRoute`, що прив'язаний до **Hasura-Deployment** у тому самому каталозі за **`metadata.name`**,
- * звіряє канон 4 правил (див. `httpRouteHasuraCanonViolation` і k8s.mdc).
- * @param {string} root корінь репозиторію
- * @param {string[]} yamlFiles абсолютні шляхи до `*.yaml` під `k8s`
- * @param {(msg: string, opts?: string | { reason?: string, file?: string, data?: object }) => void} fail callback реєстрації помилки
- * @returns {Promise<void>} результат
- */
-export async function validateHasuraHttpRouteCanon(root, yamlFiles, fail) {
-  const { hasuraByDir, httpRoutes } = await collectHasuraDeploymentsAndHttpRoutes(yamlFiles)
-  if (hasuraByDir.size === 0 || httpRoutes.length === 0) return
-
-  // JS gating: відберемо файли HTTPRoute, що paired з Hasura-Deployment у тому ж каталозі
-  // (за `metadata.name` HTTPRoute === metadata.name Hasura-Deployment). Per-document валідація
-  // канону 4 правил Hasura — у rego-пакеті `k8s.hasura_httproute`.
-  const pairedFiles = new Set()
-  for (const hr of httpRoutes) {
-    const meta = asPlainRecord(hr.obj.metadata)
-    const name = meta === null ? undefined : meta.name
-    const set = typeof name === 'string' && name !== '' ? hasuraByDir.get(hr.dir) : undefined
-    if (set !== undefined && typeof name === 'string' && set.has(name)) {
-      pairedFiles.add(hr.abs)
-    }
-  }
-  if (pairedFiles.size === 0) return
-  const violations = await runConftestBatch({
-    policyDirRel: 'k8s/hasura_httproute',
-    namespace: 'k8s.hasura_httproute',
-    files: [...pairedFiles]
-  })
-  for (const v of violations) {
-    const rel = (relative(root, v.filename) || v.filename).replaceAll('\\', '/')
-    // T0 автофіксить лише "rule1_filters" (детермінований overwrite існуючого правила);
-    // rule2/3/4-missing вимагають синтезу нового правила з backendRef — не T0 (k8s.mdc).
-    const hint = REGO_HINT_HASURA_HTTPROUTE_RULE1_RE.test(v.message)
-      ? { reason: 'hasura-httproute-rule1-filters', file: rel, data: { kind: 'hasura-httproute-rule1-filters' } }
-      : undefined
-    fail(`${rel}: ${v.message}`, hint)
-  }
-}
-
-/**
  * Вимагає непорожній **metadata.namespace** для namespaced-документів (крім кластерних kind).
  * @param {unknown} manifest корінь YAML-документа
  * @param {boolean} [inBaseDir] true — файл у **`k8s/base/`** (текст повідомлення для base)
@@ -3596,49 +3452,6 @@ async function validateConfigMapNameMatchesDeployment(root, yamlFilesAbs, fail, 
   for (const cmAbs of cmFiles) {
     const rel = relative(root, cmAbs).replaceAll('\\', '/') || cmAbs
     await validateSingleConfigMapNameMatch(cmAbs, rel, fail, passFn)
-  }
-}
-
-/**
- * Для кожного `k8s/base/configmap.yaml`, у каталозі якого поруч є Hasura-Deployment,
- * вимагає у `data` обов'язкові env-ключі (`HASURA_REQUIRED_ENV_KEYS`) з очікуваними
- * значеннями (`HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS="true"`,
- * `HASURA_GRAPHQL_ENABLE_RELAY="false"`, `HASURA_GRAPHQL_ENABLE_TELEMETRY="false"`,
- * `HASURA_GRAPHQL_ENABLED_LOG_TYPES="startup,http-log"`, `HASURA_GRAPHQL_DISABLE_EVENTING` — будь-яке) (k8s.mdc).
- * @param {string} root корінь репозиторію
- * @param {string[]} yamlFilesAbs yaml під k8s
- * @param {(msg: string) => void} fail callback при помилці
- * @param {(msg: string) => void} passFn callback при успіху
- */
-export async function validateHasuraConfigMapRemoteSchemaPermissions(root, yamlFilesAbs, fail, passFn) {
-  const cmFiles = yamlFilesAbs.filter(abs => {
-    const rel = relative(root, abs).replaceAll('\\', '/')
-    return CONFIGMAP_BASE_PATH_RE.test(`/${rel}`) || rel === 'k8s/base/configmap.yaml'
-  })
-  // JS gating: відберемо ConfigMap-файли, у каталозі яких поруч є Hasura-Deployment.
-  // Per-document валідація обов'язкових `data.HASURA_GRAPHQL_*` env — у rego-пакеті
-  // `k8s.hasura_configmap`.
-  const paired = []
-  for (const cmAbs of cmFiles) {
-    const deployment = await findDeploymentDocInDir(dirname(cmAbs))
-    if (deployment !== null && isHasuraDeploymentManifest(deployment)) {
-      paired.push(cmAbs)
-    }
-  }
-  if (paired.length === 0) return
-  const violations = await runConftestBatch({
-    policyDirRel: 'k8s/hasura_configmap',
-    namespace: 'k8s.hasura_configmap',
-    files: paired
-  })
-  for (const v of violations) {
-    const rel = (relative(root, v.filename) || v.filename).replaceAll('\\', '/')
-    fail(`${rel}: ${v.message}`, { reason: 'hasura-configmap-env', file: rel, data: { kind: 'hasura-configmap-env' } })
-  }
-  if (violations.length === 0) {
-    passFn(
-      `Hasura-ConfigMap (${paired.length}) містить обов'язкові env [${HASURA_REQUIRED_ENV_KEYS.join(', ')}] (rego)`
-    )
   }
 }
 
@@ -6553,14 +6366,12 @@ export async function regenerateLegacyNetworkPolicyDocsInFile(npAbs, fail) {
 /**
  * Plan B (rego-authoritative): на початку `check()` батч-викликаємо path-фільтровані
  * rego-пакети з `npm/policy/k8s/` через `runConftestBatch`. Пакети hasura_configmap і
- * hasura_httproute мають cross-file gating (паруються з Hasura-Deployment) — цей JS-гейт
- * (`validateHasuraConfigMapRemoteSchemaPermissions`, `validateHasuraHttpRouteCanon`, обидві
- * export) викликається з **власного** `main.mjs` кожного з цих двох концернів
- * (`k8s/hasura_configmap/main.mjs`, `k8s/hasura_httproute/main.mjs`) — не звідси. Це навмисно:
- * без власного `main.mjs` generic lint-surface (`hasHandWrittenMain` у
- * `scripts/lib/lint-surface/detect.mjs`) промотує concern із самостійним `policy.files.walkGlob`
- * у **ungated** detector, що прогонить rego напряму на всі файли-збіги glob — саме так виникали
- * false positive на ConfigMap/HTTPRoute без сусіднього Hasura Deployment (issue: efes-cloud/backend).
+ * hasura_httproute сюди НЕ входять: у них cross-file gating (паруються з Hasura-Deployment),
+ * і обидва — окремі концерни `k8s/hasura_configmap` / `k8s/hasura_httproute`, виконувані
+ * нативно (`rules_core::concerns::k8s_hasura_configmap` / `k8s_hasura_httproute`, registry
+ * `NATIVE_CONCERNS`). Гейт там обов'язковий: ungated прогін цих rego напряму на всі
+ * файли-збіги glob давав false positive на ConfigMap/HTTPRoute без сусіднього Hasura
+ * Deployment (issue: efes-cloud/backend).
  * Структурна частина HPA/PDB (`k8s.hpa_pdb`) тут на всіх yaml,
  * env-залежні межі min/maxReplicas і expected-name — JS-cross-file у `validateDeploymentHpaPdbAndTopology`.
  * @param {string} root корінь репозиторію (cwd)
@@ -6572,8 +6383,6 @@ export async function regenerateLegacyNetworkPolicyDocsInFile(npAbs, fail) {
 const REGO_HINT_DEPLOYMENT_STRATEGY_RE = /spec\.strategy має бути RollingUpdate/u
 const REGO_HINT_NETWORKPOLICY_EGRESS_RE = /відсутнє обовʼязкове egress-правило/u
 const REGO_HINT_KUSTOMIZATION_PATCHES_RE = /patches має бути за алфавітом/u
-/** Стадія `rule1_filters` `k8s.hasura_httproute` — єдина автофіксовна (overwrite існуючого правила, без синтезу нового). */
-const REGO_HINT_HASURA_HTTPROUTE_RULE1_RE = /правило 1 Hasura-канона \(rules\[\d+\]/u
 const REGO_HINT_SVC_CLUSTERIP_RE = /spec\.type[^\n]*ClusterIP|додай spec\.type: ClusterIP/u
 const REGO_HINT_SVC_HL_CLUSTERIP_RE = /spec\.clusterIP[^\n]*None|додай spec\.clusterIP: None/u
 /**
@@ -6727,7 +6536,7 @@ export async function lint(ctx) {
 
   await validateSvcYamlAndSvcHlPairs(root, yamlFiles, fail)
 
-  // validateHasuraHttpRouteCanon — переїхав у власний main.mjs концерну k8s/hasura_httproute
+  // Канон Hasura-HTTPRoute — окремий концерн k8s/hasura_httproute, виконуваний нативно
   // (gated detector, див. коментар над runAllK8sRego вище).
 
   await validateKustomizationIncludesSvcHlWithSvc(root, yamlFiles, fail)
@@ -6740,8 +6549,8 @@ export async function lint(ctx) {
 
   await validateConfigMapNameMatchesDeployment(root, yamlFiles, fail, pass)
 
-  // validateHasuraConfigMapRemoteSchemaPermissions — переїхав у власний main.mjs концерну
-  // k8s/hasura_configmap (gated detector, див. коментар над runAllK8sRego вище).
+  // Обов'язкові HASURA_GRAPHQL_* env у ConfigMap — окремий концерн k8s/hasura_configmap,
+  // виконуваний нативно (gated detector, див. коментар над runAllK8sRego вище).
 
   await validateDeploymentHpaPdbAndTopology(root, yamlFiles, fail, pass)
 
