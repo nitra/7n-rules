@@ -266,10 +266,16 @@ describe('runGenerationBatch — 2b-batch шлях (T8, native доступни�
     expect(submitBatchImpl).toHaveBeenCalledTimes(2)
     expect(submitBatchImpl.mock.calls[0][1]).toEqual([])
     expect(submitBatchImpl.mock.calls[1][1]).toHaveLength(6) // один submit на всі 6 файлів
-    // T8 бенч (живий прогін проти omlx): без явного localProviders Rust local_cloud не
-    // впізнає префікс "omlx/…" і тихо падає крізь cloud-гілку genai (типово вгадує Ollama
-    // localhost:11434) — дефолтний конфіг ОБОВʼЯЗКОВО прокидається у submitBatchImpl.
-    expect(submitBatchImpl.mock.calls[1][2]).toMatchObject({ localProviders: { omlx: expect.any(Object) } })
+    // T8 бенч (живий прогін проти локального сервера): без явного localProviders Rust
+    // local_cloud не впізнає локальний префікс і тихо падає крізь cloud-гілку genai
+    // (типово вгадує Ollama localhost:11434) — дефолтний конфіг ОБОВʼЯЗКОВО
+    // прокидається у submitBatchImpl. Ключ мапи — generic-слот `local-openai`
+    // (`defaultLocalProviders`, llm-lib/lib/local-providers.mjs): #374 звів усі
+    // OpenAI-сумісні локальні сервери (omlx, litellm, TurboFieldfare) до одного
+    // запису, і окремого `omlx`-ключа в дефолтній мапі більше немає.
+    expect(submitBatchImpl.mock.calls[1][2]).toMatchObject({
+      localProviders: { 'local-openai': expect.any(Object) }
+    })
     expect(generateDocMock).not.toHaveBeenCalled() // послідовний шлях не зачеплено
   })
 

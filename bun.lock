@@ -200,6 +200,8 @@
 
     "@7n/rules-linux-x64": ["@7n/rules-linux-x64@1.79.2", "", { "os": "linux", "cpu": "x64" }, "sha512-RgN47jUX6/qwm0MuyO3KX9S2WTJykWhmlIo8Ua2DuQfwlkhWTfSWdypT0rRmw4i05QT7tC2ZYRuGrDy0oouU8Q=="],
 
+    "@7n/rules-win32-x64": ["@7n/rules-win32-x64@1.79.1", "", { "os": "win32", "cpu": "x64" }, "sha512-ErEBGL6pkxmPEesRz/2HkcQJ8i+V1RtaU7Tm8GTGyq5SyzatPfiQZ2WQWzICNosLZLNV7W4agRuiZ9zbaS0qvw=="],
+
     "@anthropic-ai/sdk": ["@anthropic-ai/sdk@0.91.1", "", { "dependencies": { "json-schema-to-ts": "^3.1.1" }, "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" }, "optionalPeers": ["zod"], "bin": { "anthropic-ai-sdk": "bin/cli" } }, "sha512-LAmu761tSN9r66ixvmciswUj/ZC+1Q4iAfpedTfSVLeswRwnY3n2Nb6Tsk+cLPP28aLOPWeMgIuTuCcMC6W/iw=="],
 
     "@aws-crypto/sha256-browser": ["@aws-crypto/sha256-browser@5.2.0", "", { "dependencies": { "@aws-crypto/sha256-js": "^5.2.0", "@aws-crypto/supports-web-crypto": "^5.2.0", "@aws-crypto/util": "^5.2.0", "@aws-sdk/types": "^3.222.0", "@aws-sdk/util-locate-window": "^3.0.0", "@smithy/util-utf8": "^2.0.0", "tslib": "^2.6.2" } }, "sha512-AXfN/lGotSQwu6HNcEsIASo7kWXZ5HYWvfOmSNKDsEqC4OashTp8alTmaz+F7TC2L083SFv5RdB+qU3Vs1kZqw=="],
