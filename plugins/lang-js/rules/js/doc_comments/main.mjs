@@ -141,6 +141,25 @@ function hasFileHeader(comments, src) {
 }
 
 /**
+ * Список коментарів без hashbang-а. napi-`oxc-parser` віддає `#!…` як
+ * ЗВИЧАЙНИЙ `Line`-коментар (crate-`oxc_parser` — ні), і для цього концерну
+ * це шум із двома хибними наслідками: файл із коректним header-JSDoc після
+ * shebang-а звітував «немає header-а» (бо `comments[0]` — не Block), а сам
+ * shebang ставав `promotable`-блоком, який T0 підвищив би до doc-коментаря і
+ * зламав виконуваний файл. Намір канону тут однозначний — `SHEBANG_RE` уже
+ * каже, що shebang не рахується кодом перед header-ом; ця функція лише
+ * поширює той самий намір на список коментарів.
+ * @param {{ type: string, start: number }[]} comments список коментарів парсера
+ * @param {string} src вміст файлу
+ * @returns {{ type: string, start: number }[]} той самий список без провідного hashbang-а
+ */
+function withoutHashbangComment(comments, src) {
+  const first = comments[0]
+  if (first && first.type === 'Line' && first.start === 0 && src.startsWith('#!')) return comments.slice(1)
+  return comments
+}
+
+/**
  * Перевіряє один файл: header + JSDoc над кожним експортом.
  * @param {string} src вміст файлу
  * @param {string} relPosix posix-відносний шлях (для violation.file)
@@ -149,7 +168,8 @@ function hasFileHeader(comments, src) {
 export function checkFileDocComments(src, relPosix) {
   const parsed = parseProgramAndCommentsOrNull(src, relPosix)
   if (!parsed) return [] // синтаксис ловлять інші концерни
-  const { program, comments } = parsed
+  const { program } = parsed
+  const comments = withoutHashbangComment(parsed.comments, src)
   const exports = collectExports(program)
   if (exports.length === 0) return [] // файл без публічного контракту — поза вимогою
 

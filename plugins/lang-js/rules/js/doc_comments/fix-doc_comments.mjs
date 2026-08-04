@@ -9,6 +9,13 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 const LINE_COMMENT_PREFIX_RE = /^\s*\/\/\s?/
+// Guard ідемпотентності: офсети `data.{start,end}` приходять із detect-прогону,
+// а до `apply()` файл міг уже змінити ІНШИЙ T0-патерн того самого концерну
+// (`applyT0` ганяє ВСІ патерни одним масивом `violations` — після
+// wasm-плану `wasm-fix:js/doc_comments` цей фіксер бачить уже підвищений
+// `/** … */`). Різати такий зріз як «блок //-коментарів» означало б зіпсувати
+// файл, тому підвищується лише зріз, кожен рядок якого ДОСІ починається з `//`.
+const LINE_COMMENT_LINE_RE = /^\s*\/\//
 
 /**
  * Перетворює блок `//`-рядків на JSDoc, зберігаючи відступ першого рядка.
@@ -59,7 +66,9 @@ export const patterns = [
           const lineStart = next.lastIndexOf('\n', start - 1) + 1
           const indent = next.slice(lineStart, start)
           if (indent.trim() !== '') continue // блок не на початку рядка — не чіпаємо
-          next = next.slice(0, lineStart) + promoteLineBlock(next.slice(start, end), indent) + next.slice(end)
+          const block = next.slice(start, end)
+          if (block.split('\n').some(l => !LINE_COMMENT_LINE_RE.test(l))) continue // несвіжі офсети
+          next = next.slice(0, lineStart) + promoteLineBlock(block, indent) + next.slice(end)
         }
         if (next === content) continue
 

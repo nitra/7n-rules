@@ -1,12 +1,12 @@
 //! wasm-компонент `n-rules:plugin@3.0.0` — `lang-js/wasm-concerns` (задачі N2,
-//! Q1 батч 1, Q2 батч 2, Q3, Q4 батч 4, батчі 5–9 і зріз 1 контракту v3.1
+//! Q1 батч 1, Q2 батч 2, Q3, Q4 батч 4, батчі 5–9 і зрізи 1–2, 4 контракту v3.1
 //! (`docs/specs/2026-08-01-plugin-contract-v31-surfaces.md`), спека
 //! `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md` §3.5.5 і
 //! `docs/specs/2026-08-01-wasm-ast-strategy.md`),
 //! створений за флоу скіла `npm/skills/wasm-plugin/` (scaffold → реалізація →
-//! golden-тести). ТРИДЦЯТЬ П'ЯТЬ концернів у контрибуції (перелік нижче —
+//! golden-тести). ТРИДЦЯТЬ ШІСТЬ концернів у контрибуції (перелік нижче —
 //! перші чотирнадцять; батчі 5–9 і зріз 1 описані в доккоментах однойменних секцій
-//! нижче за текстом), порт чинних
+//! нижче за текстом; `js/doc_comments` зрізу 4 — секція «Зріз 4»), порт чинних
 //! JS-оригіналів — справжній 1:1, той самий `reason`/`message` біт-у-біт
 //! (parity-дисципліна СКІЛа не допускає shadowing regex-наближенням
 //! AST-оригіналу в контрибуції — рішення оркестратора після звіту батчу 2;
@@ -203,11 +203,12 @@ use std::collections::{BTreeSet, HashSet};
 use oxc_allocator::Allocator;
 use oxc_ast::ast::{
     Argument, ArrayExpression, ArrayExpressionElement, ArrowFunctionExpression, BinaryOperator,
-    BindingPattern, BlockStatement, CallExpression, Comment, ExportDefaultDeclarationKind,
-    Expression, FormalParameters, Function, FunctionBody, FunctionType, ImportDeclaration,
-    ImportExpression, NewExpression, ObjectExpression, ObjectProperty, ObjectPropertyKind, Program,
-    PropertyKey, RegExpLiteral, Statement, StringLiteral, TaggedTemplateExpression,
-    TemplateLiteral, UnaryExpression, UnaryOperator, VariableDeclarator,
+    BindingPattern, BlockStatement, CallExpression, Comment, Declaration,
+    ExportDefaultDeclarationKind, Expression, FormalParameters, Function, FunctionBody,
+    FunctionType, ImportDeclaration, ImportExpression, NewExpression, ObjectExpression,
+    ObjectProperty, ObjectPropertyKind, Program, PropertyKey, RegExpLiteral, Statement,
+    StringLiteral, TaggedTemplateExpression, TemplateLiteral, UnaryExpression, UnaryOperator,
+    VariableDeclarator,
 };
 use oxc_ast_visit::{
     walk::{
@@ -3783,6 +3784,15 @@ fn build_manifest() -> Manifest {
             // Зріз 2 контракту v3.1: `js/check`. Глоб — `concern.json.lint.glob`
             // плюс `**/*.vue` (детекція vue-воркспейсів `isVueWorkspace`,
             // доккомент секції «Зріз 2»).
+            // Зріз 4 контракту v3.1: PER-FILE-контрибуція (єдина, крім
+            // [`CONCERN_TFM`]) — глоб дослівно з `concern.json.lint.glob`
+            // JS-канону; `IGNORE_GLOBS` сюди не переїжджають, бо живуть у
+            // недосяжній globby-гілці (розбіжність 3 секції «Зріз 4»).
+            ConcernContribution {
+                key: CONCERN_DOC_COMMENTS.to_string(),
+                scope: ConcernScope::PerFile,
+                glob: vec!["**/*.{js,mjs,cjs,ts}".to_string()],
+            },
             ConcernContribution {
                 key: CONCERN_JS_CHECK.to_string(),
                 scope: ConcernScope::Full,
@@ -9962,7 +9972,578 @@ fn detect_js_check(files: &[SourceFile]) -> Vec<Diagnostic> {
     out
 }
 
-/// Guest-реалізація world `plugin` — тридцять п'ять контрибуцій ([`CONCERN_TFM`],
+// =====================================================================
+// Зріз 4 контракту v3.1 (`docs/specs/2026-08-01-plugin-contract-v31-surfaces.md`,
+// §7, рішення Е): `js/doc_comments` — detect + T0-фікс разом.
+//
+// # Чому detect без fix тут неповний
+//
+// Це ОСТАННІЙ придатний до порту концерн `lang-js` (доккомент секції «Батч 8» відніс
+// його до класу 3 — «розвʼязне, але не безкоштовно»). Його `data.{start,end}`
+// — не декоративне поле: на ньому цілком тримається T0-контур
+// (`promotable`-блок `//`-коментарів механічно підвищується до `/** … */`).
+// Портувати лише `detect` означало б віддати JS-фіксеру офсети чужої системи
+// координат — тому обидві половини їдуть одним зрізом.
+//
+// # Офсети: де конверсія потрібна, а де ні
+//
+// napi-`oxc-parser` (JS-бік) індексує **UTF-16 code units**, crate-`oxc_parser`
+// — **байти**. На ASCII-файлі числа збігаються, тож наївний порт пройшов би
+// тести й розійшовся на першому файлі з кирилицею чи емодзі. Розкладка:
+//
+// - **Конверсія ПОТРІБНА рівно у двох точках — на WIT-межі.**
+//   1. `detect`: [`check_file_doc_comments`] кладе в `data.{start,end}` не
+//      байтові офсети, а результат [`byte_offset_to_utf16`]. Причина
+//      конкретна: споживач цього поля — JS, який ріже JS-рядок
+//      (`fix-doc_comments.mjs` лишається fallback-ом за чинним конвеєром
+//      `run-fix.mjs`, доккомент `loadT0Patterns`), а parity-звірка порівнює
+//      `data` з тим, що віддає JS-канон.
+//   2. `fix`: [`fix_doc_comments`] читає ті самі `data.{start,end}` назад і
+//      переводить їх [`utf16_offset_to_byte`] ПЕРЕД тим, як різати
+//      UTF-8-рядок `SourceFile::content`.
+//
+// - **Конверсія НЕ потрібна ніде всередині.** Порівняння (`c.end <= pos`),
+//   проміжки (`src.slice(c.end, pos)`), `trim()`, підрахунок переводів рядка,
+//   пошук початку рядка й сам splice — усе рахується в байтовому просторі на
+//   UTF-8-рядку. Обидва простори монотонні й внутрішньо консистентні: `a < b`
+//   у байтах ⇔ `a < b` у UTF-16, а зрізаний текст той самий. Це той самий
+//   аргумент, що вже задокументований для `planVueAugment` (секція «Зріз 1»,
+//   підрозділ «Офсети augment-у») — різниця лише в тому, що ТУТ офсети
+//   витікають назовні, тож дві межові точки конверсії обовʼязкові.
+//
+// Анти-дрейф — parity-фікстури з не-ASCII вмістом (кирилиця в коментарях і
+// в іменах експортів, емодзі поза BMP, тобто сурогатна пара): на них байтовий
+// офсет і UTF-16-офсет розходяться, і забутий виклик конверсії падає.
+//
+// # Дефект JS-канону, який ПОЛАГОДЖЕНО, а не скопійовано (Р11)
+//
+// `applyT0` (`run-fix.mjs`) ганяє ВСІ патерни концерну одним масивом
+// `violations`: спершу синтетичний `wasm-fix:*`, потім патерни
+// `fix-doc_comments.mjs`. Після того, як wasm-план уже переписав файл,
+// офсети тих самих `violations` стають несвіжими — JS-фіксер різав би вже
+// підвищений `/** … */` як «блок `//`-коментарів». Пілот
+// `test/no-bun-test-import` уникнув цього видаленням JS-фіксера; тут канон
+// потрібен як fallback, тож замість видалення в ОБИДВІ реалізації додано
+// один і той самий guard [`is_line_comment_block`]: підвищується лише
+// зріз, кожен рядок якого досі починається з `//`. Це робить фікс
+// ідемпотентним і закриває клас «несвіжі офсети» взагалі, а не лише
+// wasm-сценарій.
+//
+// # Задокументовані розбіжності
+//
+// 1. **`violation.file` відсутній**: JS-фіксер зробив би
+//    `join(ctx.cwd, undefined)` і впав; [`fix_doc_comments`] такі діагностики
+//    пропускає (skip-not-crash дух решти порту). Недосяжно з власного
+//    `detect` — обидві гілки завжди виставляють `file`.
+// 2. **`.trim()`**: JS-набір WhiteSpace/LineTerminator і Rust
+//    `char::is_whitespace` (Unicode `White_Space`) розходяться на двох
+//    символах — `U+FEFF` (JS тримає за пробіл, Rust ні) і `U+0085` (навпаки).
+//    Замість `str::trim` порт використовує [`js_trim`] з точним
+//    ECMA-262-набором: файл із BOM перед header-JSDoc інакше давав би різні
+//    вердикти.
+// 3. **`files === undefined`** (globby-гілка `lint()` з власними
+//    `IGNORE_GLOBS`) у порті недосяжна: контрибуція `per-file`, host завжди
+//    передає явний список файлів. Гість застосовує рівно другу гілку
+//    JS-канону — фільтр [`is_doc_comment_target`].
+// =====================================================================
+
+/// Ключ контрибуції `js/doc_comments` (зріз 4 контракту v3.1).
+const CONCERN_DOC_COMMENTS: &str = "js/doc_comments";
+
+/// `reason` порушення «файл з експортами без header-JSDoc» — точний порт
+/// `main.mjs:160`.
+const DOC_COMMENTS_MISSING_HEADER_REASON: &str = "missing-file-header";
+
+/// `reason` порушення «експорт без JSDoc-опису» — точний порт `main.mjs:170`.
+const DOC_COMMENTS_MISSING_EXPORT_REASON: &str = "missing-export-doc";
+
+/// Точний порт `FILE_HEADER_HINT` (`main.mjs:39-40`) — текст іде у `message`
+/// біт-у-біт.
+const DOC_COMMENTS_FILE_HEADER_HINT: &str = "Глобальний сенс: конвеєр doc-files копіює цей коментар ДОСЛІВНО в секцію «Огляд» автоматично згенерованої документації файлу (0 LLM-токенів) — без нього «Огляд» вигадує LLM із самого коду.";
+
+/// Точний порт `EXPORT_DOC_HINT` (`main.mjs:41-42`).
+const DOC_COMMENTS_EXPORT_DOC_HINT: &str = "Глобальний сенс: конвеєр doc-files бере цей опис ДОСЛІВНО в секцію «Публічний API» автоматично згенерованої документації файлу (0 LLM-токенів, isApiGap/renderApiLine) — без нього опис вигадує LLM.";
+
+/// Точний порт `EXCLUDED_FILE_RE` (`main.mjs:31`) — тести/фікстури/декларації
+/// поза вимогою.
+const DOC_COMMENTS_EXCLUDED_FILE_PATTERN: &str =
+    r"(\.test\.|\.spec\.|\.d\.ts$)|(^|/)(tests|fixtures|__mocks__)/";
+
+/// Точний порт `SOURCE_EXT_RE` (`main.mjs:32`).
+const DOC_COMMENTS_SOURCE_EXT_PATTERN: &str = r"\.(js|mjs|cjs|ts)$";
+
+/// Точний порт `SHEBANG_RE` (`main.mjs:33`, `/^#!.*$/m`) — прапорець `m` без
+/// `g`, тож `replace` знімає ЛИШЕ перше входження (дзеркало
+/// `String.prototype.replace` з non-global regex).
+const DOC_COMMENTS_SHEBANG_PATTERN: &str = r"(?m)^#!.*$";
+
+/// Точний порт `LINE_COMMENT_PREFIX_RE` (`fix-doc_comments.mjs:11`).
+const DOC_COMMENTS_LINE_PREFIX_PATTERN: &str = r"^\s*//\s?";
+
+/// Рядок усе ще починається з `//` — guard ідемпотентності T0-фікса
+/// (доккомент секції, підрозділ «Дефект JS-канону»); дзеркало
+/// `LINE_COMMENT_LINE_RE` у `fix-doc_comments.mjs`.
+const DOC_COMMENTS_LINE_START_PATTERN: &str = r"^\s*//";
+
+/// Чи `c` — `WhiteSpace` ‖ `LineTerminator` за ECMA-262 (те, що реально
+/// зрізає `String.prototype.trim`). Свідомо НЕ `char::is_whitespace`:
+/// Unicode-властивість `White_Space` і JS-набір розходяться на `U+FEFF`
+/// (JS зрізає, Unicode — ні) та `U+0085` (навпаки) — розбіжність 2
+/// доккомента секції.
+fn is_js_whitespace(c: char) -> bool {
+    matches!(
+        c,
+        '\u{9}'
+            | '\u{b}'
+            | '\u{c}'
+            | '\u{20}'
+            | '\u{a0}'
+            | '\u{feff}'
+            | '\u{a}'
+            | '\u{d}'
+            | '\u{2028}'
+            | '\u{2029}'
+            | '\u{1680}'
+            | '\u{2000}'..='\u{200a}' | '\u{202f}' | '\u{205f}' | '\u{3000}'
+    )
+}
+
+/// Дзеркало `String.prototype.trim` ([`is_js_whitespace`]).
+fn js_trim(s: &str) -> &str {
+    s.trim_matches(is_js_whitespace)
+}
+
+/// Дзеркало `String.prototype.trimEnd` ([`is_js_whitespace`]).
+fn js_trim_end(s: &str) -> &str {
+    s.trim_end_matches(is_js_whitespace)
+}
+
+/// Байтовий офсет у `src` → офсет у UTF-16 code units. ПЕРША з двох межових
+/// точок конверсії (доккомент секції): усе, що йде в `data.{start,end}`
+/// діагностики, проходить через неї.
+fn byte_offset_to_utf16(src: &str, byte_offset: usize) -> usize {
+    src[..byte_offset].chars().map(char::len_utf16).sum()
+}
+
+/// Офсет у UTF-16 code units → байтовий офсет у `src`. ДРУГА межова точка:
+/// `fix` отримує `data.{start,end}` у координатах JS і мусить повернути їх
+/// у байти, перш ніж різати UTF-8-рядок. Офсет за межами рядка обрізається до
+/// `src.len()` (діагностика з чужого файлу не панікує гість).
+fn utf16_offset_to_byte(src: &str, utf16_offset: usize) -> usize {
+    let mut units = 0usize;
+    for (byte_index, ch) in src.char_indices() {
+        if units >= utf16_offset {
+            return byte_index;
+        }
+        units += ch.len_utf16();
+    }
+    src.len()
+}
+
+/// Точний порт `isDocCommentTarget` (`main.mjs:49-52`).
+fn is_doc_comment_target(
+    rel_posix: &str,
+    excluded_re: &regex::Regex,
+    ext_re: &regex::Regex,
+) -> bool {
+    if excluded_re.is_match(rel_posix) {
+        return false;
+    }
+    ext_re.is_match(rel_posix)
+}
+
+/// Один експорт із позицією для пошуку JSDoc — дзеркало елемента
+/// `collectExports` (`{ name, start }`, БАЙТОВИЙ офсет усередині гостя).
+struct DocCommentExport {
+    /// Ім'я символу для `message`/`data.name`.
+    name: String,
+    /// Байтовий офсет початку `Export*Declaration` (`node.start` JS-канону).
+    start: usize,
+}
+
+/// Ім'я `FunctionDeclaration`/`ClassDeclaration` або `"default"` — дзеркало
+/// `decl.id?.name ?? 'default'` (`main.mjs:69`).
+fn binding_name_or_default(id: Option<&oxc_ast::ast::BindingIdentifier>) -> String {
+    id.map_or_else(|| "default".to_string(), |i| i.name.to_string())
+}
+
+/// Точний порт `collectExports` (`main.mjs:61-79`): named/default із
+/// `declaration`; `export { a, b }`-специфікатори свідомо пропускаються
+/// (символ оголошено інде). TS-only декларації (`export type …`,
+/// `export interface …`) у жодну з гілок JS-канону не потрапляють — тут теж.
+fn collect_doc_comment_exports(program: &Program) -> Vec<DocCommentExport> {
+    let mut out = Vec::new();
+    for stmt in &program.body {
+        match stmt {
+            Statement::ExportNamedDeclaration(node) => {
+                let Some(declaration) = &node.declaration else {
+                    continue;
+                };
+                let start = node.span.start as usize;
+                match declaration {
+                    Declaration::FunctionDeclaration(func) => out.push(DocCommentExport {
+                        name: binding_name_or_default(func.id.as_ref()),
+                        start,
+                    }),
+                    Declaration::ClassDeclaration(class) => out.push(DocCommentExport {
+                        name: binding_name_or_default(class.id.as_ref()),
+                        start,
+                    }),
+                    Declaration::VariableDeclaration(var) => {
+                        for declarator in &var.declarations {
+                            if let BindingPattern::BindingIdentifier(id) = &declarator.id {
+                                out.push(DocCommentExport {
+                                    name: id.name.to_string(),
+                                    start,
+                                });
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            Statement::ExportDefaultDeclaration(node) => {
+                let start = node.span.start as usize;
+                let name = match &node.declaration {
+                    ExportDefaultDeclarationKind::FunctionDeclaration(func) => {
+                        binding_name_or_default(func.id.as_ref())
+                    }
+                    ExportDefaultDeclarationKind::ClassDeclaration(class) => {
+                        binding_name_or_default(class.id.as_ref())
+                    }
+                    // `export default 42` / `export default interface X {}` —
+                    // гілка `else if (isDefault)` JS-канону (`main.mjs:74-75`).
+                    _ => "default".to_string(),
+                };
+                out.push(DocCommentExport { name, start });
+            }
+            _ => {}
+        }
+    }
+    out
+}
+
+/// Вміст коментаря (`Comment::content_span`) — дзеркало `comment.value`
+/// ESTree-форми napi-парсера.
+fn comment_value<'a>(src: &'a str, comment: &Comment) -> &'a str {
+    let span = comment.content_span();
+    &src[span.start as usize..span.end as usize]
+}
+
+/// Точний порт `jsDocCommentBefore` (`plugins/lang-js/doc-files/js-facts.mjs`)
+/// у предикатній формі: JS-версія віддає ДОСЛІВНИЙ текст коментаря, але
+/// `js/doc_comments` використовує лише його істинність (`if (…) continue`).
+fn has_js_doc_comment_before(comments: &[Comment], src: &str, pos: usize) -> bool {
+    let mut best: Option<&Comment> = None;
+    for comment in comments {
+        if !comment.is_block() || !comment_value(src, comment).starts_with('*') {
+            continue;
+        }
+        if comment.span.end as usize > pos {
+            continue;
+        }
+        let better = match best {
+            None => true,
+            Some(current) => comment.span.end > current.span.end,
+        };
+        if better {
+            best = Some(comment);
+        }
+    }
+    match best {
+        None => false,
+        Some(best) => js_trim(&src[best.span.end as usize..pos]).is_empty(),
+    }
+}
+
+/// Точний порт `hasFileHeader` (`main.mjs:136-141`).
+fn has_doc_comment_file_header(comments: &[Comment], src: &str, shebang_re: &regex::Regex) -> bool {
+    let Some(first) = comments.first() else {
+        return false;
+    };
+    if !first.is_block() || !comment_value(src, first).starts_with('*') {
+        return false;
+    }
+    let before = &src[..first.span.start as usize];
+    js_trim(&shebang_re.replace(before, "")).is_empty()
+}
+
+/// Чи проміжок `gap` розриває «впритул»-звʼязок: між блоком і символом є код
+/// або порожній рядок. Спільна умова `promotableLineBlockBefore` і
+/// `promotableHeaderBlock` (`gapAfter.trim() !== '' || gapAfter.split('\n').length > 2`).
+fn doc_comment_gap_breaks(gap: &str) -> bool {
+    !js_trim(gap).is_empty() || gap.matches('\n').count() > 1
+}
+
+/// Точний порт `promotableLineBlockBefore` (`main.mjs:90-105`) — байтові межі
+/// суцільного блоку `//`-коментарів впритул над `pos`.
+fn promotable_line_block_before(
+    comments: &[Comment],
+    src: &str,
+    pos: usize,
+) -> Option<(usize, usize)> {
+    let mut lines: Vec<&Comment> = comments
+        .iter()
+        .filter(|c| c.is_line() && (c.span.end as usize) <= pos)
+        .collect();
+    lines.sort_by_key(|c| c.span.start);
+
+    let mut end: Option<usize> = None;
+    let mut start: Option<usize> = None;
+    for comment in lines.iter().rev() {
+        // `end === -1 ? pos : start` — `start` тут ще від ПОПЕРЕДНЬОЇ ітерації.
+        let gap_end = start.unwrap_or(pos);
+        if doc_comment_gap_breaks(&src[comment.span.end as usize..gap_end]) {
+            break;
+        }
+        if end.is_none() {
+            end = Some(comment.span.end as usize);
+        }
+        start = Some(comment.span.start as usize);
+    }
+    match (start, end) {
+        (Some(start), Some(end)) => Some((start, end)),
+        _ => None,
+    }
+}
+
+/// Точний порт `promotableHeaderBlock` (`main.mjs:114-127`).
+fn promotable_header_block(
+    comments: &[Comment],
+    src: &str,
+    shebang_re: &regex::Regex,
+) -> Option<(usize, usize)> {
+    let first = comments.first()?;
+    if !first.is_line() {
+        return None;
+    }
+    let before = &src[..first.span.start as usize];
+    if !js_trim(&shebang_re.replace(before, "")).is_empty() {
+        return None;
+    }
+    let mut end = first.span.end as usize;
+    for comment in comments.iter().skip(1) {
+        if !comment.is_line() {
+            break;
+        }
+        if doc_comment_gap_breaks(&src[end..comment.span.start as usize]) {
+            break;
+        }
+        end = comment.span.end as usize;
+    }
+    Some((first.span.start as usize, end))
+}
+
+/// `data`-payload promotable-порушення: `{promotable, start, end}` плюс
+/// опційний `name`. ЄДИНЕ місце, де байтові офсети стають UTF-16
+/// (доккомент секції, точка конверсії 1).
+fn doc_comment_promotable_data(src: &str, block: (usize, usize), name: Option<&str>) -> String {
+    let start = byte_offset_to_utf16(src, block.0);
+    let end = byte_offset_to_utf16(src, block.1);
+    match name {
+        Some(name) => format!(
+            "{{\"promotable\":true,\"start\":{start},\"end\":{end},\"name\":{}}}",
+            json_escape_string(name)
+        ),
+        None => format!("{{\"promotable\":true,\"start\":{start},\"end\":{end}}}"),
+    }
+}
+
+/// Точний порт `checkFileDocComments` (`main.mjs:149-177`): header + JSDoc над
+/// кожним експортом; файл без експортів і файл із syntax-error — поза вимогою.
+fn check_file_doc_comments(src: &str, rel_posix: &str) -> Vec<Diagnostic> {
+    let allocator = Allocator::default();
+    let ret = Parser::new(&allocator, src, scan_source_type(rel_posix)).parse();
+    // Порт `parseProgramAndCommentsOrNull` → `null` (`result.errors?.length`):
+    // синтаксис ловлять інші концерни.
+    if !ret.diagnostics.is_empty() {
+        return Vec::new();
+    }
+    let comments = ret.program.comments.as_slice();
+    let exports = collect_doc_comment_exports(&ret.program);
+    if exports.is_empty() {
+        return Vec::new();
+    }
+
+    let shebang_re = regex::Regex::new(DOC_COMMENTS_SHEBANG_PATTERN)
+        .expect("DOC_COMMENTS_SHEBANG_PATTERN валідний");
+    let mut violations = Vec::new();
+    if !has_doc_comment_file_header(comments, src, &shebang_re) {
+        let block = promotable_header_block(comments, src, &shebang_re);
+        violations.push(Diagnostic {
+            reason: DOC_COMMENTS_MISSING_HEADER_REASON.to_string(),
+            message: format!(
+                "{rel_posix}: файл з експортами без провідного header-JSDoc. {DOC_COMMENTS_FILE_HEADER_HINT}"
+            ),
+            file: Some(rel_posix.to_string()),
+            severity: Severity::Error,
+            data: Some(match block {
+                Some(block) => doc_comment_promotable_data(src, block, None),
+                None => "{}".to_string(),
+            }),
+        });
+    }
+    for export in &exports {
+        if has_js_doc_comment_before(comments, src, export.start) {
+            continue;
+        }
+        let block = promotable_line_block_before(comments, src, export.start);
+        violations.push(Diagnostic {
+            reason: DOC_COMMENTS_MISSING_EXPORT_REASON.to_string(),
+            message: format!(
+                "{rel_posix}: export {} без JSDoc-опису. {DOC_COMMENTS_EXPORT_DOC_HINT}",
+                export.name
+            ),
+            file: Some(rel_posix.to_string()),
+            severity: Severity::Error,
+            data: Some(match block {
+                Some(block) => doc_comment_promotable_data(src, block, Some(&export.name)),
+                None => format!("{{\"name\":{}}}", json_escape_string(&export.name)),
+            }),
+        });
+    }
+    violations
+}
+
+/// Точний порт `lint()` `js/doc_comments` (`main.mjs:184-198`), гілка з
+/// переданими `files` — PER-FILE (розбіжність 3 доккомента секції).
+fn detect_doc_comments(files: &[SourceFile]) -> Vec<Diagnostic> {
+    let excluded_re = regex::Regex::new(DOC_COMMENTS_EXCLUDED_FILE_PATTERN)
+        .expect("DOC_COMMENTS_EXCLUDED_FILE_PATTERN валідний");
+    let ext_re = regex::Regex::new(DOC_COMMENTS_SOURCE_EXT_PATTERN)
+        .expect("DOC_COMMENTS_SOURCE_EXT_PATTERN валідний");
+    let mut out = Vec::new();
+    for file in files {
+        if !is_doc_comment_target(&file.path, &excluded_re, &ext_re) {
+            continue;
+        }
+        out.extend(check_file_doc_comments(&file.content, &file.path));
+    }
+    out
+}
+
+/// Чи `block` усе ще суцільний блок `//`-коментарів. Guard ідемпотентності
+/// (доккомент секції, підрозділ «Дефект JS-канону»): зріз за несвіжими
+/// офсетами вже підвищеного блоку цю перевірку не проходить, тож фікс стає
+/// no-op замість того, щоб різати `/** … */` посередині.
+fn is_line_comment_block(block: &str, line_start_re: &regex::Regex) -> bool {
+    block.split('\n').all(|line| line_start_re.is_match(line))
+}
+
+/// Точний порт `promoteLineBlock` (`fix-doc_comments.mjs:19-32`) — текст
+/// автора зберігається дослівно, `*/` усередині екранується.
+fn promote_line_block(block: &str, indent: &str, prefix_re: &regex::Regex) -> String {
+    let texts: Vec<String> = block
+        .split('\n')
+        .map(|line| js_trim_end(&prefix_re.replace(line, "")).replace("*/", r"*\/"))
+        .collect();
+    if texts.len() == 1 {
+        return format!("{indent}/** {} */", texts[0]);
+    }
+    let mut out = Vec::with_capacity(texts.len() + 2);
+    out.push(format!("{indent}/**"));
+    for text in &texts {
+        out.push(js_trim_end(&format!("{indent} * {text}")).to_string());
+    }
+    out.push(format!("{indent} */"));
+    out.join("\n")
+}
+
+/// Promotable-блоки з `data` однієї діагностики — `(start, end)` у **UTF-16**
+/// (як їх поклав [`doc_comment_promotable_data`]).
+fn promotable_block_from_data(diagnostic: &Diagnostic) -> Option<(usize, usize)> {
+    let value: serde_json::Value = serde_json::from_str(diagnostic.data.as_deref()?).ok()?;
+    if value.get("promotable").and_then(serde_json::Value::as_bool) != Some(true) {
+        return None;
+    }
+    let start = value.get("start").and_then(serde_json::Value::as_u64)?;
+    let end = value.get("end").and_then(serde_json::Value::as_u64)?;
+    Some((start as usize, end as usize))
+}
+
+/// Fix-план `js/doc_comments` — семантичний порт T0-патерна
+/// `promote-line-comments-to-jsdoc` (`fix-doc_comments.mjs:35-75`):
+///
+/// 1. групування promotable-порушень за файлом (порядок вставки — дзеркало
+///    `Map`); вміст береться з `request.files`, не з диска (спека §3.2);
+/// 2. дедуплікація за `start` (header і export можуть вказувати на ТОЙ САМИЙ
+///    блок; при збігу перемагає останній запис — дзеркало
+///    `new Map(blocks.map(b => [b.start, b]))`);
+/// 3. заміна з кінця файлу до початку, щоб офсети попередніх блоків не
+///    зсувались;
+/// 4. блок не на початку рядка — не чіпаємо; блок, що вже не є `//`-блоком —
+///    теж (guard [`is_line_comment_block`]);
+/// 5. файл без реальних змін у план не потрапляє (`next === content`).
+fn fix_doc_comments(request: &FixRequest) -> FixPlan {
+    let prefix_re = regex::Regex::new(DOC_COMMENTS_LINE_PREFIX_PATTERN)
+        .expect("DOC_COMMENTS_LINE_PREFIX_PATTERN валідний");
+    let line_start_re = regex::Regex::new(DOC_COMMENTS_LINE_START_PATTERN)
+        .expect("DOC_COMMENTS_LINE_START_PATTERN валідний");
+
+    let mut by_file: Vec<(&str, Vec<(usize, usize)>)> = Vec::new();
+    for diagnostic in &request.diagnostics {
+        let Some(block) = promotable_block_from_data(diagnostic) else {
+            continue;
+        };
+        // Розбіжність 1 доккомента секції: без `file` JS-фіксер впав би.
+        let Some(file) = diagnostic.file.as_deref() else {
+            continue;
+        };
+        match by_file.iter_mut().find(|(path, _)| *path == file) {
+            Some((_, blocks)) => blocks.push(block),
+            None => by_file.push((file, vec![block])),
+        }
+    }
+
+    let mut edits = Vec::new();
+    for (file, blocks) in &by_file {
+        let Some(source) = request.files.iter().find(|f| f.path == *file) else {
+            continue;
+        };
+        let mut unique: Vec<(usize, usize)> = Vec::new();
+        for &(start, end) in blocks {
+            match unique.iter_mut().find(|(known, _)| *known == start) {
+                Some(slot) => slot.1 = end,
+                None => unique.push((start, end)),
+            }
+        }
+        // Спадання позиції — спільний інваріант усіх edit-планів гостя.
+        unique.sort_by(|a, b| b.0.cmp(&a.0));
+
+        let mut next = source.content.clone();
+        for (start_utf16, end_utf16) in unique {
+            // Точка конверсії 2 (доккомент секції): UTF-16 з `data` → байти
+            // ОРИГІНАЛЬНОГО вмісту. Заміни йдуть від кінця, тож префікс до
+            // `start` у `next` ще не змінений — байтові офсети лишаються
+            // валідними й після попередніх ітерацій.
+            let start = utf16_offset_to_byte(&source.content, start_utf16);
+            let end = utf16_offset_to_byte(&source.content, end_utf16);
+            if start >= end || end > next.len() {
+                continue;
+            }
+            let line_start = next[..start].rfind('\n').map_or(0, |index| index + 1);
+            let indent = next[line_start..start].to_string();
+            if !js_trim(&indent).is_empty() {
+                continue;
+            }
+            if !is_line_comment_block(&next[start..end], &line_start_re) {
+                continue;
+            }
+            let promoted = promote_line_block(&next[start..end], &indent, &prefix_re);
+            next.replace_range(line_start..end, &promoted);
+        }
+        if next == source.content {
+            continue;
+        }
+        edits.push(FileEdit::Write(WriteFile {
+            path: source.path.clone(),
+            content: next,
+        }));
+    }
+    FixPlan { edits }
+}
+
+/// Guest-реалізація world `plugin` — тридцять шість контрибуцій ([`CONCERN_TFM`],
 /// [`CONCERN_GAP`], [`CONCERN_POOL_FORKS`], [`CONCERN_NO_PROCESS_CHDIR`],
 /// [`CONCERN_ADMIN_TABLE`], [`CONCERN_QUASAR_FIXES`], [`CONCERN_LOCATION`],
 /// [`CONCERN_NO_CONSOLE_STORE_RESTORE`], [`CONCERN_NO_BUN_TEST_IMPORT`],
@@ -9982,7 +10563,10 @@ fn detect_js_check(files: &[SourceFile]) -> Vec<Diagnostic> {
 /// батч 8, доккомент секції «Батч 8» вище; [`CONCERN_VUE_PACKAGES`] — батч 9,
 /// доккомент секції «Батч 9» вище; [`CONCERN_STRYKER_CONFIG`] — зріз 1
 /// контракту v3.1, доккомент секції «Зріз 1» вище; [`CONCERN_JS_CHECK`] —
-/// зріз 2, доккомент секції «Зріз 2» вище).
+/// зріз 2, доккомент секції «Зріз 2» вище; [`CONCERN_DOC_COMMENTS`] — зріз 4,
+/// ЄДИНИЙ (крім [`CONCERN_TFM`]) per-file концерн і другий після
+/// [`CONCERN_NO_BUN_TEST_IMPORT`] із реальним `export fix`, доккомент секції
+/// «Зріз 4» вище).
 struct LangJs;
 
 impl Guest for LangJs {
@@ -10137,6 +10721,16 @@ impl Guest for LangJs {
                 report_progress(total, total);
                 detect_js_check(&batch.files)
             }
+            // PER-FILE (зріз 4): кожен файл — свій крок прогресу, як
+            // дефолтна `CONCERN_TFM`-гілка нижче.
+            CONCERN_DOC_COMMENTS => {
+                let mut diagnostics = Vec::new();
+                for (index, file) in batch.files.iter().enumerate() {
+                    report_progress(index as u32 + 1, total);
+                    diagnostics.extend(detect_doc_comments(std::slice::from_ref(file)));
+                }
+                diagnostics
+            }
             _ => {
                 let mut diagnostics = Vec::new();
                 for (index, file) in batch.files.iter().enumerate() {
@@ -10158,14 +10752,17 @@ impl Guest for LangJs {
         diagnostics
     }
 
-    /// fix-контур contract v3 (пілот): `test/no-bun-test-import` будує
-    /// реальний план ([`fix_no_bun_test_import`] — Rust-порт видаленого
-    /// `fix-no-bun-test-import.mjs`); решта концернів — порожній план
-    /// («нічого не чинити», сумісна заглушка — доккомент `wit/world.wit`
-    /// біля `export fix`).
+    /// fix-контур contract v3: `test/no-bun-test-import` (пілот,
+    /// [`fix_no_bun_test_import`] — Rust-порт видаленого
+    /// `fix-no-bun-test-import.mjs`) і `js/doc_comments` (зріз 4 контракту
+    /// v3.1, [`fix_doc_comments`] — порт `fix-doc_comments.mjs`, який тут,
+    /// на відміну від пілота, ЛИШАЄТЬСЯ як JS-fallback); решта концернів —
+    /// порожній план («нічого не чинити», сумісна заглушка — доккомент
+    /// `wit/world.wit` біля `export fix`).
     fn fix(request: FixRequest) -> FixPlan {
         match request.concern_id.as_str() {
             CONCERN_NO_BUN_TEST_IMPORT => fix_no_bun_test_import(&request),
+            CONCERN_DOC_COMMENTS => fix_doc_comments(&request),
             _ => FixPlan { edits: vec![] },
         }
     }
@@ -12585,7 +13182,7 @@ mod tests {
     // --- маніфест ---
 
     #[test]
-    fn build_manifest_declares_all_thirty_five_concerns_with_expected_scopes() {
+    fn build_manifest_declares_all_thirty_six_concerns_with_expected_scopes() {
         let manifest = build_manifest();
         // Задача Q4 батч 4: `CONCERN_REDIS_IMPORTS`/`CONCERN_MSSQL_DEPS`/
         // `CONCERN_BUN_DB_SAFETY` тепер У контрибуції (AST-порти, де-скоуп
@@ -12598,14 +13195,19 @@ mod tests {
         // `test/vitest-api-conventions` (доккомент секції «Батч 8»), батч 9 —
         // `vue/packages` (доккомент секції «Батч 9»), зріз 1 контракту
         // v3.1 — `test/stryker_config` (доккомент секції «Зріз 1»), зріз 2
-        // — `js/check` (доккомент секції «Зріз 2»).
-        assert_eq!(manifest.concerns.len(), 35);
-        let tfm = manifest
-            .concerns
-            .iter()
-            .find(|c| c.key == CONCERN_TFM)
-            .expect("tfm contribution має бути в маніфесті");
-        assert_eq!(tfm.scope, ConcernScope::PerFile);
+        // — `js/check` (доккомент секції «Зріз 2»), зріз 4 —
+        // `js/doc_comments` (доккомент секції «Зріз 4», ДРУГА per-file
+        // контрибуція плагіна).
+        assert_eq!(manifest.concerns.len(), 36);
+        for key in [CONCERN_TFM, CONCERN_DOC_COMMENTS] {
+            let contribution = manifest
+                .concerns
+                .iter()
+                .find(|c| c.key == key)
+                .unwrap_or_else(|| panic!("{key} contribution має бути в маніфесті"));
+            assert_eq!(contribution.scope, ConcernScope::PerFile);
+            assert!(!contribution.glob.is_empty());
+        }
         for key in [
             CONCERN_GAP,
             CONCERN_POOL_FORKS,
@@ -13602,5 +14204,286 @@ plugins: [VueMacros({}), AutoImport({ imports: ['vue'] })] }\n";
             "import { ref } from 'vue'"
         );
         assert_eq!(normalize_snippet_160(&"я".repeat(200)).chars().count(), 160);
+    }
+
+    // -----------------------------------------------------------------
+    // Зріз 4 контракту v3.1: `js/doc_comments` (detect + T0-фікс).
+    // -----------------------------------------------------------------
+
+    /// Хелпер: `FixRequest` з одного файлу й списку `(reason, data)`.
+    fn doc_comments_fix_request(path: &str, content: &str, diagnostics: &[&str]) -> FixRequest {
+        FixRequest {
+            concern_id: CONCERN_DOC_COMMENTS.to_string(),
+            files: vec![src(path, content)],
+            diagnostics: diagnostics
+                .iter()
+                .map(|data| Diagnostic {
+                    reason: DOC_COMMENTS_MISSING_EXPORT_REASON.to_string(),
+                    message: String::new(),
+                    file: Some(path.to_string()),
+                    severity: Severity::Error,
+                    data: Some((*data).to_string()),
+                })
+                .collect(),
+        }
+    }
+
+    /// Вміст першого `write`-edit плану (або `None`, якщо план порожній).
+    fn first_write_content(plan: &FixPlan) -> Option<&str> {
+        plan.edits.first().map(|edit| match edit {
+            FileEdit::Write(write) => write.content.as_str(),
+            FileEdit::Delete(_) => panic!("doc_comments не видаляє файлів"),
+        })
+    }
+
+    #[test]
+    fn is_doc_comment_target_mirrors_js_predicate() {
+        let excluded = regex::Regex::new(DOC_COMMENTS_EXCLUDED_FILE_PATTERN).unwrap();
+        let ext = regex::Regex::new(DOC_COMMENTS_SOURCE_EXT_PATTERN).unwrap();
+        for path in ["a.js", "a.mjs", "a.cjs", "a.ts", "src/deep/a.mjs"] {
+            assert!(is_doc_comment_target(path, &excluded, &ext), "{path}");
+        }
+        for path in [
+            "a.test.mjs",
+            "a.spec.js",
+            "types/a.d.ts",
+            "tests/a.mjs",
+            "src/fixtures/a.mjs",
+            "__mocks__/a.mjs",
+            "a.vue",
+            "a.json",
+        ] {
+            assert!(!is_doc_comment_target(path, &excluded, &ext), "{path}");
+        }
+    }
+
+    /// ЦЕНТРАЛЬНИЙ тест зрізу: на не-ASCII вмісті байтовий і UTF-16 офсети
+    /// РОЗХОДЯТЬСЯ, і `data` мусить нести саме UTF-16 (точка конверсії 1).
+    #[test]
+    fn detect_doc_comments_emits_utf16_offsets_not_byte_offsets() {
+        // Кирилиця (2 байти/1 UTF-16 unit) + емодзі поза BMP
+        // (4 байти/2 UTF-16 units) ПЕРЕД promotable-блоком.
+        let content = "const кирилиця = '😀'\n// опис експорту\nexport function f() {}\n";
+        let diagnostics = detect_doc_comments(&[src("src/файл.mjs", content)]);
+        let export = diagnostics
+            .iter()
+            .find(|d| d.reason == DOC_COMMENTS_MISSING_EXPORT_REASON)
+            .expect("export без JSDoc — порушення");
+        let data: serde_json::Value =
+            serde_json::from_str(export.data.as_deref().unwrap()).unwrap();
+        assert_eq!(data["promotable"], serde_json::json!(true));
+
+        let byte_start = content.find("// опис").unwrap();
+        let utf16_start = data["start"].as_u64().unwrap() as usize;
+        // Саме це й ловить фікстура: наївний порт віддав би байти.
+        assert_ne!(utf16_start, byte_start);
+        assert_eq!(
+            utf16_start,
+            content[..byte_start]
+                .chars()
+                .map(char::len_utf16)
+                .sum::<usize>()
+        );
+        assert_eq!(
+            utf16_offset_to_byte(content, utf16_start),
+            byte_start,
+            "зворотна конверсія має бути точною"
+        );
+        let utf16_end = data["end"].as_u64().unwrap() as usize;
+        assert_eq!(
+            &content[byte_start..utf16_offset_to_byte(content, utf16_end)],
+            "// опис експорту"
+        );
+    }
+
+    #[test]
+    fn byte_and_utf16_offset_conversions_round_trip() {
+        let src = "а😀b";
+        assert_eq!(byte_offset_to_utf16(src, 0), 0);
+        assert_eq!(byte_offset_to_utf16(src, 2), 1); // після 'а' (2 байти)
+        assert_eq!(byte_offset_to_utf16(src, 6), 3); // після емодзі (сурогатна пара)
+        assert_eq!(utf16_offset_to_byte(src, 3), 6);
+        assert_eq!(utf16_offset_to_byte(src, 999), src.len());
+    }
+
+    #[test]
+    fn detect_doc_comments_reports_header_and_each_export() {
+        let content = "export const a = 1\nexport function b() {}\n";
+        let diagnostics = detect_doc_comments(&[src("src/a.mjs", content)]);
+        assert_eq!(diagnostics.len(), 3);
+        assert_eq!(diagnostics[0].reason, DOC_COMMENTS_MISSING_HEADER_REASON);
+        assert_eq!(diagnostics[0].data.as_deref(), Some("{}"));
+        assert!(diagnostics[1].message.contains("export a без JSDoc-опису"));
+        assert!(diagnostics[2].message.contains("export b без JSDoc-опису"));
+        assert_eq!(diagnostics[2].data.as_deref(), Some("{\"name\":\"b\"}"));
+    }
+
+    #[test]
+    fn detect_doc_comments_skips_files_without_exports_and_broken_syntax() {
+        assert!(detect_doc_comments(&[src("a.mjs", "const x = 1\n")]).is_empty());
+        assert!(detect_doc_comments(&[src("a.mjs", "export function (\n")]).is_empty());
+        // Не-цільовий файл фільтрується ще до парсингу.
+        assert!(detect_doc_comments(&[src("tests/a.mjs", "export const a = 1\n")]).is_empty());
+    }
+
+    #[test]
+    fn detect_doc_comments_accepts_jsdoc_header_after_shebang() {
+        let content =
+            "#!/usr/bin/env node\n/** Огляд файлу. */\n/** Опис. */\nexport const a = 1\n";
+        assert!(detect_doc_comments(&[src("bin/a.mjs", content)]).is_empty());
+    }
+
+    /// Порожній рядок між `//`-блоком і символом розриває «впритул»-звʼязок —
+    /// порушення лишається, але вже НЕ promotable.
+    #[test]
+    fn detect_doc_comments_blank_line_breaks_promotable_link() {
+        let content = "/** Огляд. */\n// відірваний коментар\n\nexport const a = 1\n";
+        let diagnostics = detect_doc_comments(&[src("a.mjs", content)]);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].data.as_deref(), Some("{\"name\":\"a\"}"));
+    }
+
+    #[test]
+    fn collect_doc_comment_exports_covers_default_and_destructuring() {
+        let allocator = Allocator::default();
+        let source = "export default class {}\n";
+        let ret = Parser::new(&allocator, source, scan_source_type("a.mjs")).parse();
+        let exports = collect_doc_comment_exports(&ret.program);
+        assert_eq!(exports.len(), 1);
+        assert_eq!(exports[0].name, "default");
+
+        let allocator = Allocator::default();
+        let source = "export const { a } = obj\nexport const b = 1, c = 2\n";
+        let ret = Parser::new(&allocator, source, scan_source_type("a.mjs")).parse();
+        let names: Vec<String> = collect_doc_comment_exports(&ret.program)
+            .into_iter()
+            .map(|e| e.name)
+            .collect();
+        // `{ a }` — не `Identifier`, тож поза вимогою (дзеркало `collectExports`).
+        assert_eq!(names, vec!["b", "c"]);
+    }
+
+    #[test]
+    fn fix_doc_comments_promotes_single_and_multi_line_blocks() {
+        let content = "// Огляд файлу\nexport const a = 1\n";
+        let plan = fix_doc_comments(&doc_comments_fix_request(
+            "a.mjs",
+            content,
+            &["{\"promotable\":true,\"start\":0,\"end\":14,\"name\":\"a\"}"],
+        ));
+        assert_eq!(
+            first_write_content(&plan),
+            Some("/** Огляд файлу */\nexport const a = 1\n")
+        );
+
+        let content = "  // перший\n  // другий\n  export const a = 1\n";
+        // Офсети в `data` — UTF-16 (точка конверсії 1), а `find` віддає байти.
+        let start = byte_offset_to_utf16(content, content.find("//").unwrap());
+        let end = byte_offset_to_utf16(content, content.find("\n  export").unwrap());
+        let plan = fix_doc_comments(&doc_comments_fix_request(
+            "a.mjs",
+            content,
+            &[&format!(
+                "{{\"promotable\":true,\"start\":{start},\"end\":{end},\"name\":\"a\"}}"
+            )],
+        ));
+        assert_eq!(
+            first_write_content(&plan),
+            Some("  /**\n   * перший\n   * другий\n   */\n  export const a = 1\n")
+        );
+    }
+
+    /// Той самий не-ASCII ризик, але з боку `fix`: без зворотної конверсії
+    /// зріз поїхав би й guard [`is_line_comment_block`] відкинув би блок.
+    #[test]
+    fn fix_doc_comments_converts_utf16_offsets_back_to_bytes() {
+        let content = "const кирилиця = '😀'\n// опис 😀\nexport function f() {}\n";
+        let diagnostics = detect_doc_comments(&[src("a.mjs", content)]);
+        let data = diagnostics
+            .iter()
+            .find(|d| d.reason == DOC_COMMENTS_MISSING_EXPORT_REASON)
+            .and_then(|d| d.data.clone())
+            .unwrap();
+        let plan = fix_doc_comments(&doc_comments_fix_request("a.mjs", content, &[&data]));
+        assert_eq!(
+            first_write_content(&plan),
+            Some("const кирилиця = '😀'\n/** опис 😀 */\nexport function f() {}\n")
+        );
+    }
+
+    /// Guard ідемпотентності: повторний прогін тих самих (уже несвіжих)
+    /// офсетів по ВЖЕ підвищеному файлу нічого не чинить.
+    #[test]
+    fn fix_doc_comments_is_idempotent_on_stale_offsets() {
+        let content = "// Огляд файлу\nexport const a = 1\n";
+        let data = "{\"promotable\":true,\"start\":0,\"end\":14,\"name\":\"a\"}";
+        let promoted = first_write_content(&fix_doc_comments(&doc_comments_fix_request(
+            "a.mjs",
+            content,
+            &[data],
+        )))
+        .unwrap()
+        .to_string();
+        let plan = fix_doc_comments(&doc_comments_fix_request("a.mjs", &promoted, &[data]));
+        assert!(plan.edits.is_empty(), "другий прогін має бути no-op");
+    }
+
+    #[test]
+    fn fix_doc_comments_skips_non_promotable_and_indented_blocks() {
+        // Не-promotable діагностика → порожній план.
+        let plan = fix_doc_comments(&doc_comments_fix_request(
+            "a.mjs",
+            "export const a = 1\n",
+            &["{\"name\":\"a\"}"],
+        ));
+        assert!(plan.edits.is_empty());
+
+        // Блок не на початку рядка (перед ним код) — не чіпаємо.
+        let content = "const x = 1 // хвостовий\nexport const a = 1\n";
+        let start = byte_offset_to_utf16(content, content.find("//").unwrap());
+        let end = byte_offset_to_utf16(content, content.find('\n').unwrap());
+        let plan = fix_doc_comments(&doc_comments_fix_request(
+            "a.mjs",
+            content,
+            &[&format!(
+                "{{\"promotable\":true,\"start\":{start},\"end\":{end},\"name\":\"a\"}}"
+            )],
+        ));
+        assert!(plan.edits.is_empty());
+    }
+
+    #[test]
+    fn promote_line_block_escapes_closing_delimiter() {
+        let prefix_re = regex::Regex::new(DOC_COMMENTS_LINE_PREFIX_PATTERN).unwrap();
+        assert_eq!(
+            promote_line_block("// глоб **/*.js", "", &prefix_re),
+            r"/** глоб **\/*.js */"
+        );
+    }
+
+    /// Header і export можуть вказувати на ТОЙ САМИЙ блок — дедуп за `start`
+    /// не дає підвищити його двічі.
+    #[test]
+    fn fix_doc_comments_deduplicates_shared_block() {
+        let content = "// Спільний блок\nexport const a = 1\n";
+        let diagnostics = detect_doc_comments(&[src("a.mjs", content)]);
+        assert_eq!(diagnostics.len(), 2, "header + export на тому самому блоці");
+        let request = FixRequest {
+            concern_id: CONCERN_DOC_COMMENTS.to_string(),
+            files: vec![src("a.mjs", content)],
+            diagnostics,
+        };
+        assert_eq!(
+            first_write_content(&fix_doc_comments(&request)),
+            Some("/** Спільний блок */\nexport const a = 1\n")
+        );
+    }
+
+    #[test]
+    fn js_trim_matches_ecma_whitespace_set() {
+        // U+FEFF — пробіл для JS, але не для `char::is_whitespace`.
+        assert!(js_trim("\u{feff}  ").is_empty());
+        // U+0085 — навпаки: Unicode `White_Space`, але не JS-пробіл.
+        assert_eq!(js_trim("\u{85}"), "\u{85}");
     }
 }
