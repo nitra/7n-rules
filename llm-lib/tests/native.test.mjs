@@ -5,7 +5,7 @@
  * ін'єктованих deps, без реального dlopen.
  */
 
-import { describe, expect, test } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 
 import { loadNative, resolveNativeAddon } from '../lib/internal/native.mjs'
 
@@ -156,5 +156,47 @@ describe('loadNative (кеш процесу)', () => {
     expect(first).toBe(addon)
     expect(second).toBe(addon)
     expect(dlopens).toBe(1)
+  })
+})
+
+/**
+ * Регресія 2026-08-04 (PR #376): `existsSync` — не доказ завантажуваності.
+ * `gen-tests.test.mjs` мокає `node:fs` так, що `existsSync` завжди `true`;
+ * loader вважав неіснуючу локальну збірку валідною і падав `dlopen`-ом
+ * замість того, щоб узяти справний підпакет поруч. Тому джерела — ланцюг,
+ * і невдалий dlopen веде до наступного кандидата.
+ *
+ * Кеш модуля глобальний, тож кожен кейс бере свіжий інстанс через
+ * `vi.resetModules()` — інакше перший завантажений аддон переміг би решту.
+ */
+describe('loadNative (ланцюг кандидатів)', () => {
+  test('невдалий dlopen першого кандидата → береться наступний', async () => {
+    vi.resetModules()
+    const fresh = await import('../lib/internal/native.mjs')
+    const addon = { oneShotAcp: 'з підпакета' }
+    const tried = []
+    const got = fresh.loadNative({
+      resolveChain: () => ['/repo/target/release/libllm_lib_napi.dylib', '/node_modules/@7n/ok.node'],
+      dlopen: p => {
+        tried.push(p)
+        if (p.includes('target/release')) throw new Error('no such file')
+        return addon
+      }
+    })
+    expect(got).toBe(addon)
+    expect(tried).toEqual(['/repo/target/release/libllm_lib_napi.dylib', '/node_modules/@7n/ok.node'])
+  })
+
+  test('усі кандидати впали → помилка з підказкою і причиною останньої спроби', async () => {
+    vi.resetModules()
+    const fresh = await import('../lib/internal/native.mjs')
+    expect(() =>
+      fresh.loadNative({
+        resolveChain: () => ['/a.node', '/b.node'],
+        dlopen: p => {
+          throw new Error(`битий ${p}`)
+        }
+      })
+    ).toThrow(/llm-lib native addon[\s\S]*битий \/b\.node/)
   })
 })

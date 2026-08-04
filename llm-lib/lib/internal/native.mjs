@@ -80,7 +80,46 @@ function isSourceTree(repoRoot, exists) {
 }
 
 /**
- * Резолвить шлях до napi-аддона `llm-lib`.
+ * Кандидати локальної збірки: сирий cdylib з `cargo build -p llm-lib-napi`
+ * (release перед debug) і вивід `napi build` у `llm-lib/crates/llm-lib-napi/`.
+ * @param {string} repoRoot корінь, від якого рахуються шляхи
+ * @param {string} platform process.platform
+ * @param {string|undefined} suffix napi-суфікс платформи
+ * @returns {string[]} шляхи кандидатів у порядку пріоритету
+ */
+function localBuildCandidates(repoRoot, platform, suffix) {
+  const candidates = Array.from(['release', 'debug'], profile =>
+    join(repoRoot, 'target', profile, cdylibName(platform))
+  )
+  if (suffix) {
+    candidates.push(join(repoRoot, 'llm-lib', 'crates', 'llm-lib-napi', `llm-lib-napi.${suffix}.node`))
+  }
+  return candidates
+}
+
+/**
+ * Помилка «немає збірки» з підказкою і причиною останньої невдачі.
+ * @param {string} key `${platform}-${arch}`
+ * @param {string} lastError текст останньої помилки dlopen (може бути порожнім)
+ * @returns {Error} готова помилка
+ */
+function missingAddonError(key, lastError) {
+  const tail = lastError ? ` Остання спроба — ${lastError}.` : ''
+  return new Error(
+    `llm-lib native addon: немає збірки для "${key}". ` +
+      `Постав N_LLM_LIB_NATIVE_ADDON=/шлях/до/аддона, додай підпакет @7n/llm-lib-${key}, ` +
+      `або збери локально: cargo build --release -p llm-lib-napi.${tail}`
+  )
+}
+
+/**
+ * Ланцюг кандидатів аддона в порядку пріоритету.
+ *
+ * Повертає СПИСОК, а не один шлях, свідомо: `existsSync` — не доказ, що аддон
+ * завантажиться (файл може бути з іншої платформи, побитий, або `existsSync`
+ * підмінений моком у тесті, що не має до аддона стосунку — саме так
+ * `gen-tests.test.mjs` валив увесь контур). Остаточний вибір робить
+ * [`loadNative`], пробуючи кандидатів по черзі.
  * @param {{
  *   env?: Record<string, string | undefined>,
  *   platform?: string,
@@ -89,9 +128,9 @@ function isSourceTree(repoRoot, exists) {
  *   requireResolve?: (id: string) => string,
  *   repoRoot?: string
  * }} [deps] ін'єкції для тестів
- * @returns {string} шлях до файлу аддона
+ * @returns {string[]} шляхи в порядку пріоритету (може бути порожнім)
  */
-export function resolveNativeAddon(deps = {}) {
+export function nativeAddonChain(deps = {}) {
   const env = deps.env ?? procEnv
   const platform = deps.platform ?? osPlatform
   const arch = deps.arch ?? osArch
@@ -99,64 +138,79 @@ export function resolveNativeAddon(deps = {}) {
   const requireResolve = deps.requireResolve ?? (id => require.resolve(id))
   const repoRoot = deps.repoRoot ?? REPO_ROOT
 
-  // 1. Явний override.
+  // Явний override — єдине джерело: якщо він заданий і не вантажиться,
+  // мовчазний відкат приховав би саме те, що просили перевірити.
   const override = env.N_LLM_LIB_NATIVE_ADDON
-  if (override) return override
+  if (override) return [override]
 
   const key = `${platform}-${arch}`
   const suffix = NAPI_SUFFIXES[key]
 
-  // Кандидати локальної збірки: сирий cdylib з `cargo build -p llm-lib-napi`
-  // (release перед debug) і вивід `napi build` у `llm-lib/crates/llm-lib-napi/`.
-  const candidates = Array.from(['release', 'debug'], profile =>
-    join(repoRoot, 'target', profile, cdylibName(platform))
-  )
-  if (suffix) {
-    candidates.push(join(repoRoot, 'llm-lib', 'crates', 'llm-lib-napi', `llm-lib-napi.${suffix}.node`))
-  }
-
-  // 2. Вихідне дерево (dev / CI цього репо): локальна збірка — перша, інакше
-  // свіжий `cargo build -p llm-lib-napi` мовчки перекривався б підпакетом.
+  // Маркер вихідного дерева перевіряється ПЕРШИМ — саме він обирає порядок
+  // джерел, тож рахувати його після кандидатів було б плутаниною (і ламало б
+  // гейт на порядок звернень до fs).
   const fromSource = isSourceTree(repoRoot, exists)
-  if (fromSource) {
-    for (const candidate of candidates) {
-      if (exists(candidate)) return candidate
-    }
-  }
+  const local = localBuildCandidates(repoRoot, platform, suffix).filter(p => exists(p))
 
-  // 3. Platform-підпакет — авторитетне джерело у користувача (прод).
+  /** @type {string[]} */
+  let subpackage = []
   if (suffix) {
     try {
-      return requireResolve(`@7n/llm-lib-${key}/llm-lib-napi.${suffix}.node`)
+      subpackage = [requireResolve(`@7n/llm-lib-${key}/llm-lib-napi.${suffix}.node`)]
     } catch {
-      // не встановлено — пробуємо локальну збірку
+      // не встановлено — лишається лише локальна збірка
     }
   }
 
-  // 4. Локальна збірка поза вихідним деревом (поведінка така сама, як до фіксу).
-  if (!fromSource) {
-    for (const candidate of candidates) {
-      if (exists(candidate)) return candidate
-    }
-  }
+  // Вихідне дерево (dev / CI цього репо): локальна збірка попереду, інакше
+  // свіжий `cargo build -p llm-lib-napi` мовчки перекривався б підпакетом.
+  // У проді порядок зворотний — підпакет запінений і авторитетний.
+  return fromSource ? [...local, ...subpackage] : [...subpackage, ...local]
+}
 
-  // 5. Помилка з підказкою.
-  throw new Error(
-    `llm-lib native addon: немає збірки для "${key}". ` +
-      `Постав N_LLM_LIB_NATIVE_ADDON=/шлях/до/аддона, додай підпакет @7n/llm-lib-${key}, ` +
-      `або збери локально: cargo build --release -p llm-lib-napi`
-  )
+/**
+ * Резолвить шлях до napi-аддона `llm-lib` — перший кандидат ланцюга
+ * [`nativeAddonChain`]. Фактичний вибір з урахуванням невдалих dlopen
+ * робить [`loadNative`].
+ * @param {Parameters<typeof nativeAddonChain>[0]} [deps] ін'єкції для тестів
+ * @returns {string} шлях до файлу аддона
+ */
+export function resolveNativeAddon(deps = {}) {
+  const chain = nativeAddonChain(deps)
+  if (chain.length === 0) {
+    const key = `${deps.platform ?? osPlatform}-${deps.arch ?? osArch}`
+    throw missingAddonError(key, '')
+  }
+  return chain[0]
 }
 
 /**
  * Кешований доступ до аддона (одне завантаження на процес).
- * @param {{ resolve?: () => string, dlopen?: (p: string) => Record<string, unknown> }} [deps] ін'єкції
+ * @param {{
+ *   resolve?: () => string,
+ *   resolveChain?: () => string[],
+ *   dlopen?: (p: string) => Record<string, unknown>
+ * }} [deps] ін'єкції
  * @returns {Record<string, unknown>} exports аддона (oneShotAcp, resolveModel, oneShotLocalCloud)
  */
 export function loadNative(deps = {}) {
   if (cached === null) {
-    const path = (deps.resolve ?? resolveNativeAddon)()
-    cached = (deps.dlopen ?? dlopenAddon)(path)
+    const dlopen = deps.dlopen ?? dlopenAddon
+    const chain = deps.resolve ? [deps.resolve()] : (deps.resolveChain ?? nativeAddonChain)()
+
+    /** @type {Record<string, unknown> | null} */
+    let addon = null
+    let lastError = ''
+    for (const candidate of chain) {
+      try {
+        addon = dlopen(candidate)
+        break
+      } catch (error) {
+        lastError = `${candidate}: ${error.message}`
+      }
+    }
+    if (addon === null) throw missingAddonError(`${osPlatform}-${osArch}`, lastError)
+    cached = addon
   }
   return cached
 }
