@@ -2,7 +2,7 @@
 
 Rego-пакет: `k8s.hasura_configmap`
 
-**Цільові файли:** `configmap.yaml` у каталогах, де є Deployment з образом `hasura/graphql-engine`. JS (`manifests.mjs`) знаходить відповідні ConfigMap через cross-file збіг і передає їх conftest з цим namespace.
+**Цільові файли:** `configmap.yaml` у каталогах, де є Deployment з образом `hasura/graphql-engine`. Відповідні ConfigMap знаходить native-концерн `k8s/hasura_configmap` (`rules_core::concerns::k8s_hasura_configmap`) через cross-file збіг і передає їх conftest із цим namespace.
 
 **Що перевіряється (обов'язкові ключі у `data`):**
 
@@ -17,7 +17,7 @@ Rego-пакет: `k8s.hasura_configmap`
 
 Семантика: `"true"`/`"false"` приймаються як boolean або рядок (case-insensitive); точний рядок — exact match.
 
-**Примітка:** відбір ConfigMap за сусідством із Hasura-Deployment — cross-file, у JS. Rego — пер-документна валідація полів `data`.
+**Примітка:** відбір ConfigMap за сусідством із Hasura-Deployment — cross-file, у native-гейті концерну. Rego — пер-документна валідація полів `data`.
 
 ## ConfigMap: ім'я збігається з Deployment
 

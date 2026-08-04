@@ -2,11 +2,10 @@
 //! `npm/rules/k8s/manifests/main.mjs`, на які спирається кожен концерн
 //! кластера.
 //!
-//! Обсяг навмисно рівно той, що потрібен першому портованому концерну
-//! (`k8s/kubeconform`): решта хелперів кластера (`findK8sYamlFiles`,
-//! `isForbiddenK8sDevPath`, `isK8sYamlUnderBaseDirectory`) приїде разом із
-//! концерном, який їх реально викликає (`k8s/manifests`), а не наперед —
-//! інакше це поверхня без споживача.
+//! Обсяг навмисно рівно той, що потрібен уже портованим концернам кластера:
+//! решта хелперів (`isForbiddenK8sDevPath`, `isK8sYamlUnderBaseDirectory`)
+//! приїде разом із концерном, який їх реально викликає (`k8s/manifests`), а не
+//! наперед — інакше це поверхня без споживача.
 //!
 //! Портовані функції (з посиланням на рядки JS-канону):
 //!
@@ -15,6 +14,7 @@
 //! | [`path_has_k8s_segment`] | `pathHasK8sSegment` (`main.mjs:229-235`) |
 //! | [`k8s_root_from_file`] | `k8sRootFromFile` (`main.mjs:6766-6775`) |
 //! | [`find_k8s_roots`] | `findK8sRoots` (`main.mjs:6786-6801`) |
+//! | [`find_k8s_yaml_files`] | `findK8sYamlFiles` (`main.mjs:1592-1612`) |
 //!
 //! # Обхід дерева
 //!
@@ -119,6 +119,28 @@ pub fn find_k8s_roots(root: &Path, ignore_paths: &[String]) -> Vec<PathBuf> {
     roots.into_iter().map(PathBuf::from).collect()
 }
 
+/// Чи є шлях YAML-файлом за `YAML_EXTENSION_RE` (`main.mjs:187`,
+/// `/\.ya?ml$/iu`). На відміну від [`has_strict_yaml_extension`] тут `.yml`
+/// теж проходить: `k8s/manifests` сам репортує «перейменуй на .yaml», тож
+/// файл спершу треба знайти.
+fn has_yaml_extension(rel_posix: &str) -> bool {
+    let lower = rel_posix.to_ascii_lowercase();
+    lower.ends_with(".yaml") || lower.ends_with(".yml")
+}
+
+/// Усі `*.yaml`/`*.yml` під каталогами `k8s` — порт `findK8sYamlFiles`
+/// (`main.mjs:1592-1612`). Повертає **абсолютні** шляхи, відсортовані
+/// `localeCompare` (як і `findK8sRoots`).
+pub fn find_k8s_yaml_files(root: &Path, ignore_paths: &[String]) -> Vec<PathBuf> {
+    let mut files: Vec<String> = walk_k8s_candidates(root, ignore_paths)
+        .into_iter()
+        .filter(|rel| has_yaml_extension(rel))
+        .map(|rel| root.join(rel).to_string_lossy().into_owned())
+        .collect();
+    files.sort_by(|a, b| locale_compare(a, b));
+    files.into_iter().map(PathBuf::from).collect()
+}
+
 #[cfg(test)]
 mod tests {
     use tempfile::TempDir;
@@ -191,6 +213,43 @@ mod tests {
     fn find_k8s_roots_on_missing_root_is_empty() {
         let tmp = TempDir::new().unwrap();
         assert!(find_k8s_roots(&tmp.path().join("nope"), &[]).is_empty());
+    }
+
+    /// `findK8sYamlFiles` бере і `.yaml`, і `.yml` (на відміну від
+    /// `findK8sRoots`), лише під `k8s`, і сортує результат.
+    #[test]
+    fn find_k8s_yaml_files_takes_yaml_and_yml_under_k8s() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        write(&tmp, "svc/k8s/base/deploy.yaml", "kind: Deployment\n");
+        write(&tmp, "svc/k8s/base/svc.yml", "kind: Service\n");
+        write(&tmp, "svc/k8s/base/readme.md", "# no\n");
+        write(&tmp, "svc/other/config.yaml", "a: 1\n");
+
+        assert_eq!(
+            find_k8s_yaml_files(root, &[]),
+            vec![
+                root.join("svc/k8s/base/deploy.yaml"),
+                root.join("svc/k8s/base/svc.yml"),
+            ]
+        );
+    }
+
+    /// `.github/` не потрапляє у вибірку навіть із сегментом `k8s` — та сама
+    /// гілка, що й у `findK8sRoots`, і `ignorePaths` так само діють.
+    #[test]
+    fn find_k8s_yaml_files_skips_github_and_ignored() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        write(&tmp, ".github/k8s/deploy.yaml", "kind: Deployment\n");
+        write(&tmp, "vendor/k8s/base/deploy.yaml", "kind: Deployment\n");
+        write(&tmp, "svc/k8s/base/deploy.yaml", "kind: Deployment\n");
+
+        let ignored = vec![root.join("vendor").to_string_lossy().into_owned()];
+        assert_eq!(
+            find_k8s_yaml_files(root, &ignored),
+            vec![root.join("svc/k8s/base/deploy.yaml")]
+        );
     }
 
     /// `ignorePaths` (з `.cursorignore`) виключають піддерево цілком.

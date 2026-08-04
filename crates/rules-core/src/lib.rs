@@ -31,6 +31,9 @@ pub mod concerns;
 /// `read_n_rules_config_lite`/`is_rule_enabled`/`migrate_rule_ids` — читання
 /// `.n-rules.json` (зріз 3 фази 8, `read-n-rules-config-lite.mjs`).
 pub mod config;
+/// `run_conftest_batch` — native-порт `runConftestBatch`
+/// (`npm/scripts/lib/run-conftest-batch.mjs`), спільна база rego-концернів.
+pub mod conftest;
 /// Diagnostics DTO (`Violation`/`Severity`) — versioned JSON-межа для
 /// detector-результатів (Р10 спеки, E1 фази 5).
 pub mod diagnostics;
@@ -51,6 +54,9 @@ pub mod locale;
 /// `rename_yaml_extensions` — порт `npm/scripts/rename-yaml-extensions.mjs`
 /// (зріз 2 фази 8).
 pub mod rename_yaml;
+/// `package_root`/`rules_root` — резолв кореня встановленого `@7n/rules`,
+/// потрібний концернам, що читають вбудовані rego-полісі.
+pub mod rules_package;
 /// `walk_dir` — native filesystem scan, точний порт `walkDir` (D1 фази 4а).
 pub mod scan;
 /// `list_skill_ids` — порт `listSkillIds` (`npm/scripts/skills-cli.mjs`),
