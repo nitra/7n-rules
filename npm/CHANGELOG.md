@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.82.1] - 2026-08-04
+
+### Changed
+
+- chore(release): синк пінів платформних napi-пакетів @7n/rules
+
 ## [1.82.0] - 2026-08-04
 
 ### Changed
