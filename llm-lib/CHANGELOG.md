@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.14.16] - 2026-08-04
+
+### Fixed
+
+- Loader napi-аддона (`lib/internal/native.mjs`) у вихідному дереві репо (маркер `llm-lib/crates/llm-lib-napi/Cargo.toml`) резолвить локальну збірку `target/release|debug` ПЕРЕД опублікованим підпакетом `@7n/llm-lib-<platform>-<arch>` — раніше свіжий `cargo build -p llm-lib-napi` мовчки перекривався registry-бінарем із `node_modules`, і правки Rust-ядра не проявлялися. У встановленому пакеті порядок незмінний: підпакет лишається авторитетним джерелом
+
 ## [2.14.15] - 2026-08-04
 
 ### Fixed

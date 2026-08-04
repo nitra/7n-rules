@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.80.0] - 2026-08-04
+
+### Changed
+
+- `k8s/kubeconform` виконується нативно в `rules-core` (27-й native-концерн), JS-канон `npm/rules/k8s/kubeconform/main.mjs` видалено. Порт підключений через registry `NATIVE_CONCERNS`, тобто працює й у native-шляху `rules-cli lint --no-fix --native-detect` (батч-сегмент), і в чинному JS-оркестраторі — нової napi-поверхні не заведено (Р12 спеки `docs/specs/2026-07-30-rules-v2-rust-core-migration.md`: міст інвертовано, napi більше не росте). Резолв зовнішнього тула — новий `rules_core::tool_resolve` на крейті `which` (PATH → керований кеш бінарників), без HTTP-клієнта в ядрі. **Зміна поведінки:** коли `kubeconform` не встановлено, а цілі для валідації є, концерн падає fail-closed із per-OS install-підказкою замість авто-встановлення через `ensureTool` — це рівно чинний режим `N_CURSOR_NO_AUTO_INSTALL`; добування тулів переїжджає в окрему команду `tools ensure`. Мовчазний пропуск був би fail-open: на ефемерному CI-раннері schema-валідація просто зникла б
+
+### Fixed
+
+- Loader napi-аддона (`npm/scripts/lib/native.mjs`) більше не перекриває локальну збірку опублікованим platform-підпакетом: у вихідному дереві репо (маркер `crates/rules-napi/Cargo.toml`) `target/release|debug` резолвиться ПЕРЕД `@7n/rules-<platform>-<arch>`, у встановленому пакеті порядок лишається старим (підпакет — авторитетне джерело). До фіксу крок `cargo build -p rules-napi` у `.github/workflows/test.yml` збирав аддон, якого loader не брав, тож native-тести мовчки перевіряли попередню збірку. Клас закритий гейтом `npm/scripts/lib/tests/native-env-gate.test.mjs`
+
 ## [1.79.2] - 2026-08-04
 
 ### Fixed
