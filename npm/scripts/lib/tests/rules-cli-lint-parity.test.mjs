@@ -1,8 +1,8 @@
 // cspell:ignore протікла рантаймом
 import { describe, expect, test } from 'vitest'
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { chmodSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { delimiter, dirname, join } from 'node:path'
 import { env, execPath } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
@@ -127,6 +127,38 @@ function initRepo(dir, ruleIds) {
   writeFileSync(join(dir, 'base.txt'), 'base\n', 'utf8')
   spawnSync('git', ['add', '.'], { cwd: dir })
   spawnSync('git', ['commit', '-qm', 'init'], { cwd: dir })
+  return dir
+}
+
+/**
+ * Синтетичний rules-каталог з ОДНИМ концерном `k8s/kubeconform` — тільки
+ * `concern.json`, без `main.mjs`: концерн виконує native-registry
+ * (`NATIVE_CONCERNS`), тож JS-реалізації в нього більше немає взагалі.
+ * Ізольований каталог (замість реального `npm/rules`) навмисний: інакше
+ * `lint k8s` тягнув би за собою `k8s/manifests` з `kubescape`+conftest.
+ * @param {string} dir каталог, у якому створити rules-дерево
+ * @returns {string} шлях до синтетичного rules-каталогу
+ */
+function writeKubeconformRulesDir(dir) {
+  const concernDir = join(dir, 'k8s', 'kubeconform')
+  mkdirSync(concernDir, { recursive: true })
+  const meta = { lint: { scope: 'per-file', glob: ['k8s/**/*.yaml', 'k8s/**/*.yml'] } }
+  writeFileSync(join(concernDir, 'concern.json'), `${JSON.stringify(meta, null, 2)}\n`, 'utf8')
+  return dir
+}
+
+/**
+ * Кладе виконуваний стаб `kubeconform` із заданим exit-кодом і повертає
+ * каталог, який треба поставити першим у `PATH`.
+ * @param {string} dir каталог для заглушки
+ * @param {number} exitCode код виходу заглушки
+ * @returns {string} каталог зі стабом
+ */
+function writeKubeconformStub(dir, exitCode) {
+  mkdirSync(dir, { recursive: true })
+  const bin = join(dir, 'kubeconform')
+  writeFileSync(bin, `#!/bin/sh\nexit ${exitCode}\n`, 'utf8')
+  chmodSync(bin, 0o755)
   return dir
 }
 
@@ -398,6 +430,70 @@ describe('rules-cli lint: паритет на синтетичному rules-к�
       expect(native.status).toBe(js.status)
       expect(native.stdout).toContain('браво')
       expect(native.stdout).not.toContain('альфа')
+    })
+  })
+})
+
+describe('rules-cli lint: k8s/kubeconform у native-сегменті', () => {
+  /**
+   * Готує tmp-репо з одним `k8s`-коренем і синтетичним rules-каталогом,
+   * після чого ганяє scoped-прогін `lint k8s` через native-шлях.
+   * @param {string} dir tmp-каталог
+   * @param {Record<string, string>} extraEnv додаткові змінні (PATH/кеш тулів)
+   * @returns {{ stdout: string, stderr: string, status: number|null }} результат
+   */
+  const runK8sLint = (dir, extraEnv) => {
+    const rulesDir = writeKubeconformRulesDir(join(dir, 'synthetic-rules'))
+    const repo = join(dir, 'repo')
+    mkdirSync(join(repo, 'k8s', 'base'), { recursive: true })
+    initRepo(repo, ['k8s'])
+    writeFileSync(join(repo, 'k8s', 'base', 'deploy.yaml'), 'kind: Deployment\n', 'utf8')
+    return runNativeLint(['k8s'], repo, { N_RULES_RULES_DIR: rulesDir, ...extraEnv })
+  }
+
+  /**
+   * Концерн реально виконується native-сегментом `rules-cli`: ненульовий
+   * exit тула стає violation `k8s/kubeconform` і exit 1 усього прогону.
+   * Заглушка з `exit 1` — саме те, що відрізняє «концерн відпрацював» від
+   * «концерн мовчки не потрапив у план» (порожній план дав би exit 0).
+   */
+  test('невалідні маніфести (стаб exit 1) → violation і exit 1', async () => {
+    await withTmpDir(async dir => {
+      const stubDir = writeKubeconformStub(join(dir, 'stub-bin'), 1)
+      const result = runK8sLint(dir, { PATH: `${stubDir}${delimiter}${env.PATH}` })
+      expect(result.stdout).toContain('k8s/kubeconform')
+      expect(result.stdout).toContain('kubeconform знайшов невалідні маніфести')
+      expect(result.status).toBe(1)
+    })
+  })
+
+  /** Той самий шлях із чистим тулом — жодного виводу й exit 0. */
+  test('валідні маніфести (стаб exit 0) → чисто і exit 0', async () => {
+    await withTmpDir(async dir => {
+      const stubDir = writeKubeconformStub(join(dir, 'stub-bin'), 0)
+      const result = runK8sLint(dir, { PATH: `${stubDir}${delimiter}${env.PATH}` })
+      expect(result.stdout).toBe('')
+      expect(result.status).toBe(0)
+    })
+  })
+
+  /**
+   * Fail-closed: тула немає ні в `PATH` (порожній каталог), ні в керованому
+   * кеші (`N_CURSOR_TOOL_CACHE_DIR` на порожній tmp) → exit 2 з
+   * install-підказкою, а НЕ 0 (мовчазний пропуск був би fail-open — на
+   * ефемерному CI-раннері schema-валідація просто зникла б).
+   */
+  test('тула немає → exit 2 з install-підказкою, а не мовчазний пропуск', async () => {
+    await withTmpDir(async dir => {
+      const emptyBin = join(dir, 'empty-bin')
+      const emptyCache = join(dir, 'empty-cache')
+      mkdirSync(emptyBin, { recursive: true })
+      mkdirSync(emptyCache, { recursive: true })
+      const result = runK8sLint(dir, { PATH: emptyBin, N_CURSOR_TOOL_CACHE_DIR: emptyCache })
+      expect(result.stdout).toContain('💥 detector k8s/kubeconform')
+      expect(result.stdout).toContain('kubeconform не знайдено')
+      expect(result.stdout).toContain('Встанови:')
+      expect(result.status).toBe(2)
     })
   })
 })
