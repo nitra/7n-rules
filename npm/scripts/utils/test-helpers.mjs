@@ -52,6 +52,16 @@ export function realRepoRoot() {
  * @returns {string} абсолютний шлях до бінаря `rules-cli`
  * @throws {Error} якщо бінар не зібрано і override не заданий
  */
+/**
+ * Шлях до JS-entrypoint `npm/bin/n-rules.js` — еталон для parity-гейтів.
+ * Живе тут, а не в кожному тесті окремо: два parity-набори рахували його
+ * власними `HERE`/`REPO_ROOT`, і jscpd справедливо бачив у цьому клон.
+ * @returns {string} абсолютний шлях до n-rules.js
+ */
+export function jsEntryPath() {
+  return join(realRepoRoot(), 'npm', 'bin', 'n-rules.js')
+}
+
 export function resolveRulesCliBin() {
   const override = env.N_RULES_CLI_BIN
   if (override) return override

@@ -4,9 +4,8 @@ import { spawnSync } from 'node:child_process'
 import { chmodSync, mkdirSync, writeFileSync } from 'node:fs'
 import { delimiter, dirname, join } from 'node:path'
 import { env, execPath } from 'node:process'
-import { fileURLToPath } from 'node:url'
 
-import { resolveRulesCliBin, withTmpDir } from '../../utils/test-helpers.mjs'
+import { jsEntryPath, realRepoRoot, resolveRulesCliBin, withTmpDir } from '../../utils/test-helpers.mjs'
 
 /**
  * Parity-гейт ЗВОРОТНОГО МОСТУ (Р12 спеки
@@ -32,10 +31,8 @@ import { resolveRulesCliBin, withTmpDir } from '../../utils/test-helpers.mjs'
  * навколо `detectAll`).
  */
 
-const HERE = dirname(fileURLToPath(import.meta.url))
-/** Корінь репо: npm/scripts/lib/tests → up 4. */
-const REPO_ROOT = join(HERE, '..', '..', '..', '..')
-const JS_ENTRY = join(REPO_ROOT, 'npm', 'bin', 'n-rules.js')
+const REPO_ROOT = realRepoRoot()
+const JS_ENTRY = jsEntryPath()
 const RUN_DETECTORS = join(REPO_ROOT, 'npm', 'scripts', 'lib', 'lint-surface', 'run-detectors.mjs')
 
 /**
