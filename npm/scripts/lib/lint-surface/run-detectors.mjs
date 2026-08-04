@@ -19,6 +19,7 @@ import { collectChangedFilesSince, resolveChangedBase } from '../changed-files.m
 import { loadNative } from '../native.mjs'
 import { getActiveCapabilities, resolveRulesDirs } from '../plugin-slots.mjs'
 import { readNRulesConfigLite, isRuleEnabled } from '../read-n-rules-config-lite.mjs'
+import { evaluateAppliesNode, readRuleApplies } from '../rule-applies.mjs'
 import { isSerialLane } from './blocking-inventory.mjs'
 import { runConcernDetector, DetectorError, isBuiltinNativeConcern, normalizeResult } from './detect.mjs'
 import { renderDiagnostics } from './render.mjs'
@@ -127,10 +128,39 @@ async function filterByCapabilities(byRule, opts) {
 }
 
 /**
- * Застосовує опційний rule-level gate з `<rule>/applies/main.mjs` до всіх
- * concern-ів правила. Це потрібно для доменних правил, чий канон має сенс
- * лише за наявності конкретної topology в репозиторії: один gate не дає
- * policy- й JS-concern-ам розійтися у власних евристиках застосовності.
+ * Обчислює legacy-гейт `<rule>/applies/main.mjs` — гілка `dynamic`
+ * (аварійний клапан і сторонні правила на старому форматі).
+ * @param {string} ruleId id правила (для тексту помилки).
+ * @param {string} ruleDir каталог правила.
+ * @param {string} cwd корінь репозиторію.
+ * @returns {Promise<boolean>} вердикт гейта (`true`, якщо модуля/експорту немає).
+ */
+async function evaluateDynamicApplies(ruleId, ruleDir, cwd) {
+  const appliesPath = join(ruleDir, 'applies', 'main.mjs')
+  if (!existsSync(appliesPath)) return true
+  let applies
+  try {
+    const mod = await import(pathToFileURL(appliesPath).href)
+    applies = mod.applies
+  } catch (error) {
+    throw new Error(`rule ${ruleId}: не вдалося завантажити applies gate: ${error.message}`, { cause: error })
+  }
+  if (applies === undefined) return true
+  if (typeof applies !== 'function') {
+    throw new TypeError(`rule ${ruleId}: applies/main.mjs має експортувати applies(cwd)`)
+  }
+  return Boolean(await applies(cwd))
+}
+
+/**
+ * Застосовує опційний rule-level gate до всіх concern-ів правила. Це потрібно
+ * для доменних правил, чий канон має сенс лише за наявності конкретної
+ * topology в репозиторії: один gate не дає policy- й JS-concern-ам розійтися
+ * у власних евристиках застосовності.
+ *
+ * Гейт — ДЕКЛАРАТИВНИЙ предикат `main.json:applies` (зріз 3 контракту v3.1).
+ * Старою гілкою виконуваного модуля йдуть лише `"dynamic"` і правила, ще не
+ * переведені на новий формат (у них є `applies/main.mjs` без поля в `main.json`).
  * @param {Record<string, ConcernMeta[]>} byRule concerns за rule-id.
  * @param {string} cwd корінь репозиторію, який лінтиться.
  * @returns {Promise<Record<string, ConcernMeta[]>>} лише застосовні правила.
@@ -141,26 +171,22 @@ async function filterByRuleApplies(byRule, cwd) {
   for (const [ruleId, concerns] of Object.entries(byRule)) {
     const firstConcern = concerns[0]
     if (!firstConcern) continue
-    const appliesPath = join(dirname(firstConcern.dir), 'applies', 'main.mjs')
-    if (!existsSync(appliesPath)) {
-      out[ruleId] = concerns
-      continue
-    }
-    let applies
+    const ruleDir = dirname(firstConcern.dir)
+    let spec
     try {
-      const mod = await import(pathToFileURL(appliesPath).href)
-      applies = mod.applies
+      spec = readRuleApplies(ruleDir)
     } catch (error) {
-      throw new Error(`rule ${ruleId}: не вдалося завантажити applies gate: ${error.message}`, { cause: error })
+      throw new Error(`rule ${ruleId}: невалідний main.json:applies — ${error.message}`, { cause: error })
     }
-    if (applies === undefined) {
+    if (spec.kind === 'always') {
       out[ruleId] = concerns
       continue
     }
-    if (typeof applies !== 'function') {
-      throw new TypeError(`rule ${ruleId}: applies/main.mjs має експортувати applies(cwd)`)
-    }
-    if (await applies(cwd)) out[ruleId] = concerns
+    const verdict =
+      spec.kind === 'declarative'
+        ? evaluateAppliesNode(spec.node, cwd)
+        : await evaluateDynamicApplies(ruleId, ruleDir, cwd)
+    if (verdict) out[ruleId] = concerns
   }
   return out
 }

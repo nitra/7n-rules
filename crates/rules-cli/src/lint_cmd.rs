@@ -15,7 +15,7 @@
 //! | резолв плагінів (`resolveRulesDirs`/`getActiveCapabilities`) | міст (блокер зрізу 3: ~1200 рядків JS-автодетекту) |
 //! | дискавері `concern.json` + `asDetectorConcern` | Rust (`rules_core::concern_meta`) |
 //! | capability-фільтр | Rust |
-//! | rule-level gate `<rule>/applies/main.mjs` | міст (ВИКОНУВАНИЙ JS-модуль) |
+//! | rule-level gate `main.json:applies` | Rust (`rules_core::rule_applies`); міст — лише для `"dynamic"` |
 //! | `enabledRuleIds` + warning про правила без концернів | Rust (`rules_core::config`) |
 //! | дельта (`resolveChangedBase`/`collectChangedFilesSince`) | Rust (`rules_core::changed_*`) |
 //! | план (`buildPlan` × 5 режимів) | Rust (`rules_core::lint_plan`) |
@@ -67,6 +67,7 @@ use rules_core::concern_meta::{ConcernMeta, LintScope};
 use rules_core::config::LiteConfig;
 use rules_core::lint_plan::{BuildLintPlanInput, ConcernPlanInput, LintSurfaceInput, PlanItem};
 use rules_core::lint_render::{LintViolation, SortAndRenderInput};
+use rules_core::rule_applies::{evaluate_applies, read_rule_applies, AppliesSpec};
 use serde_json::{json, Value};
 
 use crate::bridge::Bridge;
@@ -333,17 +334,24 @@ fn filter_by_capabilities(
         .collect()
 }
 
-/// Порт `filterByRuleApplies`: правило з наявним `<rule>/applies/main.mjs`
-/// проходить лише за позитивним вердиктом gate-а. Сам gate — виконуваний
-/// JS-модуль, тож він і лишається на мосту; Rust вирішує, кого питати
-/// (є файл?) і що робити з помилкою (fail-closed, як у JS, де `applies`
-/// кидає нагору).
+/// Порт `filterByRuleApplies`: правило проходить лише за позитивним вердиктом
+/// свого rule-level гейта.
+///
+/// Гейт ДЕКЛАРАТИВНИЙ (`main.json:applies`, зріз 3 контракту плагінів v3.1),
+/// тож [`rules_core::rule_applies`] обчислює його тут-таки, без жодного
+/// звернення до мосту — а на гарячому шляху `lint` це рівно та round-trip-на
+/// пара запит/відповідь, якої тепер немає. На міст ідуть лише правила, що
+/// лишили гейт у JS: літерал `"dynamic"` або старий `applies/main.mjs` без
+/// поля в `main.json`. Битий предикат — делегація (текст помилки каноном
+/// лишається за JS), решта помилок — fail-closed, як у JS, де `applies`
+/// кидає нагору.
 fn filter_by_applies(
     by_rule: BTreeMap<String, Vec<ConcernMeta>>,
     cwd: &Path,
     bridge: &mut Bridge,
 ) -> Result<BTreeMap<String, Vec<ConcernMeta>>, Bail> {
     let mut gated: Vec<(String, PathBuf)> = Vec::new();
+    let mut declarative_verdicts: BTreeMap<String, bool> = BTreeMap::new();
     for (rule_id, concerns) in &by_rule {
         let Some(first) = concerns.first() else {
             continue;
@@ -351,13 +359,26 @@ fn filter_by_applies(
         let Some(rule_dir) = first.dir.parent() else {
             continue;
         };
-        let applies_path = rule_dir.join("applies").join("main.mjs");
-        if applies_path.is_file() {
-            gated.push((rule_id.clone(), applies_path));
+        match read_rule_applies(rule_dir) {
+            Ok(AppliesSpec::Always) => {}
+            Ok(AppliesSpec::Declarative(node)) => {
+                declarative_verdicts.insert(rule_id.clone(), evaluate_applies(&node, cwd));
+            }
+            Ok(AppliesSpec::Dynamic) => {
+                gated.push((rule_id.clone(), rule_dir.join("applies").join("main.mjs")));
+            }
+            Err(error) => {
+                return Err(Bail::Delegate(format!(
+                    "правило «{rule_id}»: {error} — точний текст помилки дає JS"
+                )))
+            }
         }
     }
     if gated.is_empty() {
-        return Ok(by_rule);
+        return Ok(by_rule
+            .into_iter()
+            .filter(|(rule_id, _)| declarative_verdicts.get(rule_id) != Some(&false))
+            .collect());
     }
 
     let payload = json!({
@@ -372,6 +393,9 @@ fn filter_by_applies(
 
     let mut out = BTreeMap::new();
     for (rule_id, concerns) in by_rule {
+        if declarative_verdicts.get(&rule_id) == Some(&false) {
+            continue;
+        }
         let Some(verdict) = verdicts.get(&rule_id) else {
             out.insert(rule_id, concerns);
             continue;

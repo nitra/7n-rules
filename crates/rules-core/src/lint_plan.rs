@@ -142,7 +142,12 @@ pub struct PlanItem {
 /// dot-файли для wildcard-сегментів, інша семантика для іншого споживача).
 /// `globset` так само не робить спецвиключення для `.`-префіксів, тож
 /// відповідність picomatch dot:true — «з коробки», без додаткової логіки.
-struct GlobMatcher(Option<GlobSet>);
+///
+/// `pub(crate)`, бо той самий матчер потрібен декларативному гейту
+/// [`crate::rule_applies`]: glob-семантика в репо мусить бути ОДНА, інакше
+/// `concern.json#lint.glob` і `main.json#applies.globMatches` розійдуться на
+/// крайових патернах.
+pub(crate) struct GlobMatcher(Option<GlobSet>);
 
 impl GlobMatcher {
     /// Порожній `patterns` → «нічого не матчиться» (`None`) — той самий
@@ -151,7 +156,7 @@ impl GlobMatcher {
     /// (той самий tolerant-парсинг, що build_full_scope_files у
     /// `rules-napi/src/lib.rs`): concern.json — довірений вхід ядра/плагінів,
     /// не недовірений зовнішній ввід.
-    fn compile(patterns: &[String]) -> Self {
+    pub(crate) fn compile(patterns: &[String]) -> Self {
         if patterns.is_empty() {
             return Self(None);
         }
@@ -167,7 +172,7 @@ impl GlobMatcher {
         Self(builder.build().ok())
     }
 
-    fn is_match(&self, file: &str) -> bool {
+    pub(crate) fn is_match(&self, file: &str) -> bool {
         match &self.0 {
             Some(set) => set.is_match(file),
             None => false,

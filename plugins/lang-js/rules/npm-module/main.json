@@ -1,1 +1,10 @@
-{ "auto": { "glob": "npm/**" } }
+{
+  "auto": { "glob": "npm/**" },
+  "applies": {
+    "any": [
+      { "pathExists": "npm" },
+      { "pathExists": ".github/workflows/npm-publish.yml" },
+      { "jsonFieldContains": { "file": "package.json", "field": "workspaces", "value": "npm" } }
+    ]
+  }
+}

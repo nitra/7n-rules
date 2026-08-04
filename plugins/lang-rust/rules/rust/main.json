@@ -1,1 +1,20 @@
-{ "auto": { "glob": ["**/Cargo.toml", "deny.toml"] } }
+{
+  "auto": { "glob": ["**/Cargo.toml", "deny.toml"] },
+  "applies": {
+    "globMatches": {
+      "glob": "**/Cargo.toml",
+      "ignoreDirs": [
+        "node_modules",
+        ".git",
+        "target",
+        ".next",
+        ".turbo",
+        ".venv",
+        "venv",
+        ".claude",
+        "vendor",
+        ".worktrees"
+      ]
+    }
+  }
+}

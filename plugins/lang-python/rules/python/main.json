@@ -1,1 +1,4 @@
-{ "auto": { "glob": "**/pyproject.toml" } }
+{
+  "auto": { "glob": "**/pyproject.toml" },
+  "applies": { "pathExists": "pyproject.toml" }
+}

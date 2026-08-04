@@ -6,25 +6,32 @@
 //!
 //! # Межа native-шляху (свідома, fail-safe в бік делегації)
 //!
-//! `loadEnabledLintRules` у JS складається з чотирьох кроків, і два з них
-//! native-порту наразі недосяжні:
+//! `loadEnabledLintRules` у JS складається з чотирьох кроків, і native-порту
+//! наразі недосяжний ОДИН із них:
 //!
 //! - **rules-каталоги плагінів** (`resolveRulesDirs` → `resolveSlotGraph` →
 //!   `resolvePlugins`) — автодетект плагінів за станом репо, читання
 //!   маніфестів `n-rules` і envelope-валідація slot-графа: ~1200 рядків JS,
-//!   окремий зріз;
-//! - **rule-level gate `<rule>/applies/main.mjs`** — це ВИКОНУВАНИЙ
-//!   JS-модуль плагіна (`lang-rust`, `lang-python`, `lang-js/npm-module`);
-//!   у Rust він недосяжний за конструкцією, доки не отримає wasm-поверхню в
-//!   контракті плагінів.
+//!   окремий зріз.
 //!
-//! Тому native-шлях вмикається лише там, де обидва кроки доказово порожні:
-//! жоден плагін не резолвиться (перевірка дзеркалить `resolvePlugins`:
-//! пакет має лежати в `<cwd>/node_modules/<name>` — вгору дерево він не
-//! шукає) і в rules-каталозі ядра немає жодного `applies/main.mjs`. Інакше
-//! (а також коли конфіг битий чи корінь пакета не резолвиться) команда
-//! ЧЕСНО делегується в JS — byte-exact за конструкцією, без мовчазної
-//! розбіжності.
+//! **Rule-level гейт більше в цьому списку не значиться.** Він був другим
+//! блокером, доки лишався виконуваним модулем `<rule>/applies/main.mjs`; зріз 3
+//! контракту плагінів v3.1 (`docs/specs/2026-08-01-plugin-contract-v31-surfaces.md`,
+//! рішення Д) зробив його ДЕКЛАРАТИВНИМ предикатом у `main.json:applies`, і
+//! [`rules_core::rule_applies`] обчислює його нативно — без JS-рантайму й без
+//! інстанціації wasm-компонента. Правило, яке лишило гейт у JS (літерал
+//! `"dynamic"` — аварійний клапан контракту — або старий `applies/main.mjs` без
+//! поля в `main.json`), і далі змушує делегувати; але тепер це властивість
+//! КОНКРЕТНОГО правила, а не самого факту наявності гейтів у дереві.
+//!
+//! Тому native-шлях вмикається там, де плагіни доказово порожні (перевірка
+//! дзеркалить `resolvePlugins`: пакет має лежати в `<cwd>/node_modules/<name>`
+//! — вгору дерево він не шукає) і кожен гейт у rules-каталозі ядра резолвиться
+//! нативно. Інакше (а також коли конфіг битий, предикат битий, чи корінь пакета
+//! не резолвиться) команда ЧЕСНО делегується в JS — byte-exact за конструкцією,
+//! без мовчазної розбіжності. Зокрема, битий `applies` навмисно НЕ отримує
+//! власного native-тексту помилки: делегація віддає його JS, чиє повідомлення
+//! і є каноном.
 //!
 //! # Парсер прапорців
 //!
@@ -46,6 +53,7 @@ use rules_core::concern_meta::{list_detector_concerns, subdirectory_names, Conce
 use rules_core::config::{is_rule_enabled, read_n_rules_config_lite, LiteConfig};
 use rules_core::lint_plan::match_lint_globs;
 use rules_core::locale::locale_compare;
+use rules_core::rule_applies::{read_rule_applies, rule_applies, AppliesSpec};
 
 use crate::{cursor_ignore, git_policy, js_fallback, paths};
 
@@ -138,13 +146,20 @@ fn native_eligible(cwd: &Path, config: &LiteConfig, rules_dir: &Path) -> bool {
     if has_installed_first_party_plugin(cwd) {
         return false;
     }
-    !subdirectory_names(rules_dir).iter().any(|rule| {
-        rules_dir
-            .join(rule)
-            .join("applies")
-            .join("main.mjs")
-            .is_file()
-    })
+    // Гейти правил: нативно резолвиться `main.json:applies` (декларативний
+    // предикат або відсутність поля). `"dynamic"`, старий `applies/main.mjs`
+    // без поля і битий предикат — усі троє дають `Err`, тобто делегацію.
+    subdirectory_names(rules_dir)
+        .iter()
+        .all(|rule| natively_gated(&rules_dir.join(rule)))
+}
+
+/// Чи резолвиться rule-level гейт правила без JS.
+fn natively_gated(rule_dir: &Path) -> bool {
+    matches!(
+        read_rule_applies(rule_dir),
+        Ok(AppliesSpec::Always | AppliesSpec::Declarative(_))
+    )
 }
 
 /// Чи лежить пакет у `<cwd>/node_modules/<name>` (той самий шлях, яким
@@ -176,7 +191,7 @@ fn has_installed_first_party_plugin(cwd: &Path) -> bool {
 /// Обчислює план і друкує його у вибраному форматі (порт хвоста
 /// `runCiPlanCli`). Помилка — готовий рядок для stderr.
 fn plan_and_render(args: &Args, config: &LiteConfig, rules_dir: &Path) -> Result<(), String> {
-    let (by_rule, enabled) = load_enabled_lint_rules(rules_dir, config);
+    let (by_rule, enabled) = load_enabled_lint_rules(rules_dir, config, &args.cwd);
 
     let changed: Option<Vec<String>> = if let Some(path_arg) = args.path_arg.as_deref() {
         collect_path_scoped_changed_files(args, path_arg)?
@@ -243,14 +258,23 @@ fn append_lines(path: &str, lines: &[String]) -> Result<(), String> {
 }
 
 /// Discovery-фасад `loadEnabledLintRules` для випадку «плагінів немає»:
-/// концерни ядра з lint-поверхнею + набір активних правил.
+/// концерни ядра з lint-поверхнею, відфільтровані rule-level гейтом, + набір
+/// активних правил. Порядок кроків — той самий, що в JS: спершу capabilities,
+/// потім `applies`, і лише потім `enabledRuleIds`.
 fn load_enabled_lint_rules(
     rules_dir: &Path,
     config: &LiteConfig,
+    cwd: &Path,
 ) -> (BTreeMap<String, Vec<ConcernMeta>>, BTreeSet<String>) {
     let rule_dir_names = subdirectory_names(rules_dir);
     let mut by_rule: BTreeMap<String, Vec<ConcernMeta>> = BTreeMap::new();
     for rule in &rule_dir_names {
+        // Порт `filterByRuleApplies`. `Err` тут неможливий: [`native_eligible`]
+        // уже відсіяв дерево з гейтом, що вимагає JS, — але трактуємо його як
+        // «правило не проходить», щоб інваріант не тримався на чесному слові.
+        if !matches!(rule_applies(&rules_dir.join(rule), cwd), Ok(true)) {
+            continue;
+        }
         // Capability-фільтр: активних capabilities без плагінів немає, тож
         // концерни з `requires.capability` відпадають усі до одного.
         let concerns: Vec<ConcernMeta> = list_detector_concerns(&rules_dir.join(rule))
@@ -456,8 +480,10 @@ mod tests {
         assert!(!native_eligible(tmp.path(), &config, &rules));
     }
 
+    /// Legacy-правило (JS-гейт без поля в `main.json`) і далі делегує —
+    /// саме та поведінка, що була до зрізу 3.
     #[test]
-    fn applies_gate_in_core_rules_disables_the_native_path() {
+    fn legacy_js_gate_in_core_rules_disables_the_native_path() {
         let tmp = TempDir::new().unwrap();
         let gate = tmp.path().join("rules/rust/applies");
         std::fs::create_dir_all(&gate).unwrap();
@@ -467,6 +493,87 @@ mod tests {
             &LiteConfig::default(),
             &tmp.path().join("rules")
         ));
+    }
+
+    /// А ДЕКЛАРАТИВНИЙ гейт native-шлях більше не вимикає — це і є розблокування
+    /// зрізу 3 контракту плагінів v3.1.
+    #[test]
+    fn declarative_gate_keeps_the_native_path() {
+        let tmp = TempDir::new().unwrap();
+        let rule = tmp.path().join("rules/rust");
+        std::fs::create_dir_all(&rule).unwrap();
+        std::fs::write(
+            rule.join("main.json"),
+            r#"{ "applies": { "pathExists": "Cargo.toml" } }"#,
+        )
+        .unwrap();
+        assert!(native_eligible(
+            tmp.path(),
+            &LiteConfig::default(),
+            &tmp.path().join("rules")
+        ));
+    }
+
+    /// Літерал аварійного клапана — чесна делегація, не мовчазний пропуск.
+    #[test]
+    fn dynamic_literal_disables_the_native_path() {
+        let tmp = TempDir::new().unwrap();
+        let rule = tmp.path().join("rules/rust");
+        std::fs::create_dir_all(&rule).unwrap();
+        std::fs::write(rule.join("main.json"), r#"{ "applies": "dynamic" }"#).unwrap();
+        assert!(!native_eligible(
+            tmp.path(),
+            &LiteConfig::default(),
+            &tmp.path().join("rules")
+        ));
+    }
+
+    /// Битий предикат теж делегує: канонічний текст помилки дає JS.
+    #[test]
+    fn broken_predicate_disables_the_native_path() {
+        let tmp = TempDir::new().unwrap();
+        let rule = tmp.path().join("rules/rust");
+        std::fs::create_dir_all(&rule).unwrap();
+        std::fs::write(rule.join("main.json"), r#"{ "applies": { "nope": 1 } }"#).unwrap();
+        assert!(!native_eligible(
+            tmp.path(),
+            &LiteConfig::default(),
+            &tmp.path().join("rules")
+        ));
+    }
+
+    /// Правило, чий декларативний гейт хибний, зникає з плану — порт
+    /// `filterByRuleApplies` у native-дискавері.
+    #[test]
+    fn declarative_gate_filters_the_rule_out_of_discovery() {
+        let tmp = TempDir::new().unwrap();
+        let rules = tmp.path().join("rules");
+        let rule = rules.join("rust");
+        std::fs::create_dir_all(rule.join("check")).unwrap();
+        std::fs::write(
+            rule.join("check").join("concern.json"),
+            r#"{ "lint": { "scope": "full", "glob": ["**/Cargo.toml"] } }"#,
+        )
+        .unwrap();
+        std::fs::write(
+            rule.join("main.json"),
+            r#"{ "applies": { "pathExists": "Cargo.toml" } }"#,
+        )
+        .unwrap();
+
+        let config = LiteConfig::default();
+        let (by_rule, _) = load_enabled_lint_rules(&rules, &config, tmp.path());
+        assert!(
+            !by_rule.contains_key("rust"),
+            "без Cargo.toml правило вимкнене"
+        );
+
+        std::fs::write(tmp.path().join("Cargo.toml"), "[workspace]\n").unwrap();
+        let (by_rule, _) = load_enabled_lint_rules(&rules, &config, tmp.path());
+        assert!(
+            by_rule.contains_key("rust"),
+            "із Cargo.toml правило активне"
+        );
     }
 
     #[test]

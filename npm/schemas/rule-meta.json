@@ -2,10 +2,66 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://unpkg.com/@7n/rules/schemas/rule-meta.json",
   "title": "n-rules rule meta",
-  "description": "Метадані правила @7n/rules: умова автоактивації (auto). Файл npm/rules/<id>/meta.json.",
+  "description": "Метадані правила @7n/rules: умова автоактивації (auto) і rule-level гейт застосовності (applies). Файл npm/rules/<id>/main.json.",
   "type": "object",
   "additionalProperties": false,
+  "$defs": {
+    "appliesNode": {
+      "description": "Вузол декларативного предиката: РІВНО один оператор словника.",
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "pathExists": {
+          "description": "Істина, якщо шлях (файл або каталог) існує відносно кореня репозиторію.",
+          "type": "string",
+          "minLength": 1
+        },
+        "globMatches": {
+          "description": "Істина, якщо в дереві є хоч один файл за glob; каталоги з ignoreDirs не відвідуються.",
+          "type": "object",
+          "required": ["glob"],
+          "additionalProperties": false,
+          "properties": {
+            "glob": {
+              "oneOf": [
+                { "type": "string", "minLength": 1 },
+                { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1 }
+              ]
+            },
+            "ignoreDirs": {
+              "description": "Імена каталогів, у які walker не заходить (не .gitignore — явний список).",
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "jsonFieldContains": {
+          "description": "Істина, якщо поле JSON-файлу — масив, що містить рядок value.",
+          "type": "object",
+          "required": ["file", "field", "value"],
+          "additionalProperties": false,
+          "properties": {
+            "file": { "type": "string", "minLength": 1 },
+            "field": { "description": "Шлях поля через крапку (\"a.b\").", "type": "string", "minLength": 1 },
+            "value": { "type": "string" }
+          }
+        },
+        "any": {
+          "description": "Диз'юнкція: істина, якщо істинний хоч один дочірній вузол.",
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/appliesNode" }
+        }
+      }
+    }
+  },
   "properties": {
+    "applies": {
+      "description": "Rule-level гейт: правило активне лише за істинного предиката. \"dynamic\" — гейт лишається виконуваним JS-модулем <rule>/applies/main.mjs (аварійний клапан). Поля немає — правило застосовне завжди.",
+      "oneOf": [{ "const": "dynamic" }, { "$ref": "#/$defs/appliesNode" }]
+    },
     "auto": {
       "description": "Умова автоактивації правила: \"завжди\", масив id правил-залежностей, glob, або іменований предикат.",
       "oneOf": [

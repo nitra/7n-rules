@@ -1,16 +1,11 @@
-/** @see ./docs/applies.md */
-import { existsSync } from 'node:fs'
-import { join } from 'node:path'
-
-import { createViolationReporter } from '@7n/rules/scripts/lib/lint-surface/violation-reporter.mjs'
-
 /**
- * @param {string} [cwd] корінь репозиторію (`process.cwd()` у звичайному прогоні)
- * @returns {Promise<boolean>} `true` — правило застосовне; `false` — пропустити
+ * @see ./docs/applies.md
+ *
+ * Гейт застосовності правила ТУТ БІЛЬШЕ НЕ ЖИВЕ: він декларативний і лежить
+ * у `python/main.json:applies` (`{ "pathExists": "pyproject.toml" }`). Цей
+ * модуль лишився суто context-pass концерном — друкує, чому правило активне.
  */
-export function applies(cwd = process.cwd()) {
-  return Promise.resolve(existsSync(join(cwd, 'pyproject.toml')))
-}
+import { createViolationReporter } from '@7n/rules/scripts/lib/lint-surface/violation-reporter.mjs'
 
 /**
  * Друкує короткий context-pass — самі перевірки виконують інші concerns.
