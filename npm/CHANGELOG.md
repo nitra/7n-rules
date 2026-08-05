@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.87.0] - 2026-08-05
+
+### Changed
+
+- Ще два концерни переїхали з JS у wasm-компонент `lang-js/wasm-concerns` на
+поверхні `exec-tool` (зріз 6 контракту v3.1): `style/lint` (обгортка
+`stylelint`) і `js/jscpd_duplicates` (обгортка `jscpd`, перший реальний
+споживач `scratch-out` — JSON-звіт тула хост забирає з тимчасового каталогу
+обміну, дерево репо не мутується).
+
+Резолв тулів у `manifest.tools` навчився третьої схеми — `npm:<name>`:
+бінарник шукається в `node_modules/.bin` консюмер-репо, з фолбеком на PATH.
+Це та сама послідовність, якою `style/lint` резолвив `stylelint` у JS.
+
+T0-фікси обох концернів лишаються JS.
+- `k8s/manifests` — другий зріз порту в `rules-core`. Портовано ще два з чотирьох шарів `lint()`: per-file цикл `checkK8sYamlFile` (modeline `# yaml-language-server: $schema=…`, звірка URL схеми з `apiVersion`/`kind`, виняток `HttpBackendGroup` Yandex ALB) і дві великі самодостатні `validate*` — `validateDeploymentHpaPdbAndTopology` (канон `topologySpreadConstraints`, заборона локальних `hpa.yaml`/`pdb.yaml` у `k8s/…/base/`, повний контракт sibling-каталогу `components/`) та `validateNetworkPoliciesForK8sWorkloads`. Концерн у `NATIVE_CONCERNS` як і раніше **не** заведено — він неподільний для диспатчу і зайде туди разом із двома шарами, що лишились (kubescape-контур і kustomize-резолюція з пʼятьма залежними `validate*`), тож поведінка лінту незмінна.
+
+Полагоджено латентний дефект канону: `readDocsByKindInDir` обходив каталог у порядку `readdir`, тобто в порядку файлової системи (APFS впорядковує, ext4 віддає hash-порядок). Обхід став відсортованим. Спостережуваної зміни немає — обидва виклики передають фільтр за іменем файла, тож збігається щонайбільше один файл; сортування прибирає ту саму міну, на якій уже спіткнулись `k8s/hasura_configmap` і звірка імені ConfigMap.
+
 ## [1.86.0] - 2026-08-05
 
 ### Added
