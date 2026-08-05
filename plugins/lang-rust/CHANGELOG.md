@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.16.0] - 2026-08-05
+
+### Added
+
+- rust/wasm_component: новий концерн — забороняє старий (pre-Component-Model) режим wasm. `wasm-bindgen` (пряма чи workspace-успадкована залежність, у будь-якій depend-таблиці, включно з `[target.'cfg(...)'.*]`) заборонено — гостьовий wasm-код має йти через `wit-bindgen` + ціль wasm32-wasip2. `wasmtime` з `default-features = false` без `component-model` у `features` теж заборонено (у `wasmtime` це дефолтна feature, тож проста форма `wasmtime = "…"` вже проходить).
+
 ## [0.15.4] - 2026-08-05
 
 ### Changed
