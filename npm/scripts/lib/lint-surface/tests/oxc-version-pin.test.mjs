@@ -72,6 +72,32 @@ function isOxcCrateName(name) {
  */
 
 /**
+ * Витягує сире значення версії з правої частини `<crate> = …`. Підтримує ДВІ
+ * форми, обидві присутні у `crates/plugin-lang-js/Cargo.toml`:
+ * - коротка рядкова — `oxc_ast = "=0.137.0"`;
+ * - inline-таблиця — `oxc_parser = { version = "=0.137.0", default-features = false }`
+ *   (зʼявилась разом із size-budget-зрізом `default-features`; без цієї гілки
+ *   пін мовчки випадав би зі списку — саме той клас тихого дрейфу, який цей
+ *   файл і має ловити).
+ * Обидві — без regex (доккомент модуля вище), посимвольно.
+ * @param {string} afterEq текст праворуч від `=`, вже без крайніх пробілів
+ * @returns {string | null} вміст лапок або `null`, якщо форма не розпізнана
+ */
+function readVersionLiteral(afterEq) {
+  let rest = afterEq
+  if (rest.startsWith('{')) {
+    const versionIdx = rest.indexOf('version')
+    if (versionIdx === -1) return null
+    const innerEq = rest.indexOf('=', versionIdx + 'version'.length)
+    if (innerEq === -1) return null
+    rest = rest.slice(innerEq + 1).trim()
+  }
+  if (!rest.startsWith('"')) return null
+  const closeIdx = rest.indexOf('"', 1)
+  return closeIdx === -1 ? null : rest.slice(1, closeIdx)
+}
+
+/**
  * Читає всі `oxc_*`-піни з `[dependencies]` `Cargo.toml` (рядковий розбір,
  * без TOML-парсера — той самий формат, що вже парсить `build.sh` цього
  * плагіна для `PKG_NAME` через `grep`).
@@ -89,11 +115,8 @@ function readCargoOxcPins(path) {
     const crate = line.slice(0, eqIdx).trim()
     if (!isOxcCrateName(crate)) continue
 
-    const afterEq = line.slice(eqIdx + 1).trim()
-    if (!afterEq.startsWith('"')) continue
-    const closeIdx = afterEq.indexOf('"', 1)
-    if (closeIdx === -1) continue
-    const rawValue = afterEq.slice(1, closeIdx)
+    const rawValue = readVersionLiteral(line.slice(eqIdx + 1).trim())
+    if (rawValue === null) continue
 
     const exact = rawValue.startsWith('=')
     const version = exact ? rawValue.slice(1) : rawValue
