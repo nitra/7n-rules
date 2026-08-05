@@ -40,6 +40,9 @@ function nativeToolsList() {
   return JSON.parse(result.stdout)
 }
 
+/** Маршрут установки — brew, scoop або GitHub Release. */
+const INSTALL_ROUTE_RE = /brew install|scoop install|github\.com/u
+
 describe('tools registry: JS ⇄ Rust', () => {
   test('склад реєстру збігається', () => {
     const native = nativeToolsList().tools.map(t => t.id)
@@ -66,7 +69,7 @@ describe('tools registry: JS ⇄ Rust', () => {
 
   test('маршрут встановлення не порожній і згадує спосіб для цієї ОС', () => {
     for (const tool of nativeToolsList().tools) {
-      expect(tool.route, tool.id).toMatch(/brew install|scoop install|github\.com/u)
+      expect(tool.route, tool.id).toMatch(INSTALL_ROUTE_RE)
     }
   })
 })
