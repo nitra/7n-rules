@@ -12,6 +12,18 @@ path = "src/main.rs"
 
 [dependencies]
 rules-core = { path = "../rules-core" }
+# Єдина граматика argv усіх native-команд (`src/cli.rs`, рішення Р11 спеки
+# міграції: зрілий крейт виграє в ручного порту). Урізаний набір фіч свідомо:
+# `color` не беремо — вивід CLI гейтиться byte-exact parity-тестами, ANSI там
+# зайвий; `suggestions` («did you mean») — англомовний рядок у продукті, чия
+# мова українська, а помилки розбору рендерить `describe_parse_error`.
+clap = { version = "4", default-features = false, features = [
+  "std",
+  "derive",
+  "help",
+  "usage",
+  "error-context",
+] }
 # Порт `readGitPolicy` (npm/scripts/lib/git-policy.mjs) — читання блока `git`
 # з `.n-rules.json`/`.n-cursor.json` для розгортання integration-кандидатів
 # дельти (рішення Д мінідизайну `docs/specs/2026-08-01-rules-cli-phase8-skeleton.md`).

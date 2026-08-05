@@ -60,21 +60,19 @@
 //! Решта (включно з дефолтним sync без підкоманди та legacy-аліасами
 //! `lint-*`) — транзитна делегація, перелік скорочується по зрізах фази 8.
 //!
-//! # Про арг-парсинг (ревізія рішення Б, зріз 3)
+//! # Про арг-парсинг (ревізія рішення Б, 2026-08-05)
 //!
-//! Розбір argv лишається РУЧНИМ, без `clap` — свідомо переглянуто на цьому
-//! зрізі (розділ 9 мінідизайну). Коротко: кожна native-команда мусить
-//! byte-exact дзеркалити СВІЙ JS-парсер, а вони різні за контрактом
-//! (`changed-files` — fail-closed на невідомий аргумент,
-//! `rename-yaml-extensions` — мовчазне ігнорування і `--root=` лише через
-//! `=`, `ci plan` — `indexOf`-семантика `valueOf`), тож єдина граматика
-//! `clap` була б регресією паритету, а її головна перевага —
-//! автогенеровані help/usage/error — тут заборонена (довідка байтово
-//! успадкована з JS).
+//! Розбір argv тримає `clap` — єдина граматика на всі native-команди
+//! ([`cli`]). Підстава зрізу 3 («кожна команда дзеркалить СВІЙ JS-парсер, а
+//! вони різні за контрактом») знята рішенням **Р11** спеки міграції: паритет
+//! поведінковий, побайтова рівність — лише там, де її споживає хтось зовні.
+//! Що уніфіковано, що свідомо лишилось різним і хто це реально споживає —
+//! доккомент модуля [`cli`].
 
 mod bridge;
 mod changed_files_cmd;
 mod ci_cmd;
+mod cli;
 mod cursor_ignore;
 mod git_policy;
 mod hook_cmd;
@@ -89,6 +87,11 @@ mod tools_cmd;
 use std::env;
 use std::process::ExitCode;
 
+use clap::error::{ContextKind, ErrorKind};
+use clap::{CommandFactory as _, Parser as _};
+
+use cli::{CiCommand, Cli, NativeCommand, ToolsCommand};
+
 /// Довідка `lint --help` — байт-у-байт вивід `printLintHelp` з
 /// `npm/bin/n-rules-cli.mjs` (включно з двома фінальними `\n`: один із
 /// template literal, другий від `console.log`). Дрейф ламає parity-тест.
@@ -99,38 +102,148 @@ fn main() -> ExitCode {
     run(&args)
 }
 
-/// Роутер argv: native-команди зрізів 1–2 або делегація в JS-entrypoint.
-/// Окремо від `main` — щоб інтеграційні тести й майбутні зрізи бачили
-/// одну точку диспатчу.
+/// Команди, чию argv-поверхню володіє САМЕ цей бінар: невідомий аргумент там
+/// — usage-помилка. Решта (`lint`, `hook`, `ci`, `skill`) ще ділить поверхню з
+/// JS-CLI, тож нерозібраний argv туди й їде (доккомент [`cli`]).
+const OWNED_SURFACES: [&str; 3] = ["changed-files", "rename-yaml-extensions", "tools"];
+
+/// Код виходу usage-помилки — той самий `2`, що вже був у `tools`
+/// (і що дає `clap` за замовчуванням).
+const EXIT_USAGE: u8 = 2;
+
+/// Роутер argv: `clap`-граматика native-команд ([`cli`]) або делегація в
+/// JS-entrypoint. Окремо від `main` — щоб інтеграційні тести й майбутні зрізи
+/// бачили одну точку диспатчу.
 fn run(args: &[String]) -> ExitCode {
-    match args.first().map(String::as_str) {
-        Some("changed-files") => changed_files_cmd::run(&args[1..]),
-        // Повний argv (з `ci`) — щоб делегація непокритих native-шляхом
-        // випадків віддала його в JS без змін (доккомент `ci_cmd`).
-        Some("ci") => ci_cmd::run(args),
-        Some("rename-yaml-extensions") => rename_yaml_cmd::run(&args[1..]),
+    let Some(head) = args.first().map(String::as_str) else {
+        // Дефолтний sync без підкоманди — цілком JS-поверхня.
+        return js_fallback::delegate(args);
+    };
+    // `lint --help`/`-h` — чиста довідка (у JS — без root-guard і мутацій
+    // devDependencies), байт-у-байт із `printLintHelp`. Перехоплюється ДО
+    // `clap`: це єдина довідка бінаря, яку читає хтось зовні, тож генерувати
+    // її не можна (`disable_help_flag` на `lint`).
+    if head == "lint" && args[1..].iter().any(|a| a == "--help" || a == "-h") {
+        print!("{LINT_HELP}");
+        return ExitCode::SUCCESS;
+    }
+
+    let parsed =
+        Cli::try_parse_from(std::iter::once("n-rules").chain(args.iter().map(String::as_str)));
+    match parsed {
+        Ok(cli) => dispatch(cli.command, args),
+        // Розбір не вдався. Для власної поверхні це помилка користувача, для
+        // спільної з JS — ознака, що argv адресований не нам.
+        Err(error) if OWNED_SURFACES.contains(&head) => {
+            let (path, mut command) = resolve_subcommand(args);
+            // `--help` тут не помилка розбору, а запит довідки: вона вимкнена
+            // глобально (щоб `--help` чужих поверхонь доїжджав до JS-CLI, а
+            // `lint --help` лишався байтовою копією JS-тексту), тож для власних
+            // команд повертаємо її точково.
+            if args.iter().any(|a| a == "--help" || a == "-h") {
+                let _ = command.print_help();
+                return ExitCode::SUCCESS;
+            }
+            eprintln!(
+                "❌ {path}: {} — докладніше: n-rules {path} --help",
+                describe_parse_error(&error)
+            );
+            ExitCode::from(EXIT_USAGE)
+        }
+        Err(_) => js_fallback::delegate(args),
+    }
+}
+
+/// Проходить argv по дереву підкоманд і віддає найглибшу, до якої дійшов,
+/// разом із її людським шляхом (`tools ensure`). Потрібне і для довідки, і
+/// для того, щоб помилка називала САМЕ ту команду, у якій спіткнулась.
+fn resolve_subcommand(args: &[String]) -> (String, clap::Command) {
+    // `build()` до пошуку — саме він розставляє usage-назви з префіксом
+    // батька (`n-rules tools ensure`, а не голе `ensure`) і пропагує вглиб
+    // вимкнену довідку.
+    let mut command = Cli::command();
+    command.build();
+    let mut path: Vec<&str> = Vec::new();
+    for token in args {
+        if token.starts_with('-') {
+            break;
+        }
+        let Some(sub) = command.find_subcommand(token).cloned() else {
+            break;
+        };
+        path.push(token);
+        command = sub;
+    }
+    (path.join(" "), command)
+}
+
+/// Виконує розібрану команду. `args` — ПОВНИЙ argv: команди з частковим
+/// native-шляхом віддають його в JS без змін.
+fn dispatch(command: NativeCommand, args: &[String]) -> ExitCode {
+    match command {
+        NativeCommand::ChangedFiles(parsed) => changed_files_cmd::run(&parsed),
+        NativeCommand::RenameYamlExtensions(parsed) => rename_yaml_cmd::run(&parsed),
         // `tools` — НОВА команда, якої в JS-CLI немає взагалі (компенсація за
         // прибране авто-встановлення в native-концернах, PR #378): делегувати
         // її нікуди, вона нативна цілком ([`tools_cmd`]).
-        Some("tools") => tools_cmd::run(&args[1..]),
-        // Повний argv (з `hook`) — делегація гілок, недосяжних для порту,
-        // віддає його в JS без змін (доккомент `hook_cmd`).
-        Some("hook") => hook_cmd::run(args),
+        NativeCommand::Tools(parsed) => match parsed.command {
+            ToolsCommand::List(list) => tools_cmd::run_list(&list),
+            ToolsCommand::Ensure(ensure) => tools_cmd::run_ensure(&ensure),
+        },
         // Нативний лише `skill list`; JS дивиться теж тільки на перший
         // аргумент після `skill` (зайві — ігнорує), решта підкоманд —
         // LLM/агентні ранери, делегуються.
-        Some("skill") if args.get(1).map(String::as_str) == Some("list") => skill_cmd::run_list(),
-        // `lint --help`/`-h` — чиста довідка (у JS — без root-guard і
-        // мутацій devDependencies), перший повністю нативний шлях реальної
-        // чинної поверхні. Будь-який інший `lint` — делегація.
-        Some("lint") if args[1..].iter().any(|a| a == "--help" || a == "-h") => {
-            print!("{LINT_HELP}");
-            ExitCode::SUCCESS
+        NativeCommand::Skill(parsed) if parsed.rest.first().map(String::as_str) == Some("list") => {
+            skill_cmd::run_list()
         }
+        NativeCommand::Skill(_) => js_fallback::delegate(args),
+        NativeCommand::Ci(parsed) => match parsed.command {
+            CiCommand::Plan(plan) => ci_cmd::run_plan(&plan, args),
+            CiCommand::Unknown(rest) => {
+                ci_cmd::unknown_subcommand(rest.first().map(String::as_str))
+            }
+        },
+        NativeCommand::Hook(parsed) => hook_cmd::run(&parsed, args),
         // Зріз 5 (Р12): `lint` як основний шлях виконання. Native-контур
         // вмикається явно (`--native-detect`/`N_RULES_NATIVE_LINT=1`) і сам
         // делегує все, де паритет недосяжний — доккомент `lint_cmd`.
-        Some("lint") => lint_cmd::run(&args[1..]),
-        _ => js_fallback::delegate(args),
+        NativeCommand::Lint(parsed) => lint_cmd::run(&parsed, &args[1..]),
+    }
+}
+
+/// Українська однорядкова діагностика замість англомовного рендера `clap`:
+/// мова продукту — українська, і решта повідомлень CLI теж українською.
+fn describe_parse_error(error: &clap::Error) -> String {
+    let arg = || {
+        error
+            .get(ContextKind::InvalidArg)
+            .map_or_else(String::new, ToString::to_string)
+    };
+    let value = || {
+        error
+            .get(ContextKind::InvalidValue)
+            .map_or_else(String::new, ToString::to_string)
+    };
+    match error.kind() {
+        ErrorKind::UnknownArgument => format!("невідомий аргумент «{}»", arg()),
+        ErrorKind::InvalidSubcommand => format!(
+            "невідома підкоманда «{}»",
+            error
+                .get(ContextKind::InvalidSubcommand)
+                .map_or_else(String::new, |name| name.to_string())
+        ),
+        ErrorKind::MissingSubcommand => "потрібна підкоманда".to_string(),
+        // Порожнє значення тут означає «прапорець стоїть останнім і значення
+        // після нього немає» — саме той випадок, який JS-порти читали як
+        // мовчазний `null`.
+        ErrorKind::InvalidValue if value().is_empty() => {
+            format!("бракує значення для {}", arg())
+        }
+        ErrorKind::InvalidValue => format!("недопустиме значення «{}» для {}", value(), arg()),
+        ErrorKind::MissingRequiredArgument => format!("бракує обовʼязкового {}", arg()),
+        // Прапорець без значення (`--base` останнім аргументом) і решта
+        // рідкісних видів: іменуємо аргумент, якщо `clap` його назвав.
+        _ if !arg().is_empty() => format!("некоректний аргумент «{}»", arg()),
+        _ => "не вдалося розібрати аргументи".to_string(),
     }
 }
