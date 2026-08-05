@@ -1,8 +1,7 @@
 /**
  * Тонкий napi-клієнт `lib/batch.mjs`: `submitBatch` делегує в
- * `native.submitBatch` без власного чанкінгу/паралелізму (інжект native,
- * задача T6) — весь чанкований конкурентний прогін живе в
- * `llm_lib::batch` (Rust).
+ * `native.submitBatch` без жодної власної логіки (інжект native) — весь
+ * реальний `/v1/batches` flow живе в `llm_lib::remote_batch` (Rust).
  */
 
 import { describe, expect, test, vi } from 'vitest'
@@ -22,7 +21,7 @@ describe('submitBatch', () => {
       'min',
       [{ customId: 'a', prompt: 'запит A', system: undefined }],
       { localProviders: undefined, system: undefined },
-      { chunkSize: undefined, concurrency: undefined },
+      { pollIntervalMs: undefined, pollTimeoutMs: undefined },
       undefined
     )
   })
@@ -46,21 +45,21 @@ describe('submitBatch', () => {
     ])
   })
 
-  test('localProviders/system/chunkSize/concurrency прокидаються в options/config', async () => {
+  test('localProviders/system/pollIntervalMs/pollTimeoutMs прокидаються в options/config', async () => {
     const native = { submitBatch: vi.fn(() => Promise.resolve([])) }
-    const localProviders = { omlx: { baseUrl: 'http://127.0.0.1:8000/v1/', apiKey: null } }
+    const localProviders = { 'local-openai': { baseUrl: 'http://127.0.0.1:8000/v1/', apiKey: null } }
     await submitBatch('max', [{ customId: 'a', prompt: 'запит' }], {
       localProviders,
       system: 'ти корисний асистент',
-      chunkSize: 15,
-      concurrency: 4,
+      pollIntervalMs: 1000,
+      pollTimeoutMs: 60000,
       native
     })
     expect(native.submitBatch).toHaveBeenCalledWith(
       'max',
       [{ customId: 'a', prompt: 'запит', system: undefined }],
       { localProviders, system: 'ти корисний асистент' },
-      { chunkSize: 15, concurrency: 4 },
+      { pollIntervalMs: 1000, pollTimeoutMs: 60000 },
       undefined
     )
   })
@@ -79,7 +78,7 @@ describe('submitBatch', () => {
       'avg',
       [{ customId: 'a', prompt: 'запит', system: undefined }],
       { localProviders: undefined, system: undefined },
-      { chunkSize: undefined, concurrency: undefined },
+      { pollIntervalMs: undefined, pollTimeoutMs: undefined },
       undefined
     )
   })

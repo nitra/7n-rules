@@ -215,39 +215,18 @@ pub struct BatchItemInput {
     pub system: Option<String>,
 }
 
-/// Ліміти чанка/конкурентності емуляції та опитування справжнього Batch API
-/// для [`submit_batch`]. Незадане поле — дефолт
-/// [`llm_lib::batch::BatchConfig::default`] (чанк 35, конкурентність 2,
-/// рішення Р, бенч-калібрування — `docs/specs/2026-07-24-batch-emulation-bench.md`)
-/// чи [`llm_lib::remote_batch::RemoteBatchConfig::default`] (опитування
-/// кожні 2с, ліміт 20хв — спека `2026-07-27-batch-local-avg-real-batches.md`).
+/// Ліміти опитування справжнього Batch API для [`submit_batch`]. Незадане
+/// поле — дефолт [`llm_lib::remote_batch::RemoteBatchConfig::default`]
+/// (опитування кожні 2с, ліміт 20хв — спека
+/// `2026-07-27-batch-local-avg-real-batches.md`).
 #[napi(object)]
 #[derive(Default)]
 pub struct BatchConfigInput {
-    /// Скільки items обробляється в одному чанку (лише емуляція).
-    pub chunk_size: Option<u32>,
-    /// Скільки items одного чанка виконуються паралельно (лише емуляція).
-    pub concurrency: Option<u32>,
-    /// Вибір бекенда: `"emulated"` | `"openai-batches"` | `"auto"` (дефолт) —
-    /// `"auto"` пробує справжній `/v1/batches` лише коли резолвлений
-    /// провайдер `local-openai` (кешована мережева проба на процес).
-    pub backend: Option<String>,
-    /// Пауза між `GET /v1/batches/{id}` у мілісекундах (лише справжній backend).
+    /// Пауза між `GET /v1/batches/{id}` у мілісекундах.
     pub poll_interval_ms: Option<u32>,
-    /// М'який ліміт часу очікування завершення batch-у в мілісекундах
-    /// (лише справжній backend) — по вичерпанню шле best-effort cancel.
+    /// М'який ліміт часу очікування завершення batch-у в мілісекундах —
+    /// по вичерпанню шле best-effort cancel.
     pub poll_timeout_ms: Option<u32>,
-}
-
-fn parse_backend(s: &str) -> Result<llm_lib::BatchBackend> {
-    match s {
-        "emulated" => Ok(llm_lib::BatchBackend::Emulated),
-        "openai-batches" => Ok(llm_lib::BatchBackend::OpenAiBatches),
-        "auto" => Ok(llm_lib::BatchBackend::Auto),
-        other => Err(Error::from_reason(format!(
-            "невідомий batch backend {other:?}: очікується \"emulated\"/\"openai-batches\"/\"auto\""
-        ))),
-    }
 }
 
 /// Результат одного item batch-у: рівно одне з `ok`/`error` заповнене —
@@ -263,27 +242,41 @@ pub struct BatchResultOutput {
     pub error: Option<String>,
 }
 
-/// Тип 2b (batch, задача T6, спека `2026-07-27-batch-local-avg-real-batches.md`):
-/// [`llm_lib::dispatch_batch`] обирає між клієнтською емуляцією (чанкований
-/// конкурентний прогін через [`llm_lib::LocalCloud`], той самий
-/// `model_spec_or_tier`/`options`-контракт, що й [`one_shot_local_cloud`]) і
-/// справжнім `/v1/batches` litellm batch-adapter-а — під тим самим
-/// інтерфейсом `submit → progress → results`. Помилка одного item чи
-/// одного чанка/усього batch-у, що впав до старту item-ів, не валить виклик
-/// — потрапляє в `error`-поле відповідного [`BatchResultOutput`].
+/// Тип `on_progress`-колбека [`submit_batch`] — `FnArgs<(u32, u32)>`, не
+/// голий tuple: голий tuple конвертується через бланкетний
+/// `impl<T: ToNapiValue> JsValuesTupleIntoVec for T` (уся пара — ОДИН
+/// JS-аргумент, масив `[completed, total]`), тоді як `JsValuesTupleIntoVec`
+/// для `FnArgs<(A, B)>` розгортає tuple у ДВА окремих JS-аргументи — саме
+/// так, як задокументована сигнатура `(completed, total) => void` і очікує
+/// (баг був знайдений через live-тест проти реального OpenAI-сумісного
+/// сервера: колбек отримував `(null, [completed, total])` замість
+/// `(completed, total)`). `CalleeHandled = false` (5-й параметр) — прогрес
+/// ніколи не є `Result`-помилкою (завжди `Ok`-виклик), тож без цього JS
+/// отримував би ще й зайвий провідний `err`-аргумент (`null`) перед
+/// `completed`/`total`, порушуючи задокументовану сигнатуру без err.
+type BatchProgressCallback =
+    Arc<ThreadsafeFunction<FnArgs<(u32, u32)>, (), FnArgs<(u32, u32)>, Status, false>>;
+
+/// Тип 2b (batch, спека `2026-07-27-batch-local-avg-real-batches.md`):
+/// [`llm_lib::dispatch_batch`] завжди йде через справжній `/v1/batches`
+/// OpenAI-сумісний batch-adapter резолвленого провайдера (клієнтську
+/// емуляцію вилучено — провайдер без зареєстрованого `base_url`/`api_key`
+/// повертає явну помилку). Помилка одного item чи усього batch-у, що впав
+/// до старту item-ів, не валить виклик — потрапляє в `error`-поле
+/// відповідного [`BatchResultOutput`].
 ///
-/// `on_progress` — опційний JS-колбек `(completed, total) => void`,
-/// викликається napi `ThreadsafeFunction`-ом (рішення для T6: прогрес не
-/// акумулюється в Rust і не блокує event loop Node — кожне завершення
-/// item-у чи кожен poll публікується окремим non-blocking викликом у
-/// JS-потік).
+/// `on_progress` — опційний JS-колбек `(completed, total) => void`
+/// ([`BatchProgressCallback`]), викликається napi `ThreadsafeFunction`-ом
+/// (рішення для T6: прогрес не акумулюється в Rust і не блокує event loop
+/// Node — кожне завершення item-у чи кожен poll публікується окремим
+/// non-blocking викликом у JS-потік).
 #[napi]
 pub async fn submit_batch(
     model_spec_or_tier: String,
     items: Vec<BatchItemInput>,
     options: Option<OneShotLocalCloudOptions>,
     config: Option<BatchConfigInput>,
-    on_progress: Option<Arc<ThreadsafeFunction<(u32, u32), ()>>>,
+    on_progress: Option<BatchProgressCallback>,
 ) -> Result<Vec<BatchResultOutput>> {
     let options = options.unwrap_or_default();
     let providers: HashMap<String, LocalProvider> = match options.local_providers {
@@ -303,31 +296,20 @@ pub async fn submit_batch(
         })
         .collect();
 
-    let mut batch_config = llm_lib::batch::BatchConfig::default();
     let mut remote_config = llm_lib::remote_batch::RemoteBatchConfig::default();
-    let mut backend = llm_lib::BatchBackend::Auto;
     if let Some(cfg) = &config {
-        if let Some(chunk_size) = cfg.chunk_size {
-            batch_config.chunk_size = chunk_size as usize;
-        }
-        if let Some(concurrency) = cfg.concurrency {
-            batch_config.concurrency = concurrency as usize;
-        }
         if let Some(ms) = cfg.poll_interval_ms {
             remote_config.poll_interval = std::time::Duration::from_millis(u64::from(ms));
         }
         if let Some(ms) = cfg.poll_timeout_ms {
             remote_config.poll_timeout = std::time::Duration::from_millis(u64::from(ms));
         }
-        if let Some(b) = &cfg.backend {
-            backend = parse_backend(b)?;
-        }
     }
 
     let on_progress_fn = move |progress: llm_lib::batch::BatchProgress| {
         if let Some(tsfn) = &on_progress {
             tsfn.call(
-                Ok((progress.completed as u32, progress.total as u32)),
+                FnArgs::from((progress.completed as u32, progress.total as u32)),
                 ThreadsafeFunctionCallMode::NonBlocking,
             );
         }
@@ -337,8 +319,6 @@ pub async fn submit_batch(
         &cascade,
         &model_spec_or_tier,
         batch_items,
-        backend,
-        &batch_config,
         &remote_config,
         global_system,
         on_progress_fn,
