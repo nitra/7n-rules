@@ -55,6 +55,15 @@ mod k8s_hasura;
 mod k8s_hasura_configmap;
 mod k8s_hasura_httproute;
 mod k8s_kubeconform;
+/// Портований зріз концерну `k8s/manifests` — cross-file перевірки, що не
+/// тягнуть kustomize-резолюцію. `pub`, бо концерн ще не в [`NATIVE_CONCERNS`]
+/// (він неподільний для диспатчу: заводиться, коли портовані всі чотири шари
+/// його `lint()`), і до того моменту модуль лишається без внутрішнього
+/// виклику.
+pub mod k8s_manifests_cross_file;
+/// Портований зріз концерну `k8s/manifests` — rego-шар (`runAllK8sRego`).
+/// `pub` з тієї ж причини, що [`k8s_manifests_cross_file`].
+pub mod k8s_manifests_rego;
 mod marksman_config;
 mod package_manifest;
 mod rego_tooling;
@@ -92,6 +101,11 @@ pub use hasura_internal_urls::hasura_internal_urls;
 pub use hasura_migrations::hasura_migrations;
 pub use image_avif_generation::image_avif_generation;
 pub use image_compress_package_setup::image_compress_package_setup;
+/// Вибірка `*.yaml`/`*.yml` під `k8s` — вхід усіх концернів кластера. `pub`
+/// заради parity-гейта `tests/k8s_manifests_parity.rs`: він рахує список
+/// файлів native-боком і віддає той самий список JS-канону, щоб паритет міряв
+/// рівно `validate*`, а не вже портований раніше обхід дерева.
+pub use k8s_common::find_k8s_yaml_files;
 pub use k8s_hasura_configmap::k8s_hasura_configmap;
 pub use k8s_hasura_httproute::k8s_hasura_httproute;
 pub use k8s_kubeconform::k8s_kubeconform;

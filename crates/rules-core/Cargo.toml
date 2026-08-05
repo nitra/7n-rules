@@ -83,6 +83,12 @@ llm-lib = { path = "../../llm-lib/crates/llm-lib", default-features = false }
 # той самий клас гарантії, що дав JS-канону привід уникати субпроцесу.
 # Default-фіча `real-sys` достатня; `regex`/`tracing` не потрібні.
 which = "8"
+# Тимчасовий файл `--data` для `conftest` (`conftest::run_conftest_batch_with_data`):
+# JS-канон робить це руками (`mkdtempSync` + `rmSync` у `finally`), Rust бере
+# зрілий крейт (Р11 п.1): каталог прибирається по `drop`, а не ручним
+# `finally`, і він уже в дереві як dev-dependency — новий вузол у граф збірки
+# не додається.
+tempfile = "3"
 
 [dev-dependencies]
 tempfile = "3"

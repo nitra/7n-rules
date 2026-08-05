@@ -635,7 +635,7 @@ async function validateOneKustomizationPathRefsExist(root, kustAbs, rootNorm, fa
  * @param {(msg: string) => void} fail callback для повідомлень про помилки
  * @returns {Promise<void>} результат
  */
-async function validateKustomizationPathRefsExistOnDisk(root, yamlFilesAbs, fail) {
+export async function validateKustomizationPathRefsExistOnDisk(root, yamlFilesAbs, fail) {
   const rootNorm = resolve(root)
   const kustFiles = yamlFilesAbs.filter(p => basename(p).toLowerCase() === 'kustomization.yaml')
   for (const kustAbs of kustFiles) {
@@ -724,7 +724,7 @@ async function validateOneKustomizationSvcHlWithSvc(root, kustAbs, fail) {
  * @param {(msg: string) => void} fail callback помилки
  * @returns {Promise<void>} результат
  */
-async function validateKustomizationIncludesSvcHlWithSvc(root, yamlFiles, fail) {
+export async function validateKustomizationIncludesSvcHlWithSvc(root, yamlFiles, fail) {
   const kustFiles = yamlFiles.filter(p => basename(p).toLowerCase() === 'kustomization.yaml')
   for (const kustAbs of kustFiles) {
     await validateOneKustomizationSvcHlWithSvc(root, kustAbs, fail)
@@ -2372,35 +2372,27 @@ async function tryReaddir(dirPath) {
 }
 
 /**
- * Читає YAML-файл і шукає перший документ із заданим `kind`.
- * @param {string} filePath абсолютний шлях до YAML-файлу
- * @param {string} kind очікуваний `kind`
- * @returns {Promise<Record<string, unknown> | null>} знайдений об'єкт або null
- */
-async function readFirstDocByKindFromFile(filePath, kind) {
-  const raw = await tryReadFileUtf8(filePath)
-  if (raw === undefined) return null
-  const docs = tryParseAllYamlDocs(raw)
-  if (docs === undefined) return null
-  return findFirstDocByKind(docs, kind)
-}
-
-/**
- * Знаходить перший документ **Deployment** серед YAML-файлів каталогу (для перевірки імені ConfigMap, js-run.mdc).
+ * Усі документи **Deployment** каталогу, у **відсортованому** порядку імен файлів.
+ * Сортування обов'язкове: без нього результат залежав би від порядку `readdir`,
+ * тобто від файлової системи (APFS впорядковує, ext4 — hash-порядок).
  * @param {string} dirPath абсолютний шлях до каталогу
- * @returns {Promise<Record<string, unknown> | null>} об'єкт Deployment або null
+ * @returns {Promise<Record<string, unknown>[]>} документи Deployment у детермінованому порядку
  */
-export async function findDeploymentDocInDir(dirPath) {
-  const entries = await tryReaddir(dirPath)
+async function collectDeploymentDocsInDir(dirPath) {
+  const dirEntries = await tryReaddir(dirPath)
+  const entries = dirEntries.filter(e => K8S_YAML_EXT_RE.test(e)).toSorted()
+  /**
+  @type {Record<string, unknown>[]}
+   */
+  const out = []
   for (const entry of entries) {
-    if (!K8S_YAML_EXT_RE.test(entry)) {
-      continue
-    }
-
-    const found = await readFirstDocByKindFromFile(join(dirPath, entry), 'Deployment')
-    if (found !== null) return found
+    const raw = await tryReadFileUtf8(join(dirPath, entry))
+    if (raw === undefined) continue
+    const docs = tryParseAllYamlDocs(raw)
+    if (docs === undefined) continue
+    out.push(...collectDocsByKind(docs, 'Deployment'))
   }
-  return null
+  return out
 }
 
 /**
@@ -3064,7 +3056,7 @@ async function validateOneSvcYamlHlPair(root, absSet, svcAbs, fail) {
  * @param {(msg: string) => void} fail callback помилки
  * @returns {Promise<void>} результат
  */
-async function validateSvcYamlAndSvcHlPairs(root, yamlFiles, fail) {
+export async function validateSvcYamlAndSvcHlPairs(root, yamlFiles, fail) {
   const absSet = new Set(yamlFiles)
   failIfSvcHlWithoutSiblingSvc(root, yamlFiles, absSet, fail)
   const svcFiles = yamlFiles.filter(p => basename(p).toLowerCase() === 'svc.yaml')
@@ -3374,7 +3366,7 @@ async function checkK8sYamlFile(abs, root, fail, pass) {
  * @param {(msg: string) => void} fail callback для реєстрації порушення
  * @returns {void} результат
  */
-function assertNoForbiddenK8sDevPaths(yamlFiles, root, fail) {
+export function assertNoForbiddenK8sDevPaths(yamlFiles, root, fail) {
   for (const abs of yamlFiles) {
     const rel = relative(root, abs).replaceAll('\\', '/')
     if (isForbiddenK8sDevPath(rel)) {
@@ -3410,6 +3402,31 @@ function extractFirstConfigMapName(raw) {
 }
 
 /**
+ * Deployment каталогу, з яким має звірятись `metadata.name` ConfigMap.
+ *
+ * Раніше тут стояв `findDeploymentDocInDir` — «перший `kind: Deployment` за порядком
+ * `readdir`». Це давало два дефекти: недетермінізм (порядок ФС) і false negative —
+ * якщо першим траплявся Deployment без ConfigMap-рефа (або з двома), перевірка мовчки
+ * закривалась, хоча поруч стояв Deployment рівно з одним рефом. Тепер обхід
+ * детермінований (відсортований), і серед **усіх** Deployment каталогу беруться лише
+ * ті, що посилаються рівно на один ConfigMap.
+ * @param {string} dirPath каталог із `configmap.yaml`
+ * @param {string} cmName `metadata.name` ConfigMap
+ * @returns {Promise<{ matched: boolean, deployName: string } | null>} збіг, кандидат для повідомлення або null
+ */
+async function configMapOwnerDeployment(dirPath, cmName) {
+  let firstCandidate = null
+  for (const deployment of await collectDeploymentDocsInDir(dirPath)) {
+    if (collectDeploymentConfigMapRefs(deployment).size !== 1) continue
+    const deployName = manifestMetadataName(deployment)
+    if (deployName === null) continue
+    if (deployName === cmName) return { matched: true, deployName }
+    firstCandidate ??= deployName
+  }
+  return firstCandidate === null ? null : { matched: false, deployName: firstCandidate }
+}
+
+/**
  * Перевіряє один файл `configmap.yaml`: якщо поруч є Deployment з рівно одним ConfigMap-рефом,
  * `metadata.name` ConfigMap має збігатися з `metadata.name` Deployment.
  * @param {string} cmAbs абсолютний шлях до configmap.yaml
@@ -3422,16 +3439,13 @@ async function validateSingleConfigMapNameMatch(cmAbs, rel, fail, passFn) {
   if (raw === undefined) return
   const cmName = extractFirstConfigMapName(raw)
   if (cmName === null) return
-  const deployment = await findDeploymentDocInDir(dirname(cmAbs))
-  if (deployment === null) return
-  const deployName = manifestMetadataName(deployment)
-  const cmRefs = collectDeploymentConfigMapRefs(deployment)
-  if (cmRefs.size !== 1 || typeof deployName !== 'string') return
-  if (cmName === deployName) {
+  const owner = await configMapOwnerDeployment(dirname(cmAbs), cmName)
+  if (owner === null) return
+  if (owner.matched) {
     passFn(`${rel}: metadata.name '${cmName}' збігається з Deployment (k8s.mdc)`)
   } else {
     fail(
-      `${rel}: metadata.name '${cmName}' має збігатися з назвою Deployment '${deployName}' — Deployment посилається рівно на один ConfigMap (k8s.mdc)`
+      `${rel}: metadata.name '${cmName}' має збігатися з назвою Deployment '${owner.deployName}' — Deployment посилається рівно на один ConfigMap (k8s.mdc)`
     )
   }
 }
@@ -3444,7 +3458,7 @@ async function validateSingleConfigMapNameMatch(cmAbs, rel, fail, passFn) {
  * @param {(msg: string) => void} fail callback при помилці
  * @param {(msg: string) => void} passFn callback при успіху
  */
-async function validateConfigMapNameMatchesDeployment(root, yamlFilesAbs, fail, passFn) {
+export async function validateConfigMapNameMatchesDeployment(root, yamlFilesAbs, fail, passFn) {
   const cmFiles = yamlFilesAbs.filter(abs => {
     const rel = relative(root, abs).replaceAll('\\', '/')
     return CONFIGMAP_BASE_PATH_RE.test(`/${rel}`) || rel === 'k8s/base/configmap.yaml'
@@ -6421,7 +6435,7 @@ function k8sRegoFixHint(ns, file, message) {
  * @param {(msg: string, hint?: unknown) => void} fail callback реєстрації порушення.
  * @returns {Promise<void>} результат
  */
-async function runAllK8sRego(root, yamlFiles, fail) {
+export async function runAllK8sRego(root, yamlFiles, fail) {
   const relOf = abs => relative(root, abs).replaceAll('\\', '/') || abs
 
   const allYaml = yamlFiles
