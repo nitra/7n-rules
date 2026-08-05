@@ -3820,6 +3820,28 @@ fn build_manifest() -> Manifest {
                 scope: ConcernScope::Full,
                 glob: vec![LICENSEE_CONFIG_PATH.to_string()],
             },
+            // Зріз 6 контракту v3.1: `style/lint`. `scope: Full` при
+            // `per-file` у `concern.json` — свідомо (доккомент секції
+            // «Зріз 6», підрозділ «`scope` контрибуцій»): інакше `lint
+            // --full` мовчки не перевіряв би стилі взагалі. Глоб —
+            // дослівно `concern.json.lint.glob`.
+            ConcernContribution {
+                key: CONCERN_STYLE_LINT.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec![STYLE_LINT_GLOB.to_string()],
+            },
+            // Зріз 6 контракту v3.1: `js/jscpd_duplicates`. Глоб ПОРОЖНІЙ —
+            // це не пропуск: канон не читає з диска НІЧОГО перед спавном
+            // (репозиторій обходить сам `jscpd`), а глоб контрибуції
+            // описує рівно те, що хост кладе в batch. Гість цей batch
+            // ігнорує ([`detect_jscpd_duplicates`] навіть не приймає
+            // `files`), тож будь-який непорожній глоб тут був би платою за
+            // читання файлів у нікуди.
+            ConcernContribution {
+                key: CONCERN_JSCPD_DUPLICATES.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec![],
+            },
         ],
         ci_artifacts: vec![],
         capabilities: Capabilities {
@@ -3838,8 +3860,16 @@ fn build_manifest() -> Manifest {
         // Перша реальна декларація тула first-party плагіном (до зрізу 5
         // контур `manifest.tools` → `ensureDeclaredTools` → `toolPaths` →
         // `ToolResolver` був наскрізним, але жодним продакшн-плагіном не вживаним).
-        // Схема `path:` (рішення В спеки) — `bun` резолвиться по `PATH`.
-        tools: vec![LICENSEE_TOOL.to_string()],
+        // Зріз 6 добив набір до всіх ТРЬОХ схем рішення В: `path:` (`bun`,
+        // `bunx` — резолв по `PATH`) і `npm:` (`stylelint` —
+        // `node_modules/.bin` консюмера з фолбеком на `PATH`). Схема
+        // `pinned:` (github-реліз) у цьому компоненті поки не вживана — її
+        // споживач `js-run/runtime` (`pinned:conftest`, зріз 7).
+        tools: vec![
+            LICENSEE_TOOL.to_string(),
+            STYLELINT_TOOL.to_string(),
+            JSCPD_TOOL.to_string(),
+        ],
     }
 }
 
@@ -10838,7 +10868,364 @@ fn detect_bun_licensee(files: &[SourceFile]) -> Vec<Diagnostic> {
     diagnostics
 }
 
-/// Guest-реалізація world `plugin` — тридцять шість контрибуцій ([`CONCERN_TFM`],
+// cspell:ignore jscpd stylelint
+// =====================================================================
+// Зріз 6 контракту v3.1 — решта дрібних обгорток на `exec-tool`:
+// `style/lint` і `js/jscpd_duplicates`
+// (спека `docs/specs/2026-08-01-plugin-contract-v31-surfaces.md`, §7)
+//
+// # Що цей зріз доводить понад пілот
+//
+// Пілот (`bun/licensee`, секція «Зріз 5») перевірив мінімум: один спавн,
+// один розбір тексту. Тут перевіряються дві поверхні, яких він не торкав:
+//
+// 1. **Схема `npm:`** (рішення В спеки, третя й остання) — `style/lint`
+//    резолвить `stylelint` із `node_modules/.bin` консюмера, а не з
+//    github-релізу (`pinned:`) і не з PATH (`path:`). Порядок «локальний
+//    `.bin` → PATH» — дослівно `resolveStylelint` JS-канону; саме тому це
+//    окрема схема, а не `path:` із фолбеком.
+// 2. **`scratch-out`** — `js/jscpd_duplicates` перший реальний споживач:
+//    `jscpd` не пише вердикт у stdout, він пише JSON-звіт НА ДИСК. Канон
+//    віддавав йому `mkdtempSync(tmpdir())` і читав файл сам; тут каталог дає
+//    хост (слот `scratch-dir@1`), а забирає звіт — теж хост, за глобом
+//    `scratch-out`. Гість не має ні `fs_read`, ні шляху поза scratch — і не
+//    потребує їх.
+//
+// # `scope` контрибуцій — розбіжність з `concern.json`, свідома
+//
+// `concern.json` `style/lint` каже `per-file`, а контрибуція нижче —
+// `Full`. Це не дрейф: `scope` у `concern.json` читає ПЛАНУВАЛЬНИК
+// (`buildLintPlan` — що вважати дельтою, що ганяти в `--repo-wide`), а
+// `scope` контрибуції читає ХОСТ (`run_wasm_concern`) і рівно для одного
+// рішення — «чи будувати batch самому, коли JS не передав `files`».
+// У повному режимі (`lint --full`) планувальник лишає `files: undefined`
+// і для per-file концернів (`buildPlan`, гілка `full`) — а хост будує
+// full-scope batch ЛИШЕ для контрибуції зі `scope: Full`. Тобто
+// контрибуція `PerFile` тут означала б: у `lint --full` стилі не
+// перевіряються взагалі, мовчки. Дельта-режим від цього не змінюється —
+// там `files` приходить явним списком у будь-якому разі.
+//
+// # Розбіжності з JS-каноном (свідомі, не дрейф)
+//
+// 1. **`status: none` ширший за канон** — той самий пункт, що в пілоті:
+//    гість не розрізняє «тула немає», «процес не стартував» і таймаут.
+//    Канон розрізняє перший випадок (`resolveStylelint` → `null`) і репортує
+//    його окремим warn-каналом; порт віддає warn-`Diagnostic` із власним
+//    `reason` ([`STYLELINT_UNRESOLVED_REASON`],
+//    [`JSCPD_REPORT_UNREADABLE_REASON`]), бо каналу `LintResult.diagnostics`
+//    у WIT немає — список один.
+// 2. **`style/lint` у повному режимі передає тулу СПИСОК файлів, а не
+//    глоб.** Канон при `ctx.files === undefined` віддає `stylelint`
+//    аргумент `**/*.{css,scss,vue}` і дає тулу самому його розкрити; порт
+//    отримує вже розкритий список від хоста (той самий глоб контрибуції).
+//    Наслідок помітний рівно в одному місці: у репо БЕЗ жодного
+//    css/scss/vue канон однаково спавнить тул, а `stylelint` на глобі, що
+//    ні з чим не збігся, виходить ненульовим кодом — тобто канон репортує
+//    порушення там, де порушення немає. Порт у цьому випадку не спавнить
+//    нічого (порожній список цілей — ранній вихід, той самий, що канон уже
+//    має для дельти). Це рішення Р11 спеки міграції: дефект канону
+//    лагодиться, а не копіюється.
+// 3. **`r.exitCode ?? 1` канону недосяжний у порті.** `null` exit code на
+//    боці канону означає «вбито сигналом»; у гостя той самий випадок — це
+//    `status: none`, який перехоплює гілка розбіжності 1 вище.
+// 4. **T0-фікси обох концернів лишаються JS.** `fix-lint.mjs` спавнить
+//    `stylelint --fix`, який пише файли САМ (модель «тул пише сам»,
+//    відкрите питання §9 спеки), і перелічує цілі через `git ls-files` —
+//    жодне з двох не є `FixPlan`. `js/jscpd_duplicates` фіксера не має
+//    взагалі.
+// 5. **Запис `duplicates` не за схемою `jscpd` порт ПРОПУСКАЄ.** Канон
+//    читає поля без перевірки, тож клон без `firstFile.name` дав би
+//    повідомлення з рядком `undefined` і `data.line: undefined` — знову
+//    Р11: дефект канону не копіюється. Реальний звіт `jscpd` цієї гілки не
+//    досягає взагалі ([`parse_jscpd_file_ref`]).
+//
+// # Що лишається після цього зрізу
+//
+// З чотирьох обгорток зовнішніх процесів (§6 спеки v3.1) портовані три:
+// `bun/licensee` (зріз 5) і ці дві. Четверта — `js-run/runtime` — окремий
+// зріз 7 і найбільший поодинокий зріз усієї §3.5.5: 496 рядків
+// `runtime/main.mjs` плюс 983 рядки шести lib-сканерів (`js-run/lib/*.mjs`),
+// вісім під-перевірок, перший споживач `scratch-in` (rego-політики
+// `js-run/jsconfig/*.rego` для `pinned:conftest`) і перший споживач схеми
+// `pinned:` у цьому компоненті. `js/eslint` і `js/knip` — вічний JS
+// (рішення Є спеки), жодна поверхня цього не змінює.
+// =====================================================================
+
+/// Ключ контрибуції `style/lint` (зріз 6 контракту v3.1).
+const CONCERN_STYLE_LINT: &str = "style/lint";
+
+/// Декларація тула `style/lint` — схема `npm:` (рішення В спеки):
+/// `<cwd>/node_modules/.bin/stylelint`, фолбек `PATH`. Це дослівний порядок
+/// `resolveStylelint` JS-канону.
+const STYLELINT_TOOL: &str = "npm:stylelint";
+
+/// Розширення, які канон віддає `stylelint` (`STYLE_EXT_RE`
+/// `/\.(?:css|scss|vue)$/u` — прив'язаний до кінця рядка, тож `ends_with`
+/// точний, а не наближення).
+const STYLE_EXTENSIONS: [&str; 3] = [".css", ".scss", ".vue"];
+
+/// Глоб контрибуції `style/lint` — той самий набір розширень, що
+/// [`STYLE_EXTENSIONS`], у формі, яку хост розкриває у full-scope batch.
+const STYLE_LINT_GLOB: &str = "**/*.{css,scss,vue}";
+
+/// `reason` warn-гілки «тул не дав вердикту» — у канону його немає
+/// (розбіжність 1 доккомента секції): канон пише це в окремий
+/// `LintResult.diagnostics`, у якого поля `reason` не існує.
+const STYLELINT_UNRESOLVED_REASON: &str = "stylelint-unresolved";
+
+/// Ліміт вставки чужого виводу в повідомлення — порт `.slice(0, 2000)`
+/// JS-канону `style/lint`.
+const STYLELINT_DETAIL_LIMIT: usize = 2000;
+
+/// Порт `lint()` `style/lint` (`main.mjs:41-80`).
+///
+/// `files` — або дельта від JS-оркестрації, або full-scope batch, який хост
+/// побудував за [`STYLE_LINT_GLOB`] (доккомент секції, «`scope` контрибуцій»).
+/// В обох випадках гість фільтрує його тим самим предикатом, що
+/// `filterStyleFiles` канону, і віддає результат тулу як аргументи.
+fn detect_style_lint(files: &[SourceFile]) -> Vec<Diagnostic> {
+    let targets: Vec<String> = files
+        .iter()
+        .filter(|file| {
+            STYLE_EXTENSIONS
+                .iter()
+                .any(|extension| file.path.ends_with(extension))
+        })
+        .map(|file| file.path.clone())
+        .collect();
+    // Порт `if (style.length === 0) return reporter.result()` канону — і,
+    // на додачу, гілка, що знімає дефект канону в повному режимі
+    // (розбіжність 2 доккомента секції).
+    if targets.is_empty() {
+        return vec![];
+    }
+
+    let result = exec_tool(&ToolRequest {
+        tool: STYLELINT_TOOL.to_string(),
+        args: targets,
+        stdin: None,
+        // `None` — корінь репо, рівно `cwd: ctx.cwd` канону: `stylelint`
+        // резолвить свій конфіг і `.stylelintignore` відносно cwd.
+        cwd: None,
+        env: vec![],
+        scratch_in: vec![],
+        scratch_out: vec![],
+    });
+
+    let Some(exit_code) = result.status else {
+        return vec![Diagnostic {
+            reason: STYLELINT_UNRESOLVED_REASON.to_string(),
+            message: "lint-style: `stylelint` не резолвиться (ні node_modules/.bin, ні PATH) — \
+                      CSS/SCSS/Vue-стилі НЕ перевірені цим прогоном (style.mdc). `stylelint` — \
+                      залежність @7n/rules-lang-js; переустанови плагін, якщо бачиш це."
+                .to_string(),
+            file: None,
+            // Fail-open, як і в канону: відсутність тула не блокує гейт.
+            severity: Severity::Warn,
+            data: None,
+        }];
+    };
+    if exit_code == 0 {
+        return vec![];
+    }
+
+    // Канон склеює stdout і stderr БЕЗ роздільника (`${stdout}${stderr}`),
+    // тримає trim і зріз до 2000 — порт 1:1.
+    let joined = format!("{}{}", result.stdout, result.stderr);
+    let out = truncate_chars(joined.trim(), STYLELINT_DETAIL_LIMIT);
+    let suffix = if out.is_empty() {
+        String::new()
+    } else {
+        format!("\n{out}")
+    };
+    vec![Diagnostic {
+        reason: "stylelint-violation".to_string(),
+        message: format!("lint-style: stylelint — порушення (код {exit_code}, style.mdc){suffix}"),
+        file: None,
+        severity: Severity::Error,
+        data: None,
+    }]
+}
+
+/// Ключ контрибуції `js/jscpd_duplicates` (зріз 6 контракту v3.1 — перший
+/// реальний споживач `scratch-out`).
+const CONCERN_JSCPD_DUPLICATES: &str = "js/jscpd_duplicates";
+
+/// Декларація тула — схема `path:` (`bunx` резолвиться по PATH, як у
+/// `bun/licensee`).
+const JSCPD_TOOL: &str = "path:bunx";
+
+/// Ім'я JSON-звіту, яке `jscpd` дає репортеру `json` — воно ж
+/// `scratch-out`-глоб (без `**/`: звіт лежить рівно в каталозі `--output`).
+const JSCPD_REPORT_NAME: &str = "jscpd-report.json";
+
+/// Слот host-context з абсолютним шляхом scratch-каталогу виклику — те, що
+/// канон робив сам через `mkdtempSync(join(tmpdir(), 'jscpd-'))`.
+const SCRATCH_DIR_SLOT: &str = "scratch-dir@1";
+
+/// `reason` warn-гілки «звіту немає» — у канону його немає (розбіжність 1
+/// доккомента секції), там це `LintResult.diagnostics`.
+const JSCPD_REPORT_UNREADABLE_REASON: &str = "jscpd-report-unreadable";
+
+/// Ліміт вставки чужого виводу в warn-повідомлення — порт `.slice(0, 500)`
+/// JS-канону `js/jscpd_duplicates` (інший, ніж у `style/lint`).
+const JSCPD_DETAIL_LIMIT: usize = 500;
+
+/// Один клон зі звіту `jscpd` — рівно ті поля, які читає
+/// `cloneToViolation` JS-канону.
+struct JscpdClone {
+    first_name: String,
+    first_start: i64,
+    first_end: i64,
+    second_name: String,
+    second_start: i64,
+    second_end: i64,
+    lines: i64,
+    format: String,
+}
+
+/// Дістає `{ name, start, end }` одного боку клону. `None` — запис не має
+/// схеми звіту `jscpd` (розбіжність 5 доккомента секції: канон надрукував би
+/// у повідомленні `undefined`, порт такий запис пропускає).
+fn parse_jscpd_file_ref(value: Option<&serde_json::Value>) -> Option<(String, i64, i64)> {
+    let value = value?;
+    Some((
+        value.get("name")?.as_str()?.to_string(),
+        value.get("start")?.as_i64()?,
+        value.get("end")?.as_i64()?,
+    ))
+}
+
+/// Розбирає `report.duplicates` у клони. Не-масив (чи відсутнє поле) —
+/// порожній результат: порт `Array.isArray(report.duplicates) ? … : []`.
+fn parse_jscpd_report(report: &serde_json::Value) -> Vec<JscpdClone> {
+    let Some(duplicates) = report.get("duplicates").and_then(|v| v.as_array()) else {
+        return Vec::new();
+    };
+    duplicates
+        .iter()
+        .filter_map(|clone| {
+            let (first_name, first_start, first_end) =
+                parse_jscpd_file_ref(clone.get("firstFile"))?;
+            let (second_name, second_start, second_end) =
+                parse_jscpd_file_ref(clone.get("secondFile"))?;
+            Some(JscpdClone {
+                first_name,
+                first_start,
+                first_end,
+                second_name,
+                second_start,
+                second_end,
+                lines: clone.get("lines")?.as_i64()?,
+                format: clone.get("format")?.as_str()?.to_string(),
+            })
+        })
+        .collect()
+}
+
+/// Порт `cloneToViolation` (`main.mjs:22-39`) 1:1 — повідомлення, `file`
+/// (anchored на `firstFile`) і `data`, на яку спирається рендер.
+fn jscpd_clone_to_diagnostic(clone: &JscpdClone) -> Diagnostic {
+    let first_location = format!(
+        "{}:{}-{}",
+        clone.first_name, clone.first_start, clone.first_end
+    );
+    let second_location = format!(
+        "{}:{}-{}",
+        clone.second_name, clone.second_start, clone.second_end
+    );
+    let data = serde_json::json!({
+        "line": clone.first_start,
+        "lines": clone.lines,
+        "format": clone.format,
+        "first": { "file": clone.first_name, "start": clone.first_start, "end": clone.first_end },
+        "second": { "file": clone.second_name, "start": clone.second_start, "end": clone.second_end },
+    });
+    Diagnostic {
+        reason: "duplicate-clone".to_string(),
+        message: format!(
+            "jscpd: дубльований фрагмент ({} рядків, {}) {first_location} ↔ {second_location}",
+            clone.lines, clone.format
+        ),
+        file: Some(clone.first_name.clone()),
+        severity: Severity::Error,
+        data: Some(data.to_string()),
+    }
+}
+
+/// Будує warn-діагностику «звіту немає» з тим самим суфіксом виводу тула,
+/// що й канон (`${stdout}${stderr}`, trim, зріз до 500).
+fn jscpd_report_unreadable(stdout: &str, stderr: &str) -> Vec<Diagnostic> {
+    let joined = format!("{stdout}{stderr}");
+    let detail = truncate_chars(joined.trim(), JSCPD_DETAIL_LIMIT);
+    let suffix = if detail.is_empty() {
+        String::new()
+    } else {
+        format!(": {detail}")
+    };
+    vec![Diagnostic {
+        reason: JSCPD_REPORT_UNREADABLE_REASON.to_string(),
+        message: format!("jscpd: не вдалося прочитати JSON-звіт{suffix}"),
+        file: None,
+        // Fail-open, як і в канону: краш тула не блокує гейт.
+        severity: Severity::Warn,
+        data: None,
+    }]
+}
+
+/// Порт `lint()` `js/jscpd_duplicates` (`main.mjs:47-69`) — перший реальний
+/// споживач `scratch-out`.
+///
+/// `files` ІГНОРУЄТЬСЯ повністю (глоб контрибуції порожній): канон теж не
+/// читає з диска нічого перед спавном — репозиторій обходить сам `jscpd`.
+fn detect_jscpd_duplicates() -> Vec<Diagnostic> {
+    // Канон писав звіт у власний `mkdtemp` поза репо; тут той самий інваріант
+    // «дерево не мутується» тримає хост. `none` (каталог не створився) —
+    // деградуємо в ту саму warn-гілку, що й нечитаний звіт: без каталогу
+    // `--output` передати нема чого.
+    let Some(scratch_dir) = host_context(SCRATCH_DIR_SLOT) else {
+        return jscpd_report_unreadable("", "хост не надав scratch-каталогу (слот scratch-dir@1)");
+    };
+
+    let result = exec_tool(&ToolRequest {
+        tool: JSCPD_TOOL.to_string(),
+        args: vec![
+            "jscpd".to_string(),
+            ".".to_string(),
+            "--reporters".to_string(),
+            "json".to_string(),
+            "--output".to_string(),
+            scratch_dir,
+            "--silent".to_string(),
+        ],
+        stdin: None,
+        // `None` — корінь репо, рівно `cwd: ctx.cwd` канону: `jscpd` читає
+        // `.jscpd.json` і обходить дерево відносно cwd.
+        cwd: None,
+        env: vec![],
+        scratch_in: vec![],
+        scratch_out: vec![JSCPD_REPORT_NAME.to_string()],
+    });
+
+    let Some(report_file) = result
+        .scratch_out
+        .iter()
+        .find(|file| file.path == JSCPD_REPORT_NAME)
+    else {
+        return jscpd_report_unreadable(&result.stdout, &result.stderr);
+    };
+    let Ok(report) = serde_json::from_str::<serde_json::Value>(&report_file.content) else {
+        // Той самий `catch`, що в канону навколо `JSON.parse`.
+        return jscpd_report_unreadable(&result.stdout, &result.stderr);
+    };
+
+    parse_jscpd_report(&report)
+        .iter()
+        .map(jscpd_clone_to_diagnostic)
+        .collect()
+}
+
+/// Guest-реалізація world `plugin` — тридцять дев'ять контрибуцій ([`CONCERN_TFM`],
 /// [`CONCERN_GAP`], [`CONCERN_POOL_FORKS`], [`CONCERN_NO_PROCESS_CHDIR`],
 /// [`CONCERN_ADMIN_TABLE`], [`CONCERN_QUASAR_FIXES`], [`CONCERN_LOCATION`],
 /// [`CONCERN_NO_CONSOLE_STORE_RESTORE`], [`CONCERN_NO_BUN_TEST_IMPORT`],
@@ -10861,7 +11248,10 @@ fn detect_bun_licensee(files: &[SourceFile]) -> Vec<Diagnostic> {
 /// зріз 2, доккомент секції «Зріз 2» вище; [`CONCERN_DOC_COMMENTS`] — зріз 4,
 /// ЄДИНИЙ (крім [`CONCERN_TFM`]) per-file концерн і другий після
 /// [`CONCERN_NO_BUN_TEST_IMPORT`] із реальним `export fix`, доккомент секції
-/// «Зріз 4» вище).
+/// «Зріз 4» вище; [`CONCERN_BUN_LICENSEE`] — зріз 5, пілот `exec-tool`,
+/// доккомент секції «Зріз 5» вище; [`CONCERN_STYLE_LINT`] і
+/// [`CONCERN_JSCPD_DUPLICATES`] — зріз 6, решта обгорток зовнішніх процесів,
+/// доккомент секції «Зріз 6» вище).
 struct LangJs;
 
 impl Guest for LangJs {
@@ -11022,6 +11412,16 @@ impl Guest for LangJs {
             CONCERN_BUN_LICENSEE => {
                 report_progress(total, total);
                 detect_bun_licensee(&batch.files)
+            }
+            // Зріз 6 контракту v3.1 (доккомент секції «Зріз 6») — решта
+            // обгорток зовнішніх процесів цього компонента.
+            CONCERN_STYLE_LINT => {
+                report_progress(total, total);
+                detect_style_lint(&batch.files)
+            }
+            CONCERN_JSCPD_DUPLICATES => {
+                report_progress(total, total);
+                detect_jscpd_duplicates()
             }
             // PER-FILE (зріз 4): кожен файл — свій крок прогресу, як
             // дефолтна `CONCERN_TFM`-гілка нижче.
@@ -13555,8 +13955,10 @@ mod tests {
         // — `js/check` (доккомент секції «Зріз 2»), зріз 4 —
         // `js/doc_comments` (доккомент секції «Зріз 4», ДРУГА per-file
         // контрибуція плагіна), зріз 5 — `bun/licensee` (доккомент секції
-        // «Зріз 5», ПЕРШИЙ концерн плагіна, що спавнить зовнішній процес).
-        assert_eq!(manifest.concerns.len(), 37);
+        // «Зріз 5», ПЕРШИЙ концерн плагіна, що спавнить зовнішній процес),
+        // зріз 6 — `style/lint` і `js/jscpd_duplicates` (доккомент секції
+        // «Зріз 6»).
+        assert_eq!(manifest.concerns.len(), 39);
         for key in [CONCERN_TFM, CONCERN_DOC_COMMENTS] {
             let contribution = manifest
                 .concerns
@@ -13602,6 +14004,7 @@ mod tests {
             CONCERN_STRYKER_CONFIG,
             CONCERN_JS_CHECK,
             CONCERN_BUN_LICENSEE,
+            CONCERN_STYLE_LINT,
         ] {
             let contribution = manifest
                 .concerns
@@ -13611,6 +14014,18 @@ mod tests {
             assert_eq!(contribution.scope, ConcernScope::Full);
             assert!(!contribution.glob.is_empty());
         }
+        // `js/jscpd_duplicates` — ЄДИНА контрибуція з порожнім глобом, і це
+        // перевіряється окремо саме тому, що загальний цикл вище забороняє
+        // порожній глоб як типову помилку. Тут він навпаки обов'язковий:
+        // детектор не читає batch взагалі (доккомент секції «Зріз 6»), тож
+        // будь-який непорожній глоб змусив би хост читати файли в нікуди.
+        let jscpd = manifest
+            .concerns
+            .iter()
+            .find(|c| c.key == CONCERN_JSCPD_DUPLICATES)
+            .expect("js/jscpd_duplicates contribution має бути в маніфесті");
+        assert_eq!(jscpd.scope, ConcernScope::Full);
+        assert!(jscpd.glob.is_empty());
         // Батч 6: rego-порти ходять ЛИШЕ по `**/package.json` (дзеркало
         // `policy.files.walkGlob` їхніх `concern.json`), а
         // `storybook-vitest-config` — по scope-детекції плюс самі конфіги.

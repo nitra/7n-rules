@@ -57,20 +57,24 @@ function resolveMap(dir, opts = {}) {
 }
 
 /**
- * Шлях, який фейковий `resolveCmd` віддає для схеми `path:` — реальний
- * plugin-lang-js декларує `tools = ["path:bun"]` (зріз 5 контракту v3.1), і
- * без ін'єкції `toolPaths` у цих тестах залежав би від того, чи стоїть `bun`
- * на машині, де їх запустили.
+ * Тули, які реально декларує plugin-lang-js: `path:bun` (зріз 5 контракту
+ * v3.1), `npm:stylelint` і `path:bunx` (зріз 6). Без ін'єкції `resolveCmd`
+ * `toolPaths` у цих тестах залежав би від того, що стоїть на машині, де їх
+ * запустили. Схема `npm:` спершу дивиться в `<cwd>/node_modules/.bin/` —
+ * у tmp-каталозі тесту його немає, тож і вона доходить до цього ж фолбеку.
  */
+const LANG_JS_DECLARED_TOOLS = ['bun', 'stylelint', 'bunx']
+/** Шлях, який фейковий `resolveCmd` віддає для `bun` (найчастіше цитований окремо). */
 const FAKE_BUN_PATH = '/fake/bin/bun'
 /** Очікуваний `toolPaths` реального plugin-lang-js за [`fakeResolveCmd`]. */
-const LANG_JS_TOOL_PATHS = { bun: FAKE_BUN_PATH }
+const LANG_JS_TOOL_PATHS = Object.fromEntries(LANG_JS_DECLARED_TOOLS.map(name => [name, `/fake/bin/${name}`]))
 /**
- * Детермінований `resolveCmd`: знає рівно `bun`, решту не знаходить.
- * @param {string} cmd ім'я тула, яке шукає схема `path:`
- * @returns {string | null} шлях до фейкового `bun` або `null`
+ * Детермінований `resolveCmd`: знає рівно тули plugin-lang-js, решту не
+ * знаходить.
+ * @param {string} cmd ім'я тула, яке шукає схема `path:` чи фолбек `npm:`
+ * @returns {string | null} шлях до фейкового бінарника або `null`
  */
-const fakeResolveCmd = cmd => (cmd === 'bun' ? FAKE_BUN_PATH : null)
+const fakeResolveCmd = cmd => (LANG_JS_DECLARED_TOOLS.includes(cmd) ? `/fake/bin/${cmd}` : null)
 
 /** Реальні байти зібраного plugin-lang-js — джерело і для happy-path retrieval, і для sha256 у конфігах тестів. */
 const WASM_BYTES = readFileSync(WASM_PATH)
@@ -191,8 +195,9 @@ describe('resolveWasmConcernMap — читання конфігу', () => {
         'utf8'
       )
       const map = await resolveMap(dir, { env: {} })
-      // plugin-lang-js декларує `tools = ["path:bun"]` (зріз 5 контракту v3.1) —
-      // схема `path:` резолвиться ін'єктованим [`fakeResolveCmd`], не ensure-tool контуром.
+      // plugin-lang-js декларує `tools = ["path:bun", "npm:stylelint", "path:bunx"]`
+      // (зрізи 5–6 контракту v3.1) — обидві схеми резолвляться ін'єктованим
+      // [`fakeResolveCmd`], не ensure-tool контуром.
       expect(map.get('vue/tfm-translations')).toEqual({ wasmPath: WASM_PATH, toolPaths: LANG_JS_TOOL_PATHS })
     })
   })
@@ -229,14 +234,15 @@ describe('resolveWasmConcernMap — читання конфігу', () => {
       // `bun/layout`, `style/tooling`, `test/sandbox-aware-test`,
       // `test/vitest-api-conventions` батчу 8 + `vue/packages` батчу 9 +
       // `test/stryker_config` зрізу 1, `js/check` зрізу 2 і `js/doc_comments`
-      // зрізу 4 і `bun/licensee` зрізу 5 контракту v3.1) — мапа концернів
-      // індексується за кожним ключем окремо.
-      expect(first.size).toBe(37)
+      // зрізу 4, `bun/licensee` зрізу 5 і `style/lint` + `js/jscpd_duplicates`
+      // зрізу 6 контракту v3.1) — мапа концернів індексується за кожним
+      // ключем окремо.
+      expect(first.size).toBe(39)
       // Видаляємо .n-rules.json — якби кеш не працював, другий виклик повернув би порожню мапу.
       await writeFile(join(dir, '.n-rules.json'), JSON.stringify({}), 'utf8')
       const second = await resolveMap(dir)
       expect(second).toBe(first)
-      expect(second.size).toBe(37)
+      expect(second.size).toBe(39)
     })
   })
 
@@ -708,13 +714,92 @@ describe('resolveWasmConcernMap — ensure-tool wiring (задача N1, ріш�
       const map = await resolveMap(dir, {
         env: {},
         nativeFn: () =>
-          fakeNative({ concerns: [{ key: 'fake/concern', scope: 'per-file', glob: [] }], tools: ['npm:stylelint'] }),
+          fakeNative({ concerns: [{ key: 'fake/concern', scope: 'per-file', glob: [] }], tools: ['oci:whatever'] }),
         ensureToolFn
       })
 
-      // `npm:` — кандидат зрізу 6, поки НЕ підтримана: інтерпретувати її як
-      // ім'я тула було б мовчазним «тул не знайдено».
+      // Схема поза словником (`pinned:`/`path:`/`npm:`) не інтерпретується як
+      // ім'я тула — інакше це було б мовчазне «тул не знайдено».
       expect(ensureToolFn).not.toHaveBeenCalled()
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('oci:whatever'))
+      expect(map.get('fake/concern')).toEqual({ wasmPath: WASM_PATH, toolPaths: {} })
+      warnSpy.mockRestore()
+    })
+  })
+
+  test('схема "npm:" бере бінарник з node_modules/.bin консюмера, БЕЗ ensure-tool і БЕЗ PATH (зріз 6)', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(
+        join(dir, '.n-rules.json'),
+        JSON.stringify({ wasmPlugins: [{ name: 'fake-plugin', path: WASM_PATH }] }),
+        'utf8'
+      )
+      const binDir = join(dir, 'node_modules', '.bin')
+      await mkdir(binDir, { recursive: true })
+      await writeFile(join(binDir, 'stylelint'), '#!/bin/sh\nexit 0\n', 'utf8')
+
+      const ensureToolFn = vi.fn(toolId => `/fake/bin/${toolId}`)
+      const resolveCmdFn = vi.fn(() => '/fake/bin/from-path')
+      const map = await resolveMap(dir, {
+        env: {},
+        nativeFn: () =>
+          fakeNative({ concerns: [{ key: 'fake/concern', scope: 'per-file', glob: [] }], tools: ['npm:stylelint'] }),
+        ensureToolFn,
+        resolveCmdFn
+      })
+
+      // Локальний `.bin` виграє: ні ensure-tool контур (він уміє лише
+      // github-релізи), ні PATH-фолбек до нього не доходять.
+      expect(ensureToolFn).not.toHaveBeenCalled()
+      expect(resolveCmdFn).not.toHaveBeenCalled()
+      expect(map.get('fake/concern')).toEqual({
+        wasmPath: WASM_PATH,
+        toolPaths: { stylelint: join(binDir, 'stylelint') }
+      })
+    })
+  })
+
+  test('схема "npm:" без node_modules/.bin падає у PATH-фолбек (порядок resolveStylelint JS-канону)', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(
+        join(dir, '.n-rules.json'),
+        JSON.stringify({ wasmPlugins: [{ name: 'fake-plugin', path: WASM_PATH }] }),
+        'utf8'
+      )
+      const map = await resolveMap(dir, {
+        env: {},
+        nativeFn: () =>
+          fakeNative({
+            concerns: [{ key: 'fake/concern', scope: 'per-file', glob: [] }],
+            tools: ['npm:stylelint@^16']
+          }),
+        resolveCmdFn: cmd => (cmd === 'stylelint' ? '/fake/bin/stylelint' : null)
+      })
+
+      // Ключ мапи — ІМ'Я без схеми й без semver-суфікса: рівно те, за чим
+      // host-бік (`ToolResolver::resolve`) шукатиме шлях.
+      expect(map.get('fake/concern')).toEqual({
+        wasmPath: WASM_PATH,
+        toolPaths: { stylelint: '/fake/bin/stylelint' }
+      })
+    })
+  })
+
+  test('схема "npm:" без .bin і без PATH → warn і пропуск ОДНОГО тула, плагін лишається', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(
+        join(dir, '.n-rules.json'),
+        JSON.stringify({ wasmPlugins: [{ name: 'fake-plugin', path: WASM_PATH }] }),
+        'utf8'
+      )
+      const warnSpy = vi.spyOn(console, 'warn').mockReturnValue()
+      const map = await resolveMap(dir, {
+        env: {},
+        nativeFn: () =>
+          fakeNative({ concerns: [{ key: 'fake/concern', scope: 'per-file', glob: [] }], tools: ['npm:stylelint'] }),
+        resolveCmdFn: () => null
+      })
+
       expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('npm:stylelint'))
       expect(map.get('fake/concern')).toEqual({ wasmPath: WASM_PATH, toolPaths: {} })
       warnSpy.mockRestore()

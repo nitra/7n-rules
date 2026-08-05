@@ -65,8 +65,9 @@
  * `docs/specs/2026-08-01-wasm-ast-strategy.md`, розділ «Рішення» п.2).
  */
 import { existsSync } from 'node:fs'
-import { writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { chmod, writeFile } from 'node:fs/promises'
+import { delimiter, join } from 'node:path'
+import { env } from 'node:process'
 import { pathToFileURL } from 'node:url'
 
 import { describe, expect, test } from 'vitest'
@@ -4026,6 +4027,270 @@ describe('wasm-plugin parity — js/doc_comments (JS канон vs wasm plugin-l
       // …і повторний wasm-план на вже підвищеному файлі теж порожній.
       const plan = loadNative().runWasmConcernFix(WASM_PATH, DOC_COMMENTS_CONCERN_KEY, dir, violations, {})
       expect(plan.edits).toEqual([])
+    })
+  })
+})
+
+// --- зріз 6 контракту v3.1: style/lint і js/jscpd_duplicates -------------
+//
+// Обгортки зовнішніх процесів parity-тестуються НЕ так, як решта концернів,
+// і причина структурна: канон і порт мали б спавнити РЕАЛЬНІ `stylelint` і
+// `bunx jscpd` на реальному дереві — результат залежав би від машини, версії
+// тула й мережі, тобто «однакові фікстури через обидві реалізації»
+// перетворилось би на «однаково недетерміновано» (той самий аргумент, що в
+// доккоменті пілота `bun/licensee` у `crates/rules-plugin-host/tests/plugin_lang_js.rs`).
+//
+// Тут натомість обидві реалізації спавнять ОДИН І ТОЙ САМИЙ фейковий
+// бінарник, чию поведінку задає тест: канон резолвить його своїм звичайним
+// шляхом (`node_modules/.bin/stylelint` — саме той порядок, який відтворює
+// схема `npm:`; `bunx` — з PATH), а wasm-бік отримує його абсолютний шлях у
+// `toolPaths`, як його передала б `ensureDeclaredTools`. Усе, що лишається
+// після спавна — розбір виводу й форма діагностик — і є те, що порт
+// зобов'язаний зберегти біт-у-біт. Гілки, де порт свідомо розходиться з
+// каноном (тул не дав вердикту → `LintResult.diagnostics` проти
+// warn-`Diagnostic`), живуть у Rust-тестах хоста, не тут.
+
+const STYLE_LINT_MAIN_MJS_PATH = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'style', 'lint', 'main.mjs')
+const STYLE_LINT_CONCERN_KEY = 'style/lint'
+const JSCPD_MAIN_MJS_PATH = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'js', 'jscpd_duplicates', 'main.mjs')
+const JSCPD_CONCERN_KEY = 'js/jscpd_duplicates'
+
+/**
+ * Пише виконуваний sh-скрипт (фейковий зовнішній тул) і повертає його шлях.
+ * @param {string} path абсолютний шлях майбутнього бінарника
+ * @param {string} body тіло скрипта разом із shebang
+ * @returns {Promise<string>} той самий `path` — зручно для інлайн-вживання
+ */
+async function writeFakeTool(path, body) {
+  await writeFile(path, body, 'utf8')
+  await chmod(path, 0o755)
+  return path
+}
+
+/**
+ * Ганяє `style/lint` через JS-канон і wasm-порт на СПІЛЬНОМУ фейковому
+ * `stylelint`: канон бере його з `<dir>/node_modules/.bin/`, wasm — із
+ * `toolPaths` (те, що для схеми `npm:` побудувала б `ensureDeclaredTools`).
+ * @param {string} dir абсолютний шлях tmp-каталогу з уже записаними фікстурами
+ * @param {string[] | undefined} files дельта-список файлів; `undefined` — повний режим
+ * @param {string} toolBody тіло фейкового `stylelint`
+ * @returns {Promise<{ js: unknown[], wasm: unknown[] }>} результати обох реалізацій
+ */
+async function runStyleLintBoth(dir, files, toolBody) {
+  const { mkdir } = await import('node:fs/promises')
+  const binDir = join(dir, 'node_modules', '.bin')
+  await mkdir(binDir, { recursive: true })
+  const toolPath = await writeFakeTool(join(binDir, 'stylelint'), toolBody)
+
+  // file:// URL — абсолютний шлях цього файлу (realRepoRoot() + константні сегменти),
+  // не вхід ззовні (той самий мотив, що [`runTfmBoth`]).
+  // eslint-disable-next-line no-unsanitized/method
+  const { lint } = await import(pathToFileURL(STYLE_LINT_MAIN_MJS_PATH).href)
+  const jsResult = await lint({ cwd: dir, ruleId: 'style', concernId: 'lint', files })
+  const wasmResult = loadNative().runWasmConcern(WASM_PATH, STYLE_LINT_CONCERN_KEY, dir, files ?? null, {
+    stylelint: toolPath
+  })
+  return { js: withDefaultSeverity(jsResult.violations), wasm: withDefaultSeverity(wasmResult.violations) }
+}
+
+/**
+ * Ганяє `js/jscpd_duplicates` через JS-канон і wasm-порт на СПІЛЬНОМУ
+ * фейковому `bunx`. Канон резолвить `bunx` із PATH (тому PATH тимчасово
+ * доповнюється каталогом фейка й відновлюється у `finally`), wasm — із
+ * `toolPaths`. Обидва передають тулу однаковий набір аргументів, де `$6` —
+ * каталог `--output`: канон дає власний `mkdtemp`, хост — scratch-каталог
+ * виклику.
+ * @param {string} dir абсолютний шлях tmp-каталогу
+ * @param {string} toolBody тіло фейкового `bunx`
+ * @returns {Promise<{ js: unknown[], wasm: unknown[] }>} результати обох реалізацій
+ */
+async function runJscpdBoth(dir, toolBody) {
+  const { mkdir } = await import('node:fs/promises')
+  const binDir = join(dir, 'fake-bin')
+  await mkdir(binDir, { recursive: true })
+  const toolPath = await writeFakeTool(join(binDir, 'bunx'), toolBody)
+
+  // `env` з `node:process` (не `process.env`) — вимога `js-run/runtime`;
+  // мутація тут навмисна й тимчасова: канон резолвить `bunx` саме з PATH
+  // дочірнього процесу, іншої точки ін'єкції в нього немає.
+  const originalPath = env.PATH
+  let jsResult
+  try {
+    env.PATH = `${binDir}${delimiter}${originalPath ?? ''}`
+    // eslint-disable-next-line no-unsanitized/method
+    const { lint } = await import(pathToFileURL(JSCPD_MAIN_MJS_PATH).href)
+    jsResult = await lint({ cwd: dir, ruleId: 'js', concernId: 'jscpd_duplicates', files: undefined })
+  } finally {
+    env.PATH = originalPath
+  }
+  const wasmResult = loadNative().runWasmConcern(WASM_PATH, JSCPD_CONCERN_KEY, dir, null, { bunx: toolPath })
+  return { js: withDefaultSeverity(jsResult.violations), wasm: withDefaultSeverity(wasmResult.violations) }
+}
+
+/**
+ * Тіло фейкового `jscpd`, що пише заданий JSON-звіт у каталог `--output`
+ * (`$6` у канонічному наборі аргументів) і виходить нулем.
+ * @param {string} report вміст майбутнього `jscpd-report.json`
+ * @returns {string} тіло sh-скрипта для [`writeFakeTool`]
+ */
+const jscpdToolWriting = report => `#!/bin/sh\ncat > "$6/jscpd-report.json" <<'JSON'\n${report}\nJSON\nexit 0\n`
+
+describe('wasm-plugin parity — style/lint (JS канон vs wasm plugin-lang-js, спільний фейковий stylelint)', () => {
+  test('exit 0 — тул мовчить → без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'app.scss'), '.a {\n  color: red;\n}\n')
+      const { js, wasm } = await runStyleLintBoth(dir, ['app.scss'], '#!/bin/sh\nexit 0\n')
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('exit 2 — однакове violation з обох реалізацій, включно з чужим виводом у тексті', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'app.scss'), '.a {\n  color: red;\n}\n')
+      const { js, wasm } = await runStyleLintBoth(
+        dir,
+        ['app.scss'],
+        '#!/bin/sh\necho "app.scss"\necho "  1:1  ✖  Unexpected" >&2\nexit 2\n'
+      )
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('stylelint-violation')
+      expect(js[0].message).toBe('lint-style: stylelint — порушення (код 2, style.mdc)\napp.scss\n  1:1  ✖  Unexpected')
+    })
+  })
+
+  test('exit 1 без жодного виводу → повідомлення без суфікса з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'app.css'), '.a {\n  color: red;\n}\n')
+      const { js, wasm } = await runStyleLintBoth(dir, ['app.css'], '#!/bin/sh\nexit 1\n')
+      expect(wasm).toEqual(js)
+      expect(js[0].message).toBe('lint-style: stylelint — порушення (код 1, style.mdc)')
+    })
+  })
+
+  test('вивід довший за 2000 символів обрізається однаково обома реалізаціями', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'app.css'), '.a {\n  color: red;\n}\n')
+      // 3000 ASCII-символів: на ASCII `.slice(0, 2000)` (UTF-16 code units)
+      // і `chars().take(2000)` (code points) збігаються за визначенням.
+      const { js, wasm } = await runStyleLintBoth(
+        dir,
+        ['app.css'],
+        `#!/bin/sh\nprintf '%s' '${'x'.repeat(3000)}'\nexit 1\n`
+      )
+      expect(wasm).toEqual(js)
+      expect(js[0].message).toBe(`lint-style: stylelint — порушення (код 1, style.mdc)\n${'x'.repeat(2000)}`)
+    })
+  })
+
+  test('дельта без жодного css/scss/vue → тул не спавниться, обидві реалізації мовчать', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'main.mjs'), 'export const a = 1\n')
+      // Скрипт віддав би 1 (порушення), якби його взагалі запустили.
+      const { js, wasm } = await runStyleLintBoth(dir, ['main.mjs'], '#!/bin/sh\nexit 1\n')
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('повний режим (files: undefined) — той самий вердикт з обох реалізацій попри різні цілі', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'app.scss'), '.a {\n  color: red;\n}\n')
+      await writeFile(join(dir, 'main.mjs'), 'export const a = 1\n')
+      // Канон віддає тулу ГЛОБ `**/*.{css,scss,vue}`, порт — розкритий
+      // хостом список (розбіжність 2 доккомента секції «Зріз 6»); вивід
+      // фейка від argv не залежить, тож видима частина вердикту однакова.
+      // Це заразом і доказ full-scope мосту: `files: null` → хост сам
+      // будує batch за глобом контрибуції.
+      const { js, wasm } = await runStyleLintBoth(dir, undefined, '#!/bin/sh\necho "boom"\nexit 2\n')
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].message).toBe('lint-style: stylelint — порушення (код 2, style.mdc)\nboom')
+    })
+  })
+})
+
+describe('wasm-plugin parity — js/jscpd_duplicates (JS канон vs wasm plugin-lang-js, спільний фейковий bunx)', () => {
+  test('звіт із двома клонами → однакові violations (message/file/data) з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const report = JSON.stringify({
+        duplicates: [
+          {
+            format: 'javascript',
+            lines: 25,
+            firstFile: { name: 'src/a.mjs', start: 1, end: 26 },
+            secondFile: { name: 'src/b.mjs', start: 10, end: 35 }
+          },
+          {
+            format: 'vue',
+            lines: 30,
+            firstFile: { name: 'src/C.vue', start: 2, end: 32 },
+            secondFile: { name: 'src/D.vue', start: 5, end: 35 }
+          }
+        ]
+      })
+      const { js, wasm } = await runJscpdBoth(dir, jscpdToolWriting(report))
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(2)
+      expect(js[0].reason).toBe('duplicate-clone')
+      expect(js[0].message).toBe('jscpd: дубльований фрагмент (25 рядків, javascript) src/a.mjs:1-26 ↔ src/b.mjs:10-35')
+      expect(js[0].file).toBe('src/a.mjs')
+      expect(js[0].data).toEqual({
+        line: 1,
+        lines: 25,
+        format: 'javascript',
+        first: { file: 'src/a.mjs', start: 1, end: 26 },
+        second: { file: 'src/b.mjs', start: 10, end: 35 }
+      })
+    })
+  })
+
+  test('порожній duplicates → без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const { js, wasm } = await runJscpdBoth(dir, jscpdToolWriting(JSON.stringify({ duplicates: [] })))
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('duplicates не масив → без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const { js, wasm } = await runJscpdBoth(dir, jscpdToolWriting(JSON.stringify({ duplicates: 'nope' })))
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('ненульовий код тула зі звітом → вердикт беруть зі звіту обидві реалізації', async () => {
+    await withTmpDir(async dir => {
+      const report = JSON.stringify({
+        duplicates: [
+          {
+            format: 'markdown',
+            lines: 40,
+            firstFile: { name: 'docs/a.md', start: 3, end: 43 },
+            secondFile: { name: 'docs/b.md', start: 7, end: 47 }
+          }
+        ]
+      })
+      // `.jscpd.json` цього репо має `"exitCode": 1` — реальний `jscpd`
+      // виходить ненульовим САМЕ тоді, коли клони знайдено, тож ця гілка
+      // (звіт є, код ≠ 0) і є типовою, а не крайньою.
+      const { js, wasm } = await runJscpdBoth(
+        dir,
+        `#!/bin/sh\ncat > "$6/jscpd-report.json" <<'JSON'\n${report}\nJSON\nexit 1\n`
+      )
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].file).toBe('docs/a.md')
+    })
+  })
+
+  test('wasm-порт не лишає звіту в дереві репо — він живе у scratch-каталозі хоста', async () => {
+    await withTmpDir(async dir => {
+      await runJscpdBoth(dir, jscpdToolWriting(JSON.stringify({ duplicates: [] })))
+      expect(existsSync(join(dir, 'jscpd-report.json'))).toBe(false)
     })
   })
 })

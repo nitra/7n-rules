@@ -53,7 +53,8 @@ pub struct ScratchFile {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ToolRequest {
     /// Ім'я тула ДОСЛІВНО як у `Manifest::tools` — зі схемою резолву
-    /// (`path:bun`) чи без неї (дефолт `pinned:`, рішення В спеки).
+    /// (`path:bun`, `npm:stylelint`) чи без неї (дефолт `pinned:`, рішення В
+    /// спеки).
     pub tool: String,
     pub args: Vec<String>,
     pub stdin: Option<String>,

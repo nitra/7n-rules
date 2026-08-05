@@ -6,11 +6,16 @@
 //!
 //! До v3.1 рядок тула не мав валідатора взагалі: `Manifest::tools` — просто
 //! `Vec<String>`, а `"eslint@>=8 <9"` мовчки ставав `"eslint"` (обрізання по
-//! першому `@`, `ToolResolver::run`). Схеми резолву (`pinned:`/`path:`)
-//! роблять цей рядок структурованим — а структура без валідатора дрейфує в
-//! мовчазні «тул не знайдено», тож [`parse_tool_ref`] стає єдиною точкою
-//! розбору для ОБОХ боків (host `ToolResolver`, JS `ensureDeclaredTools`) і
-//! має дзеркальний JS-тест конвенції.
+//! першому `@`, `ToolResolver::run`). Схеми резолву
+//! (`pinned:`/`path:`/`npm:`) роблять цей рядок структурованим — а структура
+//! без валідатора дрейфує в мовчазні «тул не знайдено», тож
+//! [`parse_tool_ref`] стає єдиною точкою розбору для ОБОХ боків (host
+//! `ToolResolver`, JS `ensureDeclaredTools`) і має дзеркальний JS-тест
+//! конвенції.
+//!
+//! Схема впливає ЛИШЕ на те, хто й де шукає бінарник (JS-бік,
+//! `ensureDeclaredTools`) — host-резолв (`ToolResolver::resolve`) однаковий
+//! для всіх трьох: мапа «ім'я → абсолютний шлях» приходить уже готовою.
 //!
 //! # Запит `exec-tool` — недовірений вхід
 //!
@@ -60,6 +65,12 @@ pub enum ToolScheme {
     /// `path:` — резолв по `PATH` (`resolveCmd`): `bun`, `bunx` — тули, яких
     /// ensure-tool завантажити з GitHub не може й не має.
     Path,
+    /// `npm:` — тул із `node_modules/.bin` консюмер-репо, фолбек `PATH`
+    /// (зріз 6 контракту v3.1): `stylelint` — задекларована залежність
+    /// npm-пакета плагіна, а не github-реліз і не глобальний бінарник.
+    /// Порядок «локальний .bin → PATH» — дослівно `resolveStylelint`
+    /// JS-канону `style/lint`.
+    Npm,
 }
 
 /// Розібраний рядок `Manifest::tools`: схема резолву + ім'я тула БЕЗ
@@ -80,14 +91,15 @@ pub struct ToolRef<'a> {
 /// ігнорується, канонічну версію ставить ensure-tool контур — тут він лише
 /// відрізається, не звіряється.
 ///
-/// Невідома схема (`npm:` — кандидат зрізу 6, `oci:` — вигадка) НЕ
-/// інтерпретується як частина імені: [`validate_tool_ref`] відхиляє такий
-/// рядок, а цей розбір повертає `Pinned` + повний залишок, щоб повідомлення
-/// про помилку показало людині рівно те, що вона написала.
+/// Невідома схема (`oci:` — вигадка) НЕ інтерпретується як частина імені:
+/// [`validate_tool_ref`] відхиляє такий рядок, а цей розбір повертає
+/// `Pinned` + повний залишок, щоб повідомлення про помилку показало людині
+/// рівно те, що вона написала.
 pub fn parse_tool_ref(declared: &str) -> ToolRef<'_> {
     let (scheme, rest) = match declared.split_once(':') {
         Some(("pinned", rest)) => (ToolScheme::Pinned, rest),
         Some(("path", rest)) => (ToolScheme::Path, rest),
+        Some(("npm", rest)) => (ToolScheme::Npm, rest),
         _ => (ToolScheme::Pinned, declared),
     };
     ToolRef {
@@ -102,10 +114,10 @@ pub fn parse_tool_ref(declared: &str) -> ToolRef<'_> {
 /// мусить бути самодостатнім.
 pub fn validate_tool_ref(declared: &str) -> Result<ToolRef<'_>, String> {
     if let Some((prefix, _)) = declared.split_once(':') {
-        if !matches!(prefix, "pinned" | "path") {
+        if !matches!(prefix, "pinned" | "path" | "npm") {
             return Err(format!(
                 "тул `{declared}`: невідома схема резолву `{prefix}:` — відомі \
-                 `pinned:` (дефолт за відсутності схеми) і `path:`"
+                 `pinned:` (дефолт за відсутності схеми), `path:` і `npm:`"
             ));
         }
     }
@@ -217,6 +229,8 @@ mod tests {
         assert_eq!(parse_tool_ref("pinned:conftest@^0.68").name, "conftest");
         assert_eq!(parse_tool_ref("path:bun").scheme, ToolScheme::Path);
         assert_eq!(parse_tool_ref("path:bun").name, "bun");
+        assert_eq!(parse_tool_ref("npm:stylelint").scheme, ToolScheme::Npm);
+        assert_eq!(parse_tool_ref("npm:stylelint").name, "stylelint");
     }
 
     /// Дзеркало доккомента `ToolResolver` — semver-діапазон із пробілом теж
@@ -230,9 +244,20 @@ mod tests {
 
     #[test]
     fn unknown_scheme_is_rejected_with_named_alternatives() {
-        let err = validate_tool_ref("npm:stylelint").unwrap_err();
-        assert!(err.contains("npm:"), "{err}");
+        let err = validate_tool_ref("oci:whatever").unwrap_err();
+        assert!(err.contains("oci:"), "{err}");
         assert!(err.contains("path:"), "{err}");
+        assert!(err.contains("npm:"), "{err}");
+    }
+
+    /// Зріз 6 контракту v3.1: `npm:` перестала бути невідомою схемою —
+    /// цей тест і є та сама перевірка, що раніше стояла на `npm:stylelint`
+    /// у [`unknown_scheme_is_rejected_with_named_alternatives`].
+    #[test]
+    fn npm_scheme_is_accepted() {
+        let parsed = validate_tool_ref("npm:stylelint").expect("npm: — відома схема зрізу 6");
+        assert_eq!(parsed.scheme, ToolScheme::Npm);
+        assert_eq!(parsed.name, "stylelint");
     }
 
     #[test]

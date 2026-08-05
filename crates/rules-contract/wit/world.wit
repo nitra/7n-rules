@@ -269,7 +269,7 @@ world plugin {
   /// (`bun/licensee`, `style/lint`, `js/jscpd_duplicates`, `js-run/runtime`).
   record tool-request {
     /// Ім'я тула — ДОСЛІВНО те, що в `manifest.tools` (зі схемою
-    /// `pinned:`/`path:` чи без неї — дефолт `pinned:`); хост звіряє його з
+    /// `pinned:`/`path:`/`npm:` чи без неї — дефолт `pinned:`); хост звіряє його з
     /// декларацією і резолвить у шлях. `exec-tool` виконує ВЖЕ
     /// зарезолвлений тул і нічого не добуває: провізіонінг винесено в
     /// окрему команду `tools ensure`, а lint працює fail-closed, тож промах
