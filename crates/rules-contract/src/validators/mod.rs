@@ -12,3 +12,9 @@ pub mod ci_artifact;
 /// хостом (`rules-plugin-host::LoadedPlugin::fix`) до передачі плану
 /// оркестрації.
 pub mod fix;
+/// Валідатор рядка `Manifest::tools` (схеми резолву `pinned:`/`path:`,
+/// рішення В спеки v3.1) і запиту `exec-tool` — safe-path для `cwd` і
+/// `scratch-file.path` (переюз `ci_artifact::is_safe_repo_relative_path`)
+/// плюс ліміти scratch-обміну; викликається хостом
+/// (`rules-plugin-host::HostState::exec_tool`) ДО спавна процесу.
+pub mod tool;

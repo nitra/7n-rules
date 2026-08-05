@@ -1,4 +1,4 @@
-//! Автогенеровані Component Model біндінги `n-rules:plugin@3.0.0`
+//! Автогенеровані Component Model біндінги `n-rules:plugin@3.1.0`
 //! (`wasmtime::component::bindgen!` на `crates/rules-contract/wit/`, задача
 //! I2 фази 6, спека
 //! `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md` §3.1).

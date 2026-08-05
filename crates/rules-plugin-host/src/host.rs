@@ -20,7 +20,7 @@ use crate::loaded_plugin::LoadedPlugin;
 use crate::tool_resolver::ToolResolver;
 use crate::wit;
 
-/// Embedded wasmtime-хост для `n-rules:plugin@3.0.0`. `Engine`+`Linker`
+/// Embedded wasmtime-хост для `n-rules:plugin@3.1.0`. `Engine`+`Linker`
 /// будуються раз на `PluginHost` (host-функції компілюються в `Linker`
 /// один раз, не на кожен `load`) — окремий `Store` на плагін через `load`.
 pub struct PluginHost {
@@ -194,6 +194,11 @@ impl PluginHost {
             // `LoadedPlugin::set_repo_root` (доккомент поля) — на момент
             // load/instantiate його ще немає.
             repo_root: None,
+            // Scratch-каталог слоту `scratch-dir@1` — лінивий і
+            // per-виклик (`LoadedPlugin` скидає його навколо кожного
+            // `detect`/`fix`), тож на момент load/instantiate його теж
+            // немає й бути не має.
+            scratch: Default::default(),
         })
     }
 }

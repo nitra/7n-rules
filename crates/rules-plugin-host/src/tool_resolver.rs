@@ -28,6 +28,17 @@
 //! `tool-output`), тож guest сам вирішує, як зреагувати на порожній/помилковий
 //! вивід — той самий skip-not-crash дух, що й решта контракту (рішення З
 //! спеки).
+//!
+//! # `run-tool` і `exec-tool` — один резолвер, два входи
+//!
+//! Зріз 5 контракту v3.1 додав [`ToolResolver::exec`] — `run` плюс
+//! виконавчий контекст (`cwd`, накладені `env`, scratch-обмін). Це НЕ два
+//! механізми: обидва входи ділять ту саму мапу тулів, той самий резолв
+//! ([`ToolResolver::resolve`]), той самий таймаут і той самий спавн
+//! ([`run_process`], який отримав [`ProcessContext`] із дефолтом «як було»).
+//! `run-tool` лишається в контракті назавжди в межах major 3 — v3.0-гості
+//! його експортують, і саме тому розширювати ЙОГО сигнатуру не можна
+//! (доккомент `wit/world.wit` біля `import exec-tool`).
 
 use std::collections::HashMap;
 use std::io::{Read, Write};
@@ -38,7 +49,10 @@ use std::process::{Child, Command, ExitStatus, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use rules_contract::tool::ToolOutput;
+use rules_contract::tool::{ToolOutput, ToolRequest, ToolResult};
+use rules_contract::validators::tool::{parse_tool_ref, validate_tool_request};
+
+use crate::scratch::ScratchDir;
 
 /// Дефолтний таймаут одного виклику `run-tool` (задача N1: «розумний
 /// таймаут», задокументований тут). 120с — щедрий запас для типових
@@ -91,26 +105,144 @@ impl ToolResolver {
     /// помилка в `tool-output` (`status: none`), не паніка. Резолвлений тул
     /// запускається через [`run_process`] з `self.timeout`.
     pub fn run(&self, tool: &str, args: &[String], stdin: Option<&str>) -> ToolOutput {
-        let name = tool_name(tool);
-        match self.tools.get(name) {
-            Some(path) => run_process(path, args, stdin, self.timeout),
-            None => ToolOutput {
+        match self.resolve(tool) {
+            Ok(path) => run_process(path, args, stdin, self.timeout, ProcessContext::default()),
+            Err(message) => ToolOutput {
                 status: None,
                 stdout: String::new(),
-                stderr: format!(
-                    "run-tool: тул `{tool}` не задекларовано в ToolResolver (поза мапою, яку \
-                     забезпечив ensure-tool контур оркестрації) — плагін може кликати лише \
-                     задекларований і ЗАБЕЗПЕЧЕНИЙ хостом tool (рішення Д спеки, enforcement)"
-                ),
+                stderr: message,
             },
         }
     }
+
+    /// Виконує `exec-tool` (зріз 5 контракту v3.1, рішення А спеки
+    /// `docs/specs/2026-08-01-plugin-contract-v31-surfaces.md`) — `run`
+    /// плюс виконавчий контекст: `cwd`, накладені `env` і двобічний
+    /// scratch-обмін.
+    ///
+    /// # Порядок і фатальність кроків
+    ///
+    /// 1. **Валідація** запиту (`rules_contract::validators::tool`) — до
+    ///    будь-якого IO: невалідний `cwd`/`scratch-in`-шлях чи перевищений
+    ///    ліміт означає, що процес НЕ спавниться взагалі.
+    /// 2. **Резолв** тула тією самою мапою, що `run` (`exec-tool` нічого не
+    ///    добуває — провізіонінг живе в окремій команді `tools ensure`);
+    ///    промах — та сама типізована помилка `status: none`.
+    /// 3. **Матеріалізація** `scratch-in`. Провал — теж фатальний: тул із
+    ///    неповним набором вхідних файлів збрехав би результатом.
+    /// 4. **Спавн** із `current_dir`/`envs`.
+    /// 5. **Збір** `scratch-out` — НЕ фатальний ні в якому вигляді:
+    ///    відсутній файл означає «звіту немає» (доккомент
+    ///    [`ScratchDir::collect`]).
+    ///
+    /// `repo_root` — база для `request.cwd` (payload слоту `repo-root@1`).
+    /// `None` означає, що хост не має контексту репо: тоді `cwd` запиту
+    /// ІГНОРУЄТЬСЯ, а процес успадковує cwd хост-процесу — та сама
+    /// деградація, що в `run-tool`, і саме той випадок, заради якого
+    /// `exec-tool` узагалі з'явився (napi-виклик збігається з коренем репо
+    /// випадково, `rules-cli` — ні). Мовчазним він не лишається: гість
+    /// бачить примітку в `stderr`.
+    ///
+    /// `scratch` — каталог обміну, який хост уже створив (`None` — створити
+    /// не вдалось); запит зі `scratch-in`/`scratch-out` без каталогу —
+    /// типізована помилка, а не мовчазне ігнорування полів.
+    ///
+    /// `pub(crate)`, на відміну від [`Self::run`]: публічна поверхня крейта
+    /// — лише `PluginHost`/`LoadedPlugin` (рішення М спеки), а `ScratchDir`
+    /// із сигнатури назовні не належить. `run` лишається `pub` як була —
+    /// звужувати вже опубліковане API заради симетрії тут нічого не дає.
+    pub(crate) fn exec(
+        &self,
+        request: &ToolRequest,
+        repo_root: Option<&Path>,
+        scratch: Option<&ScratchDir>,
+    ) -> ToolResult {
+        if let Err(errors) = validate_tool_request(request) {
+            return ToolResult::failed(format!(
+                "exec-tool: запит відхилено host-валідатором: {}",
+                errors.join("; ")
+            ));
+        }
+
+        let path = match self.resolve(&request.tool) {
+            Ok(path) => path.clone(),
+            Err(message) => return ToolResult::failed(message),
+        };
+
+        let needs_scratch = !request.scratch_in.is_empty() || !request.scratch_out.is_empty();
+        if needs_scratch && scratch.is_none() {
+            return ToolResult::failed(
+                "exec-tool: запит потребує scratch-каталогу (scratch-in/scratch-out), але хост \
+                 не зміг його створити — гість має деградувати сам (слот `scratch-dir@1` теж \
+                 повернув би `none`)"
+                    .to_string(),
+            );
+        }
+        if let Some(scratch) = scratch {
+            if let Err(message) = scratch.materialize(&request.scratch_in) {
+                return ToolResult::failed(message);
+            }
+        }
+
+        let mut context = ProcessContext {
+            env: &request.env,
+            ..ProcessContext::default()
+        };
+        let resolved_cwd = repo_root.map(|root| match &request.cwd {
+            Some(relative) => root.join(relative),
+            None => root.to_path_buf(),
+        });
+        context.cwd = resolved_cwd.as_deref();
+
+        let output = run_process(
+            &path,
+            &request.args,
+            request.stdin.as_deref(),
+            self.timeout,
+            context,
+        );
+        let mut result = ToolResult::from(output);
+        if repo_root.is_none() && request.cwd.is_some() {
+            result.stderr = append_note(
+                result.stderr,
+                format!(
+                    "exec-tool: `cwd: {}` проігноровано — хост не має контексту кореня репо \
+                     (слот `repo-root@1` порожній), процес успадкував cwd хост-процесу",
+                    request.cwd.as_deref().unwrap_or_default()
+                ),
+            );
+        }
+        if let Some(scratch) = scratch {
+            result.scratch_out = scratch.collect(&request.scratch_out);
+        }
+        result
+    }
+
+    /// Спільний резолв `run`/`exec`: рядок декларації → абсолютний шлях
+    /// бінаря. `Err` — готовий людиночитний `stderr` типізованої помилки
+    /// (`status: none`, доккомент модуля).
+    fn resolve(&self, tool: &str) -> Result<&PathBuf, String> {
+        let name = parse_tool_ref(tool).name;
+        self.tools.get(name).ok_or_else(|| {
+            format!(
+                "run-tool: тул `{tool}` не задекларовано в ToolResolver (поза мапою, яку \
+                 забезпечив ensure-tool контур оркестрації) — плагін може кликати лише \
+                 задекларований і ЗАБЕЗПЕЧЕНИЙ хостом tool (рішення Д спеки, enforcement)"
+            )
+        })
+    }
 }
 
-/// Ім'я тула без версійного суфікса декларації (`"shellcheck@^0.9"` →
-/// `"shellcheck"`); без `@` — рядок повертається як є.
-fn tool_name(tool: &str) -> &str {
-    tool.split('@').next().unwrap_or(tool)
+/// Виконавчий контекст процесу (зріз 5 контракту v3.1) — те, чого бракувало
+/// `run-tool`. Дефолт (`cwd: None`, порожній `env`) — рівно поведінка
+/// `run-tool`: процес успадковує cwd і env хост-процесу.
+#[derive(Default)]
+struct ProcessContext<'a> {
+    /// Абсолютний робочий каталог процесу; `None` — успадкований від хоста.
+    cwd: Option<&'a Path>,
+    /// Змінні, які накладаються ПОВЕРХ успадкованого env (`Command::envs`
+    /// не очищає середовище — саме та семантика, яку описує WIT).
+    env: &'a [(String, String)],
 }
 
 /// Результат очікування завершення дочірнього процесу — розрізняє звичайний
@@ -193,9 +325,21 @@ fn kill_process_tree(child: &mut Child) {
 /// потім прочитати вивід» може зависнути в deadlock на переповненому pipe-буфері.
 /// Тут та сама логіка відтворена вручну (не `wait_with_output`), бо потрібен
 /// ще й таймаут, якого `wait_with_output` не підтримує.
-fn run_process(path: &Path, args: &[String], stdin: Option<&str>, timeout: Duration) -> ToolOutput {
+fn run_process(
+    path: &Path,
+    args: &[String],
+    stdin: Option<&str>,
+    timeout: Duration,
+    context: ProcessContext<'_>,
+) -> ToolOutput {
     let mut command = Command::new(path);
     command.args(args);
+    if let Some(cwd) = context.cwd {
+        command.current_dir(cwd);
+    }
+    // `envs` НАКЛАДАЄ пари поверх успадкованого середовища (на відміну від
+    // `env_clear` + `envs`) — доккомент WIT `tool-request.env`.
+    command.envs(context.env.iter().map(|(k, v)| (k, v)));
     command.stdin(Stdio::piped());
     command.stdout(Stdio::piped());
     command.stderr(Stdio::piped());
@@ -317,11 +461,29 @@ mod tests {
         path
     }
 
+    #[cfg(unix)]
+    fn resolver_with(name: &str, script: PathBuf) -> ToolResolver {
+        let mut tools = HashMap::new();
+        tools.insert(name.to_string(), script);
+        ToolResolver::new(tools)
+    }
+
+    /// Мапа тулів індексується ІМЕНЕМ — і схема резолву (`path:`), і
+    /// semver-суфікс декларації відрізаються ДО пошуку
+    /// (`rules_contract::validators::tool::parse_tool_ref`, єдина точка
+    /// розбору для host- і JS-боку).
+    #[cfg(unix)]
     #[test]
-    fn tool_name_strips_semver_suffix() {
-        assert_eq!(tool_name("shellcheck@^0.9"), "shellcheck");
-        assert_eq!(tool_name("shellcheck"), "shellcheck");
-        assert_eq!(tool_name("eslint@>=8 <9"), "eslint");
+    fn resolve_strips_scheme_and_semver_suffix() {
+        let dir = tempfile::tempdir().expect("tempdir має створитись");
+        let script = write_executable_script(dir.path(), "bun", "#!/bin/sh\nexit 0\n");
+        let resolver = resolver_with("bun", script);
+
+        assert!(resolver.resolve("bun").is_ok());
+        assert!(resolver.resolve("path:bun").is_ok());
+        assert!(resolver.resolve("path:bun@^1.2").is_ok());
+        assert!(resolver.resolve("pinned:bun").is_ok());
+        assert!(resolver.resolve("path:bunx").is_err());
     }
 
     #[test]
@@ -351,6 +513,161 @@ mod tests {
         assert_eq!(out.status, Some(3));
         assert_eq!(out.stdout, "args:a b\n");
         assert_eq!(out.stderr, "err\n");
+    }
+
+    /// `exec-tool` без контексту ≡ `run-tool` (доккомент WIT біля
+    /// `import exec-tool`): той самий вивід, порожній `scratch-out`.
+    #[cfg(unix)]
+    #[test]
+    fn exec_without_context_matches_run_tool() {
+        let dir = tempfile::tempdir().expect("tempdir має створитись");
+        let script = write_executable_script(
+            dir.path(),
+            "echo-tool",
+            "#!/bin/sh\necho \"args:$*\"\ncat >/dev/null\nexit 0\n",
+        );
+        let resolver = resolver_with("echo-tool", script);
+
+        let run = resolver.run("echo-tool", &["a".to_string()], None);
+        let exec = resolver.exec(
+            &ToolRequest {
+                tool: "echo-tool".to_string(),
+                args: vec!["a".to_string()],
+                ..ToolRequest::default()
+            },
+            None,
+            None,
+        );
+        assert_eq!(exec.status, run.status);
+        assert_eq!(exec.stdout, run.stdout);
+        assert!(exec.scratch_out.is_empty());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn exec_sets_current_dir_relative_to_repo_root() {
+        let bin_dir = tempfile::tempdir().expect("tempdir має створитись");
+        let script = write_executable_script(bin_dir.path(), "pwd-tool", "#!/bin/sh\npwd\n");
+        let resolver = resolver_with("pwd-tool", script);
+
+        let repo = tempfile::tempdir().expect("tempdir має створитись");
+        fs::create_dir_all(repo.path().join("npm")).expect("mkdir не мав провалитись");
+
+        let result = resolver.exec(
+            &ToolRequest {
+                tool: "pwd-tool".to_string(),
+                cwd: Some("npm".to_string()),
+                ..ToolRequest::default()
+            },
+            Some(repo.path()),
+            None,
+        );
+        assert_eq!(result.status, Some(0));
+        assert!(
+            result.stdout.trim().ends_with("npm"),
+            "процес мав стартувати в <repo>/npm, отримали {:?}",
+            result.stdout
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn exec_overlays_env_on_top_of_inherited_environment() {
+        let dir = tempfile::tempdir().expect("tempdir має створитись");
+        let script = write_executable_script(
+            dir.path(),
+            "env-tool",
+            "#!/bin/sh\necho \"custom=$N_EXEC_TOOL_PROBE path_present=$([ -n \"$PATH\" ] && echo yes || echo no)\"\n",
+        );
+        let resolver = resolver_with("env-tool", script);
+
+        let result = resolver.exec(
+            &ToolRequest {
+                tool: "env-tool".to_string(),
+                env: vec![("N_EXEC_TOOL_PROBE".to_string(), "42".to_string())],
+                ..ToolRequest::default()
+            },
+            None,
+            None,
+        );
+        assert_eq!(result.stdout.trim(), "custom=42 path_present=yes");
+    }
+
+    /// Двобічний scratch-обмін на одному виклику: тул читає підкладений
+    /// `scratch-in` і пише звіт, який хост забирає за `scratch-out`-глобом.
+    #[cfg(unix)]
+    #[test]
+    fn exec_round_trips_scratch_in_and_out() {
+        let dir = tempfile::tempdir().expect("tempdir має створитись");
+        let script = write_executable_script(
+            dir.path(),
+            "scratch-tool",
+            "#!/bin/sh\ncat \"$1/input.txt\" > \"$1/report.json\"\n",
+        );
+        let resolver = resolver_with("scratch-tool", script);
+        let scratch = ScratchDir::new().expect("scratch-каталог має створитись");
+
+        let result = resolver.exec(
+            &ToolRequest {
+                tool: "scratch-tool".to_string(),
+                args: vec![scratch.path().to_string_lossy().into_owned()],
+                scratch_in: vec![rules_contract::tool::ScratchFile {
+                    path: "input.txt".to_string(),
+                    content: "{\"ok\":true}".to_string(),
+                }],
+                scratch_out: vec!["*.json".to_string()],
+                ..ToolRequest::default()
+            },
+            None,
+            Some(&scratch),
+        );
+        assert_eq!(result.status, Some(0));
+        assert_eq!(result.scratch_out.len(), 1);
+        assert_eq!(result.scratch_out[0].path, "report.json");
+        assert_eq!(result.scratch_out[0].content, "{\"ok\":true}");
+    }
+
+    /// Невалідний запит відхиляється ДО спавна — той самий `status: none`,
+    /// що й незадекларований тул.
+    #[cfg(unix)]
+    #[test]
+    fn exec_rejects_escaping_cwd_before_spawning() {
+        let dir = tempfile::tempdir().expect("tempdir має створитись");
+        let marker = dir.path().join("spawned");
+        let script = write_executable_script(
+            dir.path(),
+            "marker-tool",
+            &format!("#!/bin/sh\ntouch {}\n", marker.display()),
+        );
+        let resolver = resolver_with("marker-tool", script);
+
+        let result = resolver.exec(
+            &ToolRequest {
+                tool: "marker-tool".to_string(),
+                cwd: Some("../../etc".to_string()),
+                ..ToolRequest::default()
+            },
+            Some(dir.path()),
+            None,
+        );
+        assert!(result.status.is_none());
+        assert!(result.stderr.contains("cwd"), "{}", result.stderr);
+        assert!(!marker.exists(), "процес не мав спавнитись узагалі");
+    }
+
+    #[test]
+    fn exec_missing_tool_returns_typed_error_not_panic() {
+        let result = ToolResolver::empty().exec(
+            &ToolRequest {
+                tool: "path:bun".to_string(),
+                ..ToolRequest::default()
+            },
+            None,
+            None,
+        );
+        assert!(result.status.is_none());
+        assert!(result.stderr.contains("не задекларовано"));
+        assert!(result.scratch_out.is_empty());
     }
 
     #[cfg(unix)]

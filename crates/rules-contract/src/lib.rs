@@ -51,7 +51,9 @@ pub mod manifest;
 /// DTO типів окремих WIT-пакетів слот-payload-ів (`n-rules:slots`) —
 /// незалежний від `n-rules:plugin` цикл версіонування (рішення Л).
 pub mod slots;
-/// `ToolOutput`/`LogLevel` — host-функції `run-tool`/`log` (plugin → host).
+/// `ToolOutput`/`LogLevel` — host-функції `run-tool`/`log` (plugin → host),
+/// плюс `ToolRequest`/`ToolResult`/`ScratchFile` — DTO `exec-tool` (зріз 5
+/// контракту v3.1: `run-tool` плюс cwd/env/scratch-обмін).
 pub mod tool;
 /// Host-валідатори — семантичні перевірки, які WIT-типізація не покриває
 /// (safe-path, id-regex), порт `npm/scripts/lib/slot-contracts-ci.mjs`.

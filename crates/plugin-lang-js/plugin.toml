@@ -16,14 +16,18 @@
 
 id = "lang-js/wasm-concerns"
 version = "0.1.0"
-world_version = "3.0.0"
+world_version = "3.1.0"
 domains = ["lint"]
 # Top-level поля маніфеста — ОБОВʼЯЗКОВО перед першим `[[concerns]]`: після
 # array-of-tables заголовка TOML відніс би їх до останнього елемента масиву,
 # а не до кореня (як і `[capabilities]` нижче, який лишається коректним, бо
 # це власна таблиця).
 ci_artifacts = []
-tools = []
+# Зріз 5 контракту v3.1 — перша реальна tool-декларація first-party плагіна.
+# Схема `path:` (рішення В спеки `2026-08-01-plugin-contract-v31-surfaces.md`)
+# означає «резолвити по PATH», а не завантажувати github-реліз, як дефолтна
+# `pinned:`. Споживач — `bun/licensee` через `exec-tool`.
+tools = ["path:bun"]
 # Тридцять три контрибуції концернів (задача N2 + Q1 батч 1 + Q2 батч 2 +
 # Q3 + Q4 батч 4 + storybook-батч 5 + батчі 6–9, передумова full-scope
 # мосту): scope/glob дзеркалять `plugins/lang-js/rules/**/concern.json` цих
@@ -313,6 +317,15 @@ glob = [
 key = "js/doc_comments"
 scope = "per-file"
 glob = ["**/*.{js,mjs,cjs,ts}"]
+
+# Зріз 5 контракту v3.1 — пілот `exec-tool`. Глоб ВУЖЧИЙ за `concern.json`
+# (який глоба не має взагалі, `{"lint": {"scope": "full"}}`): детектор читає
+# з диска рівно `.licensee.json`, решту вердикту дає спавнений тул — той
+# самий принцип «batch несе рівно те, що канон читає», що й батч 7.
+[[concerns]]
+key = "bun/licensee"
+scope = "full"
+glob = [".licensee.json"]
 
 [capabilities]
 # Хост передає вміст файлів inline у `detect-batch`/`fix-request` (як

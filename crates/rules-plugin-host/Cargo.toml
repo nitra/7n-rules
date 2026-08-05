@@ -2,7 +2,7 @@
 name = "rules-plugin-host"
 version = "0.1.0"
 edition = "2021"
-description = "Embedded wasmtime-хост для n-rules:plugin@3.0.0 (crates/rules-contract): завантаження wasm-компонентів, WASI preopens за capabilities, вузький публічний trait поверх Component Model"
+description = "Embedded wasmtime-хост для n-rules:plugin@3.1.0 (crates/rules-contract): завантаження wasm-компонентів, WASI preopens за capabilities, вузький публічний trait поверх Component Model"
 license = "Apache-2.0"
 
 [lib]
@@ -44,11 +44,23 @@ wasmtime-wasi = { version = "47.0", default-features = false, features = [
 ] }
 thiserror = "1"
 serde_json = "1"
+# Scratch-контур `exec-tool` (`src/scratch.rs`, зріз 5 контракту v3.1):
+# тимчасовий каталог обміну з тулом, який має зникнути разом із
+# `detect`/`fix`-викликом — `TempDir` дає рівно цю семантику (рекурсивне
+# видалення в `Drop`), без власного обліку створених шляхів. Уже був
+# dev-залежністю цього крейта (тести `ToolResolver`) — тепер і в
+# продакшн-графі, той самий мінор.
+tempfile = "3"
+# Матчинг `scratch-out`-глобів (`src/scratch.rs`) — ТОЙ САМИЙ крейт і та
+# сама семантика, якою `crates/rules-napi::build_full_scope_files` фільтрує
+# `concern-contribution.glob`; WIT обіцяє гостю «той самий синтаксис», і
+# єдиний спосіб не збрехати — той самий матчер, а не власний.
+globset = "0.4"
 # Тип `#[source]`-полів `PluginHostError` (`src/error.rs`) — `wasmtime::Error`
 # конвертується сюди через `From` (feature `anyhow` вище на `wasmtime`).
 anyhow = "1"
 
-# cspell:ignore libc
+# cspell:ignore libc globset
 # `ToolResolver` (`src/tool_resolver.rs`, задача N1): таймаут run-tool-виклику
 # вбиває не лише прямого дочірнього процеса, а ВСЮ process group (`kill(-pid,
 # SIGKILL)`) — доккомент `kill_process_tree` пояснює, чому: скрипт-обгортка
@@ -63,5 +75,3 @@ anyhow = "1"
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
-[dev-dependencies]
-tempfile = "3"

@@ -72,14 +72,31 @@ impl LoadedPlugin {
     /// `LoadedPlugin` (reuse).
     pub fn detect(&mut self, batch: &DetectBatch) -> Result<Vec<Diagnostic>, PluginHostError> {
         let wit_batch = convert::detect_batch_to_wit(batch);
-        let result = self
-            .plugin
-            .call_detect(&mut self.store, &wit_batch)
-            .map_err(|err| PluginHostError::Execution {
-                function: "detect",
-                source: err.into(),
-            })?;
+        self.reset_scratch();
+        let result = self.plugin.call_detect(&mut self.store, &wit_batch);
+        self.reset_scratch();
+        let result = result.map_err(|err| PluginHostError::Execution {
+            function: "detect",
+            source: err.into(),
+        })?;
         convert::diagnostics_from_wit(result)
+    }
+
+    /// Дропає scratch-каталог `exec-tool` цього `Store` (`Drop` `TempDir`
+    /// видаляє його рекурсивно) — контракт «каталог живе рівно один
+    /// `detect`/`fix`-виклик» (доккомент `wit/world.wit` біля слоту
+    /// `scratch-dir@1`).
+    ///
+    /// Викликається і ПЕРЕД, і ПІСЛЯ виклику гостя, і це не надмірність:
+    /// «після» — штатне прибирання, «перед» — єдине, що працює, коли гість
+    /// тріпнув (wasm trap/panic), бо тоді `call_detect` повернув `Err`, і
+    /// хоч «після» теж відпрацює, наступний виклик не має жодного права
+    /// покладатись на це в майбутніх шляхах виходу. Store переюзається між
+    /// викликами (рішення Г спеки), тож без скидання каталог жив би до
+    /// вивантаження плагіна — тобто, за кешем `LOADED_PLUGINS` napi-мосту,
+    /// до кінця процесу.
+    fn reset_scratch(&mut self) {
+        *self.store.data().scratch.borrow_mut() = None;
     }
 
     /// lint-домен: побудова fix-plan-у для підмножини діагностик `detect`.
@@ -93,13 +110,13 @@ impl LoadedPlugin {
     /// той самий контракт, що конверсія `diagnostic.data` у `detect`.
     pub fn fix(&mut self, request: &FixRequest) -> Result<FixPlan, PluginHostError> {
         let wit_request = convert::fix_request_to_wit(request);
-        let plan = self
-            .plugin
-            .call_fix(&mut self.store, &wit_request)
-            .map_err(|err| PluginHostError::Execution {
-                function: "fix",
-                source: err.into(),
-            })?;
+        self.reset_scratch();
+        let plan = self.plugin.call_fix(&mut self.store, &wit_request);
+        self.reset_scratch();
+        let plan = plan.map_err(|err| PluginHostError::Execution {
+            function: "fix",
+            source: err.into(),
+        })?;
         let plan = convert::fix_plan_from_wit(plan);
         rules_contract::validators::fix::validate_fix_plan(&plan).map_err(|errors| {
             PluginHostError::InvalidContractData(format!(
