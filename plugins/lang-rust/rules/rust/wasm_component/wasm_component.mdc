@@ -1,0 +1,27 @@
+## Component Model — обов'язковий режим wasm, старий режим заборонено
+
+Будь-який Rust-крейт, що компілюється у wasm, має ходити через
+[WebAssembly Component Model](https://github.com/WebAssemblyComponent/component-model) —
+не голий core-модуль. Старий режим заборонено на рівні `Cargo.toml`:
+
+- **`wasm-bindgen`** (пряма чи workspace-успадкована залежність, у будь-якій
+  depend-таблиці: `[dependencies]`, `[build-dependencies]`, `[dev-dependencies]`,
+  включно з `[target.'cfg(...)'.*]`) — заборонено. Це браузерний
+  `wasm32-unknown-unknown` cdylib-таргет без WASI і без Component Model ABI.
+  Гостьовий wasm-код — через `wit-bindgen` + ціль `wasm32-wasip2`.
+- **`wasmtime`** на боці хоста — `component-model` є дефолтною feature крейта,
+  тож просте `wasmtime = "…"` (дефолтні features увімкнені) вже проходить.
+  Порушення — лише коли маніфест явно вимкнув дефолти
+  (`default-features = false`) і не додав `component-model` назад у
+  `features` — тоді хост не зможе вантажити wasm-компоненти
+  (`wasmtime::component::Component::from_binary`).
+
+`crate-type = ["cdylib"]` сам по собі **не** порушення — це так само потрібно
+для валідних Component-Model гостьових крейтів (`wasm-tools`/`cargo component`
+пакує cdylib-артефакт у компонент). Дискримінатор — саме залежність від
+`wasm-bindgen`.
+
+Перевірка — read-only, T0 (без spawn `cargo`, самим парсингом `Cargo.toml`
+через `smol-toml`): `rules/rust/wasm_component/main.mjs`. Авто-фіксу немає —
+заміна `wasm-bindgen` на `wit-bindgen` чи дописування `component-model` у
+`features` змінює публічний API крейта, тож рішення лишається за автором.
