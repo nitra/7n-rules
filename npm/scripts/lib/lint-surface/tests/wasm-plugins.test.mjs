@@ -65,7 +65,11 @@ function resolveMap(dir, opts = {}) {
 const FAKE_BUN_PATH = '/fake/bin/bun'
 /** Очікуваний `toolPaths` реального plugin-lang-js за [`fakeResolveCmd`]. */
 const LANG_JS_TOOL_PATHS = { bun: FAKE_BUN_PATH }
-/** Детермінований `resolveCmd`: знає рівно `bun`, решту не знаходить. */
+/**
+ * Детермінований `resolveCmd`: знає рівно `bun`, решту не знаходить.
+ * @param {string} cmd ім'я тула, яке шукає схема `path:`
+ * @returns {string | null} шлях до фейкового `bun` або `null`
+ */
 const fakeResolveCmd = cmd => (cmd === 'bun' ? FAKE_BUN_PATH : null)
 
 /** Реальні байти зібраного plugin-lang-js — джерело і для happy-path retrieval, і для sha256 у конфігах тестів. */
