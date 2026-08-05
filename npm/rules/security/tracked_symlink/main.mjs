@@ -108,7 +108,11 @@ export async function lint(ctx) {
     // послідовний cat-file на запис дешевший за розбір бінарного `cat-file --batch`.
     const blob = await spawnAsync(git, ['cat-file', 'blob', entry.sha], { cwd, signal: ctx.signal })
     if (blob.exitCode !== 0) continue
-    const target = blob.stdout.replace(/\n+$/u, '')
+    // Хвостові переводи рядка зрізаємо циклом, а не регексом: `/\n+$/`
+    // позначений як super-linear (backtracking), а `trimEnd()` зʼїв би ще й
+    // пробіли — а вони в цілі симлінка значущі.
+    let target = blob.stdout
+    while (target.endsWith('\n')) target = target.slice(0, -1)
     if (target.length === 0) continue
 
     const absolute = isAbsoluteTarget(target)

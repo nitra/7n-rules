@@ -107,7 +107,7 @@ describe('security/tracked_symlink', () => {
 
       const res = await run(dir)
       expect(res.violations).toHaveLength(2)
-      expect(res.violations.map(v => v.file).sort()).toEqual(['a', 'b'])
+      expect(res.violations.map(v => v.file).toSorted()).toEqual(['a', 'b'])
     })
   })
 })
