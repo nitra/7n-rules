@@ -438,51 +438,48 @@ fn strategic_merge_patch_counts_as_an_override() {
 
 // ─── Hasura-overlay overrides ────────────────────────────────────────────────
 
+/// Дерево «Hasura-base + один overlay `prod`»: сам overlay різниться лише
+/// вмістом `patches[]`, тож три фікстури нижче ділять усе інше.
+fn write_hasura_base_and_prod_overlay(tmp: &TempDir, prod_patches: &str) {
+    write(
+        tmp,
+        "svc/k8s/base/deploy.yaml",
+        &hasura_deployment("hasura"),
+    );
+    write(
+        tmp,
+        "svc/k8s/base/kustomization.yaml",
+        &base_kustomization(&["deploy.yaml"]),
+    );
+    write(
+        tmp,
+        "svc/k8s/prod/kustomization.yaml",
+        &format!(
+            "apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\nnamespace: \
+             prod\nresources:\n  - ../base\n{prod_patches}"
+        ),
+    );
+}
+
 #[test]
 fn hasura_overlay_without_both_overrides_is_reported() {
     assert_parity("hasura-overlay-missing-overrides", |tmp| {
-        write(
-            tmp,
-            "svc/k8s/base/deploy.yaml",
-            &hasura_deployment("hasura"),
-        );
-        write(
-            tmp,
-            "svc/k8s/base/kustomization.yaml",
-            &base_kustomization(&["deploy.yaml"]),
-        );
-        write(
-            tmp,
-            "svc/k8s/prod/kustomization.yaml",
-            "apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\nnamespace: \
-             prod\nresources:\n  - ../base\n",
-        );
+        write_hasura_base_and_prod_overlay(tmp, "");
     });
 }
 
 #[test]
 fn hasura_overlay_with_wrong_values_reports_current_value() {
     assert_parity("hasura-overlay-wrong-values", |tmp| {
-        write(
+        // Перший patch — JSON6902 із неканонічним значенням, другий —
+        // Strategic Merge: обидві форми читання значення під гейтом.
+        write_hasura_base_and_prod_overlay(
             tmp,
-            "svc/k8s/base/deploy.yaml",
-            &hasura_deployment("hasura"),
-        );
-        write(
-            tmp,
-            "svc/k8s/base/kustomization.yaml",
-            &base_kustomization(&["deploy.yaml"]),
-        );
-        write(
-            tmp,
-            "svc/k8s/prod/kustomization.yaml",
-            "apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\nnamespace: \
-             prod\nresources:\n  - ../base\npatches:\n  - target:\n      kind: ConfigMap\n      name: \
-             hasura\n    patch: |\n      - op: replace\n        path: \
-             /data/HASURA_GRAPHQL_ENABLED_APIS\n        value: metadata\n  - target:\n      kind: \
-             ConfigMap\n      name: hasura\n    patch: |\n      apiVersion: v1\n      kind: \
-             ConfigMap\n      metadata:\n        name: hasura\n      data:\n        \
-             HASURA_GRAPHQL_ENABLED_LOG_TYPES: startup,http-log\n",
+            "patches:\n  - target:\n      kind: ConfigMap\n      name: hasura\n    patch: |\n      \
+             - op: replace\n        path: /data/HASURA_GRAPHQL_ENABLED_APIS\n        value: \
+             metadata\n  - target:\n      kind: ConfigMap\n      name: hasura\n    patch: |\n      \
+             apiVersion: v1\n      kind: ConfigMap\n      metadata:\n        name: hasura\n      \
+             data:\n        HASURA_GRAPHQL_ENABLED_LOG_TYPES: startup,http-log\n",
         );
     });
 }
@@ -490,25 +487,12 @@ fn hasura_overlay_with_wrong_values_reports_current_value() {
 #[test]
 fn hasura_overlay_with_canonical_overrides_is_clean() {
     assert_parity("clean-hasura-overlay", |tmp| {
-        write(
+        write_hasura_base_and_prod_overlay(
             tmp,
-            "svc/k8s/base/deploy.yaml",
-            &hasura_deployment("hasura"),
-        );
-        write(
-            tmp,
-            "svc/k8s/base/kustomization.yaml",
-            &base_kustomization(&["deploy.yaml"]),
-        );
-        write(
-            tmp,
-            "svc/k8s/prod/kustomization.yaml",
-            "apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\nnamespace: \
-             prod\nresources:\n  - ../base\npatches:\n  - target:\n      kind: ConfigMap\n      name: \
-             hasura\n    patch: |\n      - op: replace\n        path: \
-             /data/HASURA_GRAPHQL_ENABLED_APIS\n        value: metadata,graphql\n      - op: \
-             replace\n        path: /data/HASURA_GRAPHQL_ENABLED_LOG_TYPES\n        value: \
-             startup\n",
+            "patches:\n  - target:\n      kind: ConfigMap\n      name: hasura\n    patch: |\n      \
+             - op: replace\n        path: /data/HASURA_GRAPHQL_ENABLED_APIS\n        value: \
+             metadata,graphql\n      - op: replace\n        path: \
+             /data/HASURA_GRAPHQL_ENABLED_LOG_TYPES\n        value: startup\n",
         );
     });
 }
