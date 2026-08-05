@@ -22,6 +22,7 @@ import { beforeAll, describe, expect, test } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { env } from 'node:process'
 
 import { runConcernDetector } from '../../../scripts/lib/lint-surface/detect.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
@@ -241,7 +242,7 @@ function runConcern(concernId, cwd) {
 
 describe.skipIf(!hasConftest)('k8s/hasura_* — native-паритет із видаленим JS-каноном', () => {
   beforeAll(() => {
-    process.env.N_RULES_PACKAGE_ROOT = PACKAGE_ROOT
+    env.N_RULES_PACKAGE_ROOT = PACKAGE_ROOT
   })
 
   test('hasura_configmap: CronJob ConfigMap без Hasura Deployment — 0 порушень', async () => {
