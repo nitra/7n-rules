@@ -17,6 +17,32 @@
 //! | [`check_k8s_yaml_files`] | цикл `checkK8sYamlFile` (`main.mjs:3303-3360`) |
 //! | [`expected_schema_url`] | `expectedSchemaUrl` (`main.mjs:3194-3211`) |
 //! | [`k8s_yaml_first_doc_is_alb_yc_http_backend_group`] | `k8sYamlFirstDocIsAlbYcHttpBackendGroup` (`main.mjs:1933-1937`) |
+//! | [`detect_gateway_http_route_v1beta1`] | `detectGatewayHttpRouteV1beta1InK8sYamlFiles` (`main.mjs:1778-1800`) |
+//! | [`detect_batch_v1beta1`] | `detectBatchV1beta1InK8sYamlFiles` (`main.mjs:1806-1830`) |
+//!
+//! # Полагоджений дефект канону: обидва `detect*` не спрацьовували ніколи
+//!
+//! `BATCH_V1BETA1_API_VERSION_LINE_RE` і `GATEWAY_HTTPROUTE_V1BETA1_LINE_RE` —
+//! **рядкові** якірні регулярні вирази (`^(\s*apiVersion:\s*)…(\s*)$`, без
+//! прапорця `m`). Саме так їх застосовує T0-фікс: `rewriteLine*` бере по
+//! одному рядку. Але обидва детектори звіряли ту саму regex із **усім**
+//! текстом файла (`RE.test(raw)`), а без `m` якорі `^`/`$` означають початок
+//! і кінець **рядка-як-цілого**. Збіг був можливий рівно на файлі, що цілком
+//! складається з одного рядка `apiVersion: batch/v1beta1` — тобто ніколи на
+//! справжньому маніфесті.
+//!
+//! Наслідок: заборона застарілих `batch/v1beta1` і
+//! `gateway.networking.k8s.io/v1beta1` була **мертвою** — попри те, що для
+//! неї є повідомлення, T0-патерни `fix-manifests.mjs` і окремі розділи
+//! `manifest.mdc` / `gateway.mdc`, які обіцяють автоматичне переписування.
+//! Юніт-тести покривали лише `replaceBatchV1beta1ApiVersionInYamlText`
+//! (сам rewrite), а не детектор, тож дефект не було видно.
+//!
+//! Полагоджено в обидві сторони: JS-канон тепер звіряє regex по рядках
+//! (`body.split(YAML_LINE_SPLIT_RE)` + звірка кожного рядка — рівно так, як сусідня
+//! перевірка `kind: HTTPRoute` робила від початку), і порт відтворює вже
+//! полагоджену поведінку. Напрямок зміни fail-closed: під перевірку
+//! потрапляють файли, які раніше мовчки проходили.
 //!
 //! # Чому без YAML-парсера
 //!
@@ -169,7 +195,7 @@ fn violation(message: String) -> Violation {
 
 /// Рядки файла без BOM — порт `toLines` (`main.mjs:1829-1832`),
 /// `split(/\r?\n/u)`: одиночний `\r` роздільником **не** є.
-fn to_lines(content: &str) -> Vec<&str> {
+pub(crate) fn to_lines(content: &str) -> Vec<&str> {
     let body = content.strip_prefix('\u{feff}').unwrap_or(content);
     body.split('\n')
         .map(|line| line.strip_suffix('\r').unwrap_or(line))
@@ -178,7 +204,7 @@ fn to_lines(content: &str) -> Vec<&str> {
 
 /// URL зі строгого modeline першого рядка — порт `MODELINE_RE`
 /// (`main.mjs:185`, `^#\s*yaml-language-server:\s*\$schema=(\S+)\s*$`).
-fn modeline_schema_url(line: &str) -> Option<&str> {
+pub(crate) fn modeline_schema_url(line: &str) -> Option<&str> {
     let rest = line.strip_prefix('#')?;
     let rest = rest.trim_start_matches(char::is_whitespace);
     let rest = rest.strip_prefix("yaml-language-server:")?;
@@ -222,7 +248,7 @@ fn count_schema_modelines(lines: &[&str]) -> usize {
 
 /// Тіло після першого рядка без провідних порожніх — порт
 /// `yamlBodyAfterModeline` (`main.mjs:1839-1843`).
-fn yaml_body_after_modeline(lines: &[&str]) -> String {
+pub(crate) fn yaml_body_after_modeline(lines: &[&str]) -> String {
     let mut i = 1;
     while i < lines.len() && lines[i].trim().is_empty() {
         i += 1;
@@ -452,6 +478,99 @@ fn kind_to_schema_file_part(kind: &str) -> String {
         .filter(char::is_ascii_alphanumeric)
         .collect::<String>()
         .to_lowercase()
+}
+
+// ─── Застарілі apiVersion (detect* + T0 fix-hint) ────────────────────────────
+
+/// Чи рядок — `apiVersion:` із заданим значенням (з опційними лапками) — порт
+/// спільної форми `BATCH_V1BETA1_API_VERSION_LINE_RE` (`main.mjs:210`) і
+/// `GATEWAY_HTTPROUTE_V1BETA1_LINE_RE` (`main.mjs:211`):
+/// `^(\s*apiVersion:\s*)["']?<value>["']?(\s*)$`.
+fn api_version_line_is(line: &str, expected: &str) -> bool {
+    let Some(rest) = line.trim_start().strip_prefix("apiVersion:") else {
+        return false;
+    };
+    // `\s*` після двокрапки, далі опційна відкривна лапка `["']?`.
+    let rest = rest.trim_start();
+    let rest = rest.strip_prefix(['"', '\'']).unwrap_or(rest);
+    let Some(tail) = rest.strip_prefix(expected) else {
+        return false;
+    };
+    // Закривна лапка теж опційна й **незалежна** від відкривної — regex
+    // дозволяє непарні лапки, і порт відтворює це як є.
+    let tail = tail.strip_prefix(['"', '\'']).unwrap_or(tail);
+    tail.trim().is_empty()
+}
+
+/// Чи рядок — `kind: HTTPRoute` — порт `HTTPROUTE_KIND_LINE_RE`
+/// (`main.mjs:213`, `^\s*kind:\s*HTTPRoute\s*$`).
+fn line_is_http_route_kind(line: &str) -> bool {
+    line.trim_start()
+        .strip_prefix("kind:")
+        .is_some_and(|rest| rest.trim() == "HTTPRoute")
+}
+
+/// Застарілий `apiVersion: gateway.networking.k8s.io/v1beta1` у HTTPRoute —
+/// порт `detectGatewayHttpRouteV1beta1InK8sYamlFiles` (`main.mjs:1778-1800`)
+/// **з полагодженим** застосуванням рядкової regex (див. секцію «Полагоджений
+/// дефект канону» в доккоменті модуля).
+pub fn detect_gateway_http_route_v1beta1(root: &Path, yaml_files: &[PathBuf]) -> Vec<Violation> {
+    let mut out = Vec::new();
+    for abs in yaml_files {
+        let rel = rel_posix(root, abs);
+        let Ok(raw) = std::fs::read_to_string(abs) else {
+            continue;
+        };
+        let lines = to_lines(&raw);
+        if !lines
+            .iter()
+            .any(|line| api_version_line_is(line, "gateway.networking.k8s.io/v1beta1"))
+        {
+            continue;
+        }
+        if !lines.iter().any(|line| line_is_http_route_kind(line)) {
+            continue;
+        }
+        out.push(Violation {
+            reason: "gateway-httproute-v1beta1".to_string(),
+            message: format!(
+                "{rel}: apiVersion: gateway.networking.k8s.io/v1beta1 заборонено для HTTPRoute — оновіть до gateway.networking.k8s.io/v1 (k8s.mdc)"
+            ),
+            file: Some(rel.clone()),
+            severity: Severity::Error,
+            data: Some(serde_json::json!({ "kind": "gateway-httproute-v1beta1" })),
+        });
+    }
+    out
+}
+
+/// Застарілий `apiVersion: batch/v1beta1` — порт
+/// `detectBatchV1beta1InK8sYamlFiles` (`main.mjs:1806-1830`) **з полагодженим**
+/// застосуванням рядкової regex.
+pub fn detect_batch_v1beta1(root: &Path, yaml_files: &[PathBuf]) -> Vec<Violation> {
+    let mut out = Vec::new();
+    for abs in yaml_files {
+        let rel = rel_posix(root, abs);
+        let Ok(raw) = std::fs::read_to_string(abs) else {
+            continue;
+        };
+        if !to_lines(&raw)
+            .iter()
+            .any(|line| api_version_line_is(line, "batch/v1beta1"))
+        {
+            continue;
+        }
+        out.push(Violation {
+            reason: "batch-v1beta1-apiversion".to_string(),
+            message: format!(
+                "{rel}: apiVersion: batch/v1beta1 застаріло — оновіть до batch/v1 (k8s.mdc)"
+            ),
+            file: Some(rel.clone()),
+            severity: Severity::Error,
+            data: Some(serde_json::json!({ "kind": "batch-v1beta1-apiversion" })),
+        });
+    }
+    out
 }
 
 // ─── checkK8sYamlFile ────────────────────────────────────────────────────────

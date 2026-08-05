@@ -62,7 +62,9 @@ import {
   shouldValidateKustomizePatchTarget,
   splitK8sApiVersion,
   serviceSvcHlYamlHeadlessViolation,
-  serviceSvcYamlClusterIpTypeViolation
+  serviceSvcYamlClusterIpTypeViolation,
+  detectBatchV1beta1InK8sYamlFiles,
+  detectGatewayHttpRouteV1beta1InK8sYamlFiles
 } from '../main.mjs'
 
 const SERVICE_V1_JSON_RE = /service-v1\.json$/
@@ -2906,6 +2908,79 @@ describe('validateConfigMapNameMatchesDeployment — вибір Deployment-вл�
       'configmap.yaml': 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: cfg\n',
       'deployment.yaml': configMapOwnerDeploymentYaml('api', ['cfg', 'other'])
     })
+    expect(errs).toEqual([])
+  })
+})
+
+/**
+ * Кладе один YAML під `k8s/base` і повертає зареєстровані порушення детектора.
+ * @param {string} name ім'я файла
+ * @param {string} content вміст YAML
+ * @param {(files: string[], root: string, fail: (msg: string) => void) => Promise<void>} detect детектор
+ * @returns {Promise<string[]>} тексти порушень
+ */
+const runDeprecatedApiDetector = async (name, content, detect) => {
+  const root = await mkdtemp(join(tmpdir(), 'k8s-deprecated-api-'))
+  try {
+    const dir = join(root, 'k8s', 'base')
+    await mkdir(dir, { recursive: true })
+    const abs = join(dir, name)
+    await writeFile(abs, content)
+    const errs = []
+    await detect([abs], root, msg => {
+      errs.push(msg)
+    })
+    return errs
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+}
+
+describe('детектори застарілих apiVersion (полагоджений дефект канону)', () => {
+  test('batch/v1beta1 у справжньому маніфесті (не в файлі з одного рядка)', async () => {
+    const errs = await runDeprecatedApiDetector(
+      'cronjob.yaml',
+      'apiVersion: batch/v1beta1\nkind: CronJob\nmetadata:\n  name: nightly\n',
+      detectBatchV1beta1InK8sYamlFiles
+    )
+    expect(errs).toHaveLength(1)
+    expect(errs[0]).toContain('apiVersion: batch/v1beta1 застаріло')
+  })
+
+  test('batch/v1beta1 нижче першого рядка і в лапках', async () => {
+    const errs = await runDeprecatedApiDetector(
+      'job.yaml',
+      'kind: Job\napiVersion: "batch/v1beta1"\nmetadata:\n  name: migrate\n',
+      detectBatchV1beta1InK8sYamlFiles
+    )
+    expect(errs).toHaveLength(1)
+  })
+
+  test('batch/v1beta1 лише в коментарі — не порушення', async () => {
+    const errs = await runDeprecatedApiDetector(
+      'job.yaml',
+      '# apiVersion: batch/v1beta1\napiVersion: batch/v1\nkind: Job\nmetadata:\n  name: m\n',
+      detectBatchV1beta1InK8sYamlFiles
+    )
+    expect(errs).toEqual([])
+  })
+
+  test('gateway v1beta1 у справжньому HTTPRoute', async () => {
+    const errs = await runDeprecatedApiDetector(
+      'httproute.yaml',
+      'apiVersion: gateway.networking.k8s.io/v1beta1\nkind: HTTPRoute\nmetadata:\n  name: api\n',
+      detectGatewayHttpRouteV1beta1InK8sYamlFiles
+    )
+    expect(errs).toHaveLength(1)
+    expect(errs[0]).toContain('заборонено для HTTPRoute')
+  })
+
+  test('gateway v1beta1 без kind: HTTPRoute — не порушення', async () => {
+    const errs = await runDeprecatedApiDetector(
+      'tcp-route.yaml',
+      'apiVersion: gateway.networking.k8s.io/v1beta1\nkind: TCPRoute\nmetadata:\n  name: tcp\n',
+      detectGatewayHttpRouteV1beta1InK8sYamlFiles
+    )
     expect(errs).toEqual([])
   })
 })
