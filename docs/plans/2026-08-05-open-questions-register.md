@@ -171,7 +171,7 @@ JS-рантайму поруч. **Після зникнення мосту це�
 
 ### 5.1. `k8s/manifests` — два шари до заведення в registry
 
-**Звідки:** #393, #398. **Стан:** зрізи 1 і 2 зроблено.
+**Звідки:** #393, #401. **Стан:** зрізи 1 і 2 зроблено.
 
 Портовано: rego-контур, пʼять самодостатніх cross-file перевірок (зріз 1),
 per-file цикл `checkK8sYamlFile` і дві великі самодостатні `validate*` —
@@ -184,7 +184,7 @@ auto-exceptions + таймаут) і kustomize-резолюція з пʼять�
 
 ### 5.1.1. Мертва гілка «не-base шар» у `validateDeploymentHpaPdbAndTopology`
 
-**Звідки:** #398. **Стан:** знайдено, свідомо не полагоджено.
+**Звідки:** #401. **Стан:** знайдено, свідомо не полагоджено.
 
 `validateDeploymentHpaPdbAndTopology` фільтрує вхід предикатом
 `isK8sYamlUnderBaseDirectory(rel)`, тож у `validateDeploymentsInDir`
