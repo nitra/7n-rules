@@ -1,5 +1,16 @@
 # Changelog
 
+## [3.0.0] - 2026-08-05
+
+### Fixed
+
+- onProgress-колбек submitBatch тепер отримує (completed, total) як два числа, не (null, [completed, total]) — napi ThreadsafeFunction конвертувала tuple у JS-масив замість розгортання в окремі аргументи
+- README/tiers.rs: застарілий дефолт N_LLM_LOCAL_PROVIDERS (omlx) виправлено на актуальний local-openai; README тепер документує generic-слот local-openai (N_LOCAL_OPENAI_BASE_URL/API_KEY)
+
+### Removed
+
+- submitBatch: вилучено клієнтську емуляцію batch (chunkSize/concurrency/backend-опції). Batch завжди йде через реальний /v1/batches резолвленого провайдера; провайдер без зареєстрованого base_url/api_key тепер повертає явну помилку замість тихого фолбеку на емуляцію
+
 ## [2.14.17] - 2026-08-04
 
 ### Changed
