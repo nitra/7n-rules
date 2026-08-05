@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.83.1] - 2026-08-05
+
+### Changed
+
+- fix(lint): clippy sort_by_key і env з node:process у k8s-parity (#388); chore(release): синк пінів платформних napi-пакетів @7n/rules
+
 ## [1.83.0] - 2026-08-05
 
 ### Added
