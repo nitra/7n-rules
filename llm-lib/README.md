@@ -112,14 +112,16 @@ Runtime-knobs (нове імʼя має пріоритет; legacy-alias пра�
 | `N_LLM_FIX_TURN_CEILING` | `N_CURSOR_FIX_TURN_CEILING` | 50 |
 | `N_LLM_SKILL_TURN_CEILING` | `N_CURSOR_SKILL_TURN_CEILING` | 80 |
 | `N_LLM_SKILL_TIMEOUT_MS` | `N_CURSOR_SKILL_TIMEOUT_MS` | 600000 |
-| `N_LLM_LOCAL_PROVIDERS` | — | `omlx` (кома-список провайдерів, що вважаються локальними) |
+| `N_LLM_LOCAL_PROVIDERS` | — | `local-openai` (кома-список провайдерів, що вважаються локальними) |
 | `N_LLM_COMPRESS` | — | увімкнено (`0` — вимикає клієнтську компресію контексту, лише для дебагу) |
 | `N_LLM_TRACE_BODIES` | — | увімкнено (`0` — вимкнути body-capture повних тіл, важкі дані) |
 | `N_LLM_BODIES_DIR` | — | `~/.n-cursor/llm-bodies` |
 | `N_LLM_BODIES_MAX_MB` | — | `500` (ретеншн: авто-очистка найстаріших файлів понад ліміт) |
 
-Моделі/ключі провайдерів конфігуруються у pi: `~/.pi/agent/models.json` + `auth.json`
-(omlx — як custom OpenAI-compatible provider).
+Моделі/ключі провайдерів конфігуруються у pi: `~/.pi/agent/models.json` + `auth.json`.
+Для локального OpenAI-сумісного сервера (omlx, litellm-проксі, TurboFieldfare тощо) —
+generic-слот `local-openai`: `N_LOCAL_OPENAI_BASE_URL` (дефолт `http://127.0.0.1:8000/v1/`)
+та `N_LOCAL_OPENAI_API_KEY`. Активний лише один local-openai сервер за раз.
 
 ## Приклад
 

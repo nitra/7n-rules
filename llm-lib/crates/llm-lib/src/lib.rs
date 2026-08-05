@@ -42,10 +42,9 @@
 /// Агенти (потребує фічі `agents`).
 #[cfg(feature = "agents")]
 pub mod acp;
-/// Тип 2b (batch) — [`batch::dispatch`] обирає між клієнтською емуляцією
-/// (чанкований конкурентний прогін через Тип 2a, рішення Р задачі T6) і
-/// справжнім `/v1/batches` litellm-адаптера ([`remote_batch`]), коли
-/// резолвлений провайдер це підтримує. Потребує фічі `agents`.
+/// Тип 2b (batch) — [`batch::dispatch`] завжди йде через справжній
+/// `/v1/batches` OpenAI-сумісний адаптер ([`remote_batch`]) резолвленого
+/// провайдера. Потребує фічі `agents`.
 #[cfg(feature = "agents")]
 pub mod batch;
 /// Локальні та хмарні агенти (Local/Cloud). Потребує фічі `agents`.
@@ -61,10 +60,7 @@ pub mod tiers;
 #[cfg(feature = "agents")]
 pub use acp::{one_shot_acp, one_shot_acp_with_tier, AcpAgentKind};
 #[cfg(feature = "agents")]
-pub use batch::{
-    dispatch as dispatch_batch, submit as submit_batch, Backend as BatchBackend, BatchConfig,
-    BatchItem, BatchProgress, BatchResult,
-};
+pub use batch::{dispatch as dispatch_batch, BatchItem, BatchProgress, BatchResult};
 #[cfg(feature = "agents")]
 pub use local_cloud::LocalCloud;
 pub use tiers::{resolve_model, resolve_model_from, ModelEnv, Tier};

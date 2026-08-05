@@ -146,7 +146,7 @@ fn local_providers() -> Vec<String> {
 }
 
 /// Чи `spec` вказує на локальну модель: збіг з одним із `LOCAL_*` тирів АБО
-/// провайдер входить у `N_LLM_LOCAL_PROVIDERS` (дефолт `omlx,local-openai`) —
+/// провайдер входить у `N_LLM_LOCAL_PROVIDERS` (дефолт `local-openai`) —
 /// точний порт `isLocalModel` (`model-tiers.mjs:138-143`).
 #[must_use]
 pub fn is_local_model(spec: &str) -> bool {

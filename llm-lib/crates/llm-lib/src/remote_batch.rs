@@ -1,9 +1,6 @@
-//! Тип 2b (batch) — справжній `/v1/batches` бекенд поверх litellm
-//! batch-adapter (`docs/specs/2026-07-27-batch-local-avg-real-batches.md`),
-//! поруч із клієнтською емуляцією в [`crate::batch`]. Той самий контракт
-//! `submit → progress → results`: [`submit`] дзеркалить сигнатуру
-//! [`crate::batch::submit`] (мінус `executor` — сервер сам виконує items),
-//! тож виклик-сайт (`crate::batch::dispatch`) не відрізняє бекенд.
+//! Тип 2b (batch) — справжній `/v1/batches` бекенд поверх OpenAI-сумісного
+//! batch-adapter-а (`docs/specs/2026-07-27-batch-local-avg-real-batches.md`) —
+//! єдиний бекенд [`crate::batch::dispatch`] (клієнтську емуляцію вилучено).
 //!
 //! Протокол: upload JSONL (`POST /v1/files`, `purpose=batch`) → `POST
 //! /v1/batches` (`endpoint: /v1/chat/completions`) → poll `GET
@@ -13,10 +10,9 @@
 //! решту; помилка/скасування/expiry всього batch-у (валідація вхідного
 //! файлу впала до старту жодного item-у) мапиться в однакову помилку для
 //! кожного вхідного `custom_id` — виклик-сайт (batch-оркестратори скілів)
-//! класифікує помилки per-item незалежно від бекенда.
+//! класифікує помилки per-item.
 
 use std::collections::HashMap;
-use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 
 use serde::Deserialize;
@@ -45,42 +41,6 @@ impl Default for RemoteBatchConfig {
             poll_timeout: Duration::from_secs(20 * 60),
         }
     }
-}
-
-/// Capability-проба адаптера за конкретним `base_url` (той самий формат,
-/// що й [`crate::local_cloud::LocalProvider::base_url`] — із завершальним
-/// слешем). Синтетичний `batch_id`, що відповідає формату адаптера, але
-/// свідомо не існує: 401 (ключ не пройшов) чи 404 (адаптер відповів,
-/// batch не знайдено) обидва доводять "адаптер тут" без побічних ефектів;
-/// помилка з'єднання/таймаут — "адаптера тут немає" (звичайний litellm без
-/// batch-маршруту чи локальний omlx).
-async fn probe(client: &reqwest::Client, base_url: &str, api_key: Option<&str>) -> bool {
-    let url = format!("{base_url}batches/batch_capability_probe_0000000000000000");
-    let mut req = client.get(&url).timeout(Duration::from_secs(3));
-    if let Some(key) = api_key {
-        req = req.bearer_auth(key);
-    }
-    req.send().await.is_ok()
-}
-
-/// Кеш [`probe`] на процес, за `base_url` — той самий підхід, що й
-/// `nativeBatchAvailableCache` у `docgen-files-batch/main.mjs` (T8):
-/// перевірка мережі один раз, не на кожен batch.
-static PROBE_CACHE: OnceLock<Mutex<HashMap<String, bool>>> = OnceLock::new();
-
-/// Кешована capability-проба — єдина точка входу для [`crate::batch::dispatch`].
-pub async fn probe_cached(base_url: &str, api_key: Option<&str>) -> bool {
-    let cache = PROBE_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
-    if let Some(&cached) = cache.lock().expect("не отруєний").get(base_url) {
-        return cached;
-    }
-    let client = reqwest::Client::new();
-    let result = probe(&client, base_url, api_key).await;
-    cache
-        .lock()
-        .expect("не отруєний")
-        .insert(base_url.to_string(), result);
-    result
 }
 
 #[derive(Deserialize)]
@@ -360,10 +320,6 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::{Read, Write};
-    use std::net::TcpListener as StdTcpListener;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-    use std::sync::Arc;
 
     fn item(id: &str, prompt: &str) -> BatchItem {
         BatchItem {
@@ -374,95 +330,6 @@ mod tests {
     }
 
     fn no_progress(_: BatchProgress) {}
-
-    // Мок-сервер тестів навмисно на std::net::TcpListener у власному
-    // std::thread (не tokio::net) — без blocking-read/write на tokio-потоці
-    // й без нового dev-dependency (напр. wiremock); достатньо для одного
-    // request/response на тест.
-
-    #[tokio::test]
-    async fn probe_reports_true_on_any_http_response() {
-        let listener = StdTcpListener::bind("127.0.0.1:0").expect("bind");
-        let addr = listener.local_addr().expect("addr");
-        let handle = std::thread::spawn(move || {
-            let (mut stream, _) = listener.accept().expect("accept");
-            let mut buf = [0u8; 1024];
-            let _ = stream.read(&mut buf);
-            let body = r#"{"error":{"message":"unauthorized","type":"authentication_error"}}"#;
-            let response = format!(
-                "HTTP/1.1 401 Unauthorized\r\ncontent-type: application/json\r\ncontent-length: {}\r\n\r\n{body}",
-                body.len()
-            );
-            let _ = stream.write_all(response.as_bytes());
-        });
-
-        let base_url = format!("http://{addr}/v1/");
-        let client = reqwest::Client::new();
-        let result = probe(&client, &base_url, Some("test-key")).await;
-        handle.join().expect("server thread");
-
-        assert!(
-            result,
-            "будь-яка HTTP-відповідь (навіть 401) означає \"адаптер тут\""
-        );
-    }
-
-    #[tokio::test]
-    async fn probe_reports_false_when_nothing_listens() {
-        // Порт узятий і одразу звільнений — жоден слухач на ньому не піднятий,
-        // тож з'єднання гарантовано буде відхилено операційною системою.
-        let listener = StdTcpListener::bind("127.0.0.1:0").expect("bind");
-        let addr = listener.local_addr().expect("addr");
-        drop(listener);
-
-        let base_url = format!("http://{addr}/v1/");
-        let client = reqwest::Client::new();
-        let result = probe(&client, &base_url, None).await;
-
-        assert!(!result, "без слухача на порту проба має повернути false");
-    }
-
-    #[tokio::test]
-    async fn probe_cached_hits_network_only_once_per_base_url() {
-        let hits = Arc::new(AtomicUsize::new(0));
-        let listener = StdTcpListener::bind("127.0.0.1:0").expect("bind");
-        let addr = listener.local_addr().expect("addr");
-        let hits_for_server = Arc::clone(&hits);
-        let handle = std::thread::spawn(move || {
-            for stream in listener.incoming() {
-                let mut stream = match stream {
-                    Ok(s) => s,
-                    Err(_) => break,
-                };
-                hits_for_server.fetch_add(1, Ordering::SeqCst);
-                let mut buf = [0u8; 1024];
-                let _ = stream.read(&mut buf);
-                let body = "{}";
-                let response = format!(
-                    "HTTP/1.1 404 Not Found\r\ncontent-type: application/json\r\ncontent-length: {}\r\n\r\n{body}",
-                    body.len()
-                );
-                let _ = stream.write_all(response.as_bytes());
-                if hits_for_server.load(Ordering::SeqCst) >= 3 {
-                    break;
-                }
-            }
-        });
-
-        let base_url = format!("http://{addr}/unique-{addr}/v1/");
-        assert!(probe_cached(&base_url, None).await);
-        assert!(probe_cached(&base_url, None).await);
-        assert!(probe_cached(&base_url, None).await);
-
-        // Дати серверному потоку шанс завершитись природно (найбільше 1 accept).
-        std::thread::sleep(Duration::from_millis(50));
-        assert_eq!(
-            hits.load(Ordering::SeqCst),
-            1,
-            "кеш має вдарити в мережу рівно один раз для одного base_url"
-        );
-        drop(handle);
-    }
 
     #[test]
     fn parse_output_matches_results_to_custom_id_and_fills_missing() {
