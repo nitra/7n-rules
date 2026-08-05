@@ -57,9 +57,8 @@ function allDependencyTables(parsed) {
  * @returns {unknown} значення запису (`string` — коротка форма, `object` — таблиця) або undefined
  */
 function findDependency(parsed, name) {
-  for (const table of allDependencyTables(parsed)) {
-    if (Object.hasOwn(table, name)) return table[name]
-  }
+  const table = allDependencyTables(parsed).find(t => Object.hasOwn(t, name))
+  return table?.[name]
 }
 
 /**
