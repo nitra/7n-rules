@@ -54,6 +54,7 @@ import {
   kustomizeResourceDescriptorFromManifest,
   kustomizeResourceDescriptorsIdentityEqual,
   kustomizationSvcYamlMissingSvcHlViolation,
+  validateConfigMapNameMatchesDeployment,
   kustomizePathRefsForExistenceCheck,
   kustomizeResourceTreeHpaPdbDeploymentFlags,
   validateComponentsForBaseDeployment,
@@ -2795,5 +2796,117 @@ describe('hasuraEnabledLogTypesOverrideValue', () => {
   test('не плутає з ENABLED_APIS-патчем на тому ж ConfigMap', () => {
     const k = kustWithPatch('- op: replace\n  path: /data/HASURA_GRAPHQL_ENABLED_APIS\n  value: metadata,graphql\n')
     expect(hasuraEnabledLogTypesOverrideValue(k)).toBeNull()
+  })
+})
+
+
+/**
+ * Мінімальний Deployment із переліком ConfigMap у `envFrom` — фікстура
+ * `validateConfigMapNameMatchesDeployment`.
+ * @param {string} name значення `metadata.name`
+ * @param {string[]} configmaps імена ConfigMap для `envFrom[].configMapRef.name`
+ * @returns {string} YAML-текст маніфеста
+ */
+const configMapOwnerDeploymentYaml = (name, configmaps) => {
+  const refs = configmaps.map(cm => `            - configMapRef:\n                name: ${cm}\n`).join('')
+  const envFrom = configmaps.length === 0 ? '' : `          envFrom:\n${refs}`
+  return `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${name}
+  namespace: dev
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          image: repo/app:1
+${envFrom}`
+}
+
+/**
+ * `passFn`-заглушка: детектор-репортер успіхи не накопичує.
+ * @returns {void} нічого
+ */
+function ignorePass() {
+  // навмисний no-op
+}
+
+/**
+ * Розкладає дерево `k8s/base/` і повертає зібрані порушення
+ * `validateConfigMapNameMatchesDeployment`.
+ * @param {Record<string, string>} files мапа «ім'я файла у k8s/base → вміст»
+ * @returns {Promise<string[]>} тексти порушень
+ */
+const runConfigMapOwnerCheck = async files => {
+  const root = await mkdtemp(join(tmpdir(), 'k8s-cm-owner-'))
+  const base = join(root, 'k8s', 'base')
+  await mkdir(base, { recursive: true })
+  for (const [name, content] of Object.entries(files)) {
+    await writeFile(join(base, name), content, 'utf8')
+  }
+  const abs = Object.keys(files).map(name => join(base, name))
+  /** @type {string[]} */
+  const errs = []
+  try {
+    await validateConfigMapNameMatchesDeployment(
+      root,
+      abs,
+      msg => {
+        errs.push(msg)
+      },
+      ignorePass
+    )
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+  return errs
+}
+
+describe('validateConfigMapNameMatchesDeployment — вибір Deployment-власника', () => {
+  test('розбіжність імені ConfigMap і Deployment — порушення', async () => {
+    const errs = await runConfigMapOwnerCheck({
+      'configmap.yaml': 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: cfg\n',
+      'deployment.yaml': configMapOwnerDeploymentYaml('api', ['cfg'])
+    })
+    expect(errs).toHaveLength(1)
+    expect(errs[0]).toContain("має збігатися з назвою Deployment 'api'")
+  })
+
+  test('перший за алфавітом Deployment без ConfigMap-рефа більше не ховає перевірку', async () => {
+    const errs = await runConfigMapOwnerCheck({
+      'configmap.yaml': 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: cfg\n',
+      'a-worker.yaml': configMapOwnerDeploymentYaml('worker', []),
+      'b-api.yaml': configMapOwnerDeploymentYaml('api', ['cfg'])
+    })
+    expect(errs).toHaveLength(1)
+    expect(errs[0]).toContain("має збігатися з назвою Deployment 'api'")
+  })
+
+  test('збіг знаходиться навіть якщо власник — не перший Deployment каталогу', async () => {
+    const errs = await runConfigMapOwnerCheck({
+      'configmap.yaml': 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: api\n',
+      'a-worker.yaml': configMapOwnerDeploymentYaml('worker', ['api']),
+      'b-api.yaml': configMapOwnerDeploymentYaml('api', ['api'])
+    })
+    expect(errs).toEqual([])
+  })
+
+  test('кандидат обирається детерміновано — перший за відсортованим іменем файла', async () => {
+    const errs = await runConfigMapOwnerCheck({
+      'configmap.yaml': 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: cfg\n',
+      'b-second.yaml': configMapOwnerDeploymentYaml('second', ['cfg']),
+      'a-first.yaml': configMapOwnerDeploymentYaml('first', ['cfg'])
+    })
+    expect(errs).toHaveLength(1)
+    expect(errs[0]).toContain("має збігатися з назвою Deployment 'first'")
+  })
+
+  test('Deployment із двома ConfigMap-рефами перевірку не запускає', async () => {
+    const errs = await runConfigMapOwnerCheck({
+      'configmap.yaml': 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: cfg\n',
+      'deployment.yaml': configMapOwnerDeploymentYaml('api', ['cfg', 'other'])
+    })
+    expect(errs).toEqual([])
   })
 })

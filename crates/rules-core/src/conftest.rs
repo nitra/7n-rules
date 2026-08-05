@@ -16,13 +16,10 @@
 //!
 //! # Відмінності від JS-канону — свідомі й вужчі
 //!
-//! - **`--data <tmpfile>` (`templateData`) не портується.** З rego-концернів
-//!   k8s його вживає лише `k8s.base_manifest` усередині концерну
-//!   `k8s/manifests`, який
-//!   у цьому зрізі не портується; заводити гілку без споживача — поверхня, що
-//!   мовчки розійдеться з каноном (той самий мотив, що в доккоменті
-//!   `concerns::k8s_common`). Приїде разом із концерном, що її кличе.
-//! - **`extraArgs` (`--combine`) не портується** — з тієї ж причини.
+//! - **`extraArgs` (`--combine`) не портується** — жоден портований концерн
+//!   його не вживає, а гілка без споживача мовчки розійдеться з каноном (той
+//!   самий мотив, що в доккоменті `concerns::k8s_common`). Приїде разом із
+//!   концерном, що її кличе.
 //! - **Тул не резолвиться → fail-closed** із per-OS install-підказкою, замість
 //!   `ensureToolAsync` (авто-встановлення). Це рівно чинний режим
 //!   `N_CURSOR_NO_AUTO_INSTALL` JS-канону і той самий контракт, який уже
@@ -34,6 +31,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use serde::Deserialize;
+use tempfile::TempDir;
 
 use crate::tool_resolve::{install_hint, resolve_provisioned_tool};
 use crate::RulesError;
@@ -79,29 +77,71 @@ struct ConftestFailure {
 }
 
 /// Аргументи виклику — порт `buildConftestArgs` (`run-conftest-batch.mjs:62-67`)
-/// без гілок `--data`/`extraArgs` (доккомент модуля). Винесено окремо, щоб тест
+/// без гілки `extraArgs` (доккомент модуля). Винесено окремо, щоб тест
 /// міг звірити розкладку без спавна: порядок «files ДО `-p`» — частина
-/// паритету, conftest розрізняє позиційні цілі й прапорці.
-fn conftest_args(policy_abs: &Path, namespace: &str, files: &[PathBuf]) -> Vec<String> {
+/// паритету, conftest розрізняє позиційні цілі й прапорці, а `--data` стоїть
+/// строго після `--namespace` (JS: `if (p.tmpDataFile) args.push('--data', …)`
+/// між `--namespace` і `--output`).
+fn conftest_args(
+    policy_abs: &Path,
+    namespace: &str,
+    files: &[PathBuf],
+    data_file: Option<&Path>,
+) -> Vec<String> {
     let mut args = vec!["test".to_string()];
     args.extend(files.iter().map(|f| f.to_string_lossy().into_owned()));
     args.push("-p".to_string());
     args.push(policy_abs.to_string_lossy().into_owned());
     args.push("--namespace".to_string());
     args.push(namespace.to_string());
+    if let Some(data) = data_file {
+        args.push("--data".to_string());
+        args.push(data.to_string_lossy().into_owned());
+    }
     args.push("--output".to_string());
     args.push("json".to_string());
     args.push("--no-color".to_string());
     args
 }
 
+/// Кладе `{"template": <data>}` у тимчасовий файл — порт
+/// `mkdtempSync`+`writeFileSync` (`run-conftest-batch.mjs:90-94`). Повертає
+/// живий [`TempDir`] (його `drop` = прибирання) і шлях до файла.
+fn write_template_data(
+    template_data: &serde_json::Value,
+) -> Result<(TempDir, PathBuf), RulesError> {
+    let dir = tempfile::Builder::new()
+        .prefix("n-rules-tpl-")
+        .tempdir()
+        .map_err(|error| {
+            RulesError::Concern(format!("conftest --data: тимчасовий каталог: {error}"))
+        })?;
+    let file = dir.path().join("template-data.json");
+    let payload = serde_json::json!({ "template": template_data });
+    std::fs::write(&file, serde_json::to_vec(&payload).unwrap_or_default())
+        .map_err(|error| RulesError::Concern(format!("conftest --data: запис: {error}")))?;
+    Ok((dir, file))
+}
+
 /// Розбирає stdout conftest у плаский список порушень — порт циклу
 /// `run-conftest-batch.mjs:120-127`. Порядок зберігається (він визначає
 /// порядок violations у виводі лінту).
-fn parse_conftest_stdout(stdout: &str) -> Result<Vec<ConftestViolation>, RulesError> {
+fn parse_conftest_stdout(stdout: &str, stderr: &str) -> Result<Vec<ConftestViolation>, RulesError> {
     let entries: Vec<ConftestEntry> = serde_json::from_str(stdout).map_err(|_| {
         let head: String = stdout.chars().take(200).collect();
-        RulesError::Concern(format!("conftest stdout не парситься як JSON: {head}"))
+        // Порожній stdout при штатному exit-коді сам по собі нічого не пояснює
+        // (типовий випадок — conftest поскаржився на полісі у stderr), тож
+        // хвіст діагностики їде в те саме повідомлення. JS-версія цього не
+        // робить, але й не мусить: там текст помилки читає людина в консолі,
+        // де stderr уже видно.
+        let tail: String = stderr.trim().chars().take(300).collect();
+        if tail.is_empty() {
+            RulesError::Concern(format!("conftest stdout не парситься як JSON: {head}"))
+        } else {
+            RulesError::Concern(format!(
+                "conftest stdout не парситься як JSON: {head} (stderr: {tail})"
+            ))
+        }
     })?;
     Ok(entries
         .into_iter()
@@ -132,7 +172,36 @@ pub fn run_conftest_batch(
     namespace: &str,
     files: &[PathBuf],
 ) -> Result<Vec<ConftestViolation>, RulesError> {
-    run_conftest_batch_with(policy_abs, namespace, files, &resolve_provisioned_tool)
+    run_conftest_batch_with(
+        policy_abs,
+        namespace,
+        files,
+        None,
+        &resolve_provisioned_tool,
+    )
+}
+
+/// [`run_conftest_batch`] з `templateData` — порт гілки `opts.templateData`
+/// (`run-conftest-batch.mjs:88-94,128-130`): дерево серіалізується у
+/// `{"template": <data>}`, лягає у тимчасовий файл і передається як
+/// `--data <tmpfile>`; каталог прибирається по виході з функції (JS робить те
+/// саме у `finally`).
+///
+/// Обгортка `{"template": …}` — частина контракту з rego: полісі читають
+/// `data.template.<ключ>`, тож зрізати рівень не можна.
+pub fn run_conftest_batch_with_data(
+    policy_abs: &Path,
+    namespace: &str,
+    files: &[PathBuf],
+    template_data: &serde_json::Value,
+) -> Result<Vec<ConftestViolation>, RulesError> {
+    run_conftest_batch_with(
+        policy_abs,
+        namespace,
+        files,
+        Some(template_data),
+        &resolve_provisioned_tool,
+    )
 }
 
 /// Тіло [`run_conftest_batch`] з інжектованим резолвом бінарника — та сама
@@ -143,6 +212,7 @@ pub(crate) fn run_conftest_batch_with(
     policy_abs: &Path,
     namespace: &str,
     files: &[PathBuf],
+    template_data: Option<&serde_json::Value>,
     resolve_tool: &dyn Fn(&str) -> Option<PathBuf>,
 ) -> Result<Vec<ConftestViolation>, RulesError> {
     if files.is_empty() {
@@ -163,8 +233,23 @@ pub(crate) fn run_conftest_batch_with(
         )));
     };
 
+    // `_data_dir` живий до кінця функції: його `drop` і є той `rmSync` у
+    // `finally`, що робить JS-канон.
+    let (_data_dir, data_file) = match template_data {
+        Some(data) => {
+            let (dir, file) = write_template_data(data)?;
+            (Some(dir), Some(file))
+        }
+        None => (None, None),
+    };
+
     let output = Command::new(&bin)
-        .args(conftest_args(policy_abs, namespace, files))
+        .args(conftest_args(
+            policy_abs,
+            namespace,
+            files,
+            data_file.as_deref(),
+        ))
         .output()
         .map_err(|error| {
             RulesError::Concern(format!("conftest не вдалося запустити ({bin:?}): {error}"))
@@ -190,7 +275,10 @@ pub(crate) fn run_conftest_batch_with(
         )));
     }
 
-    parse_conftest_stdout(&String::from_utf8_lossy(&output.stdout))
+    parse_conftest_stdout(
+        &String::from_utf8_lossy(&output.stdout),
+        &String::from_utf8_lossy(&output.stderr),
+    )
 }
 
 #[cfg(test)]
@@ -237,6 +325,7 @@ mod tests {
             Path::new("/pkg/rules/k8s/hasura_configmap"),
             "k8s.hasura_configmap",
             &[PathBuf::from("/repo/k8s/base/configmap.yaml")],
+            None,
         );
         assert_eq!(
             args,
@@ -254,12 +343,56 @@ mod tests {
         );
     }
 
+    /// `--data` вставляється строго між `--namespace` і `--output` — саме там,
+    /// де його ставить `buildConftestArgs`; решта розкладки не зсувається.
+    #[test]
+    fn args_place_data_between_namespace_and_output() {
+        let args = conftest_args(
+            Path::new("/pkg/rules/k8s/network_policy"),
+            "k8s.network_policy",
+            &[PathBuf::from("/repo/k8s/base/np.yaml")],
+            Some(Path::new("/tmp/tpl/template-data.json")),
+        );
+        assert_eq!(
+            args,
+            vec![
+                "test",
+                "/repo/k8s/base/np.yaml",
+                "-p",
+                "/pkg/rules/k8s/network_policy",
+                "--namespace",
+                "k8s.network_policy",
+                "--data",
+                "/tmp/tpl/template-data.json",
+                "--output",
+                "json",
+                "--no-color",
+            ]
+        );
+    }
+
+    /// Вміст `--data`-файла — рівно `{"template": <data>}`: rego читає
+    /// `data.template.<ключ>`, тож рівень обгортки — частина контракту.
+    #[test]
+    fn template_data_file_wraps_payload_in_template_key() {
+        let payload = serde_json::json!({ "deployment_snippet": { "policyTypes": ["Egress"] } });
+        let (dir, file) = write_template_data(&payload).unwrap();
+        let written: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&file).unwrap()).unwrap();
+        assert_eq!(written, serde_json::json!({ "template": payload }));
+        // Каталог живий, поки живий `TempDir`, і зникає після його `drop`.
+        let path = dir.path().to_path_buf();
+        drop(dir);
+        assert!(!path.exists());
+    }
+
     /// Порожній список файлів → 0 порушень без спавна. Резолвер тут «нічого не
     /// знаходить» — саме тому тест доводить, що до нього навіть не дійшло.
     #[test]
     fn empty_files_returns_empty_without_spawn() {
         assert_eq!(
-            run_conftest_batch_with(Path::new("/nope"), "k8s.x", &[], &resolver_missing).unwrap(),
+            run_conftest_batch_with(Path::new("/nope"), "k8s.x", &[], None, &resolver_missing)
+                .unwrap(),
             Vec::new()
         );
     }
@@ -272,6 +405,7 @@ mod tests {
             &tmp.path().join("nope"),
             "k8s.x",
             &[PathBuf::from("/repo/a.yaml")],
+            None,
             &resolver_missing,
         )
         .unwrap_err();
@@ -289,6 +423,7 @@ mod tests {
             tmp.path(),
             "k8s.x",
             &[PathBuf::from("/repo/a.yaml")],
+            None,
             &resolver_missing,
         )
         .unwrap_err();
@@ -308,6 +443,7 @@ mod tests {
                 tmp.path(),
                 "k8s.x",
                 &[PathBuf::from("/repo/a.yaml")],
+                None,
                 &resolver_found(bin)
             )
             .unwrap(),
@@ -328,6 +464,7 @@ mod tests {
             tmp.path(),
             "k8s.x",
             &[PathBuf::from("/repo/a.yaml")],
+            None,
             &resolver_found(bin),
         )
         .unwrap();
@@ -359,6 +496,7 @@ mod tests {
             tmp.path(),
             "k8s.x",
             &[PathBuf::from("/repo/a.yaml")],
+            None,
             &resolver_found(bin),
         )
         .unwrap_err();
@@ -376,6 +514,7 @@ mod tests {
             tmp.path(),
             "k8s.x",
             &[PathBuf::from("/repo/a.yaml")],
+            None,
             &resolver_found(bin),
         )
         .unwrap_err();
