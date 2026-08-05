@@ -27,6 +27,18 @@ jobs:
 
       - uses: ./.github/actions/setup-bun-deps
 
+      # Концерн `rust/check` у repo-wide-прогоні спавнить `cargo fmt --check`,
+      # `cargo clippy -D warnings` і `cargo deny`. На ubuntu-latest cargo є
+      # передвстановлений, тож концерн НЕ пропускається — але без компонента
+      # clippy і без кешу він падає на побудові графа залежностей (у т.ч.
+      # git-залежність mt-rust), а не на реальному порушенні. Саме так гейт
+      # ставав червоним при зеленому `cargo clippy` локально.
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
       - name: Repo-wide lint
         run: bunx n-rules lint --repo-wide --no-fix
         env:
