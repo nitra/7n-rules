@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.83.0] - 2026-08-05
+
+### Added
+
+- `js/doc_comments` виконується у wasm-плагіні `lang-js/wasm-concerns` (36-та контрибуція, зріз 4 контракту v3.1 — `docs/specs/2026-08-01-plugin-contract-v31-surfaces.md`): портовано і `detect`, і T0-фікс (`export fix`) — розривати їх не можна, бо весь T0-контур концерну тримається на `violation.data.{start,end}`. Офсети конвертуються на межі WIT в обидва боки: `detect` віддає їх у **UTF-16** code units (як napi-`oxc-parser`, а не в байтах crate-`oxc_parser`), `fix` переводить назад у байти перед зрізом UTF-8-рядка; parity-фікстури з кирилицею й емодзі поза BMP тримають це живим. JS-канон (`main.mjs` + `fix-doc_comments.mjs`) лишається fallback-ом за чинним конвеєром skip-not-crash
+- wasm-плагін lang-js: у контрибуцію додано `js/doc_comments` разом із T0-фіксером (зріз 4 контракту v3.1) — останній портовний концерн `lang-js`. Офсети napi-`oxc-parser` (UTF-16) конвертуються у байтові для crate-`oxc_parser` і назад; покрито фікстурами з не-ASCII вмістом, де наївний порт розходиться. Артефакт 2 492 361 байт — запас до бюджету 2,5 MB лише 7,5 KiB
+
+### Changed
+
+- rule-level гейт `applies` став **декларативним**: замість виконуваного модуля `<rule>/applies/main.mjs` правило оголошує предикат у полі `main.json:applies` (міні-DSL на 4 оператори — `pathExists`, `globMatches`, `jsonFieldContains`, комбінатор `any`; аварійний клапан `"applies": "dynamic"` лишає гейт на JS). Три чинні гейти (`lang-python/python`, `lang-rust/rust`, `lang-js/npm-module`) мігровано, їхній JS видалено. Дискавері перестало бути виконанням коду, тож native `ci plan` більше НЕ делегується в JS через саму лише наявність `applies` — гейт обчислюється в Rust (`rules-core::rule_applies`). Сумісність для сторонніх правил: `main.json` без поля `applies`, але з файлом `applies/main.mjs`, читається як `dynamic` — поведінка не змінюється.
+
 ## [1.82.1] - 2026-08-04
 
 ### Changed
