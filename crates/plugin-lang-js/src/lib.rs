@@ -1,4 +1,4 @@
-//! wasm-компонент `n-rules:plugin@3.0.0` — `lang-js/wasm-concerns` (задачі N2,
+//! wasm-компонент `n-rules:plugin@3.1.0` — `lang-js/wasm-concerns` (задачі N2,
 //! Q1 батч 1, Q2 батч 2, Q3, Q4 батч 4, батчі 5–9 і зрізи 1–2, 4 контракту v3.1
 //! (`docs/specs/2026-08-01-plugin-contract-v31-surfaces.md`), спека
 //! `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md` §3.5.5 і
@@ -3453,7 +3453,7 @@ fn build_manifest() -> Manifest {
     Manifest {
         id: "lang-js/wasm-concerns".to_string(),
         version: "0.1.0".to_string(),
-        world_version: "3.0.0".to_string(),
+        world_version: "3.1.0".to_string(),
         domains: vec![Domain::Lint],
         concerns: vec![
             ConcernContribution {
@@ -3811,16 +3811,35 @@ fn build_manifest() -> Manifest {
                     ".eslintrc.yml".to_string(),
                 ],
             },
+            // Зріз 5 контракту v3.1: `bun/licensee` — пілот `exec-tool`.
+            // Глоб звужений до ОДНОГО файлу: детектор читає з диска рівно
+            // `.licensee.json` (його наявність), решту вердикту дає
+            // спавнений тул (доккомент секції «Зріз 5»).
+            ConcernContribution {
+                key: CONCERN_BUN_LICENSEE.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec![LICENSEE_CONFIG_PATH.to_string()],
+            },
         ],
         ci_artifacts: vec![],
         capabilities: Capabilities {
             // Вміст файлів хост передає inline (per-file чи host-побудований
             // full-scope batch, доккомент `wit/world.wit`) — плагін не читає
             // диск сам.
+            //
+            // `bun/licensee` цього не змінює: capabilities описують доступ
+            // WASM-ГОСТЯ до ФС, а спавнений через `exec-tool` тул до них не
+            // належить взагалі — він виконується поза пісочницею, з правами
+            // хоста (trust boundary, рішення З спеки; доккомент
+            // `record tool-result` у `wit/world.wit`).
             fs_read: vec![],
             network: false,
         },
-        tools: vec![],
+        // Перша реальна декларація тула first-party плагіном (до зрізу 5
+        // контур `manifest.tools` → `ensureDeclaredTools` → `toolPaths` →
+        // `ToolResolver` був наскрізним, але жодним продакшн-плагіном не вживаним).
+        // Схема `path:` (рішення В спеки) — `bun` резолвиться по `PATH`.
+        tools: vec![LICENSEE_TOOL.to_string()],
     }
 }
 
@@ -10543,6 +10562,282 @@ fn fix_doc_comments(request: &FixRequest) -> FixPlan {
     FixPlan { edits }
 }
 
+// cspell:ignore npmcli
+// =====================================================================
+// Зріз 5 контракту v3.1 — ПІЛОТ поверхні `exec-tool`: `bun/licensee`
+// (спека `docs/specs/2026-08-01-plugin-contract-v31-surfaces.md`, §7)
+//
+// # Чому саме цей концерн пілотний
+//
+// `bun/licensee` — найпростіша з чотирьох обгорток зовнішніх процесів
+// (264 рядки JS): один спавн, один розбір тексту, жодного scratch-обміну.
+// Він доводить наскрізність поверхні (декларація тула → ensure-tool →
+// `toolPaths` → `ToolResolver` → `exec-tool` → діагностика) на випадку, де
+// нема чому ще зламатись. `style/lint`, `js/jscpd_duplicates` (перший
+// реальний споживач `scratch-out`) і `js-run/runtime` (перший споживач
+// `scratch-in`) — наступні зрізи, свідомо не тут.
+//
+// # Що саме дає `exec-tool`, чого не дав би `run-tool`
+//
+// JS-канон спавнить `bun x licensee` з `cwd: ctx.cwd` — коренем
+// consumer-репо. `run-tool` не має поля `cwd` взагалі: процес успадкував би
+// cwd ХОСТ-процесу, який для napi-виклику збігається з коренем репо
+// ВИПАДКОВО (JS-оркестрація стартує там), а для `rules-cli` — ні. Для
+// `licensee`, який читає `node_modules` і `package.json` відносно свого
+// cwd, це різниця між «перевірив репо» і «перевірив казна-що». Тут гість
+// передає `cwd: None` — тобто явно «корінь репо», який хост бере зі слоту
+// `repo-root@1`, а не зі свого випадкового стану.
+//
+// # Розбіжності з JS-каноном (свідомі, не дрейф)
+//
+// 1. **`bun-missing` ширший за канон.** Канон розрізняє «`bun` немає в
+//    PATH» (`resolveCmd` → null) і «процес не стартував/впав». Гість бачить
+//    лише `status: none`, який покриває обидва випадки плюс таймаут. Усі
+//    вони означають одне: тул не дав вердикту — тож гість репортує ту саму
+//    канонічну діагностику `bun-missing`. Канон таймауту не має взагалі
+//    (`spawnAsync` без ліміту), тож розходитись тут нема з чим.
+// 2. **Warn-гілка — `Diagnostic` із `severity: warn`, а не `LintResult
+//    .diagnostics`.** Канон на crash тула пише в ОКРЕМИЙ канал
+//    (`result.diagnostics`, не `violations`) — у WIT такого каналу немає,
+//    список один. Семантика зберігається (`warn` не блокує гейт), форма —
+//    ні, тож у цієї гілки з'явився `reason`, якого в канону не було
+//    ([`LICENSEE_TOOL_ERROR_REASON`]).
+// 3. **T0-фікс лишається JS.** `fix-licensee.mjs` спавнить `licensee
+//    --init`, читає/зливає `.licensee.json` і обходить workspace-и через
+//    `resolveAllJsRoots` — це не `FixPlan` із повного вмісту файлу, а
+//    інший клас роботи. Порт fix-контуру цього концерну — не зріз 5.
+// =====================================================================
+
+/// Ключ контрибуції `bun/licensee` (зріз 5 контракту v3.1 — пілот
+/// `exec-tool`).
+const CONCERN_BUN_LICENSEE: &str = "bun/licensee";
+
+/// Декларація тула в `manifest.tools` — схема `path:` (рішення В спеки):
+/// `bun` резолвиться по `PATH`, а не завантажується з GitHub-релізу, як
+/// уміє дефолтна схема `pinned:`.
+const LICENSEE_TOOL: &str = "path:bun";
+
+/// Конфіг-файл, чию наявність перевіряє детектор — той самий
+/// `join(cwd, '.licensee.json')`, що `existsSync` JS-канону; у гостя це
+/// перевірка наявності шляху в батчі (глоб контрибуції звужений рівно до
+/// нього).
+const LICENSEE_CONFIG_PATH: &str = ".licensee.json";
+
+/// `Terms:`-значення, яким `licensee` позначає ВЛАСНИЙ пакет без валідного
+/// SPDX у `license` (не сторонню ліцензію) — дослівно з JS-канону.
+const LICENSEE_INVALID_METADATA_TERMS: &str = "Invalid license metadata";
+
+/// Роздільник блоків одного пакета у `--errors-only` stdout (порожній
+/// рядок) — порт `BLOCK_SEPARATOR_RE` JS-канону 1:1.
+const LICENSEE_BLOCK_SEPARATOR_PATTERN: &str = r"\n\s*\n";
+
+/// `reason` warn-гілки «тул впав» — його в JS-канону НЕМАЄ (розбіжність 2
+/// доккомента секції): канон пише crash в окремий `diagnostics`-канал
+/// `LintResult`, у якого поля `reason` не існує.
+const LICENSEE_TOOL_ERROR_REASON: &str = "licensee-tool-error";
+
+/// Ліміт довжини вставки чужого виводу в повідомлення — порт
+/// `.slice(0, 2000)` JS-канону.
+const LICENSEE_DETAIL_LIMIT: usize = 2000;
+
+/// Один розібраний блок `--errors-only` stdout — порт результату
+/// `parseLicenseeBlocks`.
+struct LicenseeBlock {
+    name: String,
+    terms: String,
+    block: String,
+}
+
+/// Обрізає рядок до `limit` СИМВОЛІВ — наближення `String.prototype.slice`
+/// JS-канону (той рахує UTF-16 code unit-и). Вивід `licensee` — імена
+/// npm-пакетів і SPDX-ідентифікатори, тобто ASCII, де обидві міри
+/// збігаються; різниця проявилась би лише на не-ASCII виводі, якого цей тул
+/// не породжує. Байтового зрізу тут бути не може взагалі — він розрубав би
+/// UTF-8 послідовність.
+fn truncate_chars(text: &str, limit: usize) -> String {
+    match text.char_indices().nth(limit) {
+        Some((index, _)) => text[..index].to_string(),
+        None => text.to_string(),
+    }
+}
+
+/// Порт `parseLicenseeBlocks` (`main.mjs:25-40`) 1:1: розбиває stdout на
+/// блоки одного пакета, з кожного дістає `name` (заголовок до ОСТАННЬОГО
+/// `@` — scoped-імена `@scope/name@version` теж) і `Terms:`.
+fn parse_licensee_blocks(stdout: &str) -> Vec<LicenseeBlock> {
+    let separator = regex::Regex::new(LICENSEE_BLOCK_SEPARATOR_PATTERN)
+        .expect("LICENSEE_BLOCK_SEPARATOR_PATTERN валідний");
+    separator
+        .split(stdout)
+        .map(|block| block.trim())
+        .filter(|block| !block.is_empty())
+        .filter_map(|block| {
+            let mut lines = block.lines();
+            let header = lines.next().unwrap_or_default().trim();
+            let terms = block
+                .lines()
+                .find(|line| line.trim().starts_with("Terms:"))
+                .and_then(|line| line.split_once("Terms:").map(|(_, value)| value))
+                .map(|value| value.trim().to_string())
+                .unwrap_or_default();
+            // `lastIndexOf('@') > 0` JS-канону: провідний `@` scoped-пакета
+            // не рахується за роздільник версії.
+            let name = match header.rfind('@') {
+                Some(index) if index > 0 => &header[..index],
+                _ => header,
+            };
+            if name.is_empty() {
+                return None;
+            }
+            Some(LicenseeBlock {
+                name: name.to_string(),
+                terms,
+                block: block.to_string(),
+            })
+        })
+        .collect()
+}
+
+/// Порт `lint()` `bun/licensee` (`main.mjs:47-123`) — ПІЛОТ `exec-tool`.
+///
+/// `files` несе рівно те, що канон читає з диска перед спавном: наявність
+/// `.licensee.json` (глоб контрибуції звужений до нього). Решта роботи —
+/// спавн тула через host-медіацію й розбір його stdout; сам гість жодного
+/// IO не робить.
+fn detect_bun_licensee(files: &[SourceFile]) -> Vec<Diagnostic> {
+    if !files.iter().any(|file| file.path == LICENSEE_CONFIG_PATH) {
+        return vec![Diagnostic {
+            reason: "licensee-config-missing".to_string(),
+            message: "lint-bun: licensee — немає .licensee.json; запустіть \
+                      `npx @7n/rules lint bun` локально для генерації (bun.mdc)"
+                .to_string(),
+            file: None,
+            severity: Severity::Error,
+            data: None,
+        }];
+    }
+
+    let result = exec_tool(&ToolRequest {
+        tool: LICENSEE_TOOL.to_string(),
+        args: vec![
+            "x".to_string(),
+            "licensee".to_string(),
+            "--production".to_string(),
+            "--errors-only".to_string(),
+        ],
+        stdin: None,
+        // `None` — корінь репо (слот `repo-root@1` на боці хоста), рівно
+        // `cwd: ctx.cwd` JS-канону. Саме заради цього поля концерн і чекав
+        // `exec-tool` (доккомент секції).
+        cwd: None,
+        env: vec![],
+        scratch_in: vec![],
+        scratch_out: vec![],
+    });
+
+    let Some(exit_code) = result.status else {
+        // Розбіжність 1 доккомента секції: `status: none` покриває і
+        // «тула немає», і «процес не стартував», і таймаут.
+        return vec![Diagnostic {
+            reason: "bun-missing".to_string(),
+            message: "lint-bun: `bun` не знайдено в PATH (bun.mdc)".to_string(),
+            file: None,
+            severity: Severity::Error,
+            data: None,
+        }];
+    };
+    if exit_code == 0 {
+        return vec![];
+    }
+
+    // Канал розрізняє crash тула від реального порушення: `licensee` пише
+    // legitimate NOT APPROVED записи у stdout через print(), а власні
+    // die()-помилки (invalid config, виняток усередині @npmcli/arborist на
+    // bun-дереві) — у stderr. Дослівно логіка JS-канону.
+    let stderr = truncate_chars(result.stderr.trim(), LICENSEE_DETAIL_LIMIT);
+    if !stderr.is_empty() {
+        return vec![Diagnostic {
+            reason: LICENSEE_TOOL_ERROR_REASON.to_string(),
+            message: format!(
+                "lint-bun: licensee — інструмент завершився з помилкою, це НЕ підтверджене \
+                 ліцензійне порушення (код {exit_code}, bun.mdc). Ймовірна причина — \
+                 несумісність @npmcli/arborist з деревом bun install. Перевір вручну: \
+                 `bunx licensee --production`.\n{stderr}"
+            ),
+            file: None,
+            // Fail-open (не блокує CI-гейт): fail-closed тут перманентно
+            // червонив би bun-монорепо — доккомент JS-канону.
+            severity: Severity::Warn,
+            data: None,
+        }];
+    }
+
+    let stdout = result.stdout.trim();
+    let blocks = parse_licensee_blocks(stdout);
+    if blocks.is_empty() {
+        // Формат `licensee` змінився — fallback на агрегований
+        // `license-violation` із повним stdout, щоб не втратити сигнал.
+        let detail = if stdout.is_empty() {
+            String::new()
+        } else {
+            format!("\n{}", truncate_chars(stdout, LICENSEE_DETAIL_LIMIT))
+        };
+        return vec![Diagnostic {
+            reason: "license-violation".to_string(),
+            message: format!(
+                "lint-bun: licensee — порушення ліцензій (код {exit_code}, bun.mdc){detail}"
+            ),
+            file: None,
+            severity: Severity::Error,
+            data: None,
+        }];
+    }
+
+    let mut diagnostics: Vec<Diagnostic> = blocks
+        .iter()
+        .filter(|block| block.terms == LICENSEE_INVALID_METADATA_TERMS)
+        .map(|block| Diagnostic {
+            reason: "license-metadata-invalid".to_string(),
+            message: format!(
+                "lint-bun: licensee — {}: Invalid license metadata (bun.mdc)",
+                block.name
+            ),
+            file: None,
+            severity: Severity::Error,
+            // `data.package` споживає T0-фікс `fix-licensee.mjs` (патерн
+            // `bun-licensee-workspace-license-metadata`) — контракт між
+            // детектором і фіксером, який порт зобов'язаний зберегти.
+            data: Some(format!(
+                "{{\"package\":{}}}",
+                json_escape_string(&block.name)
+            )),
+        })
+        .collect();
+
+    let third_party: Vec<&LicenseeBlock> = blocks
+        .iter()
+        .filter(|block| block.terms != LICENSEE_INVALID_METADATA_TERMS)
+        .collect();
+    if !third_party.is_empty() {
+        let joined = third_party
+            .iter()
+            .map(|block| block.block.as_str())
+            .collect::<Vec<_>>()
+            .join("\n\n");
+        diagnostics.push(Diagnostic {
+            reason: "license-violation".to_string(),
+            message: format!(
+                "lint-bun: licensee — порушення ліцензій (код {exit_code}, bun.mdc)\n{}",
+                truncate_chars(&joined, LICENSEE_DETAIL_LIMIT)
+            ),
+            file: None,
+            severity: Severity::Error,
+            data: None,
+        });
+    }
+    diagnostics
+}
+
 /// Guest-реалізація world `plugin` — тридцять шість контрибуцій ([`CONCERN_TFM`],
 /// [`CONCERN_GAP`], [`CONCERN_POOL_FORKS`], [`CONCERN_NO_PROCESS_CHDIR`],
 /// [`CONCERN_ADMIN_TABLE`], [`CONCERN_QUASAR_FIXES`], [`CONCERN_LOCATION`],
@@ -10720,6 +11015,13 @@ impl Guest for LangJs {
             CONCERN_JS_CHECK => {
                 report_progress(total, total);
                 detect_js_check(&batch.files)
+            }
+            // Зріз 5 контракту v3.1 — пілот `exec-tool` (доккомент секції
+            // «Зріз 5»): єдиний концерн цього компонента, що спавнить
+            // зовнішній процес.
+            CONCERN_BUN_LICENSEE => {
+                report_progress(total, total);
+                detect_bun_licensee(&batch.files)
             }
             // PER-FILE (зріз 4): кожен файл — свій крок прогресу, як
             // дефолтна `CONCERN_TFM`-гілка нижче.
@@ -13181,8 +13483,63 @@ mod tests {
 
     // --- маніфест ---
 
+    // --- bun/licensee (зріз 5 контракту v3.1) ---
+    //
+    // Тут — лише ЧИСТІ хелпери: сам `detect_bun_licensee` кличе host-імпорт
+    // `exec-tool`, який поза реальним хостом абортує (доккомент модуля
+    // `tests`). Живий контур — golden-тести
+    // `crates/rules-plugin-host/tests/plugin_lang_js.rs` із резолвленим
+    // фейковим `bun`.
+
     #[test]
-    fn build_manifest_declares_all_thirty_six_concerns_with_expected_scopes() {
+    fn parse_licensee_blocks_splits_packages_and_reads_terms() {
+        let blocks = parse_licensee_blocks(
+            "@scope/own@1.0.0\n  Terms: Invalid license metadata\n\nthird@2.0.0\n  Terms: GPL-3.0\n",
+        );
+        assert_eq!(blocks.len(), 2);
+        assert_eq!(blocks[0].name, "@scope/own");
+        assert_eq!(blocks[0].terms, LICENSEE_INVALID_METADATA_TERMS);
+        assert_eq!(blocks[1].name, "third");
+        assert_eq!(blocks[1].terms, "GPL-3.0");
+    }
+
+    /// `lastIndexOf('@') > 0` JS-канону: провідний `@` scoped-пакета БЕЗ
+    /// версії не має відрізатись у порожнє ім'я.
+    #[test]
+    fn parse_licensee_blocks_keeps_scoped_name_without_version() {
+        let blocks = parse_licensee_blocks("@scope/own\n  Terms: MIT\n");
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0].name, "@scope/own");
+    }
+
+    #[test]
+    fn parse_licensee_blocks_skips_empty_and_nameless_blocks() {
+        assert!(parse_licensee_blocks("").is_empty());
+        assert!(parse_licensee_blocks("   \n\n  \n").is_empty());
+        // Заголовок з одного `@` дає порожнє ім'я лише за `index > 0`;
+        // сам по собі `@` лишається іменем — і саме так поводиться канон.
+        assert_eq!(parse_licensee_blocks("@\n").len(), 1);
+    }
+
+    #[test]
+    fn parse_licensee_blocks_tolerates_missing_terms_line() {
+        let blocks = parse_licensee_blocks("pkg@1.0.0\n  License: MIT\n");
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0].terms, "");
+    }
+
+    #[test]
+    fn truncate_chars_cuts_on_char_boundary_not_bytes() {
+        // Кирилиця — 2 байти на символ: байтовий зріз на 3 розрубав би
+        // послідовність і запанікував би.
+        // cspell:disable-next-line
+        assert_eq!(truncate_chars("абвгд", 3), "абв");
+        assert_eq!(truncate_chars("abc", 10), "abc");
+        assert_eq!(truncate_chars("", 5), "");
+    }
+
+    #[test]
+    fn build_manifest_declares_all_thirty_seven_concerns_with_expected_scopes() {
         let manifest = build_manifest();
         // Задача Q4 батч 4: `CONCERN_REDIS_IMPORTS`/`CONCERN_MSSQL_DEPS`/
         // `CONCERN_BUN_DB_SAFETY` тепер У контрибуції (AST-порти, де-скоуп
@@ -13197,8 +13554,9 @@ mod tests {
         // v3.1 — `test/stryker_config` (доккомент секції «Зріз 1»), зріз 2
         // — `js/check` (доккомент секції «Зріз 2»), зріз 4 —
         // `js/doc_comments` (доккомент секції «Зріз 4», ДРУГА per-file
-        // контрибуція плагіна).
-        assert_eq!(manifest.concerns.len(), 36);
+        // контрибуція плагіна), зріз 5 — `bun/licensee` (доккомент секції
+        // «Зріз 5», ПЕРШИЙ концерн плагіна, що спавнить зовнішній процес).
+        assert_eq!(manifest.concerns.len(), 37);
         for key in [CONCERN_TFM, CONCERN_DOC_COMMENTS] {
             let contribution = manifest
                 .concerns
@@ -13243,6 +13601,7 @@ mod tests {
             CONCERN_VUE_PACKAGES,
             CONCERN_STRYKER_CONFIG,
             CONCERN_JS_CHECK,
+            CONCERN_BUN_LICENSEE,
         ] {
             let contribution = manifest
                 .concerns

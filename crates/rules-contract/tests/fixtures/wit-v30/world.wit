@@ -1,0 +1,167 @@
+// ЗАМОРОЖЕНИЙ знімок world `n-rules:plugin@3.0.0` — фікстура доказу
+// additive-сумісності зрізу 5 контракту v3.1
+// (`crates/rules-plugin-host/tests/v30_guest_additive_compat.rs`).
+//
+// # Що це і чого тут немає
+//
+// Це СТРУКТУРА world-а v3.0 дослівно (типи, export-и, import-и), знята з
+// `crates/rules-contract/wit/world.wit` станом ДО додавання `exec-tool`.
+// Уся проза-документація зрізана свідомо: доказ additivity тримається на
+// формі контракту (імена й типи import-ів/export-ів, з яких wit-bindgen
+// будує component-type гостя), а не на коментарях — а дубль 300 рядків
+// документації гарантовано розійшовся б із оригіналом за перший же рефакторинг
+// прози.
+//
+// # Файл НЕ оновлюється разом зі світом
+//
+// Він і має відставати: його роль — грати роль СТОРОННЬОГО плагіна,
+// закріпленого під опубліковану v3.0 і не перезібраного під v3.1. Якщо цей
+// файл колись знадобиться змінити, щоб тести проходили, — це сигнал, що
+// зміна world-а НЕ additive, а не привід правити фікстуру.
+//
+// Структурне звірення «v3.0 ⊆ поточний world» (без збірки wasm) робить
+// `crates/rules-contract/tests/wit_parity.rs`; збірку справжнього гостя з
+// цього world-а і завантаження його v3.1-хостом —
+// `crates/rules-plugin-host/tests/v30_guest_additive_compat.rs`.
+
+package n-rules:plugin@3.0.0;
+
+world plugin {
+  use n-rules:slots/ci-artifact@1.0.0.{descriptor as ci-artifact-descriptor};
+
+  enum severity {
+    error,
+    warn,
+  }
+
+  enum concern-scope {
+    per-file,
+    full,
+  }
+
+  record concern-contribution {
+    key: string,
+    scope: concern-scope,
+    glob: list<string>,
+  }
+
+  record diagnostic {
+    reason: string,
+    message: string,
+    file: option<string>,
+    severity: severity,
+    data: option<string>,
+  }
+
+  record source-file {
+    path: string,
+    content: string,
+  }
+
+  record detect-batch {
+    concern-id: string,
+    files: list<source-file>,
+  }
+
+  record write-file {
+    path: string,
+    content: string,
+  }
+
+  variant file-edit {
+    write(write-file),
+    delete(string),
+  }
+
+  record fix-request {
+    concern-id: string,
+    files: list<source-file>,
+    diagnostics: list<diagnostic>,
+  }
+
+  record fix-plan {
+    edits: list<file-edit>,
+  }
+
+  enum domain {
+    lint,
+    ecosystem-outdated,
+    docgen-render,
+  }
+
+  record capabilities {
+    fs-read: list<string>,
+    network: bool,
+  }
+
+  record manifest {
+    id: string,
+    version: string,
+    world-version: string,
+    domains: list<domain>,
+    concerns: list<concern-contribution>,
+    ci-artifacts: list<ci-artifact-descriptor>,
+    capabilities: capabilities,
+    tools: list<string>,
+  }
+
+  variant domain-error {
+    not-supported,
+    failed(string),
+  }
+
+  record ecosystem-request {
+    ecosystem: string,
+    manifest-path: string,
+    manifest-content: string,
+  }
+
+  record outdated-dep {
+    name: string,
+    current: string,
+    latest: string,
+    breaking: bool,
+  }
+
+  record docgen-request {
+    source-path: string,
+    source-content: string,
+    source-crc: string,
+  }
+
+  record doc-output {
+    content: string,
+    content-crc: string,
+  }
+
+  enum log-level {
+    debug,
+    info,
+    warn,
+    error,
+  }
+
+  record tool-output {
+    status: option<s32>,
+    stdout: string,
+    stderr: string,
+  }
+
+  export describe: func() -> manifest;
+
+  export detect: func(batch: detect-batch) -> list<diagnostic>;
+
+  export fix: func(request: fix-request) -> fix-plan;
+
+  export ecosystem-outdated: func(request: ecosystem-request) -> result<list<outdated-dep>, domain-error>;
+
+  export docgen-render: func(request: docgen-request) -> result<doc-output, domain-error>;
+
+  import report-progress: func(done: u32, total: u32);
+
+  import run-tool: func(tool: string, args: list<string>, stdin: option<string>) -> tool-output;
+
+  import log: func(level: log-level, message: string);
+
+  import host-context: func(slot: string) -> option<string>;
+}

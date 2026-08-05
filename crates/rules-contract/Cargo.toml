@@ -2,7 +2,7 @@
 name = "rules-contract"
 version = "0.1.0"
 edition = "2021"
-description = "Нижній шар serde-DTO + JSON Schema + host-валідатори для WIT-контракту @7n/rules plugin v3 (n-rules:plugin@3.0.0, n-rules:slots@1.0.0)"
+description = "Нижній шар serde-DTO + JSON Schema + host-валідатори для WIT-контракту @7n/rules plugin v3 (n-rules:plugin@3.1.0, n-rules:slots@1.0.0)"
 license = "Apache-2.0"
 
 [lib]

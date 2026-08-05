@@ -53,8 +53,20 @@ const NO_BUILTIN_DIR = join(REPO_ROOT, 'npm', '__wasm-plugins-test-no-builtin__'
  * @returns {ReturnType<typeof resolveWasmConcernMap>} резолвлена мапа концернів
  */
 function resolveMap(dir, opts = {}) {
-  return resolveWasmConcernMap(dir, { builtinPinsDir: NO_BUILTIN_DIR, ...opts })
+  return resolveWasmConcernMap(dir, { builtinPinsDir: NO_BUILTIN_DIR, resolveCmdFn: fakeResolveCmd, ...opts })
 }
+
+/**
+ * Шлях, який фейковий `resolveCmd` віддає для схеми `path:` — реальний
+ * plugin-lang-js декларує `tools = ["path:bun"]` (зріз 5 контракту v3.1), і
+ * без ін'єкції `toolPaths` у цих тестах залежав би від того, чи стоїть `bun`
+ * на машині, де їх запустили.
+ */
+const FAKE_BUN_PATH = '/fake/bin/bun'
+/** Очікуваний `toolPaths` реального plugin-lang-js за [`fakeResolveCmd`]. */
+const LANG_JS_TOOL_PATHS = { bun: FAKE_BUN_PATH }
+/** Детермінований `resolveCmd`: знає рівно `bun`, решту не знаходить. */
+const fakeResolveCmd = cmd => (cmd === 'bun' ? FAKE_BUN_PATH : null)
 
 /** Реальні байти зібраного plugin-lang-js — джерело і для happy-path retrieval, і для sha256 у конфігах тестів. */
 const WASM_BYTES = readFileSync(WASM_PATH)
@@ -175,8 +187,9 @@ describe('resolveWasmConcernMap — читання конфігу', () => {
         'utf8'
       )
       const map = await resolveMap(dir, { env: {} })
-      // plugin-lang-js не декларує `tools` — `toolPaths` порожній (задача N1, доккомент модуля).
-      expect(map.get('vue/tfm-translations')).toEqual({ wasmPath: WASM_PATH, toolPaths: {} })
+      // plugin-lang-js декларує `tools = ["path:bun"]` (зріз 5 контракту v3.1) —
+      // схема `path:` резолвиться ін'єктованим [`fakeResolveCmd`], не ensure-tool контуром.
+      expect(map.get('vue/tfm-translations')).toEqual({ wasmPath: WASM_PATH, toolPaths: LANG_JS_TOOL_PATHS })
     })
   })
 
@@ -190,7 +203,7 @@ describe('resolveWasmConcernMap — читання конфігу', () => {
         'utf8'
       )
       const map = await resolveMap(dir, { env: {} })
-      expect(map.get('vue/tfm-translations')).toEqual({ wasmPath: WASM_PATH, toolPaths: {} })
+      expect(map.get('vue/tfm-translations')).toEqual({ wasmPath: WASM_PATH, toolPaths: LANG_JS_TOOL_PATHS })
     })
   })
 
@@ -212,14 +225,14 @@ describe('resolveWasmConcernMap — читання конфігу', () => {
       // `bun/layout`, `style/tooling`, `test/sandbox-aware-test`,
       // `test/vitest-api-conventions` батчу 8 + `vue/packages` батчу 9 +
       // `test/stryker_config` зрізу 1, `js/check` зрізу 2 і `js/doc_comments`
-      // зрізу 4 контракту v3.1) — мапа концернів індексується за кожним
-      // ключем окремо.
-      expect(first.size).toBe(36)
+      // зрізу 4 і `bun/licensee` зрізу 5 контракту v3.1) — мапа концернів
+      // індексується за кожним ключем окремо.
+      expect(first.size).toBe(37)
       // Видаляємо .n-rules.json — якби кеш не працював, другий виклик повернув би порожню мапу.
       await writeFile(join(dir, '.n-rules.json'), JSON.stringify({}), 'utf8')
       const second = await resolveMap(dir)
       expect(second).toBe(first)
-      expect(second.size).toBe(36)
+      expect(second.size).toBe(37)
     })
   })
 
@@ -260,7 +273,7 @@ describe('resolveWasmConcernMap — path-форма і CI-гейт (спека �
         'utf8'
       )
       const map = await resolveMap(dir, { env: {} })
-      expect(map.get('vue/tfm-translations')).toEqual({ wasmPath: WASM_PATH, toolPaths: {} })
+      expect(map.get('vue/tfm-translations')).toEqual({ wasmPath: WASM_PATH, toolPaths: LANG_JS_TOOL_PATHS })
     })
   })
 })
@@ -279,7 +292,7 @@ describe('resolveWasmConcernMap — url+sha256 retrieval (канонічний �
       const fetchFn = fakeFetch(WASM_BYTES)
       const map = await resolveMap(dir, { fetchFn, cacheDir, env: {} })
       const cachePath = join(cacheDir, `${WASM_SHA256}.wasm`)
-      expect(map.get('vue/tfm-translations')).toEqual({ wasmPath: cachePath, toolPaths: {} })
+      expect(map.get('vue/tfm-translations')).toEqual({ wasmPath: cachePath, toolPaths: LANG_JS_TOOL_PATHS })
       expect(fetchFn).toHaveBeenCalledWith('https://example.test/plugin.wasm')
       expect(existsSync(cachePath)).toBe(true)
     })
@@ -325,7 +338,7 @@ describe('resolveWasmConcernMap — url+sha256 retrieval (канонічний �
       const map = await resolveMap(dir, { fetchFn: secondFetch, cacheDir, env: {} })
       expect(map.get('vue/tfm-translations')).toEqual({
         wasmPath: join(cacheDir, `${WASM_SHA256}.wasm`),
-        toolPaths: {}
+        toolPaths: LANG_JS_TOOL_PATHS
       })
       expect(secondFetch).not.toHaveBeenCalled()
     })
@@ -350,7 +363,7 @@ describe('resolveWasmConcernMap — url+sha256 retrieval (канонічний �
       const map = await resolveMap(dir, { fetchFn, cacheDir, env: {} })
       expect(fetchFn).toHaveBeenCalledTimes(1)
       const cachePath = join(cacheDir, `${WASM_SHA256}.wasm`)
-      expect(map.get('vue/tfm-translations')).toEqual({ wasmPath: cachePath, toolPaths: {} })
+      expect(map.get('vue/tfm-translations')).toEqual({ wasmPath: cachePath, toolPaths: LANG_JS_TOOL_PATHS })
       expect(readFileSync(cachePath).equals(WASM_BYTES)).toBe(true)
     })
   })
@@ -400,7 +413,11 @@ describe('resolveWasmConcernMap — builtin-таблиця first-party піні�
   test('немає builtin-pins.json (repo-дерево без збірки) → тиша, порожня мапа', async () => {
     await withTmpDir(async dir => {
       const warnSpy = vi.spyOn(console, 'warn').mockReturnValue()
-      const map = await resolveWasmConcernMap(dir, { env: {}, builtinPinsDir: join(dir, 'no-such-dir') })
+      const map = await resolveWasmConcernMap(dir, {
+        env: {},
+        resolveCmdFn: fakeResolveCmd,
+        builtinPinsDir: join(dir, 'no-such-dir')
+      })
       expect(map.size).toBe(0)
       expect(warnSpy).not.toHaveBeenCalled()
       warnSpy.mockRestore()
@@ -413,7 +430,11 @@ describe('resolveWasmConcernMap — builtin-таблиця first-party піні�
       await mkdir(builtinDir, { recursive: true })
       await writeFile(join(builtinDir, 'builtin-pins.json'), '{ не json', 'utf8')
       const warnSpy = vi.spyOn(console, 'warn').mockReturnValue()
-      const map = await resolveWasmConcernMap(dir, { env: {}, builtinPinsDir: builtinDir })
+      const map = await resolveWasmConcernMap(dir, {
+        env: {},
+        resolveCmdFn: fakeResolveCmd,
+        builtinPinsDir: builtinDir
+      })
       expect(map.size).toBe(0)
       expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('builtin-pins.json'))
       warnSpy.mockRestore()
@@ -433,7 +454,11 @@ describe('resolveWasmConcernMap — builtin-таблиця first-party піні�
         }),
         'utf8'
       )
-      const map = await resolveWasmConcernMap(dir, { env: {}, builtinPinsDir: builtinDir })
+      const map = await resolveWasmConcernMap(dir, {
+        env: {},
+        resolveCmdFn: fakeResolveCmd,
+        builtinPinsDir: builtinDir
+      })
       expect(map.size).toBe(0)
     })
   })
@@ -448,7 +473,11 @@ describe('resolveWasmConcernMap — builtin-таблиця first-party піні�
         'utf8'
       )
       const warnSpy = vi.spyOn(console, 'warn').mockReturnValue()
-      const map = await resolveWasmConcernMap(dir, { env: {}, builtinPinsDir: builtinDir })
+      const map = await resolveWasmConcernMap(dir, {
+        env: {},
+        resolveCmdFn: fakeResolveCmd,
+        builtinPinsDir: builtinDir
+      })
       expect(map.size).toBe(0)
       expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('пошкоджена інсталяція'))
       warnSpy.mockRestore()
@@ -466,7 +495,11 @@ describe('resolveWasmConcernMap — builtin-таблиця first-party піні�
         'utf8'
       )
       const warnSpy = vi.spyOn(console, 'warn').mockReturnValue()
-      const map = await resolveWasmConcernMap(dir, { env: {}, builtinPinsDir: builtinDir })
+      const map = await resolveWasmConcernMap(dir, {
+        env: {},
+        resolveCmdFn: fakeResolveCmd,
+        builtinPinsDir: builtinDir
+      })
       expect(map.size).toBe(0)
       expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('sha256 не збігається'))
       warnSpy.mockRestore()
@@ -484,12 +517,19 @@ describe('resolveWasmConcernMap — builtin-таблиця first-party піні�
         'utf8'
       )
       // Немає .n-rules.json у dir — контрибуції прийшли ВИКЛЮЧНО з builtin-таблиці.
-      const map = await resolveWasmConcernMap(dir, { env: {}, builtinPinsDir: builtinDir })
+      const map = await resolveWasmConcernMap(dir, {
+        env: {},
+        resolveCmdFn: fakeResolveCmd,
+        builtinPinsDir: builtinDir
+      })
       expect(map.get('vue/tfm-translations')).toEqual({
         wasmPath: join(builtinDir, 'plugin-lang-js.wasm'),
-        toolPaths: {}
+        toolPaths: LANG_JS_TOOL_PATHS
       })
-      expect(map.get('style/gap')).toEqual({ wasmPath: join(builtinDir, 'plugin-lang-js.wasm'), toolPaths: {} })
+      expect(map.get('style/gap')).toEqual({
+        wasmPath: join(builtinDir, 'plugin-lang-js.wasm'),
+        toolPaths: LANG_JS_TOOL_PATHS
+      })
     })
   })
 
@@ -511,9 +551,13 @@ describe('resolveWasmConcernMap — builtin-таблиця first-party піні�
         JSON.stringify({ wasmPlugins: [{ name: 'lang-js', path: WASM_PATH }] }),
         'utf8'
       )
-      const map = await resolveWasmConcernMap(dir, { env: {}, builtinPinsDir: builtinDir })
+      const map = await resolveWasmConcernMap(dir, {
+        env: {},
+        resolveCmdFn: fakeResolveCmd,
+        builtinPinsDir: builtinDir
+      })
       // Override консюмера виграв — резолвлений шлях це РЕАЛЬНИЙ зібраний .wasm (WASM_PATH), не builtin-копія.
-      expect(map.get('vue/tfm-translations')).toEqual({ wasmPath: WASM_PATH, toolPaths: {} })
+      expect(map.get('vue/tfm-translations')).toEqual({ wasmPath: WASM_PATH, toolPaths: LANG_JS_TOOL_PATHS })
     })
   })
 
@@ -544,6 +588,7 @@ describe('resolveWasmConcernMap — builtin-таблиця first-party піні�
         env: {},
         builtinPinsDir: builtinDir,
         ensureToolFn,
+        resolveCmdFn: fakeResolveCmd,
         nativeFn: () => ({
           wasmPluginManifest: path =>
             path === otherWasmPath
@@ -555,9 +600,12 @@ describe('resolveWasmConcernMap — builtin-таблиця first-party піні�
       // (фейковий manifest — 'other/concern') — обидва в мапі одночасно.
       expect(map.get('vue/tfm-translations')).toEqual({
         wasmPath: join(builtinDir, 'plugin-lang-js.wasm'),
-        toolPaths: {}
+        toolPaths: LANG_JS_TOOL_PATHS
       })
-      expect(map.get('style/gap')).toEqual({ wasmPath: join(builtinDir, 'plugin-lang-js.wasm'), toolPaths: {} })
+      expect(map.get('style/gap')).toEqual({
+        wasmPath: join(builtinDir, 'plugin-lang-js.wasm'),
+        toolPaths: LANG_JS_TOOL_PATHS
+      })
       expect(map.get('other/concern')).toEqual({ wasmPath: otherWasmPath, toolPaths: {} })
     })
   })
@@ -590,6 +638,82 @@ describe('resolveWasmConcernMap — ensure-tool wiring (задача N1, ріш�
         wasmPath: WASM_PATH,
         toolPaths: { shellcheck: '/fake/bin/shellcheck', eslint: '/fake/bin/eslint' }
       })
+    })
+  })
+
+  test('схема "path:" резолвиться через resolveCmd, а не ensure-tool контур (рішення В спеки v3.1)', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(
+        join(dir, '.n-rules.json'),
+        JSON.stringify({ wasmPlugins: [{ name: 'fake-plugin', path: WASM_PATH }] }),
+        'utf8'
+      )
+      const ensureToolFn = vi.fn(toolId => `/fake/bin/${toolId}`)
+      const map = await resolveMap(dir, {
+        env: {},
+        nativeFn: () =>
+          fakeNative({
+            concerns: [{ key: 'fake/concern', scope: 'per-file', glob: [] }],
+            tools: ['path:bun@^1.2', 'shellcheck@^0.9']
+          }),
+        ensureToolFn
+      })
+
+      // ensure-tool бачить ЛИШЕ pinned-тул: `bun` він не вміє завантажувати
+      // з github-релізу й не має намагатись.
+      expect(ensureToolFn).toHaveBeenCalledTimes(1)
+      expect(ensureToolFn).toHaveBeenCalledWith('shellcheck')
+      expect(map.get('fake/concern')).toEqual({
+        wasmPath: WASM_PATH,
+        // Ключ мапи — ІМ'Я без схеми й без semver-суфікса: рівно те, за чим
+        // host-бік (`ToolResolver::resolve`) шукатиме шлях.
+        toolPaths: { bun: FAKE_BUN_PATH, shellcheck: '/fake/bin/shellcheck' }
+      })
+    })
+  })
+
+  test('схема "path:" без тула в PATH → warn і пропуск ОДНОГО тула, плагін лишається', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(
+        join(dir, '.n-rules.json'),
+        JSON.stringify({ wasmPlugins: [{ name: 'fake-plugin', path: WASM_PATH }] }),
+        'utf8'
+      )
+      const warnSpy = vi.spyOn(console, 'warn').mockReturnValue()
+      const map = await resolveMap(dir, {
+        env: {},
+        nativeFn: () =>
+          fakeNative({ concerns: [{ key: 'fake/concern', scope: 'per-file', glob: [] }], tools: ['path:deno'] })
+      })
+
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('path:deno'))
+      expect(map.get('fake/concern')).toEqual({ wasmPath: WASM_PATH, toolPaths: {} })
+      warnSpy.mockRestore()
+    })
+  })
+
+  test('невідома схема у manifest.tools → warn і пропуск, БЕЗ виклику ensure-tool', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(
+        join(dir, '.n-rules.json'),
+        JSON.stringify({ wasmPlugins: [{ name: 'fake-plugin', path: WASM_PATH }] }),
+        'utf8'
+      )
+      const ensureToolFn = vi.fn(toolId => `/fake/bin/${toolId}`)
+      const warnSpy = vi.spyOn(console, 'warn').mockReturnValue()
+      const map = await resolveMap(dir, {
+        env: {},
+        nativeFn: () =>
+          fakeNative({ concerns: [{ key: 'fake/concern', scope: 'per-file', glob: [] }], tools: ['npm:stylelint'] }),
+        ensureToolFn
+      })
+
+      // `npm:` — кандидат зрізу 6, поки НЕ підтримана: інтерпретувати її як
+      // ім'я тула було б мовчазним «тул не знайдено».
+      expect(ensureToolFn).not.toHaveBeenCalled()
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('npm:stylelint'))
+      expect(map.get('fake/concern')).toEqual({ wasmPath: WASM_PATH, toolPaths: {} })
+      warnSpy.mockRestore()
     })
   })
 

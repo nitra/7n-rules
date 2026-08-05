@@ -7,7 +7,9 @@
  * (значення — НЕ голий рядок шляху, доккомент [`buildWasmConcernMap`] нижче).
  *
  * **Run-tool контур (задача N1, рішення Д спеки)**: `manifest.tools` —
- * задекларовані зовнішні tool-залежності плагіна (напр. `"shellcheck@^0.9"`).
+ * задекларовані зовнішні tool-залежності плагіна (напр. `"shellcheck@^0.9"`,
+ * `"path:bun"` — схеми резолву, рішення В спеки
+ * `docs/specs/2026-08-01-plugin-contract-v31-surfaces.md`, [`parseToolRef`]).
  * Для кожного запису резолвер кличе ensure-tool контур (`ensureToolAsync`,
  * `../ensure-tool.mjs`, injectable через `opts.ensureToolFn`) — будує мапу
  * «ім'я тула (без semver-суфікса декларації) → абсолютний шлях», яку
@@ -114,6 +116,7 @@ import { fileURLToPath } from 'node:url'
 
 import { ensureToolAsync } from '../ensure-tool.mjs'
 import { loadNative } from '../native.mjs'
+import { resolveCmd } from '../../utils/resolve-cmd.mjs'
 
 /**
  * Абсолютний шлях до `npm/wasm-plugins/` — тека, куди `build-wasm-plugins.mjs`
@@ -431,16 +434,39 @@ async function resolveEntryPath(entry, ctx) {
 }
 
 /**
- * Ім'я тула без semver-суфікса декларації (`"shellcheck@^0.9"` → `"shellcheck"`)
- * — той самий парсинг, що host-бік `ToolResolver::run`
- * (`crates/rules-plugin-host/src/tool_resolver.rs`, доккомент модуля
- * пояснює версійну політику — вона НЕ тут, ensure-tool ставить канонічну
- * закріплену версію).
- * @param {string} declared запис із `manifest.tools`
- * @returns {string} ім'я тула
+ * Схеми резолву тула в рядку `manifest.tools` (рішення В спеки
+ * `docs/specs/2026-08-01-plugin-contract-v31-surfaces.md`). Дзеркало
+ * Rust-боку (`rules_contract::validators::tool::ToolScheme`) — і саме
+ * ДЗЕРКАЛО, а не незалежний список: розбіжність означала б, що маніфест,
+ * прийнятий хостом, мовчки не резолвиться оркестрацією.
  */
-function toolName(declared) {
-  return declared.split('@', 1)[0]
+const TOOL_SCHEMES = {
+  /** Github-реліз із закріпленою версією (`TOOLS` + `tool-pins.json`) — дефолт за відсутності схеми. */
+  PINNED: 'pinned',
+  /** Резолв по `PATH` (`bun`, `bunx` — ensure-tool не вміє і не має їх завантажувати). */
+  PATH: 'path'
+}
+
+/**
+ * Розбирає запис `manifest.tools` у `{ scheme, name }`: відрізає схему
+ * (якщо є), потім semver-суфікс декларації (`"path:bun@^1.2"` →
+ * `{ scheme: 'path', name: 'bun' }`). Порт
+ * `rules_contract::validators::tool::parse_tool_ref` — дзеркальний тест
+ * конвенції: `tests/wasm-plugins.test.mjs`.
+ *
+ * Невідома схема НЕ інтерпретується як частина імені: [`ensureDeclaredTools`]
+ * пропускає такий запис із warn, бо резолвити його однаково нема чим (та
+ * сама поведінка, що host-валідатор `validate_tool_ref`).
+ * @param {string} declared запис із `manifest.tools`
+ * @returns {{ scheme: string | null, name: string }} схема (`null` — невідома) й ім'я тула
+ */
+function parseToolRef(declared) {
+  const separator = declared.indexOf(':')
+  if (separator === -1) return { scheme: TOOL_SCHEMES.PINNED, name: declared.split('@', 1)[0] }
+  const prefix = declared.slice(0, separator)
+  const rest = declared.slice(separator + 1)
+  if (prefix !== TOOL_SCHEMES.PINNED && prefix !== TOOL_SCHEMES.PATH) return { scheme: null, name: declared }
+  return { scheme: prefix, name: rest.split('@', 1)[0] }
 }
 
 /**
@@ -456,14 +482,26 @@ function toolName(declared) {
  * @param {string} pluginName ім'я плагіна (лише для diagnostics-повідомлень)
  * @param {string[]} declaredTools `manifest.tools` — рядки виду `"shellcheck@^0.9"`
  * @param {(toolId: string) => Promise<string>} ensureToolFn ін'єкція `ensureToolAsync` (тести підміняють)
+ * @param {(cmd: string) => string | null} resolveCmdFn ін'єкція `resolveCmd` для схеми `path:` (тести підміняють — інакше результат залежав би від PATH машини)
  * @returns {Promise<Record<string, string>>} ім'я тула (без semver-суфікса) → абсолютний шлях
  */
-async function ensureDeclaredTools(pluginName, declaredTools, ensureToolFn) {
+async function ensureDeclaredTools(pluginName, declaredTools, ensureToolFn, resolveCmdFn) {
   /** @type {Record<string, string>} */
   const toolPaths = {}
   for (const declared of declaredTools) {
-    const name = toolName(declared)
+    const { scheme, name } = parseToolRef(declared)
     try {
+      if (scheme === null)
+        throw new Error(`невідома схема резолву (відомі "${TOOL_SCHEMES.PINNED}:", "${TOOL_SCHEMES.PATH}:")`)
+      if (scheme === TOOL_SCHEMES.PATH) {
+        // `path:` НЕ йде в ensure-tool контур узагалі: той уміє лише
+        // github-релізи, а `bun`/`bunx` встановлює користувач. Відсутність —
+        // не помилка резолву плагіна, а звичайний skip одного тула.
+        const fromPath = resolveCmdFn(name)
+        if (!fromPath) throw new Error('не знайдено в PATH')
+        toolPaths[name] = fromPath
+        continue
+      }
       toolPaths[name] = await ensureToolFn(name)
     } catch (error) {
       console.warn(
@@ -484,7 +522,7 @@ async function ensureDeclaredTools(pluginName, declaredTools, ensureToolFn) {
  * запис у мапу для кожного `manifest.concerns`. Усі кроки — skip-not-crash
  * (доккомент модуля).
  * @param {string} cwd абсолютний корінь consumer-репо
- * @param {{fetchFn: typeof fetch, cacheDir: string, env: Record<string, string | undefined>, ensureToolFn: (toolId: string) => Promise<string>, nativeFn: typeof loadNative, builtinPinsDir: string}} ctx ін'єктовані залежності
+ * @param {{fetchFn: typeof fetch, cacheDir: string, env: Record<string, string | undefined>, ensureToolFn: (toolId: string) => Promise<string>, resolveCmdFn: (cmd: string) => string | null, nativeFn: typeof loadNative, builtinPinsDir: string}} ctx ін'єктовані залежності
  * @returns {Promise<Map<string, WasmConcernMapEntry>>} ключ концерну → `{ wasmPath, toolPaths }`
  */
 async function buildWasmConcernMap(cwd, ctx) {
@@ -500,7 +538,7 @@ async function buildWasmConcernMap(cwd, ctx) {
       console.warn(`⚠️ wasm-плагін "${entry.name}" пропущено: не вдалось завантажити (${error.message})`)
       continue
     }
-    const toolPaths = await ensureDeclaredTools(entry.name, manifest.tools ?? [], ctx.ensureToolFn)
+    const toolPaths = await ensureDeclaredTools(entry.name, manifest.tools ?? [], ctx.ensureToolFn, ctx.resolveCmdFn)
     // `manifest.concerns` — масив структурованих контрибуцій `{ key, scope, glob }`
     // (задача N2, передумова full-scope мосту, доккомент `wit/world.wit`
     // `record concern-contribution`), не голі рядки — мапа концернів індексується
@@ -521,9 +559,10 @@ async function buildWasmConcernMap(cwd, ctx) {
  * неминуче асинхронні; єдиний виклик-сайт (`detect.mjs`) вже `async`,
  * контракт виклику не ламається.
  * @param {string} cwd абсолютний корінь consumer-репо (звідки читається `.n-rules.json`)
- * @param {{fetchFn?: typeof fetch, cacheDir?: string, env?: Record<string, string | undefined>, ensureToolFn?: (toolId: string) => Promise<string>, nativeFn?: typeof loadNative, builtinPinsDir?: string}} [opts] ін'єкції для тестів:
+ * @param {{fetchFn?: typeof fetch, cacheDir?: string, env?: Record<string, string | undefined>, ensureToolFn?: (toolId: string) => Promise<string>, resolveCmdFn?: (cmd: string) => string | null, nativeFn?: typeof loadNative, builtinPinsDir?: string}} [opts] ін'єкції для тестів:
  *   `fetchFn` (дефолт — глобальний `fetch`), `cacheDir` (дефолт — `resolvePluginCacheDir`), `env` (дефолт — `process.env`),
- *   `ensureToolFn` (дефолт — `ensureToolAsync`), `nativeFn` (дефолт — `loadNative`, wiring-тести підміняють фейковим addon-ом),
+ *   `ensureToolFn` (дефолт — `ensureToolAsync`), `resolveCmdFn` (дефолт — `resolveCmd`; тести підміняють, бо інакше
+ *   `path:`-схема давала б різний `toolPaths` залежно від PATH машини), `nativeFn` (дефолт — `loadNative`, wiring-тести підміняють фейковим addon-ом),
  *   `builtinPinsDir` (дефолт — [`WASM_PLUGINS_DIR`], реальна `npm/wasm-plugins/`; тести ізолюють неіснуючим каталогом,
  *   щоб локальна wasm-збірка в робочому дереві не підмішувала builtin-контрибуції в контрольовані сценарії)
  * @returns {Promise<Map<string, WasmConcernMapEntry>>} ключ концерну (`ruleId/concernId`) → `{ wasmPath, toolPaths }`
@@ -536,6 +575,7 @@ export function resolveWasmConcernMap(cwd, opts = {}) {
     cacheDir: opts.cacheDir ?? resolvePluginCacheDir(env),
     env,
     ensureToolFn: opts.ensureToolFn ?? ensureToolAsync,
+    resolveCmdFn: opts.resolveCmdFn ?? resolveCmd,
     nativeFn: opts.nativeFn ?? loadNative,
     builtinPinsDir: opts.builtinPinsDir ?? WASM_PLUGINS_DIR
   }

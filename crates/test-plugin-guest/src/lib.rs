@@ -1,10 +1,18 @@
 //! Мінімальна guest-фікстура contract-test-kit `crates/rules-plugin-host`
 //! (задача I2 фази 6, спека
 //! `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md`): реалізує
-//! `n-rules:plugin@3.0.0` з одним lint-концерном `test/guest-echo` — по
-//! одній діагностиці на кожен файл вхідного батчу, без реального аналізу
-//! вмісту (лише перевірка ABI/серіалізації DTO і host-функцій `log`/
-//! `report-progress`/`run-tool`).
+//! `n-rules:plugin` з одним lint-концерном `test/guest-echo` — по одній
+//! діагностиці на кожен файл вхідного батчу, без реального аналізу вмісту
+//! (лише перевірка ABI/серіалізації DTO і host-функцій `log`/
+//! `report-progress`/`run-tool`/`exec-tool`/`host-context`).
+//!
+//! Фікстура заявляє `world_version: "3.0.0"` і після зрізу 5 контракту v3.1
+//! — свідомо: negotiation major-only, тож цей рядок додатково фіксує, що
+//! хост v3.1 приймає плагін, який заявляє стару мінорну версію. Сам
+//! компонент при цьому збирається з ПОТОЧНОГО world
+//! (`../rules-contract/wit`) і реально кличе `exec-tool` — доказ
+//! «v3.0-гість лінкується без змін» живе окремо, на замороженій копії
+//! world-а (`crates/rules-plugin-host/tests/v30_guest_additive_compat.rs`).
 
 wit_bindgen::generate!({
     path: "../rules-contract/wit",
@@ -58,6 +66,24 @@ const FIX_REWRITE_CONCERN_ID: &str = "test/guest-fix-rewrite";
 /// linker-ом без змін.
 const CONTEXT_ECHO_CONCERN_ID: &str = "test/guest-context-echo";
 
+/// `concern-id` `exec-tool` тест-хука (зріз 5 контракту v3.1, рішення А/Б
+/// спеки `docs/specs/2026-08-01-plugin-contract-v31-surfaces.md`): бере шлях
+/// зі слоту `scratch-dir@1`, кличе `exec-tool` з УСІМА полями контексту
+/// одночасно (`cwd`, накладений `env`, `scratch-in`, `scratch-out`) і
+/// повертає ОДНУ діагностику з усім, що побачив. Один хук замість чотирьох —
+/// свідомо: контекст має працювати РАЗОМ, а часткові хуки не спіймали б
+/// взаємодію (напр. тул, який читає `scratch-in` відносно свого `cwd`).
+/// contract-test-kit підмінює `ToolResolver` і `repo-root@1` між прогонами,
+/// щоб пройти й помилкову гілку (тул поза мапою → `status: none`).
+const EXEC_TOOL_CONCERN_ID: &str = "test/guest-exec-tool";
+
+/// `concern-id`, чий `detect` бере scratch-каталог і НАВМИСНО панікує —
+/// contract-test-kit звіряє, що каталог не переживає trap гостя (виклик
+/// повертає `Err`, а `LoadedPlugin` усе одно прибрав за собою). Шлях
+/// каталогу тест дізнається окремим, успішним викликом
+/// [`EXEC_TOOL_CONCERN_ID`] — паніка нічого повернути не може.
+const PANIC_CONCERN_ID: &str = "test/guest-panic";
+
 /// `concern-id`, чий `fix()` навмисно повертає план із `..`-шляхом
 /// (`../escape.txt`) — contract-test-kit звіряє, що host-валідатор
 /// (`rules-contract::validators::fix`) відхиляє такий план типізовано
@@ -66,8 +92,9 @@ const FIX_ESCAPE_CONCERN_ID: &str = "test/guest-fix-escape";
 
 /// Guest-реалізація world `plugin` — концерн-заглушка `test/guest-echo`,
 /// fs-preopen тест-хук `test/guest-echo-fs-probe`, run-tool тест-хук
-/// `test/guest-tool-echo` і fix-хуки `test/guest-fix-rewrite`/
-/// `test/guest-fix-escape`.
+/// `test/guest-tool-echo`, exec-tool тест-хук `test/guest-exec-tool`
+/// (зріз 5 контракту v3.1), trap-хук `test/guest-panic` і fix-хуки
+/// `test/guest-fix-rewrite`/`test/guest-fix-escape`.
 struct GuestEcho;
 
 impl Guest for GuestEcho {
@@ -96,6 +123,16 @@ impl Guest for GuestEcho {
                 },
                 ConcernContribution {
                     key: CONTEXT_ECHO_CONCERN_ID.to_string(),
+                    scope: ConcernScope::PerFile,
+                    glob: vec![],
+                },
+                ConcernContribution {
+                    key: EXEC_TOOL_CONCERN_ID.to_string(),
+                    scope: ConcernScope::PerFile,
+                    glob: vec![],
+                },
+                ConcernContribution {
+                    key: PANIC_CONCERN_ID.to_string(),
                     scope: ConcernScope::PerFile,
                     glob: vec![],
                 },
@@ -132,6 +169,23 @@ impl Guest for GuestEcho {
         }
         if batch.concern_id == CONTEXT_ECHO_CONCERN_ID {
             return vec![context_echo_diagnostic()];
+        }
+        if batch.concern_id == EXEC_TOOL_CONCERN_ID {
+            return vec![exec_tool_diagnostic()];
+        }
+        if batch.concern_id == PANIC_CONCERN_ID {
+            // Навмисний trap гостя (доккомент [`PANIC_CONCERN_ID`]): беремо
+            // scratch-каталог ДО паніки — щоб він точно був створений і хосту
+            // було що прибирати — і ЛОГУЄМО його шлях. Лог — єдиний канал,
+            // яким тест може дізнатись цей шлях: повернути його нема як
+            // (паніка не повертає), а `take_logs` дренує буфер `Store` вже
+            // ПІСЛЯ невдалого виклику.
+            let scratch = host_context("scratch-dir@1").unwrap_or_default();
+            log(
+                LogLevel::Info,
+                &format!("panic-hook: scratch-dir={scratch}"),
+            );
+            panic!("test-plugin-guest: навмисна паніка тест-хука");
         }
         let total = batch.files.len() as u32;
         let mut diagnostics = Vec::with_capacity(batch.files.len());
@@ -248,6 +302,56 @@ fn tool_echo_diagnostic() -> Diagnostic {
         file: None,
         severity: Severity::Warn,
         data: Some(format!("{{\"status\":{status_json},\"ok\":{ok}}}")),
+    }
+}
+
+/// Один виклик `exec-tool` з УСІМА полями виконавчого контексту одразу —
+/// доккомент [`EXEC_TOOL_CONCERN_ID`] пояснює, навіщо один хук замість
+/// чотирьох.
+///
+/// Шлях scratch-каталогу гість бере зі слоту `scratch-dir@1` і САМ кладе
+/// його першим аргументом тула — placeholder-підстановки в аргументах
+/// контракт свідомо не має (рішення Б спеки), тож ось як це виглядає з боку
+/// автора плагіна. `data` — вручну зібраний JSON-рядок (той самий мотив, що
+/// [`fs_probe_diagnostic`]).
+fn exec_tool_diagnostic() -> Diagnostic {
+    let scratch_dir = host_context("scratch-dir@1");
+    let result = exec_tool(&ToolRequest {
+        tool: "echo-tool".to_string(),
+        args: vec![scratch_dir.clone().unwrap_or_default(), "hello".to_string()],
+        stdin: None,
+        cwd: Some("nested".to_string()),
+        env: vec![("N_EXEC_TOOL_PROBE".to_string(), "42".to_string())],
+        scratch_in: vec![ScratchFile {
+            path: "input.txt".to_string(),
+            content: "from-guest".to_string(),
+        }],
+        scratch_out: vec!["*.out".to_string()],
+    });
+    let status_json = match result.status {
+        Some(code) => code.to_string(),
+        None => "null".to_string(),
+    };
+    let scratch_dir_json = match &scratch_dir {
+        Some(value) => format!("\"{value}\""),
+        None => "null".to_string(),
+    };
+    let collected = result
+        .scratch_out
+        .iter()
+        .map(|file| format!("{}={}", file.path, file.content))
+        .collect::<Vec<_>>()
+        .join(",");
+    Diagnostic {
+        reason: "exec-tool".to_string(),
+        message: format!("exec-tool: stdout={}", result.stdout.trim()),
+        file: None,
+        severity: Severity::Warn,
+        data: Some(format!(
+            "{{\"status\":{status_json},\"scratch_dir\":{scratch_dir_json},\
+             \"scratch_out\":\"{collected}\",\"has_error\":{}}}",
+            !result.stderr.trim().is_empty()
+        )),
     }
 }
 

@@ -3740,6 +3740,7 @@ name = "rules-plugin-host"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "globset",
  "libc",
  "rules-contract",
  "serde_json",

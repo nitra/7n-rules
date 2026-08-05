@@ -46,7 +46,7 @@ use rules_contract::diagnostic::Severity;
 use rules_contract::manifest::{ConcernScope, Domain};
 use rules_plugin_host::{PluginHost, ToolResolver};
 
-const PLUGIN_WORLD_VERSION: &str = "3.0.0";
+const PLUGIN_WORLD_VERSION: &str = "3.1.0";
 const CONCERN_TFM: &str = "vue/tfm-translations";
 const CONCERN_GAP: &str = "style/gap";
 const CONCERN_POOL_FORKS: &str = "test/vitest-config-pool-forks";
@@ -81,6 +81,7 @@ const CONCERN_SANDBOX_AWARE_TEST: &str = "test/sandbox-aware-test";
 const CONCERN_VITEST_API_CONVENTIONS: &str = "test/vitest-api-conventions";
 const CONCERN_VUE_PACKAGES: &str = "vue/packages";
 const CONCERN_DOC_COMMENTS: &str = "js/doc_comments";
+const CONCERN_BUN_LICENSEE: &str = "bun/licensee";
 
 /// Абсолютний шлях до зібраного `.wasm`-компонента (`crates/plugin-lang-js/build.sh`)
 /// — `wasm32-wasip2`/`release`.
@@ -108,7 +109,7 @@ fn host() -> PluginHost {
 }
 
 #[test]
-fn describe_declares_all_thirty_six_concerns_with_expected_scopes() {
+fn describe_declares_all_thirty_seven_concerns_with_expected_scopes() {
     let path = require_fixture();
     let plugin = host()
         .load(&path, PLUGIN_WORLD_VERSION)
@@ -137,7 +138,20 @@ fn describe_declares_all_thirty_six_concerns_with_expected_scopes() {
     // рефакторинг рішення Ґ, секція «Зріз 2» там само.
     // Зріз 4 додає `js/doc_comments` — ДРУГУ per-file контрибуцію плагіна
     // й другий концерн із реальним `export fix` (секція «Зріз 4» там само).
-    assert_eq!(manifest.concerns.len(), 36);
+    // Зріз 5 додає `bun/licensee` — ПІЛОТ поверхні `exec-tool` і перший
+    // концерн плагіна, що спавнить зовнішній процес (секція «Зріз 5» там
+    // само); разом із ним у маніфесті з'являється перша реальна
+    // tool-декларація.
+    assert_eq!(manifest.concerns.len(), 37);
+    assert_eq!(manifest.tools, vec!["path:bun".to_string()]);
+
+    let licensee = manifest
+        .concerns
+        .iter()
+        .find(|c| c.key == CONCERN_BUN_LICENSEE)
+        .expect("bun/licensee має бути в маніфесті");
+    assert_eq!(licensee.scope, ConcernScope::Full);
+    assert_eq!(licensee.glob, vec![".licensee.json".to_string()]);
 
     let tfm = manifest
         .concerns
@@ -2115,5 +2129,202 @@ fn detect_vue_packages_flags_vue_import_node_import_and_esbuild() {
         diagnostics[2].message,
         "[корінь] docs/build.md:1 — знайдено 'esbuild'. Замінити на 'rolldown'. \
          Фрагмент: esbuild ще тут"
+    );
+}
+
+// --- bun/licensee (зріз 5 контракту v3.1 — пілот `exec-tool`) -------------
+//
+// Ці тести — ЄДИНЕ живе покриття пілота: parity-тест
+// (`npm/scripts/lib/lint-surface/tests/wasm-plugin-parity.test.mjs`) сюди не
+// дотягується свідомо. JS-канон і wasm-порт мали б спавнити РЕАЛЬНИЙ `bun x
+// licensee` на реальному `node_modules` — результат залежав би від машини й
+// мережі, а «однакові фікстури через обидві реалізації» перетворилось би на
+// «однаково недетерміновано». Тут натомість резолвиться ФЕЙКОВИЙ `bun`,
+// поведінку якого тест задає повністю, і звіряються рівно ті рядки
+// повідомлень, які порт зобов'язаний зберегти байт-у-байт.
+
+/// Пише виконуваний скрипт-заглушку `bun` і будує хост, що резолвить його
+/// під іменем `bun` (схему `path:` з декларації хост відрізає сам).
+#[cfg(unix)]
+fn licensee_host(dir: &std::path::Path, body: &str) -> PluginHost {
+    use std::os::unix::fs::PermissionsExt;
+    let script = dir.join("bun");
+    std::fs::write(&script, body).expect("запис скрипта не мав провалитись");
+    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755))
+        .expect("chmod не мав провалитись");
+    let mut tools = std::collections::HashMap::new();
+    tools.insert("bun".to_string(), script);
+    PluginHost::new(ToolResolver::new(tools)).expect("PluginHost::new не мав провалитись")
+}
+
+/// Батч із наявним `.licensee.json` — рівно те, що хост збирає за глобом
+/// контрибуції.
+fn licensee_batch_with_config() -> DetectBatch {
+    DetectBatch {
+        concern_id: CONCERN_BUN_LICENSEE.to_string(),
+        files: vec![SourceFile {
+            path: ".licensee.json".to_string(),
+            content: "{\"licenses\":{\"spdx\":[\"MIT\"]}}\n".to_string(),
+        }],
+    }
+}
+
+/// Немає `.licensee.json` — детектор навіть не доходить до спавна (порожній
+/// резолвер це й доводить: якби дійшов, отримали б `bun-missing`).
+#[test]
+fn licensee_reports_missing_config_without_spawning_the_tool() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let batch = DetectBatch {
+        concern_id: CONCERN_BUN_LICENSEE.to_string(),
+        files: vec![],
+    };
+    let diagnostics = plugin.detect(&batch).unwrap();
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].reason, "licensee-config-missing");
+    assert_eq!(
+        diagnostics[0].message,
+        "lint-bun: licensee — немає .licensee.json; запустіть \
+         `npx @7n/rules lint bun` локально для генерації (bun.mdc)"
+    );
+    assert_eq!(diagnostics[0].severity, Severity::Error);
+}
+
+/// Тул не забезпечений хостом (`toolPaths` без `bun`) — `exec-tool` віддає
+/// `status: none`, гість мапить це в канонічний `bun-missing`.
+#[test]
+fn licensee_maps_unresolved_tool_to_canonical_bun_missing() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let diagnostics = plugin.detect(&licensee_batch_with_config()).unwrap();
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].reason, "bun-missing");
+    assert_eq!(
+        diagnostics[0].message,
+        "lint-bun: `bun` не знайдено в PATH (bun.mdc)"
+    );
+}
+
+/// Тул відпрацював чисто (код 0) — жодної діагностики.
+#[cfg(unix)]
+#[test]
+fn licensee_clean_run_reports_nothing() {
+    let dir = tempfile::tempdir().expect("tempdir має створитись");
+    let host = licensee_host(dir.path(), "#!/bin/sh\nexit 0\n");
+    let path = require_fixture();
+    let mut plugin = host.load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    assert!(plugin
+        .detect(&licensee_batch_with_config())
+        .unwrap()
+        .is_empty());
+}
+
+/// Аргументи доходять до тула дослівно (`bun x licensee --production
+/// --errors-only`) — контракт із самим `licensee`, а не з хостом.
+#[cfg(unix)]
+#[test]
+fn licensee_passes_canonical_arguments_to_the_tool() {
+    let dir = tempfile::tempdir().expect("tempdir має створитись");
+    let host = licensee_host(
+        dir.path(),
+        "#!/bin/sh\n[ \"$*\" = \"x licensee --production --errors-only\" ] && exit 0\nexit 7\n",
+    );
+    let path = require_fixture();
+    let mut plugin = host.load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    assert!(
+        plugin
+            .detect(&licensee_batch_with_config())
+            .unwrap()
+            .is_empty(),
+        "скрипт віддає 0 ЛИШЕ на канонічному наборі аргументів"
+    );
+}
+
+/// Crash тула (непорожній stderr) — fail-OPEN: `warn`, не `error`, і текст
+/// прямо каже, що це НЕ підтверджене ліцензійне порушення.
+#[cfg(unix)]
+#[test]
+fn licensee_tool_crash_is_fail_open_warning() {
+    let dir = tempfile::tempdir().expect("tempdir має створитись");
+    let host = licensee_host(
+        dir.path(),
+        "#!/bin/sh\necho \"Cannot read properties of undefined\" >&2\nexit 1\n",
+    );
+    let path = require_fixture();
+    let mut plugin = host.load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let diagnostics = plugin.detect(&licensee_batch_with_config()).unwrap();
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].severity, Severity::Warn);
+    assert!(
+        diagnostics[0]
+            .message
+            .starts_with("lint-bun: licensee — інструмент завершився з помилкою, це НЕ"),
+        "фактично: {}",
+        diagnostics[0].message
+    );
+    assert!(diagnostics[0]
+        .message
+        .contains("Cannot read properties of undefined"));
+}
+
+/// Розбір `--errors-only` stdout: власний пакет без валідного SPDX і
+/// стороння ліцензія розділяються на два різні `reason` — саме на це
+/// спирається T0-фікс (`data.package`).
+#[cfg(unix)]
+#[test]
+fn licensee_splits_metadata_and_third_party_violations() {
+    let dir = tempfile::tempdir().expect("tempdir має створитись");
+    let host = licensee_host(
+        dir.path(),
+        "#!/bin/sh\n\
+         printf '@scope/own@1.0.0\\n  Terms: Invalid license metadata\\n\\n\
+         third-party@2.3.4\\n  Terms: GPL-3.0\\n'\n\
+         exit 1\n",
+    );
+    let path = require_fixture();
+    let mut plugin = host.load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let diagnostics = plugin.detect(&licensee_batch_with_config()).unwrap();
+
+    assert_eq!(diagnostics.len(), 2, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].reason, "license-metadata-invalid");
+    assert_eq!(
+        diagnostics[0].message,
+        "lint-bun: licensee — @scope/own: Invalid license metadata (bun.mdc)"
+    );
+    assert_eq!(
+        diagnostics[0]
+            .data
+            .as_ref()
+            .and_then(|d| d.get("package"))
+            .and_then(|v| v.as_str()),
+        Some("@scope/own"),
+        "`data.package` — контракт із T0-фіксером `fix-licensee.mjs`"
+    );
+
+    assert_eq!(diagnostics[1].reason, "license-violation");
+    assert!(
+        diagnostics[1].message.starts_with(
+            "lint-bun: licensee — порушення ліцензій (код 1, bun.mdc)\nthird-party@2.3.4"
+        ),
+        "фактично: {}",
+        diagnostics[1].message
+    );
+}
+
+/// Формат `licensee` змінився (stdout є, але блоки не розбираються) —
+/// fallback на агрегований `license-violation`, щоб не втратити сигнал.
+#[cfg(unix)]
+#[test]
+fn licensee_unparsable_stdout_falls_back_to_aggregated_violation() {
+    let dir = tempfile::tempdir().expect("tempdir має створитись");
+    let host = licensee_host(dir.path(), "#!/bin/sh\nprintf '@\\n'\nexit 2\n");
+    let path = require_fixture();
+    let mut plugin = host.load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let diagnostics = plugin.detect(&licensee_batch_with_config()).unwrap();
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].reason, "license-violation");
+    assert_eq!(
+        diagnostics[0].message,
+        "lint-bun: licensee — порушення ліцензій (код 2, bun.mdc)\n@"
     );
 }

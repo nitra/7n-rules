@@ -1,4 +1,4 @@
-// Пакет `n-rules:plugin@3.0.0` — контракт v3 (спека
+// Пакет `n-rules:plugin@3.1.0` — контракт v3 (спека
 // `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md`, §3.2 ескіз,
 // рішення А/З/К/Л). Версія контракту = версія цього world (рішення З,
 // продовження `CONTRACT_VERSION` diagnostics DTO `crates/rules-core/src/dto.rs`,
@@ -22,7 +22,26 @@
 // мовчки): перша зовнішня публікація фіксує контракт, і з того моменту
 // подальші зміни `manifest`/`detect`/`fix` вже йдуть через звичайний
 // additive-only мінор/мажор цикл.
-package n-rules:plugin@3.0.0;
+//
+// # Мінор `3.0.0` → `3.1.0` (зріз 5 контракту v3.1, рішення А/Б/Ж спеки
+// `docs/specs/2026-08-01-plugin-contract-v31-surfaces.md`)
+//
+// Додано РІВНО одну поверхню — `import exec-tool` (+ три record-и під неї)
+// і slot `scratch-dir@1` на чинному `host-context`. Зміна **additive**:
+// жодне наявне визначення не змінене й не видалене, тож v3.0-гість, зібраний
+// проти ПОПЕРЕДНЬОЇ форми цього файлу, не референсить `exec-tool`, а його
+// component-type лишається підмножиною того, що дає `Linker` v3.1-хоста —
+// інстанціюється без повторної збірки (доводить
+// `crates/rules-plugin-host/tests/v30_guest_additive_compat.rs`: гість
+// збирається з ЗАМОРОЖЕНОЇ копії v3.0-world
+// `crates/rules-contract/tests/fixtures/wit-v30/`, не з цього файлу).
+// Зворотна сумісність — ні: v3.1-гість (що реально кличе `exec-tool`) на
+// v3.0-хості не інстанціюється; для first-party плагінів це неможливо
+// (host і компоненти шиплять одним пакетом, lockstep builtin-пінів), для
+// стороннього піна це skip-not-crash із сирою wasmtime-помилкою —
+// pre-instantiate діагностика імпортів (рішення Ж) лишається наступним
+// зрізом, не цим.
+package n-rules:plugin@3.1.0;
 
 world plugin {
   use n-rules:slots/ci-artifact@1.0.0.{descriptor as ci-artifact-descriptor};
@@ -235,6 +254,72 @@ world plugin {
     stderr: string,
   }
 
+  /// Один файл scratch-обміну `exec-tool`: `path` — ВІДНОСНИЙ до
+  /// scratch-каталогу виклику (слот `scratch-dir@1` `host-context`), НЕ до
+  /// кореня репо, на відміну від `source-file.path` (posix-relative від
+  /// cwd). Хост відхиляє абсолютні шляхи й будь-який `..`-сегмент
+  /// (`rules_contract::validators::tool`).
+  record scratch-file {
+    path: string,
+    content: string,
+  }
+
+  /// Запит `exec-tool` — надмножина параметрів `run-tool` плюс виконавчий
+  /// контекст, якого бракувало обгорткам зовнішніх процесів
+  /// (`bun/licensee`, `style/lint`, `js/jscpd_duplicates`, `js-run/runtime`).
+  record tool-request {
+    /// Ім'я тула — ДОСЛІВНО те, що в `manifest.tools` (зі схемою
+    /// `pinned:`/`path:` чи без неї — дефолт `pinned:`); хост звіряє його з
+    /// декларацією і резолвить у шлях. `exec-tool` виконує ВЖЕ
+    /// зарезолвлений тул і нічого не добуває: провізіонінг винесено в
+    /// окрему команду `tools ensure`, а lint працює fail-closed, тож промах
+    /// резолву — не привід лізти в мережу, а типізована помилка
+    /// (`status: none`).
+    tool: string,
+    args: list<string>,
+    stdin: option<string>,
+    /// Робочий каталог процесу, posix-relative від кореня репо; `none` —
+    /// сам корінь. Чинний `run-tool` успадковує cwd host-процесу, що для
+    /// napi-виклику збігається з коренем репо випадково, а для `rules-cli`
+    /// — ні.
+    cwd: option<string>,
+    /// Змінні середовища, які накладаються ПОВЕРХ успадкованого env хоста
+    /// (не заміщують його цілком — обгортки на кшталт `js/eslint` передають
+    /// `process.env` саме як базу).
+    env: list<tuple<string, string>>,
+    /// Файли, які хост матеріалізує у scratch-каталозі ПЕРЕД спавном
+    /// (`js-run/runtime`: rego-політики conftest, вшиті в компонент).
+    scratch-in: list<scratch-file>,
+    /// Glob-и (той самий синтаксис, що `concern-contribution.glob`) файлів,
+    /// які хост зчитує зі scratch-каталогу ПІСЛЯ виходу процесу
+    /// (`js/jscpd_duplicates`: `jscpd-report.json`).
+    scratch-out: list<string>,
+  }
+
+  /// Результат `exec-tool` — `tool-output` плюс зібрані scratch-файли.
+  ///
+  /// # Trust boundary (рішення З спеки v3.1) — межа моделі довіри, не діра
+  ///
+  /// Спавнений тул виконується З ПРАВАМИ ХОСТА, ПОЗА wasm-пісочницею, і
+  /// МОЖЕ писати в репо (`stylelint --fix` саме так і працює). Пісочниця
+  /// обмежує wasm-код гостя, а не процес, який гість попросив запустити:
+  /// `capabilities.fs-read`/`network` до спавненого тула не застосовуються
+  /// взагалі. Межа довіри плагіна — його **пін** (`url` + `sha256`), а не
+  /// пісочниця; ревʼю піна = ревʼю прав. Enforcement свідомо НЕ додається:
+  /// він неможливий без власного sandbox-шару навколо спавна (seccomp/
+  /// namespace/`sandbox-exec` на трьох ОС) — це не бюджет v3.1. Той самий
+  /// доккомент дублюється на host-боці, у `exec_tool`
+  /// (`crates/rules-plugin-host/src/host_state.rs`).
+  record tool-result {
+    status: option<s32>,
+    stdout: string,
+    stderr: string,
+    /// Файли, зібрані за `tool-request.scratch-out` — порожньо, якщо тул
+    /// нічого не створив (гість трактує це як «звіту немає», не як
+    /// помилку).
+    scratch-out: list<scratch-file>,
+  }
+
   // --- host → plugin ---
 
   /// `describe()` декларує підтримувані домени й контрибуції (рішення К) —
@@ -283,6 +368,35 @@ world plugin {
   /// tool-у.
   import run-tool: func(tool: string, args: list<string>, stdin: option<string>) -> tool-output;
 
+  /// Host-mediated spawn зовнішнього тула З ВИКОНАВЧИМ КОНТЕКСТОМ (зріз 5
+  /// контракту v3.1, рішення А спеки
+  /// `docs/specs/2026-08-01-plugin-contract-v31-surfaces.md`): `run-tool`
+  /// плюс `cwd`, `env` і двобічний scratch-обмін файлами.
+  ///
+  /// # Чому НОВИЙ import, а не розширення `run-tool`
+  ///
+  /// Розширення параметрів `run-tool` міняє його ABI-форму — уже піновані
+  /// компоненти, зібрані під стару сигнатуру, перестали б інстанціюватись
+  /// (той самий аргумент, що доккомент `import host-context` про
+  /// розширення `detect-batch` новим полем record-а). Новий import —
+  /// additive: компонент, який його не референсить, лінкується як раніше.
+  /// Тому `run-tool` лишається в world НАЗАВЖДИ в межах major 3 — цей мінор
+  /// не оголошує його застарілим.
+  ///
+  /// # Семантика
+  ///
+  /// `exec-tool` ≡ `run-tool` плюс контекст: `run-tool(t, a, s)`
+  /// еквівалентний `exec-tool` з `cwd: none`, порожніми `env`/`scratch-*`.
+  /// Незадекларований у `manifest.tools` (чи незабезпечений хостом) тул —
+  /// ТА САМА типізована помилка, що вже дає `run-tool`: `status: none` +
+  /// людиночитний `stderr`, не пастка й не помилка рівня `detect`/`fix`
+  /// (skip-not-crash, рішення З базової спеки). Таймаут спільний із
+  /// `run-tool` (120 с, `DEFAULT_TOOL_TIMEOUT`). Вивід і далі
+  /// `String::from_utf8_lossy` — байтова точність stdout поза контрактом v3.
+  ///
+  /// Trust boundary спавненого процесу — доккомент `record tool-result`.
+  import exec-tool: func(request: tool-request) -> tool-result;
+
   /// Структуроване логування в бік хоста.
   import log: func(level: log-level, message: string);
 
@@ -322,5 +436,24 @@ world plugin {
   ///   posix-relative `source-file.path`); `none` — хост не має контексту,
   ///   плагін мусить деградувати самостійно (напр. repo-relative шляхи
   ///   замість абсолютних), не панікувати.
+  /// - `scratch-dir@1` (зріз 5 контракту v3.1, рішення Б) — АБСОЛЮТНИЙ шлях
+  ///   тимчасового каталогу обміну з `exec-tool`. Гість сам кладе цей шлях
+  ///   у `args` тула (напр. `--reporters-dir <scratch>`) — жодної
+  ///   placeholder-підстановки в аргументах: магічний токен у контракті —
+  ///   рівно той спеціальний випадок, якого уникає ця спека. Каталог живе РІВНО один
+  ///   `detect`/`fix`-виклик (хост дропає його після повернення з гостя),
+  ///   тож шлях не можна кешувати між викликами. `none` — хост не зміг
+  ///   створити каталог (ФС read-only, вичерпано місце); гість деградує
+  ///   сам, не панікує.
+  ///
+  /// # Ціна `scratch-dir@1`: `host-context` більше не суто read-only
+  ///
+  /// Перший запит цього слота СТВОРЮЄ каталог на диску (лениво) — тобто
+  /// host-функція, яка досі була чистим read-only каналом, отримала
+  /// side-effect. Це задокументовано тут свідомо, а не приховано; ціна
+  /// прийнята замість сьомого імпорту в world заради одного шляху.
+  /// Одноходовий відкат, якщо нечистота почне заважати, — винести
+  /// scratch-каталог в окремий import `scratch-dir` (additive, той самий
+  /// механізм).
   import host-context: func(slot: string) -> option<string>;
 }

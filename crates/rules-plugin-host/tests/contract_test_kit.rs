@@ -31,6 +31,14 @@ const TOOL_ECHO_CONCERN_ID: &str = "test/guest-tool-echo";
 /// `wit/world.wit` біля `import host-context`, батч 6 §3.5.5) — дзеркало
 /// `test_plugin_guest::CONTEXT_ECHO_CONCERN_ID`.
 const CONTEXT_ECHO_CONCERN_ID: &str = "test/guest-context-echo";
+/// `concern-id` exec-tool тест-хука (зріз 5 контракту v3.1, доккомент
+/// `wit/world.wit` біля `import exec-tool`) — дзеркало
+/// `test_plugin_guest::EXEC_TOOL_CONCERN_ID`.
+const EXEC_TOOL_CONCERN_ID: &str = "test/guest-exec-tool";
+/// `concern-id` хука навмисної паніки — дзеркало
+/// `test_plugin_guest::PANIC_CONCERN_ID`; потрібен тесту прибирання
+/// scratch-каталогу після trap-у гостя.
+const PANIC_CONCERN_ID: &str = "test/guest-panic";
 
 /// Абсолютний шлях до зібраного `.wasm`-компонента фікстури
 /// (`crates/test-plugin-guest/build.sh`) — `wasm32-wasip2`/`release`,
@@ -500,4 +508,227 @@ fn run_tool_timeout_kills_process_and_reports_typed_error() {
     );
     let data = diagnostics[0].data.as_ref().unwrap();
     assert_eq!(data.get("ok"), Some(&serde_json::Value::Bool(false)));
+}
+
+// --- exec-tool контур (зріз 5 контракту v3.1, рішення А/Б спеки
+// `docs/specs/2026-08-01-plugin-contract-v31-surfaces.md`) -----------------
+//
+// Гілки, які має покривати host-бік `exec-tool`: повний виконавчий контекст
+// РАЗОМ (`cwd` + накладений `env` + двобічний scratch-обмін),
+// незадекларований тул (типізована помилка, не паніка) і час життя
+// scratch-каталогу (штатний вихід і trap гостя).
+
+/// Фейковий тул `exec-tool`-хука гостя: перший аргумент — шлях
+/// scratch-каталогу (гість бере його зі слоту `scratch-dir@1` і кладе туди
+/// САМ — placeholder-підстановки контракт не має), другий — ехо. Скрипт
+/// друкує накладену змінну середовища й свій `pwd`, читає підкладений
+/// `scratch-in` і пише звіт, який хост забере за `scratch-out`-глобом.
+#[cfg(unix)]
+const EXEC_TOOL_SCRIPT: &str = "#!/bin/sh\n\
+     echo \"probe=$N_EXEC_TOOL_PROBE rest=$2 pwd=$(pwd)\"\n\
+     cat \"$1/input.txt\" > \"$1/report.out\"\n";
+
+/// Хост із резолвленим `echo-tool` для `exec-tool`-тестів.
+#[cfg(unix)]
+fn exec_tool_host(dir: &std::path::Path) -> PluginHost {
+    let script = write_executable_script(dir, "echo-tool", EXEC_TOOL_SCRIPT);
+    let mut tools = HashMap::new();
+    tools.insert("echo-tool".to_string(), script);
+    PluginHost::new(ToolResolver::new(tools)).expect("PluginHost::new не мав провалитись")
+}
+
+/// Витягує шлях scratch-каталогу з `data` діагностики `exec-tool`-хука.
+#[cfg(unix)]
+fn scratch_dir_from(diagnostics: &[rules_contract::diagnostic::Diagnostic]) -> String {
+    diagnostics[0]
+        .data
+        .as_ref()
+        .expect("exec-tool діагностика повинна мати заповнений data")
+        .get("scratch_dir")
+        .and_then(|value| value.as_str())
+        .expect("слот scratch-dir@1 мав віддати шлях")
+        .to_string()
+}
+
+/// Наскрізний `exec-tool`: усі поля виконавчого контексту працюють РАЗОМ на
+/// одному виклику — процес стартує в `<repo-root>/nested`, бачить накладену
+/// змінну середовища, читає матеріалізований `scratch-in` і віддає звіт,
+/// який хост збирає за глобом `*.out`.
+#[cfg(unix)]
+#[test]
+fn exec_tool_applies_cwd_env_and_round_trips_scratch() {
+    let dir = tempfile::tempdir().expect("tempdir має створитись");
+    let host = exec_tool_host(dir.path());
+
+    let repo = tempfile::tempdir().expect("tempdir має створитись");
+    fs::create_dir_all(repo.path().join("nested")).expect("mkdir не мав провалитись");
+
+    let path = require_fixture();
+    let mut plugin = host.load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    plugin.set_repo_root(Some(repo.path().to_string_lossy().into_owned()));
+
+    let batch = DetectBatch {
+        concern_id: EXEC_TOOL_CONCERN_ID.to_string(),
+        files: vec![],
+    };
+    let diagnostics = plugin
+        .detect(&batch)
+        .expect("exec-tool detect не мав провалитись");
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].reason, "exec-tool");
+
+    let message = &diagnostics[0].message;
+    assert!(
+        message.contains("probe=42"),
+        "`env` мав накластись поверх успадкованого середовища: {message:?}"
+    );
+    assert!(
+        message.contains("rest=hello"),
+        "аргументи мали дійти до тула як є: {message:?}"
+    );
+    assert!(
+        message.trim_end().ends_with("nested"),
+        "процес мав стартувати в <repo-root>/nested (поле `cwd`): {message:?}"
+    );
+
+    let data = diagnostics[0]
+        .data
+        .as_ref()
+        .expect("exec-tool діагностика повинна мати заповнений data");
+    assert_eq!(data.get("status"), Some(&serde_json::Value::from(0)));
+    assert_eq!(
+        data.get("scratch_out").and_then(|value| value.as_str()),
+        Some("report.out=from-guest"),
+        "хост мав зібрати звіт тула за глобом і віддати його гостю: {data:?}"
+    );
+    assert_eq!(data.get("has_error"), Some(&serde_json::Value::Bool(false)));
+}
+
+/// Незадекларований (не резолвлений) тул — ТА САМА типізована помилка, що
+/// вже дає `run-tool`: `status: none`, людиночитний `stderr`, жодної паніки
+/// й жодного `Err` на рівні `detect`.
+#[test]
+fn exec_tool_missing_from_resolver_returns_typed_error_in_diagnostic() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let batch = DetectBatch {
+        concern_id: EXEC_TOOL_CONCERN_ID.to_string(),
+        files: vec![],
+    };
+    let diagnostics = plugin
+        .detect(&batch)
+        .expect("exec-tool detect не мав провалитись навіть без резолвленого тула");
+    assert_eq!(diagnostics.len(), 1);
+    let data = diagnostics[0].data.as_ref().unwrap();
+    assert_eq!(data.get("status"), Some(&serde_json::Value::Null));
+    assert_eq!(data.get("has_error"), Some(&serde_json::Value::Bool(true)));
+    assert_eq!(
+        data.get("scratch_out").and_then(|value| value.as_str()),
+        Some(""),
+        "промах резолву не має нічого збирати зі scratch"
+    );
+}
+
+/// Слот `scratch-dir@1` віддає РЕАЛЬНИЙ каталог, який існує під час виклику
+/// гостя й ЗНИКАЄ після повернення, а наступний виклик отримує НОВИЙ шлях —
+/// контракт «каталог живе рівно один `detect`/`fix`-виклик» (доккомент
+/// `wit/world.wit`).
+#[cfg(unix)]
+#[test]
+fn scratch_dir_slot_lives_exactly_one_call() {
+    let dir = tempfile::tempdir().expect("tempdir має створитись");
+    let host = exec_tool_host(dir.path());
+
+    let path = require_fixture();
+    let mut plugin = host.load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let batch = DetectBatch {
+        concern_id: EXEC_TOOL_CONCERN_ID.to_string(),
+        files: vec![],
+    };
+
+    let first = plugin.detect(&batch).expect("detect не мав провалитись");
+    let first_dir = scratch_dir_from(&first);
+    assert!(
+        !PathBuf::from(&first_dir).exists(),
+        "scratch-каталог {first_dir} мав зникнути одразу після повернення з detect"
+    );
+
+    let second = plugin.detect(&batch).expect("detect не мав провалитись");
+    assert_ne!(
+        first_dir,
+        scratch_dir_from(&second),
+        "другий виклик того самого (закешованого) плагіна мав отримати НОВИЙ каталог"
+    );
+}
+
+/// Trap гостя (паніка всередині `detect`) не лишає scratch-каталог на
+/// диску: `LoadedPlugin` прибирає його НАВКОЛО виклику, а не лише в
+/// happy-path гілці.
+///
+/// Шлях каталогу того самого виклику, що тріпнув, тест дізнається з ЛОГІВ
+/// (guest-хук логує його перед панікою — повернути нема як) — `take_logs`
+/// дренує буфер `Store` уже після невдалого виклику.
+///
+/// Тест заразом фіксує задокументовану поведінку Component Model: після
+/// trap-у інстанс ОТРУЄНИЙ (`cannot enter component instance`), тобто
+/// плагін після паніки більше не викликається. Це не наслідок
+/// scratch-контуру, але саме воно пояснює, чому прибирання НЕ можна
+/// відкладати «до наступного виклику» — наступного може не бути.
+#[cfg(unix)]
+#[test]
+fn scratch_dir_is_removed_even_when_guest_traps() {
+    let dir = tempfile::tempdir().expect("tempdir має створитись");
+    let host = exec_tool_host(dir.path());
+
+    let path = require_fixture();
+    let mut plugin = host.load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let probe = plugin
+        .detect(&DetectBatch {
+            concern_id: EXEC_TOOL_CONCERN_ID.to_string(),
+            files: vec![],
+        })
+        .expect("detect не мав провалитись");
+    let probe_dir = scratch_dir_from(&probe);
+    let _ = plugin.take_logs();
+
+    let err = plugin
+        .detect(&DetectBatch {
+            concern_id: PANIC_CONCERN_ID.to_string(),
+            files: vec![],
+        })
+        .expect_err("хук навмисної паніки мав повернути типізовану помилку виконання");
+    assert!(matches!(err, PluginHostError::Execution { .. }), "{err:?}");
+    assert!(
+        !PathBuf::from(&probe_dir).exists(),
+        "каталог попереднього виклику мав зникнути"
+    );
+
+    let trapped_dir = plugin
+        .take_logs()
+        .into_iter()
+        .find_map(|log| {
+            log.message
+                .strip_prefix("panic-hook: scratch-dir=")
+                .map(str::to_string)
+        })
+        .expect("guest-хук мав залогувати свій scratch-каталог перед панікою");
+    assert!(
+        !trapped_dir.is_empty(),
+        "слот `scratch-dir@1` мав віддати шлях і всередині виклику, що тріпнув"
+    );
+    assert!(
+        !PathBuf::from(&trapped_dir).exists(),
+        "scratch-каталог {trapped_dir} виклику, що тріпнув, мав бути прибраний хостом"
+    );
+
+    let poisoned = plugin.detect(&DetectBatch {
+        concern_id: EXEC_TOOL_CONCERN_ID.to_string(),
+        files: vec![],
+    });
+    assert!(
+        poisoned.is_err(),
+        "після trap-у інстанс отруєний — Component Model не пускає в нього повторно"
+    );
 }
