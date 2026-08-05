@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.16.1] - 2026-08-05
+
+### Fixed
+
+- rust/wasm_component: findDependency без implicit fallthrough return (jsdoc/require-returns-check)
+
 ## [0.16.0] - 2026-08-05
 
 ### Added
