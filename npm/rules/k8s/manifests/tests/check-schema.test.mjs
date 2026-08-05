@@ -2799,7 +2799,6 @@ describe('hasuraEnabledLogTypesOverrideValue', () => {
   })
 })
 
-
 /**
  * Мінімальний Deployment із переліком ConfigMap у `envFrom` — фікстура
  * `validateConfigMapNameMatchesDeployment`.
