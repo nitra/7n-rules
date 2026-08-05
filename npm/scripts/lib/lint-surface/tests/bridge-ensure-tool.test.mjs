@@ -37,6 +37,9 @@ const HOST = join(dirname(fileURLToPath(import.meta.url)), '..', 'bridge-host.mj
 async function callBridge(requests, extraEnv) {
   const socketPath = `/tmp/n-rules-bridge-test-${process.pid}-${Date.now().toString(16)}.sock`
   const responses = []
+  // Обгортка event-emitter API (net.createServer): проміс будується навколо
+  // колбеків 'data'/'error', async/await їх не замінює.
+  // oxlint-disable-next-line promise/avoid-new
   await new Promise((resolve, reject) => {
     const server = createServer(socket => {
       let buffer = ''
