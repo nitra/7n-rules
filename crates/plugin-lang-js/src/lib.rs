@@ -10508,7 +10508,7 @@ fn fix_doc_comments(request: &FixRequest) -> FixPlan {
             }
         }
         // Спадання позиції — спільний інваріант усіх edit-планів гостя.
-        unique.sort_by(|a, b| b.0.cmp(&a.0));
+        unique.sort_by_key(|entry| std::cmp::Reverse(entry.0));
 
         let mut next = source.content.clone();
         for (start_utf16, end_utf16) in unique {
