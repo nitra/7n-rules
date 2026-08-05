@@ -22,16 +22,18 @@
 //! Без `node` у PATH або без `node_modules` у корені репо тест пропускається —
 //! та сама умова, що в JS-тестах кластера (вони скіпаються без `conftest`).
 
-use std::path::{Path, PathBuf};
-use std::process::Command;
+mod common;
 
-use rules_core::concerns::find_k8s_yaml_files;
+use std::path::{Path, PathBuf};
+
 use rules_core::concerns::k8s_manifests_cross_file::{
     assert_no_forbidden_k8s_dev_paths, validate_configmap_name_matches_deployment,
     validate_kustomization_includes_svc_hl_with_svc,
     validate_kustomization_path_refs_exist_on_disk, validate_svc_yaml_and_svc_hl_pairs,
 };
 use tempfile::TempDir;
+
+use common::write;
 
 /// Драйвер JS-боку: імпортує канон, проганяє ті самі пʼять перевірок у тому
 /// самому порядку і друкує JSON-масив повідомлень.
@@ -56,33 +58,6 @@ await canon.validateConfigMapNameMatchesDeployment(root, files, fail, pass)
 process.stdout.write(JSON.stringify(out))
 "#;
 
-/// Корінь репо: `<repo>/crates/rules-core` → два рівні вгору.
-fn repo_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .and_then(Path::parent)
-        .expect("crates/rules-core лежить на два рівні під коренем репо")
-        .to_path_buf()
-}
-
-/// Чи є все потрібне для JS-боку (інакше тест пропускається).
-fn js_canon_available() -> bool {
-    let root = repo_root();
-    root.join("node_modules").is_dir()
-        && root.join("npm/rules/k8s/manifests/main.mjs").is_file()
-        && Command::new("node")
-            .arg("--version")
-            .output()
-            .is_ok_and(|out| out.status.success())
-}
-
-/// Кладе файл із створенням батьківських каталогів.
-fn write(tmp: &TempDir, rel: &str, content: &str) {
-    let abs = tmp.path().join(rel);
-    std::fs::create_dir_all(abs.parent().expect("шлях має батька")).expect("mkdir");
-    std::fs::write(abs, content).expect("write");
-}
-
 /// Повідомлення native-боку — пʼять перевірок у порядку виклику з `lint()`.
 fn native_messages(root: &Path, files: &[PathBuf]) -> Vec<String> {
     let mut out = Vec::new();
@@ -94,61 +69,14 @@ fn native_messages(root: &Path, files: &[PathBuf]) -> Vec<String> {
     out.into_iter().map(|v| v.message).collect()
 }
 
-/// Повідомлення JS-канону на тому самому дереві й тому самому списку файлів.
-fn js_messages(tmp: &TempDir, files: &[PathBuf]) -> Vec<String> {
-    let root = tmp.path();
-    let driver = root.join(".parity-driver.mjs");
-    std::fs::write(&driver, JS_DRIVER).expect("write driver");
-    let files_json = root.join(".parity-files.json");
-    let payload: Vec<String> = files
-        .iter()
-        .map(|p| p.to_string_lossy().into_owned())
-        .collect();
-    std::fs::write(
-        &files_json,
-        serde_json::to_string(&payload).expect("serialize"),
-    )
-    .expect("write files json");
-
-    let canon = repo_root().join("npm/rules/k8s/manifests/main.mjs");
-    let output = Command::new("node")
-        .arg(&driver)
-        .arg(root)
-        .arg(&canon)
-        .arg(&files_json)
-        .output()
-        .expect("спавн node");
-    assert!(
-        output.status.success(),
-        "JS-канон впав: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    serde_json::from_slice(&output.stdout).unwrap_or_else(|error| {
-        panic!(
-            "stdout драйвера не JSON ({error}): {}",
-            String::from_utf8_lossy(&output.stdout)
-        )
-    })
-}
-
 /// Звіряє native і JS на дереві, зібраному `build`.
 fn assert_parity(label: &str, build: impl Fn(&TempDir)) {
-    if !js_canon_available() {
-        eprintln!("k8s_manifests_parity[{label}]: пропуск — немає node/node_modules");
-        return;
-    }
-    let tmp = TempDir::new().expect("tempdir");
-    build(&tmp);
-    // Драйвер і його вхід лежать у корені дерева, але `.mjs`/`.json` під `k8s`
-    // не потрапляють, тож на вибірку не впливають.
-    let files = find_k8s_yaml_files(tmp.path(), &[]);
-    assert!(!files.is_empty(), "[{label}] фікстура без YAML під k8s");
-    let native = native_messages(tmp.path(), &files);
-    let js = js_messages(&tmp, &files);
-    assert_eq!(native, js, "[{label}] розбіжність native ↔ JS");
-    assert!(
-        !native.is_empty() || label.starts_with("clean"),
-        "[{label}] фікстура нічого не репортує — гейт був би порожній"
+    common::assert_parity(
+        "k8s_manifests_parity",
+        label,
+        JS_DRIVER,
+        native_messages,
+        build,
     );
 }
 
