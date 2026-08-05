@@ -110,6 +110,12 @@ fn scaffold_and_build() -> (tempfile::TempDir, PathBuf) {
     let output = Command::new("bash")
         .arg("build.sh")
         .current_dir(root)
+        // Скидаємо `CARGO_TARGET_DIR`, успадкований від запуску тестів:
+        // інакше артефакт скаффолда осів би у СПІЛЬНОМУ target-каталозі
+        // розробника, а не в цьому tempdir, і перевірка нижче шукала б його
+        // не там (тест мовчки падав би на машині, де ця змінна виставлена —
+        // типова практика економії диска).
+        .env_remove("CARGO_TARGET_DIR")
         .output()
         .expect("запуск `bash build.sh` не мав провалитись (bash відсутній?)");
 

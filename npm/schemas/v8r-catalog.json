@@ -208,7 +208,7 @@
     },
     {
       "name": "n-rules plugin manifest",
-      "description": "plugin.toml — маніфест wasm-плагіна n-rules:plugin@3.0.0 (crates/<guest>/plugin.toml); офіційної JSON Schema поки нема (schemars-схема rules_contract::manifest::Manifest ще не публікується як окремий файл), тому permissive any.json",
+      "description": "plugin.toml — маніфест wasm-плагіна n-rules:plugin@3.1.0 (crates/<guest>/plugin.toml); офіційної JSON Schema поки нема (schemars-схема rules_contract::manifest::Manifest ще не публікується як окремий файл), тому permissive any.json",
       "url": "any.json",
       "fileMatch": [
         "plugin.toml",
