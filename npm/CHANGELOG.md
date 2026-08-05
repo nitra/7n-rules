@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.84.0] - 2026-08-05
+
+### Changed
+
+- `k8s/manifests` — перший зріз порту в `rules-core` плюс полагоджений дефект канону. Портовано два з чотирьох шарів `lint()`: rego-контур (`runAllK8sRego` — усі девʼять namespace-ів, класифікатор fix-підказок, гілка `--data`/`templateData` у `conftest`) і чотири самодостатні cross-file перевірки (`assertNoForbiddenK8sDevPaths`, `validateSvcYamlAndSvcHlPairs`, `validateKustomizationPathRefsExistOnDisk`, `validateKustomizationIncludesSvcHlWithSvc`, `validateConfigMapNameMatchesDeployment`). Сам концерн у `NATIVE_CONCERNS` **не** заведено — він неподільний для диспатчу і зайде туди разом із рештою шарів, тож поведінка лінту незмінна.
+
+**Зміна поведінки:** звірка `metadata.name` ConfigMap із Deployment (`k8s/base/configmap.yaml`) більше не спирається на «перший `kind: Deployment` за порядком `readdir`». Обхід файлів каталогу став відсортованим (детермінований на будь-якій файловій системі — раніше macOS і Linux-раннер CI могли давати різний вислід), і серед **усіх** Deployment каталогу беруться лише ті, що посилаються рівно на один ConfigMap. Наслідок — fail-closed: каталог, де перший Deployment ConfigMap не вживає, раніше мовчки випадав із перевірки, тепер перевіряється. Репозиторії з одним Deployment на каталог змін не побачать.
+
 ## [1.83.3] - 2026-08-05
 
 ### Changed
