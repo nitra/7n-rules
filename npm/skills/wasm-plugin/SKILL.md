@@ -465,8 +465,10 @@ per-file: пиши `detect_whole_batch(files: &[SourceFile]) -> Vec<Diagnostic>`
   нічого не добуває — провізіонінг живе в окремій команді `tools ensure`.
 
   **Схеми `manifest.tools`** (рішення В): `pinned:` (дефолт за відсутності
-  схеми — github-реліз із закріпленою версією) і `path:` (резолв по `PATH`:
-  `path:bun`, `path:bunx` — те, що ensure-tool завантажити не може й не має).
+  схеми — github-реліз із закріпленою версією), `path:` (резолв по `PATH`:
+  `path:bun`, `path:bunx` — те, що ensure-tool завантажити не може й не має)
+  і `npm:` (`<cwd>/node_modules/.bin/<name>`, фолбек `PATH` —
+  `npm:stylelint`, тобто задекларована залежність npm-пакета плагіна).
 
   > **Trust boundary — прочитай ДО того, як напишеш перший `exec-tool`.**
   > Спавнений тул виконується **з правами хоста, ПОЗА wasm-пісочницею**, і

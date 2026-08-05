@@ -82,6 +82,8 @@ const CONCERN_VITEST_API_CONVENTIONS: &str = "test/vitest-api-conventions";
 const CONCERN_VUE_PACKAGES: &str = "vue/packages";
 const CONCERN_DOC_COMMENTS: &str = "js/doc_comments";
 const CONCERN_BUN_LICENSEE: &str = "bun/licensee";
+const CONCERN_STYLE_LINT: &str = "style/lint";
+const CONCERN_JSCPD_DUPLICATES: &str = "js/jscpd_duplicates";
 
 /// Абсолютний шлях до зібраного `.wasm`-компонента (`crates/plugin-lang-js/build.sh`)
 /// — `wasm32-wasip2`/`release`.
@@ -109,7 +111,7 @@ fn host() -> PluginHost {
 }
 
 #[test]
-fn describe_declares_all_thirty_seven_concerns_with_expected_scopes() {
+fn describe_declares_all_thirty_nine_concerns_with_expected_scopes() {
     let path = require_fixture();
     let plugin = host()
         .load(&path, PLUGIN_WORLD_VERSION)
@@ -142,8 +144,18 @@ fn describe_declares_all_thirty_seven_concerns_with_expected_scopes() {
     // концерн плагіна, що спавнить зовнішній процес (секція «Зріз 5» там
     // само); разом із ним у маніфесті з'являється перша реальна
     // tool-декларація.
-    assert_eq!(manifest.concerns.len(), 37);
-    assert_eq!(manifest.tools, vec!["path:bun".to_string()]);
+    // Зріз 6 додає `style/lint` і `js/jscpd_duplicates` — решту дрібних
+    // обгорток зовнішніх процесів (секція «Зріз 6» там само): перша
+    // приносить схему `npm:`, друга — перше реальне вживання `scratch-out`.
+    assert_eq!(manifest.concerns.len(), 39);
+    assert_eq!(
+        manifest.tools,
+        vec![
+            "path:bun".to_string(),
+            "npm:stylelint".to_string(),
+            "path:bunx".to_string()
+        ]
+    );
 
     let licensee = manifest
         .concerns
@@ -152,6 +164,27 @@ fn describe_declares_all_thirty_seven_concerns_with_expected_scopes() {
         .expect("bun/licensee має бути в маніфесті");
     assert_eq!(licensee.scope, ConcernScope::Full);
     assert_eq!(licensee.glob, vec![".licensee.json".to_string()]);
+
+    // `style/lint` — `Full` при `per-file` у `concern.json` (доккомент
+    // секції «Зріз 6» у `crates/plugin-lang-js/src/lib.rs`): інакше
+    // `lint --full` мовчки не перевіряв би стилі взагалі.
+    let style_lint = manifest
+        .concerns
+        .iter()
+        .find(|c| c.key == CONCERN_STYLE_LINT)
+        .expect("style/lint має бути в маніфесті");
+    assert_eq!(style_lint.scope, ConcernScope::Full);
+    assert_eq!(style_lint.glob, vec!["**/*.{css,scss,vue}".to_string()]);
+
+    // `js/jscpd_duplicates` — ЄДИНА контрибуція з порожнім глобом: детектор
+    // не читає batch узагалі, репозиторій обходить сам `jscpd`.
+    let jscpd = manifest
+        .concerns
+        .iter()
+        .find(|c| c.key == CONCERN_JSCPD_DUPLICATES)
+        .expect("js/jscpd_duplicates має бути в маніфесті");
+    assert_eq!(jscpd.scope, ConcernScope::Full);
+    assert!(jscpd.glob.is_empty());
 
     let tfm = manifest
         .concerns
@@ -2327,4 +2360,250 @@ fn licensee_unparsable_stdout_falls_back_to_aggregated_violation() {
         diagnostics[0].message,
         "lint-bun: licensee — порушення ліцензій (код 2, bun.mdc)\n@"
     );
+}
+
+// --- зріз 6 контракту v3.1: style/lint і js/jscpd_duplicates -------------
+//
+// Тут — рівно ті гілки, яких parity-тест
+// (`npm/scripts/lib/lint-surface/tests/wasm-plugin-parity.test.mjs`) покрити
+// НЕ може, бо на них порт свідомо розходиться з JS-каноном (доккомент секції
+// «Зріз 6» у `crates/plugin-lang-js/src/lib.rs`): канон пише «тул не дав
+// вердикту» в окремий канал `LintResult.diagnostics`, якого у WIT немає, тож
+// wasm-бік віддає warn-`Diagnostic` у тому самому списку `violations`.
+// Позитивні гілки (тул відпрацював, вердикт розібрано) звіряються саме
+// parity-тестом, на спільному фейковому тулі — тут вони не дублюються.
+
+/// Пише виконуваний скрипт-заглушку й будує хост, що резолвить його під
+/// заданим іменем тула (схему `npm:`/`path:` хост відрізає сам).
+#[cfg(unix)]
+fn tool_host(dir: &std::path::Path, tool: &str, body: &str) -> PluginHost {
+    use std::os::unix::fs::PermissionsExt;
+    let script = dir.join(tool);
+    std::fs::write(&script, body).expect("запис скрипта не мав провалитись");
+    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755))
+        .expect("chmod не мав провалитись");
+    let mut tools = std::collections::HashMap::new();
+    tools.insert(tool.to_string(), script);
+    PluginHost::new(ToolResolver::new(tools)).expect("PluginHost::new не мав провалитись")
+}
+
+/// Батч `style/lint` із заданими шляхами — вміст файлів детектор не читає
+/// взагалі (вердикт дає тул), тож він у всіх однаковий.
+fn style_batch(paths: &[&str]) -> DetectBatch {
+    DetectBatch {
+        concern_id: CONCERN_STYLE_LINT.to_string(),
+        files: paths
+            .iter()
+            .map(|path| SourceFile {
+                path: (*path).to_string(),
+                content: ".a {\n  color: red;\n}\n".to_string(),
+            })
+            .collect(),
+    }
+}
+
+/// Жодного css/scss/vue у батчі — тул не спавниться взагалі (порожній
+/// резолвер це й доводить: якби дійшло до спавна, отримали б
+/// `stylelint-unresolved`).
+#[test]
+fn style_lint_without_style_files_does_not_spawn_the_tool() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let diagnostics = plugin
+        .detect(&style_batch(&["src/main.mjs", "README.md"]))
+        .unwrap();
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+/// Порожній батч (`lint --full` у репо БЕЗ жодного стилю) — теж без спавна.
+/// Це та сама гілка, що знімає дефект канону (розбіжність 2 доккомента
+/// секції «Зріз 6»): канон тут віддав би `stylelint` глоб, який ні з чим не
+/// збігається, і отримав би ненульовий код — тобто порушення з нічого.
+#[test]
+fn style_lint_on_empty_batch_reports_nothing() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let diagnostics = plugin.detect(&style_batch(&[])).unwrap();
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+/// Тул не забезпечений хостом — `exec-tool` віддає `status: none`, гість
+/// мапить це у fail-OPEN warn із канонічним текстом JS-канону.
+#[test]
+fn style_lint_unresolved_tool_is_fail_open_warning() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let diagnostics = plugin.detect(&style_batch(&["src/app.scss"])).unwrap();
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].reason, "stylelint-unresolved");
+    assert_eq!(diagnostics[0].severity, Severity::Warn);
+    assert!(
+        diagnostics[0]
+            .message
+            .starts_with("lint-style: `stylelint` не резолвиться (ні node_modules/.bin, ні PATH)"),
+        "фактично: {}",
+        diagnostics[0].message
+    );
+}
+
+/// Тулу передається САМЕ відфільтрований список цілей — не весь батч і не
+/// глоб. Скрипт віддає 0 лише на очікуваному наборі аргументів.
+#[cfg(unix)]
+#[test]
+fn style_lint_passes_only_style_files_as_targets() {
+    let dir = tempfile::tempdir().expect("tempdir має створитись");
+    let host = tool_host(
+        dir.path(),
+        "stylelint",
+        "#!/bin/sh\n[ \"$*\" = \"src/app.scss src/Page.vue\" ] && exit 0\nexit 7\n",
+    );
+    let path = require_fixture();
+    let mut plugin = host.load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let diagnostics = plugin
+        .detect(&style_batch(&[
+            "src/app.scss",
+            "src/main.mjs",
+            "src/Page.vue",
+        ]))
+        .unwrap();
+    assert!(
+        diagnostics.is_empty(),
+        "скрипт віддає 0 ЛИШЕ на css/scss/vue-цілях у порядку батчу: {diagnostics:?}"
+    );
+}
+
+/// Батч `js/jscpd_duplicates` завжди порожній — глоб контрибуції порожній,
+/// а детектор `files` не читає взагалі.
+fn jscpd_batch() -> DetectBatch {
+    DetectBatch {
+        concern_id: CONCERN_JSCPD_DUPLICATES.to_string(),
+        files: vec![],
+    }
+}
+
+/// Тул не забезпечений хостом — звіту немає, гість деградує у fail-OPEN warn
+/// із текстом канону плюс причина від хоста в суфіксі.
+#[test]
+fn jscpd_unresolved_tool_is_fail_open_warning() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let diagnostics = plugin.detect(&jscpd_batch()).unwrap();
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].reason, "jscpd-report-unreadable");
+    assert_eq!(diagnostics[0].severity, Severity::Warn);
+    assert!(
+        diagnostics[0]
+            .message
+            .starts_with("jscpd: не вдалося прочитати JSON-звіт: "),
+        "фактично: {}",
+        diagnostics[0].message
+    );
+}
+
+/// Тул відпрацював, але звіту не написав — та сама warn-гілка (доккомент
+/// `ScratchDir::collect`: «звіту немає» ≠ помилка збору).
+#[cfg(unix)]
+#[test]
+fn jscpd_missing_report_degrades_to_warning_with_tool_output() {
+    let dir = tempfile::tempdir().expect("tempdir має створитись");
+    let host = tool_host(
+        dir.path(),
+        "bunx",
+        "#!/bin/sh\necho 'jscpd: nothing to do'\nexit 0\n",
+    );
+    let path = require_fixture();
+    let mut plugin = host.load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let diagnostics = plugin.detect(&jscpd_batch()).unwrap();
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].reason, "jscpd-report-unreadable");
+    assert_eq!(
+        diagnostics[0].message,
+        "jscpd: не вдалося прочитати JSON-звіт: jscpd: nothing to do"
+    );
+}
+
+/// Звіт є, але це не JSON — той самий `catch` навколо `JSON.parse`, що в
+/// канону.
+#[cfg(unix)]
+#[test]
+fn jscpd_unparsable_report_degrades_to_warning() {
+    let dir = tempfile::tempdir().expect("tempdir має створитись");
+    // `$6` — значення `--output` у канонічному наборі аргументів
+    // (`jscpd . --reporters json --output <scratch> --silent`), тобто сам
+    // scratch-каталог: тул пише звіт туди, куди його попросили.
+    let host = tool_host(
+        dir.path(),
+        "bunx",
+        "#!/bin/sh\nprintf 'not json' > \"$6/jscpd-report.json\"\nexit 0\n",
+    );
+    let path = require_fixture();
+    let mut plugin = host.load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let diagnostics = plugin.detect(&jscpd_batch()).unwrap();
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].reason, "jscpd-report-unreadable");
+}
+
+/// Гість передає тулу АБСОЛЮТНИЙ шлях scratch-каталогу зі слоту
+/// `scratch-dir@1`, і хост забирає звіт саме звідти — це і є наскрізний
+/// доказ `scratch-out` (скрипт пише за `--output`, не за здогадкою, і
+/// падає кодом 9, якщо шлях не абсолютний).
+#[cfg(unix)]
+#[test]
+fn jscpd_reads_report_written_into_the_scratch_dir() {
+    let dir = tempfile::tempdir().expect("tempdir має створитись");
+    let host = tool_host(
+        dir.path(),
+        "bunx",
+        "#!/bin/sh\n\
+         case \"$6\" in /*) ;; *) exit 9 ;; esac\n\
+         printf '{\"duplicates\":[{\"format\":\"javascript\",\"lines\":25,\
+         \"firstFile\":{\"name\":\"a.mjs\",\"start\":1,\"end\":26},\
+         \"secondFile\":{\"name\":\"b.mjs\",\"start\":10,\"end\":35}}]}' > \"$6/jscpd-report.json\"\n\
+         exit 0\n",
+    );
+    let path = require_fixture();
+    let mut plugin = host.load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let diagnostics = plugin.detect(&jscpd_batch()).unwrap();
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].reason, "duplicate-clone");
+    assert_eq!(
+        diagnostics[0].message,
+        "jscpd: дубльований фрагмент (25 рядків, javascript) a.mjs:1-26 ↔ b.mjs:10-35"
+    );
+    assert_eq!(diagnostics[0].file.as_deref(), Some("a.mjs"));
+    let data = diagnostics[0].data.as_ref().expect("data має бути");
+    assert_eq!(data.get("line").and_then(|v| v.as_i64()), Some(1));
+    assert_eq!(data.get("lines").and_then(|v| v.as_i64()), Some(25));
+    assert_eq!(
+        data.get("second")
+            .and_then(|v| v.get("end"))
+            .and_then(|v| v.as_i64()),
+        Some(35)
+    );
+}
+
+/// Запис `duplicates` без полів схеми `jscpd` ПРОПУСКАЄТЬСЯ (розбіжність 5
+/// доккомента секції «Зріз 6»): канон надрукував би у повідомленні рядок
+/// `undefined`, порт цього дефекту не копіює. Валідний сусідній запис при
+/// цьому лишається.
+#[cfg(unix)]
+#[test]
+fn jscpd_skips_clone_entries_that_do_not_match_the_report_schema() {
+    let dir = tempfile::tempdir().expect("tempdir має створитись");
+    let host = tool_host(
+        dir.path(),
+        "bunx",
+        "#!/bin/sh\n\
+         printf '{\"duplicates\":[{\"format\":\"javascript\",\"lines\":25,\
+         \"firstFile\":{\"start\":1,\"end\":26},\"secondFile\":{\"name\":\"b.mjs\",\"start\":10,\"end\":35}},\
+         {\"format\":\"vue\",\"lines\":30,\
+         \"firstFile\":{\"name\":\"c.vue\",\"start\":2,\"end\":32},\
+         \"secondFile\":{\"name\":\"d.vue\",\"start\":5,\"end\":35}}]}' > \"$6/jscpd-report.json\"\n\
+         exit 0\n",
+    );
+    let path = require_fixture();
+    let mut plugin = host.load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let diagnostics = plugin.detect(&jscpd_batch()).unwrap();
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].file.as_deref(), Some("c.vue"));
 }

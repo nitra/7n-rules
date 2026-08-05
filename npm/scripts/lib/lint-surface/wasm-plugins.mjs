@@ -8,7 +8,7 @@
  *
  * **Run-tool контур (задача N1, рішення Д спеки)**: `manifest.tools` —
  * задекларовані зовнішні tool-залежності плагіна (напр. `"shellcheck@^0.9"`,
- * `"path:bun"` — схеми резолву, рішення В спеки
+ * `"path:bun"`, `"npm:stylelint"` — схеми резолву, рішення В спеки
  * `docs/specs/2026-08-01-plugin-contract-v31-surfaces.md`, [`parseToolRef`]).
  * Для кожного запису резолвер кличе ensure-tool контур (`ensureToolAsync`,
  * `../ensure-tool.mjs`, injectable через `opts.ensureToolFn`) — будує мапу
@@ -444,7 +444,16 @@ const TOOL_SCHEMES = {
   /** Github-реліз із закріпленою версією (`TOOLS` + `tool-pins.json`) — дефолт за відсутності схеми. */
   PINNED: 'pinned',
   /** Резолв по `PATH` (`bun`, `bunx` — ensure-tool не вміє і не має їх завантажувати). */
-  PATH: 'path'
+  PATH: 'path',
+  /**
+   * `<cwd>/node_modules/.bin/<name>`, фолбек `PATH` (зріз 6 контракту v3.1):
+   * `stylelint` — задекларована залежність npm-пакета плагіна
+   * (`@7n/rules-lang-js`), тобто вже лежить у дереві консюмера після
+   * `npm install`; тягнути його github-релізом було б і зайво, і неможливо.
+   * Порядок резолву дослівно повторює `resolveStylelint` JS-канону
+   * `style/lint` — саме тому схема окрема, а не «`path:` з фолбеком».
+   */
+  NPM: 'npm'
 }
 
 /**
@@ -465,7 +474,7 @@ function parseToolRef(declared) {
   if (separator === -1) return { scheme: TOOL_SCHEMES.PINNED, name: declared.split('@', 1)[0] }
   const prefix = declared.slice(0, separator)
   const rest = declared.slice(separator + 1)
-  if (prefix !== TOOL_SCHEMES.PINNED && prefix !== TOOL_SCHEMES.PATH) return { scheme: null, name: declared }
+  if (!Object.values(TOOL_SCHEMES).includes(prefix)) return { scheme: null, name: declared }
   return { scheme: prefix, name: rest.split('@', 1)[0] }
 }
 
@@ -482,23 +491,43 @@ function parseToolRef(declared) {
  * @param {string} pluginName ім'я плагіна (лише для diagnostics-повідомлень)
  * @param {string[]} declaredTools `manifest.tools` — рядки виду `"shellcheck@^0.9"`
  * @param {(toolId: string) => Promise<string>} ensureToolFn ін'єкція `ensureToolAsync` (тести підміняють)
- * @param {(cmd: string) => string | null} resolveCmdFn ін'єкція `resolveCmd` для схеми `path:` (тести підміняють — інакше результат залежав би від PATH машини)
+ * @param {(cmd: string) => string | null} resolveCmdFn ін'єкція `resolveCmd` для схем `path:`/`npm:` (тести підміняють — інакше результат залежав би від PATH машини)
+ * @param {string} cwd абсолютний корінь consumer-репо — база `node_modules/.bin` для схеми `npm:`
  * @returns {Promise<Record<string, string>>} ім'я тула (без semver-суфікса) → абсолютний шлях
  */
-async function ensureDeclaredTools(pluginName, declaredTools, ensureToolFn, resolveCmdFn) {
+async function ensureDeclaredTools(pluginName, declaredTools, ensureToolFn, resolveCmdFn, cwd) {
   /** @type {Record<string, string>} */
   const toolPaths = {}
   for (const declared of declaredTools) {
     const { scheme, name } = parseToolRef(declared)
     try {
       if (scheme === null)
-        throw new Error(`невідома схема резолву (відомі "${TOOL_SCHEMES.PINNED}:", "${TOOL_SCHEMES.PATH}:")`)
+        throw new Error(
+          `невідома схема резолву (відомі ${Object.values(TOOL_SCHEMES)
+            .map(s => `"${s}:"`)
+            .join(', ')})`
+        )
       if (scheme === TOOL_SCHEMES.PATH) {
         // `path:` НЕ йде в ensure-tool контур узагалі: той уміє лише
         // github-релізи, а `bun`/`bunx` встановлює користувач. Відсутність —
         // не помилка резолву плагіна, а звичайний skip одного тула.
         const fromPath = resolveCmdFn(name)
         if (!fromPath) throw new Error('не знайдено в PATH')
+        toolPaths[name] = fromPath
+        continue
+      }
+      if (scheme === TOOL_SCHEMES.NPM) {
+        // `npm:` — локальний `.bin` консюмера, потім PATH: дослівно
+        // `resolveStylelint` JS-канону `style/lint`. Так само повз
+        // ensure-tool контур (npm-залежність ставить `npm install`, не
+        // github-реліз).
+        const local = join(cwd, 'node_modules', '.bin', name)
+        if (existsSync(local)) {
+          toolPaths[name] = local
+          continue
+        }
+        const fromPath = resolveCmdFn(name)
+        if (!fromPath) throw new Error('немає ні в node_modules/.bin, ні в PATH')
         toolPaths[name] = fromPath
         continue
       }
@@ -538,7 +567,13 @@ async function buildWasmConcernMap(cwd, ctx) {
       console.warn(`⚠️ wasm-плагін "${entry.name}" пропущено: не вдалось завантажити (${error.message})`)
       continue
     }
-    const toolPaths = await ensureDeclaredTools(entry.name, manifest.tools ?? [], ctx.ensureToolFn, ctx.resolveCmdFn)
+    const toolPaths = await ensureDeclaredTools(
+      entry.name,
+      manifest.tools ?? [],
+      ctx.ensureToolFn,
+      ctx.resolveCmdFn,
+      cwd
+    )
     // `manifest.concerns` — масив структурованих контрибуцій `{ key, scope, glob }`
     // (задача N2, передумова full-scope мосту, доккомент `wit/world.wit`
     // `record concern-contribution`), не голі рядки — мапа концернів індексується
@@ -562,7 +597,7 @@ async function buildWasmConcernMap(cwd, ctx) {
  * @param {{fetchFn?: typeof fetch, cacheDir?: string, env?: Record<string, string | undefined>, ensureToolFn?: (toolId: string) => Promise<string>, resolveCmdFn?: (cmd: string) => string | null, nativeFn?: typeof loadNative, builtinPinsDir?: string}} [opts] ін'єкції для тестів:
  *   `fetchFn` (дефолт — глобальний `fetch`), `cacheDir` (дефолт — `resolvePluginCacheDir`), `env` (дефолт — `process.env`),
  *   `ensureToolFn` (дефолт — `ensureToolAsync`), `resolveCmdFn` (дефолт — `resolveCmd`; тести підміняють, бо інакше
- *   `path:`-схема давала б різний `toolPaths` залежно від PATH машини), `nativeFn` (дефолт — `loadNative`, wiring-тести підміняють фейковим addon-ом),
+ *   схеми `path:`/`npm:` давали б різний `toolPaths` залежно від PATH машини), `nativeFn` (дефолт — `loadNative`, wiring-тести підміняють фейковим addon-ом),
  *   `builtinPinsDir` (дефолт — [`WASM_PLUGINS_DIR`], реальна `npm/wasm-plugins/`; тести ізолюють неіснуючим каталогом,
  *   щоб локальна wasm-збірка в робочому дереві не підмішувала builtin-контрибуції в контрольовані сценарії)
  * @returns {Promise<Map<string, WasmConcernMapEntry>>} ключ концерну (`ruleId/concernId`) → `{ wasmPath, toolPaths }`

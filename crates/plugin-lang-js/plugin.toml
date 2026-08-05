@@ -23,11 +23,14 @@ domains = ["lint"]
 # а не до кореня (як і `[capabilities]` нижче, який лишається коректним, бо
 # це власна таблиця).
 ci_artifacts = []
-# Зріз 5 контракту v3.1 — перша реальна tool-декларація first-party плагіна.
-# Схема `path:` (рішення В спеки `2026-08-01-plugin-contract-v31-surfaces.md`)
-# означає «резолвити по PATH», а не завантажувати github-реліз, як дефолтна
-# `pinned:`. Споживач — `bun/licensee` через `exec-tool`.
-tools = ["path:bun"]
+# Зріз 5 контракту v3.1 — перша реальна tool-декларація first-party плагіна;
+# зріз 6 добив набір до двох із трьох схем рішення В (спека
+# `2026-08-01-plugin-contract-v31-surfaces.md`). `path:` означає «резолвити
+# по PATH» (`bun` — `bun/licensee`, `bunx` — `js/jscpd_duplicates`), `npm:`
+# — «`<cwd>/node_modules/.bin/<name>`, фолбек PATH» (`stylelint` —
+# `style/lint`); дефолтна `pinned:` (github-реліз) чекає на `js-run/runtime`
+# зрізу 7. Усі три споживаються через `exec-tool`.
+tools = ["path:bun", "npm:stylelint", "path:bunx"]
 # Тридцять три контрибуції концернів (задача N2 + Q1 батч 1 + Q2 батч 2 +
 # Q3 + Q4 батч 4 + storybook-батч 5 + батчі 6–9, передумова full-scope
 # мосту): scope/glob дзеркалять `plugins/lang-js/rules/**/concern.json` цих
@@ -326,6 +329,26 @@ glob = ["**/*.{js,mjs,cjs,ts}"]
 key = "bun/licensee"
 scope = "full"
 glob = [".licensee.json"]
+
+# Зріз 6 контракту v3.1. `scope = "full"` при `per-file` у `concern.json` —
+# свідома розбіжність: `scope` контрибуції читає ХОСТ і рівно для рішення
+# «чи будувати batch самому, коли JS не передав `files`». У `lint --full`
+# планувальник лишає `files: undefined` і для per-file концернів, тож
+# `per-file` тут означало б «стилі не перевіряються в повному режимі
+# взагалі» (секція «Зріз 6» у `src/lib.rs`).
+[[concerns]]
+key = "style/lint"
+scope = "full"
+glob = ["**/*.{css,scss,vue}"]
+
+# Зріз 6 контракту v3.1. Глоб ПОРОЖНІЙ навмисно: канон не читає з диска
+# нічого перед спавном — репозиторій обходить сам `jscpd`, а вердикт
+# приїжджає JSON-звітом через `scratch-out`. Це той самий принцип «batch
+# несе рівно те, що канон читає», доведений до нуля.
+[[concerns]]
+key = "js/jscpd_duplicates"
+scope = "full"
+glob = []
 
 [capabilities]
 # Хост передає вміст файлів inline у `detect-batch`/`fix-request` (як
