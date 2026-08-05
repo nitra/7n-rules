@@ -30,7 +30,12 @@ npm/reports/coverage-classify.cache.json
 # LLM wire-trace raw log (omlx-wire-trace spec): сирий потік, локальний, не в git
 .n-cursor/
 
-# Rust build artifacts (llm-lib — перший Rust-крейт у репо)
+# Rust build artifacts (llm-lib — перший Rust-крейт у репо).
+# Обидва патерни навмисно: `target/` покриває реальну теку збірки, `target` —
+# ще й symlink на зовнішній CARGO_TARGET_DIR (git не ходить за symlink-ом, тож
+# для нього це file-entry, який патерн зі слешем НЕ ловить). Саме так symlink
+# `target` → /private/tmp/… колись потрапив у коміт 867ff7b3.
+target
 target/
 
 # Prebuilt napi-артефакти платформних пакетів: у git лише package.json,
