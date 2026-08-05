@@ -193,6 +193,22 @@ struct SnippetDocument {
 /// за межі репозиторію» (`main.mjs:580-582`) друкує саме `../…`-форму, і
 /// підміна її абсолютним шляхом ламала б текст порушення.
 pub(crate) fn rel_posix(root: &Path, abs: &Path) -> String {
+    let rel = rel_posix_raw(root, abs);
+    // `|| abs` JS-канону: порожній результат означає «це той самий шлях».
+    if rel.is_empty() {
+        abs.to_string_lossy().into_owned()
+    } else {
+        rel
+    }
+}
+
+/// Те саме без `|| abs`-хвоста — порт голого
+/// `relative(root, abs).replaceAll('\\','/')`. Частина викликів канону
+/// покладається саме на **порожній** рядок для «шлях і є корінь» (напр.
+/// `validateDeploymentsInDir`, `main.mjs:5291-5295`, де далі йде
+/// `relDir === '' ? '.' : relDir`), тож підміна абсолютним шляхом там
+/// зіпсувала б текст порушення.
+pub(crate) fn rel_posix_raw(root: &Path, abs: &Path) -> String {
     let from: Vec<_> = root.components().collect();
     let to: Vec<_> = abs.components().collect();
     let common = from
@@ -206,13 +222,7 @@ pub(crate) fn rel_posix(root: &Path, abs: &Path) -> String {
             .iter()
             .map(|c| c.as_os_str().to_string_lossy().into_owned()),
     );
-    let rel = parts.join("/");
-    // `|| abs` JS-канону: порожній результат означає «це той самий шлях».
-    if rel.is_empty() {
-        abs.to_string_lossy().into_owned()
-    } else {
-        rel
-    }
+    parts.join("/")
 }
 
 /// Ім'я файла (порожнє, якщо шлях закінчується `..` тощо).
