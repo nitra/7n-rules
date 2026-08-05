@@ -67,6 +67,21 @@ members = [
 # (`opt-level`/`codegen-units`/`strip`), застосована нижче — виміряний
 # результат задокументовано в `crates/plugin-lang-js/src/lib.rs` (доккомент
 # модуля, розділ AST-концернів) і у звіті задачі Q3.
+#
+# Задача size-budget (2026-08-05) виміряла решту профільних важелів на
+# реальному компоненті (2 492 361 байт до зрізу), щоб наступний, хто впреться
+# в стелю, не переміряв те саме:
+# - `panic = "abort"` — **нульовий** ефект: `wasm32-wasip2` і так має
+#   `panic-strategy: abort` у target-специфікації, збірка з примусовим
+#   `-C panic=abort` у прапорцях rustc дала БАЙТ-У-БАЙТ той самий артефакт.
+#   Рядок зі спайкової комбінації, який нічого не дає саме тут;
+# - `lto = "thin"` — −95 541 байт (−3,8 %), `lto = "fat"` — −269 655 байт
+#   (−10,8 %). Обидва вимагають `[profile.release]` НА ВЕСЬ workspace (Cargo
+#   не бере `lto` в per-package override, див. абзац вище) — тобто fat-LTO для
+#   `llm-lib`, `rules-napi` і `rules-cli` теж, із відповідним часом release-
+#   збірок у CI. Свідомо НЕ вмикаємо: потрібний запас уже дав зріз невживаних
+#   feature-ів залежностей (`crates/plugin-lang-js/Cargo.toml`, доккоменти
+#   `regex` і `oxc_parser`) — це резерв на потім із відомою ціною.
 [profile.release.package."plugin-lang-js"]
 opt-level = "z"
 codegen-units = 1

@@ -29,7 +29,25 @@ wit-bindgen = "0.60"
 # regex лише для дрібних текстових предикатів JS-оригіналів
 # (SQL_LIST_CONTEXT_RE, маркерні коментарі, pre-filter-и) — семантика коду
 # йде через oxc_parser нижче.
-regex = "1"
+#
+# `default-features = false` + явний список (задача size-budget): дефолтна
+# фіча `unicode` тягне СІМ незалежних наборів Unicode-таблиць, а звертаються
+# до них лише класи `\p{…}`/`\P{…}` — у жодному з ~80 патернів цього крейта
+# таких класів немає (порти JS-патернів, звірено grep-ом). Лишені рівно ті
+# два набори, що впливають на семантику ВЖИВАНИХ конструкцій:
+# - `unicode-perl` — `\w`/`\d`/`\s`/`\b` (є в патернах; без цієї фічі вони
+#   звузились би до ASCII, тобто змінили б поведінку на не-ASCII вводі);
+# - `unicode-case` — case-folding для `(?i)` (є один патерн, `(?i)stories`).
+# Викинуті: `unicode-age`, `unicode-bool`, `unicode-gencat`, `unicode-script`,
+# `unicode-segment` — усі доступні ЛИШЕ через `\p{…}`, тож зріз таблиць
+# семантично порожній (виміряно: −232 904 байти артефакта, −9,3 %).
+# `perf` лишається дефолтним — це швидкодія матчингу, не семантика.
+regex = { version = "1", default-features = false, features = [
+  "std",
+  "perf",
+  "unicode-case",
+  "unicode-perl",
+] }
 # AST-концерни (задача Q3, `docs/specs/2026-08-01-wasm-ast-strategy.md`,
 # розділ «Рішення» п.1): `js/utils_imports`/`test/no-relative-fs-path`
 # JS-оригінали парсять напряму через npm `oxc-parser` — byte-exact parity
@@ -39,7 +57,18 @@ regex = "1"
 # `npm/scripts/lib/lint-surface/tests/oxc-version-pin.test.mjs`. Парсер живе
 # прямо в guest-компоненті (без host-медіації) — рішення спайка S1, жодного
 # нового host-контракту чи WIT-розширення не потрібно.
-oxc_parser = "=0.137.0"
+#
+# `default-features = false` (задача size-budget) вимикає єдину дефолтну
+# feature `regular_expression`: з нею парсер додатково РОЗБИРАЄ тіло кожного
+# regex-літерала окремим під-парсером (`oxc_regular_expression` + власні
+# Unicode-таблиці властивостей) і кладе результат у
+# `RegExpLiteral.regex.pattern: Option<Box<Pattern>>`. Цей крейт читає ЛИШЕ
+# `regex.pattern.text` (сирий текст літерала — `Str<'a>`, заповнюється
+# незалежно від фічі; єдине місце — `PgPlaceholderFinder::visit_reg_exp_literal`),
+# а поле `pattern` не торкає ніде. Тобто вимкнення міняє з `Some(..)` на
+# `None` рівно те поле, якого ніхто не читає — parity недоторканий
+# (виміряно: −91 306 байтів артефакта, −3,7 %).
+oxc_parser = { version = "=0.137.0", default-features = false }
 oxc_ast = "=0.137.0"
 oxc_allocator = "=0.137.0"
 oxc_span = "=0.137.0"
