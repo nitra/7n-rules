@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.0.1] - 2026-08-05
+
+### Changed
+
+- chore(release): синк пінів платформних napi-пакетів @7n/llm-lib; release: @7n/llm-lib@3.0.0, @7n/rules@1.87.0; fix(llm-lib): onProgress-контракт submitBatch + вилучення емуляції batch (#402)
+
 ## [3.0.0] - 2026-08-05
 
 ### Fixed
