@@ -79,6 +79,29 @@ describe('check js.doc_comments — детектор', () => {
     expect(isDocCommentTarget('src/a.mjs')).toBe(true)
   })
 
+  test('shebang перед header-JSDoc — header зарахований, shebang не promotable', () => {
+    // napi-oxc-parser віддає `#!…` як Line-коментар; концерн його ігнорує
+    // (`withoutHashbangComment`), інакше T0 підвищив би shebang у doc-коментар
+    // і зламав виконуваний файл.
+    const src = ['#!/usr/bin/env node', jsdoc('Намір файлу.'), jsdoc('Робить X.'), 'export function go() {}', ''].join(
+      '\n'
+    )
+    expect(checkFileDocComments(src, 'bin/x.mjs')).toEqual([])
+  })
+
+  test('shebang без header-JSDoc — порушення є, але блок shebang-а НЕ promotable', () => {
+    const src = ['#!/usr/bin/env node', jsdoc('Робить X.'), 'export function go() {}', ''].join('\n')
+    // JSDoc після shebang-а зараховується і як header, і як опис експорту.
+    expect(checkFileDocComments(src, 'bin/x.mjs')).toEqual([])
+
+    // Без жодного коментаря, крім shebang-а: порушення є, але promotable-блоку
+    // немає — інакше T0 підвищив би сам shebang.
+    const bare = ['#!/usr/bin/env node', 'export function go() {}', ''].join('\n')
+    const v = checkFileDocComments(bare, 'bin/x.mjs')
+    expect(v.map(x => x.reason)).toEqual(['missing-file-header', 'missing-export-doc'])
+    expect(v.every(x => !x.data?.promotable)).toBe(true)
+  })
+
   test('lint(ctx) із files фільтрує нецільові', async () => {
     const cwd = makeProject({ 'src/a.mjs': 'export const a = 1\n', 'src/a.test.mjs': 'export const t = 1\n' })
     const { violations } = await lint({ cwd, files: ['src/a.mjs', 'src/a.test.mjs'] })
@@ -119,6 +142,21 @@ describe('fix js.doc_comments — T0 підвищення // → JSDoc', () => {
     expect(after).toContain('/** намір файлу */')
     expect(after).toContain('/** робить X */')
     expect(checkFileDocComments(after, 'src/a.mjs')).toEqual([])
+  })
+
+  test('apply: несвіжі офсети (файл уже підвищено) — no-op, файл не псується', async () => {
+    // Продакшн-сценарій: `applyT0` ганяє ВСІ патерни концерну одним масивом
+    // violations, тож після wasm-плану (`wasm-fix:js/doc_comments`) цей
+    // фіксер бачить уже підвищений `/** … */` за тими самими офсетами.
+    const src = [lineComment('намір файлу'), '', lineComment('робить X'), 'export function go() {}', ''].join('\n')
+    const cwd = makeProject({ 'src/a.mjs': src })
+    const v = checkFileDocComments(src, 'src/a.mjs').map(x => ({ ...x, file: 'src/a.mjs' }))
+    await patterns[0].apply(v, { cwd })
+    const promoted = readFileSync(join(cwd, 'src/a.mjs'), 'utf8')
+
+    const res = await patterns[0].apply(v, { cwd })
+    expect(res.touchedFiles).toEqual([])
+    expect(readFileSync(join(cwd, 'src/a.mjs'), 'utf8')).toBe(promoted)
   })
 
   test('apply: не-promotable порушення не чіпаються', async () => {

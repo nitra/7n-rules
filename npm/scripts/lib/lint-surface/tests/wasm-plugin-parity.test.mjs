@@ -52,6 +52,14 @@
  * `crates/rules-plugin-host/tests/plugin_lang_js.rs` (у самих JS-концернів
  * тек `tests/` немає — їхні сканери покриті тестами lib-модулів).
  *
+ * Зріз 4 контракту v3.1 (`js/doc_comments`) — єдиний набір із ДВОМА рівнями
+ * parity: детект (`data.{start,end}` мають бути в UTF-16, як у napi-парсера) і
+ * T0-фікс (JS-патерн `fix-doc_comments.mjs` проти `runWasmConcernFix` —
+ * порівнюється фінальний текст файлу). Фікстури обовʼязково несуть не-ASCII
+ * (кирилиця + емодзі поза BMP), бо саме на них байтовий офсет crate-парсера
+ * розходиться з UTF-16-офсетом napi-парсера — на ASCII обидві реалізації
+ * збігаються навіть із забутою конверсією.
+ *
  * Останній describe-блок (`size-budget`) — окремо від parity: заміряє
  * реальний `plugin_lang_js.wasm` проти бюджету 2,5 MB (задача Q3, спека
  * `docs/specs/2026-08-01-wasm-ast-strategy.md`, розділ «Рішення» п.2).
@@ -229,6 +237,14 @@ const STRYKER_CONFIG_CONCERN_KEY = 'test/stryker_config'
 // рішення Ґ, через який `knip.json` став спостережуваним порушенням).
 const JS_CHECK_MAIN_MJS_PATH = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'js', 'check', 'main.mjs')
 const JS_CHECK_CONCERN_KEY = 'js/check'
+// Зріз 4 контракту v3.1: `js/doc_comments` — секція «Зріз 4» у
+// `crates/plugin-lang-js/src/lib.rs`. На відміну від решти зрізів, тут у
+// парі беруть участь ДВА JS-модулі: детектор і T0-фіксер (він лишається
+// каноном-fallback-ом, не видаляється як у пілоті `test/no-bun-test-import`).
+const DOC_COMMENTS_DIR = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'js', 'doc_comments')
+const DOC_COMMENTS_MAIN_MJS_PATH = join(DOC_COMMENTS_DIR, 'main.mjs')
+const DOC_COMMENTS_FIX_MJS_PATH = join(DOC_COMMENTS_DIR, 'fix-doc_comments.mjs')
+const DOC_COMMENTS_CONCERN_KEY = 'js/doc_comments'
 const BUN_LAYOUT_CONCERN_KEY = 'bun/layout'
 const STYLE_TOOLING_CONCERN_KEY = 'style/tooling'
 const SANDBOX_AWARE_TEST_CONCERN_KEY = 'test/sandbox-aware-test'
@@ -3765,6 +3781,251 @@ describe('wasm-plugin parity — js/check (JS канон vs wasm plugin-lang-js,
         'Знайдено застарілий конфіг ESLint: .eslintrc — видали, використовуй flat config',
         'Знайдено застарілий конфіг ESLint: .eslintrc.yml — видали, використовуй flat config'
       ])
+    })
+  })
+})
+
+// Зріз 4 контракту v3.1: `js/doc_comments` — ЄДИНИЙ (крім
+// `vue/tfm-translations`) per-file концерн у контрибуції, і єдиний, чиї
+// офсети витікають у `violation.data`. Саме тому набір нижче має ДВА рівні:
+// parity детекту ([`runDocCommentsBoth`]) і parity T0-фікса
+// ([`runDocCommentsFixBoth`]) — з обовʼязковими не-ASCII фікстурами, на яких
+// байтовий і UTF-16 офсети розходяться (секція «Зріз 4» у
+// `crates/plugin-lang-js/src/lib.rs`).
+describe('wasm-plugin parity — js/doc_comments (JS канон vs wasm plugin-lang-js, per-file)', () => {
+  /**
+   * Ганяє одну фікстуру `js/doc_comments` через JS-детектор (канон) і
+   * `runWasmConcern` (wasm, per-file dispatch) — той самий мотив, що
+   * [`runTfmBoth`].
+   * @param {string} dir абсолютний шлях tmp-каталогу
+   * @param {string} fileName posix-relative ім'я файлу у `dir`
+   * @returns {Promise<{ js: unknown[], wasm: unknown[] }>} результати обох реалізацій
+   */
+  async function runDocCommentsBoth(dir, fileName) {
+    // eslint-disable-next-line no-unsanitized/method
+    const { lint } = await import(pathToFileURL(DOC_COMMENTS_MAIN_MJS_PATH).href)
+    const jsResult = await lint({ cwd: dir, ruleId: 'js', concernId: 'doc_comments', files: [fileName] })
+    const wasmResult = loadNative().runWasmConcern(WASM_PATH, DOC_COMMENTS_CONCERN_KEY, dir, [fileName])
+    return { js: withDefaultSeverity(jsResult.violations), wasm: withDefaultSeverity(wasmResult.violations) }
+  }
+
+  /**
+   * Parity T0-фікса: ті самі violations JS-канону подаються і в JS-патерн
+   * `fix-doc_comments.mjs` (пише на диск), і в `runWasmConcernFix` (віддає
+   * план) — порівнюється ФІНАЛЬНИЙ вміст файлу. Це і є місце, де забута
+   * зворотна конверсія UTF-16 → байти дала б різні тексти.
+   * @param {string} dir абсолютний шлях tmp-каталогу
+   * @param {string} fileName posix-relative ім'я файлу у `dir`
+   * @returns {Promise<{ js: string, wasm: string, violations: unknown[] }>} вміст після обох фіксів
+   */
+  async function runDocCommentsFixBoth(dir, fileName) {
+    const { readFile: read } = await import('node:fs/promises')
+    const abs = join(dir, fileName)
+    const original = await read(abs, 'utf8')
+
+    // eslint-disable-next-line no-unsanitized/method
+    const { lint } = await import(pathToFileURL(DOC_COMMENTS_MAIN_MJS_PATH).href)
+    const { violations } = await lint({ cwd: dir, ruleId: 'js', concernId: 'doc_comments', files: [fileName] })
+
+    // eslint-disable-next-line no-unsanitized/method
+    const { patterns } = await import(pathToFileURL(DOC_COMMENTS_FIX_MJS_PATH).href)
+    let jsFixed = original
+    if (patterns[0].test(violations)) {
+      await patterns[0].apply(violations, { cwd: dir, ruleId: 'js', concernId: 'doc_comments' })
+      jsFixed = await read(abs, 'utf8')
+      await writeFile(abs, original, 'utf8')
+    }
+
+    const plan = loadNative().runWasmConcernFix(WASM_PATH, DOC_COMMENTS_CONCERN_KEY, dir, violations, {})
+    const write = plan.edits.find(e => e.type === 'write' && e.path === fileName)
+    return { js: jsFixed, wasm: write ? write.content : original, violations }
+  }
+
+  test('файл без експортів — обидві реалізації мовчать', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'src/a.mjs', 'const x = 1\nconsole.log(x)\n')
+      const { js, wasm } = await runDocCommentsBoth(dir, 'src/a.mjs')
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('header-JSDoc + JSDoc над експортом — без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(
+        dir,
+        'src/a.mjs',
+        '/** Огляд модуля. */\n\n/** Робить справу. */\nexport function робити() {}\n'
+      )
+      const { js, wasm } = await runDocCommentsBoth(dir, 'src/a.mjs')
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('немає header-а і немає JSDoc над експортом — обидва порушення однакові', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'src/a.mjs', 'export const a = 1\nexport function b() {}\n')
+      const { js, wasm } = await runDocCommentsBoth(dir, 'src/a.mjs')
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(3)
+      expect(js.map(v => v.reason)).toEqual(['missing-file-header', 'missing-export-doc', 'missing-export-doc'])
+      expect(js[0].data).toEqual({})
+      expect(js[2].data).toEqual({ name: 'b' })
+    })
+  })
+
+  // ГОЛОВНА фікстура зрізу: кирилиця (2 байти / 1 UTF-16 unit) і емодзі поза
+  // BMP (4 байти / 2 UTF-16 units) СТОЯТЬ ПЕРЕД promotable-блоком, тож
+  // байтовий офсет crate-парсера і UTF-16-офсет napi-парсера розходяться.
+  // Наївний порт (`data.start` у байтах) валить саме цей тест.
+  test('не-ASCII перед promotable-блоком — data.{start,end} збігаються (UTF-16, не байти)', async () => {
+    await withTmpDir(async dir => {
+      const content = "/** Огляд. */\nconst внутрішнє = '😀'\n// опис експорту\nexport function робити() {}\n"
+      await writeFileDeep(dir, 'src/файл.mjs', content)
+      const { js, wasm } = await runDocCommentsBoth(dir, 'src/файл.mjs')
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].data.promotable).toBe(true)
+      // Самоперевірка фікстури: якби офсети були байтовими, вони б НЕ
+      // збіглися з UTF-16-індексом того самого місця в JS-рядку.
+      const utf16Start = content.indexOf('// опис')
+      const byteStart = Buffer.byteLength(content.slice(0, utf16Start), 'utf8')
+      expect(byteStart).not.toBe(utf16Start)
+      expect(js[0].data.start).toBe(utf16Start)
+      expect(content.slice(js[0].data.start, js[0].data.end)).toBe('// опис експорту')
+    })
+  })
+
+  test('провідний //-блок на початку файлу — promotable header з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'src/a.mjs', '// Огляд модуля 😀\n// другий рядок\nexport const a = 1\n')
+      const { js, wasm } = await runDocCommentsBoth(dir, 'src/a.mjs')
+      expect(wasm).toEqual(js)
+      expect(js[0].reason).toBe('missing-file-header')
+      expect(js[0].data.promotable).toBe(true)
+    })
+  })
+
+  test('порожній рядок між //-блоком і експортом — порушення НЕ promotable', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'src/a.mjs', '/** Огляд. */\n// відірваний коментар\n\nexport const a = 1\n')
+      const { js, wasm } = await runDocCommentsBoth(dir, 'src/a.mjs')
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].data).toEqual({ name: 'a' })
+    })
+  })
+
+  test('shebang перед header-JSDoc — обидві реалізації бачать header', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'bin/a.mjs', '#!/usr/bin/env node\n/** Огляд. */\n/** Опис. */\nexport const a = 1\n')
+      const { js, wasm } = await runDocCommentsBoth(dir, 'bin/a.mjs')
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('export default / export-специфікатори — однакові імена в data.name', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(
+        dir,
+        'src/a.mjs',
+        '/** Огляд. */\nconst внутрішнє = 1\nexport { внутрішнє }\nexport default class {}\n'
+      )
+      const { js, wasm } = await runDocCommentsBoth(dir, 'src/a.mjs')
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].data).toEqual({ name: 'default' })
+    })
+  })
+
+  test('syntax error — обидві реалізації мовчать (синтаксис ловлять інші концерни)', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'src/a.mjs', 'export function (\n')
+      const { js, wasm } = await runDocCommentsBoth(dir, 'src/a.mjs')
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('тест/фікстура/декларація — поза вимогою в обох реалізаціях', async () => {
+    await withTmpDir(async dir => {
+      for (const rel of ['src/a.test.mjs', 'tests/b.mjs', 'src/fixtures/c.mjs', 'types/d.d.ts']) {
+        await writeFileDeep(dir, rel, 'export const a = 1\n')
+        const { js, wasm } = await runDocCommentsBoth(dir, rel)
+        expect(wasm).toEqual(js)
+        expect(js).toEqual([])
+      }
+    })
+  })
+
+  test('T0-фікс: ASCII-блок підвищується однаково JS-патерном фікса і wasm-планом', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'src/a.mjs', '// Overview of module\n// second line\nexport const a = 1\n')
+      const { js, wasm } = await runDocCommentsFixBoth(dir, 'src/a.mjs')
+      expect(wasm).toBe(js)
+      expect(js).toBe('/**\n * Overview of module\n * second line\n */\nexport const a = 1\n')
+    })
+  })
+
+  // Дзеркало головної detect-фікстури на боці fix: тут падає забута
+  // ЗВОРОТНА конверсія (UTF-16 з `data` → байти для зрізу UTF-8-рядка).
+  test('T0-фікс: не-ASCII вміст — JS-патерн фікса і wasm-план дають БАЙТ-У-БАЙТ той самий текст', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(
+        dir,
+        'src/файл.mjs',
+        "// Огляд файлу 😀\nconst внутрішнє = '😀'\n// опис експорту 😀\nexport function робити() {}\n"
+      )
+      const { js, wasm } = await runDocCommentsFixBoth(dir, 'src/файл.mjs')
+      expect(wasm).toBe(js)
+      expect(js).toBe(
+        "/** Огляд файлу 😀 */\nconst внутрішнє = '😀'\n/** опис експорту 😀 */\nexport function робити() {}\n"
+      )
+    })
+  })
+
+  test('T0-фікс: кілька блоків в одному файлі — однаковий результат (заміна з кінця)', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(
+        dir,
+        'src/файл.mjs',
+        '// Огляд 😀\nconst х = 1\n// перший експорт\nexport const а = 1\n// другий експорт 😀\nexport const б = 2\n'
+      )
+      const { js, wasm } = await runDocCommentsFixBoth(dir, 'src/файл.mjs')
+      expect(wasm).toBe(js)
+      expect(js).toBe(
+        '/** Огляд 😀 */\nconst х = 1\n/** перший експорт */\nexport const а = 1\n/** другий експорт 😀 */\nexport const б = 2\n'
+      )
+    })
+  })
+
+  // Guard ідемпотентності (`LINE_COMMENT_LINE_RE` у `fix-doc_comments.mjs` і
+  // `is_line_comment_block` у гості): у продакшн-конвеєрі `applyT0` ганяє
+  // ОБИДВА патерни одним масивом violations, тож JS-фіксер отримує вже
+  // несвіжі офсети після wasm-плану. Без guard-а він різав би підвищений
+  // `/** … */` посередині.
+  test('T0-фікс: несвіжі офсети після wasm-плану — JS-патерн фікса лишає файл недоторканим', async () => {
+    await withTmpDir(async dir => {
+      const rel = 'src/файл.mjs'
+      await writeFileDeep(dir, rel, "// Огляд файлу 😀\nconst внутрішнє = '😀'\n// опис 😀\nexport const а = 1\n")
+      const { wasm, violations } = await runDocCommentsFixBoth(dir, rel)
+
+      // Емулюємо `applyT0`: wasm-план уже застосовано, ті самі violations
+      // подаються далі в JS-патерн.
+      await writeFile(join(dir, rel), wasm, 'utf8')
+      // eslint-disable-next-line no-unsanitized/method
+      const { patterns } = await import(pathToFileURL(DOC_COMMENTS_FIX_MJS_PATH).href)
+      if (patterns[0].test(violations)) {
+        await patterns[0].apply(violations, { cwd: dir, ruleId: 'js', concernId: 'doc_comments' })
+      }
+      const { readFile: read } = await import('node:fs/promises')
+      expect(await read(join(dir, rel), 'utf8')).toBe(wasm)
+
+      // …і повторний wasm-план на вже підвищеному файлі теж порожній.
+      const plan = loadNative().runWasmConcernFix(WASM_PATH, DOC_COMMENTS_CONCERN_KEY, dir, violations, {})
+      expect(plan.edits).toEqual([])
     })
   })
 })

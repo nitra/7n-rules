@@ -80,6 +80,7 @@ const CONCERN_STYLE_TOOLING: &str = "style/tooling";
 const CONCERN_SANDBOX_AWARE_TEST: &str = "test/sandbox-aware-test";
 const CONCERN_VITEST_API_CONVENTIONS: &str = "test/vitest-api-conventions";
 const CONCERN_VUE_PACKAGES: &str = "vue/packages";
+const CONCERN_DOC_COMMENTS: &str = "js/doc_comments";
 
 /// Абсолютний шлях до зібраного `.wasm`-компонента (`crates/plugin-lang-js/build.sh`)
 /// — `wasm32-wasip2`/`release`.
@@ -107,7 +108,7 @@ fn host() -> PluginHost {
 }
 
 #[test]
-fn describe_declares_all_thirty_five_concerns_with_expected_scopes() {
+fn describe_declares_all_thirty_six_concerns_with_expected_scopes() {
     let path = require_fixture();
     let plugin = host()
         .load(&path, PLUGIN_WORLD_VERSION)
@@ -134,7 +135,9 @@ fn describe_declares_all_thirty_five_concerns_with_expected_scopes() {
     // само (блокер package-асетів знявся: detect вмісту асетів не читає).
     // Зріз 2 додає `js/check` — вшитий канон oxlint (`include_str!`) плюс
     // рефакторинг рішення Ґ, секція «Зріз 2» там само.
-    assert_eq!(manifest.concerns.len(), 35);
+    // Зріз 4 додає `js/doc_comments` — ДРУГУ per-file контрибуцію плагіна
+    // й другий концерн із реальним `export fix` (секція «Зріз 4» там само).
+    assert_eq!(manifest.concerns.len(), 36);
 
     let tfm = manifest
         .concerns
@@ -142,6 +145,14 @@ fn describe_declares_all_thirty_five_concerns_with_expected_scopes() {
         .find(|c| c.key == CONCERN_TFM)
         .expect("vue/tfm-translations має бути в маніфесті");
     assert_eq!(tfm.scope, ConcernScope::PerFile);
+
+    let doc_comments = manifest
+        .concerns
+        .iter()
+        .find(|c| c.key == CONCERN_DOC_COMMENTS)
+        .expect("js/doc_comments має бути в маніфесті");
+    assert_eq!(doc_comments.scope, ConcernScope::PerFile);
+    assert_eq!(doc_comments.glob, vec!["**/*.{js,mjs,cjs,ts}".to_string()]);
 
     let gap = manifest
         .concerns
@@ -837,6 +848,72 @@ fn fix_no_bun_test_import_returns_empty_plan_for_unfixable_import() {
         })
         .expect("fix не мав провалитись");
     assert!(plan.edits.is_empty());
+}
+
+/// Зріз 4 контракту v3.1 — живий смок `js/doc_comments` через РЕАЛЬНИЙ
+/// host-виклик на НЕ-ASCII фікстурі: кирилиця (2 байти / 1 UTF-16 unit) і
+/// емодзі поза BMP (4 байти / 2 UTF-16 units) перед promotable-блоком роблять
+/// байтовий і UTF-16 офсети різними, тож забута конверсія на будь-якому з
+/// двох боків WIT-межі валить саме цей тест, а не «десь колись у консюмера».
+#[test]
+fn doc_comments_detect_and_fix_round_trip_on_non_ascii_fixture() {
+    use rules_contract::fix::{FileEdit, FixRequest};
+
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let files = vec![SourceFile {
+        path: "src/файл.mjs".to_string(),
+        content: "// Огляд файлу 😀
+const внутрішнє = '😀'
+// опис експорту
+export function робити() {}
+"
+        .to_string(),
+    }];
+    let diagnostics = plugin
+        .detect(&DetectBatch {
+            concern_id: CONCERN_DOC_COMMENTS.to_string(),
+            files: files.clone(),
+        })
+        .expect("detect не мав провалитись");
+    // header (promotable — провідний `//`-блок) + export без JSDoc.
+    assert_eq!(diagnostics.len(), 2);
+    assert_eq!(diagnostics[0].reason, "missing-file-header");
+    assert_eq!(diagnostics[1].reason, "missing-export-doc");
+    assert_eq!(diagnostics[1].severity, Severity::Error);
+
+    let plan = plugin
+        .fix(&FixRequest {
+            concern_id: CONCERN_DOC_COMMENTS.to_string(),
+            files: files.clone(),
+            diagnostics,
+        })
+        .expect("fix не мав провалитись");
+    assert_eq!(plan.edits.len(), 1);
+    let content = match &plan.edits[0] {
+        FileEdit::Write(write) => {
+            assert_eq!(write.path, "src/файл.mjs");
+            write.content.clone()
+        }
+        other => panic!("очікували write-edit, отримали {other:?}"),
+    };
+    assert_eq!(
+        content,
+        "/** Огляд файлу 😀 */\nconst внутрішнє = '😀'\n/** опис експорту */\nexport function робити() {}\n"
+    );
+
+    // Re-detect по вмісту з плану — канонічний вердикт: обидва порушення закрито.
+    let after = plugin
+        .detect(&DetectBatch {
+            concern_id: CONCERN_DOC_COMMENTS.to_string(),
+            files: vec![SourceFile {
+                path: "src/файл.mjs".to_string(),
+                content,
+            }],
+        })
+        .expect("re-detect не мав провалитись");
+    assert!(after.is_empty());
 }
 
 /// Той самий сценарій, що й JS-тест «успіх: import з vitest → без violations».

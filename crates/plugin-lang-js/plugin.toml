@@ -306,6 +306,14 @@ glob = [
   ".eslintrc.yml",
 ]
 
+# Зріз 4 контракту v3.1: PER-FILE-контрибуція — глоб дослівно з
+# `concern.json.lint.glob` JS-канону (`IGNORE_GLOBS` живуть у недосяжній
+# globby-гілці `lint()`, секція «Зріз 4» у `src/lib.rs`).
+[[concerns]]
+key = "js/doc_comments"
+scope = "per-file"
+glob = ["**/*.{js,mjs,cjs,ts}"]
+
 [capabilities]
 # Хост передає вміст файлів inline у `detect-batch`/`fix-request` (як
 # per-file, так і host-побудований full-scope batch) — плагін не читає диск

@@ -202,7 +202,7 @@ describe('resolveWasmConcernMap — читання конфігу', () => {
         'utf8'
       )
       const first = await resolveMap(dir, { env: {} })
-      // plugin-lang-js декларує тридцять п'ять контрибуцій
+      // plugin-lang-js декларує тридцять шість контрибуцій
       // (vue/tfm-translations, style/gap, задача N2 + пʼять концернів задачі
       // Q1 батч 1 + два концерни задачі Q2 батч 2 + два AST-концерни задачі
       // Q3 + три AST-концерни задачі Q4 батч 4, де-скоуп батчу 2 знято +
@@ -211,14 +211,15 @@ describe('resolveWasmConcernMap — читання конфігу', () => {
       // батчу 6 + чотири `npm-module/*` і `js/dep-policy` батчу 7 +
       // `bun/layout`, `style/tooling`, `test/sandbox-aware-test`,
       // `test/vitest-api-conventions` батчу 8 + `vue/packages` батчу 9 +
-      // `test/stryker_config` зрізу 1 і `js/check` зрізу 2 контракту v3.1) —
-      // мапа концернів індексується за кожним ключем окремо.
-      expect(first.size).toBe(35)
+      // `test/stryker_config` зрізу 1, `js/check` зрізу 2 і `js/doc_comments`
+      // зрізу 4 контракту v3.1) — мапа концернів індексується за кожним
+      // ключем окремо.
+      expect(first.size).toBe(36)
       // Видаляємо .n-rules.json — якби кеш не працював, другий виклик повернув би порожню мапу.
       await writeFile(join(dir, '.n-rules.json'), JSON.stringify({}), 'utf8')
       const second = await resolveMap(dir)
       expect(second).toBe(first)
-      expect(second.size).toBe(35)
+      expect(second.size).toBe(36)
     })
   })
 
