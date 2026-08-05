@@ -13,59 +13,19 @@
 //! JS-CLI такої підкоманди не має (команда native-first); parity гейтиться
 //! проти фасадів `npm/scripts/lib/changed-files.mjs` тестом
 //! `npm/scripts/lib/tests/rules-cli-parity.test.mjs`.
+//!
+//! Argv розбирає спільна `clap`-граматика ([`crate::cli::ChangedFilesArgs`]):
+//! поверхня native-only, тож невідомий аргумент — usage-помилка (мовчазне
+//! ігнорування приховувало б одруківки в plumbing-команді).
 
-use std::path::PathBuf;
 use std::process::ExitCode;
 
+use crate::cli::ChangedFilesArgs;
 use crate::git_policy;
 
-/// Використання команди — для повідомлень про невідомі аргументи.
-const USAGE: &str = "rules-cli changed-files [--cwd <dir>] [--delta] [--base <ref>]";
-
-/// Розібрані аргументи `changed-files`.
-struct Args {
-    cwd: Option<PathBuf>,
-    base: Option<String>,
-    delta: bool,
-}
-
-/// Плаский розбір прапорців; будь-який невідомий аргумент — помилка
-/// (native-команда володіє своєю поверхнею, мовчазна делегація тут
-/// приховувала б одруківки).
-fn parse_args(args: &[String]) -> Result<Args, String> {
-    let mut parsed = Args {
-        cwd: None,
-        base: None,
-        delta: false,
-    };
-    let mut it = args.iter();
-    while let Some(arg) = it.next() {
-        match arg.as_str() {
-            "--cwd" => {
-                let value = it.next().ok_or("--cwd потребує значення <dir>")?;
-                parsed.cwd = Some(PathBuf::from(value));
-            }
-            "--base" => {
-                let value = it.next().ok_or("--base потребує значення <ref>")?;
-                parsed.base = Some(value.clone());
-            }
-            "--delta" => parsed.delta = true,
-            other => return Err(format!("невідомий аргумент «{other}»")),
-        }
-    }
-    Ok(parsed)
-}
-
 /// Виконує команду: збирає набір файлів у вибраному режимі й друкує його.
-pub fn run(args: &[String]) -> ExitCode {
-    let parsed = match parse_args(args) {
-        Ok(parsed) => parsed,
-        Err(message) => {
-            eprintln!("❌ changed-files: {message} — використання: {USAGE}");
-            return ExitCode::FAILURE;
-        }
-    };
-    let cwd = match parsed.cwd.map_or_else(std::env::current_dir, Ok) {
+pub fn run(parsed: &ChangedFilesArgs) -> ExitCode {
+    let cwd = match parsed.cwd.clone().map_or_else(std::env::current_dir, Ok) {
         Ok(cwd) => cwd,
         Err(error) => {
             eprintln!("❌ changed-files: не вдалося визначити робочий каталог: {error}");

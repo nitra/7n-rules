@@ -35,11 +35,18 @@
 //!
 //! # Парсер прапорців
 //!
-//! Розбір прапорців дослівно повторює JS: `valueOf(flag)` шукає ПЕРШЕ
-//! входження й бере наступний елемент (прапорець останнім аргументом →
-//! значення відсутнє, як `rest[i+1] ?? null`), невідомі аргументи мовчки
-//! ігноруються, `--json`/`--github`/`--azure` перевіряються через
-//! `includes` у тому самому порядку пріоритету.
+//! Argv розбирає спільна `clap`-граматика ([`crate::cli::CiPlanArgs`]).
+//! Розбіжності з дослівним JS-портом (`valueOf` через `indexOf`), усі —
+//! наслідок Р11 і всі — у бік менш сюрпризного:
+//! - `--path=<dir>` тепер працює нарівні з `--path <dir>` (rego-канон
+//!   сервіс-пайплайнів шукає саме форму з пробілом — вона лишається);
+//! - за дубльованого прапорця береться ОСТАННЄ входження, а не перше;
+//! - прапорець без значення (останнім аргументом) — не мовчазний `null`, а
+//!   помилка розбору, після якої команда чесно ДЕЛЕГУЄТЬСЯ в JS-CLI:
+//!   поверхню `ci plan` бінар ще ділить із ним, тож argv, який Rust-парсер
+//!   не зрозумів, має доїхати до виконавця, а не впертися в помилку.
+//!
+//! Пріоритет `--json` → `--github` → `--azure` не змінився.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -55,9 +62,11 @@ use rules_core::lint_plan::match_lint_globs;
 use rules_core::locale::locale_compare;
 use rules_core::rule_applies::{read_rule_applies, rule_applies, AppliesSpec};
 
+use crate::cli::CiPlanArgs;
 use crate::{cursor_ignore, git_policy, js_fallback, paths};
 
 /// Розібрані аргументи `ci plan`.
+#[derive(Debug)]
 struct Args {
     /// Значення `--cwd` як його ввів користувач — саме воно потрапляє в текст
     /// помилок `--path` (JS інтерполює той самий сирий рядок).
@@ -74,23 +83,23 @@ struct Args {
     azure: bool,
 }
 
-/// Виконує `ci <subcommand>`: `args` — ПОВНИЙ argv (з `ci` на нульовій
-/// позиції), щоб делегація віддала його в JS без змін.
-pub fn run(args: &[String]) -> ExitCode {
-    let after_ci = &args[1..];
-    let sub = after_ci.first().map(String::as_str);
-    if sub != Some("plan") {
-        eprintln!(
-            "❌ Невідома підкоманда ci: {} — очікується: n-rules ci plan [--path <dir>] [--base <ref>] [--github|--azure|--json]",
-            sub.unwrap_or("(порожньо)")
-        );
-        return ExitCode::FAILURE;
-    }
+/// Повідомлення про підкоманду `ci`, якої немає (поведінка не змінилась —
+/// це власна поверхня роутера, JS тут нічого не додає).
+pub fn unknown_subcommand(sub: Option<&str>) -> ExitCode {
+    eprintln!(
+        "❌ Невідома підкоманда ci: {} — очікується: n-rules ci plan [--path <dir>] [--base <ref>] [--github|--azure|--json]",
+        sub.unwrap_or("(порожньо)")
+    );
+    ExitCode::FAILURE
+}
 
+/// Виконує `ci plan`: `args` — ПОВНИЙ argv (з `ci` на нульовій позиції), щоб
+/// делегація віддала його в JS без змін.
+pub fn run_plan(plan_args: &CiPlanArgs, args: &[String]) -> ExitCode {
     let Ok(process_cwd) = std::env::current_dir() else {
         return js_fallback::delegate(args);
     };
-    let parsed = parse_args(&after_ci[1..], &process_cwd);
+    let parsed = resolve_args(plan_args, &process_cwd);
 
     // Конфіг битий / корінь пакета не резолвиться / плагіни в грі — усе це
     // native-шлях не відтворює byte-exact, тож делегуємо (доккомент модуля).
@@ -114,23 +123,22 @@ pub fn run(args: &[String]) -> ExitCode {
     }
 }
 
-/// Порт розбору аргументів `runCiPlanCli` (семантика — доккомент модуля).
-fn parse_args(rest: &[String], process_cwd: &Path) -> Args {
-    let value_of = |flag: &str| -> Option<String> {
-        rest.iter()
-            .position(|arg| arg == flag)
-            .and_then(|index| rest.get(index + 1))
-            .cloned()
-    };
-    let cwd_display = value_of("--cwd").unwrap_or_else(|| process_cwd.display().to_string());
+/// Доводить розібрані `clap`-аргументи до внутрішнього вигляду: резолвить
+/// корінь прогону, зберігаючи СИРИЙ рядок `--cwd` для текстів помилок
+/// (JS інтерполює саме його).
+fn resolve_args(plan: &CiPlanArgs, process_cwd: &Path) -> Args {
+    let cwd_display = plan
+        .cwd
+        .clone()
+        .unwrap_or_else(|| process_cwd.display().to_string());
     Args {
         cwd: paths::resolve(process_cwd, &cwd_display),
         cwd_display,
-        path_arg: value_of("--path"),
-        base_ref: value_of("--base"),
-        json: rest.iter().any(|arg| arg == "--json"),
-        github: rest.iter().any(|arg| arg == "--github"),
-        azure: rest.iter().any(|arg| arg == "--azure"),
+        path_arg: plan.path.clone(),
+        base_ref: plan.base.clone(),
+        json: plan.json,
+        github: plan.github,
+        azure: plan.azure,
     }
 }
 
@@ -410,49 +418,72 @@ mod tests {
     use super::*;
     use tempfile::TempDir;
 
-    fn args(list: &[&str]) -> Vec<String> {
-        list.iter().map(|a| (*a).to_string()).collect()
+    /// Розбирає `ci plan <list>` СПІЛЬНОЮ граматикою (не власною копією) і
+    /// доводить результат до [`Args`].
+    fn parse_plan(list: &[&str], cwd: &Path) -> Result<Args, clap::error::ErrorKind> {
+        let mut argv = vec!["ci", "plan"];
+        argv.extend_from_slice(list);
+        match crate::cli::parse_for_test(&argv)? {
+            crate::cli::NativeCommand::Ci(ci) => match ci.command {
+                crate::cli::CiCommand::Plan(plan) => Ok(resolve_args(&plan, cwd)),
+                crate::cli::CiCommand::Unknown(rest) => panic!("очікувався plan, а не {rest:?}"),
+            },
+            other => panic!("очікувалась команда ci, а не {other:?}"),
+        }
     }
 
+    /// Обидві форми значення дають однаковий результат — це і є уніфікація
+    /// граматики (JS-порт розумів лише форму з пробілом).
     #[test]
-    fn parse_args_mirrors_index_of_semantics() {
-        let cwd = Path::new("/repo");
-        let parsed = parse_args(
-            &args(&["--path", "run/nexus", "--base", "origin/dev", "--azure"]),
-            cwd,
-        );
-        assert_eq!(parsed.path_arg.as_deref(), Some("run/nexus"));
-        assert_eq!(parsed.base_ref.as_deref(), Some("origin/dev"));
-        assert!(parsed.azure);
-        assert!(!parsed.json);
-        assert_eq!(parsed.cwd, Path::new("/repo"));
+    fn both_value_forms_are_accepted() {
+        let spaced = parse_plan(
+            &["--path", "run/nexus", "--base", "origin/dev", "--azure"],
+            Path::new("/repo"),
+        )
+        .unwrap();
+        let joined = parse_plan(
+            &["--path=run/nexus", "--base=origin/dev", "--azure"],
+            Path::new("/repo"),
+        )
+        .unwrap();
+        for parsed in [&spaced, &joined] {
+            assert_eq!(parsed.path_arg.as_deref(), Some("run/nexus"));
+            assert_eq!(parsed.base_ref.as_deref(), Some("origin/dev"));
+            assert!(parsed.azure);
+            assert!(!parsed.json);
+            assert_eq!(parsed.cwd, Path::new("/repo"));
+        }
     }
 
+    /// Прапорець без значення більше не читається як «немає значення»:
+    /// це помилка розбору, після якої роутер делегує argv у JS-CLI.
     #[test]
-    fn trailing_flag_without_value_reads_as_absent() {
-        let parsed = parse_args(&args(&["--path"]), Path::new("/repo"));
-        assert!(parsed.path_arg.is_none());
+    fn trailing_flag_without_value_is_a_parse_error() {
+        assert!(parse_plan(&["--path"], Path::new("/repo")).is_err());
     }
 
     #[test]
     fn cwd_flag_overrides_root_and_stays_verbatim_in_messages() {
-        let parsed = parse_args(&args(&["--cwd", "./sub", "--json"]), Path::new("/repo"));
+        let parsed = parse_plan(&["--cwd", "./sub", "--json"], Path::new("/repo")).unwrap();
         assert_eq!(parsed.cwd_display, "./sub");
         assert_eq!(parsed.cwd, Path::new("/repo/sub"));
         assert!(parsed.json);
     }
 
+    /// Невідомий аргумент більше не ковтається мовчки — але й не стає
+    /// помилкою для користувача: роутер віддає такий argv у JS-CLI.
     #[test]
-    fn unknown_arguments_are_ignored_like_in_js() {
-        let parsed = parse_args(&args(&["--що-завгодно", "--github"]), Path::new("/repo"));
-        assert!(parsed.github);
-        assert!(parsed.path_arg.is_none());
+    fn unknown_arguments_do_not_parse_natively() {
+        assert_eq!(
+            parse_plan(&["--що-завгодно", "--github"], Path::new("/repo")).unwrap_err(),
+            clap::error::ErrorKind::UnknownArgument
+        );
     }
 
     #[test]
     fn path_outside_cwd_is_rejected_with_the_js_message() {
         let tmp = TempDir::new().unwrap();
-        let parsed = parse_args(&[], tmp.path());
+        let parsed = parse_plan(&[], tmp.path()).unwrap();
         let error = resolve_and_assert_path_dir(&parsed, "../outside").unwrap_err();
         assert!(error.starts_with("--path має вказувати каталог усередині "));
     }
@@ -461,7 +492,7 @@ mod tests {
     fn path_that_is_not_a_directory_is_rejected() {
         let tmp = TempDir::new().unwrap();
         std::fs::write(tmp.path().join("file.txt"), "x").unwrap();
-        let parsed = parse_args(&[], tmp.path());
+        let parsed = parse_plan(&[], tmp.path()).unwrap();
         let error = resolve_and_assert_path_dir(&parsed, "file.txt").unwrap_err();
         assert!(error.starts_with("--path не є каталогом: "));
     }

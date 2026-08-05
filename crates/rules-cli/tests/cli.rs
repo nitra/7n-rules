@@ -1,3 +1,5 @@
+//! cspell:ignore одруківка runn
+//!
 //! Інтеграційні тести бінаря `rules-cli` (зрізи 1–4 фази 8): native-команди
 //! (`lint --help`, `changed-files`, `skill list`, `rename-yaml-extensions`,
 //! native-гілки `hook`) і транзитна делегація в JS-entrypoint.
@@ -116,11 +118,64 @@ fn changed_files_delta_falls_back_to_worktree_without_base() {
     assert_eq!(stdout(&out), "d.txt\n");
 }
 
+/// Власна поверхня бінаря — fail-closed, і тепер із кодом `2` (той самий, що
+/// вже був у `tools`, і що дає `clap` за замовчуванням).
 #[test]
 fn changed_files_rejects_unknown_argument() {
     let out = bin().args(["changed-files", "--unknown"]).output().unwrap();
-    assert_eq!(out.status.code(), Some(1));
-    assert!(stderr(&out).contains("невідомий аргумент"));
+    assert_eq!(out.status.code(), Some(2));
+    assert!(
+        stderr(&out).contains("невідомий аргумент"),
+        "{}",
+        stderr(&out)
+    );
+}
+
+/// Уніфікована граматика: значення можна давати і через пробіл, і через `=`.
+/// Раніше `changed-files` розумів лише першу форму, `rename-yaml-extensions` —
+/// лише другу.
+#[test]
+fn value_flags_accept_both_forms() {
+    let tmp = init_repo();
+    std::fs::write(tmp.path().join("a.txt"), "змінено\n").unwrap();
+    let spaced = bin()
+        .args(["changed-files", "--cwd"])
+        .arg(tmp.path())
+        .output()
+        .unwrap();
+    let joined = bin()
+        .arg("changed-files")
+        .arg(format!("--cwd={}", tmp.path().display()))
+        .output()
+        .unwrap();
+    assert!(spaced.status.success(), "stderr: {}", stderr(&spaced));
+    assert!(joined.status.success(), "stderr: {}", stderr(&joined));
+    assert_eq!(stdout(&spaced), "a.txt\n");
+    assert_eq!(stdout(&joined), stdout(&spaced));
+}
+
+/// Прапорець без значення більше не читається як «значення відсутнє».
+#[test]
+fn value_flag_without_value_is_a_usage_error() {
+    let out = bin().args(["changed-files", "--base"]).output().unwrap();
+    assert_eq!(out.status.code(), Some(2));
+    assert!(stderr(&out).contains("бракує значення"), "{}", stderr(&out));
+}
+
+/// Довідка команд, чию поверхню тримає сам бінар, — згенерована `clap`, з
+/// українськими заголовками (раніше `--help` там не існувало взагалі).
+#[test]
+fn owned_commands_have_generated_ukrainian_help() {
+    for args in [
+        vec!["changed-files", "--help"],
+        vec!["rename-yaml-extensions", "-h"],
+        vec!["tools", "ensure", "--help"],
+    ] {
+        let label = args.join(" ");
+        let out = bin().args(&args).output().unwrap();
+        assert!(out.status.success(), "{label}: {}", stderr(&out));
+        assert!(stdout(&out).contains("Використання: n-rules"), "{label}");
+    }
 }
 
 /// Фейковий встановлений пакет `@7n/rules`: каталог зі `skills/<id>/SKILL.md`
@@ -233,6 +288,39 @@ fn rename_yaml_extensions_dry_run_prefixes_and_keeps_disk_intact() {
     assert!(!tmp.path().join("k8s/web.yaml").exists());
 }
 
+/// Найважливіша зміна поведінки цієї команди: JS-двійник мовчки ковтав
+/// невідомий аргумент, тобто одруківка в прапорці ТИХО запускала мутацію
+/// дерева. Тепер це usage-помилка, і диск лишається недоторканим.
+#[test]
+fn rename_yaml_extensions_rejects_unknown_argument_without_touching_disk() {
+    let tmp = yaml_fixture();
+    let out = bin()
+        .current_dir(tmp.path())
+        .args(["rename-yaml-extensions", "--dry-runn"])
+        .output()
+        .unwrap();
+    assert_eq!(out.status.code(), Some(2));
+    assert!(
+        stderr(&out).contains("невідомий аргумент"),
+        "{}",
+        stderr(&out)
+    );
+    assert!(tmp.path().join("k8s/web.yml").exists());
+}
+
+/// А `--root` тепер приймається і через пробіл — форма, якої в JS не було.
+#[test]
+fn rename_yaml_extensions_accepts_spaced_root() {
+    let tmp = yaml_fixture();
+    let out = bin()
+        .args(["rename-yaml-extensions", "--dry-run", "--root"])
+        .arg(tmp.path())
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "stderr: {}", stderr(&out));
+    assert!(stdout(&out).starts_with("[dry-run] k8s/api.yml → k8s/api.yaml\n"));
+}
+
 #[test]
 fn rename_yaml_extensions_reports_empty_result_and_is_idempotent() {
     let tmp = yaml_fixture();
@@ -341,6 +429,40 @@ fn unknown_command_delegates_argv_and_exit_code_to_js_entrypoint() {
         .unwrap();
     assert_eq!(out.status.code(), Some(42));
     assert_eq!(stdout(&out), "/fake/n-rules.js lint --full --no-fix\n");
+}
+
+/// Найважливіша гарантія розділення політик: на поверхні, яку бінар ЩЕ
+/// ділить із JS-CLI, невідомий прапорець не стає помилкою — інакше argv, який
+/// JS розуміє, не доїхав би до виконавця.
+#[cfg(unix)]
+#[test]
+fn unknown_flag_on_a_shared_surface_still_reaches_the_js_entrypoint() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tmp = TempDir::new().unwrap();
+    let stub = tmp.path().join("runtime.sh");
+    std::fs::write(&stub, "#!/bin/sh\necho \"$@\"\nexit 3\n").unwrap();
+    std::fs::set_permissions(&stub, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+    for args in [
+        vec!["lint", "--no-fix", "--майбутній-прапорець"],
+        vec!["ci", "plan", "--майбутній-прапорець"],
+    ] {
+        let label = args.join(" ");
+        let out = bin()
+            .current_dir(tmp.path())
+            .env("N_RULES_JS_ENTRY", "/fake/n-rules.js")
+            .env("N_RULES_JS_RUNTIME", &stub)
+            .args(&args)
+            .output()
+            .unwrap();
+        assert_eq!(out.status.code(), Some(3), "{label}");
+        assert_eq!(
+            stdout(&out),
+            format!("/fake/n-rules.js {label}\n"),
+            "{label}"
+        );
+    }
 }
 
 /// Виконуваний shell-стаб замість bun/node: друкує argv, віддає stdin у

@@ -71,6 +71,7 @@ use rules_core::rule_applies::{evaluate_applies, read_rule_applies, AppliesSpec}
 use serde_json::{json, Value};
 
 use crate::bridge::Bridge;
+use crate::cli::LintArgs;
 use crate::{git_policy, js_fallback, paths};
 
 /// Прапорець вмикання native-шляху (поряд із env `N_RULES_NATIVE_LINT`).
@@ -86,10 +87,10 @@ enum Bail {
     Fail(String),
 }
 
-/// Розібрані аргументи `lint` — підмножина, яку розуміє native-шлях
-/// (дзеркало `case 'lint'` у `npm/bin/n-rules-cli.mjs`).
+/// Аргументи `lint`, доведені до вигляду, у якому їх споживає native-шлях
+/// (абсолютний корінь, `migrateRuleIds`, обчислена вісь `--full`).
 #[derive(Debug)]
-struct LintArgs {
+struct LintRun {
     cwd: PathBuf,
     base_ref: Option<String>,
     repo_wide: bool,
@@ -99,88 +100,68 @@ struct LintArgs {
 }
 
 /// Чи ввімкнено native-шлях (прапорець або env).
-fn native_enabled(args: &[String]) -> bool {
-    if args.iter().any(|a| a == NATIVE_FLAG) {
+fn native_enabled(parsed: &LintArgs) -> bool {
+    if parsed.native_detect {
         return true;
     }
     std::env::var(NATIVE_ENV).is_ok_and(|v| v == "1" || v == "true")
 }
 
-/// Розбір argv `lint` — дослівне дзеркало JS-парсера (`indexOf`-семантика,
-/// позиційні аргументи як scoped rule-id після `migrateRuleIds`).
-/// `--native-detect` — власний прапорець native-шляху, у переліку правил не
-/// зʼявляється (починається з `-`, тож JS-фільтр його теж відкидає).
-fn parse_args(args: &[String], process_cwd: &Path) -> Result<LintArgs, String> {
-    let index_of = |needle: &str| args.iter().position(|a| a == needle);
-    let cwd_idx = index_of("--cwd");
-    let path_idx = index_of("--path");
-    let base_idx = index_of("--base");
-    let repo_wide = args.iter().any(|a| a == "--repo-wide");
+/// Доводить розібрані `clap`-аргументи до [`LintRun`]. Позиційні аргументи
+/// проходять `migrateRuleIds`, як у JS; `--native-detect` — власний прапорець
+/// бінаря, у переліку правил не зʼявляється.
+fn resolve_args(parsed: &LintArgs, process_cwd: &Path) -> Result<LintRun, String> {
+    let cwd = parsed.cwd.as_deref().map_or_else(
+        || process_cwd.to_path_buf(),
+        |v| paths::resolve(process_cwd, v),
+    );
+    let rules = rules_core::config::migrate_rule_ids(&parsed.rules);
 
-    let cwd = match cwd_idx {
-        Some(idx) => paths::resolve(process_cwd, args.get(idx + 1).map_or("", String::as_str)),
-        None => process_cwd.to_path_buf(),
-    };
-    let base_ref = base_idx.and_then(|idx| args.get(idx + 1).cloned());
-
-    let positional: Vec<String> = args
-        .iter()
-        .enumerate()
-        .filter(|(i, a)| {
-            !a.starts_with('-')
-                && cwd_idx.is_none_or(|idx| *i != idx + 1)
-                && path_idx.is_none_or(|idx| *i != idx + 1)
-                && base_idx.is_none_or(|idx| *i != idx + 1)
-        })
-        .map(|(_, a)| a.clone())
-        .collect();
-    let rules = rules_core::config::migrate_rule_ids(&positional);
-
-    if repo_wide && (path_idx.is_some() || !rules.is_empty()) {
+    if parsed.repo_wide && (parsed.path.is_some() || !rules.is_empty()) {
         return Err(
             "--repo-wide не поєднується з --path чи scoped rule/concern фільтром — оберіть щось одне"
                 .to_string(),
         );
     }
 
-    Ok(LintArgs {
+    Ok(LintRun {
         cwd,
-        base_ref,
-        repo_wide,
+        base_ref: parsed.base.clone(),
+        repo_wide: parsed.repo_wide,
         // `--full` неактивний разом із `--path`/`--repo-wide` — той самий
         // предикат, що в JS (`--path` тут і так веде до делегації).
-        full: args.iter().any(|a| a == "--full") && path_idx.is_none() && !repo_wide,
-        verbose: args.iter().any(|a| a == "--verbose"),
+        full: parsed.full && parsed.path.is_none() && !parsed.repo_wide,
+        verbose: parsed.verbose,
         rules,
     })
 }
 
-/// Точка входу підкоманди. `args` — argv ПІСЛЯ `lint`.
-pub fn run(args: &[String]) -> ExitCode {
-    if !native_enabled(args) {
+/// Точка входу підкоманди. `args` — argv ПІСЛЯ `lint` (для делегації як є).
+pub fn run(parsed: &LintArgs, args: &[String]) -> ExitCode {
+    if !native_enabled(parsed) {
         return delegate(args);
     }
-    if !args.iter().any(|a| a == "--no-fix") {
+    if !parsed.no_fix {
         eprintln!(
             "ℹ️ rules-cli lint: native-шлях покриває лише --no-fix (fix-пайплайн не портовано) — делегую в JS-CLI."
         );
         return delegate(args);
     }
-    if args.iter().any(|a| a == "--path") {
+    if parsed.path.is_some() {
         eprintln!("ℹ️ rules-cli lint: --path не покрито native-шляхом — делегую в JS-CLI.");
         return delegate(args);
     }
 
     let process_cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    let parsed = match parse_args(args, &process_cwd) {
-        Ok(parsed) => parsed,
+    let resolved = match resolve_args(parsed, &process_cwd) {
+        Ok(resolved) => resolved,
         Err(message) => {
             eprintln!("❌ {message}");
             return ExitCode::FAILURE;
         }
     };
 
-    match run_native(&parsed, &process_cwd) {
+    match run_native(&resolved, &process_cwd) {
         Ok(code) => ExitCode::from(code),
         Err(Bail::Delegate(reason)) => {
             eprintln!("ℹ️ rules-cli lint: {reason} — делегую в JS-CLI.");
@@ -202,7 +183,7 @@ fn delegate(args: &[String]) -> ExitCode {
 }
 
 /// Повний native-прогін: дискавері → план → диспатч → рендер.
-fn run_native(args: &LintArgs, process_cwd: &Path) -> Result<u8, Bail> {
+fn run_native(args: &LintRun, process_cwd: &Path) -> Result<u8, Bail> {
     let config = rules_core::config::read_n_rules_config_lite(&args.cwd)
         .map_err(|error| Bail::Delegate(format!("конфіг не читається ({error})")))?;
 
@@ -414,7 +395,7 @@ fn filter_by_applies(
 /// входів, які цей режим використовує (дельта — git-виклик, `enabledRuleIds`
 /// — конфіг + warning).
 fn build_plan(
-    args: &LintArgs,
+    args: &LintRun,
     config: &LiteConfig,
     by_rule: &BTreeMap<String, Vec<ConcernMeta>>,
     rules_dirs: &[PathBuf],
@@ -541,7 +522,7 @@ fn warn_about_rules_without_concerns(
 /// Дельта-набір: merge-base за Git policy (або явний `--base`) →
 /// `collectChangedFilesSince`. Без резолвної бази — робоче дерево vs HEAD
 /// (та сама fail-open поведінка, що в `changed-files --delta`).
-fn collect_changed(args: &LintArgs) -> Result<Vec<String>, Bail> {
+fn collect_changed(args: &LintRun) -> Result<Vec<String>, Bail> {
     let candidates = if args.base_ref.is_some() {
         Vec::new()
     } else {
@@ -591,7 +572,7 @@ fn partition(plan: &[PlanItem]) -> Vec<Segment<'_>> {
 /// `detectPlanSequentially` → exit 2); уже зібрані violations лишаються.
 fn execute_plan(
     plan: &[PlanItem],
-    args: &LintArgs,
+    args: &LintRun,
     by_rule: &BTreeMap<String, Vec<ConcernMeta>>,
     bridge: &mut Bridge,
 ) -> Result<(Vec<LintViolation>, Option<String>), Bail> {
@@ -681,7 +662,7 @@ fn run_native_segment(items: &[&PlanItem], cwd: &Path) -> (Vec<LintViolation>, O
 /// Виконує суцільний сегмент концернів мосту ОДНИМ запитом `detect`.
 fn run_bridge_segment(
     items: &[&PlanItem],
-    args: &LintArgs,
+    args: &LintRun,
     by_rule: &BTreeMap<String, Vec<ConcernMeta>>,
     bridge: &mut Bridge,
 ) -> Result<(Vec<LintViolation>, Option<String>), Bail> {
@@ -740,20 +721,26 @@ fn run_bridge_segment(
 mod tests {
     use super::*;
 
-    fn args(list: &[&str]) -> Vec<String> {
-        list.iter().map(|s| (*s).to_string()).collect()
+    /// Розбирає `lint <list>` СПІЛЬНОЮ граматикою.
+    fn lint_args(list: &[&str]) -> LintArgs {
+        let mut argv = vec!["lint"];
+        argv.extend_from_slice(list);
+        match crate::cli::parse_for_test(&argv).expect("граматика lint") {
+            crate::cli::NativeCommand::Lint(parsed) => parsed,
+            other => panic!("очікувався lint, а не {other:?}"),
+        }
     }
 
     #[test]
     fn native_path_is_opt_in() {
-        assert!(!native_enabled(&args(["--no-fix"].as_slice())));
-        assert!(native_enabled(&args(["--no-fix", NATIVE_FLAG].as_slice())));
+        assert!(!native_enabled(&lint_args(&["--no-fix"])));
+        assert!(native_enabled(&lint_args(&["--no-fix", NATIVE_FLAG])));
     }
 
     #[test]
     fn positional_arguments_become_scoped_rules() {
-        let parsed = parse_args(
-            &args(["--cwd", "sub", "text", "--no-fix"].as_slice()),
+        let parsed = resolve_args(
+            &lint_args(&["--cwd", "sub", "text", "--no-fix"]),
             Path::new("/repo"),
         )
         .unwrap();
@@ -764,8 +751,8 @@ mod tests {
 
     #[test]
     fn base_ref_value_is_not_a_scoped_rule() {
-        let parsed = parse_args(
-            &args(["--base", "origin/main", "--no-fix"].as_slice()),
+        let parsed = resolve_args(
+            &lint_args(&["--base", "origin/main", "--no-fix"]),
             Path::new("/repo"),
         )
         .unwrap();
@@ -775,11 +762,8 @@ mod tests {
 
     #[test]
     fn repo_wide_conflicts_with_scoped_rules() {
-        let error = parse_args(
-            &args(["--repo-wide", "text"].as_slice()),
-            Path::new("/repo"),
-        )
-        .unwrap_err();
+        let error =
+            resolve_args(&lint_args(&["--repo-wide", "text"]), Path::new("/repo")).unwrap_err();
         assert!(error.contains("--repo-wide"), "{error}");
     }
 

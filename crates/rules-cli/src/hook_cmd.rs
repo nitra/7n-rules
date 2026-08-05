@@ -61,6 +61,7 @@
 use std::io::{IsTerminal, Read};
 use std::process::ExitCode;
 
+use crate::cli::HookArgs;
 use crate::js_fallback;
 
 /// Текст помилки «режим не вказано» — байт-у-байт із `runHookCli`
@@ -68,13 +69,14 @@ use crate::js_fallback;
 const MISSING_MODE: &str = "hook: потрібен --post-tool-use або --stop\n";
 
 /// Виконує `hook <argv>`: `args` — ПОВНИЙ argv (з `hook` на нульовій позиції),
-/// щоб делегація віддала його в JS без змін.
-pub fn run(args: &[String]) -> ExitCode {
-    let rest = &args[1..];
-    // Дзеркало `argv.includes(...)`: порядок і повтори значення не мають,
-    // невідомі аргументи ігноруються, `--post-tool-use` має пріоритет.
-    let post_tool_use = rest.iter().any(|arg| arg == "--post-tool-use");
-    let stop = rest.iter().any(|arg| arg == "--stop");
+/// щоб делегація віддала його в JS без змін. Прапорці розбирає спільна
+/// `clap`-граматика ([`crate::cli::HookArgs`]); порядок і повтори, як і в
+/// JS (`argv.includes`), значення не мають, `--post-tool-use` має пріоритет.
+/// Невідомий аргумент до цієї функції не доходить — роутер віддає такий argv
+/// у JS-CLI, який його ігнорує і виконує реальну гілку.
+pub fn run(parsed: &HookArgs, args: &[String]) -> ExitCode {
+    let post_tool_use = parsed.post_tool_use;
+    let stop = parsed.stop;
 
     if !post_tool_use && !stop {
         eprint!("{MISSING_MODE}");

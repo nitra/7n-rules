@@ -37,9 +37,11 @@ use rules_core::tool_resolve::resolve_provisioned_tool;
 use serde_json::json;
 
 use crate::bridge::Bridge;
+use crate::cli::{ToolsEnsureArgs, ToolsListArgs};
 
-/// Usage-помилка (невідома підкоманда/прапорець/тул) — той самий код `2`, що
-/// й у `lint` для «не змогли навіть спробувати».
+/// Usage-помилка (невідомий тул) — той самий код `2`, що й у `lint` для «не
+/// змогли навіть спробувати», і що ним відповідає роутер на невідому
+/// підкоманду/прапорець (`crate::describe_parse_error`).
 const EXIT_USAGE: u8 = 2;
 
 /// Щось відсутнє (`--check`) або install не вдався.
@@ -189,54 +191,17 @@ fn list_text(states: &[ToolState]) -> String {
 }
 
 /// `tools list [--json]`.
-fn run_list(args: &[String]) -> ExitCode {
-    let mut as_json = false;
-    for arg in args {
-        match arg.as_str() {
-            "--json" => as_json = true,
-            other => {
-                eprintln!("❌ tools list: невідомий аргумент «{other}» (є лише --json)");
-                return ExitCode::from(EXIT_USAGE);
-            }
-        }
-    }
+pub fn run_list(parsed: &ToolsListArgs) -> ExitCode {
     let states = collect_states(&tool_registry::tool_ids());
     print!(
         "{}",
-        if as_json {
+        if parsed.json {
             list_json(&states)
         } else {
             list_text(&states)
         }
     );
     ExitCode::SUCCESS
-}
-
-/// Розібрані аргументи `tools ensure`.
-#[derive(Debug)]
-struct EnsureArgs {
-    check: bool,
-    names: Vec<String>,
-}
-
-/// Розбір `tools ensure [<tool>…] [--check]`. Невідомий прапорець — usage-
-/// помилка (fail-closed: мовчазне ігнорування прапорця в команді, що ставить
-/// софт, — найгірший із можливих варіантів).
-fn parse_ensure_args(args: &[String]) -> Result<EnsureArgs, String> {
-    let mut parsed = EnsureArgs {
-        check: false,
-        names: Vec::new(),
-    };
-    for arg in args {
-        if arg == "--check" {
-            parsed.check = true;
-        } else if arg.starts_with('-') {
-            return Err(format!("невідомий прапорець «{arg}» (є лише --check)"));
-        } else {
-            parsed.names.push(arg.clone());
-        }
-    }
-    Ok(parsed)
 }
 
 /// Лінива обгортка мосту: піднімається щонайбільше раз на прогін команди і
@@ -335,14 +300,7 @@ fn install(tool_id: &'static str, cwd: &Path, bridge: &mut LazyBridge) -> Result
 }
 
 /// `tools ensure [<tool>…] [--check]`.
-fn run_ensure(args: &[String]) -> ExitCode {
-    let parsed = match parse_ensure_args(args) {
-        Ok(parsed) => parsed,
-        Err(message) => {
-            eprintln!("❌ tools ensure: {message}");
-            return ExitCode::from(EXIT_USAGE);
-        }
-    };
+pub fn run_ensure(parsed: &ToolsEnsureArgs) -> ExitCode {
     let targets = match resolve_targets(&parsed.names) {
         Ok(targets) => targets,
         Err(message) => {
@@ -409,21 +367,6 @@ fn run_ensure(args: &[String]) -> ExitCode {
     ExitCode::from(EXIT_MISSING)
 }
 
-/// Роутер підкоманд `tools`.
-pub fn run(args: &[String]) -> ExitCode {
-    match args.first().map(String::as_str) {
-        Some("list") => run_list(&args[1..]),
-        Some("ensure") => run_ensure(&args[1..]),
-        other => {
-            eprintln!(
-                "❌ tools: невідома підкоманда «{}».\n   n-rules tools list [--json]\n   n-rules tools ensure [<тул>…] [--check]",
-                other.unwrap_or("(немає)")
-            );
-            ExitCode::from(EXIT_USAGE)
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -447,23 +390,6 @@ mod tests {
         let error = resolve_targets(&["kubekonform".to_string()]).unwrap_err();
         assert!(error.contains("kubekonform"), "{error}");
         assert!(error.contains("kubeconform"), "{error}");
-    }
-
-    /// `--check` розпізнається в будь-якій позиції, імена накопичуються.
-    #[test]
-    fn ensure_args_parse_flag_and_names() {
-        let args = vec!["--check".to_string(), "hk".to_string(), "opa".to_string()];
-        let parsed = parse_ensure_args(&args).unwrap();
-        assert!(parsed.check);
-        assert_eq!(parsed.names, vec!["hk", "opa"]);
-    }
-
-    /// Невідомий прапорець не мовчить — інакше `--dry-run` (якого немає)
-    /// виглядав би як успішна перевірка, реально щось поставивши.
-    #[test]
-    fn ensure_args_reject_unknown_flag() {
-        let args = vec!["--dry-run".to_string()];
-        assert!(parse_ensure_args(&args).unwrap_err().contains("--dry-run"));
     }
 
     /// Маршрут відповідає ОС збірки й підказує РЕАЛЬНУ команду.
