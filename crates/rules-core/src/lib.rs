@@ -54,6 +54,9 @@ pub mod locale;
 /// `rename_yaml_extensions` — порт `npm/scripts/rename-yaml-extensions.mjs`
 /// (зріз 2 фази 8).
 pub mod rename_yaml;
+/// Декларативний rule-level гейт `main.json:applies` — дзеркало
+/// `npm/scripts/lib/rule-applies.mjs` (зріз 3 контракту плагінів v3.1).
+pub mod rule_applies;
 /// `package_root`/`rules_root` — резолв кореня встановленого `@7n/rules`,
 /// потрібний концернам, що читають вбудовані rego-полісі.
 pub mod rules_package;

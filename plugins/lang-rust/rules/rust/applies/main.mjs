@@ -1,20 +1,11 @@
-/** @see ./docs/applies.md */
-import { existsSync } from 'node:fs'
-import { join } from 'node:path'
-
-import { createViolationReporter } from '@7n/rules/scripts/lib/lint-surface/violation-reporter.mjs'
-
-import { hasCargoTomlInTree } from '../lib/has-cargo-toml.mjs'
-import { RUST_WALK_IGNORED_DIR_NAMES as IGNORED_DIR_NAMES } from '../lib/ignored-dirs.mjs'
-
 /**
- * @param {string} [cwd] корінь репозиторію
- * @returns {Promise<boolean>} `true` — правило застосовне; `false` — пропустити
+ * @see ./docs/applies.md
+ *
+ * Гейт застосовності правила ТУТ БІЛЬШЕ НЕ ЖИВЕ: він декларативний і лежить
+ * у `rust/main.json:applies` (`globMatches` по `**​/Cargo.toml` з явним
+ * `ignoreDirs`). Цей модуль лишився суто context-pass концерном.
  */
-export function applies(cwd = process.cwd()) {
-  if (existsSync(join(cwd, 'Cargo.toml'))) return Promise.resolve(true)
-  return Promise.resolve(hasCargoTomlInTree(cwd, IGNORED_DIR_NAMES))
-}
+import { createViolationReporter } from '@7n/rules/scripts/lib/lint-surface/violation-reporter.mjs'
 
 /**
  * @param {import('@7n/rules/scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту.
