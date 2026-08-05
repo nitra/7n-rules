@@ -47,9 +47,14 @@ function touch(root, relative) {
   writeFileSync(join(root, ...segments, /** @type {string} */ (name)), '')
 }
 
+/** Текст помилки про невідомий оператор несе його імʼя. */
+const UNKNOWN_OP_RE = /fileContains/u
+/** Помилка вкладеного вузла адресує його позицію в `any`. */
+const NESTED_PATH_RE = /applies\.any\[1\]/u
+
 describe('parseAppliesSpec', () => {
   test('поля немає → always, "dynamic" → dynamic', () => {
-    expect(parseAppliesSpec(undefined)).toEqual({ kind: 'always' })
+    expect(parseAppliesSpec()).toEqual({ kind: 'always' })
     expect(parseAppliesSpec('dynamic')).toEqual({ kind: 'dynamic' })
   })
 
@@ -72,7 +77,7 @@ describe('parseAppliesSpec', () => {
   })
 
   test('невідомий оператор називається в тексті помилки', () => {
-    expect(() => parseAppliesSpec({ fileContains: 'npm' })).toThrow(/fileContains/u)
+    expect(() => parseAppliesSpec({ fileContains: 'npm' })).toThrow(UNKNOWN_OP_RE)
   })
 
   test('порожні any/glob відкидаються', () => {
@@ -81,13 +86,13 @@ describe('parseAppliesSpec', () => {
   })
 
   test('шлях вузла потрапляє в текст помилки', () => {
-    expect(() => parseAppliesNode({ any: [{ pathExists: 'ok' }, { pathExists: '' }] })).toThrow(/applies\.any\[1\]/u)
+    expect(() => parseAppliesNode({ any: [{ pathExists: 'ok' }, { pathExists: '' }] })).toThrow(NESTED_PATH_RE)
   })
 })
 
 describe('pathExists', () => {
   test('істина і для файлу, і для каталогу (дзеркало existsSync)', async () => {
-    await withTmpDir(async dir => {
+    await withTmpDir(dir => {
       mkdirSync(join(dir, 'npm'))
       touch(dir, 'pyproject.toml')
       expect(evaluateAppliesNode({ pathExists: 'npm' }, dir)).toBe(true)
@@ -99,28 +104,28 @@ describe('pathExists', () => {
 
 describe('globMatches', () => {
   test('матчить файл у корені', async () => {
-    await withTmpDir(async dir => {
+    await withTmpDir(dir => {
       touch(dir, 'Cargo.toml')
       expect(evaluateAppliesNode(RUST_GATE, dir)).toBe(true)
     })
   })
 
   test('матчить файл у піддереві', async () => {
-    await withTmpDir(async dir => {
+    await withTmpDir(dir => {
       touch(dir, 'crates/rules-core/Cargo.toml')
       expect(evaluateAppliesNode(RUST_GATE, dir)).toBe(true)
     })
   })
 
   test.each(RUST_IGNORE)('не заходить у %s/', async ignored => {
-    await withTmpDir(async dir => {
+    await withTmpDir(dir => {
       touch(dir, `${ignored}/copy/Cargo.toml`)
       expect(evaluateAppliesNode(RUST_GATE, dir)).toBe(false)
     })
   })
 
   test('каталог з іменем як у патерні не рахується збігом', async () => {
-    await withTmpDir(async dir => {
+    await withTmpDir(dir => {
       mkdirSync(join(dir, 'Cargo.toml'))
       expect(evaluateAppliesNode(RUST_GATE, dir)).toBe(false)
     })
@@ -132,7 +137,7 @@ describe('jsonFieldContains', () => {
   const node = { jsonFieldContains: { file: 'package.json', field: 'workspaces', value: 'npm' } }
 
   test('лише масив, що містить значення', async () => {
-    await withTmpDir(async dir => {
+    await withTmpDir(dir => {
       expect(evaluateAppliesNode(node, dir)).toBe(false)
 
       writeFileSync(join(dir, 'package.json'), '{"workspaces":["run/*"]}')
@@ -148,14 +153,14 @@ describe('jsonFieldContains', () => {
   })
 
   test('битий JSON → false, не виняток', async () => {
-    await withTmpDir(async dir => {
+    await withTmpDir(dir => {
       writeFileSync(join(dir, 'package.json'), '{ битий json')
       expect(evaluateAppliesNode(node, dir)).toBe(false)
     })
   })
 
   test('шлях поля через крапку', async () => {
-    await withTmpDir(async dir => {
+    await withTmpDir(dir => {
       writeFileSync(join(dir, 'package.json'), '{"a":{"b":["x"]}}')
       expect(evaluateAppliesNode({ jsonFieldContains: { file: 'package.json', field: 'a.b', value: 'x' } }, dir)).toBe(
         true
@@ -166,7 +171,7 @@ describe('jsonFieldContains', () => {
 
 describe('readRuleApplies', () => {
   test('правило з JS-гейтом і без поля читається як dynamic (legacy-міст)', async () => {
-    await withTmpDir(async dir => {
+    await withTmpDir(dir => {
       mkdirSync(join(dir, 'applies'), { recursive: true })
       writeFileSync(join(dir, 'applies', 'main.mjs'), 'export function applies() { return true }')
       writeFileSync(join(dir, 'main.json'), '{ "auto": "завжди" }')
@@ -175,14 +180,14 @@ describe('readRuleApplies', () => {
   })
 
   test('правило без гейта — always', async () => {
-    await withTmpDir(async dir => {
+    await withTmpDir(dir => {
       writeFileSync(join(dir, 'main.json'), '{ "auto": "завжди" }')
       expect(readRuleApplies(dir)).toEqual({ kind: 'always' })
     })
   })
 
   test('декларативне поле виграє над наявним applies/main.mjs', async () => {
-    await withTmpDir(async dir => {
+    await withTmpDir(dir => {
       mkdirSync(join(dir, 'applies'), { recursive: true })
       writeFileSync(join(dir, 'applies', 'main.mjs'), 'export function lint() {}')
       writeFileSync(join(dir, 'main.json'), '{ "applies": { "pathExists": "pyproject.toml" } }')
@@ -191,7 +196,7 @@ describe('readRuleApplies', () => {
   })
 
   test('битий предикат падає гучно, а не вимикає правило мовчки', async () => {
-    await withTmpDir(async dir => {
+    await withTmpDir(dir => {
       writeFileSync(join(dir, 'main.json'), '{ "applies": { "nope": 1 } }')
       expect(() => readRuleApplies(dir)).toThrow(AppliesSpecError)
     })
