@@ -67,6 +67,7 @@
 import { existsSync } from 'node:fs'
 import { chmod, writeFile } from 'node:fs/promises'
 import { delimiter, join } from 'node:path'
+import { env } from 'node:process'
 import { pathToFileURL } from 'node:url'
 
 import { describe, expect, test } from 'vitest'
@@ -4109,15 +4110,18 @@ async function runJscpdBoth(dir, toolBody) {
   await mkdir(binDir, { recursive: true })
   const toolPath = await writeFakeTool(join(binDir, 'bunx'), toolBody)
 
-  const originalPath = process.env.PATH
+  // `env` з `node:process` (не `process.env`) — вимога `js-run/runtime`;
+  // мутація тут навмисна й тимчасова: канон резолвить `bunx` саме з PATH
+  // дочірнього процесу, іншої точки ін'єкції в нього немає.
+  const originalPath = env.PATH
   let jsResult
   try {
-    process.env.PATH = `${binDir}${delimiter}${originalPath ?? ''}`
+    env.PATH = `${binDir}${delimiter}${originalPath ?? ''}`
     // eslint-disable-next-line no-unsanitized/method
     const { lint } = await import(pathToFileURL(JSCPD_MAIN_MJS_PATH).href)
     jsResult = await lint({ cwd: dir, ruleId: 'js', concernId: 'jscpd_duplicates', files: undefined })
   } finally {
-    process.env.PATH = originalPath
+    env.PATH = originalPath
   }
   const wasmResult = loadNative().runWasmConcern(WASM_PATH, JSCPD_CONCERN_KEY, dir, null, { bunx: toolPath })
   return { js: withDefaultSeverity(jsResult.violations), wasm: withDefaultSeverity(wasmResult.violations) }
