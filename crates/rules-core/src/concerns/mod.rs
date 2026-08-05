@@ -61,9 +61,17 @@ mod k8s_kubeconform;
 /// його `lint()`), і до того моменту модуль лишається без внутрішнього
 /// виклику.
 pub mod k8s_manifests_cross_file;
+/// Портований зріз концерну `k8s/manifests` — per-file цикл
+/// `checkK8sYamlFile` (modeline `$schema`). `pub` з тієї ж причини, що
+/// [`k8s_manifests_cross_file`].
+pub mod k8s_manifests_per_file;
 /// Портований зріз концерну `k8s/manifests` — rego-шар (`runAllK8sRego`).
 /// `pub` з тієї ж причини, що [`k8s_manifests_cross_file`].
 pub mod k8s_manifests_rego;
+/// Портований зріз концерну `k8s/manifests` — дві великі самодостатні
+/// `validate*` (HPA/PDB/topology і NetworkPolicy). `pub` з тієї ж причини,
+/// що [`k8s_manifests_cross_file`].
+pub mod k8s_manifests_workloads;
 mod marksman_config;
 mod package_manifest;
 mod rego_tooling;

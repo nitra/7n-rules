@@ -3294,13 +3294,18 @@ function checkK8sYamlFileWithSchemaModeline(abs, rel, baseLower, lines, fail, pa
 
 /**
  * Перевіряє один YAML у дереві k8s (modeline, схема).
+ *
+ * Експортовано заради cross-language parity-гейта
+ * (`crates/rules-core/tests/k8s_manifests_slice2_parity.rs`): концерн ще не в
+ * `NATIVE_CONCERNS`, тож native-бік звіряється з каноном напряму, а не через
+ * `runConcernDetector`.
  * @param {string} abs абсолютний шлях до файлу
  * @param {string} root корінь репозиторію
  * @param {(msg: string) => void} fail реєстрація помилки
  * @param {(msg: string) => void} pass реєстрація успіху
  * @returns {Promise<void>} результат
  */
-async function checkK8sYamlFile(abs, root, fail, pass) {
+export async function checkK8sYamlFile(abs, root, fail, pass) {
   const rel = (relative(root, abs) || abs).replaceAll('\\', '/')
   const base = basename(abs)
   const baseLower = base.toLowerCase()
@@ -4189,18 +4194,26 @@ function matchesYamlFilter(entry, filenameFilter) {
 }
 
 /**
- * Збирає всі документи з **k8s**-yaml за заданим `kind` у каталозі.
+ * Збирає всі документи з **k8s**-yaml за заданим `kind` у каталозі,
+ * у **відсортованому** порядку імен файлів.
+ *
+ * Сортування обов'язкове з тієї ж причини, що й у `collectDeploymentDocsInDir`:
+ * без нього порядок документів (а отже і `.find(…)` за ним) залежав би від
+ * порядку `readdir`, тобто від файлової системи — APFS впорядковує, ext4 віддає
+ * hash-порядок. Зараз обидва виклики передають `filenameFilter`, тож збіг
+ * щонайбільше один і різниці не видно; сортування прибирає міну на майбутнє.
  * @param {string} dirPath абсолютний шлях до каталогу
  * @param {string} kind очікуваний `kind` (наприклад, `HorizontalPodAutoscaler`)
  * @param {string} [filenameFilter] фільтр за basename (наприклад, `hpa.yaml`); якщо заданий — лише цей файл
- * @returns {Promise<Record<string, unknown>[]>} список знайдених документів
+ * @returns {Promise<Record<string, unknown>[]>} список знайдених документів у детермінованому порядку
  */
 async function readDocsByKindInDir(dirPath, kind, filenameFilter) {
   /**
   @type {Record<string, unknown>[]}
    */
   const out = []
-  const entries = await tryReaddir(dirPath)
+  const dirEntries = await tryReaddir(dirPath)
+  const entries = dirEntries.toSorted()
   for (const entry of entries) {
     if (!matchesYamlFilter(entry, filenameFilter)) {
       continue
@@ -5414,12 +5427,17 @@ async function collectNetworkPolicyWorkloadsByDir(yamlFilesAbs) {
  * наявність і канон sibling каталогу **`components/`** (Kustomize Component) з `hpa.yaml` і `pdb.yaml` через
  * `validateComponentsForBaseDeployment`. У не-base шарах — звична схема (`hpa.yaml` / `pdb.yaml` поруч).
  * Env-залежні межі — за сегментом після `/k8s/`: dev-like vs прод.
+ *
+ * Експортовано заради cross-language parity-гейта
+ * (`crates/rules-core/tests/k8s_manifests_slice2_parity.rs`): концерн ще не в
+ * `NATIVE_CONCERNS`, тож native-бік звіряється з каноном напряму, а не через
+ * `runConcernDetector`.
  * @param {string} root корінь репозиторію
  * @param {string[]} yamlFilesAbs yaml під k8s
  * @param {(msg: string) => void} fail callback при помилці
  * @param {(msg: string) => void} passFn callback при успіху
  */
-async function validateDeploymentHpaPdbAndTopology(root, yamlFilesAbs, fail, passFn) {
+export async function validateDeploymentHpaPdbAndTopology(root, yamlFilesAbs, fail, passFn) {
   const rootNorm = resolve(root)
   /**
   @type {Map<string, Record<string, unknown>[]>}
@@ -5446,13 +5464,18 @@ async function validateDeploymentHpaPdbAndTopology(root, yamlFilesAbs, fail, pas
 /**
  * Перевіряє NetworkPolicy для **Deployment**, **StatefulSet**, **DaemonSet**, **Job**, **CronJob**
  * під `k8s` — у `networkpolicy.yaml` поруч з workload-маніфестом (у base, у не-base — як overlay-specific override).
+ *
+ * Експортовано заради cross-language parity-гейта
+ * (`crates/rules-core/tests/k8s_manifests_slice2_parity.rs`): концерн ще не в
+ * `NATIVE_CONCERNS`, тож native-бік звіряється з каноном напряму, а не через
+ * `runConcernDetector`.
  * @param {string} root корінь репозиторію
  * @param {string[]} yamlFilesAbs yaml під k8s
  * @param {(msg: string) => void} fail callback при помилці
  * @param {(msg: string) => void} passFn callback при успіху
  * @returns {Promise<void>} результат
  */
-async function validateNetworkPoliciesForK8sWorkloads(root, yamlFilesAbs, fail, passFn) {
+export async function validateNetworkPoliciesForK8sWorkloads(root, yamlFilesAbs, fail, passFn) {
   const rootNorm = resolve(root)
   const workloadsByDir = await collectNetworkPolicyWorkloadsByDir(yamlFilesAbs)
   for (const [dir, workloads] of workloadsByDir) {

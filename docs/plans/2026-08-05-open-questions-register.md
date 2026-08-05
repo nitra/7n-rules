@@ -169,15 +169,45 @@ JS-рантайму поруч. **Після зникнення мосту це�
 
 ## 5. Залишок порту
 
-### 5.1. `k8s/manifests` — чотири шари до заведення в registry
+### 5.1. `k8s/manifests` — два шари до заведення в registry
 
-**Звідки:** #393. **Стан:** зріз 1 зроблено.
+**Звідки:** #393, #398. **Стан:** зрізи 1 і 2 зроблено.
 
-Лишилось: kubescape-контур, per-file цикл `checkK8sYamlFile`, дві великі
-самодостатні `validate*` (`DeploymentHpaPdbAndTopology` ≈400 рядків,
-`NetworkPoliciesForK8sWorkloads`), kustomize-резолюція + пʼять залежних
-`validate*`. Тільки після **всіх** — `"k8s/manifests"` у `NATIVE_CONCERNS` і
-видалення 6990 рядків JS одним кроком.
+Портовано: rego-контур, пʼять самодостатніх cross-file перевірок (зріз 1),
+per-file цикл `checkK8sYamlFile` і дві великі самодостатні `validate*` —
+`DeploymentHpaPdbAndTopology`, `NetworkPoliciesForK8sWorkloads` (зріз 2).
+
+Лишилось **два** шари: kubescape-контур (`kubectl kustomize` +
+auto-exceptions + таймаут) і kustomize-резолюція з пʼятьма залежними
+`validate*`. Тільки після **обох** — `"k8s/manifests"` у `NATIVE_CONCERNS` і
+видалення ≈7000 рядків JS одним кроком.
+
+### 5.1.1. Мертва гілка «не-base шар» у `validateDeploymentHpaPdbAndTopology`
+
+**Звідки:** #398. **Стан:** знайдено, свідомо не полагоджено.
+
+`validateDeploymentHpaPdbAndTopology` фільтрує вхід предикатом
+`isK8sYamlUnderBaseDirectory(rel)`, тож у `validateDeploymentsInDir`
+потрапляють **лише** каталоги під `…/k8s/…/base/`. Тамтешній
+`isK8sBaseLayer` рахується тим самим предикатом по тому самому каталогу —
+тобто завжди `true`. Наслідок: `readDocsByKindInDir` і виклики
+`validateHpaForDeployment` / `validatePdbForDeployment` з
+`validateSingleDeploymentHpaPdbTopology` **недосяжні**, разом з усіма
+прод-межами HPA/PDB (`minReplicas >= 2`, `minAvailable >= 1`) — вони
+живуть тільки в цій гілці, бо `components/` завжди звіряється як dev-like.
+Доккомент функції при цьому обіцяє «у не-base шарах — звична схема
+(`hpa.yaml` / `pdb.yaml` поруч)».
+
+**Чому відкладено:** увімкнути гілку — не виправити порт, а розширити
+область перевірки: кожен overlay-каталог із Deployment почав би вимагати
+сусідні `hpa.yaml`/`pdb.yaml` з прод-межами. Це зміна поведінки для всіх
+споживачів `@7n/rules`, а не дефект реалізації, і робити її «заодно» з
+портом не можна.
+
+**Питання:** чи канон узагалі хоче цю перевірку в overlay-шарах — і якщо
+так, то з якими межами. Поки відповіді немає, порт відтворює канон як є
+(недосяжні гілки перенесені разом із ним, щоб зміна фільтра колись не
+розвела дві реалізації).
 
 ### 5.2. Мертві `applies/main.mjs` у lang-python і lang-rust
 
