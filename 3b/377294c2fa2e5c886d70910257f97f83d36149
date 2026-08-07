@@ -1,0 +1,21 @@
+llm-lib/crates/llm-lib/Cargo.toml
+  s_6ba7cc57e797b2::t_4af01034756bae 3
+llm-lib/crates/llm-lib-napi/Cargo.toml
+  s_6ba7cc57e797b2::t_4af01034756bae 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "3b377294c2fa2e5c886d70910257f97f83d36149",
+  "prompts": {},
+  "sessions": {
+    "s_6ba7cc57e797b2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fda1e-f585-7672-8da5-a7f421ca91da",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Vitalii Tverdokhlib <v@nitra.ai>"
+    }
+  }
+}
