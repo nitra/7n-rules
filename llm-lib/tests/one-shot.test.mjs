@@ -26,6 +26,7 @@ const noop = () => null
  * @param {string|null} [opts.promptError] якщо задано — prompt кидає з цим текстом
  * @param {number} [opts.delayMs] затримка перед емісією (для timeout-тесту)
  * @param {string|null} [opts.stopReason] stopReason у message_end (напр. 'length')
+ * @param {string|null} [opts.errorMessage] errorMessage у message_end (лише коли stopReason='error', pi-контракт)
  * @param {{provider: string, id: string}|null} [opts.model] резолвлена pi-модель (`session.model`)
  * @returns {object} fake AgentSession
  */
@@ -35,6 +36,7 @@ function fakeSession({
   promptError = null,
   delayMs = 0,
   stopReason = null,
+  errorMessage = null,
   model = null
 } = {}) {
   let cb = noop
@@ -49,7 +51,7 @@ function fakeSession({
       return (async () => {
         if (delayMs) await sleep(delayMs)
         for (const d of deltas) cb({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: d } })
-        if (usage || stopReason) cb({ type: 'message_end', message: { usage, stopReason } })
+        if (usage || stopReason) cb({ type: 'message_end', message: { usage, stopReason, errorMessage } })
         if (promptError) throw new Error(promptError)
       })()
     }
@@ -164,6 +166,40 @@ describe('runOneShot', () => {
     })
     expect(deps.createSession).toHaveBeenCalledWith(expect.objectContaining({ maxTokens: 2048 }))
     expect(r.stopReason).toBe('length')
+    expect(r.content).toBe('cut')
+  })
+
+  test('stopReason=error без винятку (pi проковтнула провал провайдера) → error з errorMessage', async () => {
+    const session = fakeSession({ stopReason: 'error', errorMessage: 'Connection error.' })
+    const deps = { registry, trace: vi.fn(), createSession: vi.fn(() => Promise.resolve(session)) }
+    const r = await runOneShot({ messages: [{ role: 'user', content: 'x' }], modelSpec: 'omlx/x', deps })
+    expect(r).toMatchObject({ error: 'Connection error.', content: '', stopReason: 'error' })
+  })
+
+  test('stopReason=error без errorMessage → дефолтний текст, не null', async () => {
+    const session = fakeSession({ stopReason: 'error' })
+    const deps = { registry, trace: vi.fn(), createSession: vi.fn(() => Promise.resolve(session)) }
+    const r = await runOneShot({ messages: [{ role: 'user', content: 'x' }], modelSpec: 'omlx/x', deps })
+    expect(r.error).toBeTruthy()
+    expect(r.error).not.toBe('Connection error.')
+  })
+
+  test('promptError (throw) має пріоритет над stopReason=error з message_end', async () => {
+    const session = fakeSession({
+      stopReason: 'error',
+      errorMessage: 'server-side error',
+      promptError: 'transport boom'
+    })
+    const deps = { registry, trace: vi.fn(), createSession: vi.fn(() => Promise.resolve(session)) }
+    const r = await runOneShot({ messages: [{ role: 'user', content: 'x' }], modelSpec: 'omlx/x', deps })
+    expect(r.error).toBe('transport boom')
+  })
+
+  test('stopReason=length з errorMessage-полем НЕ перетворюється на error (лише stopReason=error гейтить)', async () => {
+    const session = fakeSession({ deltas: ['cut'], stopReason: 'length', errorMessage: 'ignored' })
+    const deps = { registry, trace: vi.fn(), createSession: vi.fn(() => Promise.resolve(session)) }
+    const r = await runOneShot({ messages: [{ role: 'user', content: 'x' }], modelSpec: 'omlx/x', deps })
+    expect(r.error).toBeNull()
     expect(r.content).toBe('cut')
   })
 
