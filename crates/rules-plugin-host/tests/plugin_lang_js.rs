@@ -84,6 +84,8 @@ const CONCERN_DOC_COMMENTS: &str = "js/doc_comments";
 const CONCERN_BUN_LICENSEE: &str = "bun/licensee";
 const CONCERN_STYLE_LINT: &str = "style/lint";
 const CONCERN_JSCPD_DUPLICATES: &str = "js/jscpd_duplicates";
+/// Ключ контрибуції зрізу 7 — дев'ять під-перевірок одного концерну.
+const CONCERN_JS_RUN_RUNTIME: &str = "js-run/runtime";
 
 /// Абсолютний шлях до зібраного `.wasm`-компонента (`crates/plugin-lang-js/build.sh`)
 /// — `wasm32-wasip2`/`release`.
@@ -111,7 +113,7 @@ fn host() -> PluginHost {
 }
 
 #[test]
-fn describe_declares_all_thirty_nine_concerns_with_expected_scopes() {
+fn describe_declares_all_forty_concerns_with_expected_scopes() {
     let path = require_fixture();
     let plugin = host()
         .load(&path, PLUGIN_WORLD_VERSION)
@@ -147,7 +149,11 @@ fn describe_declares_all_thirty_nine_concerns_with_expected_scopes() {
     // Зріз 6 додає `style/lint` і `js/jscpd_duplicates` — решту дрібних
     // обгорток зовнішніх процесів (секція «Зріз 6» там само): перша
     // приносить схему `npm:`, друга — перше реальне вживання `scratch-out`.
-    assert_eq!(manifest.concerns.len(), 39);
+    // Зріз 7 додає `js-run/runtime` — найбільший поодинокий зріз §3.5.5
+    // (дев'ять під-перевірок одного ключа, секція «Зріз 7» там само). Тулів
+    // він НЕ додає: вимір показав, що `runConftestBatch` JS-канону
+    // вакуумний, тож ні `pinned:conftest`, ні `scratch-in` не потрібні.
+    assert_eq!(manifest.concerns.len(), 40);
     assert_eq!(
         manifest.tools,
         vec![
@@ -185,6 +191,22 @@ fn describe_declares_all_thirty_nine_concerns_with_expected_scopes() {
         .expect("js/jscpd_duplicates має бути в маніфесті");
     assert_eq!(jscpd.scope, ConcernScope::Full);
     assert!(jscpd.glob.is_empty());
+
+    // `js-run/runtime`: глоб ШИРШИЙ за `concern.json` рівно в одному місці
+    // — `**/k8s/**/*.{yaml,yml}` замість `**/k8s/base/configmap.yaml`, інакше гілка
+    // «каталог є, configmap немає» зникла б мовчки.
+    let js_run_runtime = manifest
+        .concerns
+        .iter()
+        .find(|c| c.key == CONCERN_JS_RUN_RUNTIME)
+        .expect("js-run/runtime має бути в маніфесті");
+    assert_eq!(js_run_runtime.scope, ConcernScope::Full);
+    assert!(js_run_runtime
+        .glob
+        .contains(&"**/k8s/**/*.{yaml,yml}".to_string()));
+    assert!(!js_run_runtime
+        .glob
+        .contains(&"**/k8s/base/configmap.yaml".to_string()));
 
     let tfm = manifest
         .concerns
@@ -2606,4 +2628,140 @@ fn jscpd_skips_clone_entries_that_do_not_match_the_report_schema() {
     let diagnostics = plugin.detect(&jscpd_batch()).unwrap();
     assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
     assert_eq!(diagnostics[0].file.as_deref(), Some("c.vue"));
+}
+
+// ---------------------------------------------------------------------
+// Зріз 7 — `js-run/runtime`: гілки, куди parity-тести не дотягуються
+// свідомо (доккомент секції «Зріз 7» у `crates/plugin-lang-js/src/lib.rs`,
+// «Розбіжності з JS-каноном»). Решта дев'яти під-перевірок звіряється
+// byte-exact у `npm/scripts/lib/lint-surface/tests/wasm-plugin-parity.test.mjs`.
+// ---------------------------------------------------------------------
+
+/// Batch концерну `js-run/runtime` із довільного набору файлів.
+fn js_run_batch(files: &[(&str, &str)]) -> DetectBatch {
+    DetectBatch {
+        concern_id: CONCERN_JS_RUN_RUNTIME.to_string(),
+        files: files
+            .iter()
+            .map(|(path, content)| SourceFile {
+                path: (*path).to_string(),
+                content: (*content).to_string(),
+            })
+            .collect(),
+    }
+}
+
+/// Розбіжність 3: кореневий `package.json`, що не парситься, для канону —
+/// `DetectorError` (голий `JSON.parse`), для порту — «полів немає», тобто
+/// порожній список workspace-ів і жодної діагностики. Це та сама
+/// мікро-розбіжність tolerant-парсингу, що вже діє в решті batch-портів
+/// цього плагіна.
+#[test]
+fn js_run_runtime_tolerates_broken_root_package_json() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let batch = js_run_batch(&[
+        ("package.json", "{ це не JSON"),
+        ("api/package.json", "{\"name\":\"api\"}"),
+        ("api/lib/app.mjs", "console.log(process.env.PORT)\n"),
+    ]);
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+/// Той самий tolerant-парсинг для маніфеста САМОГО пакета: битий
+/// `api/package.json` не валить концерн, `connDir` падає в дефолт
+/// `src/conn`, а решта під-перевірок працює далі.
+#[test]
+fn js_run_runtime_tolerates_broken_workspace_package_json() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let batch = js_run_batch(&[
+        (
+            "package.json",
+            "{\"name\":\"root\",\"workspaces\":[\"api\"]}",
+        ),
+        ("api/package.json", "{ теж не JSON"),
+        ("api/lib/time.mjs", "export const now = Temporal.Now\n"),
+    ]);
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].reason, "runtime");
+    assert!(diagnostics[0].message.contains("Temporal API заборонений"));
+}
+
+/// Розбіжність 2: `src/` для порту існує рівно тоді, коли в батчі є хоч
+/// один файл під ним. Пакет, чий `src/` містить лише файли поза глобом
+/// контрибуції (тут — `.sql`), для порту виглядає як пакет без `src/`, і
+/// гілка «немає jsconfig.json» не спрацьовує. Канон зі `statSync` дав би
+/// порушення — тому гілка живе тут, а не в parity.
+#[test]
+fn js_run_runtime_treats_src_with_no_batch_files_as_absent() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let batch = js_run_batch(&[
+        (
+            "package.json",
+            "{\"name\":\"root\",\"workspaces\":[\"api\"]}",
+        ),
+        ("api/package.json", "{\"name\":\"api\"}"),
+    ]);
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+/// Порт НЕ спавнить жодного тула: резолвер тут порожній
+/// ([`host`]), тож будь-яка спроба `exec-tool` віддала б `status: none`.
+/// Пакет із `src/` І канонічним `jsconfig.json` — рівно та гілка, де канон
+/// спавнив `conftest`; порт проходить її беззвучно.
+#[test]
+fn js_run_runtime_never_spawns_a_tool_for_the_jsconfig_branch() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let batch = js_run_batch(&[
+        (
+            "package.json",
+            "{\"name\":\"root\",\"workspaces\":[\"api\"]}",
+        ),
+        ("api/package.json", "{\"name\":\"api\"}"),
+        ("api/src/index.mjs", "export const app = 1\n"),
+        (
+            "api/jsconfig.json",
+            "{\"compilerOptions\":{\"module\":\"commonjs\"}}",
+        ),
+    ]);
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+/// Синтаксична помилка у джерелі — порожній результат УСІХ шести
+/// AST-сканерів (порт `parseProgramOrNull` → `null`), а не паніка й не
+/// діагностика «файл не парситься».
+#[test]
+fn js_run_runtime_skips_files_with_syntax_errors() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let batch = js_run_batch(&[
+        (
+            "package.json",
+            "{\"name\":\"root\",\"workspaces\":[\"api\"]}",
+        ),
+        ("api/package.json", "{\"name\":\"api\"}"),
+        (
+            "api/lib/broken.mjs",
+            "import { SQL } from 'bun'\nconst x = (((\n",
+        ),
+    ]);
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }

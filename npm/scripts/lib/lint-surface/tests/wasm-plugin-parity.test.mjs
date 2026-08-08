@@ -66,7 +66,7 @@
  */
 import { existsSync } from 'node:fs'
 import { chmod, writeFile } from 'node:fs/promises'
-import { delimiter, join } from 'node:path'
+import { delimiter, dirname, join } from 'node:path'
 import { env } from 'node:process'
 import { pathToFileURL } from 'node:url'
 
@@ -4291,6 +4291,305 @@ describe('wasm-plugin parity — js/jscpd_duplicates (JS канон vs wasm plug
     await withTmpDir(async dir => {
       await runJscpdBoth(dir, jscpdToolWriting(JSON.stringify({ duplicates: [] })))
       expect(existsSync(join(dir, 'jscpd-report.json'))).toBe(false)
+    })
+  })
+})
+
+// ---------------------------------------------------------------------
+// Зріз 7 контракту v3.1 — `js-run/runtime` (дев'ять під-перевірок одного
+// ключа, доккомент секції «Зріз 7» у `crates/plugin-lang-js/src/lib.rs`).
+//
+// Обидві реалізації бачать УСЕ дерево tmp-каталогу: канон сам ходить
+// `walkDir` по кожному workspace-пакету, wasm отримує host-побудований
+// full-scope batch за глобом контрибуції. Тому спільний хелпер тут той
+// самий [`runFullScopeBoth`], що для решти full-scope концернів — жодного
+// зовнішнього тула цей концерн не спавнить (див. тест «вакуумний conftest»
+// нижче).
+//
+// Джерела в фікстурах лежать під `lib/`, а не `src/` — навмисно: каталог
+// `src/` вмикає під-перевірку 1 («є src/, немає jsconfig.json»), яка
+// додавала б своє порушення в КОЖЕН сценарій сканерів і топила б те, що
+// тест насправді перевіряє. Дефолтний `connDir` (`src/conn`) і сама гілка
+// `src/` покриті окремими тестами наприкінці.
+
+const JS_RUN_RUNTIME_MAIN_MJS_PATH = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'js-run', 'runtime', 'main.mjs')
+const JS_RUN_RUNTIME_CONCERN_KEY = 'js-run/runtime'
+
+/**
+ * Ганяє `js-run/runtime` через JS-канон і wasm-порт на спільному дереві.
+ * @param {string} dir абсолютний шлях tmp-каталогу з уже записаними фікстурами
+ * @returns {Promise<{ js: unknown[], wasm: unknown[] }>} результати обох реалізацій
+ */
+const runJsRunRuntimeBoth = dir =>
+  runFullScopeBoth(JS_RUN_RUNTIME_MAIN_MJS_PATH, JS_RUN_RUNTIME_CONCERN_KEY, 'js-run', 'runtime', dir)
+
+/**
+ * Пише кореневий `package.json` з одним workspace-пакетом `api` і сам
+ * маніфест пакета.
+ * @param {string} dir корінь tmp-дерева
+ * @param {object} [apiPkg] вміст `api/package.json` (дефолт — порожній маніфест)
+ * @returns {Promise<void>} завершується після запису обох файлів
+ */
+async function writeWorkspaceRoot(dir, apiPkg = {}) {
+  const { mkdir } = await import('node:fs/promises')
+  await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'root', workspaces: ['api'] }))
+  await mkdir(join(dir, 'api'), { recursive: true })
+  await writeFile(join(dir, 'api', 'package.json'), JSON.stringify({ name: 'api', ...apiPkg }))
+}
+
+/**
+ * Пише файл усередині пакета `api`, створюючи проміжні каталоги.
+ * @param {string} dir корінь tmp-дерева
+ * @param {string} relPath шлях відносно кореня пакета (posix)
+ * @param {string} content вміст файлу
+ * @returns {Promise<void>} завершується після запису
+ */
+async function writeApiFile(dir, relPath, content) {
+  const { mkdir } = await import('node:fs/promises')
+  const abs = join(dir, 'api', ...relPath.split('/'))
+  await mkdir(dirname(abs), { recursive: true })
+  await writeFile(abs, content)
+}
+
+describe('wasm-plugin parity — js-run/runtime (JS канон vs wasm plugin-lang-js, full-scope)', () => {
+  test('немає workspace-пакетів → жодного порушення з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'solo' }))
+      await writeFile(join(dir, 'index.mjs'), 'console.log(process.env.PORT)\n')
+      const { js, wasm } = await runJsRunRuntimeBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('frontend-пакет (vite у devDependencies) пропускається цілком', async () => {
+    await withTmpDir(async dir => {
+      await writeWorkspaceRoot(dir, { devDependencies: { vite: '^5.0.0' } })
+      await writeApiFile(dir, 'lib/app.mjs', 'console.log(process.env.PORT)\n')
+      const { js, wasm } = await runJsRunRuntimeBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('bunyan: статичний імпорт, require і динамічний import — три однакові порушення', async () => {
+    await withTmpDir(async dir => {
+      await writeWorkspaceRoot(dir)
+      await writeApiFile(
+        dir,
+        'lib/log.mjs',
+        "const a = require('bunyan')\nimport { createLogger } from '@nitra/bunyan'\nconst b = await import('bunyan')\n"
+      )
+      const { js, wasm } = await runJsRunRuntimeBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(3)
+      expect(js[0].reason).toBe('runtime')
+      // Двофазний порядок JS-оригіналу: спершу статичні імпорти, потім walk.
+      expect(js[0].message).toContain("lib/log.mjs:2 — заміни '@nitra/bunyan' на '@nitra/pino'")
+      expect(js[1].message).toContain("lib/log.mjs:1 — заміни 'bunyan' на '@nitra/pino'")
+      expect(js[2].message).toContain("lib/log.mjs:3 — заміни 'bunyan' на '@nitra/pino'")
+    })
+  })
+
+  test('фабричні імпорти поза conn-каталогом — три однакові порушення', async () => {
+    await withTmpDir(async dir => {
+      await writeWorkspaceRoot(dir, { imports: { '#conn/*': './lib/conn/*' } })
+      await writeApiFile(
+        dir,
+        'lib/app.mjs',
+        "import { SQL } from 'bun'\nimport sql from 'mssql'\nimport { GraphQLClient } from '@nitra/graphql-request'\n"
+      )
+      const { js, wasm } = await runJsRunRuntimeBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(3)
+      expect(js[0].message).toContain("імпорт { SQL } from 'bun' має бути в 'lib/conn/'")
+      expect(js[1].message).toContain("імпорт 'mssql' має бути в 'lib/conn/'")
+      expect(js[2].message).toContain("імпорт { GraphQLClient } from '@nitra/graphql-request'")
+    })
+  })
+
+  test('той самий імпорт УСЕРЕДИНІ conn-каталогу порушенням не є', async () => {
+    await withTmpDir(async dir => {
+      await writeWorkspaceRoot(dir, { imports: { '#conn/*': './lib/conn/*' } })
+      await writeApiFile(dir, 'lib/conn/pg-read.mjs', "import { SQL } from 'bun'\nexport const pgRead = new SQL()\n")
+      const { js, wasm } = await runJsRunRuntimeBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('conn-файл: невалідне ім’я + export default — два однакові порушення', async () => {
+    await withTmpDir(async dir => {
+      await writeWorkspaceRoot(dir, { imports: { '#conn/*': './lib/conn/*' } })
+      await writeApiFile(dir, 'lib/conn/database.mjs', 'export default 1\n')
+      const { js, wasm } = await runJsRunRuntimeBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(2)
+      expect(js[0].message).toContain("назва файла в 'lib/conn/' не відповідає канону js-run")
+      expect(js[1].message).toContain("'export default' заборонений у 'lib/conn/'")
+    })
+  })
+
+  test('conn-файл: валідне ім’я, але експорт не в camelCase від basename', async () => {
+    await withTmpDir(async dir => {
+      await writeWorkspaceRoot(dir, { imports: { '#conn/*': './lib/conn/*' } })
+      await writeApiFile(dir, 'lib/conn/pg-write-contract.mjs', 'export const db = 1\nexport function helper() {}\n')
+      const { js, wasm } = await runJsRunRuntimeBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].message).toContain("очікується іменований експорт 'export const pgWriteContract = …'")
+      expect(js[0].message).toContain('знайдено: db, helper')
+    })
+  })
+
+  test('conn-файл `index.*` — реекспортний барель, пропускається', async () => {
+    await withTmpDir(async dir => {
+      await writeWorkspaceRoot(dir, { imports: { '#conn/*': './lib/conn/*' } })
+      await writeApiFile(dir, 'lib/conn/index.mjs', "export * from './pg-read.mjs'\n")
+      await writeApiFile(dir, 'lib/conn/pg-read.mjs', 'export const pgRead = 1\n')
+      const { js, wasm } = await runJsRunRuntimeBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('check-env: process.env, деструктуризація і env без checkEnv', async () => {
+    await withTmpDir(async dir => {
+      await writeWorkspaceRoot(dir)
+      await writeApiFile(
+        dir,
+        'lib/env.mjs',
+        "import { env } from '@nitra/check-env'\n" +
+          'const { HOST, PORT } = process.env\n' +
+          'console.log(process.env.DB_URL)\n' +
+          "console.log(env.QL, env['SECRET'])\n"
+      )
+      const { js, wasm } = await runJsRunRuntimeBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(5)
+      expect(js[0].message).toContain('lib/env.mjs:2 — process.env.HOST')
+      expect(js[1].message).toContain('lib/env.mjs:2 — process.env.PORT')
+      expect(js[2].message).toContain('lib/env.mjs:3 — process.env.DB_URL')
+      expect(js[3].message).toContain("lib/env.mjs:4 — env.QL (з '@nitra/check-env') без checkEnv(['QL'])")
+      expect(js[4].message).toContain("lib/env.mjs:4 — env.SECRET (з '@nitra/check-env') без checkEnv(['SECRET'])")
+    })
+  })
+
+  test('check-env: checkEnv([…]) закриває змінну, ignore-маркер глушить process.env', async () => {
+    await withTmpDir(async dir => {
+      await writeWorkspaceRoot(dir)
+      await writeApiFile(
+        dir,
+        'lib/env.mjs',
+        "import { checkEnv, env } from '@nitra/check-env'\n" +
+          "checkEnv(['QL'])\n" +
+          'console.log(env.QL)\n' +
+          '// n-rules:ignore-next-line checkEnv\n' +
+          'console.log(process.env.LEGACY)\n'
+      )
+      const { js, wasm } = await runJsRunRuntimeBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('пауза через new Promise + setTimeout — однакове порушення', async () => {
+    await withTmpDir(async dir => {
+      await writeWorkspaceRoot(dir)
+      await writeApiFile(
+        dir,
+        'lib/sleep.mjs',
+        'export async function sleep(ms) {\n  await new Promise(resolve => setTimeout(resolve, ms))\n}\n'
+      )
+      const { js, wasm } = await runJsRunRuntimeBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].message).toContain("lib/sleep.mjs:2 — заміни 'new Promise(r => setTimeout(r, ms))'")
+    })
+  })
+
+  test('Temporal у Bun-рантаймі — однакове порушення на кожне вживання', async () => {
+    await withTmpDir(async dir => {
+      await writeWorkspaceRoot(dir)
+      await writeApiFile(dir, 'lib/time.mjs', 'export const now = Temporal.Now.instant()\n')
+      const { js, wasm } = await runJsRunRuntimeBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].message).toContain('lib/time.mjs:1 — Temporal API заборонений у Bun runtime')
+    })
+  })
+
+  test('`.d.ts` не сканується жодною з шести перевірок', async () => {
+    await withTmpDir(async dir => {
+      await writeWorkspaceRoot(dir)
+      await writeApiFile(dir, 'lib/types.d.ts', 'declare const x: typeof Temporal\n')
+      const { js, wasm } = await runJsRunRuntimeBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('k8s/ без base/configmap.yaml — однакове порушення (гілка, заради якої глоб ширший)', async () => {
+    await withTmpDir(async dir => {
+      await writeWorkspaceRoot(dir)
+      await writeApiFile(dir, 'k8s/base/kustomization.yaml', 'resources: []\n')
+      const { js, wasm } = await runJsRunRuntimeBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].message).toContain('api/k8s/base/configmap.yaml відсутній')
+    })
+  })
+
+  test('k8s/base/configmap.yaml на місці — чисто; без каталогу k8s/ — теж чисто', async () => {
+    await withTmpDir(async dir => {
+      await writeWorkspaceRoot(dir)
+      await writeApiFile(dir, 'k8s/base/configmap.yaml', 'kind: ConfigMap\n')
+      const { js, wasm } = await runJsRunRuntimeBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('файли у conn-каталозі без аліаса "#conn/*" — однакове порушення', async () => {
+    await withTmpDir(async dir => {
+      await writeWorkspaceRoot(dir)
+      await writeApiFile(dir, 'src/conn/pg-read.mjs', 'export const pgRead = 1\n')
+      await writeApiFile(dir, 'jsconfig.json', '{"compilerOptions":{"module":"NodeNext"},"include":["src/**/*"]}\n')
+      const { js, wasm } = await runJsRunRuntimeBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].message).toContain('є файли у \'src/conn/\', але в package.json відсутній аліас "#conn/*"')
+    })
+  })
+
+  test('є каталог src/, немає jsconfig.json — однакове порушення', async () => {
+    await withTmpDir(async dir => {
+      await writeWorkspaceRoot(dir)
+      await writeApiFile(dir, 'src/index.mjs', 'export const app = 1\n')
+      const { js, wasm } = await runJsRunRuntimeBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].message).toContain('є каталог src/, але немає jsconfig.json')
+    })
+  })
+
+  // Ключовий тест зрізу: він доводить, що `runConftestBatch` у
+  // `runtime/main.mjs` не може віддати ЖОДНОГО порушення (доккомент секції
+  // «Зріз 7» у `crates/plugin-lang-js/src/lib.rs`). `jsconfig.json` тут
+  // свідомо неканонічний за КОЖНИМ полем сніпета `js_run.jsconfig`
+  // (`module`, `moduleResolution`, `target`, `lib`, `checkJs`, `include`) —
+  // якби гілка працювала, канон дав би шість порушень. Він дає нуль, бо
+  // `--data` (тобто `data.template.snippet`) у цьому виклику немає взагалі.
+  // Саме тому порт цю гілку не відтворює, і саме тому parity тут — рівність
+  // двох порожніх списків, а не «wasm загубив перевірку».
+  test('вакуумний conftest: неканонічний jsconfig.json не дає порушень у ЖОДНІЙ з реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeWorkspaceRoot(dir)
+      await writeApiFile(dir, 'src/index.mjs', 'export const app = 1\n')
+      await writeApiFile(dir, 'jsconfig.json', '{"compilerOptions":{"module":"commonjs"},"include":["lib/**/*"]}\n')
+      const { js, wasm } = await runJsRunRuntimeBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
     })
   })
 })

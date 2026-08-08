@@ -205,17 +205,17 @@ use oxc_ast::ast::{
     Argument, ArrayExpression, ArrayExpressionElement, ArrowFunctionExpression, BinaryOperator,
     BindingPattern, BlockStatement, CallExpression, Comment, Declaration,
     ExportDefaultDeclarationKind, Expression, FormalParameters, Function, FunctionBody,
-    FunctionType, ImportDeclaration, ImportExpression, NewExpression, ObjectExpression,
-    ObjectProperty, ObjectPropertyKind, Program, PropertyKey, RegExpLiteral, Statement,
-    StringLiteral, TaggedTemplateExpression, TemplateLiteral, UnaryExpression, UnaryOperator,
-    VariableDeclarator,
+    FunctionType, ImportDeclaration, ImportDeclarationSpecifier, ImportExpression, NewExpression,
+    ObjectExpression, ObjectProperty, ObjectPropertyKind, Program, PropertyKey, RegExpLiteral,
+    Statement, StringLiteral, TaggedTemplateExpression, TemplateLiteral, UnaryExpression,
+    UnaryOperator, VariableDeclarator,
 };
 use oxc_ast_visit::{
     walk::{
-        walk_arrow_function_expression, walk_call_expression, walk_function,
-        walk_import_expression, walk_new_expression, walk_object_expression,
-        walk_tagged_template_expression, walk_template_literal, walk_unary_expression,
-        walk_variable_declarator,
+        walk_arrow_function_expression, walk_call_expression, walk_computed_member_expression,
+        walk_function, walk_import_expression, walk_new_expression, walk_object_expression,
+        walk_static_member_expression, walk_tagged_template_expression, walk_template_literal,
+        walk_unary_expression, walk_variable_declarator,
     },
     Visit,
 };
@@ -3841,6 +3841,22 @@ fn build_manifest() -> Manifest {
                 key: CONCERN_JSCPD_DUPLICATES.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec![],
+            },
+            // Зріз 7: глоб ШИРШИЙ за `concern.json` в одному місці —
+            // `**/k8s/**/*.{yaml,yml}` замість `**/k8s/base/configmap.yaml` (доккомент
+            // секції «Зріз 7», «Глоб контрибуції ШИРШИЙ за `concern.json`»):
+            // під-перевірка 8 мусить відрізнити «каталогу k8s/ немає» від
+            // «є, але без `base/configmap.yaml`», а з батчу, що містить лише
+            // сам файл, ці два стани не відрізнити.
+            ConcernContribution {
+                key: CONCERN_JS_RUN_RUNTIME.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec![
+                    "**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}".to_string(),
+                    "**/package.json".to_string(),
+                    "**/jsconfig.json".to_string(),
+                    "**/k8s/**/*.{yaml,yml}".to_string(),
+                ],
             },
         ],
         ci_artifacts: vec![],
@@ -11225,6 +11241,1180 @@ fn detect_jscpd_duplicates() -> Vec<Diagnostic> {
         .collect()
 }
 
+// =====================================================================
+// Зріз 7 контракту v3.1 — `js-run/runtime`: найбільший поодинокий зріз усієї
+// §3.5.5 (спека `docs/specs/2026-08-01-plugin-contract-v31-surfaces.md`,
+// рядок 7 таблиці; реєстр відкладених питань, п. 5.3)
+//
+// # Що це за концерн
+//
+// `plugins/lang-js/rules/js-run/runtime/main.mjs` (496 рядків) плюс шість
+// lib-сканерів (`js-run/lib/*.mjs`, 983 рядки) — ОДИН ключ контрибуції з
+// дев'ятьма НЕЗАЛЕЖНИМИ під-перевірками, які канон ганяє по кожному
+// workspace-пакету (корінь `.` виключено):
+//
+// | # | під-перевірка | джерело | зовнішній тул |
+// |---|---|---|---|
+// | 1 | `jsconfig.json` існує, якщо є `src/` | `main.mjs` | — (див. нижче) |
+// | 2 | немає імпортів `@nitra/bunyan`/`bunyan` | `lib/bunyan-imports.mjs` | — |
+// | 3 | фабрики підключень лише в `connDir/` | `lib/conn-imports-scan.mjs` | — |
+// | 4 | нейминг і експорти файлів `connDir/` | `lib/conn-file-rules.mjs` | — |
+// | 5 | `process.env` / незакритий `checkEnv` | `lib/check-env-scan.mjs` | — |
+// | 6 | `new Promise(r => setTimeout(r, ms))` | `lib/promise-settimeout-scan.mjs` | — |
+// | 7 | `Temporal` у Bun-рантаймі | `lib/temporal-scan.mjs` | — |
+// | 8 | `k8s/base/configmap.yaml` існує | `main.mjs` | — |
+// | 9 | `package.json#imports["#conn/*"]` оголошений | `main.mjs` | — |
+//
+// Спека рахує їх за розділами `runtime.mdc` і каже «вісім»; у коді функцій
+// дев'ять — під-перевірки 3 і 9 в `.mdc` живуть в одному розділі
+// «Внутрішні аліаси», але це два незалежні предикати з різними
+// повідомленнями, тож тут вони окремі рядки.
+//
+// # Головне відкриття зрізу: `scratch-in`-споживача тут НЕМАЄ
+//
+// І спека (рядок 7 таблиці §7), і реєстр (п. 5.3) називають цей зріз
+// «першим споживачем `scratch-in`» — через `runConftestBatch` у
+// під-перевірці 1, яка мала б валідувати СТРУКТУРУ `jsconfig.json`
+// rego-пакетом `js_run.jsconfig`. Перевірка цієї передумови виміром показала,
+// що виклик канону **вакуумний — він не може віддати жодного порушення**:
+//
+// * `jsconfig.rego` бере канон із `data.template.snippet` (`--data`);
+// * `runtime/main.mjs` кличе `runConftestBatch` БЕЗ `templateData`, тобто
+//   без `--data` взагалі;
+// * conftest НЕ підвантажує JSON/YAML із каталогу `-p` у `data` — там
+//   лишається лише rego. Отже `data.template` не існує, усі чотири `deny`
+//   не мають по чому ітеруватись, і `conftest` віддає `successes: 4`,
+//   `exit 0` навіть на свідомо неканонічному `jsconfig.json`
+//   (`{"compilerOptions":{"module":"commonjs"},"include":["lib/**/*"]}`).
+//
+// Структурна валідація при цьому НЕ втрачена: її робить ОКРЕМИЙ
+// policy-концерн `js-run/jsconfig` (`jsconfig/concern.json`,
+// `engine: rego` через `policy-lint-adapter.mjs`), який `--data` формує
+// правильно — `resolveConcernTemplateData` читає той самий
+// `template/jsconfig.json.snippet.json`. Його `walkGlob: **/jsconfig.json`
+// ще й ШИРШИЙ за гілку в `runtime` (усі `jsconfig.json` репо проти
+// backend-пакетів із `src/`).
+//
+// Тобто виклик у `runtime/main.mjs` — не «перевірка, яку треба портувати»,
+// а мертвий дублікат: спавн процесу на кожен workspace-пакет, який ніколи
+// не дає вердикту, зате може завалити ВЕСЬ концерн винятком, якщо
+// `conftest` не встановлено (`runConftestBatch` → `ensureToolAsync`
+// hard-fail). Рішення Р11 спеки міграції («дефект канону лагодиться, а не
+// копіюється») тут читається однозначно: порт лишає під-перевірці 1 рівно
+// той предикат, який у канону справді працює — FS-гейт «є `src/`, немає
+// `jsconfig.json`» — і не відтворює вакуумний спавн. Відтворити його
+// «правильно» (передати вшитий сніпет у `--data`) було б гірше за обидва
+// варіанти: це дало б ДРУГЕ повідомлення про ту саму розбіжність, яку вже
+// репортує `js-run/jsconfig`.
+//
+// Наслідок для контракту: цей зріз НЕ додає ні `pinned:conftest` у
+// `manifest.tools`, ні `scratch-in`-виклику. Обидві поверхні лишаються
+// нереалізованими на боці цього плагіна — але вже не тому, що «наступний
+// зріз», а тому, що концерн, заради якого вони планувались, їх не потребує.
+//
+// # Глоб контрибуції ШИРШИЙ за `concern.json` — у двох місцях
+//
+// `concern.json` дає `**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}`,
+// `**/package.json`, `**/jsconfig.json`, `**/k8s/base/configmap.yaml`.
+// Порт додає:
+//
+// 1. `**/k8s/**/*.{yaml,yml}` замість `**/k8s/base/configmap.yaml`.
+//    Під-перевірка 8 розрізняє ТРИ стани: каталогу `k8s/` немає (пропуск),
+//    `k8s/` є без `base/configmap.yaml` (порушення), файл є (ок). З батчу,
+//    що містить лише сам `configmap.yaml`, перші два стани не відрізнити —
+//    без розширення глоба гілка «порушення» зникла б МОВЧКИ. Звужено до
+//    yaml навмисно: голий `**/k8s/**` на цьому репозиторії тягне 81 файл /
+//    708 150 байтів (тут є ПРАВИЛО з назвою `k8s` — `npm/rules/k8s/`), а
+//    yaml-варіант — 3 файли / 3 882 байти при тій самій здатності
+//    відрізнити три стани. Ціна звуження — пакет, чий `k8s/` не містить
+//    ЖОДНОГО yaml, для порту виглядає як пакет без `k8s/` (той самий клас
+//    крайового випадку, що розбіжність 2 нижче).
+// 2. `**/jsconfig.json` лишається (гейт існування під-перевірки 1).
+//
+// # Розбіжності з JS-каноном (свідомі, не дрейф)
+//
+// 1. **Вакуумний `runConftestBatch` не портовано** — розбір вище (Р11).
+//    Спостережувана поведінка не змінюється: гілка не давала порушень.
+//    Змінюється НЕспостережувана — зникає N процесів `conftest` на прогін і
+//    hard-fail у середовищі без нього.
+// 2. **`src/` вважається наявним, якщо в батчі є хоч один файл під
+//    `<pkg>/src/`.** Канон робить `statSync(<pkg>/src).isDirectory()`.
+//    Розбіжність видима лише для пакета, чий `src/` не містить ЖОДНОГО
+//    файлу з глоба контрибуції (порожній каталог або, скажімо, лише `.sql`)
+//    — тоді порт гілку «немає jsconfig.json» пропустить. Альтернатива —
+//    глоб `**/src/**`, тобто вміст усього дерева в батчі; ціна не варта
+//    цього крайового випадку.
+// 3. **Невалідний `package.json` — не виняток.** Канон робить `JSON.parse`
+//    без `try`, тобто валить увесь концерн `DetectorError`-ом; порт
+//    трактує маніфест, що не парситься, як «полів немає»
+//    ([`parse_json_tolerant`], та сама мікро-розбіжність, що в решті
+//    batch-портів цього модуля).
+// 4. **`.cursorignore` / `.n-rules.json` `ignore` не звужують батч** —
+//    успадкована розбіжність УСІХ full-scope портів (реєстр, п. 5 блоку
+//    «свідомо відкладене» #403): канон передає `loadCursorIgnorePaths(cwd)`
+//    у `walkDir`, хост будує батч без цього фільтра. Двигун обходу той
+//    самий (`rules_core::scan::walk_dir`), тож `.gitignore`/`node_modules`
+//    поводяться однаково.
+// 5. **T0-фікс лишається JS.** `fix-runtime.mjs` — текстовий патч
+//    `package.json#imports`, не `FixPlan` із повного вмісту файлу; порт
+//    fix-контуру цього концерну — не цей зріз.
+// =====================================================================
+
+/// Ключ контрибуції `js-run/runtime` (зріз 7 контракту v3.1).
+const CONCERN_JS_RUN_RUNTIME: &str = "js-run/runtime";
+
+/// `reason` УСІХ дев'яти під-перевірок — дефолт `createViolationReporter`
+/// (`ctx.concernId`, тобто `runtime` без префікса правила): жоден із
+/// викликів `fail(...)` у `runtime/main.mjs` другого аргументу не передає.
+const JS_RUN_RUNTIME_REASON: &str = "runtime";
+
+/// Дефолт каталогу підключень — порт `fallback` `resolveConnDirFromPackageJson`
+/// (`conn-imports-scan.mjs:52`).
+const CONN_DIR_FALLBACK: &str = "src/conn";
+
+/// Заборонені logger-модулі під-перевірки 2 — порт `FORBIDDEN_MODULES`
+/// (`bunyan-imports.mjs:24`).
+const BUNYAN_FORBIDDEN_MODULES: [&str; 2] = ["@nitra/bunyan", "bunyan"];
+
+/// Пакет, з якого має приходити `env` під-перевірки 5 — порт
+/// `CHECK_ENV_PACKAGE` (`check-env-scan.mjs:37`).
+const CHECK_ENV_PACKAGE: &str = "@nitra/check-env";
+
+/// Маркер точкового приглушення під-перевірки 5 — порт
+/// `IGNORE_DIRECTIVE_RE` (`check-env-scan.mjs:35`) 1:1, без lookaround.
+const CHECK_ENV_IGNORE_DIRECTIVE_PATTERN: &str = r"//\s*n-rules:ignore-next-line\s+checkEnv\b";
+
+/// Канонічне імʼя GraphQL-файла в `connDir/` — порт `CONN_FILENAME_QL_RE`
+/// (`conn-file-rules.mjs:25`) 1:1.
+const CONN_FILENAME_QL_PATTERN: &str = r"^ql-[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.[cm]?[jt]sx?$";
+
+/// Канонічне імʼя файла БД-підключення — порт `CONN_FILENAME_DB_RE`
+/// (`conn-file-rules.mjs:31`) 1:1.
+const CONN_FILENAME_DB_PATTERN: &str =
+    r"^(?:pg|mysql|mssql)-(?:read|write)(?:-[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)?\.[cm]?[jt]sx?$";
+
+/// Патерн kebab→camel переходу — порт `/-([a-z0-9])/gu` (`kebabToCamel`,
+/// `conn-file-rules.mjs:60`).
+const KEBAB_SEGMENT_PATTERN: &str = r"-([a-z0-9])";
+
+/// Спільний предикат «сканувати цей файл» УСІХ шести lib-сканерів:
+/// `SOURCE_FILE_RE` ([`is_js_ts_source_file`]) без `.d.ts`. У JS це п'ять
+/// однакових експортів (`isCheckEnvScanSourceFile`,
+/// `isConnImportsScanSourceFile`, `isConnFileRulesSourceFile`,
+/// `isPromiseSetTimeoutScanSourceFile`, `isTemporalScanSourceFile`) плюс
+/// пара `isBunyanScanSourceFile`+`shouldSkipFileForBunyanScan`, що дає той
+/// самий результат.
+fn is_js_run_scan_source_file(rel: &str) -> bool {
+    is_js_ts_source_file(rel) && !rel.ends_with(".d.ts")
+}
+
+/// Шлях файла батчу відносно кореня пакета — порт `relPosix`
+/// (`runtime/main.mjs:82`): `None`, якщо файл поза підпростором пакета.
+fn pkg_rel<'a>(path: &'a str, prefix: &str) -> Option<&'a str> {
+    if prefix.is_empty() {
+        return Some(path);
+    }
+    path.strip_prefix(prefix)
+}
+
+// ---------------------------------------------------------------------
+// Під-перевірка 2 — `lib/bunyan-imports.mjs`
+// ---------------------------------------------------------------------
+
+/// Visitor [`find_bunyan_imports_in_text`] — два буфери, що дзеркалять
+/// ДВОФАЗНИЙ порядок JS-оригіналу (`bunyan-imports.mjs:48-77`): спершу всі
+/// статичні імпорти (`result.module.staticImports`), потім walk за
+/// `require('…')`/динамічним `import('…')`. Той самий мотив і та сама
+/// форма, що [`RedisImportVisitor`].
+struct BunyanImportVisitor<'c> {
+    content: &'c str,
+    static_hits: Vec<RedisImportHit>,
+    walk_hits: Vec<RedisImportHit>,
+}
+
+impl BunyanImportVisitor<'_> {
+    fn hit(&self, span: Span, module: &str) -> RedisImportHit {
+        let base = AstHit::at(self.content, span);
+        RedisImportHit {
+            line: base.line,
+            snippet: base.snippet,
+            module: module.to_string(),
+        }
+    }
+}
+
+impl<'a> Visit<'a> for BunyanImportVisitor<'_> {
+    fn visit_import_declaration(&mut self, it: &ImportDeclaration<'a>) {
+        let module = it.source.value.as_str();
+        if BUNYAN_FORBIDDEN_MODULES.contains(&module) {
+            self.static_hits.push(self.hit(it.span, module));
+        }
+    }
+
+    fn visit_call_expression(&mut self, it: &CallExpression<'a>) {
+        if let Expression::Identifier(ident) = &it.callee {
+            if ident.name == "require" {
+                if let Some(Argument::StringLiteral(lit)) = it.arguments.first() {
+                    let module = lit.value.as_str();
+                    if BUNYAN_FORBIDDEN_MODULES.contains(&module) {
+                        self.walk_hits.push(self.hit(it.span, module));
+                    }
+                }
+            }
+        }
+        walk_call_expression(self, it);
+    }
+
+    fn visit_import_expression(&mut self, it: &ImportExpression<'a>) {
+        if let Expression::StringLiteral(lit) = &it.source {
+            let module = lit.value.as_str();
+            if BUNYAN_FORBIDDEN_MODULES.contains(&module) {
+                self.walk_hits.push(self.hit(it.span, module));
+            }
+        }
+        walk_import_expression(self, it);
+    }
+}
+
+/// Точний порт `findBunyanImportsInText` (`bunyan-imports.mjs:32-80`).
+fn find_bunyan_imports_in_text(content: &str, path: &str) -> Vec<RedisImportHit> {
+    let allocator = Allocator::default();
+    let ret = Parser::new(&allocator, content, scan_source_type(path)).parse();
+    if !ret.diagnostics.is_empty() {
+        return Vec::new();
+    }
+    let mut visitor = BunyanImportVisitor {
+        content,
+        static_hits: Vec::new(),
+        walk_hits: Vec::new(),
+    };
+    visitor.visit_program(&ret.program);
+    let mut hits = visitor.static_hits;
+    hits.extend(visitor.walk_hits);
+    hits
+}
+
+// ---------------------------------------------------------------------
+// Під-перевірки 3 і 9 — `lib/conn-imports-scan.mjs` + `checkConnAliasDeclaration`
+// ---------------------------------------------------------------------
+
+/// Порт `toPosixDir` (`conn-imports-scan.mjs:40-44`) разом зі
+/// `stripTrailingSlashes`.
+fn to_posix_dir(raw: &str) -> String {
+    let replaced = raw.replace('\\', "/");
+    let trimmed = replaced.trim();
+    let without_dot_slash = trimmed.strip_prefix("./").unwrap_or(trimmed);
+    without_dot_slash.trim_end_matches('/').to_string()
+}
+
+/// Точний порт `resolveConnDirFromPackageJson` (`conn-imports-scan.mjs:51-71`):
+/// `imports['#conn/*']` рядком або умовним експортом (`default`, потім
+/// `import`), з відрізанням хвоста `/*`.
+fn resolve_conn_dir_from_package_json(pkg_json: Option<&serde_json::Value>) -> String {
+    let fallback = CONN_DIR_FALLBACK.to_string();
+    let Some(target) = pkg_json
+        .and_then(|pkg| pkg.get("imports"))
+        .filter(|imports| imports.is_object())
+        .and_then(|imports| imports.get("#conn/*"))
+    else {
+        return fallback;
+    };
+    let raw = match target {
+        serde_json::Value::String(s) => Some(s.as_str()),
+        serde_json::Value::Object(obj) => obj
+            .get("default")
+            .and_then(|v| v.as_str())
+            .or_else(|| obj.get("import").and_then(|v| v.as_str())),
+        _ => None,
+    };
+    // JS-канон бере `raw` за truthy — порожній рядок теж падає у fallback.
+    let Some(raw) = raw.filter(|s| !s.is_empty()) else {
+        return fallback;
+    };
+    let mut dir = to_posix_dir(raw);
+    if dir.ends_with("/*") {
+        dir.truncate(dir.len() - 2);
+    }
+    let dir = dir.trim_end_matches('/').to_string();
+    if dir.is_empty() {
+        fallback
+    } else {
+        dir
+    }
+}
+
+/// Точний порт `isInsideConnDir` (`conn-imports-scan.mjs:79-82`).
+fn is_inside_conn_dir(rel: &str, conn_dir: &str) -> bool {
+    if conn_dir.is_empty() {
+        return false;
+    }
+    rel == conn_dir || rel.starts_with(&format!("{conn_dir}/"))
+}
+
+/// Одна знахідка «фабричного» імпорту: рядок, сніпет, модуль, специфікатор.
+struct ConnImportHit {
+    line: usize,
+    snippet: String,
+    module: String,
+    specifier: String,
+}
+
+/// Точний порт `classifyConnImport` (`conn-imports-scan.mjs:91-114`):
+/// `bun` зі специфікатором `SQL`, БУДЬ-ЯКИЙ імпорт з `mssql`,
+/// `@nitra/graphql-request` зі специфікатором `GraphQLClient`.
+fn classify_conn_import(decl: &ImportDeclaration<'_>) -> Option<&'static str> {
+    let module = decl.source.value.as_str();
+    let has_named = |wanted: &str| {
+        decl.specifiers.iter().flatten().any(|spec| match spec {
+            ImportDeclarationSpecifier::ImportSpecifier(named) => named.imported.name() == wanted,
+            _ => false,
+        })
+    };
+    match module {
+        "bun" if has_named("SQL") => Some("SQL"),
+        "mssql" => Some("*"),
+        "@nitra/graphql-request" if has_named("GraphQLClient") => Some("GraphQLClient"),
+        _ => None,
+    }
+}
+
+/// Visitor [`find_conn_factory_imports_in_text`] — лише статичні імпорти
+/// (JS-оригінал читає рівно `result.module.staticImports`, без walk-фази).
+struct ConnImportVisitor<'c> {
+    content: &'c str,
+    hits: Vec<ConnImportHit>,
+}
+
+impl<'a> Visit<'a> for ConnImportVisitor<'_> {
+    fn visit_import_declaration(&mut self, it: &ImportDeclaration<'a>) {
+        let Some(specifier) = classify_conn_import(it) else {
+            return;
+        };
+        let base = AstHit::at(self.content, it.span);
+        self.hits.push(ConnImportHit {
+            line: base.line,
+            snippet: base.snippet,
+            module: it.source.value.to_string(),
+            specifier: specifier.to_string(),
+        });
+    }
+}
+
+/// Точний порт `findConnFactoryImportsInText` (`conn-imports-scan.mjs:122-145`).
+fn find_conn_factory_imports_in_text(content: &str, path: &str) -> Vec<ConnImportHit> {
+    let allocator = Allocator::default();
+    let ret = Parser::new(&allocator, content, scan_source_type(path)).parse();
+    if !ret.diagnostics.is_empty() {
+        return Vec::new();
+    }
+    let mut visitor = ConnImportVisitor {
+        content,
+        hits: Vec::new(),
+    };
+    visitor.visit_program(&ret.program);
+    visitor.hits
+}
+
+// ---------------------------------------------------------------------
+// Під-перевірка 4 — `lib/conn-file-rules.mjs`
+// ---------------------------------------------------------------------
+
+/// Порушення канону файла з `connDir/` — порт union-типу
+/// `{ kind: 'name' | 'default-export' | 'export-name', … }`.
+enum ConnFileViolation {
+    Name,
+    DefaultExport,
+    ExportName {
+        expected: String,
+        found: Vec<String>,
+    },
+}
+
+/// Точний порт `isConnFileNameValid` (`conn-file-rules.mjs:68-72`).
+fn is_conn_file_name_valid(rel: &str) -> bool {
+    let base = posix_basename(rel);
+    regex::Regex::new(CONN_FILENAME_QL_PATTERN)
+        .expect("CONN_FILENAME_QL_PATTERN валідний")
+        .is_match(base)
+        || regex::Regex::new(CONN_FILENAME_DB_PATTERN)
+            .expect("CONN_FILENAME_DB_PATTERN валідний")
+            .is_match(base)
+}
+
+/// Точний порт `basenameNoExt` (`conn-file-rules.mjs:47-52`): крапка на
+/// позиції 0 розширенням НЕ вважається (`dot > 0`).
+fn basename_no_ext(rel: &str) -> &str {
+    let base = posix_basename(rel);
+    match base.rfind('.') {
+        Some(dot) if dot > 0 => &base[..dot],
+        _ => base,
+    }
+}
+
+/// Точний порт `kebabToCamel` (`conn-file-rules.mjs:59-61`).
+fn kebab_to_camel(kebab: &str) -> String {
+    regex::Regex::new(KEBAB_SEGMENT_PATTERN)
+        .expect("KEBAB_SEGMENT_PATTERN валідний")
+        .replace_all(kebab, |caps: &regex::Captures<'_>| caps[1].to_uppercase())
+        .into_owned()
+}
+
+/// Порт `collectNamedExportNames` (`conn-file-rules.mjs:146-159`) — ЛИШЕ
+/// верхній рівень `program.body`, без обходу вглиб (експорт валідний лише
+/// там).
+fn collect_named_export_names(program: &Program<'_>) -> Vec<String> {
+    let mut out = Vec::new();
+    for stmt in &program.body {
+        let Statement::ExportNamedDeclaration(export) = stmt else {
+            continue;
+        };
+        match &export.declaration {
+            Some(Declaration::VariableDeclaration(decl)) => {
+                for declarator in &decl.declarations {
+                    // Строго `Identifier` — порт `id.type === 'Identifier'`
+                    // (`namesFromVariableDeclaration`): експорт із деструктуризацією
+                    // імені для звірки не дає.
+                    if let oxc_ast::ast::BindingPattern::BindingIdentifier(ident) = &declarator.id {
+                        out.push(ident.name.to_string());
+                    }
+                }
+            }
+            Some(Declaration::FunctionDeclaration(func)) => {
+                if let Some(id) = &func.id {
+                    out.push(id.name.to_string());
+                }
+            }
+            Some(Declaration::ClassDeclaration(class)) => {
+                if let Some(id) = &class.id {
+                    out.push(id.name.to_string());
+                }
+            }
+            // Порт `nameFromFnOrClassDeclaration` → null для решти
+            // (TS-декларації) і, як наслідок, порожній список.
+            Some(_) => {}
+            None => {
+                for spec in &export.specifiers {
+                    out.push(spec.exported.name().to_string());
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Порт `hasDefaultExport` (`conn-file-rules.mjs:166-180`).
+fn has_default_export(program: &Program<'_>) -> bool {
+    program
+        .body
+        .iter()
+        .any(|stmt| matches!(stmt, Statement::ExportDefaultDeclaration(_)))
+}
+
+/// Точний порт `findConnFileRuleViolations` (`conn-file-rules.mjs:191-214`),
+/// включно з порядком: `name` → (парсинг) → `default-export` → ранній вихід
+/// при невалідному імені → `export-name`.
+fn find_conn_file_rule_violations(content: &str, rel: &str) -> Vec<ConnFileViolation> {
+    let mut out = Vec::new();
+    let name_invalid = !is_conn_file_name_valid(rel);
+    if name_invalid {
+        out.push(ConnFileViolation::Name);
+    }
+
+    let allocator = Allocator::default();
+    let ret = Parser::new(&allocator, content, scan_source_type(rel)).parse();
+    if !ret.diagnostics.is_empty() {
+        return out;
+    }
+
+    if has_default_export(&ret.program) {
+        out.push(ConnFileViolation::DefaultExport);
+    }
+    if name_invalid {
+        return out;
+    }
+
+    let expected = kebab_to_camel(basename_no_ext(rel));
+    let names = collect_named_export_names(&ret.program);
+    if !names.contains(&expected) {
+        out.push(ConnFileViolation::ExportName {
+            expected,
+            found: names,
+        });
+    }
+    out
+}
+
+/// Порт `formatConnFileViolation` (`runtime/main.mjs:218-234`).
+fn format_conn_file_violation(
+    violation: &ConnFileViolation,
+    label: &str,
+    rel: &str,
+    conn_dir: &str,
+) -> String {
+    match violation {
+        ConnFileViolation::Name => format!(
+            "{label}{rel} — назва файла в '{conn_dir}/' не відповідає канону js-run: \
+             'ql-<id>', 'pg-{{read|write}}[-<id>]', 'mysql-{{read|write}}[-<id>]' або \
+             'mssql-{{read|write}}[-<id>]' (kebab-case, [a-z0-9-])"
+        ),
+        ConnFileViolation::DefaultExport => format!(
+            "{label}{rel} — 'export default' заборонений у '{conn_dir}/'; зроби іменований експорт"
+        ),
+        ConnFileViolation::ExportName { expected, found } => {
+            let found = if found.is_empty() {
+                "—".to_string()
+            } else {
+                found.join(", ")
+            };
+            format!(
+                "{label}{rel} — очікується іменований експорт 'export const {expected} = …' \
+                 (camelCase від назви файла); знайдено: {found}"
+            )
+        }
+    }
+}
+
+// ---------------------------------------------------------------------
+// Під-перевірка 5 — `lib/check-env-scan.mjs`
+// ---------------------------------------------------------------------
+
+/// Тип порушення `check-env-scan` — порт поля `kind`.
+#[derive(PartialEq, Eq, Hash, Clone, Copy)]
+enum EnvViolationKind {
+    ProcessEnv,
+    MissingCheckEnv,
+}
+
+/// Одне порушення під-перевірки 5.
+struct EnvViolation {
+    line: usize,
+    name: String,
+    kind: EnvViolationKind,
+}
+
+/// Чи вузол — `process.env` (StaticMemberExpression `process` . `env`) —
+/// порт `isProcessEnvAccess` (`check-env-scan.mjs:44-57`): `computed`
+/// форма (`process['env']`) НЕ вважається доступом, як і в канону.
+fn is_process_env_expression(expr: &Expression<'_>) -> bool {
+    let Expression::StaticMemberExpression(member) = expr else {
+        return false;
+    };
+    matches!(&member.object, Expression::Identifier(obj) if obj.name == "process")
+        && member.property.name == "env"
+}
+
+/// Чи вузол — Identifier `env` (об'єкт `env.X` / init `const {…} = env`).
+fn is_env_identifier(expr: &Expression<'_>) -> bool {
+    matches!(expr, Expression::Identifier(ident) if ident.name == "env")
+}
+
+/// Порт `staticPropertyName` (`check-env-scan.mjs:303-311`): ключ
+/// ObjectPattern-властивості, якщо він статичний (Identifier або
+/// string-літерал).
+fn static_property_name(key: &PropertyKey<'_>) -> Option<String> {
+    match key {
+        PropertyKey::StaticIdentifier(ident) => Some(ident.name.to_string()),
+        PropertyKey::StringLiteral(lit) => Some(lit.value.to_string()),
+        _ => None,
+    }
+}
+
+/// Стан обходу під-перевірки 5 — порт замикань `collectViolations`
+/// (`check-env-scan.mjs:219-296`) разом із дедуплікацією за
+/// `kind|name|line` і ignore-маркером.
+struct CheckEnvVisitor<'c> {
+    content: &'c str,
+    lines: Vec<&'c str>,
+    ignore_re: regex::Regex,
+    checked: HashSet<String>,
+    env_from_check_env: bool,
+    reported: HashSet<(EnvViolationKind, String, usize)>,
+    out: Vec<EnvViolation>,
+}
+
+impl CheckEnvVisitor<'_> {
+    /// Порт `hasIgnoreDirective` (`check-env-scan.mjs:137-141`).
+    fn has_ignore_directive(&self, one_based_line: usize) -> bool {
+        if one_based_line <= 1 {
+            return false;
+        }
+        let prev = self.lines.get(one_based_line - 2).copied().unwrap_or("");
+        self.ignore_re.is_match(prev)
+    }
+
+    /// Порт замикання `report`.
+    fn report(&mut self, kind: EnvViolationKind, name: String, line: usize) {
+        if self.has_ignore_directive(line) {
+            return;
+        }
+        let key = (kind, name.clone(), line);
+        if self.reported.contains(&key) {
+            return;
+        }
+        self.reported.insert(key);
+        self.out.push(EnvViolation { line, name, kind });
+    }
+
+    /// Порт замикання `reportObjectPatternKeys`: рядок беремо за офсетом
+    /// САМОЇ властивості, з фолбеком на офсет самої декларації.
+    fn report_object_pattern_keys(
+        &mut self,
+        pattern: &oxc_ast::ast::ObjectPattern<'_>,
+        declarator_start: usize,
+        kind: EnvViolationKind,
+        skip_checked: bool,
+    ) {
+        for prop in &pattern.properties {
+            let Some(name) = static_property_name(&prop.key) else {
+                continue;
+            };
+            if prop.computed || (skip_checked && self.checked.contains(&name)) {
+                continue;
+            }
+            let offset = if prop.span.start == 0 {
+                declarator_start
+            } else {
+                prop.span.start as usize
+            };
+            let line = line_number_at_offset(self.content, offset);
+            self.report(kind, name, line);
+        }
+    }
+}
+
+impl<'a> Visit<'a> for CheckEnvVisitor<'_> {
+    /// `process.env.X` і `env.X` — обидві форми репортяться на ЗОВНІШНЬОМУ
+    /// вузлі. Для `process.env.X` канон робить це під час візиту
+    /// ВНУТРІШНЬОГО `process.env` (через `ancestors.at(-1)`), але той —
+    /// перша дитина зовнішнього, тож порядок вибірки збігається.
+    fn visit_static_member_expression(&mut self, it: &oxc_ast::ast::StaticMemberExpression<'a>) {
+        if is_process_env_expression(&it.object) {
+            let name = it.property.name.to_string();
+            let line = line_number_at_offset(self.content, it.span.start as usize);
+            self.report(EnvViolationKind::ProcessEnv, name, line);
+        } else if self.env_from_check_env && is_env_identifier(&it.object) {
+            let name = it.property.name.to_string();
+            if !self.checked.contains(&name) {
+                let line = line_number_at_offset(self.content, it.span.start as usize);
+                self.report(EnvViolationKind::MissingCheckEnv, name, line);
+            }
+        }
+        walk_static_member_expression(self, it);
+    }
+
+    fn visit_computed_member_expression(
+        &mut self,
+        it: &oxc_ast::ast::ComputedMemberExpression<'a>,
+    ) {
+        // `envNameFromMember` для computed-форми бере ЛИШЕ string-літерал.
+        let key = match &it.expression {
+            Expression::StringLiteral(lit) => Some(lit.value.to_string()),
+            _ => None,
+        };
+        if let Some(name) = key {
+            if is_process_env_expression(&it.object) {
+                let line = line_number_at_offset(self.content, it.span.start as usize);
+                self.report(EnvViolationKind::ProcessEnv, name, line);
+            } else if self.env_from_check_env
+                && is_env_identifier(&it.object)
+                && !self.checked.contains(&name)
+            {
+                let line = line_number_at_offset(self.content, it.span.start as usize);
+                self.report(EnvViolationKind::MissingCheckEnv, name, line);
+            }
+        }
+        walk_computed_member_expression(self, it);
+    }
+
+    /// `const { A } = env` канон репортить на САМІЙ декларації (до дітей),
+    /// а `const { A } = process.env` — на його `init` (тобто ПІСЛЯ `id`).
+    /// Обидва порядки відтворені дослівно, тому обхід тут ручний.
+    fn visit_variable_declarator(&mut self, it: &VariableDeclarator<'a>) {
+        let object_pattern = match &it.id {
+            oxc_ast::ast::BindingPattern::ObjectPattern(pattern) => Some(pattern),
+            _ => None,
+        };
+        let init_is_env = it.init.as_ref().is_some_and(is_env_identifier);
+        let init_is_process_env = it.init.as_ref().is_some_and(is_process_env_expression);
+
+        if self.env_from_check_env && init_is_env {
+            if let Some(pattern) = object_pattern {
+                self.report_object_pattern_keys(
+                    pattern,
+                    it.span.start as usize,
+                    EnvViolationKind::MissingCheckEnv,
+                    true,
+                );
+            }
+        }
+        self.visit_binding_pattern(&it.id);
+        if init_is_process_env {
+            if let Some(pattern) = object_pattern {
+                self.report_object_pattern_keys(
+                    pattern,
+                    it.span.start as usize,
+                    EnvViolationKind::ProcessEnv,
+                    false,
+                );
+            }
+        }
+        if let Some(init) = &it.init {
+            self.visit_expression(init);
+        }
+    }
+}
+
+/// Порт `collectCheckedEnvNames` (`check-env-scan.mjs:80-99`) — усі
+/// string-літерали з `checkEnv([...])` у файлі.
+struct CheckEnvNamesVisitor {
+    names: HashSet<String>,
+}
+
+impl<'a> Visit<'a> for CheckEnvNamesVisitor {
+    fn visit_call_expression(&mut self, it: &CallExpression<'a>) {
+        if let Expression::Identifier(callee) = &it.callee {
+            if callee.name == "checkEnv" {
+                if let Some(Argument::ArrayExpression(array)) = it.arguments.first() {
+                    for element in &array.elements {
+                        if let ArrayExpressionElement::StringLiteral(lit) = element {
+                            self.names.insert(lit.value.to_string());
+                        }
+                    }
+                }
+            }
+        }
+        walk_call_expression(self, it);
+    }
+}
+
+/// Порт `hasCheckEnvImport` (`check-env-scan.mjs:109-129`): `import { env }`
+/// саме з `@nitra/check-env`, БЕЗ аліасів (`imported.name === local.name === 'env'`).
+fn has_check_env_import(program: &Program<'_>) -> bool {
+    program.body.iter().any(|stmt| {
+        let Statement::ImportDeclaration(decl) = stmt else {
+            return false;
+        };
+        if decl.source.value != CHECK_ENV_PACKAGE {
+            return false;
+        }
+        decl.specifiers.iter().flatten().any(|spec| match spec {
+            ImportDeclarationSpecifier::ImportSpecifier(named) => {
+                named.imported.name() == "env" && named.local.name == "env"
+            }
+            _ => false,
+        })
+    })
+}
+
+/// Точний порт `findUncheckedProcessEnvInText` (`check-env-scan.mjs:319-328`).
+fn find_unchecked_process_env_in_text(content: &str, path: &str) -> Vec<EnvViolation> {
+    let allocator = Allocator::default();
+    let ret = Parser::new(&allocator, content, scan_source_type(path)).parse();
+    if !ret.diagnostics.is_empty() {
+        return Vec::new();
+    }
+    let mut names = CheckEnvNamesVisitor {
+        names: HashSet::new(),
+    };
+    names.visit_program(&ret.program);
+
+    let mut visitor = CheckEnvVisitor {
+        content,
+        lines: content
+            .split('\n')
+            .map(|line| line.strip_suffix('\r').unwrap_or(line))
+            .collect(),
+        ignore_re: regex::Regex::new(CHECK_ENV_IGNORE_DIRECTIVE_PATTERN)
+            .expect("CHECK_ENV_IGNORE_DIRECTIVE_PATTERN валідний"),
+        checked: names.names,
+        env_from_check_env: has_check_env_import(&ret.program),
+        reported: HashSet::new(),
+        out: Vec::new(),
+    };
+    visitor.visit_program(&ret.program);
+    visitor.out
+}
+
+// ---------------------------------------------------------------------
+// Під-перевірка 6 — `lib/promise-settimeout-scan.mjs`
+// ---------------------------------------------------------------------
+
+/// Порт `extractSingleCallExpression` (`promise-settimeout-scan.mjs:43-52`):
+/// тіло функції — рівно один `CallExpression` (concise-стрілка або блок з
+/// єдиним `ExpressionStatement`). У `oxc` обидві форми — той самий
+/// `FunctionBody`, тож тест один.
+fn single_call_expression<'a, 'b>(body: &'b FunctionBody<'a>) -> Option<&'b CallExpression<'a>> {
+    if body.statements.len() != 1 {
+        return None;
+    }
+    let Statement::ExpressionStatement(stmt) = &body.statements[0] else {
+        return None;
+    };
+    match &stmt.expression {
+        Expression::CallExpression(call) => Some(call),
+        _ => None,
+    }
+}
+
+/// Тіло й кількість параметрів функції-аргументу (стрілка або
+/// `function`-вираз) — спільний доступ для [`is_bare_resolve_callback`] і
+/// [`is_promise_set_timeout_delay`].
+fn function_like_parts<'a, 'b>(
+    expr: &'b Expression<'a>,
+) -> Option<(&'b FormalParameters<'a>, &'b FunctionBody<'a>)> {
+    match expr {
+        Expression::ArrowFunctionExpression(arrow) => Some((&arrow.params, &arrow.body)),
+        Expression::FunctionExpression(func) => {
+            func.body.as_deref().map(|body| (&*func.params, body))
+        }
+        _ => None,
+    }
+}
+
+/// Порт `isBareResolveCallback` (`promise-settimeout-scan.mjs:26-35`).
+fn is_bare_resolve_callback(arg: Option<&Argument<'_>>, param_name: &str) -> bool {
+    let Some(arg) = arg else {
+        return false;
+    };
+    let Some(expr) = arg.as_expression() else {
+        return false;
+    };
+    if let Expression::Identifier(ident) = expr {
+        return ident.name == param_name;
+    }
+    let Some((params, body)) = function_like_parts(expr) else {
+        return false;
+    };
+    if !params.items.is_empty() || params.rest.is_some() {
+        return false;
+    }
+    let Some(call) = single_call_expression(body) else {
+        return false;
+    };
+    let Expression::Identifier(callee) = &call.callee else {
+        return false;
+    };
+    callee.name == param_name && call.arguments.is_empty()
+}
+
+/// Порт `isPromiseSetTimeoutDelay` (`promise-settimeout-scan.mjs:62-76`).
+fn is_promise_set_timeout_delay(node: &NewExpression<'_>) -> bool {
+    let Expression::Identifier(callee) = &node.callee else {
+        return false;
+    };
+    if callee.name != "Promise" || node.arguments.len() != 1 {
+        return false;
+    }
+    let Some(fn_expr) = node.arguments[0].as_expression() else {
+        return false;
+    };
+    let Some((params, body)) = function_like_parts(fn_expr) else {
+        return false;
+    };
+    let Some(first_param) = params.items.first() else {
+        return false;
+    };
+    // Строго `Identifier`, як `firstParam.type !== 'Identifier'` канону:
+    // `get_binding_identifier` розгортав би ще й `AssignmentPattern`
+    // (`(resolve = x) => …`), який JS-оригінал відкидає.
+    let oxc_ast::ast::BindingPattern::BindingIdentifier(param_name) = &first_param.pattern else {
+        return false;
+    };
+    let Some(call) = single_call_expression(body) else {
+        return false;
+    };
+    let Expression::Identifier(call_callee) = &call.callee else {
+        return false;
+    };
+    if call_callee.name != "setTimeout" || call.arguments.is_empty() {
+        return false;
+    }
+    is_bare_resolve_callback(call.arguments.first(), param_name.name.as_str())
+}
+
+/// Visitor [`find_promise_set_timeout_in_text`] — порт generic-обходу
+/// `walkAst` JS-оригіналу (шукає `NewExpression` на будь-якій глибині).
+struct PromiseSetTimeoutVisitor<'c> {
+    content: &'c str,
+    hits: Vec<AstHit>,
+}
+
+impl<'a> Visit<'a> for PromiseSetTimeoutVisitor<'_> {
+    fn visit_new_expression(&mut self, it: &NewExpression<'a>) {
+        if is_promise_set_timeout_delay(it) {
+            self.hits.push(AstHit::at(self.content, it.span));
+        }
+        walk_new_expression(self, it);
+    }
+}
+
+/// Точний порт `findPromiseSetTimeoutInText` (`promise-settimeout-scan.mjs:105-118`).
+fn find_promise_set_timeout_in_text(content: &str, path: &str) -> Vec<AstHit> {
+    let allocator = Allocator::default();
+    let ret = Parser::new(&allocator, content, scan_source_type(path)).parse();
+    if !ret.diagnostics.is_empty() {
+        return Vec::new();
+    }
+    let mut visitor = PromiseSetTimeoutVisitor {
+        content,
+        hits: Vec::new(),
+    };
+    visitor.visit_program(&ret.program);
+    visitor.hits
+}
+
+// ---------------------------------------------------------------------
+// Під-перевірка 7 — `lib/temporal-scan.mjs`
+// ---------------------------------------------------------------------
+
+/// Visitor [`find_temporal_usage_in_text`]: JS-оригінал ходить УСІ вузли з
+/// `type === 'Identifier'`, а в ESTree це і посилання (`Temporal.Now`), і
+/// властивість (`obj.Temporal`), і біндинг, і специфікатор імпорту. У
+/// `oxc` це чотири різні типи вузлів — звідси чотири методи; дедуплікація
+/// за span-ом (порт `seen` JS-оригіналу) знімає подвійний рахунок
+/// `import { Temporal }`, де `imported` і `local` мають той самий span.
+struct TemporalVisitor<'c> {
+    content: &'c str,
+    seen: HashSet<(u32, u32)>,
+    hits: Vec<AstHit>,
+}
+
+impl TemporalVisitor<'_> {
+    fn record(&mut self, name: &str, span: Span) {
+        if name != "Temporal" || !self.seen.insert((span.start, span.end)) {
+            return;
+        }
+        self.hits.push(AstHit::at(self.content, span));
+    }
+}
+
+impl<'a> Visit<'a> for TemporalVisitor<'_> {
+    fn visit_identifier_reference(&mut self, it: &oxc_ast::ast::IdentifierReference<'a>) {
+        self.record(it.name.as_str(), it.span);
+    }
+
+    fn visit_binding_identifier(&mut self, it: &oxc_ast::ast::BindingIdentifier<'a>) {
+        self.record(it.name.as_str(), it.span);
+    }
+
+    fn visit_identifier_name(&mut self, it: &oxc_ast::ast::IdentifierName<'a>) {
+        self.record(it.name.as_str(), it.span);
+    }
+
+    fn visit_label_identifier(&mut self, it: &oxc_ast::ast::LabelIdentifier<'a>) {
+        self.record(it.name.as_str(), it.span);
+    }
+}
+
+/// Точний порт `findTemporalUsageInText` (`temporal-scan.mjs:24-42`).
+fn find_temporal_usage_in_text(content: &str, path: &str) -> Vec<AstHit> {
+    let allocator = Allocator::default();
+    let ret = Parser::new(&allocator, content, scan_source_type(path)).parse();
+    if !ret.diagnostics.is_empty() {
+        return Vec::new();
+    }
+    let mut visitor = TemporalVisitor {
+        content,
+        seen: HashSet::new(),
+        hits: Vec::new(),
+    };
+    visitor.visit_program(&ret.program);
+    visitor.hits
+}
+
+// ---------------------------------------------------------------------
+// Оркестрація концерну — порт `checkWorkspacePackage` і `lint`
+// ---------------------------------------------------------------------
+
+/// Порт `packageJsonHasViteDevDependency` (`runtime/main.mjs:388-393`) —
+/// маркер frontend-пакета, який виходить за межі js-run цілком.
+fn package_json_has_vite_dev_dependency(pkg_json: Option<&serde_json::Value>) -> bool {
+    pkg_json
+        .and_then(|pkg| pkg.get("devDependencies"))
+        .and_then(|deps| deps.as_object())
+        .is_some_and(|deps| deps.contains_key("vite"))
+}
+
+/// Файли батчу, що лежать у підпросторі пакета, у вигляді пар
+/// («шлях відносно кореня пакета», сам файл) — база для всіх шести
+/// сканерів (порт `collectSourceFiles` + `walkDir` per-package обходів).
+fn package_source_files<'a>(
+    files: &'a [SourceFile],
+    prefix: &str,
+) -> Vec<(&'a str, &'a SourceFile)> {
+    files
+        .iter()
+        .filter_map(|file| pkg_rel(&file.path, prefix).map(|rel| (rel, file)))
+        .filter(|(rel, _)| is_js_run_scan_source_file(rel))
+        .collect()
+}
+
+/// Порт `checkWorkspacePackage` (`runtime/main.mjs:318-379`) — дев'ять
+/// під-перевірок у ТОМУ САМОМУ порядку, що канон (порядок визначає порядок
+/// діагностик у результаті).
+fn check_js_run_workspace_package(files: &[SourceFile], root_dir: &str, out: &mut Vec<Diagnostic>) {
+    let label = format!("[{root_dir}] ");
+    let prefix = pkg_walk_prefix(root_dir);
+    let pkg_json = batch_file(files, &pkg_json_path(root_dir))
+        .and_then(|file| parse_json_tolerant(&file.content));
+    if package_json_has_vite_dev_dependency(pkg_json.as_ref()) {
+        return;
+    }
+
+    let mut fail = |message: String| {
+        out.push(Diagnostic {
+            reason: JS_RUN_RUNTIME_REASON.to_string(),
+            message,
+            file: None,
+            severity: Severity::Error,
+            data: None,
+        });
+    };
+
+    let conn_dir = resolve_conn_dir_from_package_json(pkg_json.as_ref());
+    let sources = package_source_files(files, &prefix);
+
+    // 1 — `jsconfig.json` існує, якщо є `src/` (розбіжності 1–2 доккомента
+    // секції: без вакуумного conftest-спавна, `src/` — за наявністю файлів).
+    let has_src_dir = files
+        .iter()
+        .filter_map(|file| pkg_rel(&file.path, &prefix))
+        .any(|rel| rel.starts_with("src/"));
+    if has_src_dir && batch_file(files, &format!("{prefix}jsconfig.json")).is_none() {
+        fail(format!(
+            "{label}є каталог src/, але немає jsconfig.json — додай канонічний файл з js-run.mdc \
+             (NodeNext, include: src/**/*)."
+        ));
+    }
+
+    // 2 — заборонені logger-імпорти.
+    for (rel, file) in &sources {
+        for hit in find_bunyan_imports_in_text(&file.content, rel) {
+            fail(format!(
+                "{label}{rel}:{} — заміни '{}' на '@nitra/pino': {}",
+                hit.line, hit.module, hit.snippet
+            ));
+        }
+    }
+
+    // 3 — фабрики підключень поза `connDir/`.
+    for (rel, file) in &sources {
+        if is_inside_conn_dir(rel, &conn_dir) {
+            continue;
+        }
+        for hit in find_conn_factory_imports_in_text(&file.content, rel) {
+            let target = if hit.specifier == "*" {
+                format!("'{}'", hit.module)
+            } else {
+                format!("{{ {} }} from '{}'", hit.specifier, hit.module)
+            };
+            fail(format!(
+                "{label}{rel}:{} — імпорт {target} має бути в '{conn_dir}/' і реекспортуватися \
+                 через '#conn/*': {}",
+                hit.line, hit.snippet
+            ));
+        }
+    }
+
+    // 4 — нейминг і експорти всередині `connDir/` (порт `isConnFileToCheck`:
+    // `index.*` — реекспортний барель, пропускається).
+    for (rel, file) in &sources {
+        if !is_inside_conn_dir(rel, &conn_dir) || posix_basename(rel).starts_with("index.") {
+            continue;
+        }
+        for violation in find_conn_file_rule_violations(&file.content, rel) {
+            fail(format_conn_file_violation(
+                &violation, &label, rel, &conn_dir,
+            ));
+        }
+    }
+
+    // 5 — `process.env` / незакритий `checkEnv`.
+    for (rel, file) in &sources {
+        for violation in find_unchecked_process_env_in_text(&file.content, rel) {
+            let name = &violation.name;
+            fail(match violation.kind {
+                EnvViolationKind::ProcessEnv => format!(
+                    "{label}{rel}:{} — process.env.{name}: заміни на env з '@nitra/check-env' \
+                     (обов'язкова змінна + checkEnv(['{name}'])) або з 'node:process' (опційна)",
+                    violation.line
+                ),
+                EnvViolationKind::MissingCheckEnv => format!(
+                    "{label}{rel}:{} — env.{name} (з '@nitra/check-env') без checkEnv(['{name}']) \
+                     (або '// n-rules:ignore-next-line checkEnv' попереду)",
+                    violation.line
+                ),
+            });
+        }
+    }
+
+    // 6 — пауза через `new Promise` + `setTimeout`.
+    for (rel, file) in &sources {
+        for hit in find_promise_set_timeout_in_text(&file.content, rel) {
+            fail(format!(
+                "{label}{rel}:{} — заміни 'new Promise(r => setTimeout(r, ms))' на \
+                 'await setTimeout(ms)' з 'node:timers/promises': {}",
+                hit.line, hit.snippet
+            ));
+        }
+    }
+
+    // 7 — `Temporal` у Bun-рантаймі.
+    for (rel, file) in &sources {
+        for hit in find_temporal_usage_in_text(&file.content, rel) {
+            fail(format!(
+                "{label}{rel}:{} — Temporal API заборонений у Bun runtime; використовуй Date або \
+                 інʼєктований timestamp",
+                hit.line
+            ));
+        }
+    }
+
+    // 8 — OTEL configmap (єдина під-перевірка БЕЗ `label`-префікса — канон
+    // будує повідомлення від `rootDir` напряму).
+    let has_k8s_dir = files
+        .iter()
+        .filter_map(|file| pkg_rel(&file.path, &prefix))
+        .any(|rel| rel.starts_with("k8s/"));
+    if has_k8s_dir && batch_file(files, &format!("{prefix}k8s/base/configmap.yaml")).is_none() {
+        fail(format!(
+            "{root_dir}/k8s/base/configmap.yaml відсутній — додай з полем \
+             OTEL_RESOURCE_ATTRIBUTES (service.name=, service.namespace=), js-run.mdc"
+        ));
+    }
+
+    // 9 — декларація аліаса `#conn/*`.
+    let has_conn_files = sources
+        .iter()
+        .any(|(rel, _)| is_inside_conn_dir(rel, &conn_dir));
+    let alias_declared = pkg_json
+        .as_ref()
+        .and_then(|pkg| pkg.get("imports"))
+        .and_then(|imports| imports.as_object())
+        .and_then(|imports| imports.get("#conn/*"))
+        .is_some_and(|value| !matches!(value, serde_json::Value::Null));
+    if has_conn_files && !alias_declared {
+        fail(format!(
+            "{label}є файли у '{conn_dir}/', але в package.json відсутній аліас \"#conn/*\" — \
+             додай \"imports\": {{ \"#conn/*\": \"./{conn_dir}/*\" }} (js-run.mdc conn-aliases)"
+        ));
+    }
+}
+
+/// Точний порт `lint()` `js-run/runtime` (`runtime/main.mjs:477-496`) —
+/// WHOLE-BATCH: workspace-пакети кореневого `package.json` без самого
+/// кореня `.`; порожній список — жодної діагностики.
+fn detect_js_run_runtime(files: &[SourceFile]) -> Vec<Diagnostic> {
+    let mut out = Vec::new();
+    for root_dir in monorepo_package_root_dirs(files) {
+        if root_dir == "." {
+            continue;
+        }
+        check_js_run_workspace_package(files, &root_dir, &mut out);
+    }
+    out
+}
+
 /// Guest-реалізація world `plugin` — тридцять дев'ять контрибуцій ([`CONCERN_TFM`],
 /// [`CONCERN_GAP`], [`CONCERN_POOL_FORKS`], [`CONCERN_NO_PROCESS_CHDIR`],
 /// [`CONCERN_ADMIN_TABLE`], [`CONCERN_QUASAR_FIXES`], [`CONCERN_LOCATION`],
@@ -11422,6 +12612,10 @@ impl Guest for LangJs {
             CONCERN_JSCPD_DUPLICATES => {
                 report_progress(total, total);
                 detect_jscpd_duplicates()
+            }
+            CONCERN_JS_RUN_RUNTIME => {
+                report_progress(total, total);
+                detect_js_run_runtime(&batch.files)
             }
             // PER-FILE (зріз 4): кожен файл — свій крок прогресу, як
             // дефолтна `CONCERN_TFM`-гілка нижче.
@@ -13939,7 +15133,7 @@ mod tests {
     }
 
     #[test]
-    fn build_manifest_declares_all_thirty_seven_concerns_with_expected_scopes() {
+    fn build_manifest_declares_all_forty_concerns_with_expected_scopes() {
         let manifest = build_manifest();
         // Задача Q4 батч 4: `CONCERN_REDIS_IMPORTS`/`CONCERN_MSSQL_DEPS`/
         // `CONCERN_BUN_DB_SAFETY` тепер У контрибуції (AST-порти, де-скоуп
@@ -13957,8 +15151,10 @@ mod tests {
         // контрибуція плагіна), зріз 5 — `bun/licensee` (доккомент секції
         // «Зріз 5», ПЕРШИЙ концерн плагіна, що спавнить зовнішній процес),
         // зріз 6 — `style/lint` і `js/jscpd_duplicates` (доккомент секції
-        // «Зріз 6»).
-        assert_eq!(manifest.concerns.len(), 39);
+        // «Зріз 6»), зріз 7 — `js-run/runtime` (доккомент секції «Зріз 7»,
+        // найбільший поодинокий зріз §3.5.5: дев'ять під-перевірок одного
+        // ключа).
+        assert_eq!(manifest.concerns.len(), 40);
         for key in [CONCERN_TFM, CONCERN_DOC_COMMENTS] {
             let contribution = manifest
                 .concerns
@@ -14005,6 +15201,7 @@ mod tests {
             CONCERN_JS_CHECK,
             CONCERN_BUN_LICENSEE,
             CONCERN_STYLE_LINT,
+            CONCERN_JS_RUN_RUNTIME,
         ] {
             let contribution = manifest
                 .concerns
