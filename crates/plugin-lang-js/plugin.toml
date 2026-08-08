@@ -350,6 +350,24 @@ key = "js/jscpd_duplicates"
 scope = "full"
 glob = []
 
+# Зріз 7 контракту v3.1 — найбільший поодинокий зріз §3.5.5 (дев'ять
+# незалежних під-перевірок одного ключа). Глоб ШИРШИЙ за `concern.json` в
+# одному місці: `**/k8s/**/*.{yaml,yml}` замість `**/k8s/base/configmap.yaml` —
+# інакше
+# гілка «каталог k8s/ є, а configmap немає» зникла б мовчки (доккомент
+# секції «Зріз 7» у `src/lib.rs`). Жодного тула цей концерн НЕ декларує:
+# вимір показав, що `runConftestBatch` у JS-канону вакуумний, тож
+# `pinned:conftest` і `scratch-in` тут не потрібні (там же).
+[[concerns]]
+key = "js-run/runtime"
+scope = "full"
+glob = [
+  "**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}",
+  "**/package.json",
+  "**/jsconfig.json",
+  "**/k8s/**/*.{yaml,yml}",
+]
+
 [capabilities]
 # Хост передає вміст файлів inline у `detect-batch`/`fix-request` (як
 # per-file, так і host-побудований full-scope batch) — плагін не читає диск
