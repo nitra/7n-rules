@@ -317,12 +317,19 @@ pub async fn submit_batch(
         }
     };
 
+    // ACP-емуляція (`N_BATCH_BACKEND=acp`, спека
+    // `2026-08-08-llm-lib-acp-only-rust-goose.md` §3.6) сюди ще не
+    // проведена — napi-міст лишається на нативному `/v1/batches`-шляху
+    // (рішення Е: JS-споживачі мігрують разом зі своїм контуром, не
+    // раніше). `acp_config: None` — той самий дефолт [`Backend::Native`],
+    // що й до цього зрізу.
     let results = llm_lib::dispatch_batch(
         &cascade,
         &model_spec_or_tier,
         batch_items,
         &remote_config,
         global_system,
+        None,
         on_progress_fn,
     )
     .await
