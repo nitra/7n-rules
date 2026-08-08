@@ -74,16 +74,17 @@ llm-lib/crates/
 Кожен рядок мігрує «разом з контуром» — команда переїжджає в Rust, її LLM-виклики
 переходять на embedded goose (агентні) або genai (неагентні):
 
-| JS-поверхня | Контур | Цільовий шлях |
-|---|---|---|
-| `one-shot.mjs` | разові структуровані виклики | genai напряму (без tool-ів) або one-shot ACP-сесія (з tool-ами) |
-| `agent-fix.mjs` | LLM-ladder лінт-фіксів | ACP-сесія (goose/підписочний kind) + write-guard |
-| `agent-skill.mjs` | скіл-раннер | ACP-сесія (goose/підписочний kind) |
-| `batch.mjs` / `chain.mjs` | doc-files/claims/entailment | batch-фасад §3.6 (native → ACP-емуляція) |
-| `internal/registry.mjs` (pi ModelRegistry) | резолвінг моделей | тир-мапа `llm-lib` (§3.2) |
-| `adr-normalize-local` (925-рядковий конвеєр) | ADR-нормалізація | порт конвеєра в Rust, LLM-ходи через batch-фасад/ACP; при порті retrieval-частини оцінити `rig-core` (embeddings/vector store) як цільову залежність контуру |
-| `docs build [--publish]` | doc-files генерація | порт на batch-фасад §3.6 |
-| `acp.mjs` (JS-обгортка napi) | ACP-виклики з JS | зникає разом з napi |
+| JS-поверхня | Контур | Клас (§3.7) | Цільовий шлях |
+|---|---|---|---|
+| `one-shot.mjs` | разові структуровані виклики | 1 | genai напряму — completions без tool-ів |
+| `agent-fix.mjs` (+ write-guard, anchored-edit, coverage fix-хуки) | LLM-ladder лінт-фіксів | 3 | **власний цикл на rig-agent** (§3.7) — єдиний контур, де зовнішній агент не дає потрібних гарантій |
+| `agent-skill.mjs` | скіл-раннер (skills-cli, taze, git-reconcile) | 2 | стандартні ACP-kind-и (goose/codex/cursor/pi) |
+| `batch.mjs` / `chain.mjs` | doc-files/claims/entailment, coverage classify, adr-normalize | 1 | batch-фасад §3.6 (native → ACP-емуляція) |
+| `internal/registry.mjs` (pi ModelRegistry) | резолвінг моделей | — | тир-мапа `llm-lib` (§3.2) |
+| `adr-normalize-local` (925-рядковий конвеєр) | ADR-нормалізація | 1 | порт конвеєра в Rust, LLM-ходи через batch-фасад; retrieval лексичний (Jaccard), ембедингів немає — rig-core для retrieval не потрібен |
+| `docs build [--publish]` | doc-files генерація | 1 | порт на batch-фасад §3.6 |
+| `acp.mjs` (JS-обгортка napi) | ACP-виклики з JS | — | зникає разом з napi |
+| `harness.mjs`, `web-tools.mjs`, `coverage/lib/llm.mjs` (`callText`/`callAgent`) | публічні експорти без in-repo споживачів | — | не портуються: вивід/deprecate при міграції відповідного контуру (`harness`-профіль `{kind:'fix'}` — основа контракту §3.7) |
 
 Порядок: спершу контури на неагентному шляху (batch — Rust-код готовий), потім
 agent-fix/agent-skill (goose loop), останніми — adr-normalize і docs build (найбільші
@@ -116,12 +117,11 @@ agent-fix/agent-skill (goose loop), останніми — adr-normalize і docs
 - **Спавн-вартість CLI на сесію**: для агентних задач — копійки на тлі LLM-ходів; для
   batch-емуляції компенсується пулом переживаючих сесій (§3.6).
 - **Провізіонінг goose** на машинах розробників і в CI — новий тул у контурі §4.1 реєстру.
-- **Escape-hatch «власний агент на rig»**: якщо стандартних агентів (goose/підписочні CLI)
-  виявиться недостатньо — тонший детермінований контроль циклу, кастомна tool-оркестрація
-  поза MCP-конфігом goose, середовища без зовнішніх бінарів, спавн-латентність як вузьке
-  місце — призначений шлях: власний агентний цикл на `rig-agent`, експонований пʼятим
-  kind-ом за тим самим контрактом ACP-типів. Свідомо не будується наперед (YAGNI);
-  додається, коли конкретна недостатність зафіксована.
+- **Escape-hatch «власний агент на rig» — перший споживач визначений**: інвентаризація
+  2026-08-08 (§3.7) довела кодом, що контур `fix` (agent-fix + write-guard + anchored-edit
+  + verify-петля + coverage fix-хуки) вимагає гарантій, які зовнішній агент не дає
+  принципово. Для решти контурів escape-hatch лишається закритим (YAGNI). Власний цикл
+  на `rig-agent` експонується пʼятим kind-ом за тим самим контрактом ACP-типів.
 
 ### 3.6. Batch-фасад: capability-резолвер
 
@@ -143,6 +143,53 @@ agent-fix/agent-skill (goose loop), останніми — adr-normalize і docs
 Пул ACP-сесій — той самий механізм, що обслуговує агентні контури; це і є вирішальний
 аргумент рішення В: він потрібен безумовно, тож embed-цикл був би зайвим двигуном
 поруч із ним і native-шляхом.
+
+### 3.7. Класи LLM-контурів (інвентаризація 2026-08-08)
+
+Повна інвентаризація всіх LLM-точок репо (чотири паралельні розвідки: llm-lib поверхні,
+LLM-ladder фіксів, doc-files конвеєри, adr-normalize + решта) дала три класи:
+
+**Клас 1 — агентність не потрібна → batch-фасад (§3.6) / genai one-shot.**
+doc-files (обидва конвеєри: per-file docgen і package_knowledge), adr-normalize
+(batch-хвилі з self-consistency голосуванням, лексичний Jaccard-retrieval без
+ембедингів), coverage classify (structured mutation-judge з дисковим кешем),
+cspell-fix, capture-decisions. Усе — stateless completions, стан/ID/побічні ефекти
+тримає JS-оркестрація (при порті — Rust). Головний виграш нового транспорту для
+цього класу — native structured output (`response_format` замість «схеми в промпті»),
+що зніме частину ladder-ретраїв за invalid-json-shape.
+
+**Клас 2 — стандартна агентність → зовнішні ACP-kind-и.**
+agent-skill-сімейство: skills-cli, taze, git-reconcile. User-trust сесії з повним
+toolset-ом (включно з bash) — рівно семантика зовнішніх coding-агентів. Особливі
+вимоги (turn-ceiling+abort, deny-command-fragments, bounded min→max із JS-валідацією
+між викликами) виражаються на ACP-межі; deny-fragments уже реалізований у
+`llm_lib::acp::session` для підписочних CLI.
+
+**Клас 3 — власний цикл на rig-agent → рівно один контур: `fix`.**
+Внутрішній цикл agent-fix вимагає гарантій, недосяжних для зовнішнього агента:
+
+- порожній allowlist tool-ів замість deny (жодного bash); anchored-профіль
+  **вилучає** builtin read/edit і замінює власним анкерним протоколом (атомарна
+  валідація до застосування, нуль fuzzy-match);
+- синхронне перехоплення кожного write-tool-виклику: veto + pre-image до запису +
+  повний editLog `oldText→newText` — живить дистиляційний маховик (успішний
+  LLM-фікс → корпус → детермінований T0-патерн), якого в чужому агенті немає;
+- verify-петля з інжекцією canonical-перевірки в ту саму сесію в межах спільного
+  бюджету рунга (&lt;5с — чесна зупинка; інфраструктурні помилки не палять ітерації);
+- streamFn-перехоплення кожного виклику (chain-headers, context-compression,
+  maxTokens per-call), склейка system+user в один prompt для слабких локальних
+  моделей, синтез помилки зі `stopReason='error'`, turn-ceiling з abort;
+- доменні верифікатори між ходами (eslint-worker: AST-гард tagged-templates,
+  пул per-file сесій з deadline-fraction).
+
+Сюди ж — agentic fix-хуки coverage-провайдерів (`fixSurvived`/`generateTests`/
+`generateStories`): та сама механіка через слот `coverage.provider@1`.
+Серіалізовний профіль `harness.mjs` `{kind:'fix', tier, timeoutMs, verifyMax,
+anchoredEdits, …}` — готовий контракт для Rust-реалізації цього циклу.
+
+Зовнішній harness навколо циклу (ladder 4 рунгів, snapshot/rollback per rung,
+collateral-veto cross-file + hunk-window, test-gate) — детермінована оркестрація
+поза LLM; вона портується в Rust незалежно від вибору двигуна циклу.
 
 ## Відкриті питання
 
