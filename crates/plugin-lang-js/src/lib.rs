@@ -682,7 +682,7 @@ const UTILS_JS_SOURCE_PATTERN: &str = r"\.(?:[cm]?[jt]sx?)$";
 const UTILS_TEST_FILE_PATTERN: &str = r"\.test\.[cm]?[jt]sx?$";
 
 /// (ім'я FS-функції, 0-індексовані позиції path-аргументів) — точний порт
-/// `FS_PATH_ARG_POSITIONS` (`plugins/lang-js/rules/test/no-relative-fs-path/main.mjs:15-58`).
+/// `FS_PATH_ARG_POSITIONS` (`plugins/lang-js/rules/test/no-relative-fs-path/main.mjs:16-63`).
 /// Лінійний масив (не `HashMap`) — той самий мотив, що `QUASAR_FIXES`:
 /// невеликий, фіксований, порядок не впливає на семантику (пошук за іменем).
 const FS_PATH_ARG_POSITIONS: &[(&str, &[usize])] = &[
@@ -719,8 +719,12 @@ const FS_PATH_ARG_POSITIONS: &[(&str, &[usize])] = &[
     ("copyFileSync", &[0, 1]),
     ("rename", &[0, 1]),
     ("renameSync", &[0, 1]),
-    ("symlink", &[0, 1]),
-    ("symlinkSync", &[0, 1]),
+    // symlink: перевіряємо ЛИШЕ 2-й аргумент (шлях самого посилання). 1-й — це
+    // ЦІЛЬ посилання, тобто рядок, який запишеться всередину symlink-а; відносна
+    // ціль там нормальна й осмислена (`../real.txt`), а не помилка тесту. Пор.
+    // `link`/`copyFile`/`rename`, де обидва аргументи — справжні шляхи на диску.
+    ("symlink", &[1]),
+    ("symlinkSync", &[1]),
     ("link", &[0, 1]),
     ("linkSync", &[0, 1]),
     ("cp", &[0, 1]),
@@ -729,11 +733,11 @@ const FS_PATH_ARG_POSITIONS: &[(&str, &[usize])] = &[
     ("ensureDir", &[0]),
 ];
 
-/// Точний порт `ABSOLUTE_PREFIXES` (`main.mjs:64`, `test/no-relative-fs-path`).
+/// Точний порт `ABSOLUTE_PREFIXES` (`main.mjs:69`, `test/no-relative-fs-path`).
 const NO_RELATIVE_FS_PATH_ABSOLUTE_PREFIXES: [&str; 6] =
     ["/", "\\", "file:", "http:", "https:", "data:"];
 
-/// Точний порт `WINDOWS_DRIVE_RE` (`main.mjs:65`).
+/// Точний порт `WINDOWS_DRIVE_RE` (`main.mjs:70`).
 const NO_RELATIVE_FS_PATH_WINDOWS_DRIVE_PATTERN: &str = r"^[A-Za-z]:[\\/]";
 
 /// 1-based номер рядка символьного офсету `idx` у `content`.
@@ -3313,7 +3317,7 @@ fn extract_relative_literal_path(
 }
 
 /// Ім'я FS-функції з callee — точний порт `extractFsFunctionName`
-/// (`main.mjs:111-121`): `Identifier` напряму (`writeFile(...)`) або
+/// (`main.mjs:116-126`): `Identifier` напряму (`writeFile(...)`) або
 /// non-computed `StaticMemberExpression` (`fs.writeFile(...)`,
 /// `fsp.promises.writeFile(...)` — лише `.property`, `.object`-ланцюжок
 /// ігнорується, той самий мотив, що JS-оригінал). Повертає канонічне ім'я з
@@ -3333,7 +3337,7 @@ fn extract_fs_function_name(callee: &Expression) -> Option<&'static str> {
 
 /// Число байтових-офсетних новий-рядків до `offset` (1-індексований номер
 /// рядка) — той самий мотив, що `computeLineOffsets`/`offsetToLineFromCache`
-/// (`main.mjs:161-190`) на ASCII-фікстурах: `oxc_span::Span`-офсети — байтові
+/// (`main.mjs:166-195`) на ASCII-фікстурах: `oxc_span::Span`-офсети — байтові
 /// (UTF-8), як і в npm `oxc-parser` (спайк S1, розділ «Мікро-parity»
 /// `docs/specs/2026-08-01-wasm-ast-strategy.md`), тоді як JS-оригінал рахує
 /// офсети через `for (const ch of body)` — по code point, не по байту.
@@ -3355,10 +3359,10 @@ type FsPathOffender = (usize, &'static str, String, usize);
 
 /// Visitor для [`find_offenders_in_body`] — точний порт тіла
 /// `walkAstWithAncestors(program, [], node => {…})` у `findOffendersInBody`
-/// (`main.mjs:138-159`): для кожного `CallExpression` з callee з
+/// (`main.mjs:143-164`): для кожного `CallExpression` з callee з
 /// [`FS_PATH_ARG_POSITIONS`] перевіряє ВСІ задекларовані path-позиції
-/// аргументів (не лише перший — `copyFile`/`rename`/`symlink`/`link`/`cp`
-/// мають дві).
+/// аргументів (не лише перший — `copyFile`/`rename`/`link`/`cp` мають дві,
+/// `symlink` — лише другу).
 struct FsPathVisitor<'c> {
     content: &'c str,
     windows_drive_re: regex::Regex,
@@ -3388,7 +3392,7 @@ impl<'a, 'c> Visit<'a> for FsPathVisitor<'c> {
     }
 }
 
-/// Точний порт `findOffendersInBody` (`main.mjs:138-159`) — на відміну від
+/// Точний порт `findOffendersInBody` (`main.mjs:143-164`) — на відміну від
 /// [`extract_import_sources`], ТУТ файл із syntax-error пропускається
 /// цілком (порожній результат, точний порт `parseProgramOrNull`'s
 /// `if (result.errors?.length) return null`, `npm/scripts/utils/ast-scan-utils.mjs:104-114`).
@@ -3414,7 +3418,7 @@ fn find_offenders_in_body(content: &str) -> Vec<FsPathOffender> {
 }
 
 /// Точний порт `lint()` `test/no-relative-fs-path`
-/// (`plugins/lang-js/rules/test/no-relative-fs-path/main.mjs:199-239`) —
+/// (`plugins/lang-js/rules/test/no-relative-fs-path/main.mjs:204-244`) —
 /// WHOLE-BATCH, гість-фільтр [`is_test_file_no_process_chdir`] (той самий
 /// предикат, що `test/no-process-chdir` — доккомент модуля).
 fn detect_no_relative_fs_path(files: &[SourceFile]) -> Vec<Diagnostic> {

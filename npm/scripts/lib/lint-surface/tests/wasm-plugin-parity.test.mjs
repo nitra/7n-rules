@@ -943,6 +943,41 @@ describe('wasm-plugin parity — test/no-relative-fs-path (JS канон vs wasm
       expect(js).toEqual([])
     })
   })
+
+  // symlink: 1-й аргумент — ЦІЛЬ посилання (рядок усередині symlink-а),
+  // відносна ціль там легітимна; перевіряється лише 2-й (шлях лінка на
+  // диску). Пара кейсів фіксує саме ту мапу, де wasm-порт колись дрейфував
+  // від JS-канону (`FS_PATH_ARG_POSITIONS`: symlink → [1], не [0, 1]).
+  test('успіх: symlink з відносною ЦІЛЛЮ але абсолютним шляхом лінка → без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'tests'), { recursive: true })
+      await writeFile(
+        join(dir, 'tests/foo.test.mjs'),
+        "import { symlink } from 'node:fs/promises'\nawait symlink('../real.txt', join(dir, 'link.txt'))\n"
+      )
+      const { js, wasm } = await runNoRelativeFsPathBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('порушення: symlink з відносним шляхом ЛІНКА (2-й аргумент) → однакове violation з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await mkdir(join(dir, 'tests'), { recursive: true })
+      await writeFile(
+        join(dir, 'tests/foo.test.mjs'),
+        "import { symlink } from 'node:fs/promises'\nawait symlink('../real.txt', 'link.txt')\n"
+      )
+      const { js, wasm } = await runNoRelativeFsPathBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('no-relative-fs-path')
+      expect(js[0].message).toContain('symlink')
+      expect(js[0].message).toContain('link.txt')
+    })
+  })
 })
 
 describe('wasm-plugin parity — js-bun-redis/imports (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q4 AST-концерн)', () => {
