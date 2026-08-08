@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.88.2] - 2026-08-08
+
+### Changed
+
+- `k8s/manifests` — третій зріз порту в `rules-core`, після якого **весь** `lint()` концерну має native-дзеркало. Портовано kubescape-контур (`findKustomizationDirs` + `kubectl kustomize`, auto-exceptions C-0056/C-0018 для probe у `Job`/`CronJob`, користувацький `.kubescape-exceptions.json`, 5-хвилинний wall-clock ліміт із власним текстом порушення) і kustomize-резолюцію з пʼятьма залежними `validate*` (`collectResourceDescriptorsForKustomizationWalk`, `kustomizeResourceTreeHpaPdbDeploymentFlags`, `prodOverlayHpaPdbOverrideNeeds`, `kustomizationTreeHasHasuraDeployment`). Концерн у `NATIVE_CONCERNS` як і раніше **не** заведено — гейт `check-mjs-contract` вимагає, щоб у native-концерну не було `main.mjs`, тобто заведення в реєстр і видалення JS-канону є одним неподільним кроком, який чекає на порт fix-поверхні; поведінка лінту незмінна.
+
+Полагоджено дефект канону: **обидва детектори застарілих `apiVersion` не спрацьовували ніколи**. `BATCH_V1BETA1_API_VERSION_LINE_RE` і `GATEWAY_HTTPROUTE_V1BETA1_LINE_RE` — рядкові якірні регулярні вирази (`^…$` без прапорця `m`), і саме так їх застосовує T0-фікс (`rewriteLine*` — по одному рядку), але `detectBatchV1beta1InK8sYamlFiles` і `detectGatewayHttpRouteV1beta1InK8sYamlFiles` звіряли їх із **усім** текстом файла. Такий збіг можливий лише на файлі, що цілком складається з одного рядка `apiVersion: batch/v1beta1`, тобто ніколи на справжньому маніфесті: заборона `batch/v1beta1` і `gateway.networking.k8s.io/v1beta1` була мертвою, попри повідомлення, T0-патерни `fix-manifests.mjs` і розділи `manifest.mdc` / `gateway.mdc`, що обіцяють автоматичне переписування. Тепер обидва детектори звіряють regex по рядках — так само, як сусідня перевірка `kind: HTTPRoute` робила від початку. **Зміна поведінки, напрямок fail-closed:** маніфести під `k8s` із застарілими `apiVersion: batch/v1beta1` та `apiVersion: gateway.networking.k8s.io/v1beta1` у `HTTPRoute` тепер дають порушення (з fix-hint, тож `--fix` їх виправляє), а раніше мовчки проходили.
+
 ## [1.88.1] - 2026-08-07
 
 ### Changed
