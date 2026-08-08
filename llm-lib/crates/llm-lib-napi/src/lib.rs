@@ -27,8 +27,9 @@ fn parse_agent_kind(s: &str) -> Result<AcpAgentKind> {
         "cursor" => Ok(AcpAgentKind::Cursor),
         "codex" => Ok(AcpAgentKind::Codex),
         "pi" => Ok(AcpAgentKind::Pi),
+        "goose" => Ok(AcpAgentKind::Goose),
         other => Err(Error::from_reason(format!(
-            "невідомий ACP-агент {other:?}: очікується \"cursor\"/\"codex\"/\"pi\""
+            "невідомий ACP-агент {other:?}: очікується \"cursor\"/\"codex\"/\"pi\"/\"goose\""
         ))),
     }
 }
@@ -121,6 +122,7 @@ pub fn get_acp_presets() -> serde_json::Value {
         ("cursor", AcpAgentKind::Cursor),
         ("codex", AcpAgentKind::Codex),
         ("pi", AcpAgentKind::Pi),
+        ("goose", AcpAgentKind::Goose),
     ] {
         let mut tiers = serde_json::Map::new();
         for (tier_name, tier) in [("min", Tier::Min), ("avg", Tier::Avg), ("max", Tier::Max)] {

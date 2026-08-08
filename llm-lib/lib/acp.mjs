@@ -1,6 +1,9 @@
 /**
- * ACP (Agent Client Protocol, Zed) — доступ до `cursor`/`codex`/`pi` через
- * особисту підписку (вже залогінений локально CLI), не API-ключ.
+ * ACP (Agent Client Protocol, Zed) — доступ до `cursor`/`codex`/`pi`/`goose`
+ * через особисту підписку (вже залогінений локально CLI), не API-ключ
+ * (виняток — `goose` на локальному/API-ключовому провайдері: сам ключ бере
+ * з `crate::local_cloud`, а не з окремого JS-джерела, див. Rust-коментар
+ * `AcpAgentKind::Goose`/`presets::goose_env`).
  *
  * Тонкий JS-клієнт до Rust-крейта `llm_lib::acp` через napi FFI
  * in-process (`llm-lib/crates/llm-lib-napi`) — жодного власного
@@ -9,7 +12,7 @@
  * тір→env/args/post-session-config резолвінг) живе в Rust, разом з
  * watchdog-поведінкою на мертвий/незапущений дочірній процес.
  *
- * `claude` тут немає — Rust-крейт моделює лише `cursor`/`codex`/`pi`
+ * `claude` тут немає — Rust-крейт моделює лише `cursor`/`codex`/`pi`/`goose`
  * (`AcpAgentKind`); `claude` тут навмисно не підтримується.
  */
 import { loadNative } from './internal/native.mjs'
@@ -20,7 +23,7 @@ import { loadNative } from './internal/native.mjs'
  * Rust сам резолвить tier→env/args/post-session-config з пресету агента
  * (`one_shot_acp_with_tier`) — жодного JS-хелпера "пресет→env" тут немає.
  * Без `tier` виклик заборонений, крім явного `mode:'interactive'` для персонального CLI-конфіга.
- * @param {'cursor' | 'codex' | 'pi'} kind провайдер
+ * @param {'cursor' | 'codex' | 'pi' | 'goose'} kind провайдер
  * @param {string} prompt промпт
  * @param {string} cwd робочий каталог сесії агента (каталог проєкту-викликача)
  * @param {{

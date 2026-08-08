@@ -165,16 +165,25 @@ pub fn is_local_model(spec: &str) -> bool {
     local_providers().iter().any(|p| p == provider)
 }
 
+/// Спільна тестова інфраструктура для серіалізації тестів, що мутують
+/// `N_*_MODEL`/`N_LLM_LOCAL_PROVIDERS`/`N_LOCAL_OPENAI_*` env-змінні —
+/// `pub(crate)`, а не приватна для `tiers::tests`, бо ті самі env-змінні
+/// читають і тести `local_cloud` (`default_local_openai_provider`), і
+/// `acp::presets` (goose-тір-пресет, рішення З специфікації
+/// `2026-08-08-llm-lib-acp-only-rust-goose.md`): `env::set_var` не
+/// потоково-безпечний між тестами одного процесу, а `cargo test` ганяє
+/// тести з різних модулів паралельно в одному бінарнику — без спільного
+/// м'ютекса вони гонялись би за той самий глобальний стан.
 #[cfg(test)]
-mod tests {
-    use super::*;
+pub(crate) mod test_env {
+    use std::env;
     use std::sync::Mutex;
 
     // env::set_var не потоково-безпечний між тестами одного процесу —
     // серіалізуємо через м'ютекс (як прийнято для тестів на env у Rust).
-    static ENV_LOCK: Mutex<()> = Mutex::new(());
+    pub(crate) static ENV_LOCK: Mutex<()> = Mutex::new(());
 
-    const ALL_VARS: &[&str] = &[
+    pub(crate) const ALL_VARS: &[&str] = &[
         "N_LOCAL_MIN_MODEL",
         "N_LOCAL_AVG_MODEL",
         "N_LOCAL_MAX_MODEL",
@@ -185,9 +194,14 @@ mod tests {
         // клірила/відновлювала її під тим самим ENV_LOCK (запобігає flaky
         // паралельним тестам, що читають N_LLM_LOCAL_PROVIDERS).
         "N_LLM_LOCAL_PROVIDERS",
+        // Читають local_cloud::default_local_openai_provider() і
+        // goose-тір-пресет (acp::presets) — той самий local-openai
+        // generic-слот, що й N_LLM_LOCAL_PROVIDERS вище.
+        "N_LOCAL_OPENAI_BASE_URL",
+        "N_LOCAL_OPENAI_API_KEY",
     ];
 
-    fn with_env<T>(vars: &[(&str, &str)], f: impl FnOnce() -> T) -> T {
+    pub(crate) fn with_env<T>(vars: &[(&str, &str)], f: impl FnOnce() -> T) -> T {
         let _guard = ENV_LOCK.lock().unwrap();
         for name in ALL_VARS {
             unsafe { env::remove_var(name) };
@@ -201,6 +215,12 @@ mod tests {
         }
         result
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::test_env::with_env;
+    use super::*;
 
     #[test]
     fn min_cascades_through_all_stronger_models() {

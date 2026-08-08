@@ -16,7 +16,7 @@
 
 use std::collections::HashMap;
 
-use crate::tiers::Tier;
+use crate::tiers::{is_local_model, parse_model_spec, resolve_model, Tier};
 
 use super::session::PostSessionConfig;
 use super::AcpAgentKind;
@@ -66,6 +66,18 @@ impl TierPreset {
             post_session_config: Some(PostSessionConfig::new(config_id, value)),
         }
     }
+
+    /// Кілька env-пар одразу (goose: `GOOSE_PROVIDER`/`GOOSE_MODEL` і
+    /// опційно `OPENAI_HOST`/`OPENAI_API_KEY` для локального endpoint-а) —
+    /// [`Self::env_only`] несе рівно одну пару, тут потрібно кілька.
+    fn env_pairs(label: &'static str, env: HashMap<String, String>) -> Self {
+        Self {
+            label,
+            env,
+            extra_args: Vec::new(),
+            post_session_config: None,
+        }
+    }
 }
 
 /// `CODEX_CONFIG`-значення для codex model id — той самий формат, що й
@@ -84,6 +96,7 @@ impl AcpAgentKind {
             AcpAgentKind::Cursor => "Cursor CLI",
             AcpAgentKind::Codex => "OpenAI Codex",
             AcpAgentKind::Pi => "Pi",
+            AcpAgentKind::Goose => "Goose",
         }
     }
 
@@ -121,8 +134,76 @@ impl AcpAgentKind {
                 };
                 TierPreset::post_session(label, "model", model.to_string())
             }
+            // Goose-тір (рішення З специфікації
+            // `2026-08-08-llm-lib-acp-only-rust-goose.md`): жодних нових
+            // env-ключів — джерело істини лишається наявний `N_*_MODEL`-
+            // контракт `crate::tiers` (та сама "лише сильніші, спочатку
+            // local, потім cloud" каскадна семантика, що й
+            // `LocalCloud`/`resolve_model`). На відміну від Codex/Cursor/Pi
+            // вище (захардкоджені конкретні моделі за тір), тут конкретна
+            // модель невідома на момент компіляції — резолвиться з env на
+            // кожен виклик [`AcpAgentKind::tier_preset`], тому лейбл
+            // навмисно описує ДЖЕРЕЛО тіру (`"Goose (N_LOCAL_MIN_MODEL)"`),
+            // а не саму модель: тип `TierPreset::label` — `&'static str`,
+            // конкретне резолвлене значення в нього просто не влізе.
+            AcpAgentKind::Goose => TierPreset::env_pairs(goose_tier_label(tier), goose_env(tier)),
         }
     }
+}
+
+/// Лейбл goose-тіру — джерело (стартова env-сходинка [`resolve_model`]), не
+/// сама модель: та резолвиться лише в рантаймі, а лейбл — `&'static str`
+/// (див. коментар у [`AcpAgentKind::tier_preset`]).
+fn goose_tier_label(tier: Tier) -> &'static str {
+    match tier {
+        Tier::Min => "Goose (N_LOCAL_MIN_MODEL)",
+        Tier::Avg => "Goose (N_LOCAL_AVG_MODEL)",
+        Tier::Max => "Goose (N_LOCAL_MAX_MODEL)",
+    }
+}
+
+/// Розкладає `"provider/model-id"`, резолвлений [`resolve_model`] для
+/// `tier`, у env для goose (специфікація §3.2): `GOOSE_PROVIDER`/`GOOSE_MODEL`
+/// завжди, і додатково `OPENAI_HOST`/`OPENAI_API_KEY` — коли модель локальна
+/// ([`is_local_model`]), бо тоді goose мусить піти на кастомний OpenAI-
+/// сумісний endpoint (omlx тощо), а не на публічний. Host/ключ — з того
+/// самого джерела, що й решта local-cloud-контуру крейта:
+/// [`crate::local_cloud::default_local_openai_provider`], жодного нового
+/// env-джерела. Тір без сконфігурованої моделі (жодна `N_*_MODEL`-сходинка
+/// не задана) дає порожній env — goose тоді спавниться зі своїм власним
+/// дефолтним провайдером/конфігом (той самий fail-soft, що й у
+/// `one_shot_local_cloud`, де відсутність моделі — помилка лише в точці
+/// виклику, не тут).
+fn goose_env(tier: Tier) -> HashMap<String, String> {
+    let mut env = HashMap::new();
+    let Some(spec) = resolve_model(tier) else {
+        return env;
+    };
+    let Ok((provider, model)) = parse_model_spec(&spec) else {
+        // `resolve_model` завжди повертає значення прямо з env, яке сам
+        // викликач і виставив — малоймовірний шлях, але без валідного
+        // "provider/model-id" goose однаково не спавнити коректно.
+        return env;
+    };
+
+    if is_local_model(&spec) {
+        let local = crate::local_cloud::default_local_openai_provider();
+        env.insert("GOOSE_PROVIDER".to_string(), "openai".to_string());
+        env.insert("GOOSE_MODEL".to_string(), model.to_string());
+        env.insert("OPENAI_HOST".to_string(), local.base_url);
+        env.insert(
+            "OPENAI_API_KEY".to_string(),
+            local.api_key.unwrap_or_else(|| "local".to_string()),
+        );
+    } else {
+        // Хмарний провайдер: без host/key-override — goose (як і
+        // `local_cloud::LocalCloud`, див. `one_shot_with_spec`) бере
+        // стандартну автентифікацію провайдера з env самостійно.
+        env.insert("GOOSE_PROVIDER".to_string(), provider.to_string());
+        env.insert("GOOSE_MODEL".to_string(), model.to_string());
+    }
+
+    env
 }
 
 #[cfg(test)]
@@ -200,14 +281,136 @@ mod tests {
         );
     }
 
+    /// Goose (рішення З специфікації
+    /// `2026-08-08-llm-lib-acp-only-rust-goose.md`) — єдиний kind, чий
+    /// [`AcpAgentKind::tier_preset`] читає env, тож серіалізовано через
+    /// спільний [`crate::tiers::test_env::with_env`] (той самий м'ютекс,
+    /// що й `tiers::tests`/`local_cloud`-тести на ті самі env-змінні —
+    /// без нього паралельний прогін `cargo test` гнав би флейкі-гонку за
+    /// глобальний env).
+    #[test]
+    fn goose_local_tier_maps_local_openai_model_into_goose_and_openai_env() {
+        crate::tiers::test_env::with_env(
+            &[
+                (
+                    "N_LOCAL_MIN_MODEL",
+                    "local-openai/gemma-4-e4b-it-OptiQ-4bit",
+                ),
+                ("N_LOCAL_OPENAI_BASE_URL", "http://127.0.0.1:8000/v1/"),
+                ("N_LOCAL_OPENAI_API_KEY", "local-secret"),
+            ],
+            || {
+                let preset = AcpAgentKind::Goose.tier_preset(Tier::Min);
+                assert_eq!(
+                    preset.env.get("GOOSE_PROVIDER").map(String::as_str),
+                    Some("openai")
+                );
+                assert_eq!(
+                    preset.env.get("GOOSE_MODEL").map(String::as_str),
+                    Some("gemma-4-e4b-it-OptiQ-4bit")
+                );
+                assert_eq!(
+                    preset.env.get("OPENAI_HOST").map(String::as_str),
+                    Some("http://127.0.0.1:8000/v1/")
+                );
+                assert_eq!(
+                    preset.env.get("OPENAI_API_KEY").map(String::as_str),
+                    Some("local-secret")
+                );
+                assert!(
+                    preset.extra_args.is_empty(),
+                    "goose не бере тір через extra-args на спавні"
+                );
+                assert!(
+                    preset.post_session_config.is_none(),
+                    "goose не бере тір через post-session-крок"
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn goose_local_tier_without_configured_api_key_falls_back_to_placeholder() {
+        crate::tiers::test_env::with_env(&[("N_LOCAL_MIN_MODEL", "local-openai/gemma")], || {
+            let preset = AcpAgentKind::Goose.tier_preset(Tier::Min);
+            assert_eq!(
+                    preset.env.get("OPENAI_API_KEY").map(String::as_str),
+                    Some("local"),
+                    "без сконфігурованого N_LOCAL_OPENAI_API_KEY — плейсхолдер, як і в local_cloud::LocalCloud"
+                );
+        });
+    }
+
+    #[test]
+    fn goose_cloud_tier_maps_provider_and_model_without_openai_host_override() {
+        crate::tiers::test_env::with_env(&[("N_CLOUD_MAX_MODEL", "openai/gpt-5.4-mini")], || {
+            let preset = AcpAgentKind::Goose.tier_preset(Tier::Max);
+            assert_eq!(
+                preset.env.get("GOOSE_PROVIDER").map(String::as_str),
+                Some("openai")
+            );
+            assert_eq!(
+                preset.env.get("GOOSE_MODEL").map(String::as_str),
+                Some("gpt-5.4-mini")
+            );
+            assert!(
+                !preset.env.contains_key("OPENAI_HOST"),
+                "хмарний тір не має перекривати host — goose бере стандартну автентифікацію сам"
+            );
+            assert!(preset.extra_args.is_empty());
+            assert!(preset.post_session_config.is_none());
+        });
+    }
+
+    #[test]
+    fn goose_tier_without_configured_model_yields_empty_env() {
+        crate::tiers::test_env::with_env(&[], || {
+            let preset = AcpAgentKind::Goose.tier_preset(Tier::Avg);
+            assert!(
+                preset.env.is_empty(),
+                "без жодної N_*_MODEL-сходинки goose спавниться зі своїм дефолтним конфігом"
+            );
+        });
+    }
+
+    #[test]
+    fn goose_command_is_the_stdio_acp_subcommand() {
+        assert_eq!(AcpAgentKind::Goose.command(), "goose acp");
+    }
+
+    #[test]
+    fn goose_tier_labels_describe_the_env_source_not_the_resolved_model() {
+        crate::tiers::test_env::with_env(&[], || {
+            assert_eq!(
+                AcpAgentKind::Goose.tier_preset(Tier::Min).label,
+                "Goose (N_LOCAL_MIN_MODEL)"
+            );
+            assert_eq!(
+                AcpAgentKind::Goose.tier_preset(Tier::Avg).label,
+                "Goose (N_LOCAL_AVG_MODEL)"
+            );
+            assert_eq!(
+                AcpAgentKind::Goose.tier_preset(Tier::Max).label,
+                "Goose (N_LOCAL_MAX_MODEL)"
+            );
+        });
+    }
+
     #[test]
     fn every_kind_and_tier_carries_a_non_empty_ui_label() {
-        for kind in [AcpAgentKind::Cursor, AcpAgentKind::Codex, AcpAgentKind::Pi] {
-            assert!(!kind.label().is_empty());
-            for tier in [Tier::Min, Tier::Avg, Tier::Max] {
-                assert!(!kind.tier_preset(tier).label.is_empty());
+        crate::tiers::test_env::with_env(&[], || {
+            for kind in [
+                AcpAgentKind::Cursor,
+                AcpAgentKind::Codex,
+                AcpAgentKind::Pi,
+                AcpAgentKind::Goose,
+            ] {
+                assert!(!kind.label().is_empty());
+                for tier in [Tier::Min, Tier::Avg, Tier::Max] {
+                    assert!(!kind.tier_preset(tier).label.is_empty());
+                }
             }
-        }
+        });
     }
 
     /// Паритет із JS-пресетом
