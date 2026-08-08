@@ -339,18 +339,71 @@ JS-рантайму поруч. **Після зникнення мосту це�
 
 ## 5. Залишок порту
 
-### 5.1. `k8s/manifests` — два шари до заведення в registry
+### 5.1. `k8s/manifests` — `lint()` портований повністю, блокує fix-поверхня
 
-**Звідки:** #393, #401. **Стан:** зрізи 1 і 2 зроблено.
+**Звідки:** #393, #401, зріз 3. **Стан:** порт `lint()` завершено; заведення в
+registry і видалення JS **не** зроблено.
 
-Портовано: rego-контур, пʼять самодостатніх cross-file перевірок (зріз 1),
-per-file цикл `checkK8sYamlFile` і дві великі самодостатні `validate*` —
-`DeploymentHpaPdbAndTopology`, `NetworkPoliciesForK8sWorkloads` (зріз 2).
+Портовано: rego-контур і пʼять самодостатніх cross-file перевірок (зріз 1),
+per-file цикл `checkK8sYamlFile` і дві великі самодостатні `validate*` (зріз 2),
+kubescape-контур, kustomize-резолюція з пʼятьма залежними `validate*` і два
+детектори застарілих `apiVersion` (зріз 3). Усі **20** кроків `lint()` зібрані
+в `rules_core::concerns::k8s_manifests`.
 
-Лишилось **два** шари: kubescape-контур (`kubectl kustomize` +
-auto-exceptions + таймаут) і kustomize-резолюція з пʼятьма залежними
-`validate*`. Тільки після **обох** — `"k8s/manifests"` у `NATIVE_CONCERNS` і
-видалення ≈7000 рядків JS одним кроком.
+**Чому концерн усе одно не в `NATIVE_CONCERNS`.** Гейт
+`npm/tests/check-mjs-contract.test.mjs` вимагає, щоб у native-концерну
+**не було** `main.mjs` («подвійна реалізація», Р1 спеки). Тобто заведення в
+реєстр і видалення ≈7000 рядків JS — **один неподільний крок**, а не два.
+Він упирається не в `lint()`, а у fix-поверхню:
+
+1. `fix-manifests.mjs` (416 рядків) імпортує з `main.mjs` девʼять символів
+   (`compareStringTuplesEn`, `findHasuraCanonStart`, `HASURA_REQUIRED_ENV_VALUES`,
+   `hasuraRuleHasExactRedirect`, `kustomizationPatchSortKey`, `loadSnippetSpec`,
+   `replaceBatchV1beta1ApiVersionInYamlText`,
+   `replaceGatewayHttpRouteV1beta1ApiVersionInYamlText`, `snippetNameForKind`),
+   розкиданих по всьому файлу разом із власними транзитивними хелперами;
+2. native-порт fix-поверхні (`NATIVE_FIXES`) упирається в **тулінг, а не в
+   обсяг**: `fix-manifests.mjs` редагує YAML через Document API пакета `yaml`,
+   **зберігаючи коментарі**, чого `serde_yaml` не вміє. Це рішення про
+   comment-preserving YAML-емітер у Rust, а не механічний порт;
+3. з `main.mjs` імпортують ще пʼять тест-файлів
+   (`npm/rules/k8s/manifests/tests/check-schema.test.mjs` — 94 КБ,
+   `check-images.test.mjs` — 22 КБ, `npm/rules/k8s/tests/run-roots.test.mjs`,
+   `npm/tests/integration-repo-checks.test.mjs`, `npm/tests/check-empty-trees.test.mjs`);
+   їхнє покриття треба або перенести, або свідомо списати.
+
+**Що лишилось зробити:** обрати шлях для fix-поверхні (перенести девʼять
+хелперів у `fix-manifests.mjs` і лишити fix у JS — або портувати fix нативно),
+після чого одним кроком завести `"k8s/manifests"` у `NATIVE_CONCERNS` і зняти
+JS-канон. Увімкнення native-гілки — один рядок у `NATIVE_CONCERNS` і один у
+`run_concern`.
+
+### 5.1.2. Реєстр казав «два шари», а їх було три
+
+**Звідки:** зріз 3. **Стан:** інформаційне, до дії не потребує.
+
+Інвентаризації #393 і #401 пропустили `detectGatewayHttpRouteV1beta1InK8sYamlFiles`
+і `detectBatchV1beta1InK8sYamlFiles` — два кроки `lint()` між
+`assertNoForbiddenK8sDevPaths` і `runAllK8sRego`. Обидва виявились **мертвими**
+(дефект полагоджено, див. change-файл зрізу 3), тому й не потрапляли в поле
+зору: вони ніколи нічого не репортили. Мораль для решти §3.5.5 — інвентаризувати
+кроки за тілом `lint()`, а не за переліком «великих» `validate*`.
+
+### 5.1.3. kubescape: порт суворіший за канон, коли тула немає
+
+**Звідки:** зріз 3. **Стан:** свідоме рішення, названо як компроміс.
+
+JS-канон при відсутньому `kubescape` ловив `ENOENT`, віддавав `status = 127`
+і **йшов далі** — решта півтора десятка кроків `lint()` виконувалась. Native-порт
+натомість падає `RulesError::Concern` з install-підказкою, як уже зафіксував
+сусідній `k8s/kubeconform` (`rules-core` тулів не встановлює, а мовчазний
+пропуск на ефемерному раннері = тихе зникнення перевірки).
+
+Різниця в ціні помилки реальна: у `k8s/kubeconform` тул — увесь концерн, а тут
+один крок, тож відсутній `kubescape` завалить **весь** `k8s/manifests`. Питання
+на момент заведення в реєстр: чи це прийнятно для споживачів без `kubescape`
+локально. `kubectl` цього не стосується — його канон резолвить простим пошуком
+у `PATH` і при відсутності мовчки пропускає; порт відтворює це як є.
 
 ### 5.1.1. Мертва гілка «не-base шар» у `validateDeploymentHpaPdbAndTopology`
 

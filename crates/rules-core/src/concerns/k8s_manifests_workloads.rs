@@ -233,7 +233,7 @@ fn coerce_integer(value: Option<&Value>) -> Option<i64> {
 
 /// `JSON.stringify(value)` у шаблонному рядку JS: відсутній ключ дає літерал
 /// `undefined`, решта — звичайний JSON.
-fn js_json_stringify(value: Option<&Value>) -> String {
+pub(crate) fn js_json_stringify(value: Option<&Value>) -> String {
     match value {
         None => "undefined".to_string(),
         Some(value) => serde_json::to_string(value).unwrap_or_else(|_| "undefined".to_string()),
@@ -245,7 +245,7 @@ fn js_json_stringify(value: Option<&Value>) -> String {
 /// Чи POSIX-шлях лежить під `…/k8s/…/base/` — порт
 /// `isK8sYamlUnderBaseDirectory` (`main.mjs:30-36`): останній сегмент
 /// вважається іменем файла і в перевірку не входить.
-fn is_k8s_yaml_under_base_directory(rel_posix: &str) -> bool {
+pub(crate) fn is_k8s_yaml_under_base_directory(rel_posix: &str) -> bool {
     let parts: Vec<&str> = rel_posix
         .split('/')
         .filter(|part| !part.is_empty())
@@ -261,7 +261,7 @@ fn is_k8s_yaml_under_base_directory(rel_posix: &str) -> bool {
 /// Сегмент середовища після `/k8s/` — порт `k8sEnvSegmentFromRelPath`
 /// (`main.mjs:3522-3525`) поверх `K8S_ENV_SEGMENT_RE`
 /// (`(?:^|\/)k8s\/([^/]+)(?:\/|$)`).
-fn k8s_env_segment_from_rel_path(rel_path: &str) -> Option<&str> {
+pub(crate) fn k8s_env_segment_from_rel_path(rel_path: &str) -> Option<&str> {
     let bytes = rel_path.as_bytes();
     let mut from = 0usize;
     while let Some(offset) = rel_path[from..].find("k8s/") {
@@ -282,7 +282,7 @@ fn k8s_env_segment_from_rel_path(rel_path: &str) -> Option<&str> {
 
 /// Чи сегмент середовища dev-like — порт `isDevLikeK8sEnvSegment`
 /// (`main.mjs:3534-3538`).
-fn is_dev_like_k8s_env_segment(segment: Option<&str>) -> bool {
+pub(crate) fn is_dev_like_k8s_env_segment(segment: Option<&str>) -> bool {
     match segment {
         None | Some("") => false,
         Some("base" | "dev") => true,

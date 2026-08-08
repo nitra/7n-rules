@@ -341,7 +341,7 @@ fn kustomize_path_refs_for_existence_check(obj: &Value) -> Vec<String> {
 }
 
 /// Перший YAML-обʼєкт файла — порт `readFirstYamlObject` (`main.mjs:4336-4352`).
-fn read_first_yaml_object(abs: &Path) -> Option<Value> {
+pub(crate) fn read_first_yaml_object(abs: &Path) -> Option<Value> {
     parse_k8s_yaml_docs(abs)
         .into_iter()
         .find(|doc| doc.is_object())
@@ -349,7 +349,7 @@ fn read_first_yaml_object(abs: &Path) -> Option<Value> {
 
 /// Нормалізація `path::resolve(dir, ref)` без походу на диск: `..`/`.` згортаються
 /// лексично, як це робить Node (він теж не робить `realpath`).
-fn resolve_lexical(base: &Path, reference: &str) -> PathBuf {
+pub(crate) fn resolve_lexical(base: &Path, reference: &str) -> PathBuf {
     let joined = base.join(reference);
     let mut out = PathBuf::new();
     for component in joined.components() {
@@ -366,13 +366,13 @@ fn resolve_lexical(base: &Path, reference: &str) -> PathBuf {
 
 /// Чи шлях лежить усередині кореня — порт `resolvedFilePathIsUnderRoot`
 /// (`main.mjs:1945-1953`).
-fn is_under_root(root: &Path, target: &Path) -> bool {
+pub(crate) fn is_under_root(root: &Path, target: &Path) -> bool {
     target == root || target.starts_with(root)
 }
 
 /// Чи має шлях розширення `.yaml`/`.yml` — порт `YAML_EXTENSION_RE`
 /// (`main.mjs:187`).
-fn has_yaml_extension(target: &Path) -> bool {
+pub(crate) fn has_yaml_extension(target: &Path) -> bool {
     let lower = target.to_string_lossy().to_lowercase();
     lower.ends_with(".yaml") || lower.ends_with(".yml")
 }

@@ -1548,7 +1548,7 @@ async function validatePatchTargetsOneKustomizationFile(root, kustAbs, rootNorm,
  * @param {(msg: string) => void} fail реєстрація помилки
  * @returns {Promise<void>} результат
  */
-async function validateKustomizationPatchTargetsResolved(root, yamlFilesAbs, fail) {
+export async function validateKustomizationPatchTargetsResolved(root, yamlFilesAbs, fail) {
   const rootNorm = resolve(root)
   const kustFiles = yamlFilesAbs.filter(p => basename(p).toLowerCase() === 'kustomization.yaml')
   for (const kustAbs of kustFiles) {
@@ -1770,12 +1770,16 @@ export function replaceGatewayHttpRouteV1beta1ApiVersionInYamlText(raw) {
 /**
  * Read-only детектор: знаходить файли з `apiVersion: gateway.networking.k8s.io/v1beta1` + `kind: HTTPRoute`
  * і реєструє violation з `data: { kind: 'gateway-httproute-v1beta1' }` для T0-фіксу.
+ *
+ * `GATEWAY_HTTPROUTE_V1BETA1_LINE_RE` — **рядкова** якірна (`^…$` без прапорця `m`), тож
+ * звіряти її треба з окремим рядком, а не з усім текстом файлу (див. коментар-близнюк у
+ * `detectBatchV1beta1InK8sYamlFiles`).
  * @param {string[]} yamlFiles абсолютні шляхи до YAML-файлів
  * @param {string} root корінь репозиторію
  * @param {(msg: string, opts?: object) => void} fail колбек реєстрації порушення
  * @returns {Promise<void>}
  */
-async function detectGatewayHttpRouteV1beta1InK8sYamlFiles(yamlFiles, root, fail) {
+export async function detectGatewayHttpRouteV1beta1InK8sYamlFiles(yamlFiles, root, fail) {
   for (const abs of yamlFiles) {
     const rel = (relative(root, abs) || abs).replaceAll('\\', '/')
     let raw
@@ -1784,9 +1788,10 @@ async function detectGatewayHttpRouteV1beta1InK8sYamlFiles(yamlFiles, root, fail
     } catch {
       continue
     }
-    if (!GATEWAY_HTTPROUTE_V1BETA1_LINE_RE.test(raw)) continue
     const body = raw.startsWith('﻿') ? raw.slice(1) : raw
-    const hasHttpRouteKind = body.split(YAML_LINE_SPLIT_RE).some(l => HTTPROUTE_KIND_LINE_RE.test(l))
+    const lines = body.split(YAML_LINE_SPLIT_RE)
+    if (lines.every(l => !GATEWAY_HTTPROUTE_V1BETA1_LINE_RE.test(l))) continue
+    const hasHttpRouteKind = lines.some(l => HTTPROUTE_KIND_LINE_RE.test(l))
     if (!hasHttpRouteKind) continue
     fail(
       `${rel}: apiVersion: gateway.networking.k8s.io/v1beta1 заборонено для HTTPRoute — оновіть до gateway.networking.k8s.io/v1 (k8s.mdc)`,
@@ -1798,12 +1803,18 @@ async function detectGatewayHttpRouteV1beta1InK8sYamlFiles(yamlFiles, root, fail
 /**
  * Read-only детектор: знаходить файли з `apiVersion: batch/v1beta1` (застаріле для CronJob/Job)
  * і реєструє violation з `data: { kind: 'batch-v1beta1-apiversion' }` для T0-фіксу.
+ *
+ * `BATCH_V1BETA1_API_VERSION_LINE_RE` — **рядкова** якірна (`^…$` без прапорця `m`), і саме так
+ * її застосовує T0-фікс (`rewriteLineBatchV1beta1ApiVersion` — по одному рядку). Звірка тієї ж
+ * якірної regex із **усім** текстом файлу збігалася б лише на файлі, що цілком складається з
+ * одного рядка `apiVersion: batch/v1beta1`, тобто ніколи на справжньому маніфесті — детектор
+ * мовчав, а T0-фікс не мав чого чинити.
  * @param {string[]} yamlFiles абсолютні шляхи до YAML-файлів
  * @param {string} root корінь репозиторію
  * @param {(msg: string, opts?: object) => void} fail колбек реєстрації порушення
  * @returns {Promise<void>}
  */
-async function detectBatchV1beta1InK8sYamlFiles(yamlFiles, root, fail) {
+export async function detectBatchV1beta1InK8sYamlFiles(yamlFiles, root, fail) {
   for (const abs of yamlFiles) {
     const rel = (relative(root, abs) || abs).replaceAll('\\', '/')
     let raw
@@ -1812,7 +1823,8 @@ async function detectBatchV1beta1InK8sYamlFiles(yamlFiles, root, fail) {
     } catch {
       continue
     }
-    if (!BATCH_V1BETA1_API_VERSION_LINE_RE.test(raw)) continue
+    const body = raw.startsWith('﻿') ? raw.slice(1) : raw
+    if (body.split(YAML_LINE_SPLIT_RE).every(l => !BATCH_V1BETA1_API_VERSION_LINE_RE.test(l))) continue
     fail(`${rel}: apiVersion: batch/v1beta1 застаріло — оновіть до batch/v1 (k8s.mdc)`, {
       reason: 'batch-v1beta1-apiversion',
       file: rel,
@@ -4618,7 +4630,7 @@ async function checkOverlayRefHpaPdb(root, kustDir, rel, ref, baseDirs, anyBaseH
  * @param {(msg: string) => void} passFn pass
  * @returns {Promise<void>} результат
  */
-async function validateKustomizeHpaPdbOnlyWithBaseDeployment(root, yamlFilesAbs, fail, passFn) {
+export async function validateKustomizeHpaPdbOnlyWithBaseDeployment(root, yamlFilesAbs, fail, passFn) {
   const rootNorm = resolve(root)
   /**
   @type {Map<string, Promise<{ hasDeployment: boolean, hasHpa: boolean, hasPdb: boolean }>>}
@@ -4744,7 +4756,7 @@ export async function prodOverlayHpaPdbOverrideNeeds(rootNorm, kustAbs) {
  * @param {(msg: string) => void} fail callback при помилці
  * @param {(msg: string) => void} passFn callback при успіху
  */
-async function validateProdKustomizationOverrides(root, yamlFilesAbs, fail, passFn) {
+export async function validateProdKustomizationOverrides(root, yamlFilesAbs, fail, passFn) {
   const rootNorm = resolve(root)
   const kustFiles = yamlFilesAbs.filter(abs => basename(abs) === 'kustomization.yaml')
   for (const kustAbs of kustFiles) {
@@ -4926,7 +4938,7 @@ export function hasuraEnabledLogTypesOverrideValue(kust) {
  * @param {(msg: string) => void} fail callback при помилці
  * @param {(msg: string) => void} passFn callback при успіху
  */
-async function validateHasuraOverlayEnabledApisOverride(root, yamlFilesAbs, fail, passFn) {
+export async function validateHasuraOverlayEnabledApisOverride(root, yamlFilesAbs, fail, passFn) {
   const rootNorm = resolve(root)
   const kustFiles = yamlFilesAbs.filter(abs => basename(abs) === 'kustomization.yaml')
   for (const kustAbs of kustFiles) {
@@ -4963,7 +4975,7 @@ async function validateHasuraOverlayEnabledApisOverride(root, yamlFilesAbs, fail
  * @param {(msg: string) => void} fail callback при помилці
  * @param {(msg: string) => void} passFn callback при успіху
  */
-async function validateHasuraOverlayEnabledLogTypesOverride(root, yamlFilesAbs, fail, passFn) {
+export async function validateHasuraOverlayEnabledLogTypesOverride(root, yamlFilesAbs, fail, passFn) {
   const rootNorm = resolve(root)
   const kustFiles = yamlFilesAbs.filter(abs => basename(abs) === 'kustomization.yaml')
   for (const kustAbs of kustFiles) {

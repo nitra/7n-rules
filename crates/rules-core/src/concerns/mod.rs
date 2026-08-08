@@ -55,12 +55,25 @@ mod k8s_hasura;
 mod k8s_hasura_configmap;
 mod k8s_hasura_httproute;
 mod k8s_kubeconform;
+/// Оркестратор native-концерну `k8s/manifests` — точний порядок кроків
+/// `lint(ctx)` поверх усіх портованих шарів. У [`NATIVE_CONCERNS`] ще НЕ
+/// заведений: гейт `npm/tests/check-mjs-contract.test.mjs` вимагає, щоб у
+/// native-концерну **не було** `main.mjs`, тож заведення в реєстр і видалення
+/// JS-канону — один неподільний крок, який чекає на порт fix-поверхні
+/// (`fix-manifests.mjs` імпортує з `main.mjs` девʼять символів).
+pub mod k8s_manifests;
 /// Портований зріз концерну `k8s/manifests` — cross-file перевірки, що не
-/// тягнуть kustomize-резолюцію. `pub`, бо концерн ще не в [`NATIVE_CONCERNS`]
-/// (він неподільний для диспатчу: заводиться, коли портовані всі чотири шари
-/// його `lint()`), і до того моменту модуль лишається без внутрішнього
-/// виклику.
+/// тягнуть kustomize-резолюцію. `pub` заради cross-language parity-гейтів
+/// (`tests/k8s_manifests*_parity.rs`), які кличуть кожен шар окремо й звіряють
+/// їх із JS-каноном; сам концерн збирає їх у [`k8s_manifests`].
 pub mod k8s_manifests_cross_file;
+/// Портований зріз концерну `k8s/manifests` — kubescape-контур. `pub` з тієї
+/// ж причини, що [`k8s_manifests_cross_file`].
+pub mod k8s_manifests_kubescape;
+/// Портований зріз концерну `k8s/manifests` — kustomize-резолюція і пʼять
+/// залежних від неї `validate*`. `pub` з тієї ж причини, що
+/// [`k8s_manifests_cross_file`].
+pub mod k8s_manifests_kustomize;
 /// Портований зріз концерну `k8s/manifests` — per-file цикл
 /// `checkK8sYamlFile` (modeline `$schema`). `pub` з тієї ж причини, що
 /// [`k8s_manifests_cross_file`].
@@ -117,6 +130,7 @@ pub use k8s_common::find_k8s_yaml_files;
 pub use k8s_hasura_configmap::k8s_hasura_configmap;
 pub use k8s_hasura_httproute::k8s_hasura_httproute;
 pub use k8s_kubeconform::k8s_kubeconform;
+pub use k8s_manifests::k8s_manifests;
 pub use marksman_config::marksman_config;
 pub use rego_tooling::rego_tooling;
 pub use sample_secret::sample_secret;
