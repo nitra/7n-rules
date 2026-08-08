@@ -431,6 +431,49 @@ fn unknown_command_delegates_argv_and_exit_code_to_js_entrypoint() {
     assert_eq!(stdout(&out), "/fake/n-rules.js lint --full --no-fix\n");
 }
 
+/// Пʼять поверхонь, які фаза 8 свідомо лишає в JS (інвентаризація — реєстр
+/// відкладених питань, §3.5): `release`, `docs`, `taze`,
+/// `adr-normalize-local` і дефолтний sync без підкоманди. Native-гілки в них
+/// немає й не планується, тож єдиний контракт бінаря щодо них — довезти argv
+/// незміненим і повернути exit-код. Саме це й ламається мовчки, якщо
+/// граматика [`crate::cli`] колись почне їх «розуміти» (питання без
+/// відповіді у §3.2 реєстру), — тому воно закріплене тут.
+#[cfg(unix)]
+#[test]
+fn commands_kept_in_js_delegate_argv_verbatim() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tmp = TempDir::new().unwrap();
+    let stub = tmp.path().join("runtime.sh");
+    std::fs::write(&stub, "#!/bin/sh\necho \"$@\"\nexit 17\n").unwrap();
+    std::fs::set_permissions(&stub, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+    for args in [
+        // Дефолтний sync: порожній argv — теж делегація, а не usage-помилка.
+        vec![],
+        vec!["release"],
+        vec!["docs", "domains"],
+        vec!["docs", "build", "--domain", "npm-rules", "--publish"],
+        vec!["taze", "diff", "--backup-suffix", ".taze-bak"],
+        vec!["adr-normalize-local", "--batch", "batch.txt"],
+    ] {
+        let label = args.join(" ");
+        let out = bin()
+            .current_dir(tmp.path())
+            .env("N_RULES_JS_ENTRY", "/fake/n-rules.js")
+            .env("N_RULES_JS_RUNTIME", &stub)
+            .args(&args)
+            .output()
+            .unwrap();
+        assert_eq!(out.status.code(), Some(17), "«{label}»");
+        let expected: String = std::iter::once("/fake/n-rules.js")
+            .chain(args.iter().copied())
+            .collect::<Vec<_>>()
+            .join(" ");
+        assert_eq!(stdout(&out), format!("{expected}\n"), "«{label}»");
+    }
+}
+
 /// Найважливіша гарантія розділення політик: на поверхні, яку бінар ЩЕ
 /// ділить із JS-CLI, невідомий прапорець не стає помилкою — інакше argv, який
 /// JS розуміє, не доїхав би до виконавця.
