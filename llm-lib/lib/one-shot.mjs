@@ -77,7 +77,10 @@ async function defaultCreateSession({ registry, model, cwd, thinkingLevel, maxTo
  * }} args параметри; `maxTokens` — per-call стеля відповіді (undefined → дефолт пакета, 0 → без стелі);
  *   `chain` — handle зі startChain: виклик стає кроком ланцюжка (chain-поля у trace, X-Chain-* заголовки локальним моделям)
  * @returns {Promise<{ content: string, usage: object|null, error: string|null, model: string|null, stopReason: string|null, caller: string }>} результат;
- *   `stopReason` — фініш останнього assistant-повідомлення (`'length'` = відповідь обрізана стелею; політика повтору — за колером)
+ *   `stopReason` — фініш останнього assistant-повідомлення (`'length'` = відповідь обрізана стелею; політика повтору — за колером);
+ *   `stopReason === 'error'` завжди дає непорожній `error` (з `errorMessage` провайдера чи дефолтним текстом) —
+ *   pi не завжди кидає виняток при провалі провайдера (вичерпані внутрішні retry), тож без цього `error: null`
+ *   при порожньому `content` виглядало б так само, як легітимна порожня відповідь
  */
 export async function runOneShot({
   messages,
@@ -142,12 +145,14 @@ export async function runOneShot({
   let text = ''
   let usage = null
   let stopReason = null
+  let providerErrorMessage = null
   session.subscribe(event => {
     if (event.type === 'message_update' && event.assistantMessageEvent?.type === 'text_delta') {
       text += event.assistantMessageEvent.delta ?? ''
     } else if (event.type === 'message_end' && event.message) {
       if (event.message.usage) usage = event.message.usage
       stopReason = event.message.stopReason ?? null
+      if (event.message.errorMessage) providerErrorMessage = event.message.errorMessage
     }
   })
 
@@ -157,6 +162,18 @@ export async function runOneShot({
   } catch (error) {
     promptError = error.message
     failOnMemoryGuard(promptError, userText)
+  }
+
+  // pi не завжди кидає при провалі провайдера (напр. вичерпані внутрішні
+  // retry на connection-error): `session.prompt()` резолвиться штатно, а
+  // єдиний слід — `stopReason: 'error'` на `message_end` (задокументований
+  // третій стан поруч із `stop`/`length`/`toolUse`/`aborted`, з `errorMessage`
+  // поряд — `docs/custom-provider.md` пакета pi-coding-agent). Без цього
+  // consumers (docgen callLlm: `if (res.error) throw ...`) бачать
+  // `error: null, content: ''` — не відрізнити від легітимної порожньої
+  // відповіді, і тихо продовжують, вважаючи виклик успішним.
+  if (!promptError && stopReason === 'error') {
+    promptError = providerErrorMessage ?? 'pi: stopReason=error (без деталей від провайдера)'
   }
 
   // spec порожній/нерозв'язаний ('' → pi сам вибирає дефолт) — беремо фактично
