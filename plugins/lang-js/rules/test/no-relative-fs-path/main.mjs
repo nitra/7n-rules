@@ -10,7 +10,8 @@ import { walkDir } from '@7n/rules/scripts/utils/walkDir.mjs'
 /**
  * FS-функції з `node:fs` / `node:fs/promises` / sync-API, які приймають path
  * у фіксованих позиціях. Map: ім'я функції → масив 0-індексованих позицій
- * path-аргументів (1-й, 2-й, або обидва — як у `copyFile/rename/symlink/link`).
+ * path-аргументів (1-й, 2-й, або обидва — як у `copyFile/rename/link`; у
+ * `symlink` перевіряється лише 2-й, бо 1-й — це ціль, а не шлях на диску).
  */
 const FS_PATH_ARG_POSITIONS = new Map([
   ['writeFile', [0]],
@@ -46,8 +47,12 @@ const FS_PATH_ARG_POSITIONS = new Map([
   ['copyFileSync', [0, 1]],
   ['rename', [0, 1]],
   ['renameSync', [0, 1]],
-  ['symlink', [0, 1]],
-  ['symlinkSync', [0, 1]],
+  // symlink: перевіряємо ЛИШЕ 2-й аргумент (шлях самого посилання). 1-й — це
+  // ЦІЛЬ посилання, тобто рядок, який запишеться всередину symlink-а; відносна
+  // ціль там нормальна й осмислена (`../real.txt`), а не помилка тесту. Пор.
+  // `link`/`copyFile`/`rename`, де обидва аргументи — справжні шляхи на диску.
+  ['symlink', [1]],
+  ['symlinkSync', [1]],
   ['link', [0, 1]],
   ['linkSync', [0, 1]],
   ['cp', [0, 1]],
