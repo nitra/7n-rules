@@ -3,27 +3,35 @@ type: JS Module
 title: max-tokens.mjs
 resource: llm-lib/lib/internal/max-tokens.mjs
 docgen:
-  crc: b382cfb8
-  model: omlx/gemma-4-e4b-it-OptiQ-4bit
+  crc: 27cc0fa4
+  model: openai-codex/gpt-5.4-mini
+  tier: cloud-min
+  score: 100
+  issues: judge-refine:kept-original,judge:inaccurate:0.98
+  judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-Оновлений текст секції "Огляд":
-
-Конфігурація визначає максимальну кількість токенів відповіді, яка може бути надіслана для кожного окремого виклику агента в середовищі pi-сесій n-cursor. Механізм керування цим обмеженням забезпечує, що відповіді не перевищують заданий ліміт, використовуючи `options.maxTokens` у `streamFn`, при цьому для початкових викликів застосовується стеля, визначена у `models.json`.
+`DEFAULT_MAX_TOKENS` задає стандартну верхню межу токенів для одноразових LLM-викликів у pi-сесіях, а `applyMaxTokens` застосовує цю межу там, де потрібне явне обмеження. Це потрібно, щоб поведінка викликів була передбачуваною і не залежала від неявних припущень у викликуючому коді.
 
 ## Поведінка
 
-Поведінка:
-DEFAULT_MAX_TOKENS надає значення за замовчуванням для максимальної кількості токенів відповіді в сесіях n-cursor, якщо не визначено окремо.
-applyMaxTokens модифікує функціонал потоку відповіді сесії, щоб обмежити максимальну кількість токенів для кожного LLM-виклику, використовуючи значення `maxTokens` або `DEFAULT_MAX_TOKENS`.
+DEFAULT_MAX_TOKENS задає спільну верхню межу для одноразових LLM-викликів у pi-сесіях і бере значення з `N_LLM_MAX_TOKENS` або застарілого `N_PI_MAX_TOKENS`, а якщо обидва не задані — використовує безпечний дефолт. Це значення опирається на стелю моделі з `models.json`, тому без явного обмеження сесія успадковує модельний ліміт незалежно від фактичної потреби відповіді.
+
+applyMaxTokens застосовує цю межу до вже створеної session так, щоб усі подальші LLM-виклики всередині тієї ж сесії отримували однаковий maxTokens. Якщо в session немає доступного agent streamFn або межа не задана, функція нічого не змінює і повертає ту саму session.
 
 ## Публічний API
 
-- DEFAULT_MAX_TOKENS — Встановлює стандартний максимальний обсяг відповіді для агентських та одноразових викликів n-cursor.
-- applyMaxTokens — Обмежує максимальну кількість токенів для кожного LLM-виклику в сесії, модифікуючи функції потоку сесії, і безпечно не робить нічого, якщо в сесії відсутній агент (наприклад, під час тестування).
+- DEFAULT_MAX_TOKENS — Дефолтна стеля відповіді для агентних/one-shot викликів. Override: `N_LLM_MAX_TOKENS` (legacy-alias `N_PI_MAX_TOKENS`).
+- applyMaxTokens — Обгортає `session.agent.streamFn`, домішуючи `maxTokens` в options
+кожного LLM-виклику сесії. Безпечний no-op для сесій без `agent`
+(напр. інжектовані фейки в тестах).
+
+## Сценарії використання
+
+- `llm-lib/tests/max-tokens.test.mjs` (pi-max-tokens) — wraps agent.streamFn injecting the default maxTokens into stream options; respects an explicit maxTokens override; is a safe no-op for sessions without agent.streamFn (injected fakes); does not wrap when maxTokens is explicitly falsy
 
 ## Гарантії поведінки
 
-- Read-only: не виконує операцій запису (ФС/БД).
+- Власних операцій запису (ФС/БД) у файлі немає; виклики імпортованих модулів можуть писати.

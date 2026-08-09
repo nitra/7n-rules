@@ -3,18 +3,35 @@ type: JS Module
 title: chain-headers.mjs
 resource: llm-lib/lib/internal/chain-headers.mjs
 docgen:
-  crc: b9a48b25
+  crc: afee2cf2
+  model: openai-codex/gpt-5.4-mini
+  tier: cloud-min
+  score: 100
+  judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-INTERNAL streamFn-mixin (дзеркало max-tokens): домішує X-Chain-* заголовки chain-у в options кожного LLM-виклику pi-сесії — pi StreamOptions.headers мерджаться останніми поверх дефолтів провайдера, тож заголовки долітають до локального проксі (myllm). Раннери передають chain сюди лише для локальних моделей (isLocalModel).
+`applyChainHeaders` додає chain-заголовки до запиту LLM так, щоб у межах сесії зберігався потрібний контекст для кожного виклику. Це потрібно, щоб наступні запити в тій самій сесії отримували узгоджені заголовки.
 
 ## Поведінка
 
-applyChainHeaders — обгортає session.agent.streamFn; chain.headers() читається на момент кожного виклику (свіжий X-Chain-Step); зберігає наявні options.headers; no-op без chain або для сесій без agent (фейки в тестах).
+1. applyChainHeaders або залишає сесію без змін, або вмикає домішування chain-заголовків до кожного LLM-виклику через наявний streamFn.
+2. Якщо в сесії немає доступного streamFn або chain відсутній, функція нічого не змінює й повертає ту саму сесію.
+3. Якщо streamFn є, функція підміняє його так, щоб у кожному виклику до вже наявних headers додавалися актуальні chain-заголовки з chain.headers.
+4. Нові chain-заголовки мають пріоритет над попередніми значеннями в headers, тому сесія передає в запит саме свіжі значення.
+5. Функція повертає ту саму session, щоб її можна було далі ланцюжити без додаткових проміжних об’єктів.
+
+## Публічний API
+
+- applyChainHeaders — Обгортає `session.agent.streamFn`, домішуючи chain-заголовки в options
+кожного LLM-виклику сесії. Безпечний no-op без chain або для сесій без
+`agent` (інжектовані фейки в тестах).
+
+## Сценарії використання
+
+- Домішує заголовки, зберігаючи наявні options.headers; headers() читається на момент виклику; no-op без chain і для сесій без agent
 
 ## Гарантії поведінки
 
-- Чужі options.headers не губляться (мердж, chain-заголовки останні).
-- Безпечний no-op: без chain/agent session повертається незмінною.
+- Власних операцій запису (ФС/БД) у файлі немає; виклики імпортованих модулів можуть писати.
