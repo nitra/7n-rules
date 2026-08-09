@@ -165,10 +165,10 @@ pub struct EditRecord {
 /// виконує викликач (майбутній rig-agent tool-хендлер) ПІСЛЯ отримання
 /// [`Decision::Allow`].
 /// Тип підміни `git check-ignore` (див. [`WriteGuard::with_check_ignore`]).
-type CheckIgnoreFn = Box<dyn Fn(&Path, &Path) -> bool>;
+type CheckIgnoreFn = Box<dyn Fn(&Path, &Path) -> bool + Send + Sync>;
 
 /// Тип `on_capture`-хука (див. [`WriteGuard::with_on_capture`]).
-type OnCaptureFn = Box<dyn FnMut(&Path)>;
+type OnCaptureFn = Box<dyn FnMut(&Path) + Send + Sync>;
 
 pub struct WriteGuard {
     cwd: PathBuf,
@@ -215,7 +215,10 @@ impl WriteGuard {
     /// Підміняє `git check-ignore` інжектованою предикатною функцією (тести —
     /// без реального git-репо; аналог JS-параметра `checkIgnore`).
     #[must_use]
-    pub fn with_check_ignore(mut self, f: impl Fn(&Path, &Path) -> bool + 'static) -> Self {
+    pub fn with_check_ignore(
+        mut self,
+        f: impl Fn(&Path, &Path) -> bool + Send + Sync + 'static,
+    ) -> Self {
         self.check_ignore = Box::new(f);
         self
     }
@@ -224,7 +227,7 @@ impl WriteGuard {
     /// (напр. central rollback consumer), що має дізнатись про файл ДО
     /// його модифікації (аналог JS-параметра `onCapture`).
     #[must_use]
-    pub fn with_on_capture(mut self, f: impl FnMut(&Path) + 'static) -> Self {
+    pub fn with_on_capture(mut self, f: impl FnMut(&Path) + Send + Sync + 'static) -> Self {
         self.on_capture = Some(Box::new(f));
         self
     }
@@ -642,17 +645,17 @@ mod tests {
     fn on_capture_hook_fires_once_per_first_touch() {
         let dir = TempDir::new();
         fs::write(dir.join("a.mjs"), "a").unwrap();
-        let captured = std::rc::Rc::new(std::cell::RefCell::new(Vec::<PathBuf>::new()));
+        let captured = std::sync::Arc::new(std::sync::Mutex::new(Vec::<PathBuf>::new()));
         let captured_cb = captured.clone();
         let mut guard = WriteGuard::with_root(dir.path(), Some(dir.path().to_path_buf()))
             .with_check_ignore(|_r, _a| false)
-            .with_on_capture(move |abs| captured_cb.borrow_mut().push(abs.to_path_buf()));
+            .with_on_capture(move |abs| captured_cb.lock().unwrap().push(abs.to_path_buf()));
 
         assert_eq!(guard.check_write("a.mjs"), Decision::Allow);
         // другий дотик — НЕ повторний виклик хука
         assert_eq!(guard.check_write("a.mjs"), Decision::Allow);
 
-        assert_eq!(captured.borrow().as_slice(), [dir.join("a.mjs")]);
+        assert_eq!(captured.lock().unwrap().as_slice(), [dir.join("a.mjs")]);
     }
 
     // --- integration: справжній git-репо ------------------------------------

@@ -61,6 +61,9 @@ pub mod tiers;
 /// валідація до застосування, нуль fuzzy-match. Потребує фічі `agents`.
 #[cfg(feature = "agents")]
 pub mod anchored_edit;
+/// Власний агентний цикл контуру `fix` на `rig-agent` (клас 3, §3.7/§3.8).
+#[cfg(feature = "fix-agent")]
+pub mod fix;
 /// Write-guard (клас 3, спека ACP-only §3.7): межа git-root, denylist,
 /// pre-image і editLog для дистиляційного корпусу. Потребує фічі `agents`.
 #[cfg(feature = "agents")]
