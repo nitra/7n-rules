@@ -3,36 +3,35 @@ type: JS Module
 title: local-providers.mjs
 resource: llm-lib/lib/local-providers.mjs
 docgen:
-  crc: cd7b4cfa
-  model: openai-codex/gpt-5.5
-  tier: cloud-avg
+  crc: 15c41965
+  model: openai-codex/gpt-5.4-mini
+  tier: cloud-min
   score: 100
   judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-Файл надає стандартну мапу local-провайдерів для `llm_lib::local_cloud` у формі `{ prefix: { baseUrl, apiKey } }`, щоб JS-частина могла передати Rust-крейту готові endpoints для `oneShotLocalCloud` і `submitBatch`. `defaultLocalProviders` завжди описує `omlx` і `litellm` одночасно, а фактичний мережевий запит отримує лише провайдер, чий префікс вибрано в model-spec, наприклад `N_LOCAL_MIN_MODEL`.
+Повертає default map `defaultLocalProviders` для `llm_lib::local_cloud`, яка дає контракт `{ prefix: { baseUrl, apiKey } }` для `oneShotLocalCloud` і `submitBatch`.
+
+Головний слот `local-openai` призначений для будь-якого кастомного OpenAI-сумісного локального сервера через спільний `N_LOCAL_OPENAI_*`-env і `N_LOCAL_OPENAI_BASE_URL` для перемикання між серверами без окремих env-пар на кожен backend.
+
+Це свідомий breaking change: `omlx/...` більше не резолвиться, а всі конфіги мають мігрувати на `local-openai/...` (`nitra/7n-rules#374`).
+
+Запис саме `openai` тут не використовується, щоб не перехопити справжні хмарні виклики на кшталт `openai/gpt-5.4-mini` у `llm_lib::local_cloud` і genai, де цей prefix означає cloud OpenAI, а не локальний сервер.
 
 ## Поведінка
 
-1. `defaultLocalProviders` формує стандартний набір local-провайдерів для `llm_lib::local_cloud`, щоб JS-частина передавала Rust-крейту готову мапу endpoint-ів у спільному форматі.
-
-2. До мапи завжди входять `omlx` і `litellm`; наявність обох записів не означає одночасне використання обох провайдерів.
-
-3. Активним стає лише провайдер, чий префікс вибрано в model-spec, тому запит спрямовується до одного відповідного клієнта.
-
-4. Для `omlx` використовується локальна адреса за замовчуванням `http://127.0.0.1:8000/v1/`, щоб підтримати локальний LLM-сервер без обов’язкової конфігурації.
-
-5. Для `litellm` використовується віддалена адреса за замовчуванням `https://llm.7n.ai/v1/`, щоб мати готовий fallback-провайдер для централізованого LLM endpoint-а.
-
-6. Значення адрес і ключів доступу можуть надходити з оточення, щоб одна й та сама логіка працювала в локальному, CI та production-середовищах без зміни коду.
-
-7. Файл лише збирає конфігурацію провайдерів і не виконує власних операцій запису.
+1. `defaultLocalProviders` повертає стандартну мапу для локального OpenAI-сумісного провайдера `local-openai`, яку використовує `llm_lib::local_cloud` для викликів на локальні моделі.
+2. За замовчуванням вона спрямовує запити на локальний сервер без зовнішніх залежностей: `http://127.0.0.1:8000/v1/`.
+3. Якщо задано `N_LOCAL_OPENAI_BASE_URL`, функція підставляє його як цільовий endpoint; якщо задано `N_LOCAL_OPENAI_API_KEY`, функція передає його як ключ доступу.
+4. Якщо локальні змінні середовища не задані, функція залишає безпечні дефолти: локальний baseUrl і відсутній apiKey.
+5. `defaultLocalProviders` навмисно не реєструє окремі записи для інших локальних серверів і не підтримує паралельне перемикання між ними через різні tier-env; для цього використовується один спільний слот `local-openai`.
+6. `defaultLocalProviders` навмисно не використовує prefix `openai`, щоб не перехоплювати справжні cloud-виклики до хмарного OpenAI.
 
 ## Сценарії використання
 
-- `llm-lib/tests/local-providers.test.mjs` (defaultLocalProviders) — без env — дефолтні baseUrl для omlx і litellm, apiKey null; обидва провайдери завжди присутні одночасно (жоден не вимикається іншим); N_OMLX_BASE_URL/N_OMLX_API_KEY перекривають дефолт omlx; N_LITELLM_BASE_URL/N_LITELLM_API_KEY перекривають дефолт litellm
+- `llm-lib/tests/local-providers.test.mjs` (defaultLocalProviders) — без env — один запис local-openai з дефолтним локальним baseUrl, apiKey null; N_LOCAL_OPENAI_BASE_URL/N_LOCAL_OPENAI_API_KEY перекривають дефолт — незалежно від того, який сервер за ним стоїть (omlx, litellm, turbofieldfare, ...); лише один провайдер зареєстрований — перемикання між серверами відбувається переналаштуванням N_LOCAL_OPENAI_BASE_URL, не одночасним співіснуванням
 
 ## Гарантії поведінки
 

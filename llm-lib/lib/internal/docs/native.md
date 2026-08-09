@@ -3,7 +3,7 @@ type: JS Module
 title: native.mjs
 resource: llm-lib/lib/internal/native.mjs
 docgen:
-  crc: 35a583cb
+  crc: f912be12
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   tier: local-min
   score: 70
@@ -40,12 +40,21 @@ Loader napi-аддона `llm-lib` (Rust-ядро `llm-lib/crates/llm-lib-napi`
 
 ## Публічний API
 
-- resolveNativeAddon — Резолвить шлях до napi-аддона `llm-lib`.
+- nativeAddonChain — Ланцюг кандидатів аддона в порядку пріоритету.
+
+Повертає СПИСОК, а не один шлях, свідомо: `existsSync` — не доказ, що аддон
+завантажиться (файл може бути з іншої платформи, побитий, або `existsSync`
+підмінений моком у тесті, що не має до аддона стосунку — саме так
+`gen-tests.test.mjs` валив увесь контур). Остаточний вибір робить
+[`loadNative`], пробуючи кандидатів по черзі.
+- resolveNativeAddon — Резолвить шлях до napi-аддона `llm-lib` — перший кандидат ланцюга
+[`nativeAddonChain`]. Фактичний вибір з урахуванням невдалих dlopen
+робить [`loadNative`].
 - loadNative — Кешований доступ до аддона (одне завантаження на процес).
 
 ## Сценарії використання
 
-- `llm-lib/tests/native.test.mjs` (resolveNativeAddon (порядок пошуку); resolveNativeAddon (вихідне дерево vs прод)) — N_LLM_LIB_NATIVE_ADDON має найвищий пріоритет; platform-підпакет: резолвиться @7n/llm-lib-<key> з napi-суфіксом; linux-x64 мапиться на суфікс linux-x64-gnu; dev-fallback: release-cdylib перемагає debug; dev-fallback: на linux шукається .so, а останній кандидат — вивід napi build; ще 6
+- `llm-lib/tests/native.test.mjs` (resolveNativeAddon (порядок пошуку); resolveNativeAddon (вихідне дерево vs прод)) — N_LLM_LIB_NATIVE_ADDON має найвищий пріоритет; platform-підпакет: резолвиться @7n/llm-lib-<key> з napi-суфіксом; linux-x64 мапиться на суфікс linux-x64-gnu; dev-fallback: release-cdylib перемагає debug; dev-fallback: на linux шукається .so, а останній кандидат — вивід napi build; ще 8
 
 ## Гарантії поведінки
 

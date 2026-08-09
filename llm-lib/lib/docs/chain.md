@@ -3,25 +3,32 @@ type: JS Module
 title: chain.mjs
 resource: llm-lib/lib/chain.mjs
 docgen:
-  crc: 68b416b8
+  crc: 6d305cc5
+  model: openai-codex/gpt-5.4-mini
+  tier: cloud-min
+  score: 100
+  judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-Ланцюжок (chain) групує кілька LLM-викликів у одну задачу з фінальним результатом: виклики й перевиклики local/cloud моделей отримують спільний `chainId`, а `chain.end()` пише підсумковий запис `kind:'chain'` у глобальний trace. Основа аналітики: escalation-rate local→cloud, cloud-вартість per задача, кандидати на T0-дистиляцію. Явний handle без прихованого контексту; один chain = послідовне використання (по одному на одиницю роботи).
+`promptHash` дає короткий ідентифікатор для останнього user-повідомлення, а `startChain` запускає ланцюжок від початкового контексту до фінального запису з підсумком і додатковими даними. Це потрібно, щоб у межах одного ланцюжка зберігати зв’язок між стартом і завершенням роботи та отримувати підсумок кроків.
 
 ## Поведінка
 
-startChain — створює handle: id (hex16), nextStep (монотонний лічильник кроків; кличе раннер), note (акумуляція local/cloud лічильників, usage, usageCloud, errors, finalModel; local/cloud визначає isLocalModel), headers (X-Chain-Id/Step/Kind/Cwd для локального проксі myllm), traceFields (chainId/chainKind/chainUnit/chainStep у per-call trace-запис), end (ідемпотентний фінальний запис kind:'chain' з outcome/steps/localCalls/cloudCalls/escalated/wallMs/usage/usageCloud/meta/extra через writeTrace).
-promptHash — sha256 hex16 lowercase від trim(text) останнього user-повідомлення. КОНТРАКТ кореляції з myllm (дзеркальна реалізація у chains.rs) — не міняти односторонньо.
+`promptHash` формує стабільний короткий ідентифікатор для останнього user-повідомлення: унікальність і зіставлення в межах ланцюжка залежать лише від нормалізованого тексту, а не від супровідного контексту.
+
+`startChain` запускає й веде спільний стан ланцюжка: отримує початковий контекст, створює службові поля для кореляції, накопичує usage по кроках, а в кінці зводить результат у фінальний запис із підсумком і додатковими даними.
 
 ## Публічний API
 
-startChain({kind, unit, cwd?, meta?, deps?}) — chain handle; deps.trace/clock/isLocal — інжекти для тестів.
-promptHash(text) — хеш за контрактом кореляції.
+- promptHash — Хеш промпта за спільним контрактом кореляції (див. шапку модуля).
+- startChain — Створює ланцюжок задачі.
+
+## Сценарії використання
+
+- `llm-lib/tests/chain.test.mjs` (startChain; promptHash) — id — hex16, step монотонний; note агрегує local/cloud, usage і errors; фінал у end; end ідемпотентний — другий виклик без другого запису; headers: X-Chain-* з кроком і urlencoded cwd; без cwd — без X-Chain-Cwd; ще 4
 
 ## Гарантії поведінки
 
-- end ідемпотентний: рівно один фінальний запис на chain.
-- Раннери без opts.chain працюють як раніше — chain-поля в trace зʼявляються лише з chain.
-- escalated = localCalls>0 && cloudCalls>0.
+- Підтримує локальні сценарії роботи ланцюжка та накопичення підсумкових даних.
