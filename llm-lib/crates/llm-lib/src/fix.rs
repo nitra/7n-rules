@@ -26,8 +26,12 @@ pub mod runner;
 pub mod collateral;
 /// Драбина спроб (рунги): тири, таймаути, класифікація помилок, кеп avg.
 pub mod ladder;
+/// Петля оркестрації: detect → T0 → S1 → рунги → відкат.
+pub mod pipeline;
 /// Snapshot дерева до attempt-у і відкат після провалу рунга.
 pub mod snapshot;
+/// Test-gate — сестринський тест як частина верифікації.
+pub mod test_gate;
 
 use std::future::Future;
 use std::path::PathBuf;
