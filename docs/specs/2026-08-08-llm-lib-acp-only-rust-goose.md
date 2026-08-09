@@ -192,6 +192,30 @@ anchoredEdits, …}` — готовий контракт для Rust-реалі�
 collateral-veto cross-file + hunk-window, test-gate) — детермінована оркестрація
 поза LLM; вона портується в Rust незалежно від вибору двигуна циклу.
 
+### 3.8. Спайк rig-agent 0.41 (2026-08-09): ставка класу 3 підтверджена
+
+Перед реалізацією циклу `fix` перевірено кодом (scratch-проєкт проти mock
+OpenAI-сумісного сервера, `rig-core`/`rig-agent` 0.41.0), чи rig дає гарантії
+§3.7. Усі шість вимог — **так**, з виконаним доказом:
+
+| Вимога класу 3 | API rig | Статус |
+|---|---|---|
+| Порожній allowlist tool-ів, жодного прихованого bash | `AgentBuilder` без `.tool()` → нуль інструментів; єдиний builtin `ThinkTool` ніколи не реєструється автоматично; shell-tool у крейті відсутній як клас | так |
+| Перехоплення write-виклику ДО побічного ефекту | `AgentHook::on_tool_call` → `ToolCallAction::Skip/Rewrite/Stop` (тіло tool-а не виконується); `on_tool_result` дає old→new для editLog | так |
+| Turn-ceiling + зовнішній abort | `PromptRequest::max_turns` → `PromptError::MaxTurnsError`; abort — через drop ф'ючера | так, із застереженням |
+| Фідбек у ТУ САМУ сесію | `on_model_turn_finished` → `ModelTurnAction::retry_with_feedback` — та сама розмова, спільний бюджет ходів | так |
+| Довільний OpenAI-сумісний endpoint + стрім | `openai::Client::builder().base_url(...)`; `stream_prompt` з дельтами | так |
+| Хук на кожен запит до моделі (chain-заголовки, per-call maxTokens) | `HttpClientExt` (свій транспорт) + `on_completion_call` → `RequestPatch::max_tokens` per-turn | так |
+
+Чого rig **не** дає — лишається нашим кодом (і саме тому клас 3 узагалі існує):
+анкерний протокол (зріз 3a), write-guard (зріз 3b), персистенція editLog у
+дистиляційний корпус, доменні верифікатори між ходами, склейка system+user для
+слабких локальних моделей, синтез `stopReason='error'`. Два застереження, які
+треба закласти в harness: зовнішній abort через drop ф'ючера **не повідомляє
+причини** (репортинг наш), а `retry_with_feedback` **завжди списує** хід із
+бюджету — правило «інфраструктурна помилка не палить ітерацію» доведеться
+рахувати самим.
+
 ## Відкриті питання
 
 Немає — усі питання сесії закриті рішеннями А–Л (сесія 2026-08-08, ітеративний раунд

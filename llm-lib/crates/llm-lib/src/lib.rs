@@ -57,6 +57,15 @@ pub mod remote_batch;
 /// Моделі та рівні (Tiers) для вибору LLM — завжди доступний (без `agents`).
 pub mod tiers;
 
+/// Анкерний протокол правок (клас 3, спека ACP-only §3.7): атомарна
+/// валідація до застосування, нуль fuzzy-match. Потребує фічі `agents`.
+#[cfg(feature = "agents")]
+pub mod anchored_edit;
+/// Write-guard (клас 3, спека ACP-only §3.7): межа git-root, denylist,
+/// pre-image і editLog для дистиляційного корпусу. Потребує фічі `agents`.
+#[cfg(feature = "agents")]
+pub mod write_guard;
+
 #[cfg(feature = "agents")]
 pub use acp::{one_shot_acp, one_shot_acp_with_tier, AcpAgentKind};
 #[cfg(feature = "agents")]
