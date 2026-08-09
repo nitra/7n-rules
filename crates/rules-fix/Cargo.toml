@@ -1,0 +1,33 @@
+[package]
+name = "rules-fix"
+version = "0.1.0"
+edition = "2021"
+description = "Склейка контуру fix (llm-lib::fix::*) зі справжнім lint-детектором і метаданими concern-ів rules-core"
+license = "Apache-2.0"
+
+[lib]
+name = "rules_fix"
+
+[dependencies]
+# Домен lint-у: реальний детектор (`concerns::run_concern`) і метадані
+# concern-а (`concern_meta::ConcernMeta`) — джерело правди замість
+# інʼєкцій-заглушок, які досі стояли на місці цього крейта.
+rules-core = { path = "../rules-core" }
+# ЗВИЧАЙНІ (default) фічі — на відміну від `rules-core`, який навмисно бере
+# лише `tiers` (`default-features = false`, доккомент `rules-core/Cargo.toml`
+# і шапка `rules-core/src/lib.rs`, рішення Р9 спеки rules-v2): цей крейт і є
+# тим місцем, де фікс РЕАЛЬНО виконується, тож важкий async/HTTP/rig-стек
+# (`agents`/`fix-agent`) тут потрібен цілком.
+llm-lib = { path = "../../llm-lib/crates/llm-lib" }
+# `ToolServer`/`ToolServerHandle` для підйому toolset-у одного attempt-у
+# (`llm_lib::fix::runner::run_attempt` приймає вже піднятий handle, не сам
+# його піднімає) — та сама версія, що вже резолвлена в `Cargo.lock` через
+# `llm-lib` (rig-agent 0.41.0), прямий dependency не додає нового
+# постачальника в граф збірки.
+rig-agent = "0.41"
+serde_json = "1"
+thiserror = "1"
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

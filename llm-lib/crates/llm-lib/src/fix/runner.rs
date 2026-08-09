@@ -247,8 +247,14 @@ struct ProviderTarget {
 /// [`LlmError::NoModelConfigured`] — жодної `N_*_MODEL`-сходинки для тіру;
 /// [`LlmError::InvalidModelSpec`] — резолвлений spec не парситься;
 /// [`LlmError::Provider`] — хмарний тір без `OPENAI_API_KEY` в env.
-fn resolve_provider_target(tier: Tier) -> Result<ProviderTarget, LlmError> {
-    let spec = resolve_model(tier).ok_or(LlmError::NoModelConfigured(tier))?;
+fn resolve_provider_target(tier: Tier, model: Option<&str>) -> Result<ProviderTarget, LlmError> {
+    // Явна модель рунга виграє в каскаду: драбина вже вирішила, ЯКА модель
+    // належить цій сходинці, а `resolve_model` завжди починає з local і для
+    // хмарного рунга дав би не ту модель.
+    let spec = match model {
+        Some(explicit) => explicit.to_string(),
+        None => resolve_model(tier).ok_or(LlmError::NoModelConfigured(tier))?,
+    };
     let (_provider, model) = parse_model_spec(&spec).map_err(LlmError::InvalidModelSpec)?;
 
     if is_local_model(&spec) {
@@ -672,7 +678,7 @@ fn provider_error_outcome(message: String) -> FixOutcome {
 /// той самий `FixDeps::clone()`, бо `ast_facts`/`verify` tool-и і verify-
 /// петля хука ділять одні й ті самі інʼєкції).
 pub async fn run_attempt(req: &FixRequest, deps: FixDeps, tools: ToolServerHandle) -> FixOutcome {
-    let target = match resolve_provider_target(req.tier) {
+    let target = match resolve_provider_target(req.tier, req.model.as_deref()) {
         Ok(target) => target,
         Err(err) => return provider_error_outcome(err.to_string()),
     };
@@ -688,7 +694,14 @@ pub async fn run_attempt(req: &FixRequest, deps: FixDeps, tools: ToolServerHandl
     };
     let model = client.completions_api().completion_model(target.model);
 
-    let guard = Arc::new(Mutex::new(WriteGuard::new(req.cwd.clone())));
+    // Хук першого дотику підключаємо ДО першого запису — саме він робить
+    // ladder-рівневий snapshot видющим для файлів поза цільовим набором
+    // (без нього cross-file collateral-veto сліпий).
+    let mut write_guard = WriteGuard::new(req.cwd.clone());
+    if let Some(on_capture) = deps.on_capture.clone() {
+        write_guard = write_guard.with_on_capture(move |abs| on_capture(abs.to_path_buf()));
+    }
+    let guard = Arc::new(Mutex::new(write_guard));
     let deadline = Instant::now() + req.timeout;
     let stop_signal: Arc<Mutex<Option<StopReason>>> = Arc::new(Mutex::new(None));
     let tool_call_count = Arc::new(AtomicUsize::new(0));
@@ -929,6 +942,7 @@ console.log("[mock] listening on :" + port);
                 })
             }),
             ast_facts: None,
+            on_capture: None,
         }
     }
 
@@ -939,6 +953,7 @@ console.log("[mock] listening on :" + port);
             target_files: Vec::new(),
             cwd,
             tier: Tier::Min,
+            model: None,
             timeout,
             turn_ceiling,
             verify_max: 1,
@@ -1128,6 +1143,7 @@ console.log("[mock] listening on :" + port);
                 })
             }),
             ast_facts: None,
+            on_capture: None,
         };
 
         let mut req = base_request(dir.path().to_path_buf(), StdDuration::from_secs(10), 10);
@@ -1175,6 +1191,7 @@ console.log("[mock] listening on :" + port);
                 })
             }),
             ast_facts: None,
+            on_capture: None,
         };
 
         let mut req = base_request(dir.path().to_path_buf(), StdDuration::from_secs(10), 10);

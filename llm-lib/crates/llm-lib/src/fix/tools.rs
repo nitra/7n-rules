@@ -1026,6 +1026,7 @@ mod tests {
                 })
             }),
             ast_facts: None,
+            on_capture: None,
         }
     }
 
@@ -1439,6 +1440,7 @@ mod tests {
             ast_facts: Some(Arc::new(|path: PathBuf| {
                 Box::pin(async move { format!("{{\"path\":\"{}\"}}", path.display()) })
             })),
+            on_capture: None,
         };
         let tool = AstFactsTool::new(dir.path(), &deps);
 
@@ -1488,6 +1490,7 @@ mod tests {
                 })
             }),
             ast_facts: None,
+            on_capture: None,
         };
         let tool = SelfCheckTool::new(&deps);
 

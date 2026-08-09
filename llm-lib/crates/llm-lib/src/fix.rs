@@ -93,6 +93,13 @@ pub struct FixDeps {
     /// AST-факти файлу (у JS — oxc-екстрактор із консюмера). `None` —
     /// інструмент чесно відповідає «недоступний», а не мовчить.
     pub ast_facts: Option<Arc<dyn Fn(PathBuf) -> BoxFuture<'static, String> + Send + Sync>>,
+    /// Хук «перший дотик до файлу», який цикл підключає до свого
+    /// [`crate::write_guard::WriteGuard`]. Сюди harness передає
+    /// [`pipeline::AttemptContext::capture`], і лише завдяки цьому
+    /// ladder-рівневий snapshot дізнається про файли ПОЗА цільовим набором —
+    /// без хука cross-file collateral-veto сліпий, бо pre-image знімався б
+    /// уже з правленого вмісту.
+    pub on_capture: Option<Arc<dyn Fn(PathBuf) + Send + Sync>>,
 }
 
 /// Запит на один attempt циклу (один рунг драбини ззовні).
@@ -108,6 +115,11 @@ pub struct FixRequest {
     pub cwd: PathBuf,
     /// Тір моделі.
     pub tier: Tier,
+    /// Явна модель рунга (`"provider/model-id"`). Коли задана — цикл бере
+    /// саме її і НЕ резолвить каскад наново: інакше рунг `cloud-min` міг би
+    /// піти на локальну модель, бо каскад `Tier` завжди починає з local.
+    /// `None` — поведінка за тиром (сумісність зі старими викликами).
+    pub model: Option<String>,
     /// Бюджет часу всього attempt-у.
     pub timeout: Duration,
     /// Стеля ходів (backstop проти зациклення).

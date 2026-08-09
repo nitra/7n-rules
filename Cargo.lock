@@ -4181,6 +4181,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "rules-fix"
+version = "0.1.0"
+dependencies = [
+ "llm-lib",
+ "rig-agent",
+ "rules-core",
+ "serde_json",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
+]
+
+[[package]]
 name = "rules-napi"
 version = "0.1.0"
 dependencies = [
