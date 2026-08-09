@@ -21,6 +21,14 @@ pub mod tools;
 /// chain-заголовки, per-turn maxTokens) і запуск ходу.
 pub mod runner;
 
+/// Harness навколо циклу — детермінована оркестрація поза LLM (§3.7).
+/// Відхилення правок поза цільовою ділянкою.
+pub mod collateral;
+/// Драбина спроб (рунги): тири, таймаути, класифікація помилок, кеп avg.
+pub mod ladder;
+/// Snapshot дерева до attempt-у і відкат після провалу рунга.
+pub mod snapshot;
+
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;

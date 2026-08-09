@@ -77,7 +77,7 @@ pub fn git_root(cwd: &Path) -> Option<PathBuf> {
 /// filename; інакше — як є. Знімає розбіжність symlink-шляхів (macOS
 /// `/tmp` → `/private/tmp`), через яку tracked-файл хибно блокувався в
 /// JS-джерелі — той самий фікс тут.
-fn realpath_best_effort(p: &Path) -> PathBuf {
+pub(crate) fn realpath_best_effort(p: &Path) -> PathBuf {
     if let Ok(rp) = fs::canonicalize(p) {
         return rp;
     }
