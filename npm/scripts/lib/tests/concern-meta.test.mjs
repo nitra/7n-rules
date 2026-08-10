@@ -76,6 +76,22 @@ describe('concern-meta — lint surface', () => {
     })
   })
 
+  test('extensionsSlot проходить у LintSurface; не-string ігнорується', async () => {
+    await withTmpDir(async dir => {
+      const withSlot = await seedConcern(dir, 'doc-files', 'check', {
+        lint: { scope: 'per-file', glob: '**/*.js', extensionsSlot: 'doc-files.extensions' }
+      })
+      const m = await readConcernMeta(withSlot, 'check')
+      expect(m.lint.extensionsSlot).toBe('doc-files.extensions')
+
+      const invalid = await seedConcern(dir, 'other', 'check', {
+        lint: { scope: 'per-file', glob: '**/*.js', extensionsSlot: 42 }
+      })
+      const mInvalid = await readConcernMeta(invalid, 'check')
+      expect(mInvalid.lint.extensionsSlot).toBeUndefined()
+    })
+  })
+
   test('skipLocalTier: true нормалізується, дефолт — false', async () => {
     await withTmpDir(async dir => {
       const withFlag = await seedConcern(dir, 'js', 'eslint', {
