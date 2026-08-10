@@ -4143,10 +4143,13 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "libc",
+ "llm-lib",
  "rules-core",
+ "rules-fix",
  "serde",
  "serde_json",
  "tempfile",
+ "tokio",
 ]
 
 [[package]]

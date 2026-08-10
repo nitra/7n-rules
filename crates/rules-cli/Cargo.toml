@@ -35,6 +35,15 @@ serde = { version = "1", features = ["derive"] }
 # `os.hostname()` і `process.kill(pid, 0)` JS-версії. Крейт уже транзитивно в
 # графі збірки (`gix`, `tempfile`), пряма залежність нового крейта не додає.
 libc = "0.2"
+# Native-контур фіксу (`--native-fix`, `src/fix_cmd.rs`): склейка циклу `fix`
+# з lint-доменом. Важкий async/rig-стек входить саме сюди — у бінар, який
+# фікс і виконує, а не в `rules-core`, що навмисно лишається легким
+# (рішення Р9; див. §3.1 спеки `2026-08-08-llm-lib-acp-only-rust-goose.md`).
+rules-fix = { path = "../rules-fix" }
+llm-lib = { path = "../../llm-lib/crates/llm-lib" }
+# Рантайм заводиться лише під `--native-fix` (`fix_cmd::run_blocking`) —
+# решта native-команд CLI повністю синхронна.
+tokio = { version = "1", features = ["rt-multi-thread"] }
 
 [dev-dependencies]
 tempfile = "3"

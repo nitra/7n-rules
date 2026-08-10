@@ -292,6 +292,10 @@ pub struct LintArgs {
     /// Увімкнути native-контур детекції (власний прапорець бінаря).
     #[arg(long)]
     pub native_detect: bool,
+    /// Запустити native-контур фіксу для одного concern-а (власний прапорець
+    /// бінаря): `n-rules lint --native-fix rule/concern`.
+    #[arg(long)]
+    pub native_fix: bool,
     /// Фільтр за назвою правила чи concern.
     #[arg(value_name = "rule|concern")]
     pub rules: Vec<String>,
