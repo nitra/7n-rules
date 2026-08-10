@@ -25,6 +25,10 @@ pub(crate) mod transport;
 /// Tier` → [`presets::TierPreset`] + UI-лейбли.
 pub mod presets;
 
+/// Адаптивний пул одночасних one-shot ACP-сесій — двигун batch-емуляції
+/// (спека `2026-08-08-llm-lib-acp-only-rust-goose.md`, §3.6, рішення И).
+pub mod pool;
+
 pub use presets::TierPreset;
 use session::{SessionEvent, SessionOptions};
 use transport::spec_for;
@@ -42,6 +46,14 @@ pub enum AcpAgentKind {
     /// сам `pi` ACP-режиму не має, лише власний `--mode rpc` — `pi-acp`
     /// спавнить його сам.
     Pi,
+    /// Goose, четвертий ACP-kind (специфікація `2026-08-08-llm-lib-acp-only-rust-goose.md`,
+    /// §3.2, рішення В): goose має власний stdio ACP-сервер (`goose acp`),
+    /// жодного стороннього моста не потрібно. На відміну від решти kind-ів
+    /// [`Self::tier_preset`] для `Goose` **читає env на кожен виклик**
+    /// (рішення З: наявний `N_*_MODEL`-контракт `crate::tiers`, жодних
+    /// нових ключів) — конкретна модель у тір-пресетах Cursor/Codex/Pi
+    /// захардкоджена, тут вона резолвиться з env викликача.
+    Goose,
 }
 
 impl AcpAgentKind {
@@ -55,6 +67,7 @@ impl AcpAgentKind {
             AcpAgentKind::Cursor => "agent acp",
             AcpAgentKind::Codex => "npx -y @agentclientprotocol/codex-acp@latest",
             AcpAgentKind::Pi => "npx -y pi-acp",
+            AcpAgentKind::Goose => "goose acp",
         }
     }
 
@@ -225,6 +238,7 @@ mod tests {
             .command()
             .contains("@zed-industries/codex-acp"));
         assert_eq!(AcpAgentKind::Pi.command(), "npx -y pi-acp");
+        assert_eq!(AcpAgentKind::Goose.command(), "goose acp");
     }
 
     #[test]
@@ -232,38 +246,59 @@ mod tests {
         assert!(AcpAgentKind::Cursor.spec().is_ok());
         assert!(AcpAgentKind::Codex.spec().is_ok());
         assert!(AcpAgentKind::Pi.spec().is_ok());
+        assert!(AcpAgentKind::Goose.spec().is_ok());
     }
 
     /// Резолвлений тір-пресет (env для Codex, extra-args для Cursor,
-    /// post-session-config для Pi — тому спека без `extra_env`/`extra_args`
-    /// теж має валідно парситись, окремо перевіряючи лише env/args-частину)
-    /// не ламає `spec_for` для жодного kind-у.
+    /// post-session-config для Pi, env з `crate::tiers` для Goose — тому
+    /// спека без `extra_env`/`extra_args` теж має валідно парситись, окремо
+    /// перевіряючи лише env/args-частину) не ламає `spec_for` для жодного
+    /// kind-у. Обгорнуто в спільний [`crate::tiers::test_env::with_env`] —
+    /// Goose читає env на кожен `tier_preset`, тож без серіалізації тест
+    /// гнав би гонку з паралельними `tiers`/`local_cloud`/`presets`
+    /// env-тестами.
     #[test]
     fn tier_preset_env_and_args_still_produce_a_valid_spec() {
-        for kind in [AcpAgentKind::Cursor, AcpAgentKind::Codex, AcpAgentKind::Pi] {
-            for tier in [Tier::Min, Tier::Avg, Tier::Max] {
-                let preset = kind.tier_preset(tier);
-                let spec = spec_for(kind.command(), &preset.extra_args, &preset.env);
-                assert!(
-                    spec.is_ok(),
-                    "{kind:?}×{tier:?}: пресет має давати валідну spec"
-                );
+        crate::tiers::test_env::with_env(&[], || {
+            for kind in [
+                AcpAgentKind::Cursor,
+                AcpAgentKind::Codex,
+                AcpAgentKind::Pi,
+                AcpAgentKind::Goose,
+            ] {
+                for tier in [Tier::Min, Tier::Avg, Tier::Max] {
+                    let preset = kind.tier_preset(tier);
+                    let spec = spec_for(kind.command(), &preset.extra_args, &preset.env);
+                    assert!(
+                        spec.is_ok(),
+                        "{kind:?}×{tier:?}: пресет має давати валідну spec"
+                    );
+                }
             }
-        }
+        });
     }
 
     /// Публічний [`AcpAgentKind::tier_spec`] (споживач — session-адаптери,
-    /// T9/T10) дає валідну спеку для кожної пари kind×tier.
+    /// T9/T10) дає валідну спеку для кожної пари kind×tier. Той самий
+    /// спільний env-м'ютекс, що й у [`tier_preset_env_and_args_still_produce_a_valid_spec`]
+    /// — Goose читає env всередині `tier_spec`.
     #[test]
     fn tier_spec_is_valid_for_every_kind_and_tier() {
-        for kind in [AcpAgentKind::Cursor, AcpAgentKind::Codex, AcpAgentKind::Pi] {
-            for tier in [Tier::Min, Tier::Avg, Tier::Max] {
-                assert!(
-                    kind.tier_spec(tier).is_ok(),
-                    "{kind:?}×{tier:?}: tier_spec має давати валідну spec"
-                );
+        crate::tiers::test_env::with_env(&[], || {
+            for kind in [
+                AcpAgentKind::Cursor,
+                AcpAgentKind::Codex,
+                AcpAgentKind::Pi,
+                AcpAgentKind::Goose,
+            ] {
+                for tier in [Tier::Min, Tier::Avg, Tier::Max] {
+                    assert!(
+                        kind.tier_spec(tier).is_ok(),
+                        "{kind:?}×{tier:?}: tier_spec має давати валідну spec"
+                    );
+                }
             }
-        }
+        });
     }
 
     /// Пише виконуваний sh-скрипт фейкового ACP-агента, що відтворює живий

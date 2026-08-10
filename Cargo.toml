@@ -4,6 +4,7 @@ members = [
   "llm-lib/crates/llm-lib",
   "llm-lib/crates/llm-lib-napi",
   "crates/rules-core",
+  "crates/rules-fix",
   "crates/rules-napi",
   "crates/rules-cli",
   "crates/rules-contract",

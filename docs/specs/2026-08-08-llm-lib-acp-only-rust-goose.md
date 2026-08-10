@@ -49,9 +49,21 @@ llm-lib/crates/
   llm-lib-napi        — ВИДАЛЯЄТЬСЯ разом з останнім JS-споживачем
 ```
 
-Окремого модуля агентного циклу немає: агентність — це завжди ACP-сесія до зовнішнього
-агента. Фізичний спліт на окремі крейти — відкладено до появи першого споживача, якому
-потрібна лише частина; зараз — модулі одного крейта.
+Уточнення після §3.7: агентність класу 2 — завжди ACP-сесія до зовнішнього агента,
+але клас 3 (контур `fix`) має власний цикл у `llm-lib/src/fix/` (`tools`, `runner`,
+`ladder`, `snapshot`, `collateral`, `pipeline`, `test_gate`) під прапорцем `fix-agent`.
+Фізичний спліт `llm-lib` на окремі крейти — відкладено до появи споживача, якому
+потрібна лише частина.
+
+**Приєднання до lint-конвеєра — окремий крейт `crates/rules-fix`, не `rules-core`.**
+`rules-core` навмисно бере `llm-lib` з `default-features = false` (лише `tiers`), щоб
+у lint-адоні не було важкого async/HTTP/rig-стеку — це чинне рішення Р9 плану
+rules-v2. Увімкнення `fix-agent` прямо в `rules-core` затягнуло б rig і tokio в
+бінарник, який здебільшого читає env. Тому склейка (мапінг `diagnostics::Violation` →
+`pipeline::Violation`, побудова `PipelineDeps` з `run_concern` і `ConcernMeta`,
+зʼєднання `WriteGuard::with_on_capture` з `AttemptContext::capture`) живе в окремому
+крейті, що залежить від обох: важкі залежності входять лише туди, де фікс реально
+виконується.
 
 ### 3.2. Goose як четвертий ACP-kind: контур підключення
 
@@ -191,6 +203,30 @@ anchoredEdits, …}` — готовий контракт для Rust-реалі�
 Зовнішній harness навколо циклу (ladder 4 рунгів, snapshot/rollback per rung,
 collateral-veto cross-file + hunk-window, test-gate) — детермінована оркестрація
 поза LLM; вона портується в Rust незалежно від вибору двигуна циклу.
+
+### 3.8. Спайк rig-agent 0.41 (2026-08-09): ставка класу 3 підтверджена
+
+Перед реалізацією циклу `fix` перевірено кодом (scratch-проєкт проти mock
+OpenAI-сумісного сервера, `rig-core`/`rig-agent` 0.41.0), чи rig дає гарантії
+§3.7. Усі шість вимог — **так**, з виконаним доказом:
+
+| Вимога класу 3 | API rig | Статус |
+|---|---|---|
+| Порожній allowlist tool-ів, жодного прихованого bash | `AgentBuilder` без `.tool()` → нуль інструментів; єдиний builtin `ThinkTool` ніколи не реєструється автоматично; shell-tool у крейті відсутній як клас | так |
+| Перехоплення write-виклику ДО побічного ефекту | `AgentHook::on_tool_call` → `ToolCallAction::Skip/Rewrite/Stop` (тіло tool-а не виконується); `on_tool_result` дає old→new для editLog | так |
+| Turn-ceiling + зовнішній abort | `PromptRequest::max_turns` → `PromptError::MaxTurnsError`; abort — через drop ф'ючера | так, із застереженням |
+| Фідбек у ТУ САМУ сесію | `on_model_turn_finished` → `ModelTurnAction::retry_with_feedback` — та сама розмова, спільний бюджет ходів | так |
+| Довільний OpenAI-сумісний endpoint + стрім | `openai::Client::builder().base_url(...)`; `stream_prompt` з дельтами | так |
+| Хук на кожен запит до моделі (chain-заголовки, per-call maxTokens) | `HttpClientExt` (свій транспорт) + `on_completion_call` → `RequestPatch::max_tokens` per-turn | так |
+
+Чого rig **не** дає — лишається нашим кодом (і саме тому клас 3 узагалі існує):
+анкерний протокол (зріз 3a), write-guard (зріз 3b), персистенція editLog у
+дистиляційний корпус, доменні верифікатори між ходами, склейка system+user для
+слабких локальних моделей, синтез `stopReason='error'`. Два застереження, які
+треба закласти в harness: зовнішній abort через drop ф'ючера **не повідомляє
+причини** (репортинг наш), а `retry_with_feedback` **завжди списує** хід із
+бюджету — правило «інфраструктурна помилка не палить ітерацію» доведеться
+рахувати самим.
 
 ## Відкриті питання
 

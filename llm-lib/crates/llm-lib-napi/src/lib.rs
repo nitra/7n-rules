@@ -27,8 +27,9 @@ fn parse_agent_kind(s: &str) -> Result<AcpAgentKind> {
         "cursor" => Ok(AcpAgentKind::Cursor),
         "codex" => Ok(AcpAgentKind::Codex),
         "pi" => Ok(AcpAgentKind::Pi),
+        "goose" => Ok(AcpAgentKind::Goose),
         other => Err(Error::from_reason(format!(
-            "невідомий ACP-агент {other:?}: очікується \"cursor\"/\"codex\"/\"pi\""
+            "невідомий ACP-агент {other:?}: очікується \"cursor\"/\"codex\"/\"pi\"/\"goose\""
         ))),
     }
 }
@@ -121,6 +122,7 @@ pub fn get_acp_presets() -> serde_json::Value {
         ("cursor", AcpAgentKind::Cursor),
         ("codex", AcpAgentKind::Codex),
         ("pi", AcpAgentKind::Pi),
+        ("goose", AcpAgentKind::Goose),
     ] {
         let mut tiers = serde_json::Map::new();
         for (tier_name, tier) in [("min", Tier::Min), ("avg", Tier::Avg), ("max", Tier::Max)] {
@@ -315,12 +317,19 @@ pub async fn submit_batch(
         }
     };
 
+    // ACP-емуляція (`N_BATCH_BACKEND=acp`, спека
+    // `2026-08-08-llm-lib-acp-only-rust-goose.md` §3.6) сюди ще не
+    // проведена — napi-міст лишається на нативному `/v1/batches`-шляху
+    // (рішення Е: JS-споживачі мігрують разом зі своїм контуром, не
+    // раніше). `acp_config: None` — той самий дефолт [`Backend::Native`],
+    // що й до цього зрізу.
     let results = llm_lib::dispatch_batch(
         &cascade,
         &model_spec_or_tier,
         batch_items,
         &remote_config,
         global_system,
+        None,
         on_progress_fn,
     )
     .await

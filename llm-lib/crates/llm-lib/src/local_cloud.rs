@@ -180,3 +180,56 @@ impl LocalCloud {
         self.local_providers.get(provider)
     }
 }
+
+/// Дефолтний `local-openai`-провайдер із env — Rust-дзеркало JS
+/// `defaultLocalProviders()` (`llm-lib/lib/local-providers.mjs`): один
+/// generic-слот для БУДЬ-ЯКОГО кастомного OpenAI-сумісного сервера (omlx,
+/// litellm-проксі тощо), той самий override-контракт
+/// `N_LOCAL_OPENAI_BASE_URL`/`N_LOCAL_OPENAI_API_KEY`, що й у JS-версії —
+/// жодних нових env-джерел. Дефолтний `base_url` — локальний omlx-порт
+/// `http://127.0.0.1:8000/v1/` (найбезпечніший zero-config дефолт — без
+/// мережі, без зовнішньої залежності).
+///
+/// Єдиний наразі споживач — `acp::presets` (goose-тір-пресет, рішення З
+/// специфікації `2026-08-08-llm-lib-acp-only-rust-goose.md`): goose не йде
+/// через [`LocalCloud`]/genai, а спавниться окремим ACP-процесом, тож йому
+/// треба той самий `base_url`/`api_key` окремим шляхом — env, а не
+/// `LocalCloud::new`-мапою.
+#[must_use]
+pub fn default_local_openai_provider() -> LocalProvider {
+    LocalProvider {
+        base_url: std::env::var("N_LOCAL_OPENAI_BASE_URL")
+            .unwrap_or_else(|_| "http://127.0.0.1:8000/v1/".to_string()),
+        api_key: std::env::var("N_LOCAL_OPENAI_API_KEY").ok(),
+    }
+}
+
+#[cfg(test)]
+mod default_local_openai_provider_tests {
+    use super::*;
+    use crate::tiers::test_env::with_env;
+
+    #[test]
+    fn defaults_to_local_omlx_port_without_api_key() {
+        with_env(&[], || {
+            let provider = default_local_openai_provider();
+            assert_eq!(provider.base_url, "http://127.0.0.1:8000/v1/");
+            assert_eq!(provider.api_key, None);
+        });
+    }
+
+    #[test]
+    fn env_overrides_base_url_and_api_key() {
+        with_env(
+            &[
+                ("N_LOCAL_OPENAI_BASE_URL", "http://127.0.0.1:9000/v1/"),
+                ("N_LOCAL_OPENAI_API_KEY", "secret"),
+            ],
+            || {
+                let provider = default_local_openai_provider();
+                assert_eq!(provider.base_url, "http://127.0.0.1:9000/v1/");
+                assert_eq!(provider.api_key.as_deref(), Some("secret"));
+            },
+        );
+    }
+}

@@ -23,6 +23,26 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "mul
 # 1.x: agent-client-protocol-tokio більше не існує окремо — AcpAgent
 # (спавн stdio-агента) перенесено в головний крейт.
 agent-client-protocol = { version = "1.2", optional = true }
+# anchored_edit (§3.7 клас 3, hash-anchored line-editing): sha256 для якорів
+# рядків. У llm-lib напряму не використовувався, але в workspace-графі вже
+# резолвиться на 0.11.0 (mt-core → rules-core, див. Cargo.lock) — прямий
+# dependency з тим самим version req перевикористовує вже довірений
+# постачальник, без другої мажорної лінії sha2 у lock-файлі.
+sha2 = { version = "0.11", optional = true }
+# Власний агентний цикл контуру `fix` (спека ACP-only §3.7 клас 3, §3.8 —
+# спайк підтвердив кодом усі шість вимог). rig дає лише двигун циклу; самі
+# гарантії (anchored_edit, write_guard, дистиляційний корпус) — наш код.
+rig-core = { version = "0.41", optional = true }
+rig-agent = { version = "0.41", optional = true }
+# fix/runner.rs: власний `HttpClientExt`-транспорт для chain-id/step
+# заголовків на кожному запиті до моделі (спайк §3.8, proof2.rs — доведений
+# патерн). Усі три вже транзитивно резолвлені в Cargo.lock через
+# genai/reqwest/rig-core (bytes 1.12.1, http 1.4.2, futures 0.3.32) — прямий
+# dependency лише підіймає їх у extern prelude цього крейта, без нового
+# постачальника в графі.
+bytes = { version = "1", optional = true }
+http = { version = "1", optional = true }
+futures = { version = "0.3", optional = true }
 
 [features]
 default = ["agents"]
@@ -30,7 +50,15 @@ default = ["agents"]
 # (reqwest) — усе, що НЕ tiers. `tiers`-модуль (env-каскад моделей,
 # parse/is_local_model) лишається завжди доступним: `LlmError` у lib.rs
 # посилається на `tiers::Tier`, тож сам тип має бути безумовним.
-agents = ["dep:genai", "dep:tokio", "dep:reqwest", "dep:agent-client-protocol"]
+agents = ["dep:genai", "dep:tokio", "dep:reqwest", "dep:agent-client-protocol", "dep:sha2", "fix-agent"]
+# Іменований шов для циклу `fix`: поки що входить у `agents` (default), бо CI
+# жене `cargo test --workspace` на дефолтних фічах — під не-дефолтним прапорцем
+# тести циклу мовчки не виконувались би. Винесення в окремий прапорець стане
+# можливим, коли зникне napi (рішення А) і споживач зможе обирати явно.
+fix-agent = ["dep:rig-core", "dep:rig-agent", "dep:tokio", "dep:bytes", "dep:http", "dep:futures"]
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "process", "macros", "io-util", "time", "test-util", "net"] }
+# anchored_edit: тести атомарності на диску (stale-відмова не мутує файл)
+# через реальний tempdir, а не in-memory fs-заглушку.
+tempfile = "3"
