@@ -48,8 +48,27 @@ use rig_agent::tool::server::ToolServer;
 use crate::verify::build_verify_fn;
 
 /// Стеля ходів моделі на один attempt (backstop проти зациклення,
-/// `FixRequest::turn_ceiling`).
-const TURN_CEILING: usize = 10;
+/// `FixRequest::turn_ceiling`) — паритет із `agent-fix.mjs`, де дефолт 50 і
+/// той самий env-оверрайд.
+///
+/// Живий прогін на локальній 26B показав, чому 50, а не «здається, вистачить»:
+/// зі стелею 10 обидва рунги драбини вигоряли на `MaxTurnsError`, бо модель
+/// спершу читає файл і оглядає дерево — розвідка з'їдає ходи ще до першої
+/// правки, і до неї справа просто не доходила.
+const TURN_CEILING_DEFAULT: usize = 50;
+
+/// Env-оверрайд стелі ходів (той самий ключ, що в JS-джерелі).
+const TURN_CEILING_ENV: &str = "N_LLM_FIX_TURN_CEILING";
+
+/// Стеля ходів: env-оверрайд або дефолт. Невалідне чи нульове значення —
+/// дефолт (той самий `Number(...) || 50`, що в JS).
+fn turn_ceiling() -> usize {
+    std::env::var(TURN_CEILING_ENV)
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .filter(|&value| value > 0)
+        .unwrap_or(TURN_CEILING_DEFAULT)
+}
 
 /// Скільки разів verify-петля може повернути фідбек у тій самій сесії
 /// одного attempt-у, перш ніж здатись (`FixRequest::verify_max`).
@@ -139,7 +158,7 @@ pub fn build_attempt_fn(
                 // починає з local.
                 model: Some(ctx.rung.model.clone()),
                 timeout: Duration::from_millis(ctx.rung.timeout_ms),
-                turn_ceiling: TURN_CEILING,
+                turn_ceiling: turn_ceiling(),
                 verify_max: VERIFY_MAX,
                 anchored_edits: false,
                 edit_mode: EditMode::Generic,
