@@ -94,6 +94,7 @@ mod changed_files_cmd;
 mod ci_cmd;
 mod cli;
 mod cursor_ignore;
+mod fix_cmd;
 mod git_policy;
 mod hook_cmd;
 mod js_fallback;

@@ -138,12 +138,17 @@ fn resolve_args(parsed: &LintArgs, process_cwd: &Path) -> Result<LintRun, String
 
 /// Точка входу підкоманди. `args` — argv ПІСЛЯ `lint` (для делегації як є).
 pub fn run(parsed: &LintArgs, args: &[String]) -> ExitCode {
+    // Native-фікс — окрема поверхня зі своїм прапорцем: не плутається з
+    // детекційним native-шляхом і не змінює дефолтну делегацію.
+    if parsed.native_fix {
+        return crate::fix_cmd::run(parsed);
+    }
     if !native_enabled(parsed) {
         return delegate(args);
     }
     if !parsed.no_fix {
         eprintln!(
-            "ℹ️ rules-cli lint: native-шлях покриває лише --no-fix (fix-пайплайн не портовано) — делегую в JS-CLI."
+            "ℹ️ rules-cli lint: детекційний native-шлях покриває лише --no-fix; для native-фіксу одного concern-а є --native-fix — делегую в JS-CLI."
         );
         return delegate(args);
     }
@@ -178,7 +183,11 @@ pub fn run(parsed: &LintArgs, args: &[String]) -> ExitCode {
 /// не знає (він його мовчки проігнорував би, але чистий argv надійніший).
 fn delegate(args: &[String]) -> ExitCode {
     let mut argv = vec!["lint".to_string()];
-    argv.extend(args.iter().filter(|a| *a != NATIVE_FLAG).cloned());
+    argv.extend(
+        args.iter()
+            .filter(|a| *a != NATIVE_FLAG && *a != crate::fix_cmd::NATIVE_FIX_FLAG)
+            .cloned(),
+    );
     js_fallback::delegate(&argv)
 }
 
