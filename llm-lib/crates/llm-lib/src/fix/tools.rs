@@ -481,7 +481,10 @@ pub struct EditOp {
 #[derive(Debug, Deserialize)]
 pub struct EditArgs {
     pub path: String,
-    pub edits: Vec<EditOp>,
+    /// Унікальний фрагмент, який замінюється.
+    pub old_text: String,
+    /// Текст заміни.
+    pub new_text: String,
 }
 
 /// Точково редагує наявний файл послідовністю `{old_text, new_text}`-правок.
@@ -518,19 +521,10 @@ impl Tool for EditTool {
             "type": "object",
             "properties": {
                 "path": { "type": "string", "description": "шлях до наявного файлу" },
-                "edits": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "old_text": { "type": "string", "description": "унікальний фрагмент, який замінюється" },
-                            "new_text": { "type": "string", "description": "текст заміни" }
-                        },
-                        "required": ["old_text", "new_text"]
-                    }
-                }
+                "old_text": { "type": "string", "description": "унікальний фрагмент, який замінюється" },
+                "new_text": { "type": "string", "description": "текст заміни" }
             },
-            "required": ["path", "edits"]
+            "required": ["path", "old_text", "new_text"]
         })
     }
 
@@ -546,43 +540,36 @@ impl Tool for EditTool {
                 args.path
             )));
         }
-        if args.edits.is_empty() {
-            return Err(ToolExecutionError::invalid_args("edits порожній"));
-        }
         let mut content = fs::read_to_string(&abs).map_err(|error| {
             ToolExecutionError::other(format!("не вдалося прочитати {}: {error}", args.path))
         })?;
 
-        for (i, edit) in args.edits.iter().enumerate() {
-            let occurrences = content.matches(edit.old_text.as_str()).count();
-            if occurrences == 0 {
-                return Err(ToolExecutionError::invalid_args(format!(
-                    "правка {}: old_text не знайдено у {} — перечитай файл",
-                    i + 1,
-                    args.path
-                )));
-            }
-            if occurrences > 1 {
-                return Err(ToolExecutionError::invalid_args(format!(
-                    "правка {}: old_text неоднозначний ({occurrences} збігів) — додай більше контексту",
-                    i + 1
-                )));
-            }
-            let pos = content
-                .find(edit.old_text.as_str())
-                .expect("occurrences == 1 щойно перевірено вище — збіг є");
-            content = format!(
-                "{}{}{}",
-                &content[..pos],
-                edit.new_text,
-                &content[pos + edit.old_text.len()..]
-            );
+        let occurrences = content.matches(args.old_text.as_str()).count();
+        if occurrences == 0 {
+            return Err(ToolExecutionError::invalid_args(format!(
+                "old_text не знайдено у {} — перечитай файл",
+                args.path
+            )));
         }
+        if occurrences > 1 {
+            return Err(ToolExecutionError::invalid_args(format!(
+                "old_text неоднозначний ({occurrences} збігів) — додай більше контексту"
+            )));
+        }
+        let pos = content
+            .find(args.old_text.as_str())
+            .expect("occurrences == 1 щойно перевірено вище — збіг є");
+        content = format!(
+            "{}{}{}",
+            &content[..pos],
+            args.new_text,
+            &content[pos + args.old_text.len()..]
+        );
 
         fs::write(&abs, &content).map_err(|error| {
             ToolExecutionError::other(format!("не вдалося записати {}: {error}", args.path))
         })?;
-        Ok(json!({ "ok": true, "applied": args.edits.len() }))
+        Ok(json!({ "ok": true, "applied": 1 }))
     }
 }
 
@@ -927,7 +914,12 @@ impl Tool for AstFactsTool {
 /// `self_check` не приймає обовʼязкових параметрів — канонічна перевірка
 /// [`FixDeps::verify`] сама знає свій обсяг, tool лише повторно її запускає.
 #[derive(Debug, Default, Deserialize)]
-pub struct SelfCheckArgs {}
+pub struct SelfCheckArgs {
+    /// Необовʼязкове пояснення від моделі — на поведінку не впливає, існує
+    /// лише щоб схема не була порожнім обʼєктом (див. `parameters`).
+    #[serde(default)]
+    pub reason: Option<String>,
+}
 
 /// Advisory повторний прогін канонічної перевірки через [`FixDeps::verify`].
 /// У відповіді ЯВНО позначено `advisory: true` — успіх ухвалює канонічна
@@ -959,8 +951,26 @@ impl Tool for SelfCheckTool {
             .to_string()
     }
 
+    /// Схема з одним НЕобовʼязковим полем замість порожнього
+    /// `{"properties": {}}`.
+    ///
+    /// Порожній обʼєкт-схема формально валідний, але на практиці ламає
+    /// провайдерів із constrained decoding: живий прогін проти локального
+    /// OpenAI-сумісного сервера показав, що після запиту з такою схемою
+    /// tool-шлях сервера перестає відповідати взагалі (прості запити без
+    /// інструментів при цьому працюють). Одне опційне поле нічого не
+    /// коштує моделі й прибирає цілий клас відмов.
     fn parameters(&self) -> Value {
-        json!({ "type": "object", "properties": {} })
+        json!({
+            "type": "object",
+            "properties": {
+                "reason": {
+                    "type": "string",
+                    "description": "нащо перевірка (опційно, ні на що не впливає)"
+                }
+            },
+            "required": []
+        })
     }
 
     async fn call(
@@ -1190,10 +1200,8 @@ mod tests {
                 &mut ToolContext::new(),
                 EditArgs {
                     path: "a.txt".into(),
-                    edits: vec![EditOp {
-                        old_text: "x = 1".into(),
-                        new_text: "x = 2".into(),
-                    }],
+                    old_text: "x = 1".into(),
+                    new_text: "x = 2".into(),
                 },
             )
             .await
@@ -1215,10 +1223,8 @@ mod tests {
                 &mut ToolContext::new(),
                 EditArgs {
                     path: "nope.txt".into(),
-                    edits: vec![EditOp {
-                        old_text: "a".into(),
-                        new_text: "b".into(),
-                    }],
+                    old_text: "a".into(),
+                    new_text: "b".into(),
                 },
             )
             .await
@@ -1240,10 +1246,8 @@ mod tests {
                 &mut ToolContext::new(),
                 EditArgs {
                     path: "a.txt".into(),
-                    edits: vec![EditOp {
-                        old_text: "a".into(),
-                        new_text: "b".into(),
-                    }],
+                    old_text: "a".into(),
+                    new_text: "b".into(),
                 },
             )
             .await
@@ -1495,7 +1499,7 @@ mod tests {
         let tool = SelfCheckTool::new(&deps);
 
         let out = tool
-            .call(&mut ToolContext::new(), SelfCheckArgs {})
+            .call(&mut ToolContext::new(), SelfCheckArgs { reason: None })
             .await
             .expect("self_check успішний");
         assert_eq!(out["advisory"], true);

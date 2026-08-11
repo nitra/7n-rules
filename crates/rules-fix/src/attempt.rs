@@ -71,8 +71,31 @@ fn turn_ceiling() -> usize {
 }
 
 /// Скільки разів verify-петля може повернути фідбек у тій самій сесії
-/// одного attempt-у, перш ніж здатись (`FixRequest::verify_max`).
-const VERIFY_MAX: usize = 2;
+/// одного attempt-у (`FixRequest::verify_max`) — паритет із `run-fix.mjs:618`:
+/// локальній моделі даємо одну спробу виправитись, хмарній дві. Причина не
+/// в економії, а в тому, що слабка модель на другому фідбеці частіше
+/// повторює ту саму правку, ніж знаходить іншу — дешевше віддати хід
+/// наступному рунгу драбини.
+fn verify_max(local: bool) -> usize {
+    if local {
+        1
+    } else {
+        2
+    }
+}
+
+/// Env-ключ стелі output-токенів на хід (`FixRequest::max_tokens`).
+const MAX_TOKENS_ENV: &str = "N_LLM_FIX_MAX_TOKENS";
+
+/// Стеля output-токенів на хід: `None` — консервативний дефолт циклу.
+/// Виноситься назовні, бо потрібне значення залежить від моделі й контексту
+/// сервера: те, що рятує 4B від розгону, обрізає багатофайловий фікс на 26B.
+fn max_tokens() -> Option<u64> {
+    std::env::var(MAX_TOKENS_ENV)
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .filter(|&value| value > 0)
+}
 
 /// Мапить тир рангу драбини (`RungTier`, конкретний рівень ескалації) на
 /// грубий `llm_lib::tiers::Tier` (`Min`/`Avg`/`Max`), який читає
@@ -159,7 +182,8 @@ pub fn build_attempt_fn(
                 model: Some(ctx.rung.model.clone()),
                 timeout: Duration::from_millis(ctx.rung.timeout_ms),
                 turn_ceiling: turn_ceiling(),
-                verify_max: VERIFY_MAX,
+                max_tokens: max_tokens(),
+                verify_max: verify_max(ctx.rung.local),
                 anchored_edits: false,
                 edit_mode: EditMode::Generic,
             };

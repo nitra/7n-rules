@@ -120,6 +120,12 @@ pub struct AttemptRecord {
     pub model: String,
     /// Чи зарахований рунг.
     pub ok: bool,
+    /// Скільки ходів моделі спожила спроба — разом із `tool_calls` це єдине,
+    /// що пояснює вартість прогону й дозволяє тюнити стелю за даними, а не
+    /// навпомацки.
+    pub turns: usize,
+    /// Скільки викликів інструментів зробила спроба.
+    pub tool_calls: usize,
     /// Причина, якщо не зарахований.
     pub failure: Option<RungFailure>,
 }
@@ -366,6 +372,8 @@ pub async fn run_fix(
                 tier: rung.tier,
                 model: rung.model.clone(),
                 ok: false,
+                turns: 0,
+                tool_calls: 0,
                 failure: Some(RungFailure::AvgCapExhausted),
             });
             continue;
@@ -407,6 +415,8 @@ pub async fn run_fix(
                     tier: rung.tier,
                     model: rung.model.clone(),
                     ok: true,
+                    turns: outcome.turns,
+                    tool_calls: outcome.tool_calls,
                     failure: None,
                 });
                 report.outcome = PipelineOutcome::Success;
@@ -428,6 +438,8 @@ pub async fn run_fix(
                     tier: rung.tier,
                     model: rung.model.clone(),
                     ok: false,
+                    turns: outcome.turns,
+                    tool_calls: outcome.tool_calls,
                     failure: Some(failure),
                 });
                 match decide_after_failure(&rung, error_text.as_deref()) {

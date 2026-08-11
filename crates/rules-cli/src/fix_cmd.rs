@@ -161,7 +161,10 @@ fn print_report(key: &str, report: &FixReport) {
             .as_ref()
             .map(|failure| format!(" — {}", describe_failure(failure)))
             .unwrap_or_default();
-        println!("  {status} {}:{}{reason}", attempt.tier, attempt.model);
+        println!(
+            "  {status} {}:{} · {} ходів, {} викликів інструментів{reason}",
+            attempt.tier, attempt.model, attempt.turns, attempt.tool_calls
+        );
     }
 
     if report.rollbacks > 0 {
