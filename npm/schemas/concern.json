@@ -165,6 +165,11 @@
             }
           ],
           "description": "per-file: фільтр delta-файлів; full: delta-тригер."
+        },
+        "extensionsSlot": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Ім'я slot-а з extension-map contributions (value: мапа '.ext' → мітка, напр. doc-files.extensions). Ефективний glob концерну виводиться з розширень усіх активних contributions цього slot-а (`**/*.{…}`), тож lang-плагіни розширюють delta-тригер без правки concern.json. Статичний `glob` лишається fallback-ом, коли жодний активний плагін не декларує розширень (плагіни не встановлені)."
         }
       }
     },

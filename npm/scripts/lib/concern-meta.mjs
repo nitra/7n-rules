@@ -10,6 +10,9 @@ import { join } from 'node:path'
  * @typedef {object} LintSurface
  * @property {'per-file'|'full'} scope область лінту: per-file чи повний прогін.
  * @property {string[]} glob масив glob-ів (нормалізований з string|string[]); порожній якщо не задано
+ * @property {string|undefined} extensionsSlot slot із extension-map contributions (напр.
+ *   `doc-files.extensions`) — ефективний glob виводиться з розширень активних плагінів
+ *   (резолвиться у run-detectors, де відомий cwd); статичний `glob` — fallback без contributions
  */
 
 /**
@@ -68,7 +71,8 @@ function parseLintSurface(rawLint) {
   } else if (typeof rawGlob === 'string') {
     glob = [rawGlob]
   }
-  return { scope, glob }
+  const extensionsSlot = typeof rawLint.extensionsSlot === 'string' ? rawLint.extensionsSlot : undefined
+  return { scope, glob, extensionsSlot }
 }
 
 /**

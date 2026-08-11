@@ -17,7 +17,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { listConcerns } from '../concern-meta.mjs'
 import { collectChangedFilesSince, resolveChangedBase } from '../changed-files.mjs'
 import { loadNative } from '../native.mjs'
-import { getActiveCapabilities, resolveRulesDirs } from '../plugin-slots.mjs'
+import { getActiveCapabilities, getSlotContributions, resolveRulesDirs, resolveSlotGraph } from '../plugin-slots.mjs'
 import { readNRulesConfigLite, isRuleEnabled } from '../read-n-rules-config-lite.mjs'
 import { evaluateAppliesNode, readRuleApplies } from '../rule-applies.mjs'
 import { isSerialLane } from './blocking-inventory.mjs'
@@ -285,6 +285,71 @@ async function enabledRuleIds(byRule, cwd, rulesDirs) {
 }
 
 /**
+ * Розширення (без крапки) з extension-map contributions slot-а — злиття `value`-мап
+ * (`'.rs' → 'Rust Module'`) усіх активних contributions версії 1.
+ * @param {ReturnType<typeof resolveSlotGraph>} graph slot graph від {@link resolveSlotGraph}.
+ * @param {string} slot ім'я slot-а (напр. `doc-files.extensions`).
+ * @returns {string[]} відсортовані розширення без крапки (порожньо — жодних contributions).
+ */
+function slotExtensions(graph, slot) {
+  /** @type {Set<string>} */
+  const exts = new Set()
+  for (const c of getSlotContributions(graph, slot, [1])) {
+    if (!c.value || typeof c.value !== 'object' || Array.isArray(c.value)) continue
+    for (const ext of Object.keys(c.value)) {
+      if (ext.startsWith('.') && ext.length > 1) exts.add(ext.slice(1))
+    }
+  }
+  return [...exts].toSorted()
+}
+
+/**
+ * Підставляє concern-ам із `lint.extensionsSlot` ефективний glob, виведений з
+ * extension-map contributions активних плагінів (напр. `doc-files.extensions@1`:
+ * lang-js дає js/mjs/ts/vue, lang-rust — rs) — щоб delta-режим і PostToolUse hook
+ * запускали concern на файлах УСІХ плагінних мов, а не лише зі статичного glob-а
+ * (раніше зміна `.rs` не запускала doc-files, хоча повний скан його бачив).
+ * Без жодної contribution (плагіни не встановлені в node_modules) статичний glob
+ * лишається fallback-ом — concern далі тригериться і його diagnostics можуть
+ * повідомити про недоступні плагіни.
+ * @param {Record<string, ConcernMeta[]>} byRule concerns згруповані за rule-id.
+ * @param {string} cwd корінь репозиторію, який лінтиться.
+ * @returns {Promise<Record<string, ConcernMeta[]>>} concerns із виведеними glob-ами.
+ */
+async function resolveSlotGlobs(byRule, cwd) {
+  const needsResolve = Object.values(byRule).some(concerns => concerns.some(c => c.lint.extensionsSlot !== undefined))
+  if (!needsResolve) return byRule
+  const config = await readNRulesConfigLite(cwd)
+  const graph = resolveSlotGraph(cwd, { plugins: config.plugins }, { allowInstall: false, quiet: true })
+  /** @type {Record<string, ConcernMeta[]>} */
+  const out = {}
+  for (const [ruleId, concerns] of Object.entries(byRule)) {
+    out[ruleId] = concerns.map(c => {
+      if (c.lint.extensionsSlot === undefined) return c
+      const exts = slotExtensions(graph, c.lint.extensionsSlot)
+      if (exts.length === 0) return c
+      const glob = exts.length === 1 ? [`**/*.${exts[0]}`] : [`**/*.{${exts.join(',')}}`]
+      return { ...c, lint: { ...c.lint, glob } }
+    })
+  }
+  return out
+}
+
+/**
+ * Спільний discovery-конвеєр detect/fix/ci-plan: rules-каталоги (ядро + плагіни) →
+ * concerns за rule-id → capability-фільтр → rule-applies-гейт → резолюція
+ * slot-derived glob-ів ({@link resolveSlotGlobs}).
+ * @param {{ rulesDir?: string, rulesDirs?: string[], capabilities?: Iterable<string>, cwd: string }} opts опції прогону.
+ * @returns {Promise<{ rulesDirs: string[], byRule: Record<string, ConcernMeta[]> }>} rules-каталоги і застосовні concerns.
+ */
+async function discoverConcernsByRule(opts) {
+  const rulesDirs = await effectiveRulesDirs(opts)
+  const capable = await filterByCapabilities(await readLintConcernsByRuleMulti(rulesDirs), opts)
+  const byRule = await resolveSlotGlobs(await filterByRuleApplies(capable, opts.cwd), opts.cwd)
+  return { rulesDirs, byRule }
+}
+
+/**
  * @typedef {{ entry: LintEntry, files: string[]|undefined }} PlanItem
  */
 
@@ -337,9 +402,7 @@ function fromPlanItems(items, byRule) {
  * @returns {Promise<PlanItem[]>} впорядкований план прогону.
  */
 export async function buildDetectPlan(opts) {
-  const rulesDirs = await effectiveRulesDirs(opts)
-  const capable = await filterByCapabilities(await readLintConcernsByRuleMulti(rulesDirs), opts)
-  const byRule = await filterByRuleApplies(capable, opts.cwd)
+  const { rulesDirs, byRule } = await discoverConcernsByRule(opts)
   return buildPlan({
     byRule,
     full: opts.full === true,
@@ -360,9 +423,7 @@ export async function buildDetectPlan(opts) {
  * @returns {Promise<{ byRule: Record<string, ConcernMeta[]>, enabledSet: Set<string> }>} concerns і активні правила.
  */
 export async function loadEnabledLintRules(opts) {
-  const rulesDirs = await effectiveRulesDirs(opts)
-  const capable = await filterByCapabilities(await readLintConcernsByRuleMulti(rulesDirs), opts)
-  const byRule = await filterByRuleApplies(capable, opts.cwd)
+  const { rulesDirs, byRule } = await discoverConcernsByRule(opts)
   const enabledSet = new Set(await enabledRuleIds(byRule, opts.cwd, rulesDirs))
   return { byRule, enabledSet }
 }
@@ -747,9 +808,7 @@ export async function detectAll(opts) {
   const verbose = opts.verbose === true
   const baseLog = opts.log ?? (s => process.stdout.write(s))
 
-  const rulesDirs = await effectiveRulesDirs(opts)
-  const capable = await filterByCapabilities(await readLintConcernsByRuleMulti(rulesDirs), opts)
-  const byRule = await filterByRuleApplies(capable, cwd)
+  const { rulesDirs, byRule } = await discoverConcernsByRule(opts)
   const plan = await buildPlan({
     byRule,
     full,

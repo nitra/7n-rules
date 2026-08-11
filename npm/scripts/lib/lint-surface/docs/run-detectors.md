@@ -3,10 +3,11 @@ type: JS Module
 title: run-detectors.mjs
 resource: npm/scripts/lib/lint-surface/run-detectors.mjs
 docgen:
-  crc: 838c79de
-  model: omlx/gemma-4-e4b-it-OptiQ-4bit
+  crc: a057f918
+  model: omlx/gemma-4-26b-a4b-it
   tier: local-min
-  score: 95
+  score: 70
+  judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
@@ -16,14 +17,6 @@ Detect-only оркестратор unified lint surface (`n-rules lint --no-fix`
 Discovery → scope-selection → `lint(ctx)` per concern → нормалізовані violations.
 Без мутацій, без LLM. Fix-pipeline (T0 + ladder) обгортає цей модуль і споживає
 його violations; сам detect ніколи не пише в дерево.
-
-## Поведінка
-
-DEFAULT_RULES_DIR надає вбудований корінь для пошуку правил у випадках, коли користувач не вказує явний каталог.
-buildDetectPlan створює впорядкований план прогону, що є спільним джерелом для як detection-only, так і fix-pipeline.
-loadEnabledLintRules повертає зібрані концерни та набір активних правил, що є вихідними даними для споживачів поза detection/fix-конвеєром.
-computeActiveDomains визначає, які домени стають активними для заданого файлового набору, де домен вважається активним, якщо хоча б один його per-file concern тригериться на цих файлах.
-detectAll запускає detection-only прохід і повертає всі зібрані порушення, код виходу та список виконаних елементів плану.
 
 ## Публічний API
 
@@ -44,7 +37,7 @@ concern тригериться на цих файлах (та сама табл�
 
 ## Сценарії використання
 
-- `npm/scripts/lib/lint-surface/tests/run-detectors.test.mjs` (detectAll — exit codes; detectAll — scoping) — clean → exit 0; violations → exit 1, ruleId/concernId домішані з ctx; detector кидає → exit 2; невалідний violation (без reason) → exit 2; absolute file-path відхиляється → exit 2; ще 16
+- `npm/scripts/lib/lint-surface/tests/run-detectors.test.mjs` (detectAll — exit codes; detectAll — scoping) — clean → exit 0; violations → exit 1, ruleId/concernId домішані з ctx; detector кидає → exit 2; невалідний violation (без reason) → exit 2; absolute file-path відхиляється → exit 2; ще 19
 
 ## Гарантії поведінки
 

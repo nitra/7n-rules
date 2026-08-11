@@ -265,6 +265,91 @@ describe('buildDetectPlan — сервіс-канон (scoped+files, pathMode, r
   })
 })
 
+/**
+ * Ставить у tmp-репо фейковий плагін із `doc-files.extensions@1` contribution
+ * (не пише `.n-rules.json` — його сідить сам тест разом із `rules`).
+ * @param {string} dir tmp-корінь
+ * @param {string} name ім'я пакета плагіна
+ * @param {Record<string, string>} extensions мапа '.ext' → тип-мітка
+ */
+async function installFakeExtensionsPlugin(dir, name, extensions) {
+  const pkgRoot = join(dir, 'node_modules', ...name.split('/'))
+  await mkdir(pkgRoot, { recursive: true })
+  await writeFile(
+    join(pkgRoot, 'package.json'),
+    JSON.stringify({
+      name,
+      version: '0.0.0-test',
+      'n-rules': {
+        requiresPluginApi: 2,
+        slots: {
+          provides: [{ slot: 'doc-files.extensions', version: 1, id: 'doc-files-ext-test', value: extensions }]
+        }
+      }
+    }),
+    'utf8'
+  )
+}
+
+describe('extensionsSlot — динамічний glob з plugin contributions', () => {
+  test('contributions визначають ефективний glob: .rs потрапляє у per-file план', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = join(dir, 'rules')
+      await seedDetector(
+        rulesDir,
+        'probe',
+        'check',
+        {
+          scope: 'per-file',
+          glob: ['**/*.js'],
+          extensionsSlot: 'doc-files.extensions'
+        },
+        CLEAN
+      )
+      await installFakeExtensionsPlugin(dir, '@7n/rules-lang-rust', { '.rs': 'Rust Module' })
+      await writeJson(join(dir, '.n-rules.json'), { rules: ['probe'], plugins: ['@7n/rules-lang-rust'] })
+      const plan = await buildDetectPlan({ rulesDir, cwd: dir, files: ['src/lib.rs', 'a.js', 'b.txt'] })
+      expect(plan).toHaveLength(1)
+      expect(plan[0].entry.concern.name).toBe('check')
+      // contributions ЗАМІНЮЮТЬ статичний glob (він — лише fallback): a.js поза планом,
+      // бо активні плагіни декларують тільки .rs — та сама множина, що бачить повний скан.
+      expect(plan[0].files).toEqual(['src/lib.rs'])
+    })
+  })
+
+  test('без жодної contribution статичний glob лишається fallback-ом', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = join(dir, 'rules')
+      await seedDetector(
+        rulesDir,
+        'probe',
+        'check',
+        {
+          scope: 'per-file',
+          glob: ['**/*.js'],
+          extensionsSlot: 'doc-files.extensions'
+        },
+        CLEAN
+      )
+      await writeJson(join(dir, '.n-rules.json'), { rules: ['probe'] })
+      const plan = await buildDetectPlan({ rulesDir, cwd: dir, files: ['src/lib.rs', 'a.js'] })
+      expect(plan).toHaveLength(1)
+      expect(plan[0].files).toEqual(['a.js'])
+    })
+  })
+
+  test('regression: зміна .rs тригерить doc-files/check у delta-режимі (реальний concern.json ядра)', async () => {
+    await withTmpDir(async dir => {
+      await installFakeExtensionsPlugin(dir, '@7n/rules-lang-rust', { '.rs': 'Rust Module' })
+      await writeJson(join(dir, '.n-rules.json'), { rules: ['doc-files'], plugins: ['@7n/rules-lang-rust'] })
+      const plan = await buildDetectPlan({ cwd: dir, files: ['src/lib.rs'], pathMode: true })
+      const item = plan.find(p => p.entry.ruleId === 'doc-files' && p.entry.concern.name === 'check')
+      expect(item).toBeDefined()
+      expect(item.files).toEqual(['src/lib.rs'])
+    })
+  })
+})
+
 describe('warnAboutRulesWithoutConcerns — дрейф .n-rules.json#rules vs rulesDirs', () => {
   afterEach(() => {
     vi.restoreAllMocks()
