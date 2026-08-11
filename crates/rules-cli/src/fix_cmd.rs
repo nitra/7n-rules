@@ -42,46 +42,59 @@ pub fn run(parsed: &LintArgs) -> ExitCode {
         |value| paths::resolve(&process_cwd, value),
     );
 
-    let key = match single_concern_key(&parsed.rules) {
-        Ok(key) => key,
+    let keys = match concern_keys(&parsed.rules) {
+        Ok(keys) => keys,
         Err(message) => {
             eprintln!("❌ {message}");
             return ExitCode::from(2);
         }
     };
 
-    match run_blocking(&key, &cwd) {
-        Ok(report) => {
-            print_report(&key, &report);
-            ExitCode::from(exit_code(&report.outcome))
-        }
+    let runs = match run_blocking(&keys, &cwd) {
+        Ok(runs) => runs,
         Err(message) => {
-            eprintln!("❌ native-фікс {key}: {message}");
-            ExitCode::from(2)
+            eprintln!("❌ native-фікс: {message}");
+            return ExitCode::from(2);
+        }
+    };
+
+    let mut worst = 0u8;
+    for run in &runs {
+        match &run.outcome {
+            Ok(report) => {
+                print_report(&run.key, report);
+                worst = worst.max(exit_code(&report.outcome));
+            }
+            Err(error) => {
+                // Провал одного concern-а не ховає решту звіту — інакше
+                // незрозуміло, що встигло полагодитись до нього.
+                eprintln!("❌ native-фікс {}: {error}", run.key);
+                worst = 2;
+            }
         }
     }
+    ExitCode::from(worst)
 }
 
-/// Витягує рівно один `rule/concern` із позиційних аргументів.
+/// Перевіряє позиційні аргументи як перелік ключів `rule/concern`.
 ///
-/// Свідомо суворо: мовчазний вибір «першого» з кількох ключів приховав би від
-/// викликача, що решта не оброблена.
-fn single_concern_key(rules: &[String]) -> Result<String, String> {
-    match rules {
-        [] => Err(
-            "--native-fix потребує ключа concern-а у форматі `rule/concern`, напр. `n-rules lint --native-fix text/forbidden-prettier`"
+/// Кілька ключів прогоняються ПОСЛІДОВНО зі спільним бюджетом найдорожчого
+/// тиру (рішення И спеки): кеп рахується на весь прогін, а не на concern.
+/// Невалідний формат — помилка для всього виклику, а не тихий пропуск: краще
+/// не почати, ніж зробити половину непоміченим чином.
+fn concern_keys(rules: &[String]) -> Result<Vec<String>, String> {
+    if rules.is_empty() {
+        return Err(
+            "--native-fix потребує щонайменше одного ключа concern-а у форматі `rule/concern`, напр. `n-rules lint --native-fix text/forbidden-prettier`"
                 .to_string(),
-        ),
-        [single] if single.contains('/') => Ok(single.clone()),
-        [single] => Err(format!(
-            "`{single}` не схоже на ключ concern-а: очікується формат `rule/concern`"
-        )),
-        many => Err(format!(
-            "--native-fix обробляє рівно один concern за виклик, а передано {}: {}",
-            many.len(),
-            many.join(", ")
-        )),
+        );
     }
+    if let Some(bad) = rules.iter().find(|key| !key.contains('/')) {
+        return Err(format!(
+            "`{bad}` не схоже на ключ concern-а: очікується формат `rule/concern`"
+        ));
+    }
+    Ok(rules.to_vec())
 }
 
 /// Заводить async-рантайм під один виклик і виконує контур.
@@ -89,18 +102,16 @@ fn single_concern_key(rules: &[String]) -> Result<String, String> {
 /// Рантайм створюється тут, а не в `main`: решта native-команд CLI повністю
 /// синхронна, і платити за багатопотоковий рантайм на кожному `changed-files`
 /// не було б за що.
-fn run_blocking(key: &str, cwd: &Path) -> Result<FixReport, String> {
+fn run_blocking(keys: &[String], cwd: &Path) -> Result<Vec<rules_fix::ConcernRun>, String> {
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
         .map_err(|error| format!("не вдалося створити async-рантайм: {error}"))?;
 
+    // ОДИН бюджет на весь виклик — саме тут спільний кеп найдорожчого тиру
+    // починає означати те, що обіцяє спека.
     let mut avg_budget = AvgBudget::new(DEFAULT_MAX_AVG);
-    runtime.block_on(async {
-        rules_fix::fix_concern(key, cwd, None, &mut avg_budget)
-            .await
-            .map_err(|error| error.to_string())
-    })
+    Ok(runtime.block_on(rules_fix::fix_concerns(keys, cwd, None, &mut avg_budget)))
 }
 
 /// Код виходу за конвенцією lint-поверхні: 0 — чисто, 1 — порушення лишилось.
@@ -184,28 +195,38 @@ mod tests {
 
     #[test]
     fn single_key_is_accepted() {
-        let key = single_concern_key(&["text/forbidden-prettier".to_string()])
+        let keys = concern_keys(&["text/forbidden-prettier".to_string()])
             .expect("валідний ключ приймається");
-        assert_eq!(key, "text/forbidden-prettier");
+        assert_eq!(keys, vec!["text/forbidden-prettier".to_string()]);
+    }
+
+    #[test]
+    fn several_keys_run_in_one_invocation_sharing_the_budget() {
+        let keys = concern_keys(&["a/b".to_string(), "c/d".to_string()])
+            .expect("кілька ключів — валідний виклик зі спільним бюджетом");
+        assert_eq!(keys.len(), 2, "усі ключі доходять до прогону");
     }
 
     #[test]
     fn empty_rules_explain_the_expected_format() {
-        let error = single_concern_key(&[]).expect_err("без ключа — помилка");
+        let error = concern_keys(&[]).expect_err("без ключа — помилка");
         assert!(error.contains("rule/concern"), "підказано формат: {error}");
     }
 
     #[test]
     fn key_without_slash_is_rejected() {
-        let error = single_concern_key(&["text".to_string()]).expect_err("не ключ concern-а");
+        let error = concern_keys(&["text".to_string()]).expect_err("не ключ concern-а");
         assert!(error.contains("rule/concern"));
     }
 
     #[test]
-    fn several_keys_are_rejected_instead_of_silently_taking_the_first() {
-        let error = single_concern_key(&["a/b".to_string(), "c/d".to_string()])
-            .expect_err("кілька ключів — помилка, не мовчазний вибір першого");
-        assert!(error.contains("a/b") && error.contains("c/d"), "{error}");
+    fn one_bad_key_rejects_the_whole_call_instead_of_silently_skipping_it() {
+        let error = concern_keys(&["a/b".to_string(), "zzz".to_string()])
+            .expect_err("невалідний ключ серед валідних — помилка всього виклику");
+        assert!(
+            error.contains("zzz"),
+            "названо саме проблемний ключ: {error}"
+        );
     }
 
     #[test]
