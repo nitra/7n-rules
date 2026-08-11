@@ -82,7 +82,8 @@ const NEAR_DEADLINE: Duration = Duration::from_secs(5);
 
 /// Дефолтний cap на output-токени одного ходу моделі (per-turn `max_tokens`
 /// через [`FixHook::on_completion_call`]) — консервативне значення проти
-/// розгону слабких локальних моделей у надто довгу відповідь.
+/// розгону слабких локальних моделей у надто довгу відповідь. Перекривається
+/// через [`FixRequest::max_tokens`], коли модель рунга витримує більше.
 const DEFAULT_MAX_TOKENS: u64 = 4096;
 
 // ---------------------------------------------------------------------------
@@ -712,7 +713,7 @@ pub async fn run_attempt(req: &FixRequest, deps: FixDeps, tools: ToolServerHandl
         deps,
         verify_budget: Mutex::new(VerifyBudget::new(req.verify_max)),
         deadline,
-        max_tokens: DEFAULT_MAX_TOKENS,
+        max_tokens: req.max_tokens.unwrap_or(DEFAULT_MAX_TOKENS),
         tool_call_count: tool_call_count.clone(),
         turn_count: turn_count.clone(),
         stop_signal: stop_signal.clone(),
@@ -954,6 +955,7 @@ console.log("[mock] listening on :" + port);
             cwd,
             tier: Tier::Min,
             model: None,
+            max_tokens: None,
             timeout,
             turn_ceiling,
             verify_max: 1,
