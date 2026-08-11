@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.90.2] - 2026-08-11
+
+### Fixed
+
+- fix(lint): per-file glob doc-files виводиться з doc-files.extensions contributions — зміна .rs запускає концерн у delta-режимі й PostToolUse hook (новий опційний lint.extensionsSlot у concern.json; статичний glob — fallback, доповнений rs)
+
 ## [1.90.1] - 2026-08-10
 
 ### Fixed
