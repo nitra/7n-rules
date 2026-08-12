@@ -80,6 +80,16 @@ const WRITE_TOOLS: &[&str] = &["edit", "write", "edit_anchored"];
 /// однієї ітерації, що заздалегідь приречена (§3.7).
 const NEAR_DEADLINE: Duration = Duration::from_secs(5);
 
+/// Скільки викликів інструментів поспіль дозволено БЕЗ жодного запису,
+/// перш ніж визнати спробу безрезультатною.
+///
+/// Живий прогін показав, навіщо це: concern, чиє порушення усувається
+/// ВИДАЛЕННЯМ файлу, наш набір інструментів закрити не може взагалі (delete
+/// у ньому немає — свідомо). Модель на такій задачі зробила 120 викликів
+/// інструментів і жодної правки, вигорівши всю стелю ходів. Поріг зупиняє
+/// саме цей клас: не «модель думає повільно», а «прогресу немає в принципі».
+const NO_PROGRESS_TOOL_CALLS: usize = 25;
+
 /// Дефолтний cap на output-токени одного ходу моделі (per-turn `max_tokens`
 /// через [`FixHook::on_completion_call`]) — консервативне значення проти
 /// розгону слабких локальних моделей у надто довгу відповідь. Перекривається
@@ -485,6 +495,8 @@ struct FixHook {
     max_tokens: u64,
     tool_call_count: Arc<AtomicUsize>,
     turn_count: Arc<AtomicUsize>,
+    /// Скільки примусових перевірок поспіль повернули «червоно».
+    red_probes: AtomicUsize,
     /// `Some(reason)` — ЦЕЙ хук ініціював `ModelTurnAction::stop(..)`; runner
     /// читає це замість парсингу тексту з `PromptError::PromptCancelled`.
     stop_signal: Arc<Mutex<Option<StopReason>>>,
@@ -515,7 +527,38 @@ impl AgentHook for FixHook {
     }
 
     async fn on_tool_call(&self, _ctx: &HookContext, event: ToolCallEvent<'_>) -> ToolCallAction {
-        self.tool_call_count.fetch_add(1, Ordering::SeqCst);
+        let calls = self.tool_call_count.fetch_add(1, Ordering::SeqCst) + 1;
+
+        // Backstop «немає прогресу» — через КАНОНІЧНУ ПЕРЕВІРКУ, а не через
+        // лічильник записів.
+        //
+        // Дві попередні версії (спершу «жодного запису взагалі», потім
+        // «давно не було запису») живий прогін спростував: модель, яка не
+        // може закрити порушення наявними інструментами, входить у цикл
+        // перезапису й пише на КОЖНОМУ виклику — лічильники записів росли
+        // щоразу, тож обидві умови не наставали ніколи.
+        //
+        // Причина глибша: `verify` прив'язаний до завершення ходу
+        // ([`Self::on_model_turn_finished`]), а модель, що безперервно
+        // викликає інструменти, хід не завершує — канонічна перевірка не
+        // відпрацьовує жодного разу, і єдиним обмежувачем лишається стеля
+        // ходів. Тому запускаємо перевірку примусово що `NO_PROGRESS_TOOL_CALLS`
+        // викликів: два червоні поспіль означають, що робота йде, а
+        // порушення не рухається.
+        if calls.is_multiple_of(NO_PROGRESS_TOOL_CALLS) {
+            let report = (self.deps.verify)().await;
+            if report.ok {
+                self.red_probes.store(0, Ordering::SeqCst);
+            } else if !report.infra_error {
+                let reds = self.red_probes.fetch_add(1, Ordering::SeqCst) + 1;
+                if reds >= 2 {
+                    *lock_poisoned_safe(&self.stop_signal) = Some(StopReason::NoProgress);
+                    return ToolCallAction::stop(format!(
+                        "перевірка червона після {calls} викликів інструментів — прогресу немає, зупиняємось"
+                    ));
+                }
+            }
+        }
         if !WRITE_TOOLS.contains(&event.tool_name) {
             return ToolCallAction::run();
         }
@@ -716,6 +759,7 @@ pub async fn run_attempt(req: &FixRequest, deps: FixDeps, tools: ToolServerHandl
         max_tokens: req.max_tokens.unwrap_or(DEFAULT_MAX_TOKENS),
         tool_call_count: tool_call_count.clone(),
         turn_count: turn_count.clone(),
+        red_probes: AtomicUsize::new(0),
         stop_signal: stop_signal.clone(),
     };
 

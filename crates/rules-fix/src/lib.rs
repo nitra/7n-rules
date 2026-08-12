@@ -39,6 +39,47 @@ use rules_core::rules_package::rules_root;
 
 pub use error::FixConcernError;
 
+/// Результат прогону одного concern-а в межах спільного прогону
+/// ([`fix_concerns`]).
+#[derive(Debug)]
+pub struct ConcernRun {
+    /// Ключ concern-а (`ruleId/concernId`).
+    pub key: String,
+    /// Звіт петлі або помилка, що завадила його отримати. Помилка ОДНОГО
+    /// concern-а свідомо не зупиняє решту: інакше один зламаний
+    /// `concern.json` знецінив би весь прогін.
+    pub outcome: Result<FixReport, FixConcernError>,
+}
+
+/// Прогонить кілька concern-ів ПОСЛІДОВНО зі СПІЛЬНИМ бюджетом найдорожчого
+/// тиру.
+///
+/// Спільний бюджет — не деталь реалізації, а вимога спеки (рішення И
+/// `2026-08-08-llm-lib-acp-only-rust-goose.md`): кеп cloud-avg рахується на
+/// весь прогін, а не на concern. Інакше двадцять concern-ів отримали б
+/// двадцять окремих бюджетів найдорожчої моделі — рівно та вартість, від
+/// якої кеп і має захищати.
+///
+/// Послідовно, а не паралельно, теж навмисно: кожен concern бере snapshot
+/// робочого дерева й відкочує його на провалі, тож паралельні прогони
+/// затирали б відкати один одного.
+pub async fn fix_concerns(
+    keys: &[String],
+    cwd: &Path,
+    files: Option<&[String]>,
+    avg_budget: &mut AvgBudget,
+) -> Vec<ConcernRun> {
+    let mut runs = Vec::with_capacity(keys.len());
+    for key in keys {
+        let outcome = fix_concern(key, cwd, files, avg_budget).await;
+        runs.push(ConcernRun {
+            key: key.clone(),
+            outcome,
+        });
+    }
+    runs
+}
+
 /// Публічний вхід крейта: прогонить один concern (`ruleId/concernId`) через
 /// петлю `fix` — реальний детектор + реальні метадані concern-а
 /// (`concern.json`) замість інʼєкцій-заглушок.
