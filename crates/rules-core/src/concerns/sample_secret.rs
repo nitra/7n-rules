@@ -110,9 +110,11 @@ pub fn sample_secret(cwd: &Path) -> Vec<Violation> {
                     i + 1,
                     line.trim()
                 ),
-                file: None,
+                // Шлях і номер рядка машинними полями, а не лише в тексті:
+                // T0-фікс бере їх звідси, без розбору повідомлення назад.
+                file: Some(rel.clone()),
                 severity: Severity::Error,
-                data: None,
+                data: Some(serde_json::json!({ "line": i + 1 })),
             });
         }
     }
@@ -155,8 +157,13 @@ mod tests {
             violations[0].message,
             ".env.example:1: `DB_PASSWORD=secret` — заміни placeholder `secret` на `sample-secret` (security.mdc)"
         );
-        assert!(violations[0].file.is_none());
-        assert!(violations[0].data.is_none());
+        // Шлях і рядок — машинними полями, щоб T0-фікс не розбирав текст
+        // повідомлення назад.
+        assert_eq!(violations[0].file.as_deref(), Some(".env.example"));
+        assert_eq!(
+            violations[0].data.as_ref().and_then(|d| d.get("line")),
+            Some(&serde_json::json!(1))
+        );
     }
 
     /// Дзеркало «fail: *.sample (YAML) зі значенням "secret" у лапках» (`:36-42`).

@@ -76,7 +76,9 @@ pub fn firebase_hosting(root: &Path) -> Vec<Violation> {
                     message: format!(
                         "Знайдено заборонений файл Firebase Hosting: {rel} — видали його (abie.mdc)"
                     ),
-                    file: None,
+                    // Шлях у `file`, а не лише в тексті: T0-фікс бере його
+                    // звідси напряму, без розбору повідомлення назад.
+                    file: Some(rel.clone()),
                     severity: Severity::Error,
                     data: None,
                 });
@@ -88,7 +90,9 @@ pub fn firebase_hosting(root: &Path) -> Vec<Violation> {
                 message: format!(
                     "Знайдено заборонену директорію: {name}/.firebase/ — видали її (abie.mdc)"
                 ),
-                file: None,
+                // Без завершального слеша: `file` — шлях, а не його
+                // текстове представлення у повідомленні.
+                file: Some(format!("{name}/.firebase")),
                 severity: Severity::Error,
                 data: None,
             });
