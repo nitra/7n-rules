@@ -27,6 +27,7 @@ pub mod attempt;
 pub mod config;
 pub mod detect;
 pub mod error;
+pub mod t0;
 pub mod verify;
 pub mod violation_map;
 
@@ -128,7 +129,7 @@ pub async fn fix_concern(
         // немає — жоден запис `NATIVE_CONCERNS` не має "фіксуй сам, без
         // моделі"-сторони. Це не забутий пункт, а факт поточного стану
         // `rules-core` (звіт задачі, пункт «що лишилось незробленим»).
-        t0: None,
+        t0: t0::build_t0_fn(key, cwd, files),
         attempt: attempt::build_attempt_fn(
             rule_id.to_string(),
             cwd.to_path_buf(),

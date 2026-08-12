@@ -4189,6 +4189,7 @@ version = "0.1.0"
 dependencies = [
  "llm-lib",
  "rig-agent",
+ "rules-contract",
  "rules-core",
  "serde_json",
  "tempfile",
