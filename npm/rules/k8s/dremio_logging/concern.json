@@ -1,5 +1,6 @@
 {
   "$schema": "https://unpkg.com/@7n/rules/schemas/concern.json",
+  "fixability": "config",
   "policy": {
     "files": {
       "walkGlob": "**/dremio_v2/config/logback.xml"
@@ -7,6 +8,8 @@
   },
   "lint": {
     "scope": "per-file",
-    "glob": ["**/dremio_v2/templates/zookeeper.yaml"]
+    "glob": [
+      "**/dremio_v2/templates/zookeeper.yaml"
+    ]
   }
 }

@@ -1,7 +1,11 @@
 {
   "$schema": "https://unpkg.com/@7n/rules/schemas/concern.json",
+  "fixability": "structural",
   "lint": {
     "scope": "per-file",
-    "glob": ["k8s/**/*.yaml", "k8s/**/*.yml"]
+    "glob": [
+      "k8s/**/*.yaml",
+      "k8s/**/*.yml"
+    ]
   }
 }

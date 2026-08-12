@@ -13,6 +13,10 @@ name = "rules_fix"
 # concern-а (`concern_meta::ConcernMeta`) — джерело правди замість
 # інʼєкцій-заглушок, які досі стояли на місці цього крейта.
 rules-core = { path = "../rules-core" }
+# Контракт фіксу (`FixPlan`/`FileEdit`) — те, що повертає
+# `rules_core::concerns::fix::run_concern_fix`; T0-міст (`src/t0.rs`)
+# застосовує ці операції до дерева.
+rules-contract = { path = "../rules-contract" }
 # ЗВИЧАЙНІ (default) фічі — на відміну від `rules-core`, який навмисно бере
 # лише `tiers` (`default-features = false`, доккомент `rules-core/Cargo.toml`
 # і шапка `rules-core/src/lib.rs`, рішення Р9 спеки rules-v2): цей крейт і є
