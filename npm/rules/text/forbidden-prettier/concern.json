@@ -1,7 +1,12 @@
 {
   "$schema": "https://unpkg.com/@7n/rules/schemas/concern.json",
+  "fixability": "structural",
   "lint": {
     "scope": "full",
-    "glob": [".prettierignore", ".prettierrc*", "prettier.config.*"]
+    "glob": [
+      ".prettierignore",
+      ".prettierrc*",
+      "prettier.config.*"
+    ]
   }
 }
