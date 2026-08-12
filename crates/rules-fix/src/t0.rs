@@ -59,9 +59,19 @@ fn apply_plan(cwd: &Path, edits: &[FileEdit]) -> usize {
             }
             FileEdit::Delete { path } => {
                 let abs = cwd.join(path);
-                // Відсутній файл — не помилка: інший фікс міг прибрати його
+                // Відсутній шлях — не помилка: інший фікс міг прибрати його
                 // раніше, а мета операції вже досягнута.
-                !abs.exists() || std::fs::remove_file(&abs).is_ok()
+                if !abs.exists() {
+                    true
+                } else if abs.is_dir() {
+                    // Контракт має один `Delete` на все, а детектори
+                    // знаходять і файли, і теки (напр. `.firebase/` у
+                    // `abie/firebase_hosting`). Розрізняємо тут, а не в
+                    // контракті: для викликача це однаково «прибрати шлях».
+                    std::fs::remove_dir_all(&abs).is_ok()
+                } else {
+                    std::fs::remove_file(&abs).is_ok()
+                }
             }
         };
         if ok {
@@ -168,14 +178,28 @@ mod tests {
     }
 
     #[test]
+    fn plan_deletes_directory_tree() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let victim = dir.path().join(".firebase");
+        std::fs::create_dir_all(victim.join("nested")).expect("створити теку");
+        std::fs::write(victim.join("nested/x.json"), "{}").expect("файл усередині");
+        let edits = vec![FileEdit::Delete {
+            path: ".firebase".to_string(),
+        }];
+        assert_eq!(apply_plan(dir.path(), &edits), 1);
+        assert!(!victim.exists(), "теку прибрано разом із вмістом");
+    }
+
+    #[test]
     fn one_failing_edit_does_not_block_the_rest_of_the_plan() {
         let dir = tempfile::tempdir().expect("tempdir");
-        // Видалення директорії як файлу провалиться, запис — ні.
-        std::fs::create_dir(dir.path().join("a_dir")).expect("створити теку");
+        // Батько — файл, не тека: `create_dir_all` і запис під ним проваляться.
+        std::fs::write(dir.path().join("blocker"), "я файл").expect("створити файл-блокер");
         let edits = vec![
-            FileEdit::Delete {
-                path: "a_dir".to_string(),
-            },
+            FileEdit::Write(WriteFile {
+                path: "blocker/impossible.txt".to_string(),
+                content: "не запишеться".to_string(),
+            }),
             FileEdit::Write(WriteFile {
                 path: "ok.txt".to_string(),
                 content: "далі".to_string(),
@@ -184,7 +208,7 @@ mod tests {
         assert_eq!(
             apply_plan(dir.path(), &edits),
             1,
-            "друга правка застосована"
+            "провал однієї правки не блокує решту плану"
         );
         assert!(dir.path().join("ok.txt").exists());
     }
