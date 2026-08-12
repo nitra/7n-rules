@@ -40,6 +40,29 @@ use rules_core::rules_package::rules_root;
 
 pub use error::FixConcernError;
 
+/// Резолвить файловий скоуп per-file concern-а з його глоба, коли викликач
+/// не передав список явно.
+///
+/// `None` — резолв не потрібен (concern не per-file, або список уже задано,
+/// або глоб порожній). Порожній `Some(vec![])` теж значущий: у дереві просто
+/// немає файлів під цей concern, і детектор має отримати саме порожній
+/// список, а не «скоуп невідомий».
+fn resolve_per_file_scope(
+    meta: &rules_core::concern_meta::ConcernMeta,
+    cwd: &Path,
+    files: Option<&[String]>,
+) -> Option<Vec<String>> {
+    if files.is_some() {
+        return None;
+    }
+    let lint = meta.lint.as_ref()?;
+    if lint.scope != rules_core::concern_meta::LintScope::PerFile || lint.glob.is_empty() {
+        return None;
+    }
+    let all = rules_core::scan::walk_dir(cwd, &[]);
+    Some(rules_core::lint_plan::match_lint_globs(&lint.glob, &all))
+}
+
 /// Результат прогону одного concern-а в межах спільного прогону
 /// ([`fix_concerns`]).
 #[derive(Debug)]
@@ -111,6 +134,13 @@ pub async fn fix_concern(
     let meta = read_concern_meta(&concern_dir, concern_id)
         .ok_or_else(|| FixConcernError::MissingConcernMeta(key.to_string()))?;
 
+    // Per-file concern без явного списку файлів — резолвимо його з глоба
+    // `concern.json`. Без цього детектор такого concern-а бачить порожній
+    // список і чесно повертає «порушень немає»: наскрізний виклик давав
+    // ФАЛЬШИВО-ЗЕЛЕНИЙ результат, а T0 для нього не викликався ніколи.
+    // `scope: "full"`-концерни обходять дерево самі, їм `files` не потрібен.
+    let resolved_files = resolve_per_file_scope(&meta, cwd, files);
+    let files: Option<&[String]> = files.or(resolved_files.as_deref());
     let files_owned = files.map(<[String]>::to_vec);
 
     // Розвідувальний прогін: рахує межу редагування (`target_files`) ДО
@@ -125,10 +155,6 @@ pub async fn fix_concern(
 
     let deps = PipelineDeps {
         detect: detect::build_detect_fn(key.to_string(), cwd.to_path_buf(), files_owned.clone()),
-        // Детермінованих Rust-фіксів (T0) у `rules_core::concerns::run_concern`
-        // немає — жоден запис `NATIVE_CONCERNS` не має "фіксуй сам, без
-        // моделі"-сторони. Це не забутий пункт, а факт поточного стану
-        // `rules-core` (звіт задачі, пункт «що лишилось незробленим»).
         t0: t0::build_t0_fn(key, cwd, files),
         attempt: attempt::build_attempt_fn(
             rule_id.to_string(),
@@ -142,4 +168,78 @@ pub async fn fix_concern(
     run_fix(&pipeline_config, deps, avg_budget)
         .await
         .map_err(FixConcernError::Pipeline)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rules_core::concern_meta::{ConcernMeta, Fixability, LintScope, LintSurface};
+    use std::path::PathBuf;
+
+    fn meta_with(lint: Option<LintSurface>) -> ConcernMeta {
+        ConcernMeta {
+            name: "c".to_string(),
+            dir: PathBuf::from("."),
+            check: true,
+            policy: None,
+            lint,
+            requires_capability: None,
+            fixability: Fixability::Code,
+            skip_local_tier: false,
+            cloud_timeout_ms: None,
+        }
+    }
+
+    /// Регрес: per-file concern БЕЗ явного списку файлів отримував порожній
+    /// скоуп, детектор чесно казав «порушень немає», і наскрізний виклик
+    /// давав фальшиво-зелений результат (а T0 для нього не викликався
+    /// ніколи). Тепер скоуп резолвиться з глоба `concern.json`.
+    #[test]
+    fn per_file_scope_is_resolved_from_glob_when_caller_gave_no_files() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::create_dir_all(dir.path().join("dremio_v2/templates")).expect("дерево");
+        std::fs::write(
+            dir.path().join("dremio_v2/templates/zookeeper.yaml"),
+            "kind: ConfigMap\n",
+        )
+        .expect("цільовий файл");
+        std::fs::write(dir.path().join("other.yaml"), "kind: Other\n").expect("сторонній файл");
+
+        let meta = meta_with(Some(LintSurface {
+            scope: LintScope::PerFile,
+            glob: vec!["**/dremio_v2/templates/zookeeper.yaml".to_string()],
+        }));
+        let resolved = resolve_per_file_scope(&meta, dir.path(), None).expect("скоуп резолвиться");
+        assert_eq!(
+            resolved,
+            vec!["dremio_v2/templates/zookeeper.yaml".to_string()],
+            "лише файли під глобом concern-а"
+        );
+    }
+
+    #[test]
+    fn explicit_files_win_over_glob_resolution() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let meta = meta_with(Some(LintSurface {
+            scope: LintScope::PerFile,
+            glob: vec!["**/*.yaml".to_string()],
+        }));
+        let explicit = vec!["a.yaml".to_string()];
+        assert!(
+            resolve_per_file_scope(&meta, dir.path(), Some(&explicit)).is_none(),
+            "явний список викликача не перекривається"
+        );
+    }
+
+    /// `scope: "full"`-концерни обходять дерево самі — резолв їм не потрібен
+    /// і не має підмінювати їхню поведінку.
+    #[test]
+    fn full_scope_concern_needs_no_file_resolution() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let meta = meta_with(Some(LintSurface {
+            scope: LintScope::Full,
+            glob: vec!["**/*".to_string()],
+        }));
+        assert!(resolve_per_file_scope(&meta, dir.path(), None).is_none());
+    }
 }
