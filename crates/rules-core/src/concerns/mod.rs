@@ -39,6 +39,8 @@ mod firebase_hosting;
 /// Native fix-домен для builtin-концернів (T1 зрізу 4 фази 7) —
 /// [`fix::run_concern_fix`] + реєстр [`fix::NATIVE_FIXES`].
 pub mod fix;
+mod fix_abie_security;
+mod fix_env_dremio;
 mod forbidden_prettier;
 mod gha_workflow;
 mod glob_compat;

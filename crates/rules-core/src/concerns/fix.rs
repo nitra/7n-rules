@@ -588,9 +588,13 @@ fn hasura_internal_urls_fix(cwd: &Path, violations: &[Violation]) -> FixPlan {
 /// native-фікс (T1 зрізу 4 — два пілоти; T2 зрізу 5 — ще чотири; `tauri/release`
 /// і `image-avif/avif_generation` свідомо лишаються JS — доккомент модуля).
 pub const NATIVE_FIXES: &[&str] = &[
+    "abie/env_dns",
+    "abie/firebase_hosting",
     "doc-files/marksman_config",
     "hasura/internal_urls",
     "hasura/migrations",
+    "k8s/dremio_logging",
+    "security/sample_secret",
     "tauri/cargo_mutants_config",
     "tauri/gitignore_target",
     "tauri/linux_deps",
@@ -614,9 +618,15 @@ pub fn run_concern_fix(
     violations: &[Violation],
 ) -> Result<FixPlan, RulesError> {
     match key {
+        "abie/env_dns" => Ok(super::fix_env_dremio::env_dns_fix(cwd, violations)),
+        "abie/firebase_hosting" => Ok(super::fix_abie_security::firebase_hosting_fix(violations)),
         "doc-files/marksman_config" => Ok(marksman_config_fix(violations)),
         "hasura/internal_urls" => Ok(hasura_internal_urls_fix(cwd, violations)),
         "hasura/migrations" => Ok(hasura_migrations_fix(violations)),
+        "k8s/dremio_logging" => Ok(super::fix_env_dremio::dremio_logging_fix(cwd, violations)),
+        "security/sample_secret" => {
+            Ok(super::fix_abie_security::sample_secret_fix(cwd, violations))
+        }
         "tauri/cargo_mutants_config" => Ok(tauri_cargo_mutants_config_fix(cwd, violations)),
         "tauri/gitignore_target" => Ok(tauri_gitignore_target_fix(cwd, violations)),
         "tauri/linux_deps" => Ok(tauri_linux_deps_fix(cwd, violations)),
@@ -1362,9 +1372,13 @@ mod tests {
         assert_eq!(
             NATIVE_FIXES,
             &[
+                "abie/env_dns",
+                "abie/firebase_hosting",
                 "doc-files/marksman_config",
                 "hasura/internal_urls",
                 "hasura/migrations",
+                "k8s/dremio_logging",
+                "security/sample_secret",
                 "tauri/cargo_mutants_config",
                 "tauri/gitignore_target",
                 "tauri/linux_deps",
