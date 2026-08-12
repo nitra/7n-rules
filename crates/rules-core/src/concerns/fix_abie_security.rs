@@ -75,26 +75,6 @@ use crate::diagnostics::Violation;
 /// `firebase_hosting.rs:30`.
 const FIREBASE_HOSTING_REASON: &str = "firebase_hosting";
 
-/// Порт форми повідомлення для файлових артефактів — точний літерал
-/// `firebase_hosting.rs:76-78` (`"Знайдено заборонений файл Firebase
-/// Hosting: {rel} — видали його (abie.mdc)"`).
-static FIREBASE_FILE_MSG_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(
-        r"^Знайдено заборонений файл Firebase Hosting: (?P<rel>.+) — видали його \(abie\.mdc\)$",
-    )
-    .expect("valid regex")
-});
-
-/// Порт форми повідомлення для директорії `.firebase/` — точний літерал
-/// `firebase_hosting.rs:88-90` (`"Знайдено заборонену директорію:
-/// {name}/.firebase/ — видали її (abie.mdc)"`). Захоплений `rel` без
-/// кінцевого `/` (той самий вигляд шляху, що й у решти `Delete`-планів
-/// репозиторію).
-static FIREBASE_DIR_MSG_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^Знайдено заборонену директорію: (?P<rel>.+)/ — видали її \(abie\.mdc\)$")
-        .expect("valid regex")
-});
-
 /// T0-фікс `abie/firebase_hosting` — видаляє кожен знайдений заборонений
 /// шлях (файл або директорію `.firebase/`) з підкаталогу 1-го рівня.
 /// Дедуп за шляхом (той самий принцип, що [`super::fix::hasura_migrations_fix`]).
@@ -108,13 +88,10 @@ pub fn firebase_hosting_fix(violations: &[Violation]) -> FixPlan {
         if v.reason != FIREBASE_HOSTING_REASON {
             continue;
         }
-        let rel = if let Some(caps) = FIREBASE_FILE_MSG_RE.captures(&v.message) {
-            caps["rel"].to_string()
-        } else if let Some(caps) = FIREBASE_DIR_MSG_RE.captures(&v.message) {
-            caps["rel"].to_string()
-        } else {
-            continue;
-        };
+        // Шлях беремо з `file` — детектор кладе його машинним полем.
+        // Порушення без `file` (напр. збій читання каталогу) фікс не описує:
+        // прибирати нема чого.
+        let Some(rel) = v.file.clone() else { continue };
         if seen.insert(rel.clone()) {
             edits.push(FileEdit::Delete { path: rel });
         }
@@ -128,30 +105,6 @@ pub fn firebase_hosting_fix(violations: &[Violation]) -> FixPlan {
 /// свої violation-и — `sample_secret.rs:65`.
 const SAMPLE_SECRET_REASON: &str = "sample_secret";
 
-/// Основна форма повідомлення (детектор ЗАВЖДИ генерує саме її) — точний
-/// літерал `sample_secret.rs:107-112`
-/// (`"{rel}:{i+1}: \`{line.trim()}\` — заміни placeholder \`secret\` на
-/// \`sample-secret\` (security.mdc)"`). `rel` без `:` (posix-relative шлях
-/// від `walk_dir`, реалістично колонів не містить — доккомент модуля
-/// `sample_secret.rs:11-17`); якщо колон-таки трапиться, регулярка просто не
-/// збіжиться СУВОРО і violation буде пропущена (не вгадуємо).
-static SAMPLE_SECRET_MSG_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(
-        r"^(?P<rel>[^:]+):(?P<line>\d+): `(?P<content>.*)` — заміни placeholder `secret` на `sample-secret` \(security\.mdc\)$",
-    )
-    .expect("valid regex")
-});
-
-/// Захисний fallback-формат (без номера рядка) — живий детектор його НЕ
-/// генерує (він завжди кладе `:N:`), лише документує й тестує гілку
-/// «rel відомий, рядок — ні» з доккоменту модуля вище.
-static SAMPLE_SECRET_MSG_NO_LINE_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(
-        r"^(?P<rel>[^:]+): `(?P<content>.*)` — заміни placeholder `secret` на `sample-secret` \(security\.mdc\)$",
-    )
-    .expect("valid regex")
-});
-
 /// Дзеркало `VALUE_SECRET_RE` (`sample_secret.rs:56-59`) з єдиною зміною —
 /// alternation стає capturing-групою, щоб дістати span САМЕ токена (лапки +
 /// `secret`), а не всього значення з хвостовою пунктуацією/коментарем.
@@ -159,17 +112,6 @@ static SECRET_TOKEN_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"(?i)[:=]>?\s*('secret'|"secret"|secret)[\s,;}\])]*(?:(?:#|//).*)?$"#)
         .expect("valid regex")
 });
-
-/// Ціль однієї заміни в межах файлу — точний номер рядка (з очікуваним
-/// trim-контентом для захисту від дрейфу) або «перший збіг» (fallback без
-/// номера).
-enum SecretTarget {
-    Numbered {
-        line_no: usize,
-        expected_trim: String,
-    },
-    FirstMatch,
-}
 
 /// Замінює токен `secret`/`'secret'`/`"secret"` у кінці рядка на
 /// `sample-secret` з тим самим типом лапок (bare лишається bare). `None` —
@@ -197,32 +139,25 @@ fn replace_secret_token(line: &str) -> Option<String> {
 /// файл — пропускається (fail-safe, той самий принцип, що й
 /// [`super::fix::tauri_gitignore_target_fix`] для відсутнього `.gitignore`).
 pub fn sample_secret_fix(cwd: &Path, violations: &[Violation]) -> FixPlan {
-    let mut by_file: HashMap<String, Vec<SecretTarget>> = HashMap::new();
+    let mut by_file: HashMap<String, Vec<usize>> = HashMap::new();
 
     for v in violations {
         if v.reason != SAMPLE_SECRET_REASON {
             continue;
         }
-        if let Some(caps) = SAMPLE_SECRET_MSG_RE.captures(&v.message) {
-            if let Ok(line_no) = caps["line"].parse::<usize>() {
-                by_file
-                    .entry(caps["rel"].to_string())
-                    .or_default()
-                    .push(SecretTarget::Numbered {
-                        line_no,
-                        expected_trim: caps["content"].to_string(),
-                    });
-                continue;
-            }
-        }
-        if let Some(caps) = SAMPLE_SECRET_MSG_NO_LINE_RE.captures(&v.message) {
-            by_file
-                .entry(caps["rel"].to_string())
-                .or_default()
-                .push(SecretTarget::FirstMatch);
-        }
-        // Ні `SAMPLE_SECRET_MSG_RE`, ні fallback-регулярка не збіглись —
-        // навіть `rel` невідомий, тож violation свідомо пропускається.
+        // Шлях і номер рядка — машинні поля детектора (`file` і
+        // `data.line`), не текст повідомлення. Порушення без них фікс не
+        // описує: без точної адреси заміна була б вгадуванням.
+        let Some(rel) = v.file.clone() else { continue };
+        let Some(line_no) = v
+            .data
+            .as_ref()
+            .and_then(|d| d.get("line"))
+            .and_then(serde_json::Value::as_u64)
+        else {
+            continue;
+        };
+        by_file.entry(rel).or_default().push(line_no as usize);
     }
 
     let mut edits = Vec::new();
@@ -231,23 +166,10 @@ pub fn sample_secret_fix(cwd: &Path, violations: &[Violation]) -> FixPlan {
             continue;
         };
 
-        let numbered: HashMap<usize, &str> = targets
-            .iter()
-            .filter_map(|t| match t {
-                SecretTarget::Numbered {
-                    line_no,
-                    expected_trim,
-                } => Some((*line_no, expected_trim.as_str())),
-                SecretTarget::FirstMatch => None,
-            })
-            .collect();
-        let wants_first_match = targets
-            .iter()
-            .any(|t| matches!(t, SecretTarget::FirstMatch));
+        let numbered: HashSet<usize> = targets.iter().copied().collect();
 
         let mut out_lines: Vec<String> = Vec::new();
         let mut changed = false;
-        let mut first_match_done = false;
 
         for (i, raw_line) in content.split('\n').enumerate() {
             let line_no = i + 1;
@@ -259,11 +181,11 @@ pub fn sample_secret_fix(cwd: &Path, violations: &[Violation]) -> FixPlan {
                 None => (raw_line, false),
             };
 
-            let should_try = if let Some(expected) = numbered.get(&line_no) {
-                bare.trim() == *expected
-            } else {
-                wants_first_match && !first_match_done
-            };
+            // Захист від дрейфу: правимо рядок лише якщо він ДОСІ містить
+            // порушення. Раніше тут звірявся точний текст із повідомлення —
+            // тепер джерелом істини є сам файл, а не те, що детектор колись
+            // побачив.
+            let should_try = numbered.contains(&line_no);
 
             if should_try {
                 if let Some(new_bare) = replace_secret_token(bare) {
@@ -273,7 +195,6 @@ pub fn sample_secret_fix(cwd: &Path, violations: &[Violation]) -> FixPlan {
                     }
                     out_lines.push(new_line);
                     changed = true;
-                    first_match_done = true;
                     continue;
                 }
             }
@@ -302,6 +223,8 @@ mod tests {
     use crate::concerns::test_support::write;
     use crate::diagnostics::Severity;
 
+    /// Violation так, як його тепер будує детектор: шлях у `file`,
+    /// номер рядка (для sample_secret) — у `data.line`.
     fn violation(reason: &str, message: &str) -> Violation {
         Violation {
             reason: reason.to_string(),
@@ -309,6 +232,18 @@ mod tests {
             file: None,
             severity: Severity::Error,
             data: None,
+        }
+    }
+
+    /// Violation зі шляхом — основна форма після переходу детекторів на
+    /// машинні поля.
+    fn violation_at(reason: &str, file: &str, line: Option<u64>) -> Violation {
+        Violation {
+            reason: reason.to_string(),
+            message: "деталі — у машинних полях".to_string(),
+            file: Some(file.to_string()),
+            severity: Severity::Error,
+            data: line.map(|n| serde_json::json!({ "line": n })),
         }
     }
 
@@ -367,10 +302,7 @@ mod tests {
 
     #[test]
     fn firebase_fix_dedups_same_path_across_multiple_violations() {
-        let v = violation(
-            FIREBASE_HOSTING_REASON,
-            "Знайдено заборонений файл Firebase Hosting: pkg/.firebaserc — видали його (abie.mdc)",
-        );
+        let v = violation_at(FIREBASE_HOSTING_REASON, "pkg/.firebaserc", None);
         let plan = firebase_hosting_fix(&[v.clone(), v]);
         assert_eq!(plan.edits.len(), 1);
     }
@@ -547,20 +479,16 @@ mod tests {
         assert!(sample_secret_fix(tmp.path(), &second_pass).edits.is_empty());
     }
 
-    /// Захисний fallback (гілка НЕ покрита живим детектором): rel відомий,
-    /// номер рядка — ні → заміняється лише перший збіг у файлі.
+    /// Без номера рядка фікс НЕ вгадує: раніше тут був fallback «заміни
+    /// перший збіг», але після переходу детектора на машинні поля адреса
+    /// правки або відома точно, або її немає. Мовчазна заміна не того рядка
+    /// дорожча за невиправлене порушення, бо T0 працює без перевірки.
     #[test]
-    fn sample_secret_fix_falls_back_to_first_match_without_line_number() {
+    fn sample_secret_fix_skips_violation_without_line_number() {
         let tmp = TempDir::new().unwrap();
         write(&tmp, "fixtures/multi.env", "A=secret\nB=secret\n");
-        let v = violation(
-            SAMPLE_SECRET_REASON,
-            "fixtures/multi.env: `A=secret` — заміни placeholder `secret` на `sample-secret` (security.mdc)",
-        );
+        let v = violation_at(SAMPLE_SECRET_REASON, "fixtures/multi.env", None);
         let plan = sample_secret_fix(tmp.path(), &[v]);
-        let FileEdit::Write(w) = &plan.edits[0] else {
-            panic!("очікували write");
-        };
-        assert_eq!(w.content, "A=sample-secret\nB=secret\n");
+        assert!(plan.edits.is_empty(), "без адреси правки — порожній план");
     }
 }
