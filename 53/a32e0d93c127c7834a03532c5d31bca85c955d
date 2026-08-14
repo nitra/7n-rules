@@ -1,0 +1,25 @@
+plugins/ci-github/rules/ga/lint_ga/lint_ga.mdc
+  s_4d017616c26355::t_4092440d7fafb4 22-29
+plugins/ci-github/rules/ga/lint_ga/lint_ga.rego
+  s_4d017616c26355::t_4092440d7fafb4 46-63,119,125
+plugins/ci-github/rules/ga/lint_ga/lint_ga_test.rego
+  s_4d017616c26355::t_a73d64f5500652 55-78
+plugins/ci-github/.changes/260814-1644.md
+  s_4d017616c26355::t_131e125ec36f9a 1-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "53a32e0d93c127c7834a03532c5d31bca85c955d",
+  "prompts": {},
+  "sessions": {
+    "s_4d017616c26355": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ff6af-7b96-7c60-9ce9-2d316cbebcce",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
