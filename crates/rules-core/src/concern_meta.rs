@@ -134,6 +134,9 @@ pub struct ConcernMeta {
     pub skip_local_tier: bool,
     /// Власний бюджет cloud-rung-а (мс).
     pub cloud_timeout_ms: Option<u64>,
+    /// `fixHint` — рецепт для МОДЕЛІ, коли повідомлення детектора адресоване
+    /// людині й радить команду, якої в циклу немає (`llm_lib::fix::FixRequest`).
+    pub fix_hint: Option<String>,
 }
 
 /// Читає й нормалізує `concern.json` каталогу концерну (порт
@@ -179,6 +182,15 @@ pub fn read_concern_meta(concern_dir: &Path, name: &str) -> Option<ConcernMeta> 
             .get("cloudTimeoutMs")
             .and_then(serde_json::Value::as_u64)
             .filter(|ms| *ms > 0),
+        // Порожній рядок відкидаємо як відсутність: підказка, що нічого не
+        // каже, у промпті гірша за її брак — вона займає місце й натякає, що
+        // рецепт уже дано.
+        fix_hint: raw
+            .get("fixHint")
+            .and_then(serde_json::Value::as_str)
+            .map(str::trim)
+            .filter(|hint| !hint.is_empty())
+            .map(String::from),
     })
 }
 
@@ -342,6 +354,48 @@ mod tests {
         let dir = root.join(rule).join(name);
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("concern.json"), json).unwrap();
+    }
+
+    /// `fixHint` доїжджає до метаданих — саме звідси його бере промпт циклу
+    /// для concern-ів, чиє повідомлення радить недосяжну команду.
+    #[test]
+    fn reads_fix_hint() {
+        let tmp = TempDir::new().unwrap();
+        concern(
+            tmp.path(),
+            "changelog",
+            "presence",
+            r#"{"check":true,"fixHint":"створи `.changes/<імʼя>.md` з `bump:` і `section:`"}"#,
+        );
+        let concerns = list_concerns(&tmp.path().join("changelog"));
+        assert_eq!(
+            concerns[0].fix_hint.as_deref(),
+            Some("створи `.changes/<імʼя>.md` з `bump:` і `section:`")
+        );
+    }
+
+    /// Порожня (чи пробільна) підказка = її немає: у промпті вона зайняла б
+    /// місце й натякнула, що рецепт уже дано, нічого не сказавши.
+    #[test]
+    fn blank_fix_hint_is_absent() {
+        let tmp = TempDir::new().unwrap();
+        concern(
+            tmp.path(),
+            "changelog",
+            "presence",
+            r#"{"check":true,"fixHint":"   "}"#,
+        );
+        let concerns = list_concerns(&tmp.path().join("changelog"));
+        assert!(concerns[0].fix_hint.is_none());
+    }
+
+    /// Поле опційне: переважна більшість concern-ів його не має.
+    #[test]
+    fn missing_fix_hint_is_none() {
+        let tmp = TempDir::new().unwrap();
+        concern(tmp.path(), "changelog", "presence", r#"{"check":true}"#);
+        let concerns = list_concerns(&tmp.path().join("changelog"));
+        assert!(concerns[0].fix_hint.is_none());
     }
 
     #[test]

@@ -299,6 +299,7 @@ mod tests {
             fixability: crate::concern_meta::Fixability::Code,
             skip_local_tier: false,
             cloud_timeout_ms: None,
+            fix_hint: None,
         }
     }
 
