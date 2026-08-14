@@ -43,6 +43,24 @@ expected_uses_set contains u if {
 	u != ""
 }
 
+# Opt-in для runner-образу, у якому вже є uv та conftest. Мітка runner
+# залишається `ubuntu-latest` для сумісності, але workflow явно декларує
+# джерело tooling, щоб policy не приховувала залежність від custom image.
+preinstalled_ci_tools if object.get(object.get(job, "env", {}), "NITRA_CI_TOOLS", false) == true
+
+preinstalled_ci_tools if object.get(object.get(job, "env", {}), "NITRA_CI_TOOLS", "false") == "true"
+
+required_uses_set contains u if {
+	not preinstalled_ci_tools
+	some u in expected_uses_set
+}
+
+required_uses_set contains u if {
+	preinstalled_ci_tools
+	some u in expected_uses_set
+	not startswith(u, "astral-sh/setup-uv@")
+}
+
 # Required `run:` substrings — collected from steps with `run`.
 expected_run_blob := concat("\n", [r |
 	some step in data.template.snippet.jobs["lint-ga"].steps
@@ -98,12 +116,13 @@ deny contains msg if {
 }
 
 deny contains msg if {
-	some required_use in expected_uses_set
+	some required_use in required_uses_set
 	not job_has_use_satisfying(required_use)
 	msg := sprintf("lint-ga.yml: має бути uses: %s (ga.mdc)", [required_use])
 }
 
 deny contains msg if {
+	not preinstalled_ci_tools
 	expected_run_blob != ""
 	not contains(job_run_blob, "open-policy-agent/conftest")
 	msg := "lint-ga.yml: має бути крок Install conftest (ga.mdc)"

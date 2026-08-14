@@ -52,6 +52,30 @@ test_allow_canonical if {
 	count(lint_ga.deny) == 0 with input as canonical_input with data.template as template_data
 }
 
+# Forgejo `ubuntu-latest` може бути mapped на попередньо підготовлений
+# контейнер ci-tools. У ньому uv і conftest уже наявні, тому повторне
+# Ubuntu provisioning не потрібне.
+preinstalled_ci_tools_input := json.patch(canonical_input, [
+	{
+		"op": "add",
+		"path": "/jobs/lint-ga/env",
+		"value": {"NITRA_CI_TOOLS": "true"},
+	},
+	{
+		"op": "replace",
+		"path": "/jobs/lint-ga/steps",
+		"value": [
+			{"uses": "actions/checkout@v6", "with": {"persist-credentials": false}},
+			{"uses": "./.github/actions/setup-bun-deps"},
+			{"name": "Lint GA", "run": "n-rules lint ga --no-fix"},
+		],
+	},
+])
+
+test_allow_preinstalled_ci_tools if {
+	count(lint_ga.deny) == 0 with input as preinstalled_ci_tools_input with data.template as template_data
+}
+
 test_deny_wrong_name if {
 	bad := json.patch(canonical_input, [{"op": "replace", "path": "/name", "value": "Other"}])
 	some msg in lint_ga.deny with input as bad with data.template as template_data
