@@ -162,6 +162,7 @@ pub async fn fix_concern(
             key.to_string(),
             files_owned,
             target_files,
+            meta.fix_hint.clone(),
         ),
     };
 
@@ -187,6 +188,7 @@ mod tests {
             fixability: Fixability::Code,
             skip_local_tier: false,
             cloud_timeout_ms: None,
+            fix_hint: None,
         }
     }
 

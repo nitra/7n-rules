@@ -96,6 +96,48 @@ const NO_PROGRESS_TOOL_CALLS: usize = 25;
 /// через [`FixRequest::max_tokens`], коли модель рунга витримує більше.
 const DEFAULT_MAX_TOKENS: u64 = 4096;
 
+/// Env-прапорець трасування викликів інструментів у stderr.
+const TRACE_ENV: &str = "N_LLM_FIX_TRACE";
+
+/// Скільки символів аргументів/результату лишати в трасі — рівно стільки, щоб
+/// відрізнити повторюваний виклик від осмисленого, і не залити stderr вмістом
+/// прочитаних файлів.
+const TRACE_CLAMP: usize = 200;
+
+/// Чи ввімкнено трасування. Читаємо env на кожен виклик свідомо: траса —
+/// налагоджувальний шлях, а не гарячий, і кешування додало б стан заради
+/// економії, якої тут не видно.
+fn trace_on() -> bool {
+    std::env::var_os(TRACE_ENV).is_some()
+}
+
+/// Обрізає рядок до [`TRACE_CLAMP`] символів (не байтів — інакше зріз міг би
+/// впасти всередині UTF-8 послідовності), позначаючи факт обрізання.
+fn clamp_for_trace(text: &str) -> String {
+    let mut out: String = text.chars().take(TRACE_CLAMP).collect();
+    if out.chars().count() < text.chars().count() {
+        out.push('…');
+    }
+    out
+}
+
+/// Пише рядок траси у stderr.
+///
+/// # Навіщо це існує
+///
+/// Цикл `fix` до цього був непрозорий: ззовні видно лише підсумок («N ходів,
+/// M викликів») — які саме інструменти кликала модель і що вони їй
+/// відповідали, не видно НІЯК. Через це причину невдалого прогону доводилось
+/// вгадувати, і кілька гіпотез поспіль виявились хибними, поки вимірювання не
+/// показало справжню. Лог провайдера тут не рятує: він бачить токени, не
+/// семантику викликів, а діагностика на боці сервера моделі спрацьовує лише
+/// на невдалому розборі — успішний, але безглуздий виклик для неї невидимий.
+fn trace(line: &str) {
+    use std::io::Write as _;
+    let mut err = std::io::stderr().lock();
+    let _ = writeln!(err, "[fix-trace] {line}");
+}
+
 // ---------------------------------------------------------------------------
 // Verify-петля: чиста логіка обліку бюджету, незалежна від rig — юніт-
 // тестована окремо (без мережі, без агента).
@@ -493,6 +535,7 @@ struct FixHook {
     verify_budget: Mutex<VerifyBudget>,
     deadline: Instant,
     max_tokens: u64,
+    temperature: Option<f64>,
     tool_call_count: Arc<AtomicUsize>,
     turn_count: Arc<AtomicUsize>,
     /// Скільки примусових перевірок поспіль повернули «червоно».
@@ -514,7 +557,15 @@ impl AgentHook for FixHook {
         _ctx: &HookContext,
         _event: hook::CompletionCall<'_>,
     ) -> CompletionCallAction {
-        CompletionCallAction::patch(RequestPatch::new().max_tokens(self.max_tokens))
+        let patch = RequestPatch::new().max_tokens(self.max_tokens);
+        // Температуру патчимо лише коли її задали явно: інакше діє дефолт
+        // провайдера, і цикл не нав'язує свого значення моделям, яких не
+        // вимірював.
+        let patch = match self.temperature {
+            Some(value) => patch.temperature(value),
+            None => patch,
+        };
+        CompletionCallAction::patch(patch)
     }
 
     async fn on_completion_response(
@@ -528,6 +579,14 @@ impl AgentHook for FixHook {
 
     async fn on_tool_call(&self, _ctx: &HookContext, event: ToolCallEvent<'_>) -> ToolCallAction {
         let calls = self.tool_call_count.fetch_add(1, Ordering::SeqCst) + 1;
+
+        if trace_on() {
+            trace(&format!(
+                "#{calls} → {} {}",
+                event.tool_name,
+                clamp_for_trace(event.args)
+            ));
+        }
 
         // Backstop «немає прогресу» — через КАНОНІЧНУ ПЕРЕВІРКУ, а не через
         // лічильник записів.
@@ -575,6 +634,18 @@ impl AgentHook for FixHook {
         _ctx: &HookContext,
         event: ToolResultEvent<'_>,
     ) -> ToolResultAction {
+        if trace_on() {
+            trace(&format!(
+                "    ← {} {} {}",
+                event.tool_name,
+                if event.raw_result.is_success() {
+                    "ok"
+                } else {
+                    "ПОМИЛКА"
+                },
+                clamp_for_trace(&format!("{:?}", event.raw_result))
+            ));
+        }
         if WRITE_TOOLS.contains(&event.tool_name) && event.raw_result.is_success() {
             let path = extract_str_field(event.args, "path");
             if !path.is_empty() {
@@ -682,10 +753,21 @@ fn build_preamble(req: &FixRequest) -> String {
         .iter()
         .map(|p| p.display().to_string())
         .collect();
+    // Підказка йде ПІСЛЯ заборони shell-у — саме її вона й компенсує: інакше
+    // єдиний рецепт, який модель бачить, лишається забороненим.
+    let hint = req.fix_hint.as_ref().map_or_else(String::new, |hint| {
+        format!(" Як усунути порушення наявними інструментами: {hint}")
+    });
+    // Вимоги відносних шляхів тут НЕМАЄ навмисно. Спроба додати її сюди
+    // виміряно погіршила результат (три прогони поспіль по нулю записів проти
+    // 24 до неї): у преамбулі загальна вказівка конкурує за увагу з рештою
+    // завдання ще до того, як стане потрібною. Той самий рецепт живе у
+    // причині відмови write-guard (`write_guard::out_of_root_reason`) — там
+    // він приходить у момент помилки й стосується конкретного шляху.
     format!(
         "Ти — автоматичний фікс-агент правила `{rule}`. Робоча директорія: {cwd}. \
          {mode}. Дозволені файли: {files}. Використовуй лише надані інструменти — \
-         жодного bash/shell-доступу немає.",
+         жодного bash/shell-доступу немає.{hint}",
         rule = req.rule_id,
         cwd = req.cwd.display(),
         mode = mode,
@@ -694,6 +776,7 @@ fn build_preamble(req: &FixRequest) -> String {
         } else {
             files.join(", ")
         },
+        hint = hint,
     )
 }
 
@@ -757,6 +840,7 @@ pub async fn run_attempt(req: &FixRequest, deps: FixDeps, tools: ToolServerHandl
         verify_budget: Mutex::new(VerifyBudget::new(req.verify_max)),
         deadline,
         max_tokens: req.max_tokens.unwrap_or(DEFAULT_MAX_TOKENS),
+        temperature: req.temperature,
         tool_call_count: tool_call_count.clone(),
         turn_count: turn_count.clone(),
         red_probes: AtomicUsize::new(0),
@@ -995,6 +1079,8 @@ console.log("[mock] listening on :" + port);
         FixRequest {
             rule_id: "test-rule".to_string(),
             violation_text: "виправ порушення".to_string(),
+            fix_hint: None,
+            temperature: None,
             target_files: Vec::new(),
             cwd,
             tier: Tier::Min,
@@ -1006,6 +1092,49 @@ console.log("[mock] listening on :" + port);
             anchored_edits: false,
             edit_mode: EditMode::Generic,
         }
+    }
+
+    /// Підказка доходить до промпта — і стоїть ПІСЛЯ заборони shell-у, яку
+    /// вона й компенсує. Без неї concern, чиє повідомлення радить команду,
+    /// лишає модель без жодного виконуваного рецепта.
+    #[test]
+    fn fix_hint_reaches_the_preamble_after_the_shell_ban() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let mut req = base_request(dir.path().to_path_buf(), StdDuration::from_secs(1), 5);
+        req.fix_hint = Some("створи `.changes/x.md` з `bump:` і `section:`".to_string());
+
+        let preamble = build_preamble(&req);
+
+        let ban = preamble.find("shell").expect("заборона shell-у на місці");
+        let hint = preamble
+            .find("створи `.changes/x.md`")
+            .expect("підказка в промпті");
+        assert!(hint > ban, "підказка має йти після заборони, не перед нею");
+    }
+
+    /// Преамбула НЕ повчає про шляхи. Спроба додати туди загальну вказівку
+    /// виміряно погіршила результат — рецепт живе у причині відмови
+    /// write-guard, де приходить у момент помилки.
+    #[test]
+    fn preamble_does_not_carry_general_path_advice() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let req = base_request(dir.path().to_path_buf(), StdDuration::from_secs(1), 5);
+
+        let preamble = build_preamble(&req);
+
+        assert!(!preamble.contains("ВІДНОСНО"));
+    }
+
+    /// Без підказки промпт лишається тим самим, що й до появи поля — жодного
+    /// порожнього хвоста.
+    #[test]
+    fn preamble_without_hint_has_no_trailing_recipe() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let req = base_request(dir.path().to_path_buf(), StdDuration::from_secs(1), 5);
+
+        let preamble = build_preamble(&req);
+
+        assert!(preamble.ends_with("жодного bash/shell-доступу немає."));
     }
 
     /// Env для локального тіру, наведеного на mock-сервер — той самий

@@ -97,6 +97,24 @@ fn max_tokens() -> Option<u64> {
         .filter(|&value| value > 0)
 }
 
+/// Env-ключ температури генерації (`FixRequest::temperature`).
+const TEMPERATURE_ENV: &str = "N_LLM_FIX_TEMPERATURE";
+
+/// Температура генерації: `None` — дефолт провайдера.
+///
+/// Свідомо БЕЗ власного дефолту. Спокуса поставити `0.0` («ремонт — не
+/// творчість, хай буде відтворювано») живим прогоном спростована: greedy
+/// позбавляє слабку модель єдиного способу вийти з повтору — вона зробила 47
+/// однакових викликів поспіль і жодної правки, тоді як із ненульовою
+/// температурою та сама модель на тому самому вході писала. Нуль лишається
+/// корисним для ВИМІРЮВАНЬ (відтворювані прогони) — саме тому ручка є.
+fn temperature() -> Option<f64> {
+    std::env::var(TEMPERATURE_ENV)
+        .ok()
+        .and_then(|value| value.parse::<f64>().ok())
+        .filter(|value| value.is_finite() && *value >= 0.0)
+}
+
 /// Мапить тир рангу драбини (`RungTier`, конкретний рівень ескалації) на
 /// грубий `llm_lib::tiers::Tier` (`Min`/`Avg`/`Max`), який читає
 /// `run_attempt` для резолву моделі.
@@ -149,6 +167,7 @@ pub fn build_attempt_fn(
     key: String,
     files: Option<Vec<String>>,
     target_files: Vec<PathBuf>,
+    fix_hint: Option<String>,
 ) -> AttemptFn {
     Arc::new(move |ctx: AttemptContext| {
         let rule_id = rule_id.clone();
@@ -156,6 +175,7 @@ pub fn build_attempt_fn(
         let key = key.clone();
         let files = files.clone();
         let target_files = target_files.clone();
+        let fix_hint = fix_hint.clone();
         Box::pin(async move {
             let verify = build_verify_fn(key, cwd.clone(), files, target_files.clone());
             let deps = FixDeps {
@@ -173,6 +193,7 @@ pub fn build_attempt_fn(
             let req = FixRequest {
                 rule_id,
                 violation_text: violation_text(&ctx),
+                fix_hint,
                 target_files,
                 cwd,
                 tier: rung_tier_to_llm_tier(ctx.rung.tier),
@@ -183,6 +204,7 @@ pub fn build_attempt_fn(
                 timeout: Duration::from_millis(ctx.rung.timeout_ms),
                 turn_ceiling: turn_ceiling(),
                 max_tokens: max_tokens(),
+                temperature: temperature(),
                 verify_max: verify_max(ctx.rung.local),
                 anchored_edits: false,
                 edit_mode: EditMode::Generic,

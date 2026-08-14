@@ -1,5 +1,6 @@
 {
   "$schema": "https://unpkg.com/@7n/rules/schemas/concern.json",
+  "fixHint": "Створи новий файл `<workspace>/.changes/<імʼя>.md`, де `<workspace>` — тека пакета з порушенням (для кореня монорепо — сам корінь). Рядки файлу строго по порядку: 1) `---`; 2) `bump: patch` (або major/minor за масштабом зміни); 3) `section: Added` (або Changed/Fixed/Removed); 4) `---` — цей другий рядок з трьох дефісів ОБОВʼЯЗКОВИЙ і закриває frontmatter; 5) порожній рядок; 6) опис зміни українською, кілька речень. Версію в маніфесті та CHANGELOG.md не чіпай — їх формує CI.",
   "lint": {
     "scope": "per-file",
     "glob": ["**/*"]

@@ -47,6 +47,7 @@ mod tests {
             fixability,
             skip_local_tier,
             cloud_timeout_ms: None,
+            fix_hint: None,
         }
     }
 
