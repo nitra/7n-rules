@@ -1,0 +1,27 @@
+crates/rules-core/Cargo.toml
+  s_361b8504bc89db::t_d69947c8f98e1c 77
+crates/rules-fix/Cargo.toml
+  s_361b8504bc89db::t_93acd2a53b9ef6 25
+llm-lib/crates/llm-lib-napi/Cargo.toml
+  s_361b8504bc89db::t_5726af929d3020 13
+crates/rules-cli/Cargo.toml
+  s_361b8504bc89db::t_bf89df780268a0 43
+Cargo.lock
+  s_361b8504bc89db::t_44f5dcb1786641 2967,3087-3107,4147,4175,4191
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "f7fc1a6f10c59baf7ceddf7481789d7300717b76",
+  "prompts": {},
+  "sessions": {
+    "s_361b8504bc89db": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7258aa96-b505-421c-bae6-9661a592b48a",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
