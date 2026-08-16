@@ -2961,30 +2961,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "92daf443525c4cce67b150400bc2316076100ce0b3686209eb8cf3c31612e6f0"
 
 [[package]]
-name = "llm-lib"
-version = "0.2.4"
-dependencies = [
- "agent-client-protocol",
- "bytes",
- "futures",
- "genai",
- "http",
- "reqwest 0.12.28",
- "rig-agent",
- "rig-core",
- "serde",
- "serde_json",
- "sha2 0.11.0",
- "tempfile",
- "thiserror 1.0.69",
- "tokio",
-]
-
-[[package]]
 name = "llm-lib-napi"
 version = "0.2.4"
 dependencies = [
- "llm-lib",
+ "n7n-llm-lib",
  "napi",
  "napi-build",
  "napi-derive",
@@ -3102,6 +3082,27 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.11.0",
+]
+
+[[package]]
+name = "n7n-llm-lib"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d3e8f0cbfcb5e9ca386e9d8a8de1c56c5f44da358f1bffdb0e31376bc7a6c78a"
+dependencies = [
+ "agent-client-protocol",
+ "bytes",
+ "futures",
+ "genai",
+ "http",
+ "reqwest 0.12.28",
+ "rig-agent",
+ "rig-core",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "thiserror 1.0.69",
+ "tokio",
 ]
 
 [[package]]
@@ -4143,7 +4144,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "libc",
- "llm-lib",
+ "n7n-llm-lib",
  "rules-core",
  "rules-fix",
  "serde",
@@ -4170,8 +4171,8 @@ dependencies = [
  "gix",
  "globset",
  "ignore",
- "llm-lib",
  "mt-core",
+ "n7n-llm-lib",
  "regex",
  "rules-contract",
  "serde",
@@ -4187,7 +4188,7 @@ dependencies = [
 name = "rules-fix"
 version = "0.1.0"
 dependencies = [
- "llm-lib",
+ "n7n-llm-lib",
  "rig-agent",
  "rules-contract",
  "rules-core",
