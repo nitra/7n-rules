@@ -2,7 +2,7 @@
  * Light read-only `.n-rules.json` reader (fallback — legacy `.n-cursor.json`) для standalone `check.mjs` invocation.
  *
  * НЕ робить auto-rules detection, merge, schema sync — це справа повного `readConfig` у CLI.
- * Тут лише: прочитати файл (якщо є), повернути `{ rules: string[], disableRules: string[] }`.
+ * Тут лише: прочитати файл (якщо є), повернути правила та точкові opt-out concern-ів.
  *
  * Спостереження whitelist:
  *   - якщо `.n-rules.json` НЕМАЄ → правило вважається enabled (поведінка "open by default"),
@@ -24,6 +24,7 @@ const LEGACY_CONFIG_FILE = '.n-cursor.json'
  * @property {boolean} exists чи існує .n-rules.json (або legacy .n-rules.json) у поточному каталозі
  * @property {string[]} rules id правил з whitelist (порожній якщо файл відсутній)
  * @property {string[]} disableRules id правил, явно вимкнених у `disable-rules`
+ * @property {string[]} disableConcerns id concern-ів у форматі `<rule-id>/<concern-id>`, явно вимкнених у `disable-concerns`
  * @property {string[] | undefined} plugins npm-пакети-плагіни з конфігу; undefined — поля немає (→ автодетект у resolve-plugins)
  */
 
@@ -37,17 +38,20 @@ export async function readNRulesConfigLite(cwd = process.cwd()) {
     configPath = join(cwd, LEGACY_CONFIG_FILE)
   }
   if (!existsSync(configPath)) {
-    return { exists: false, rules: [], disableRules: [], plugins: undefined }
+    return { exists: false, rules: [], disableRules: [], disableConcerns: [], plugins: undefined }
   }
   const raw = await readFile(configPath, 'utf8')
-  /** @type {{ rules?: unknown, ['disable-rules']?: unknown, plugins?: unknown }} */
+  /** @type {{ rules?: unknown, ['disable-rules']?: unknown, ['disable-concerns']?: unknown, plugins?: unknown }} */
   const parsed = JSON.parse(raw)
   const rules = migrateRuleIds(Array.isArray(parsed.rules) ? parsed.rules.filter(r => typeof r === 'string') : [])
   const disableRules = migrateRuleIds(
     Array.isArray(parsed['disable-rules']) ? parsed['disable-rules'].filter(r => typeof r === 'string') : []
   )
+  const disableConcerns = Array.isArray(parsed['disable-concerns'])
+    ? parsed['disable-concerns'].filter(c => typeof c === 'string')
+    : []
   const plugins = Array.isArray(parsed.plugins) ? parsed.plugins.filter(p => typeof p === 'string') : undefined
-  return { exists: true, rules, disableRules, plugins }
+  return { exists: true, rules, disableRules, disableConcerns, plugins }
 }
 
 /**

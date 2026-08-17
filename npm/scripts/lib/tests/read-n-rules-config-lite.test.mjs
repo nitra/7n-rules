@@ -9,7 +9,7 @@ describe('readNRulesConfigLite', () => {
   test('повертає exists:false коли файл відсутній', async () => {
     await withTmpDir(async dir => {
       const cfg = await readNRulesConfigLite(dir)
-      expect(cfg).toEqual({ exists: false, rules: [], disableRules: [] })
+      expect(cfg).toEqual({ exists: false, rules: [], disableRules: [], disableConcerns: [], plugins: undefined })
     })
   })
 
@@ -20,6 +20,19 @@ describe('readNRulesConfigLite', () => {
       expect(cfg.exists).toBe(true)
       expect(cfg.rules).toEqual(['js', 'docker'])
       expect(cfg.disableRules).toEqual(['text'])
+    })
+  })
+
+  test('повертає disableConcerns з конфігурації', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, '.n-rules.json'), {
+        rules: ['ga'],
+        'disable-concerns': ['ga/clean_ga_workflows', 'ga/clean_merged_branch']
+      })
+
+      const cfg = await readNRulesConfigLite(dir)
+
+      expect(cfg.disableConcerns).toEqual(['ga/clean_ga_workflows', 'ga/clean_merged_branch'])
     })
   })
 

@@ -14,7 +14,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { env } from 'node:process'
 
-import { lint } from '../workflows/main.mjs'
+import { getRequiredWorkflowNames, lint } from '../workflows/main.mjs'
 
 const SHELLCHECK_RE = /shellcheck/
 
@@ -65,5 +65,14 @@ describe('ga.workflows detector — preflight тулів', () => {
     } finally {
       await rm(isolatedDir, { recursive: true, force: true })
     }
+  })
+})
+
+describe('getRequiredWorkflowNames', () => {
+  test('виключає repo-level housekeeping workflow, коли відповідні concern-и вимкнені', () => {
+    expect(getRequiredWorkflowNames(new Set(['ga/clean_ga_workflows', 'ga/clean_merged_branch']))).toEqual([
+      'lint-ga.yml',
+      'git-ai.yml'
+    ])
   })
 })

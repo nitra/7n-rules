@@ -12,6 +12,7 @@ import { runConftestBatch } from '@7n/rules/scripts/lib/run-conftest-batch.mjs'
 import { loadTemplate } from '@7n/rules/scripts/lib/template.mjs'
 import { ensureTool } from '@7n/rules/scripts/lib/ensure-tool.mjs'
 import { runLintStep } from '@7n/rules/scripts/lib/run-lint-step.mjs'
+import { readNRulesConfigLite } from '@7n/rules/scripts/lib/read-n-rules-config-lite.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const GA_POLICY_DIR = join(HERE, '..')
@@ -23,7 +24,23 @@ const MEGALINTER_USE_PATTERNS = [/oxsecurity\/megalinter-action/i, /megalinter\/
 const MEGALINTER_CONFIG_NAMES = ['.mega-linter.yml', '.megalinter.yaml', '.mega-linter.yaml']
 
 /** Обовʼязкові workflow-файли (ga.mdc). */
-const REQUIRED_WORKFLOWS = ['clean-ga-workflows.yml', 'clean-merged-branch.yml', 'lint-ga.yml', 'git-ai.yml']
+const REPOSITORY_HOUSEKEEPING_CONCERNS = new Map([
+  ['ga/clean_ga_workflows', 'clean-ga-workflows.yml'],
+  ['ga/clean_merged_branch', 'clean-merged-branch.yml']
+])
+const REQUIRED_WORKFLOWS = ['lint-ga.yml', 'git-ai.yml']
+
+/**
+ * Повертає обов'язкові workflow з урахуванням точкового opt-out concern-ів.
+ * @param {Set<string>} disabledConcerns concern-и з `.n-rules.json#disable-concerns`
+ * @returns {string[]} імена обов'язкових workflow.
+ */
+export function getRequiredWorkflowNames(disabledConcerns) {
+  const housekeeping = [...REPOSITORY_HOUSEKEEPING_CONCERNS]
+    .filter(([concern]) => !disabledConcerns.has(concern))
+    .map(([, workflow]) => workflow)
+  return [...housekeeping, ...REQUIRED_WORKFLOWS]
+}
 
 /** Патерн rego-violation про відсутній `persist-credentials`. */
 const CHECKOUT_PERSIST_RE = /persist-credentials/u
@@ -262,10 +279,11 @@ export function checkShellcheckInstalled(passFn, failFn) {
  * Перевіряє розширення workflow-файлів і наявність обов'язкових workflow.
  * @param {string} wfDirRel відносний шлях директорії workflows для повідомлень
  * @param {string[]} files список файлів у wfDir
+ * @param {string[]} requiredWorkflows список обов'язкових workflow
  * @param {(msg: string) => void} pass callback при успішній перевірці
  * @param {(msg: string) => void} fail callback при помилці
  */
-function checkGaWorkflowFiles(wfDirRel, files, pass, fail) {
+function checkGaWorkflowFiles(wfDirRel, files, requiredWorkflows, pass, fail) {
   const yamlFiles = files.filter(f => f.endsWith('.yaml'))
   if (yamlFiles.length > 0) {
     for (const f of yamlFiles) {
@@ -282,7 +300,7 @@ function checkGaWorkflowFiles(wfDirRel, files, pass, fail) {
     }
   }
 
-  for (const f of REQUIRED_WORKFLOWS) {
+  for (const f of requiredWorkflows) {
     if (files.includes(f)) {
       pass(`${f} існує`)
     } else {
@@ -296,25 +314,29 @@ function checkGaWorkflowFiles(wfDirRel, files, pass, fail) {
  * у `npm/policy/ga/<name>/` містить правила специфічні для ОДНОГО workflow,
  * тому conftest викликаємо з `--namespace` окремо на кожен файл (інакше правила
  * чужого workflow застосуються до неправильного файла).
- * @type {Array<{ workflow: string, namespace: string, policyDirRel: string }>}
+ * @type {Array<{ concern: string, workflow: string, namespace: string, policyDirRel: string }>}
  */
 const GA_PER_WORKFLOW_REGO_TARGETS = [
   {
+    concern: 'ga/clean_ga_workflows',
     workflow: '.github/workflows/clean-ga-workflows.yml',
     namespace: 'ga.clean_ga_workflows',
     policyDirRel: 'ga/clean_ga_workflows'
   },
   {
+    concern: 'ga/clean_merged_branch',
     workflow: '.github/workflows/clean-merged-branch.yml',
     namespace: 'ga.clean_merged_branch',
     policyDirRel: 'ga/clean_merged_branch'
   },
   {
+    concern: 'ga/lint_ga',
     workflow: '.github/workflows/lint-ga.yml',
     namespace: 'ga.lint_ga',
     policyDirRel: 'ga/lint_ga'
   },
   {
+    concern: 'ga/git_ai',
     workflow: '.github/workflows/git-ai.yml',
     namespace: 'ga.git_ai',
     policyDirRel: 'ga/git_ai'
@@ -334,8 +356,9 @@ const GA_PER_WORKFLOW_REGO_TARGETS = [
  * @param {(msg: string) => void} fail callback при помилці
  * @returns {void}
  */
-async function runAllGaRego(wfDir, ymlWorkflows, cwd, pass, fail) {
+async function runAllGaRego(wfDir, ymlWorkflows, cwd, disabledConcerns, pass, fail) {
   for (const target of GA_PER_WORKFLOW_REGO_TARGETS) {
+    if (disabledConcerns.has(target.concern)) continue
     const targetAbs = join(cwd, target.workflow)
     if (!existsSync(targetAbs)) continue
     const concernDir = join(GA_POLICY_DIR, target.policyDirRel.split('/', 2)[1])
@@ -393,6 +416,8 @@ export async function lint(ctx) {
   const reporter = createViolationReporter(ctx)
   const { pass, fail } = reporter
   const cwd = ctx.cwd
+  const { disableConcerns } = await readNRulesConfigLite(cwd)
+  const disabledConcerns = new Set(disableConcerns)
 
   // Зовнішні тули (read-only): actionlint + zizmor. 127 = тул відсутній → skip.
   ensureTool('shellcheck')
@@ -416,7 +441,7 @@ export async function lint(ctx) {
   const ymlWorkflows = files.filter(f => f.endsWith('.yml'))
 
   // Rego-крок (per-workflow + workflow_common) — оркестрація ga policy sub-concern-ів.
-  await runAllGaRego(wfDir, ymlWorkflows, cwd, pass, fail)
+  await runAllGaRego(wfDir, ymlWorkflows, cwd, disabledConcerns, pass, fail)
 
   const setupBunDepsActionRel = '.github/actions/setup-bun-deps/action.yml'
   if (!existsSync(join(cwd, setupBunDepsActionRel))) {
@@ -425,7 +450,7 @@ export async function lint(ctx) {
     )
   }
 
-  checkGaWorkflowFiles(wfDirRel, files, pass, fail)
+  checkGaWorkflowFiles(wfDirRel, files, getRequiredWorkflowNames(disabledConcerns), pass, fail)
 
   await checkApplyWorkflow(wfDir, files, 'apply-k8s.yml', '**/k8s/**/*.yaml', pass, fail)
   await checkApplyWorkflow(wfDir, files, 'apply-nats-consumer.yml', '**/consumer.yaml', pass, fail)

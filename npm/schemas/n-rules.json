@@ -89,6 +89,14 @@
         "minLength": 1
       }
     },
+    "disable-concerns": {
+      "type": "array",
+      "description": "Точковий opt-out для concern-ів у форматі `<rule-id>/<concern-id>`. Не вимикає решту concern-ів правила й забороняє autofix створювати їхні файли.",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*/[a-z][a-z0-9_]*$"
+      }
+    },
     "disable-skills": {
       "type": "array",
       "description": "Список skill id (без префікса n-), які не потрібно автододавати в `.n-rules.json` під час запуску CLI.",

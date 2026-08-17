@@ -41,6 +41,22 @@ describe('detectAll — exit codes', () => {
     })
   })
 
+  test('disable-concerns виключає лише названий concern із плану', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = join(dir, 'rules')
+      await seedDetector(rulesDir, 'probe', 'enabled', { scope: 'full', glob: ['**/*'] }, CLEAN)
+      await seedDetector(rulesDir, 'probe', 'disabled', { scope: 'full', glob: ['**/*'] }, CLEAN)
+      await writeJson(join(dir, '.n-rules.json'), {
+        rules: ['probe'],
+        'disable-concerns': ['probe/disabled']
+      })
+
+      const plan = await buildDetectPlan({ rulesDir, cwd: dir, full: true })
+
+      expect(plan.map(item => item.entry.concern.name)).toEqual(['enabled'])
+    })
+  })
+
   test('violations → exit 1, ruleId/concernId домішані з ctx', async () => {
     await withTmpDir(async dir => {
       const rulesDir = join(dir, 'rules')

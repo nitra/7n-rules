@@ -128,6 +128,26 @@ async function filterByCapabilities(byRule, opts) {
 }
 
 /**
+ * Виключає concern-и, явно перелічені в `.n-rules.json#disable-concerns`.
+ * Це гейт discovery, тому він діє однаково на lint, fix і T0-autofix.
+ * @param {Record<string, ConcernMeta[]>} byRule concerns за rule-id.
+ * @param {string} cwd корінь репозиторію, який лінтиться.
+ * @returns {Promise<Record<string, ConcernMeta[]>>} concerns після точкового opt-out.
+ */
+async function filterDisabledConcerns(byRule, cwd) {
+  const { disableConcerns } = await readNRulesConfigLite(cwd)
+  if (disableConcerns.length === 0) return byRule
+  const disabled = new Set(disableConcerns)
+  /** @type {Record<string, ConcernMeta[]>} */
+  const out = {}
+  for (const [ruleId, concerns] of Object.entries(byRule)) {
+    const kept = concerns.filter(concern => !disabled.has(`${ruleId}/${concern.name}`))
+    if (kept.length > 0) out[ruleId] = kept
+  }
+  return out
+}
+
+/**
  * Обчислює legacy-гейт `<rule>/applies/main.mjs` — гілка `dynamic`
  * (аварійний клапан і сторонні правила на старому форматі).
  * @param {string} ruleId id правила (для тексту помилки).
@@ -344,7 +364,8 @@ async function resolveSlotGlobs(byRule, cwd) {
  */
 async function discoverConcernsByRule(opts) {
   const rulesDirs = await effectiveRulesDirs(opts)
-  const capable = await filterByCapabilities(await readLintConcernsByRuleMulti(rulesDirs), opts)
+  const optedOut = await filterDisabledConcerns(await readLintConcernsByRuleMulti(rulesDirs), opts.cwd)
+  const capable = await filterByCapabilities(optedOut, opts)
   const byRule = await resolveSlotGlobs(await filterByRuleApplies(capable, opts.cwd), opts.cwd)
   return { rulesDirs, byRule }
 }
