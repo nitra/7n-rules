@@ -1,0 +1,19 @@
+docs/specs/2026-08-17-n7n-harness-local-models.md
+  s_9990b06d6ccd1c::t_c187ee8a2876cd 196-200,375,379-392,525-526
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "d197f1b16e49d69e8d39b405484a09ad925d3c28",
+  "prompts": {},
+  "sessions": {
+    "s_9990b06d6ccd1c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8e1ea66c-2f23-4a24-96fe-50a91fd86b46",
+        "model": "claude-opus-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
