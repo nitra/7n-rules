@@ -1,0 +1,47 @@
+plugins/ci-github/rules/ga/workflows/main.mjs
+  s_4d017616c26355::t_058a1323df91b3 282,286,303,317,321,327,333,339
+  s_4d017616c26355::t_62ad4d692b3432 15,27-43,359,361,419-420,444,453
+plugins/ci-github/rules/ga/tests/main.test.mjs
+  s_4d017616c26355::t_5a41a5dce6383b 17,70-76
+  s_6adf973f784650::t_59a0296b84a8a8 77-78
+npm/scripts/lib/lint-surface/tests/run-detectors.test.mjs
+  s_4d017616c26355::t_81268e479fbabd 44-59
+npm/scripts/lib/lint-surface/run-detectors.mjs
+  s_4d017616c26355::t_62ad4d692b3432 131-149,367-368
+  s_6adf973f784650::t_c867787cf01ad0 130
+npm/scripts/lib/read-n-rules-config-lite.mjs
+  s_4d017616c26355::t_62ad4d692b3432 5,27,41,44,50-52,54
+npm/scripts/lib/tests/read-n-rules-config-lite.test.mjs
+  s_4d017616c26355::t_4ab3a5f9ee1096 26-38
+  s_4d017616c26355::t_62ad4d692b3432 12
+npm/schemas/n-rules.json
+  s_4d017616c26355::t_62ad4d692b3432 92-99
+npm/.changes/260817-0511.md
+  s_4d017616c26355::t_38f2c028898647 1-5
+plugins/ci-github/.changes/260817-0511.md
+  s_4d017616c26355::t_97726510ec89b7 1-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "0442561e5274ebcc41c613be31ab10138b04596b",
+  "prompts": {},
+  "sessions": {
+    "s_4d017616c26355": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ff6af-7b96-7c60-9ce9-2d316cbebcce",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_6adf973f784650": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "67a049a1-808c-488d-a128-20b634bf23df",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
