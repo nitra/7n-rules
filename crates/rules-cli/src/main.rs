@@ -19,7 +19,8 @@
 //! Зріз 2 додає дві портовні команди класу (б) інвентаризації:
 //!
 //! - `skill list` — перелік скілів пакета ([`skill_cmd`], ядро —
-//!   `rules_core::skills`);
+//!   `rules_core::skills`); згодом міграція `agent-skill` (§3.3 спеки
+//!   ACP-only) додала сюди й `skill <id>` та `skill <runner> <id>`;
 //! - `rename-yaml-extensions` — перейменування k8s/`.github` YAML
 //!   ([`rename_yaml_cmd`], ядро — `rules_core::rename_yaml`); перша
 //!   МУТУЮЧА native-команда.
@@ -198,6 +199,35 @@ fn resolve_subcommand(args: &[String]) -> (String, clap::Command) {
     (path.join(" "), command)
 }
 
+/// Чи бере native-шлях гілку `skill <runner> <id> …`.
+///
+/// Два винятки лишаються за JS. `claude` — legacy-ім'я, якого JS-раннером уже
+/// НЕ вважає (`RUNNERS` там — `{pi, cursor, codex}`): віддаємо його туди, щоб
+/// JS лишався власником свого usage-повідомлення на це ім'я. Скіли з оркестратором
+/// (`taze`, `git-reconcile`) — конвеєр детермінованих кроків із точковими
+/// LLM-викликами, і підмінити його одним агентним ходом означало б мовчки
+/// втратити ті кроки.
+fn skill_runner_is_native(rest: &[String]) -> bool {
+    let (Some(runner), Some(skill)) = (rest.first(), rest.get(1)) else {
+        return false;
+    };
+    matches!(runner.as_str(), "pi" | "cursor" | "codex" | "goose")
+        && !skill_cmd::is_orchestrated(skill)
+}
+
+/// Чи бере native-шлях гілку `skill <id> …` (друк промпта без LLM).
+///
+/// Ім'я раннера сюди не потрапляє: його забирає гілка вище, а legacy-`claude`
+/// свідомо лишається делегованим цілком (див. вище).
+fn skill_prompt_is_native(rest: &[String]) -> bool {
+    rest.first().is_some_and(|first| {
+        !matches!(
+            first.as_str(),
+            "pi" | "cursor" | "codex" | "goose" | "claude" | "list"
+        )
+    })
+}
+
 /// Виконує розібрану команду. `args` — ПОВНИЙ argv: команди з частковим
 /// native-шляхом віддають його в JS без змін.
 fn dispatch(command: NativeCommand, args: &[String]) -> ExitCode {
@@ -211,11 +241,23 @@ fn dispatch(command: NativeCommand, args: &[String]) -> ExitCode {
             ToolsCommand::List(list) => tools_cmd::run_list(&list),
             ToolsCommand::Ensure(ensure) => tools_cmd::run_ensure(&ensure),
         },
-        // Нативний лише `skill list`; JS дивиться теж тільки на перший
-        // аргумент після `skill` (зайві — ігнорує), решта підкоманд —
-        // LLM/агентні ранери, делегуються.
+        // `skill list` — перелік; `skill <runner> <id>` — ACP-раннер;
+        // `skill <id>` — друк промпта. Делегованими лишаються рівно дві
+        // гілки: скіли з власним JS-оркестратором (`taze`/`git-reconcile` —
+        // конвеєр, а не один хід) і legacy-ім'я `claude`, чиє usage-повідомлення
+        // лишається за JS.
         NativeCommand::Skill(parsed) if parsed.rest.first().map(String::as_str) == Some("list") => {
             skill_cmd::run_list()
+        }
+        NativeCommand::Skill(parsed) if skill_runner_is_native(&parsed.rest) => {
+            skill_cmd::run_runner(
+                &parsed.rest[0],
+                &parsed.rest[1],
+                &parsed.rest[2..].join(" "),
+            )
+        }
+        NativeCommand::Skill(parsed) if skill_prompt_is_native(&parsed.rest) => {
+            skill_cmd::run_prompt(&parsed.rest[0], &parsed.rest[1..].join(" "))
         }
         NativeCommand::Skill(_) => js_fallback::delegate(args),
         NativeCommand::Ci(parsed) => match parsed.command {
@@ -266,5 +308,58 @@ fn describe_parse_error(error: &clap::Error) -> String {
         // рідкісних видів: іменуємо аргумент, якщо `clap` його назвав.
         _ if !arg().is_empty() => format!("некоректний аргумент «{}»", arg()),
         _ => "не вдалося розібрати аргументи".to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Межа native/JS для гілки `skill <runner> <id>` — саме те рішення, яке
+    /// процесним тестом не перевірити: він спавнив би справжнього ACP-агента.
+    #[test]
+    fn runner_branch_is_native_except_orchestrated_and_claude() {
+        let args = |parts: &[&str]| parts.iter().map(|s| (*s).to_string()).collect::<Vec<_>>();
+
+        for runner in ["pi", "cursor", "codex", "goose"] {
+            assert!(
+                skill_runner_is_native(&args(&[runner, "lint"])),
+                "{runner}: звичайний скіл має йти нативно"
+            );
+            for orchestrated in ["taze", "git-reconcile", "n-taze"] {
+                assert!(
+                    !skill_runner_is_native(&args(&[runner, orchestrated])),
+                    "{runner} {orchestrated}: конвеєр лишається в JS"
+                );
+            }
+        }
+
+        assert!(
+            !skill_runner_is_native(&args(&["claude", "lint"])),
+            "deprecated раннер Rust не моделює"
+        );
+        assert!(
+            !skill_runner_is_native(&args(&["pi"])),
+            "без імені скіла гілка не наша — usage друкує JS"
+        );
+    }
+
+    /// Гілка `skill <id>` бере все, що не є іменем раннера чи `list`.
+    #[test]
+    fn prompt_branch_takes_bare_skill_ids_only() {
+        let arg = |s: &str| vec![s.to_string()];
+
+        assert!(skill_prompt_is_native(&arg("lint")));
+        assert!(
+            skill_prompt_is_native(&arg("n-taze")),
+            "оркестрований скіл БЕЗ раннера — це лише друк промпта, без конвеєра"
+        );
+        for reserved in ["pi", "cursor", "codex", "goose", "claude", "list"] {
+            assert!(
+                !skill_prompt_is_native(&arg(reserved)),
+                "{reserved} — не id скіла"
+            );
+        }
+        assert!(!skill_prompt_is_native(&[]), "порожній argv — usage у JS");
     }
 }
