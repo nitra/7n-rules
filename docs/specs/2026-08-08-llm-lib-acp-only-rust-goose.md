@@ -49,6 +49,13 @@ llm-lib/crates/
   llm-lib-napi        — ВИДАЛЯЄТЬСЯ разом з останнім JS-споживачем
 ```
 
+**Стан на 2026-08-14 (#431):** структуру реалізовано, але Rust-крейт **виїхав з
+цього репозиторію** в `git.7n.ai/7n/llm-lib` і підключається як звичайна
+залежність `llm-lib = { version = "0.2.4", package = "n7n-llm-lib" }`. У
+`7n-rules` під `llm-lib/` лишився ЛИШЕ JS-пакет. Шляхи виду
+`llm-lib/crates/llm-lib/src/...` нижче по тексту читати як шляхи в тому
+окремому репозиторії.
+
 Уточнення після §3.7: агентність класу 2 — завжди ACP-сесія до зовнішнього агента,
 але клас 3 (контур `fix`) має власний цикл у `llm-lib/src/fix/` (`tools`, `runner`,
 `ladder`, `snapshot`, `collateral`, `pipeline`, `test_gate`) під прапорцем `fix-agent`.
@@ -90,8 +97,8 @@ ACP-kind-и включно з goose (клас 2) або власний цикл 
 | JS-поверхня | Контур | Клас (§3.7) | Цільовий шлях |
 |---|---|---|---|
 | `one-shot.mjs` | разові структуровані виклики | 1 | genai напряму — completions без tool-ів |
-| `agent-fix.mjs` (+ write-guard, anchored-edit, coverage fix-хуки) | LLM-ladder лінт-фіксів | 3 | **власний цикл на rig-agent** (§3.7) — єдиний контур, де зовнішній агент не дає потрібних гарантій |
-| `agent-skill.mjs` | скіл-раннер (skills-cli, taze, git-reconcile) | 2 | стандартні ACP-kind-и (goose/codex/cursor/pi) |
+| `agent-fix.mjs` (+ write-guard, anchored-edit, coverage fix-хуки) | LLM-ladder лінт-фіксів | 3 | ✅ **зроблено** (#416–#429): власний цикл на rig-agent (§3.7), підключений через `crates/rules-fix` і `lint --native-fix` |
+| `agent-skill.mjs` | скіл-раннер (skills-cli, taze, git-reconcile) | 2 | ✅ **зроблено** (зріз `skill`): `skill <runner> <id>` і `skill <id>` нативні в `rules-cli`, усі kind-и через `one_shot_acp_with_tier`. Делегованою лишилась ОДНА гілка за КЛАСОМ, не за обсягом: оркестровані скіли (`taze`, `git-reconcile` — конвеєр детермінованих кроків, не один хід). Раннера `claude` у JS уже немає (`RUNNERS` = `{pi, cursor, codex}`), тож native-роутер віддає це ім'я в JS лише заради його usage-повідомлення |
 | `batch.mjs` / `chain.mjs` | doc-files/claims/entailment, coverage classify, adr-normalize | 1 | batch-фасад §3.6 (native → ACP-емуляція) |
 | `internal/registry.mjs` (pi ModelRegistry) | резолвінг моделей | — | тир-мапа `llm-lib` (§3.2) |
 | `adr-normalize-local` (925-рядковий конвеєр) | ADR-нормалізація | 1 | порт конвеєра в Rust, LLM-ходи через batch-фасад; retrieval лексичний (Jaccard), ембедингів немає — rig-core для retrieval не потрібен |

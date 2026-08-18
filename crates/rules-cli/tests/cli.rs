@@ -211,6 +211,76 @@ fn skill_list_prints_bundled_skill_ids() {
     );
 }
 
+/// `skill <id>` друкує зібраний промпт і не кличе жодної моделі.
+#[test]
+fn skill_prompt_branch_is_native_and_llm_free() {
+    let package = fake_package(&["lint"]);
+    let out = bin()
+        .env("N_RULES_JS_ENTRY", fake_entry(&package))
+        .args(["skill", "n-lint", "прибери", "борг"])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "stderr: {}", stderr(&out));
+    let text = stdout(&out);
+    // Задача склеюється з решти argv, префікс `n-` знімається.
+    assert!(text.starts_with("# Task\n\nприбери борг\n\n# Skill\n"));
+    assert!(text.contains("# Current project"));
+}
+
+/// Невідомий скіл називає наявні — те саме повідомлення, що й у JS.
+#[test]
+fn skill_prompt_branch_names_available_skills_on_typo() {
+    let package = fake_package(&["lint", "taze"]);
+    let out = bin()
+        .env("N_RULES_JS_ENTRY", fake_entry(&package))
+        .args(["skill", "no-such-skill"])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    assert!(
+        stderr(&out).contains("Unknown skill \"no-such-skill\". Available skills: lint, taze"),
+        "stderr: {}",
+        stderr(&out)
+    );
+}
+
+/// Скіли з власним JS-оркестратором лишаються делегованими: їхній прогін —
+/// конвеєр кроків, а не один агентний хід, і підміна мовчки з'їла б кроки.
+#[test]
+fn orchestrated_skills_still_delegate_to_js() {
+    let package = fake_package(&["taze", "git-reconcile"]);
+    for skill in ["taze", "git-reconcile"] {
+        let out = bin()
+            .env("N_RULES_JS_ENTRY", fake_entry(&package))
+            .args(["skill", "pi", skill])
+            .output()
+            .unwrap();
+        // Делегація йде у неіснуючий фейковий entrypoint — важливий сам факт
+        // спроби (native-шлях не друкував би нічого про node/модуль).
+        assert!(
+            !out.status.success(),
+            "{skill}: очікували делегацію, а не native-шлях"
+        );
+        assert!(
+            !stderr(&out).contains("невідомий раннер"),
+            "{skill}: native-раннер не мав братися за оркестрований скіл"
+        );
+    }
+}
+
+/// Deprecated раннер `claude` Rust не моделює — він теж делегується.
+#[test]
+fn claude_runner_still_delegates_to_js() {
+    let package = fake_package(&["lint"]);
+    let out = bin()
+        .env("N_RULES_JS_ENTRY", fake_entry(&package))
+        .args(["skill", "claude", "lint"])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    assert!(!stderr(&out).contains("невідомий раннер"));
+}
+
 #[test]
 fn skill_list_without_skills_dir_prints_only_header() {
     let package = fake_package(&[]);
@@ -386,9 +456,14 @@ fn rename_yaml_extensions_respects_config_ignore() {
     assert!(tmp.path().join("k8s/web.yml").exists());
 }
 
+/// Оркестрований скіл їде в JS із незміненим argv і його exit-кодом.
+///
+/// Раніше цей тест звався «будь-яка не-`list` підкоманда делегується» — межа
+/// зсунулась: тепер делегуються рівно оркестровані скіли й `claude`, а
+/// звичайні раннери йдуть нативним ACP-шляхом.
 #[cfg(unix)]
 #[test]
-fn non_list_skill_subcommand_still_delegates() {
+fn orchestrated_skill_delegates_argv_and_exit_code() {
     use std::os::unix::fs::PermissionsExt;
 
     let tmp = TempDir::new().unwrap();
@@ -406,6 +481,16 @@ fn non_list_skill_subcommand_still_delegates() {
     assert_eq!(out.status.code(), Some(7));
     assert_eq!(stdout(&out), "/fake/n-rules.js skill pi taze\n");
 }
+
+// Позитивної перевірки «звичайний скіл під раннером іде нативно» тут НЕМАЄ
+// свідомо: цей шлях спавнить справжнього ACP-агента, і процесний тест на
+// нього означав би живий агент у тестовому наборі — з мережею, підпискою і
+// довільними діями в робочій теці. Спроба такого тесту це й довела: агент
+// піднявся, побачив у теці стаб-скрипт і ВИКОНАВ його.
+//
+// Рішення роутера (яка гілка native, яка делегується) перевіряється
+// детерміновано юніт-тестами `skill_runner_is_native`/`skill_prompt_is_native`
+// у `main.rs`, а делегаційний бік — тестами вище.
 
 #[cfg(unix)]
 #[test]
@@ -640,4 +725,56 @@ fn delegation_without_entrypoint_fails_with_hint() {
         .unwrap();
     assert_eq!(out.status.code(), Some(1));
     assert!(stderr(&out).contains("N_RULES_JS_ENTRY"));
+}
+
+/// E2E: ACP-сесія реально доходить до відповіді (opt-in, `N_RULES_E2E_ACP=1`).
+///
+/// Поза прапорцем тест мовчки пропускається: він піднімає СПРАВЖНЬОГО агента
+/// — мережа, підписка, чужий процес. У звичайному `cargo test` таким місце
+/// не тут (реєстр відкритих питань, §6.3).
+///
+/// Три умови роблять його безпечним, і кожна — наслідок реального інциденту.
+/// Робоча тека — порожній tempdir: агент бачить її вміст, і в одній зі спроб
+/// виконав знайдений там стаб-скрипт. Скіл-проба нічого не просить робити з
+/// ФС. Раннер — `codex`: він авторизований підпискою, тож ключ у середовищі
+/// не потрібен.
+#[test]
+fn acp_session_reaches_a_reply_end_to_end() {
+    if std::env::var_os("N_RULES_E2E_ACP").is_none() {
+        return;
+    }
+
+    let package = TempDir::new().unwrap();
+    let skill_dir = package.path().join("skills").join("probe");
+    std::fs::create_dir_all(&skill_dir).unwrap();
+    std::fs::write(
+        skill_dir.join("SKILL.md"),
+        "# Проба\n\nВідповідай рівно одним словом: OK.\n\
+         Не читай файлів, не запускай команд, нічого не створюй і не змінюй.\n",
+    )
+    .unwrap();
+    std::fs::write(skill_dir.join("main.json"), r#"{"tier":"min"}"#).unwrap();
+    std::fs::create_dir_all(package.path().join("bin")).unwrap();
+    std::fs::write(package.path().join("bin").join("n-rules.js"), "// stub\n").unwrap();
+
+    let work = TempDir::new().unwrap();
+    let out = bin()
+        .current_dir(work.path())
+        .env("N_RULES_JS_ENTRY", package.path().join("bin/n-rules.js"))
+        .args(["skill", "codex", "probe"])
+        .output()
+        .unwrap();
+
+    assert!(out.status.success(), "stderr: {}", stderr(&out));
+    assert!(
+        stdout(&out).contains("OK"),
+        "агент мав відповісти; stdout: {}",
+        stdout(&out)
+    );
+    // Проба не просила нічого писати — тека має лишитись порожньою.
+    assert_eq!(
+        std::fs::read_dir(work.path()).unwrap().count(),
+        0,
+        "агент не мав нічого створювати в робочій теці"
+    );
 }
