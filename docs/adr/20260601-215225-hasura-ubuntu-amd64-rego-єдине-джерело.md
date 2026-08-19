@@ -48,3 +48,8 @@ Chosen option: "Замінити тег на `v2.49.0.ubuntu.amd64` і вида�
 - Посилання `v2.49.0` у `npm/rules/k8s/js/tests/manifests/tests/check-schema.test.mjs` залишено без змін, бо transcript фіксує його як generic-маркер HTTPRoute-перевірки, а не частину whitelist.
 - Верифікація: `conftest verify -p npm/rules/k8s/policy/manifest` → 20/20 passed.
 - Change-file: `npm/.changes/260618-1537.md` з patch bump.
+
+## Update 2026-08-19
+
+- Мінімальну дозволену версію `hasura/graphql-engine` у whitelist піднято до `v2.49.5.ubuntu.amd64` після підтвердження виправлення OpenSSL `CVE-2026-45447` в офіційному patch-релізі Hasura.
+- Оновлено обидва префікси у `allowed_hasura_images` та canonical/digest fixtures; whitelist і далі приймає лише один точний перевірений тег.

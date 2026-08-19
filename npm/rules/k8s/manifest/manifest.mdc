@@ -10,7 +10,7 @@ Rego-пакет: `k8s.manifest`
 - `apiVersion: autoscaling/v1` — заборонено; потрібен `autoscaling/v2`
 - `kind: Service` — анотації `cloud.google.com/neg` та `cloud.google.com/backend-config` заборонені
 - `kind: Deployment` — у кожного контейнера (включно з `initContainers`) обов'язкові `resources.requests.cpu` і `resources.requests.memory` (непорожній рядок або число > 0)
-- `kind: Deployment` з образом `hasura/graphql-engine` — образ має бути у білому списку `allowed_hasura_images` (зараз: `hasura/graphql-engine:v2.49.2.ubuntu.amd64`; `docker.io/` префікс допустимий; digest `@sha256:…` відрізається перед порівнянням)
+- `kind: Deployment` з образом `hasura/graphql-engine` — образ має бути у білому списку `allowed_hasura_images` (зараз: `hasura/graphql-engine:v2.49.5.ubuntu.amd64`; `docker.io/` префікс допустимий; digest `@sha256:…` відрізається перед порівнянням)
 - `kind: Deployment` — `spec.strategy.type: RollingUpdate` з `maxUnavailable: 0` і `maxSurge: 1`
 - `kind: Deployment` — канонічний запис у `spec.template.spec.topologySpreadConstraints`: `maxSkew: 1`, `topologyKey: kubernetes.io/hostname`, `whenUnsatisfiable: ScheduleAnyway`, `labelSelector.matchLabels.app: <app-label>` (перевіряється лише для Deployment з міткою `app` у `spec.selector.matchLabels`)
 
