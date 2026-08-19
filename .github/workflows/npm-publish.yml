@@ -7,7 +7,6 @@ on:
   push:
     paths:
       - 'npm/**'
-      - 'llm-lib/**'
       - 'plugins/**'
       - 'crates/**'
       - 'Cargo.toml'
@@ -21,7 +20,7 @@ concurrency:
 
 jobs:
   # Native artifacts потрібні лише коли змінюється сам Rust/N-API контур.
-  # JS-релізи llm-lib і npm/plugin workspace-и використовують останній сумісний
+  # JS-релізи npm/plugin workspace-ів використовують останній сумісний
   # prebuilt addon, не витрачаючи два runner-и на повторну компіляцію binary.
   changes:
     runs-on: ubuntu-latest
@@ -48,7 +47,7 @@ jobs:
             fi
             BASE='HEAD^'
           fi
-          if ! git diff --quiet "$BASE" HEAD -- Cargo.toml Cargo.lock llm-lib/crates crates; then
+          if ! git diff --quiet "$BASE" HEAD -- Cargo.toml Cargo.lock crates; then
             echo 'changed=true' >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -58,9 +57,7 @@ jobs:
           # Тому native=true також коли будь-який пін platform-пакета з
           # optionalDependencies відсутній у registry: гейт добудує й
           # опублікує втрачене на найближчому пуші.
-          pins='@7n/llm-lib-darwin-arm64 llm-lib/package.json
-          @7n/llm-lib-linux-x64 llm-lib/package.json
-          @7n/rules-darwin-arm64 npm/package.json
+          pins='@7n/rules-darwin-arm64 npm/package.json
           @7n/rules-linux-x64 npm/package.json
           @7n/rules-win32-x64 npm/package.json'
           missing=false
@@ -78,19 +75,13 @@ jobs:
             echo 'changed=false' >> "$GITHUB_OUTPUT"
           fi
 
-  # ── Збірка prebuilt napi-аддонів llm-lib і rules-core для платформних підпакетів ─
-  # За зразком nitra/mt npm-publish.yml (build-binaries): v1-платформи для
-  # llm-lib — darwin-arm64 + linux-x64-gnu (v1-межа llm-lib окрема, НЕ
-  # розширюється — див. §3.4a docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md).
-  # rules-napi додатково будується на win32-x64-msvc (рішення О, те саме §3.4a,
-  # П3 rules-v2-rust-core-migration.md). Дзеркало NAPI_SUFFIXES у
-  # llm-lib/lib/internal/native.mjs та npm/scripts/lib/native.mjs. Один runner
-  # на платформу збирає обидва cdylib, де це можливо — rules-napi окремий
-  # крейт/пакет від llm-lib-napi (Р7 спеки rules-v2-rust-core-migration), але
-  # target-тулчейн і платформа ті самі, тож друга збірка на тому ж runner-і
-  # дешевша, ніж окрема матриця. Windows-рядок будує лише rules-napi (llm-lib
-  # там не потрібен) — `pkg`/`napi-artifact`/`cdylib` порожні, а кроки
-  # llm-lib-збірки пропускаються через `if: matrix.pkg != ''`.
+  # ── Збірка prebuilt rules-napi для платформних підпакетів ──────────────────
+  # За зразком nitra/mt npm-publish.yml (build-binaries): rules-napi будується
+  # на darwin-arm64, linux-x64-gnu і win32-x64-msvc (рішення О, §3.4a
+  # plugin-contract-v3-wasm-component.md, П3 rules-v2-rust-core-migration.md).
+  # Дзеркало NAPI_SUFFIXES у npm/scripts/lib/native.mjs. Historія: до виїзду
+  # llm-lib (git.7n.ai/7n/llm-lib) той самий runner збирав і llm-lib-napi —
+  # звідси форма матриці.
   build-native:
     needs: changes
     if: needs.changes.outputs.native == 'true'
@@ -102,25 +93,16 @@ jobs:
         include:
           - os: macos-14 # native Apple Silicon
             target: aarch64-apple-darwin
-            pkg: llm-lib-darwin-arm64
-            napi-artifact: llm-lib-napi.darwin-arm64.node
-            cdylib: libllm_lib_napi.dylib
             rules-pkg: rules-darwin-arm64
             rules-napi-artifact: rules-napi.darwin-arm64.node
             rules-cdylib: librules_napi.dylib
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            pkg: llm-lib-linux-x64
-            napi-artifact: llm-lib-napi.linux-x64-gnu.node
-            cdylib: libllm_lib_napi.so
             rules-pkg: rules-linux-x64
             rules-napi-artifact: rules-napi.linux-x64-gnu.node
             rules-cdylib: librules_napi.so
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            pkg: '' # llm-lib v1-межа лишається darwin-arm64+linux-x64 (не розширюється)
-            napi-artifact: ''
-            cdylib: ''
             rules-pkg: rules-win32-x64
             rules-napi-artifact: rules-napi.win32-x64-msvc.node
             rules-cdylib: rules_napi.dll # Windows cdylib БЕЗ lib-префікса (MSVC-конвенція)
@@ -137,24 +119,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       # napi-аддон — cdylib; .node = той самий файл під napi-конвенцією імені.
-      # Пропускається на windows-рядку (matrix.pkg порожній) — llm-lib v1-межа
-      # окрема від rules-napi, не розширюється разом із rules на win32-x64.
-      - name: Build llm-lib napi addon
-        if: matrix.pkg != ''
-        run: cargo build --release --target ${{ matrix.target }} -p llm-lib-napi
-
-      - name: Stage llm-lib napi addon into platform package
-        if: matrix.pkg != ''
-        shell: bash # явно — на windows-runner-і дефолтний шлях не вмикається (guard вище), консистентність з іншими cp-кроками
-        run: cp "target/${{ matrix.target }}/release/${{ matrix.cdylib }}" "llm-lib/packages/${{ matrix.pkg }}/${{ matrix.napi-artifact }}"
-
-      - uses: actions/upload-artifact@v4
-        if: matrix.pkg != ''
-        with:
-          name: ${{ matrix.pkg }}
-          path: llm-lib/packages/${{ matrix.pkg }}/*.node
-          if-no-files-found: error
-
       - name: Build rules-napi addon
         run: cargo build --release --target ${{ matrix.target }} -p rules-napi
 
@@ -246,13 +210,6 @@ jobs:
           git fetch origin main --tags
           git merge --ff-only origin/main
 
-      - name: Download llm-lib napi addons
-        if: needs.changes.outputs.native == 'true'
-        uses: actions/download-artifact@v4
-        with:
-          path: llm-lib/packages # → llm-lib/packages/<pkg>/llm-lib-napi.<triple>.node
-          pattern: llm-lib-*
-
       - name: Download rules-napi addons
         if: needs.changes.outputs.native == 'true'
         uses: actions/download-artifact@v4
@@ -263,13 +220,14 @@ jobs:
       - name: Smoke-check CLI-модулів (ловить hoisting-регресії залежностей до релізу)
         if: needs.changes.outputs.native == 'true'
         # Native-залежні CLI-модулі імпортуються в smoke-check, тому artifacts мають
-        # бути доступні до цього кроку. Loader бере explicit override, бо
-        # downloaded artifact не є встановленим platform npm-підпакетом.
-        run: N_LLM_LIB_NATIVE_ADDON="$PWD/llm-lib/packages/llm-lib-linux-x64/llm-lib-napi.linux-x64-gnu.node" node npm/scripts/smoke-check-imports.mjs
+        # бути доступні до цього кроку. `@7n/llm-lib` тепер приходить із registry
+        # разом зі СВОЇМИ prebuilt-аддонами (джерело виїхало в git.7n.ai/7n/llm-lib),
+        # тож override N_LLM_LIB_NATIVE_ADDON більше не потрібен.
+        run: node npm/scripts/smoke-check-imports.mjs
 
       - name: Smoke-check rules-napi аддона (контракт DTO до релізу)
         if: needs.changes.outputs.native == 'true'
-        # Той самий канон, що й для llm-lib вище: явний override шляху (downloaded
+        # Явний override шляху (downloaded
         # artifact — не встановлений platform npm-підпакет), мінімальний прогін
         # contractVersion() ловить розбіжність DTO rules-core ⇄ rules-napi (Р10 спеки)
         # до того, як платформні пакети підуть у публікацію.
@@ -297,135 +255,12 @@ jobs:
       # publish step нижче перевіряє цей список, тому npm не отримує повторних
       # викликів для пакетів, яких поточний commit не релізить.
       # Новий prebuilt addon публікуємо лише після Rust/N-API змін.
-      - name: Sync platform versions to @7n/llm-lib
-        if: >-
-          needs.changes.outputs.native == 'true' &&
-          contains(fromJSON(steps.release.outputs.workspaces), 'llm-lib')
-        run: |
-          VERSION=$(node -p "require('./llm-lib/package.json').version")
-          echo "Publishing @7n/llm-lib platform packages at version $VERSION"
-          for pkg in llm-lib-darwin-arm64 llm-lib-linux-x64; do
-            V="$VERSION" node -e "const f='llm-lib/packages/'+process.argv[1]+'/package.json';const p=require('./'+f);p.version=process.env.V;require('fs').writeFileSync(f, JSON.stringify(p,null,2)+'\n')" "$pkg"
-          done
-          V="$VERSION" node -e "const f='llm-lib/package.json';const p=require('./'+f);for(const k of Object.keys(p.optionalDependencies||{}))p.optionalDependencies[k]=process.env.V;require('fs').writeFileSync(f, JSON.stringify(p,null,2)+'\n')"
-
-      # Платформні підпакети — ПЕРЕД @7n/llm-lib: його optionalDependencies вже
-      # вказують на ці версії, тож інсталяція свіжого @7n/llm-lib мусить знаходити
-      # prebuilt-аддон у registry.
-      - name: Publish @7n/llm-lib-darwin-arm64
-        if: >-
-          needs.changes.outputs.native == 'true' &&
-          contains(fromJSON(steps.release.outputs.workspaces), 'llm-lib')
-        id: publish-llm-lib-darwin-arm64
-        continue-on-error: true
-        uses: ./.github/actions/publish-npm-package
-        with:
-          package-json-path: llm-lib/packages/llm-lib-darwin-arm64/package.json
-
-      - name: Publish @7n/llm-lib-linux-x64
-        if: >-
-          needs.changes.outputs.native == 'true' &&
-          contains(fromJSON(steps.release.outputs.workspaces), 'llm-lib')
-        id: publish-llm-lib-linux-x64
-        continue-on-error: true
-        uses: ./.github/actions/publish-npm-package
-        with:
-          package-json-path: llm-lib/packages/llm-lib-linux-x64/package.json
-
-      # «Sync platform versions» вище править package.json лише в робочому дереві CI —
-      # release-коміт створено ДО синку, тож без цього кроку піни в git назавжди
-      # відстають від registry (git тримав 2.9.7 при опублікованих 2.13.2, що дало
-      # 42 фейли повного bun run test і червоний Lint repo-wide 2026-07-29: локальний
-      # install монорепо тягнув несумісний prebuilt addon). Follow-up-коміт (не amend —
-      # теги вже стоять на release-коміті) приземлює піни + перегенерований bun.lock;
-      # `git push --follow-tags` нижче несе обидва коміти. Гейт на успіх обох
-      # платформних publish: піни не мають вказувати на неопубліковані версії.
-      # continue-on-error: невдача (напр., registry ще не віддає щойно опубліковані
-      # версії у bun install) не має блокувати push release-коміту.
-      - name: Commit синк платформних пінів
-        if: >-
-          needs.changes.outputs.native == 'true' &&
-          contains(fromJSON(steps.release.outputs.workspaces), 'llm-lib') &&
-          steps.publish-llm-lib-darwin-arm64.outcome == 'success' &&
-          steps.publish-llm-lib-linux-x64.outcome == 'success'
-        continue-on-error: true
-        run: |
-          # n-rules:allow-bun-install — свідомий виняток із ga/workflow_common:
-          # composite `setup-bun-deps` робить `--frozen-lockfile`, а цей крок
-          # навпаки мусить ПЕРЕгенерувати lock під щойно підняті піни.
-          #
-          # Саме `bun install`, і НЕ `bun update` — обидві його форми вже
-          # ламали main:
-          #   • з кореня `bun update <pkg>` для пакета, якого нема в кореневому
-          #     package.json, ДОПИСУЄ його в кореневі `dependencies`; правка
-          #     кореневого маніфеста не потрапляє в `git add` нижче, а отруєний
-          #     lock потрапляє;
-          #   • з теки воркспейса `bun update` ЗАТИРАЄ на порожній рядок піни
-          #     тих optional-платформ, які не ставляться на runner-і (реліз
-          #     1.76.0: linux/win32 → "").
-          # `bun install` маніфести не чіпає взагалі — лише зводить lock під
-          # них; піни вже проставив крок «Sync platform versions».
-          #
-          # ЧЕКАННЯ РЕПЛІКАЦІЇ ПЕРЕД install (розбір 2026-08-04).
-          # Для optional-залежності, яку не вдалось резолвити, bun МОВЧКИ не
-          # пише резолвлений запис у lock і виходить з кодом 0 — а на наступних
-          # прогонах уже не резолвить її повторно (повторний резолв тригерить
-          # лише ЗМІНА піна; `bun install --force` теж не повертає запис). Один
-          # пропущений через лаг реплікації registry пакет зникає з bun.lock до
-          # наступного релізу — і `until bun install` цього не ловить, бо код
-          # виходу нульовий. Саме так `@7n/rules-win32-x64` (публікується
-          # ОСТАННІМ, install стартує ~1 с по тому) випав із lock на релізі
-          # 1.76.0 і не повертався; гейт `npm/scripts/lib/tests/platform-pins.test.mjs`
-          # тримав main червоним. Тому: спершу дочекатись, поки registry реально
-          # віддає кожну щойно опубліковану версію, і лише потім install.
-          VERSION=$(node -p "require('./llm-lib/package.json').version")
-          for pkg in llm-lib-darwin-arm64 llm-lib-linux-x64; do
-            n=0
-            until bun pm view "@7n/$pkg@$VERSION" version >/dev/null 2>&1; do
-              n=$((n + 1))
-              [ "$n" -ge 12 ] && { echo "::warning::registry не віддає @7n/$pkg@$VERSION — піни лишаються незакоміченими"; exit 1; }
-              echo "чекаю реплікацію @7n/$pkg@$VERSION ($n)"
-              sleep 10
-            done
-          done
-          # Ретраї — на лаг реплікації registry одразу після publish.
-          n=0
-          until bun install; do
-            n=$((n + 1))
-            [ "$n" -ge 5 ] && { echo "::warning::registry не віддає нові платформні версії — піни лишаються незакоміченими"; exit 1; }
-            sleep 15
-          done
-          # Гейт ПЕРЕД комітом: lock мусить резолвити кожну платформу саме на
-          # цю версію. Інакше коміт лишив би маніфест, що пінить версію, якої
-          # lock не резолвить (консюмер на цій платформі не дістав би аддон) —
-          # краще не комітити нічого, ніж половину: не перенесені піни підбере
-          # наступний реліз, а мовчазна дірка в lock живе до ручного втручання.
-          for pkg in llm-lib-darwin-arm64 llm-lib-linux-x64; do
-            grep -q "\"@7n/$pkg\": \[\"@7n/$pkg@$VERSION\"" bun.lock || {
-              echo "::warning::bun.lock не резолвить @7n/$pkg@$VERSION — синк не комітиться (див. доккомент кроку)"
-              exit 1
-            }
-          done
-          git add llm-lib/package.json llm-lib/packages/llm-lib-darwin-arm64/package.json llm-lib/packages/llm-lib-linux-x64/package.json bun.lock
-          git commit -m "chore(release): синк пінів платформних napi-пакетів @7n/llm-lib"
-
-      # llm-lib публікується ПЕРШИМ серед JS-пакетів: @7n/rules залежить від @7n/llm-lib,
-      # тож інсталяція свіжого @7n/rules мусить знаходити пакет у registry.
-      # continue-on-error: невдача одного з пакетів не має блокувати публікацію іншого.
-      - name: Publish @7n/llm-lib
-        if: contains(fromJSON(steps.release.outputs.workspaces), 'llm-lib')
-        id: publish-llm-lib
-        continue-on-error: true
-        uses: ./.github/actions/publish-npm-package
-        with:
-          package-json-path: llm-lib/package.json
-
-      # Той самий канон, що й для @7n/llm-lib вище — новий prebuilt rules-napi addon
-      # публікуємо лише після Rust/N-API змін. `npm/package.json` optionalDependencies
-      # містить, крім платформних пакетів, і `@earendil-works/pi-*` — тож на відміну
-      # від llm-lib-скрипта тут явно перелічені лише три rules-платформні ключі
-      # (win32-x64 додано рішенням О, §3.4a plugin-contract-v3-wasm-component.md),
-      # без циклу по всіх optionalDependencies.
+      # Новий prebuilt rules-napi addon публікуємо лише після Rust/N-API змін.
+      # `npm/package.json` optionalDependencies містить, крім платформних
+      # пакетів, і `@earendil-works/pi-*` — тож тут явно перелічені лише три
+      # rules-платформні ключі (win32-x64 додано рішенням О, §3.4a
+      # plugin-contract-v3-wasm-component.md), без циклу по всіх
+      # optionalDependencies.
       - name: Sync platform versions to @7n/rules
         if: >-
           needs.changes.outputs.native == 'true' &&
@@ -488,7 +323,7 @@ jobs:
         with:
           package-json-path: npm/packages/rules-win32-x64/package.json
 
-      # Дзеркало «Commit синк платформних пінів» вище для @7n/llm-lib: без цього
+      # Без цього кроку
       # піни `npm/package.json` ⇄ `npm/packages/rules-*` відстають від registry
       # в git після release-коміту (ризик 7 спеки rules-v2-rust-core-migration).
       # Гейт — усі ТРИ платформи. До bootstrap-публікації (див. BOOTSTRAP-НОТАТКУ
@@ -500,10 +335,31 @@ jobs:
       # тож при невдалій його публікації коміт приземлив би маніфест, що пінить
       # неопубліковану версію (розбір 2026-08-04).
       #
-      # Механіка регенерації lock — доккомент llm-lib-кроку вище (чому саме
-      # `bun install`, чому жодна з форм `bun update` тут не працює, і чому
-      # реплікацію registry треба дочекатись ПЕРЕД install, а lock — звірити
-      # ПЕРЕД комітом).
+      # МЕХАНІКА РЕГЕНЕРАЦІЇ LOCK (перенесено з кроку @7n/llm-lib, який виїхав
+      # разом із пакетом у git.7n.ai/7n/llm-lib — знання лишається тут, бо
+      # обидва інциденти відтворювані й на rules-пінах).
+      #
+      # Саме `bun install`, і НЕ `bun update` — обидві його форми вже ламали
+      # main:
+      #   • з кореня `bun update <pkg>` для пакета, якого нема в кореневому
+      #     package.json, ДОПИСУЄ його в кореневі `dependencies`; правка
+      #     кореневого маніфеста не потрапляє в `git add` нижче, а отруєний
+      #     lock потрапляє;
+      #   • з теки воркспейса `bun update` ЗАТИРАЄ на порожній рядок піни тих
+      #     optional-платформ, які не ставляться на runner-і (реліз 1.76.0:
+      #     linux/win32 → ""). `bun install` маніфести не чіпає взагалі —
+      #     лише зводить lock під них.
+      #
+      # ЧЕКАННЯ РЕПЛІКАЦІЇ ПЕРЕД install (розбір 2026-08-04): для
+      # optional-залежності, яку не вдалось резолвити, bun МОВЧКИ не пише
+      # резолвлений запис у lock і виходить з кодом 0 — а на наступних
+      # прогонах уже не резолвить її повторно (резолв тригерить лише ЗМІНА
+      # піна; `--force` теж не повертає запис). Один пропущений через лаг
+      # реплікації пакет зникає з bun.lock до наступного релізу — саме так
+      # `@7n/rules-win32-x64` випав із lock на релізі 1.76.0. Тому: спершу
+      # дочекатись, поки registry реально віддає кожну версію, потім install,
+      # і звірити lock ПЕРЕД комітом — краще не закомітити нічого, ніж
+      # половину.
       - name: Commit синк платформних пінів (rules)
         if: >-
           needs.changes.outputs.native == 'true' &&
@@ -513,7 +369,10 @@ jobs:
           steps.publish-rules-win32-x64.outcome == 'success'
         continue-on-error: true
         run: |
-          # n-rules:allow-bun-install — див. llm-lib-крок вище.
+          # n-rules:allow-bun-install — свідомий виняток із ga/workflow_common:
+          # composite `setup-bun-deps` робить `--frozen-lockfile`, а цей крок
+          # навпаки мусить ПЕРЕгенерувати lock під щойно підняті піни
+          # (повна механіка — доккомент кроку вище).
           VERSION=$(node -p "require('./npm/package.json').version")
           for pkg in rules-darwin-arm64 rules-linux-x64 rules-win32-x64; do
             n=0
@@ -532,7 +391,7 @@ jobs:
           done
           for pkg in rules-darwin-arm64 rules-linux-x64 rules-win32-x64; do
             grep -q "\"@7n/$pkg\": \[\"@7n/$pkg@$VERSION\"" bun.lock || {
-              echo "::warning::bun.lock не резолвить @7n/$pkg@$VERSION — синк не комітиться (див. доккомент llm-lib-кроку)"
+              echo "::warning::bun.lock не резолвить @7n/$pkg@$VERSION — синк не комітиться (див. доккомент кроку)"
               exit 1
             }
           done

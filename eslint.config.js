@@ -41,11 +41,11 @@ export default [
     ]
   },
   ...getConfig({
-    node: ['npm', 'llm-lib', 'plugins'],
+    node: ['npm', 'plugins'],
     vue: ['demo']
   }),
   {
-    files: ['npm/**/*.{mjs,cjs}', 'llm-lib/**/*.{mjs,cjs}', 'plugins/**/*.{mjs,cjs}'],
+    files: ['npm/**/*.{mjs,cjs}', 'plugins/**/*.{mjs,cjs}'],
     languageOptions: {
       globals: {
         ...globals.node
@@ -57,7 +57,7 @@ export default [
   // bun hoisted node_modules. `n/no-extraneous-import` цього не бачить — allowModules
   // ставить exception лише для канонічного vitest-runner baseline (test.mdc).
   {
-    files: ['npm/**/*.{js,mjs,cjs}', 'llm-lib/**/*.{js,mjs,cjs}', 'plugins/**/*.{js,mjs,cjs}'],
+    files: ['npm/**/*.{js,mjs,cjs}', 'plugins/**/*.{js,mjs,cjs}'],
     rules: {
       'n/no-extraneous-import': [
         'error',
