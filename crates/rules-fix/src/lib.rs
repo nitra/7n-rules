@@ -164,6 +164,7 @@ pub async fn fix_concern(
             files_owned,
             target_files,
             meta.fix_hint.clone(),
+            pipeline_config.policy.clone(),
         ),
     };
 

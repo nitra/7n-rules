@@ -1,4 +1,4 @@
-//! cspell:ignore ttft
+//! cspell:ignore ttft компакція компакції
 //! `PipelineDeps::attempt` — обгортка над `llm_lib::fix::runner::run_attempt`
 //! для одного concern-а: крок 2 задачі (частина `attempt`).
 //!
@@ -34,27 +34,30 @@ use rig_agent::tool::server::ToolServer;
 
 use crate::verify::build_verify_fn;
 
-/// Стеля ходів моделі на один attempt (backstop проти зациклення,
-/// `FixRequest::turn_ceiling`) — паритет із `agent-fix.mjs`, де дефолт 50 і
-/// той самий env-оверрайд.
-///
-/// Живий прогін на локальній 26B показав, чому 50, а не «здається, вистачить»:
-/// зі стелею 10 обидва рунги драбини вигоряли на `MaxTurnsError`, бо модель
-/// спершу читає файл і оглядає дерево — розвідка з'їдає ходи ще до першої
-/// правки, і до неї справа просто не доходила.
-const TURN_CEILING_DEFAULT: usize = 50;
-
-/// Env-оверрайд стелі ходів (той самий ключ, що в JS-джерелі).
+/// Env-оверрайд стелі ходів (той самий ключ, що був у JS-джерелі) — тепер
+/// оверрайд ПОЛІТИКИ, не власного дефолту.
 const TURN_CEILING_ENV: &str = "N_LLM_FIX_TURN_CEILING";
 
-/// Стеля ходів: env-оверрайд або дефолт. Невалідне чи нульове значення —
-/// дефолт (той самий `Number(...) || 50`, що в JS).
-fn turn_ceiling() -> usize {
+/// Стеля ходів одного attempt-у: env-оверрайд або дефолт політики
+/// (`FixPolicy`), окремий для local/cloud.
+///
+/// JS-паритетний дефолт 50 помер разом із міграцією на 0.3, і живий прогін
+/// показав чому: валідація вміщення (§3.3) робить `50 × output_ceiling`
+/// таким, що не влазить у жодне реальне вікно — стара стеля була продуктом
+/// світу БЕЗ бюджетної арифметики, де єдиним обмежувачем був сам лічильник.
+/// Політика 0.3 веде ходи інакше: мало ходів + часовий кеп + компакція
+/// («повільну машину зупиняє часовий кеп §3.4, а не менше ходів» —
+/// доккоментар `FixPolicy::turns`). Env-ручка лишається для вимірювань.
+fn turn_ceiling(local: bool, policy: &llm_lib::budget::FixPolicy) -> usize {
     std::env::var(TURN_CEILING_ENV)
         .ok()
         .and_then(|value| value.parse::<usize>().ok())
         .filter(|&value| value > 0)
-        .unwrap_or(TURN_CEILING_DEFAULT)
+        .unwrap_or(if local {
+            policy.turns
+        } else {
+            policy.cloud_turns
+        })
 }
 
 /// Скільки разів verify-петля може повернути фідбек у тій самій сесії
@@ -78,35 +81,42 @@ const MAX_TOKENS_ENV: &str = "N_LLM_FIX_MAX_TOKENS";
 /// бути `Option`): env-оверрайд або дефолт політики (`FixPolicy`), окремий
 /// для local/cloud. Виноситься назовні, бо потрібне значення залежить від
 /// моделі: те, що рятує 4B від розгону, обрізає багатофайловий фікс на 26B.
-fn output_ceiling(local: bool) -> u64 {
+fn output_ceiling(local: bool, policy: &llm_lib::budget::FixPolicy) -> u64 {
     std::env::var(MAX_TOKENS_ENV)
         .ok()
         .and_then(|value| value.parse::<u64>().ok())
         .filter(|&value| value > 0)
-        .unwrap_or_else(|| {
-            let policy = llm_lib::budget::FixPolicy::default();
-            if local {
-                policy.output_ceiling
-            } else {
-                policy.cloud_output_ceiling
-            }
+        .unwrap_or(if local {
+            policy.output_ceiling
+        } else {
+            policy.cloud_output_ceiling
         })
 }
 
-/// Вікно контексту рунга — вхід валідації вміщення (§3.3 спеки harness).
-/// Локальний рунг — з capability локального сервера; хмарний — з таблиці
-/// відомих моделей. Невідоме вікно → консервативні 32k: краще занизити
-/// стелю tool-результатів, ніж запланувати промпт, який не влізе.
+/// Вікно контексту рунга — вхід валідації вміщення (§3.3 спеки harness) і
+/// поріг авто-компакції runner-а.
+///
+/// Локальний рунг — з capability локального сервера
+/// (`N_LOCAL_OPENAI_CONTEXT`); невідоме → консервативні 32k: свій сервер
+/// МОЖЕ бути маленьким, і чесніше занизити стелю tool-результатів, ніж
+/// запланувати промпт, який не влізе.
+///
+/// Хмарний рунг — з `N_CLOUD_*_CONTEXT`; невідоме → 128k, НЕ 32k. Перший
+/// живий прогін після міграції показав чому: консервативні 32k для хмари
+/// фабрикували `FitError` із вигадки — жодна модель наших cloud-тирів не
+/// має вікна, меншого за 128k, і «валідація» проти вигаданого малого вікна
+/// вбивала робочі рунги, яких 0.2 виконував без питань.
 fn rung_context(local: bool, tier: Tier) -> u64 {
-    const CONSERVATIVE_CONTEXT: u64 = 32_768;
+    const CONSERVATIVE_LOCAL_CONTEXT: u64 = 32_768;
+    const FLOOR_CLOUD_CONTEXT: u64 = 128_000;
     if local {
         llm_lib::budget::local_capability()
             .map(|c| c.context)
-            .unwrap_or(CONSERVATIVE_CONTEXT)
+            .unwrap_or(CONSERVATIVE_LOCAL_CONTEXT)
     } else {
         llm_lib::budget::cloud_capability(tier)
             .context
-            .unwrap_or(CONSERVATIVE_CONTEXT)
+            .unwrap_or(FLOOR_CLOUD_CONTEXT)
     }
 }
 
@@ -212,6 +222,7 @@ pub fn build_attempt_fn(
     files: Option<Vec<String>>,
     target_files: Vec<PathBuf>,
     fix_hint: Option<String>,
+    policy: llm_lib::budget::FixPolicy,
 ) -> AttemptFn {
     Arc::new(move |ctx: AttemptContext| {
         let rule_id = rule_id.clone();
@@ -220,6 +231,7 @@ pub fn build_attempt_fn(
         let files = files.clone();
         let target_files = target_files.clone();
         let fix_hint = fix_hint.clone();
+        let policy = policy.clone();
         Box::pin(async move {
             let verify = build_verify_fn(key, cwd.clone(), files, target_files.clone());
             let deps = FixDeps {
@@ -231,8 +243,11 @@ pub fn build_attempt_fn(
                 on_capture: Some(Arc::clone(&ctx.capture)),
             };
             let tier = rung_tier_to_llm_tier(ctx.rung.tier);
-            let turns = turn_ceiling();
-            let out_ceiling = output_ceiling(ctx.rung.local);
+            // ТА САМА політика, що в PipelineConfig (lib.rs передає її сюди
+            // явно): інакше прогнози harness і реальна стеля attempt-у
+            // рахувалися б із різних чисел.
+            let turns = turn_ceiling(ctx.rung.local, &policy);
+            let out_ceiling = output_ceiling(ctx.rung.local, &policy);
             let context = rung_context(ctx.rung.local, tier);
             // Валідація вміщення ДО HTTP-виклику (§3.3): промпт, що не
             // вміщається у вікно, — провальний outcome із причиною, а не
