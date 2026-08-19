@@ -30,6 +30,7 @@ pub mod error;
 pub mod t0;
 pub mod verify;
 pub mod violation_map;
+pub mod workers;
 
 use std::path::Path;
 
@@ -154,18 +155,25 @@ pub async fn fix_concern(
         config::build_pipeline_config(&meta, cwd.to_path_buf(), target_files.clone())
             .map_err(FixConcernError::Pipeline)?;
 
-    let deps = PipelineDeps {
-        detect: detect::build_detect_fn(key.to_string(), cwd.to_path_buf(), files_owned.clone()),
-        t0: t0::build_t0_step(key, cwd, files),
-        attempt: attempt::build_attempt_fn(
+    // Воркерні concern-и (клас «один one-shot усередині драбини», дзеркало
+    // JS fix-worker.mjs) отримують воркер ЗАМІСТЬ агентної сесії — та сама
+    // драбина, той самий re-detect, інший виконавець спроби.
+    let attempt_fn = workers::build_fix_worker(key, cwd, files).unwrap_or_else(|| {
+        attempt::build_attempt_fn(
             rule_id.to_string(),
             cwd.to_path_buf(),
             key.to_string(),
-            files_owned,
+            files_owned.clone(),
             target_files,
             meta.fix_hint.clone(),
             pipeline_config.policy.clone(),
-        ),
+        )
+    });
+
+    let deps = PipelineDeps {
+        detect: detect::build_detect_fn(key.to_string(), cwd.to_path_buf(), files_owned),
+        t0: t0::build_t0_step(key, cwd, files),
+        attempt: attempt_fn,
     };
 
     run_fix(&pipeline_config, deps, avg_budget)

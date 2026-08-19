@@ -106,7 +106,7 @@ ACP-kind-и включно з goose (клас 2) або власний цикл 
 
 | JS-поверхня | Контур | Клас (§3.7) | Цільовий шлях |
 |---|---|---|---|
-| `one-shot.mjs` | разові структуровані виклики | 1 | genai напряму — completions без tool-ів |
+| `one-shot.mjs` | разові структуровані виклики | 1 | genai напряму — completions без tool-ів. **Перший споживач мігровано** (2026-08-19): `text/cspell-fix` — детектор у `rules-core`, fix-воркер у `rules-fix::workers` (новий клас «one-shot усередині драбини», дзеркало JS `fix-worker.mjs`), LLM-хід через `LocalCloud::one_shot` |
 | `agent-fix.mjs` (+ write-guard, anchored-edit, coverage fix-хуки) | LLM-ladder лінт-фіксів | 3 | ✅ **зроблено** (#416–#429): власний цикл на rig-agent (§3.7), підключений через `crates/rules-fix` і `lint --native-fix` |
 | `agent-skill.mjs` | скіл-раннер (skills-cli, taze, git-reconcile) | 2 | ✅ **зроблено** (зріз `skill`): `skill <runner> <id>` і `skill <id>` нативні в `rules-cli`, усі kind-и через `one_shot_acp_with_tier`. Делегованою лишилась ОДНА гілка за КЛАСОМ, не за обсягом: оркестровані скіли (`taze`, `git-reconcile` — конвеєр детермінованих кроків, не один хід). Раннера `claude` у JS уже немає (`RUNNERS` = `{pi, cursor, codex}`), тож native-роутер віддає це ім'я в JS лише заради його usage-повідомлення |
 | `batch.mjs` / `chain.mjs` | doc-files/claims/entailment, coverage classify, adr-normalize | 1 | batch-фасад §3.6 (native → ACP-емуляція) |
