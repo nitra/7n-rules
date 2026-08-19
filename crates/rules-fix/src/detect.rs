@@ -7,7 +7,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use llm_lib::fix::pipeline::{DetectFn, Violation as PipelineViolation};
+use harness::pipeline::{DetectFn, Violation as PipelineViolation};
 use rules_core::concerns::run_concern;
 
 use crate::violation_map::to_pipeline_violation;

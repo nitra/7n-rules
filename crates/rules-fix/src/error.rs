@@ -22,7 +22,7 @@ pub enum FixConcernError {
     /// петлі `fix`, тому окремий варіант.
     #[error("детектор: {0}")]
     Detect(String),
-    /// Помилка самої петлі `fix` (`llm_lib::fix::pipeline::run_fix`).
+    /// Помилка самої петлі `fix` (`harness::pipeline::run_fix`).
     #[error("петля fix: {0}")]
     Pipeline(String),
 }

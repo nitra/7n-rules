@@ -74,7 +74,7 @@ globset = "0.4"
 # лише `tiers` (serde/thiserror-клас залежностей), без важкого
 # genai/tokio/reqwest/agent-client-protocol стеку `agents`-фічі (ACP/batch/
 # local_cloud), непотрібного lint-адону.
-llm-lib = { version = "0.2.4", package = "n7n-llm-lib", default-features = false }
+llm-lib = { version = "0.3", package = "n7n-llm-lib", default-features = false }
 # Резолв зовнішнього CLI-тула в PATH (`tool_resolve::resolve_cmd`) —
 # бібліотечний крейт замість ручного скану `PATH`+`PATHEXT` (Р11 п.1 спеки
 # `docs/specs/2026-07-30-rules-v2-rust-core-migration.md`): активно

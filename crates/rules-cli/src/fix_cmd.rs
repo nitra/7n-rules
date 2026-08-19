@@ -24,8 +24,8 @@
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use llm_lib::fix::ladder::{AvgBudget, DEFAULT_MAX_AVG};
-use llm_lib::fix::pipeline::{FixReport, PipelineOutcome, RungFailure};
+use harness::ladder::RungCapBudget;
+use harness::pipeline::{FixReport, PipelineOutcome, RungFailure};
 
 use crate::cli::LintArgs;
 use crate::paths;
@@ -110,7 +110,9 @@ fn run_blocking(keys: &[String], cwd: &Path) -> Result<Vec<rules_fix::ConcernRun
 
     // ОДИН бюджет на весь виклик — саме тут спільний кеп найдорожчого тиру
     // починає означати те, що обіцяє спека.
-    let mut avg_budget = AvgBudget::new(DEFAULT_MAX_AVG);
+    // Дефолтні кепи тепер обидва в конструкторі: cloud-avg (3) і cloud-max
+    // (1) — `RungCapBudget::with_caps` лишається для нетипових чисел.
+    let mut avg_budget = RungCapBudget::new();
     Ok(runtime.block_on(rules_fix::fix_concerns(keys, cwd, None, &mut avg_budget)))
 }
 
@@ -141,7 +143,7 @@ fn describe_failure(failure: &RungFailure) -> String {
             file.display()
         ),
         RungFailure::NoEdits => "жодного файлу не змінено".to_string(),
-        RungFailure::AvgCapExhausted => "пропущено: вичерпано бюджет найдорожчого тиру".to_string(),
+        RungFailure::CapExhausted => "пропущено: вичерпано бюджет обмеженого тиру".to_string(),
     }
 }
 
@@ -181,7 +183,7 @@ fn print_report(key: &str, report: &FixReport) {
     if report.rollbacks > 0 {
         println!("  ↩️ відкотів: {}", report.rollbacks);
     }
-    if report.avg_cap_skipped {
+    if report.cap_skipped {
         println!("  ⚠️ бюджет найдорожчого тиру вичерпано — частину спроб пропущено");
     }
     if !report.touched_files.is_empty() {

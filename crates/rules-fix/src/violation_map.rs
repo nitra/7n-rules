@@ -1,13 +1,13 @@
 //! Мапінг доменів: `rules_core::diagnostics::Violation` (детектор lint-у) ⇄
-//! `llm_lib::fix::pipeline::Violation` (вхід петлі `fix`), і те саме для
+//! `harness::pipeline::Violation` (вхід петлі `fix`), і те саме для
 //! `Fixability` (`rules_core::concern_meta::Fixability` →
-//! `llm_lib::fix::pipeline::Fixability`). Обидва боки описують те саме
+//! `harness::pipeline::Fixability`). Обидва боки описують те саме
 //! поняття різними DTO — цей модуль єдине місце перекладу, щоб решта крейта
 //! (`detect`/`verify`/`attempt`) не дублювала правила конверсії.
 
 use std::path::PathBuf;
 
-use llm_lib::fix::pipeline::{Fixability as PipelineFixability, Violation as PipelineViolation};
+use harness::pipeline::{Fixability as PipelineFixability, Violation as PipelineViolation};
 use rules_core::concern_meta::Fixability as ConcernFixability;
 use rules_core::diagnostics::Violation as CoreViolation;
 
@@ -15,7 +15,7 @@ use rules_core::diagnostics::Violation as CoreViolation;
 ///
 /// Функція навмисно завжди повертає значення (не `Result`/`Option`): відсутній `file`
 /// чи відсутній/нечисловий `data["line"]` — не помилка мапінгу.
-/// - Відсутній `file` → порожній `PathBuf` (`llm_lib::fix::pipeline::Violation::file`
+/// - Відсутній `file` → порожній `PathBuf` (`harness::pipeline::Violation::file`
 ///   не є `Option`, на відміну від `line`); порожній шлях ніколи не збігається
 ///   з жодним реальним файлом у `check_collateral` (`pipeline.rs`), тож
 ///   порушення просто не бере участі в hunk-вікні, а не ламає мапінг.

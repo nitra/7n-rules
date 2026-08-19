@@ -478,8 +478,29 @@ JS-рантайму поруч. **Після зникнення мосту це�
 ### 5.0. Крейти на `n7n-llm-lib` 0.2.4 при опублікованому 0.3.0 + `n7n-harness`
 
 **Звідки:** виїзд llm-lib (#431) і подальший реліз 0.3.0 на боці
-`git.7n.ai/7n/llm-lib` (2026-08-19). **Стан:** міграція НЕ виконана,
-план готовий.
+`git.7n.ai/7n/llm-lib` (2026-08-19). **Стан: ВИКОНАНО** (той самий день) —
+крейти на `n7n-llm-lib` 0.3.1 + `n7n-harness` 0.1.1; весь workspace
+зелений. Відхилення від плану, знайдені звіркою з реальним кодом:
+
+- **`agent-client-protocol` 1.2.0 → 1.3.0 у lock**: опублікований
+  `n7n-llm-lib` 0.3.1 кличе `is_incoming_transport_closed`, якого в 1.2.0
+  немає — semver-вимога `"1.2"` дозволяє 1.3, але старий lock тримав 1.2.0
+  і збірка падала В ЧУЖОМУ крейті;
+- **goose прибрано цілком** (рішення Ч спеки harness) — план цього не
+  покривав, бо писався лише під контур `fix`; зачепило `skill_cmd`
+  (`skill goose <id>` більше не native-раннер) разом із розчепленням
+  `Tier`/`Strength` (скіл-раннер тепер передає `Strength`);
+- **`build_toolset` бере 4-й аргумент** (`tool_result_ceiling`) — у плані
+  його не було;
+- **`PreparedEditPlan` непрозорий** (поле приватне) — pre-images для
+  harness-межі збираються з `guard.pre_image()` за canonical-шляхом
+  (macOS: `/var` → `/private/var`, некананонічний lookup давав порожньо);
+- **`FixPolicy::default().local_rungs == false`** — конфіг мусить ставити
+  `true` явно, інакше внутрішнє звуження `run_fix` викидає локальні рунги;
+- **`Delete` теки** (`abie/firebase_hosting`) план не покривав: розгорнуто
+  в пофайлові `Delete` + прибирання спорожнілих тек після commit;
+- **`base_tokens`** — `CONSERVATIVE_BASE_TOKENS`: калібрувальний resolve
+  вимагає fingerprint моделі, якого на рівні конфіга concern-а ще немає.
 
 Репозиторій `llm-lib` став workspace-ом із крейтів `llm-lib`, `harness`,
 `trace`, `plugin-host`, `gix-util`. Уся оркестрація (`pipeline`, `ladder`,

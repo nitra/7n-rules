@@ -13,7 +13,7 @@
 //! # Модулі
 //!
 //! - [`violation_map`] — переклад `rules_core::diagnostics::Violation` ⇄
-//!   `llm_lib::fix::pipeline::Violation`, і `Fixability` ⇄ `Fixability`;
+//!   `harness::pipeline::Violation`, і `Fixability` ⇄ `Fixability`;
 //! - [`detect`] — канонічний детектор (`DetectFn`) поверх `rules_core::concerns::run_concern`
 //!   і межа редагування (`target_files`), яку рахуємо з його першого прогону;
 //! - [`verify`] — `FixDeps::verify` одного attempt-у: канонічний прогін +
@@ -33,8 +33,8 @@ pub mod violation_map;
 
 use std::path::Path;
 
-use llm_lib::fix::ladder::AvgBudget;
-use llm_lib::fix::pipeline::{run_fix, FixReport, PipelineDeps};
+use harness::ladder::RungCapBudget;
+use harness::pipeline::{run_fix, FixReport, PipelineDeps};
 use rules_core::concern_meta::read_concern_meta;
 use rules_core::rules_package::rules_root;
 
@@ -91,7 +91,7 @@ pub async fn fix_concerns(
     keys: &[String],
     cwd: &Path,
     files: Option<&[String]>,
-    avg_budget: &mut AvgBudget,
+    avg_budget: &mut RungCapBudget,
 ) -> Vec<ConcernRun> {
     let mut runs = Vec::with_capacity(keys.len());
     for key in keys {
@@ -123,7 +123,7 @@ pub async fn fix_concern(
     key: &str,
     cwd: &Path,
     files: Option<&[String]>,
-    avg_budget: &mut AvgBudget,
+    avg_budget: &mut RungCapBudget,
 ) -> Result<FixReport, FixConcernError> {
     let (rule_id, concern_id) = key
         .split_once('/')
@@ -151,11 +151,12 @@ pub async fn fix_concern(
     let target_files = detect::target_files_from_violations(&initial);
 
     let pipeline_config =
-        config::build_pipeline_config(&meta, cwd.to_path_buf(), target_files.clone());
+        config::build_pipeline_config(&meta, cwd.to_path_buf(), target_files.clone())
+            .map_err(FixConcernError::Pipeline)?;
 
     let deps = PipelineDeps {
         detect: detect::build_detect_fn(key.to_string(), cwd.to_path_buf(), files_owned.clone()),
-        t0: t0::build_t0_fn(key, cwd, files),
+        t0: t0::build_t0_step(key, cwd, files),
         attempt: attempt::build_attempt_fn(
             rule_id.to_string(),
             cwd.to_path_buf(),

@@ -211,8 +211,7 @@ fn skill_runner_is_native(rest: &[String]) -> bool {
     let (Some(runner), Some(skill)) = (rest.first(), rest.get(1)) else {
         return false;
     };
-    matches!(runner.as_str(), "pi" | "cursor" | "codex" | "goose")
-        && !skill_cmd::is_orchestrated(skill)
+    matches!(runner.as_str(), "pi" | "cursor" | "codex") && !skill_cmd::is_orchestrated(skill)
 }
 
 /// Чи бере native-шлях гілку `skill <id> …` (друк промпта без LLM).
@@ -223,7 +222,7 @@ fn skill_prompt_is_native(rest: &[String]) -> bool {
     rest.first().is_some_and(|first| {
         !matches!(
             first.as_str(),
-            "pi" | "cursor" | "codex" | "goose" | "claude" | "list"
+            "pi" | "cursor" | "codex" | "claude" | "list"
         )
     })
 }
@@ -321,7 +320,7 @@ mod tests {
     fn runner_branch_is_native_except_orchestrated_and_claude() {
         let args = |parts: &[&str]| parts.iter().map(|s| (*s).to_string()).collect::<Vec<_>>();
 
-        for runner in ["pi", "cursor", "codex", "goose"] {
+        for runner in ["pi", "cursor", "codex"] {
             assert!(
                 skill_runner_is_native(&args(&[runner, "lint"])),
                 "{runner}: звичайний скіл має йти нативно"
@@ -354,7 +353,7 @@ mod tests {
             skill_prompt_is_native(&arg("n-taze")),
             "оркестрований скіл БЕЗ раннера — це лише друк промпта, без конвеєра"
         );
-        for reserved in ["pi", "cursor", "codex", "goose", "claude", "list"] {
+        for reserved in ["pi", "cursor", "codex", "claude", "list"] {
             assert!(
                 !skill_prompt_is_native(&arg(reserved)),
                 "{reserved} — не id скіла"
