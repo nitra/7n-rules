@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.3.1] - 2026-08-19
+
+### Changed
+
+- дозволено preinstalled ci-tools у lint-ga policy
+
 ## [2.3.0] - 2026-08-01
 
 ### Added
