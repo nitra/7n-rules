@@ -11,7 +11,6 @@
     "@7n/rules-lang-rust",
     "@7n/rules-lang-js",
     "@7n/rules-lang-php",
-    "@7n/llm-lib",
     "vue",
     "jscpd",
     "stylelint"
@@ -96,20 +95,6 @@
       ],
       "entry": [
         "stryker.config.mjs"
-      ]
-    },
-    "llm-lib": {
-      "entry": [
-        "lib/*.mjs",
-        "tests/**/*.test.mjs",
-        "stryker.config.mjs"
-      ],
-      "project": [
-        "**/*.mjs"
-      ],
-      "ignoreDependencies": [
-        "@earendil-works/pi-coding-agent",
-        "@earendil-works/pi-ai"
       ]
     },
     "plugins/ci-github": {

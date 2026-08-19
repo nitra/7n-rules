@@ -6,7 +6,6 @@
   "workspaces": [
     "npm",
     "demo",
-    "llm-lib",
     "plugins/ci-github",
     "plugins/ci-azure",
     "plugins/lang-python",

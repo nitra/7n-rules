@@ -23,8 +23,6 @@
     "demo/stryker-vue-macros-ignorer.mjs",
     "npm/skills/llm-patch/SKILL.md",
     "npm/skills/wasm-plugin/template/build.sh",
-    "llm-lib/tests/native-packages.test.mjs",
-    "llm-lib/lib/internal/native.mjs",
     "plugins/lang-js/rules/js-mssql/lib/mssql-pool-scan.mjs",
     "npm/rules/k8s/manifests/main.mjs",
     "npm/rules/k8s/manifests/tests/check-schema.test.mjs",

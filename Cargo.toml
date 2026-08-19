@@ -1,7 +1,6 @@
 [workspace]
 resolver = "2"
 members = [
-  "llm-lib/crates/llm-lib-napi",
   "crates/rules-core",
   "crates/rules-fix",
   "crates/rules-napi",
@@ -78,7 +77,7 @@ members = [
 # - `lto = "thin"` — −95 541 байт (−3,8 %), `lto = "fat"` — −269 655 байт
 #   (−10,8 %). Обидва вимагають `[profile.release]` НА ВЕСЬ workspace (Cargo
 #   не бере `lto` в per-package override, див. абзац вище) — тобто fat-LTO для
-#   `llm-lib`, `rules-napi` і `rules-cli` теж, із відповідним часом release-
+#   `rules-napi` і `rules-cli` теж, із відповідним часом release-
 #   збірок у CI. Свідомо НЕ вмикаємо: потрібний запас уже дав зріз невживаних
 #   feature-ів залежностей (`crates/plugin-lang-js/Cargo.toml`, доккоменти
 #   `regex` і `oxc_parser`) — це резерв на потім із відомою ціною.
