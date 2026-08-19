@@ -54,6 +54,13 @@ pub fn build_pipeline_config(
         // рунги або вже є, або вже прибрані.
         local_rungs: true,
         egress: EgressPolicy::AllowCloud,
+        // Виміряно живцем (2026-08-19, gemma-4-26b-a4b-it,
+        // changelog/presence): з дефолтними 6 ходами локальний рунг згорає
+        // на розвідці (6 × ls, жодного запису), з 20 — закриває порушення З
+        // ПЕРШОГО рунга (14 ходів: розвідка + запис + verify). Вміщення
+        // тримається навіть без оголошеної capability: 2500 + 20×1024 < 32k.
+        // Env-оверрайд N_LLM_FIX_TURN_CEILING лишається понад цим.
+        turns: 20,
         ..FixPolicy::default()
     };
 
