@@ -315,7 +315,7 @@ fn find_pi_cmd(cwd: &Path) -> Option<String> {
 
 /// Інформативний (завжди "pass", доккомент модуля) статус capture-бекенду —
 /// точний функціональний порт `checkCaptureBackendAvailable`
-/// (`main.mjs:271-295`), включно з `resolveModel('min')`/`isLocalModel`
+/// (`main.mjs:271-295`), включно з `resolveModel` (плоский `Tier::Local`)/`isLocalModel`
 /// (`llm_lib::tiers::resolve_model`/`is_local_model` — Р9 спеки).
 #[must_use]
 pub fn capture_backend_status(cwd: &Path) -> String {
@@ -326,7 +326,7 @@ pub fn capture_backend_status(cwd: &Path) -> String {
         backend
     };
     let pi_cmd = find_pi_cmd(cwd);
-    let resolved_model = resolve_model(Tier::Min);
+    let resolved_model = resolve_model(Tier::Local);
     let has_env_pi_model = std::env::var("CAPTURE_DECISIONS_PI_MODEL")
         .map(|v| !v.is_empty())
         .unwrap_or(false);
@@ -342,7 +342,7 @@ pub fn capture_backend_status(cwd: &Path) -> String {
             format!("pi знайдено ({cmd}), локальна модель сконфігурована")
         }
         Some(cmd) => format!(
-            "pi знайдено ({cmd}), але CAPTURE_DECISIONS_PI_MODEL/N_LOCAL_MIN_MODEL не задано — capture skipне"
+            "pi знайдено ({cmd}), але CAPTURE_DECISIONS_PI_MODEL/N_LOCAL_MODEL не задано — capture skipне"
         ),
         None => "pi не знайдено (root .bin, nested @7n/rules .bin, PATH) — capture skipне"
             .to_string(),

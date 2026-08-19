@@ -1,3 +1,4 @@
+//! cspell:ignore ttft
 //! `PipelineDeps::attempt` — обгортка над `llm_lib::fix::runner::run_attempt`
 //! для одного concern-а: крок 2 задачі (частина `attempt`).
 //!
@@ -12,33 +13,19 @@
 //! Бойовий міст для цього — `WriteGuard::with_on_capture` (доккомент
 //! `snapshot.rs`, розділ «Міст між рівнями»).
 //!
-//! Але `llm_lib::fix::runner::run_attempt` будує СВІЙ ВЛАСНИЙ `WriteGuard`
-//! усередині (`WriteGuard::new(req.cwd.clone())`, без `.with_on_capture`) і
-//! НЕ приймає ні готовий guard, ні callback ззовні — його сигнатура
-//! (`req: &FixRequest, deps: FixDeps, tools: ToolServerHandle`) не лишає
-//! точки ін'єкції. Тобто зовнішній `ctx.capture` із цього крейта
-//! технічно немає куди під'єднати без зміни API `run_attempt` — а міняти
-//! `llm-lib` тут заборонено (див. звіт задачі, пункт «що лишилось
-//! незробленим»/«запропонований API»).
+//! `run_attempt` (0.3: `req, deps, tools, journal`) приймає callback через
+//! `FixDeps::on_capture` — сюди й підключається `ctx.capture` (див.
+//! `build_attempt_fn` нижче). Історична прогалина «сигнатура не лишає точки
+//! ін'єкції» закрита ще в 0.2.x додаванням `on_capture`; абзац лишається як
+//! пояснення, ЧОМУ хук існує.
 //!
-//! Наслідок: cross-file collateral-veto (файл ПОЗА `target_files`, якого
-//! торкнулась ця спроба) наразі не працює — не тому, що цей крейт про нього
-//! забув, а тому, що `run_attempt` не дає для нього гачка. In-file
-//! hunk-window veto (правки ВСЕРЕДИНІ `target_files`) НЕ постраждав: ці
-//! файли вже мають pre-image у S1, знятому `run_fix` (`pipeline.rs`) ДО
-//! першого рангу драбини — до виклику цього модуля справа не доходить.
-//! `ctx.capture` тут навмисно НЕ викликається заднім числом (після того, як
-//! `run_attempt` уже повернувся): це дало б хибний, ЩЕ гірший результат —
-//! `Snapshot::record` зняв би як «pre-image» вже ЗМІНЕНИЙ вміст, і
-//! collateral-veto не просто мовчав би, а стверджував би «змін нема» на
-//! файлі, що насправді змінено.
 
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use llm_lib::fix::ladder::RungTier;
-use llm_lib::fix::pipeline::{AttemptContext, AttemptFn};
+use harness::ladder::RungTier;
+use harness::pipeline::{AttemptContext, AttemptFn};
 use llm_lib::fix::runner::run_attempt;
 use llm_lib::fix::tools::build_toolset;
 use llm_lib::fix::{EditMode, FixDeps, FixRequest};
@@ -84,17 +71,43 @@ fn verify_max(local: bool) -> usize {
     }
 }
 
-/// Env-ключ стелі output-токенів на хід (`FixRequest::max_tokens`).
+/// Env-ключ стелі output-токенів на хід (`FixRequest::output_ceiling`).
 const MAX_TOKENS_ENV: &str = "N_LLM_FIX_MAX_TOKENS";
 
-/// Стеля output-токенів на хід: `None` — консервативний дефолт циклу.
-/// Виноситься назовні, бо потрібне значення залежить від моделі й контексту
-/// сервера: те, що рятує 4B від розгону, обрізає багатофайловий фікс на 26B.
-fn max_tokens() -> Option<u64> {
+/// Стеля output-токенів на хід — тепер ЗАВЖДИ зі значенням (поле перестало
+/// бути `Option`): env-оверрайд або дефолт політики (`FixPolicy`), окремий
+/// для local/cloud. Виноситься назовні, бо потрібне значення залежить від
+/// моделі: те, що рятує 4B від розгону, обрізає багатофайловий фікс на 26B.
+fn output_ceiling(local: bool) -> u64 {
     std::env::var(MAX_TOKENS_ENV)
         .ok()
         .and_then(|value| value.parse::<u64>().ok())
         .filter(|&value| value > 0)
+        .unwrap_or_else(|| {
+            let policy = llm_lib::budget::FixPolicy::default();
+            if local {
+                policy.output_ceiling
+            } else {
+                policy.cloud_output_ceiling
+            }
+        })
+}
+
+/// Вікно контексту рунга — вхід валідації вміщення (§3.3 спеки harness).
+/// Локальний рунг — з capability локального сервера; хмарний — з таблиці
+/// відомих моделей. Невідоме вікно → консервативні 32k: краще занизити
+/// стелю tool-результатів, ніж запланувати промпт, який не влізе.
+fn rung_context(local: bool, tier: Tier) -> u64 {
+    const CONSERVATIVE_CONTEXT: u64 = 32_768;
+    if local {
+        llm_lib::budget::local_capability()
+            .map(|c| c.context)
+            .unwrap_or(CONSERVATIVE_CONTEXT)
+    } else {
+        llm_lib::budget::cloud_capability(tier)
+            .context
+            .unwrap_or(CONSERVATIVE_CONTEXT)
+    }
 }
 
 /// Env-ключ температури генерації (`FixRequest::temperature`).
@@ -115,25 +128,56 @@ fn temperature() -> Option<f64> {
         .filter(|value| value.is_finite() && *value >= 0.0)
 }
 
-/// Мапить тир рангу драбини (`RungTier`, конкретний рівень ескалації) на
-/// грубий `llm_lib::tiers::Tier` (`Min`/`Avg`/`Max`), який читає
-/// `run_attempt` для резолву моделі.
-///
-/// **Неточність мапінгу** (звіт задачі): `run_attempt` резолвить модель
-/// НАНОВО через `crate::tiers::resolve_model(tier)` (каскад від `Tier`,
-/// стартує з ЛОКАЛЬНОЇ сходинки того самого рівня), а НЕ бере вже готовий
-/// `Rung::model` із драбини (`resolve_ladder_models`/`build_ladder`,
-/// `ladder.rs`). Для `CloudMin`/`CloudAvg` це не гарантує ту саму модель,
-/// яку побудувала драбина: якщо в env заданий і `N_LOCAL_AVG_MODEL`, рунг
-/// `CloudMin` (мапиться в `Tier::Avg`) пішов би на ЛОКАЛЬНУ `avg`-модель
-/// замість хмарної `cloud-min`. Точний фікс вимагає зміни API
-/// `run_attempt`/`FixRequest` (прийняти вже резолвлений
-/// `"provider/model-id"` напряму, а не тир) — поза межами цього крейта.
+/// Мапить тир рунга драбини на плоский `llm_lib::tiers::Tier` — 1:1, без
+/// каскаду. Стара «неточність мапінгу» (каскадний `resolve_model` міг
+/// завезти cloud-рунг на локальну модель) померла разом із каскадом:
+/// плоский `Tier` (0.3) зробив відповідність точною за побудовою.
 fn rung_tier_to_llm_tier(tier: RungTier) -> Tier {
     match tier {
-        RungTier::LocalMin | RungTier::LocalMinRetry => Tier::Min,
-        RungTier::CloudMin => Tier::Avg,
-        RungTier::CloudAvg => Tier::Max,
+        RungTier::Local | RungTier::LocalRetry => Tier::Local,
+        RungTier::CloudMin => Tier::CloudMin,
+        RungTier::CloudAvg => Tier::CloudAvg,
+        RungTier::CloudMax => Tier::CloudMax,
+    }
+}
+
+/// Журнальний ідентифікатор рунга — той самий словник, що всередині
+/// `harness::pipeline` (там функція приватна, копія неминуча; словник
+/// закритий константами `RungId`, тож дрейф зловить компілятор).
+fn rung_id_for(tier: RungTier) -> llm_lib::journal::RungId {
+    use llm_lib::journal::RungId;
+    match tier {
+        RungTier::Local => RungId::LOCAL,
+        RungTier::LocalRetry => RungId::LOCAL_RETRY,
+        RungTier::CloudMin => RungId::CLOUD_MIN,
+        RungTier::CloudAvg => RungId::CLOUD_AVG,
+        RungTier::CloudMax => RungId::CLOUD_MAX,
+    }
+}
+
+/// Провальний outcome валідації вміщення (§3.3) — жодного HTTP-виклику ще
+/// не було, тож усі лічильники нульові, а причина — `ProviderError` з
+/// текстом для журналу. Окремою функцією, бо `FixOutcome` виріс до 17 полів
+/// і literal на місці ховав би єдине змістовне: `error`.
+fn fit_error_outcome(message: String) -> llm_lib::fix::FixOutcome {
+    llm_lib::fix::FixOutcome {
+        ok: false,
+        touched_files: Vec::new(),
+        edit_log: Vec::new(),
+        turns: 0,
+        tool_calls: 0,
+        elapsed_ms: 0,
+        empty_completion: true,
+        stop_reason: llm_lib::fix::StopReason::ProviderError,
+        error: Some(message),
+        verify_attempts: 0,
+        prompt_tokens: None,
+        completion_tokens: None,
+        cached_tokens: None,
+        reasoning_tokens: None,
+        compacted: false,
+        compaction_input_tokens: None,
+        compaction_output_tokens: None,
     }
 }
 
@@ -154,7 +198,7 @@ fn violation_text(ctx: &AttemptContext) -> String {
     lines.join("\n")
 }
 
-/// Складає [`PipelineDeps::attempt`](llm_lib::fix::pipeline::PipelineDeps::attempt)
+/// Складає [`PipelineDeps::attempt`](harness::pipeline::PipelineDeps::attempt)
 /// — обгортку над [`run_attempt`] для одного concern-а: `FixRequest`
 /// збирається з `AttemptContext` (тир/таймаут/фідбек/порушення рангу),
 /// toolset — з [`build_toolset`] (базовий профіль, без anchored-правок:
@@ -186,7 +230,29 @@ pub fn build_attempt_fn(
                 // набором. Без нього cross-file collateral-veto сліпий.
                 on_capture: Some(Arc::clone(&ctx.capture)),
             };
-            let toolset = build_toolset(cwd.clone(), &deps, false);
+            let tier = rung_tier_to_llm_tier(ctx.rung.tier);
+            let turns = turn_ceiling();
+            let out_ceiling = output_ceiling(ctx.rung.local);
+            let context = rung_context(ctx.rung.local, tier);
+            // Валідація вміщення ДО HTTP-виклику (§3.3): промпт, що не
+            // вміщається у вікно, — провальний outcome із причиною, а не
+            // тихий дефолт і не паніка.
+            let tool_ceiling = match llm_lib::budget::tool_result_ceiling(
+                context,
+                llm_lib::budget::CONSERVATIVE_BASE_TOKENS,
+                turns,
+                out_ceiling,
+                &llm_lib::budget::Rates::from_env(),
+            ) {
+                Ok(value) => value,
+                Err(err) => {
+                    return fit_error_outcome(format!(
+                        "бюджет рунга не вміщається у вікно контексту ({context}): {err}"
+                    ));
+                }
+            };
+
+            let toolset = build_toolset(cwd.clone(), &deps, false, tool_ceiling);
             let handle = ToolServer::new().run();
             handle.append_toolset(toolset).await;
 
@@ -194,23 +260,47 @@ pub fn build_attempt_fn(
                 rule_id,
                 violation_text: violation_text(&ctx),
                 fix_hint,
+                temperature: temperature(),
                 target_files,
                 cwd,
-                tier: rung_tier_to_llm_tier(ctx.rung.tier),
+                tier,
+                rung: rung_id_for(ctx.rung.tier),
                 // Модель бере драбина, не каскад: інакше рунг `cloud-min` міг
                 // би піти на локальну модель, бо `resolve_model` завжди
                 // починає з local.
                 model: Some(ctx.rung.model.clone()),
                 timeout: Duration::from_millis(ctx.rung.timeout_ms),
-                turn_ceiling: turn_ceiling(),
-                max_tokens: max_tokens(),
-                temperature: temperature(),
+                turn_ceiling: turns,
                 verify_max: verify_max(ctx.rung.local),
+                output_ceiling: out_ceiling,
+                tool_result_ceiling: tool_ceiling,
                 anchored_edits: false,
                 edit_mode: EditMode::Generic,
+                // Бойовий attempt, не калібрувальний прохід — доккоментар
+                // поля прямо вимагає явного вибору викликача.
+                ttft_calibration: false,
+                context,
+                has_next_rung: ctx.has_next_rung,
             };
 
-            run_attempt(&req, deps, handle).await
+            // Журнал — СПІЛЬНИЙ для всього concern-а (створює run_fix);
+            // події рунга пише runner, але в той самий екземпляр. Guard
+            // std-м'ютекса через `await` зробив би future !Send (а BoxFuture
+            // вимагає Send), тож журнал ЗАБИРАЄТЬСЯ з м'ютекса на час
+            // attempt-у й повертається після — безпечно, бо run_fix awaited
+            // цю функцію послідовно й сам у цей час журнал не чіпає.
+            let mut journal = {
+                let mut guard = ctx
+                    .journal
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                std::mem::replace(&mut *guard, llm_lib::journal::Journal::new())
+            };
+            let outcome = run_attempt(&req, deps, handle, &mut journal).await;
+            *ctx.journal
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = journal;
+            outcome
         })
     })
 }
@@ -218,20 +308,32 @@ pub fn build_attempt_fn(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use llm_lib::fix::ladder::Rung;
-    use llm_lib::fix::pipeline::Violation as PipelineViolation;
+    use harness::ladder::Rung;
+    use harness::pipeline::Violation as PipelineViolation;
     use std::sync::Arc as StdArc;
 
+    /// Плоский мапінг 1:1 — обидва локальні рунги в `Tier::Local`, хмарні
+    /// без зсуву. Стара «неточність мапінгу» (cloud-рунг через каскад міг
+    /// заїхати на локальну модель) стала непредставимою.
     #[test]
-    fn local_rungs_map_to_min_tier() {
-        assert_eq!(rung_tier_to_llm_tier(RungTier::LocalMin), Tier::Min);
-        assert_eq!(rung_tier_to_llm_tier(RungTier::LocalMinRetry), Tier::Min);
+    fn rung_tiers_map_flat_one_to_one() {
+        assert_eq!(rung_tier_to_llm_tier(RungTier::Local), Tier::Local);
+        assert_eq!(rung_tier_to_llm_tier(RungTier::LocalRetry), Tier::Local);
+        assert_eq!(rung_tier_to_llm_tier(RungTier::CloudMin), Tier::CloudMin);
+        assert_eq!(rung_tier_to_llm_tier(RungTier::CloudAvg), Tier::CloudAvg);
+        assert_eq!(rung_tier_to_llm_tier(RungTier::CloudMax), Tier::CloudMax);
     }
 
+    /// Журнальні id — той самий словник, що в `harness::pipeline` (копія
+    /// приватної функції; дрейф словника зловить цей тест).
     #[test]
-    fn cloud_rungs_map_to_avg_and_max_tier() {
-        assert_eq!(rung_tier_to_llm_tier(RungTier::CloudMin), Tier::Avg);
-        assert_eq!(rung_tier_to_llm_tier(RungTier::CloudAvg), Tier::Max);
+    fn rung_ids_match_journal_dictionary() {
+        use llm_lib::journal::RungId;
+        assert_eq!(rung_id_for(RungTier::Local), RungId::LOCAL);
+        assert_eq!(rung_id_for(RungTier::LocalRetry), RungId::LOCAL_RETRY);
+        assert_eq!(rung_id_for(RungTier::CloudMin), RungId::CLOUD_MIN);
+        assert_eq!(rung_id_for(RungTier::CloudAvg), RungId::CLOUD_AVG);
+        assert_eq!(rung_id_for(RungTier::CloudMax), RungId::CLOUD_MAX);
     }
 
     fn rung(tier: RungTier) -> Rung {
@@ -239,8 +341,7 @@ mod tests {
             tier,
             model: "fake/model".to_string(),
             feedback: false,
-            local: matches!(tier, RungTier::LocalMin | RungTier::LocalMinRetry),
-            is_avg: false,
+            local: matches!(tier, RungTier::Local | RungTier::LocalRetry),
             timeout_ms: 1000,
         }
     }
@@ -248,9 +349,11 @@ mod tests {
     fn ctx(violations: Vec<PipelineViolation>, feedback: Option<String>) -> AttemptContext {
         AttemptContext {
             capture: StdArc::new(|_path| {}),
-            rung: rung(RungTier::LocalMin),
+            rung: rung(RungTier::Local),
             feedback,
             violations,
+            journal: StdArc::new(std::sync::Mutex::new(llm_lib::journal::Journal::new())),
+            has_next_rung: true,
         }
     }
 

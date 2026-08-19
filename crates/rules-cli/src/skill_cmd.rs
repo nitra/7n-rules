@@ -36,8 +36,7 @@
 use std::path::Path;
 use std::process::ExitCode;
 
-use llm_lib::acp::AcpAgentKind;
-use llm_lib::tiers::Tier;
+use llm_lib::acp::{AcpAgentKind, Strength};
 
 use crate::js_fallback;
 
@@ -48,25 +47,29 @@ use crate::js_fallback;
 /// віддати їх JS, ніж підмінити конвеєр одним ходом і мовчки втратити кроки.
 const ORCHESTRATED_SKILLS: [&str; 2] = ["taze", "git-reconcile"];
 
-/// Раннер CLI → ACP-kind. `claude` свідомо відсутній: у JS це deprecated
-/// JS-шим, якого Rust не моделює (доккомент `runLlmCli`), і його шлях
-/// лишається делегованим.
+/// Раннер CLI → ACP-kind. `claude` свідомо відсутній (legacy-ім'я, usage
+/// друкує JS — доккомент роутера в `main.rs`); `goose` прибрано слідом за
+/// `llm-lib` 0.3 (рішення Ч спеки `2026-08-17-n7n-harness-local-models.md`):
+/// він був єдиним kind-ом, чий пресет резолвив модель із env, і ця
+/// асиметрія зламала розчеплення `Strength`/`Tier`.
 fn runner_kind(runner: &str) -> Option<AcpAgentKind> {
     match runner {
         "pi" => Some(AcpAgentKind::Pi),
         "cursor" => Some(AcpAgentKind::Cursor),
         "codex" => Some(AcpAgentKind::Codex),
-        "goose" => Some(AcpAgentKind::Goose),
         _ => None,
     }
 }
 
-/// Тир скіла (рядок із `main.json`) → [`Tier`] драбини моделей.
-fn tier_from_name(tier: &str) -> Tier {
+/// Тир скіла (рядок із `main.json`) → [`Strength`] — сила моделі всередині
+/// обраного агента. Саме `Strength`, не `Tier`: «наскільки сильна модель»
+/// і «де рахується/за чий рахунок» — два різні питання (рішення Б тієї ж
+/// спеки), і `main.json.tier` скіла завжди означав перше.
+fn strength_from_name(tier: &str) -> Strength {
     match tier {
-        "min" => Tier::Min,
-        "avg" => Tier::Avg,
-        _ => Tier::Max,
+        "min" => Strength::Min,
+        "avg" => Strength::Avg,
+        _ => Strength::Max,
     }
 }
 
@@ -121,8 +124,8 @@ pub fn run_prompt(raw_skill_name: &str, task: &str) -> ExitCode {
 
 /// `skill <runner> <id> ["task"]` — виконує скіл зовнішнім ACP-агентом.
 ///
-/// Тир бере з `main.json` скіла (дефолт `max`) і передає в
-/// [`llm_lib::acp::one_shot_acp_with_tier`] — той самий шлях класу 2 для всіх
+/// Силу моделі бере з `main.json` скіла (дефолт `max`) і передає в
+/// [`llm_lib::acp::one_shot_acp_with_strength`] — той самий шлях класу 2 для всіх
 /// kind-ів. До цього зрізу `pi` йшов окремою JS-гілкою
 /// (`@7n/llm-lib/agent-skill`), а `cursor`/`codex` — через napi-міст із JS;
 /// тепер це один контур без стрибка через JS.
@@ -145,11 +148,11 @@ pub fn run_runner(runner: &str, raw_skill_name: &str, task: &str) -> ExitCode {
         Ok(prompt) => prompt,
         Err(message) => return fail(&message),
     };
-    let tier = tier_from_name(&rules_core::skills::skill_tier(
+    let strength = strength_from_name(&rules_core::skills::skill_tier(
         &skills_root.join(&skill_id),
     ));
 
-    match run_blocking(kind, tier, &prompt, &project_dir) {
+    match run_blocking(kind, strength, &prompt, &project_dir) {
         Ok(output) => {
             print!("{output}");
             if !output.ends_with('\n') {
@@ -171,7 +174,7 @@ pub fn is_orchestrated(raw_skill_name: &str) -> bool {
 /// `fix_cmd::run_blocking`: решта native-команд синхронна).
 fn run_blocking(
     kind: AcpAgentKind,
-    tier: Tier,
+    strength: Strength,
     prompt: &str,
     cwd: &Path,
 ) -> Result<String, String> {
@@ -180,8 +183,8 @@ fn run_blocking(
         .build()
         .map_err(|error| format!("не вдалося створити async-рантайм: {error}"))?;
     runtime
-        .block_on(llm_lib::acp::one_shot_acp_with_tier(
-            kind, tier, prompt, cwd,
+        .block_on(llm_lib::acp::one_shot_acp_with_strength(
+            kind, strength, prompt, cwd,
         ))
         .map_err(|error| error.to_string())
 }

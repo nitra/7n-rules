@@ -1,7 +1,7 @@
 //! `FixDeps::verify` для одного attempt-у: канонічний повторний прогін
 //! `run_concern` + test-gate (`compose_verify_report`) — крок 4 задачі.
 //!
-//! Порядок і fail-open семантику бере готовими `llm_lib::fix::test_gate`
+//! Порядок і fail-open семантику бере готовими `harness::test_gate`
 //! (доккомент `test_gate.rs`): цей модуль лише постачає йому «канонічний»
 //! бік (`VerifyReport` реального детектора), самої логіки composed-вердикту
 //! тут немає.
@@ -9,7 +9,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use llm_lib::fix::test_gate::compose_verify_report;
+use harness::test_gate::compose_verify_report;
 use llm_lib::fix::{BoxFuture, VerifyReport};
 use rules_core::concerns::run_concern;
 

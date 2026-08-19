@@ -12,10 +12,10 @@
 
 use std::path::Path;
 
-use llm_lib::fix::ladder::AvgBudget;
-use llm_lib::fix::pipeline::PipelineOutcome;
+use harness::ladder::RungCapBudget;
+use harness::pipeline::PipelineOutcome;
 
-/// Той самий перелік, що читає `llm_lib::fix::ladder::resolve_ladder_models`
+/// Той самий перелік, що читає `harness::ladder::resolve_ladder_models`
 /// (`local_min`/`local_avg`/`local_max`/`cloud_min`/`cloud_avg`/`cloud_max`
 /// у `tiers.rs`) — якщо жодної не задано, драбина будь-якого concern-а
 /// гарантовано порожня.
@@ -75,7 +75,7 @@ async fn resolves_concern_meta_and_target_files_without_any_network_call() {
     // concern читає лише корінь `cwd`, де ми окремо кладемо порушення.
     std::fs::write(tmp.path().join(".prettierrc"), "{}").expect("написати заборонений конфіг");
 
-    let mut avg = AvgBudget::new(1);
+    let mut avg = RungCapBudget::new();
     let report = rules_fix::fix_concern(key, tmp.path(), None, &mut avg)
         .await
         .expect("concern.json валідний, детектор без збоїв");
@@ -99,7 +99,7 @@ async fn reports_clean_when_the_concern_has_nothing_to_fix() {
     let key = "text/forbidden-prettier";
     write_fake_package_with_concern(tmp.path(), key);
 
-    let mut avg = AvgBudget::new(1);
+    let mut avg = RungCapBudget::new();
     let report = rules_fix::fix_concern(key, tmp.path(), None, &mut avg)
         .await
         .expect("concern.json валідний, детектор без збоїв");
@@ -110,7 +110,7 @@ async fn reports_clean_when_the_concern_has_nothing_to_fix() {
 #[tokio::test]
 async fn invalid_key_is_rejected_before_any_filesystem_lookup() {
     let tmp = tempfile::tempdir().expect("tempdir");
-    let mut avg = AvgBudget::new(1);
+    let mut avg = RungCapBudget::new();
 
     let error = rules_fix::fix_concern("не-має-слеша", tmp.path(), None, &mut avg)
         .await
@@ -128,7 +128,7 @@ async fn missing_concern_json_is_reported() {
         r#"{ "name": "@7n/rules" }"#,
     )
     .expect("написати npm/package.json");
-    let mut avg = AvgBudget::new(1);
+    let mut avg = RungCapBudget::new();
 
     let error = rules_fix::fix_concern("text/forbidden-prettier", tmp.path(), None, &mut avg)
         .await

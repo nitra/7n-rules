@@ -12,8 +12,8 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-use llm_lib::fix::ladder::{AvgBudget, Rung, RungTier};
-use llm_lib::fix::pipeline::{
+use harness::ladder::{Rung, RungCapBudget, RungTier};
+use harness::pipeline::{
     run_fix, AttemptContext, AttemptFn, Fixability, PipelineConfig, PipelineDeps, PipelineOutcome,
 };
 use llm_lib::fix::{FixOutcome, StopReason};
@@ -24,13 +24,34 @@ use rules_fix::detect::build_detect_fn;
 /// взагалі не читає, лише виправляє файл напряму.
 fn one_rung() -> Vec<Rung> {
     vec![Rung {
-        tier: RungTier::LocalMin,
+        tier: RungTier::Local,
         model: "fake/model".to_string(),
         feedback: false,
         local: true,
-        is_avg: false,
         timeout_ms: 5_000,
     }]
+}
+
+/// `PipelineConfig` тесту: один фейковий рунг і консервативні бюджети — все,
+/// що поза перевірюваним (detect/attempt), нейтральне.
+fn test_config(cwd: PathBuf, target_files: Vec<PathBuf>) -> PipelineConfig {
+    PipelineConfig {
+        cwd,
+        target_files,
+        fixability: Fixability::Code,
+        ladder: one_rung(),
+        // `FixPolicy::default()` має `local_rungs: false` — внутрішнє
+        // звуження run_fix викинуло б єдиний (локальний) тест-рунг.
+        policy: llm_lib::budget::FixPolicy {
+            local_rungs: true,
+            ..llm_lib::budget::FixPolicy::default()
+        },
+        rates: llm_lib::budget::Rates::from_env(),
+        local_capability: None,
+        base_tokens: llm_lib::budget::CONSERVATIVE_BASE_TOKENS,
+        caller: "rules-fix-test".to_string(),
+        chain_id: None,
+    }
 }
 
 /// Фейковий виконавець спроби: замість моделі просто видаляє
@@ -57,9 +78,18 @@ fn fake_attempt(cwd: PathBuf, calls: Arc<AtomicUsize>) -> AttemptFn {
                 edit_log: Vec::new(),
                 turns: 1,
                 tool_calls: 1,
+                elapsed_ms: 1,
                 empty_completion: false,
                 stop_reason: StopReason::Completed,
                 error: None,
+                verify_attempts: 0,
+                prompt_tokens: None,
+                completion_tokens: None,
+                cached_tokens: None,
+                reasoning_tokens: None,
+                compacted: false,
+                compaction_input_tokens: None,
+                compaction_output_tokens: None,
             }
         })
     })
@@ -76,20 +106,15 @@ async fn real_detector_with_fake_attempt_closes_the_concern() {
     let detect = build_detect_fn(key.clone(), cwd.clone(), None);
     let calls = Arc::new(AtomicUsize::new(0));
 
-    let config = PipelineConfig {
-        cwd: cwd.clone(),
-        target_files: vec![PathBuf::from(".prettierrc")],
-        fixability: Fixability::Code,
-        ladder: one_rung(),
-    };
+    let config = test_config(cwd.clone(), vec![PathBuf::from(".prettierrc")]);
     let deps = PipelineDeps {
         detect,
         t0: None,
         attempt: fake_attempt(cwd.clone(), Arc::clone(&calls)),
     };
-    let mut avg = AvgBudget::new(1);
+    let mut caps = RungCapBudget::new();
 
-    let report = run_fix(&config, deps, &mut avg)
+    let report = run_fix(&config, deps, &mut caps)
         .await
         .expect("петля fix не має повертати помилку — детектор без збоїв");
 
@@ -109,20 +134,15 @@ async fn real_detector_reports_clean_when_nothing_to_fix() {
     let detect = build_detect_fn("text/forbidden-prettier".to_string(), cwd.clone(), None);
     let calls = Arc::new(AtomicUsize::new(0));
 
-    let config = PipelineConfig {
-        cwd: cwd.clone(),
-        target_files: Vec::new(),
-        fixability: Fixability::Code,
-        ladder: one_rung(),
-    };
+    let config = test_config(cwd.clone(), Vec::new());
     let deps = PipelineDeps {
         detect,
         t0: None,
         attempt: fake_attempt(cwd, Arc::clone(&calls)),
     };
-    let mut avg = AvgBudget::new(1);
+    let mut caps = RungCapBudget::new();
 
-    let report = run_fix(&config, deps, &mut avg)
+    let report = run_fix(&config, deps, &mut caps)
         .await
         .expect("петля fix не має повертати помилку");
 
