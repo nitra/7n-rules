@@ -31,6 +31,7 @@ mod capacitor_platforms;
 mod cargo_workspace;
 mod change_file;
 mod changelog_presence;
+mod cspell_fix;
 pub(crate) mod cursor_ignore;
 mod dremio_logging;
 mod env_dns;
@@ -108,6 +109,10 @@ mod text_formatting;
 mod workspaces;
 
 pub use batch::{run_concerns_batch, BatchItem, BatchItemResult};
+pub use cspell_fix::{
+    append_words_to_dict, classify_prompt, detect_cspell, parse_classify, unknown_words, CspellRun,
+    MAX_CLASSIFY_WORDS,
+};
 pub use fix::{run_concern_fix, FileEdit, FixPlan, WriteFile, NATIVE_FIXES};
 
 pub use abie_hc_pairing::hc_pairing as abie_hc_pairing;
@@ -152,6 +157,7 @@ pub use text_formatting::text_formatting;
 /// використати ключ registry напряму без додаткового мапінгу.
 pub const NATIVE_CONCERNS: &[&str] = &[
     "text/forbidden-prettier",
+    "text/cspell-fix",
     "security/sample_secret",
     "k8s/dremio_logging",
     "rego/tooling",
@@ -200,6 +206,7 @@ pub fn run_concern(
 ) -> Result<Vec<Violation>, RulesError> {
     match key {
         "text/forbidden-prettier" => Ok(forbidden_prettier(cwd)),
+        "text/cspell-fix" => Ok(cspell_fix::cspell_fix(cwd, files)),
         "security/sample_secret" => Ok(sample_secret(cwd)),
         "k8s/dremio_logging" => Ok(dremio_logging(cwd, files)),
         "rego/tooling" => Ok(rego_tooling(cwd)),
@@ -244,11 +251,11 @@ mod tests {
     /// `Lint repo-wide`), не додаючи нічого до сили перевірки — будь-яка зміна
     /// складу чи порядку так само валить цей assert.
     #[test]
-    fn native_concerns_lists_all_twenty_nine_entries() {
-        assert_eq!(NATIVE_CONCERNS.len(), 29);
+    fn native_concerns_lists_all_thirty_entries() {
+        assert_eq!(NATIVE_CONCERNS.len(), 30);
         assert_eq!(
             NATIVE_CONCERNS.join(" "),
-            "text/forbidden-prettier security/sample_secret k8s/dremio_logging rego/tooling \
+            "text/forbidden-prettier text/cspell-fix security/sample_secret k8s/dremio_logging rego/tooling \
              doc-files/marksman_config abie/firebase_hosting abie/env_dns hasura/migrations \
              image-compress/package_setup tauri/cargo_mutants_config tauri/gitignore_target \
              tauri/linux_deps tauri/core_test_isolation abie/hc_pairing abie/ua_node_selector \

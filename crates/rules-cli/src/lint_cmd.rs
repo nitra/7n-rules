@@ -789,9 +789,13 @@ mod tests {
                 concern_id: "sample_secret".to_string(),
                 files: None,
             },
+            // `js/eslint` — вічний JS (programmatic npm-API в процесі,
+            // реєстр §2.2): надійна межа native/JS для цього тесту.
+            // Колишній приклад тут — `text/cspell-fix` — став native
+            // разом із портом воркера.
             PlanItem {
-                rule_id: "text".to_string(),
-                concern_id: "cspell-fix".to_string(),
+                rule_id: "js".to_string(),
+                concern_id: "eslint".to_string(),
                 files: None,
             },
         ];

@@ -142,7 +142,7 @@ fn temperature() -> Option<f64> {
 /// каскаду. Стара «неточність мапінгу» (каскадний `resolve_model` міг
 /// завезти cloud-рунг на локальну модель) померла разом із каскадом:
 /// плоский `Tier` (0.3) зробив відповідність точною за побудовою.
-fn rung_tier_to_llm_tier(tier: RungTier) -> Tier {
+pub(crate) fn rung_tier_to_llm_tier(tier: RungTier) -> Tier {
     match tier {
         RungTier::Local | RungTier::LocalRetry => Tier::Local,
         RungTier::CloudMin => Tier::CloudMin,
