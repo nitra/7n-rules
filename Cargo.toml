@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+  "crates/rules-adr",
   "crates/rules-core",
   "crates/rules-fix",
   "crates/rules-napi",

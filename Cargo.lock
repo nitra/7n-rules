@@ -5187,6 +5187,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "rules-adr"
+version = "0.1.0"
+dependencies = [
+ "n7n-llm-lib",
+ "regex",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "rules-cli"
 version = "0.1.0"
 dependencies = [
@@ -5194,6 +5205,7 @@ dependencies = [
  "libc",
  "n7n-harness",
  "n7n-llm-lib",
+ "rules-adr",
  "rules-core",
  "rules-fix",
  "serde",
