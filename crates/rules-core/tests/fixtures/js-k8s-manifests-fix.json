@@ -238,5 +238,52 @@
       "input": "kind: Service\nspec:\n  - [\n",
       "output": null
     }
+  ],
+  "kustomization-patches-sort": [
+    {
+      "label": "вже відсортовано",
+      "input": "patches:\n  - target:\n      kind: Deployment\n      name: a\n    path: p1.yaml\n  - target:\n      kind: Service\n      name: b\n    path: p2.yaml\n",
+      "output": null
+    },
+    {
+      "label": "зворотний порядок",
+      "input": "patches:\n  - target:\n      kind: Service\n      name: b\n    path: p2.yaml\n  - target:\n      kind: Deployment\n      name: a\n    path: p1.yaml\n",
+      "output": "patches:\n  - target:\n      kind: Deployment\n      name: a\n    path: p1.yaml\n  - target:\n      kind: Service\n      name: b\n    path: p2.yaml\n"
+    },
+    {
+      "label": "з коментарями",
+      "input": "# head\npatches:\n  # про сервіс\n  - target:\n      kind: Service\n      name: b\n    path: p2.yaml\n  # про деплоймент\n  - target:\n      kind: Deployment\n      name: a\n    path: p1.yaml\n",
+      "output": "# head\npatches:\n  # про сервіс\n  # про деплоймент\n  - target:\n      kind: Deployment\n      name: a\n    path: p1.yaml\n  - target:\n      kind: Service\n      name: b\n    path: p2.yaml\n"
+    },
+    {
+      "label": "хвостовий коментар",
+      "input": "patches:\n  - target:\n      kind: Service\n      name: b # тут\n    path: p2.yaml\n  - target:\n      kind: Deployment\n      name: a\n    path: p1.yaml\n# хвіст\n",
+      "output": "patches:\n  - target:\n      kind: Deployment\n      name: a\n    path: p1.yaml\n  - target:\n      kind: Service\n      name: b # тут\n    path: p2.yaml\n\n# хвіст\n"
+    },
+    {
+      "label": "один елемент",
+      "input": "patches:\n  - target:\n      kind: Service\n      name: b\n",
+      "output": null
+    },
+    {
+      "label": "немає patches",
+      "input": "resources:\n  - a.yaml\n",
+      "output": null
+    },
+    {
+      "label": "три елементи",
+      "input": "patches:\n  - target:\n      kind: Service\n      name: c\n  - target:\n      kind: Deployment\n      name: a\n  - target:\n      kind: Deployment\n      name: b\n",
+      "output": "patches:\n  - target:\n      kind: Deployment\n      name: a\n  - target:\n      kind: Deployment\n      name: b\n  - target:\n      kind: Service\n      name: c\n"
+    },
+    {
+      "label": "порожні поля",
+      "input": "patches:\n  - path: z.yaml\n  - target:\n      kind: Deployment\n      name: a\n",
+      "output": null
+    },
+    {
+      "label": "зламаний yaml",
+      "input": "patches:\n  - [\n",
+      "output": null
+    }
   ]
 }
