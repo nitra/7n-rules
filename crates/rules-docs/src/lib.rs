@@ -39,6 +39,8 @@ pub mod expected;
 pub mod gap_mappings;
 /// Детерміновані вердикти по expected-шару.
 pub mod gaps;
+/// Побудова нормалізованого knowledge-графа з мовних фрагментів.
+pub mod graph;
 /// Privacy-safe зріз впливу для однієї теми.
 pub mod impact;
 /// Планувальник bounded semantic chunks і хвиль залежностей.
@@ -56,6 +58,9 @@ pub use entailment::{verify_evidence_entailment, EntailmentInput, EntailmentOutc
 pub use expected::{apply_expected_overlay, OverlayOutcome};
 pub use gap_mappings::{compare_claim_mappings, GapMappingInput, GapMappingOutcome, Mapping};
 pub use gaps::{evaluate_gaps, Gap, GapInput, GapOutcome};
+pub use graph::{
+    build_normalized_graph, create_code_unit_id, serialize_knowledge_graph, Domain, GraphOutcome,
+};
 pub use impact::{create_impact_slice, ImpactSlice};
 pub use planner::{plan_semantic_chunks, Plan, PlanOutcome, PlannerInput, SourceText};
 pub use topics::{collect_reachable_node_ids, discover_topics, resolve_topic, Topic};

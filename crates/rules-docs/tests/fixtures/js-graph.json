@@ -1,0 +1,193 @@
+{
+  "codeUnitId": "code-unit:npm:@fixture/orders:js:src/a.mjs#submitOrder",
+  "graph": {
+    "schemaVersion": 1,
+    "domain": {
+      "ecosystem": "npm",
+      "id": "npm:@fixture/orders",
+      "name": "@fixture/orders",
+      "rootManifest": "package.json",
+      "sourceFingerprint": "domain-hash"
+    },
+    "nodes": [
+      {
+        "id": "code-unit:npm:@fixture/orders:js:src/a.mjs#persistOrder",
+        "kind": "code-unit",
+        "name": "persistOrder",
+        "visibility": "private",
+        "domainId": "npm:@fixture/orders",
+        "attributes": {
+          "language": "js",
+          "qualifiedPath": "src/a.mjs#persistOrder",
+          "signature": null,
+          "sourcePath": "src/a.mjs",
+          "span": {
+            "endByte": 18,
+            "startByte": 10
+          },
+          "unitKind": "function"
+        },
+        "sourceFingerprint": "hash:src/a.mjs"
+      },
+      {
+        "id": "code-unit:npm:@fixture/orders:js:src/a.mjs#submitOrder",
+        "kind": "code-unit",
+        "name": "submitOrder",
+        "visibility": "public",
+        "domainId": "npm:@fixture/orders",
+        "attributes": {
+          "alpha": 2,
+          "language": "js",
+          "qualifiedPath": "src/a.mjs#submitOrder",
+          "signature": "(cart)",
+          "sourcePath": "src/a.mjs",
+          "span": {
+            "endByte": 8,
+            "startByte": 0
+          },
+          "unitKind": "function",
+          "zeta": 1
+        },
+        "sourceFingerprint": "hash:src/a.mjs"
+      },
+      {
+        "id": "code-unit:npm:@fixture/orders:js:src/b.mjs#notify",
+        "kind": "code-unit",
+        "name": "notify",
+        "visibility": "public",
+        "domainId": "npm:@fixture/orders",
+        "attributes": {
+          "language": "js",
+          "qualifiedPath": "src/b.mjs#notify",
+          "signature": null,
+          "sourcePath": "src/b.mjs",
+          "span": {
+            "endByte": 8,
+            "startByte": 0
+          },
+          "unitKind": "function"
+        },
+        "sourceFingerprint": "hash:src/b.mjs"
+      },
+      {
+        "id": "contract:npm:@fixture/orders:2bed2032ed3d8300b7714ff7",
+        "kind": "integration",
+        "name": "stripe",
+        "visibility": "external",
+        "domainId": "npm:@fixture/orders",
+        "attributes": {
+          "opaque": true,
+          "specifier": "stripe"
+        },
+        "sourceFingerprint": "2bed2032ed3d8300b7714ff7"
+      }
+    ],
+    "edges": [
+      {
+        "id": "edge:07ae6ba8b779582421eb571f",
+        "kind": "invokes",
+        "fromId": "code-unit:npm:@fixture/orders:js:src/a.mjs#submitOrder",
+        "toId": "code-unit:npm:@fixture/orders:js:src/a.mjs#persistOrder",
+        "evidenceIds": [
+          "evidence:9633c0a19308703b322e15ef"
+        ]
+      },
+      {
+        "id": "edge:3339788b37075c71a18d4970",
+        "kind": "integrates",
+        "fromId": "code-unit:npm:@fixture/orders:js:src/a.mjs#persistOrder",
+        "toId": "contract:npm:@fixture/orders:2bed2032ed3d8300b7714ff7",
+        "evidenceIds": [
+          "evidence:84752af3836cd9193882704b"
+        ]
+      }
+    ],
+    "claims": [],
+    "topics": [],
+    "gaps": [],
+    "evidence": [
+      {
+        "id": "evidence:041ff3220ce93c58cde0a562",
+        "kind": "code",
+        "path": "src/b.mjs",
+        "symbolId": "code-unit:npm:@fixture/orders:js:src/b.mjs#notify",
+        "span": {
+          "endByte": 8,
+          "startByte": 0
+        },
+        "contentHash": "hash:src/b.mjs",
+        "role": "syntax"
+      },
+      {
+        "id": "evidence:4d0ead2713cf3bea25270998",
+        "kind": "code",
+        "path": "src/a.mjs",
+        "symbolId": "code-unit:npm:@fixture/orders:js:src/a.mjs#persistOrder",
+        "span": {
+          "endByte": 18,
+          "startByte": 10
+        },
+        "contentHash": "hash:src/a.mjs",
+        "role": "syntax"
+      },
+      {
+        "id": "evidence:7495e13aad9be729ba4d5207",
+        "kind": "code",
+        "path": "src/a.mjs",
+        "symbolId": "code-unit:npm:@fixture/orders:js:src/a.mjs#submitOrder",
+        "span": {
+          "endByte": 8,
+          "startByte": 0
+        },
+        "contentHash": "hash:src/a.mjs",
+        "role": "syntax"
+      },
+      {
+        "id": "evidence:84752af3836cd9193882704b",
+        "kind": "code",
+        "path": "src/a.mjs",
+        "symbolId": "code-unit:npm:@fixture/orders:js:src/a.mjs#persistOrder",
+        "span": {
+          "endByte": 8,
+          "startByte": 4
+        },
+        "contentHash": "hash:src/a.mjs",
+        "role": "syntax"
+      },
+      {
+        "id": "evidence:9633c0a19308703b322e15ef",
+        "kind": "code",
+        "path": "src/a.mjs",
+        "symbolId": "code-unit:npm:@fixture/orders:js:src/a.mjs#submitOrder",
+        "span": {
+          "endByte": 4,
+          "startByte": 0
+        },
+        "contentHash": "hash:src/a.mjs",
+        "role": "syntax"
+      }
+    ]
+  },
+  "serialized": "{\n  \"claims\": [],\n  \"domain\": {\n    \"ecosystem\": \"npm\",\n    \"id\": \"npm:@fixture/orders\",\n    \"name\": \"@fixture/orders\",\n    \"rootManifest\": \"package.json\",\n    \"sourceFingerprint\": \"domain-hash\"\n  },\n  \"edges\": [\n    {\n      \"evidenceIds\": [\n        \"evidence:9633c0a19308703b322e15ef\"\n      ],\n      \"fromId\": \"code-unit:npm:@fixture/orders:js:src/a.mjs#submitOrder\",\n      \"id\": \"edge:07ae6ba8b779582421eb571f\",\n      \"kind\": \"invokes\",\n      \"toId\": \"code-unit:npm:@fixture/orders:js:src/a.mjs#persistOrder\"\n    },\n    {\n      \"evidenceIds\": [\n        \"evidence:84752af3836cd9193882704b\"\n      ],\n      \"fromId\": \"code-unit:npm:@fixture/orders:js:src/a.mjs#persistOrder\",\n      \"id\": \"edge:3339788b37075c71a18d4970\",\n      \"kind\": \"integrates\",\n      \"toId\": \"contract:npm:@fixture/orders:2bed2032ed3d8300b7714ff7\"\n    }\n  ],\n  \"evidence\": [\n    {\n      \"contentHash\": \"hash:src/b.mjs\",\n      \"id\": \"evidence:041ff3220ce93c58cde0a562\",\n      \"kind\": \"code\",\n      \"path\": \"src/b.mjs\",\n      \"role\": \"syntax\",\n      \"span\": {\n        \"endByte\": 8,\n        \"startByte\": 0\n      },\n      \"symbolId\": \"code-unit:npm:@fixture/orders:js:src/b.mjs#notify\"\n    },\n    {\n      \"contentHash\": \"hash:src/a.mjs\",\n      \"id\": \"evidence:4d0ead2713cf3bea25270998\",\n      \"kind\": \"code\",\n      \"path\": \"src/a.mjs\",\n      \"role\": \"syntax\",\n      \"span\": {\n        \"endByte\": 18,\n        \"startByte\": 10\n      },\n      \"symbolId\": \"code-unit:npm:@fixture/orders:js:src/a.mjs#persistOrder\"\n    },\n    {\n      \"contentHash\": \"hash:src/a.mjs\",\n      \"id\": \"evidence:7495e13aad9be729ba4d5207\",\n      \"kind\": \"code\",\n      \"path\": \"src/a.mjs\",\n      \"role\": \"syntax\",\n      \"span\": {\n        \"endByte\": 8,\n        \"startByte\": 0\n      },\n      \"symbolId\": \"code-unit:npm:@fixture/orders:js:src/a.mjs#submitOrder\"\n    },\n    {\n      \"contentHash\": \"hash:src/a.mjs\",\n      \"id\": \"evidence:84752af3836cd9193882704b\",\n      \"kind\": \"code\",\n      \"path\": \"src/a.mjs\",\n      \"role\": \"syntax\",\n      \"span\": {\n        \"endByte\": 8,\n        \"startByte\": 4\n      },\n      \"symbolId\": \"code-unit:npm:@fixture/orders:js:src/a.mjs#persistOrder\"\n    },\n    {\n      \"contentHash\": \"hash:src/a.mjs\",\n      \"id\": \"evidence:9633c0a19308703b322e15ef\",\n      \"kind\": \"code\",\n      \"path\": \"src/a.mjs\",\n      \"role\": \"syntax\",\n      \"span\": {\n        \"endByte\": 4,\n        \"startByte\": 0\n      },\n      \"symbolId\": \"code-unit:npm:@fixture/orders:js:src/a.mjs#submitOrder\"\n    }\n  ],\n  \"gaps\": [],\n  \"nodes\": [\n    {\n      \"attributes\": {\n        \"language\": \"js\",\n        \"qualifiedPath\": \"src/a.mjs#persistOrder\",\n        \"signature\": null,\n        \"sourcePath\": \"src/a.mjs\",\n        \"span\": {\n          \"endByte\": 18,\n          \"startByte\": 10\n        },\n        \"unitKind\": \"function\"\n      },\n      \"domainId\": \"npm:@fixture/orders\",\n      \"id\": \"code-unit:npm:@fixture/orders:js:src/a.mjs#persistOrder\",\n      \"kind\": \"code-unit\",\n      \"name\": \"persistOrder\",\n      \"sourceFingerprint\": \"hash:src/a.mjs\",\n      \"visibility\": \"private\"\n    },\n    {\n      \"attributes\": {\n        \"alpha\": 2,\n        \"language\": \"js\",\n        \"qualifiedPath\": \"src/a.mjs#submitOrder\",\n        \"signature\": \"(cart)\",\n        \"sourcePath\": \"src/a.mjs\",\n        \"span\": {\n          \"endByte\": 8,\n          \"startByte\": 0\n        },\n        \"unitKind\": \"function\",\n        \"zeta\": 1\n      },\n      \"domainId\": \"npm:@fixture/orders\",\n      \"id\": \"code-unit:npm:@fixture/orders:js:src/a.mjs#submitOrder\",\n      \"kind\": \"code-unit\",\n      \"name\": \"submitOrder\",\n      \"sourceFingerprint\": \"hash:src/a.mjs\",\n      \"visibility\": \"public\"\n    },\n    {\n      \"attributes\": {\n        \"language\": \"js\",\n        \"qualifiedPath\": \"src/b.mjs#notify\",\n        \"signature\": null,\n        \"sourcePath\": \"src/b.mjs\",\n        \"span\": {\n          \"endByte\": 8,\n          \"startByte\": 0\n        },\n        \"unitKind\": \"function\"\n      },\n      \"domainId\": \"npm:@fixture/orders\",\n      \"id\": \"code-unit:npm:@fixture/orders:js:src/b.mjs#notify\",\n      \"kind\": \"code-unit\",\n      \"name\": \"notify\",\n      \"sourceFingerprint\": \"hash:src/b.mjs\",\n      \"visibility\": \"public\"\n    },\n    {\n      \"attributes\": {\n        \"opaque\": true,\n        \"specifier\": \"stripe\"\n      },\n      \"domainId\": \"npm:@fixture/orders\",\n      \"id\": \"contract:npm:@fixture/orders:2bed2032ed3d8300b7714ff7\",\n      \"kind\": \"integration\",\n      \"name\": \"stripe\",\n      \"sourceFingerprint\": \"2bed2032ed3d8300b7714ff7\",\n      \"visibility\": \"external\"\n    }\n  ],\n  \"schemaVersion\": 1,\n  \"topics\": []\n}\n",
+  "failedExtractor": [
+    {
+      "code": "parse-failed",
+      "detail": "boom",
+      "path": "src/c.mjs"
+    }
+  ],
+  "noEvidence": [
+    {
+      "code": "edge-without-evidence",
+      "detail": "invokes edge не має provenance.",
+      "path": "src/d.mjs"
+    }
+  ],
+  "badSpan": [
+    {
+      "code": "invalid-edge-evidence",
+      "detail": "invokes edge має evidence без валідного UTF-8 byte span або provenance role.",
+      "path": "src/e.mjs"
+    }
+  ]
+}

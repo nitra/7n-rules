@@ -137,6 +137,63 @@ pub fn canonical_json(value: &Value) -> String {
     out
 }
 
+/// Канонічний JSON із відступами — порт `JSON.stringify(canonicalize(v), null, 2)`.
+///
+/// Власний писемник, а не `serde_json::to_string_pretty` поверх
+/// [`canonical_value`]: той зберігав би порядок ключів лише поки в графі
+/// увімкнена фіча `preserve_order` (вона приходить транзитивно), тобто
+/// байтова стабільність серіалізації залежала б від чужого `Cargo.toml`.
+#[must_use]
+pub fn canonical_json_pretty(value: &Value) -> String {
+    let mut out = String::new();
+    write_pretty(&mut out, value, 0);
+    out
+}
+
+/// Один рівень відступу `JSON.stringify(..., null, 2)`.
+fn indent(out: &mut String, depth: usize) {
+    out.push('\n');
+    for _ in 0..depth {
+        out.push_str("  ");
+    }
+}
+
+fn write_pretty(out: &mut String, value: &Value, depth: usize) {
+    match value {
+        Value::Array(items) if !items.is_empty() => {
+            out.push('[');
+            for (index, item) in items.iter().enumerate() {
+                if index > 0 {
+                    out.push(',');
+                }
+                indent(out, depth + 1);
+                write_pretty(out, item, depth + 1);
+            }
+            indent(out, depth);
+            out.push(']');
+        }
+        Value::Object(entries) if !entries.is_empty() => {
+            let mut keys: Vec<&String> = entries.keys().collect();
+            keys.sort_by(|left, right| js_locale_cmp(left, right));
+            out.push('{');
+            for (index, key) in keys.into_iter().enumerate() {
+                if index > 0 {
+                    out.push(',');
+                }
+                indent(out, depth + 1);
+                out.push_str(&Value::String(key.clone()).to_string());
+                out.push_str(": ");
+                write_pretty(out, &entries[key], depth + 1);
+            }
+            indent(out, depth);
+            out.push('}');
+        }
+        // Порожні контейнери і скаляри — та сама форма, що в компактного
+        // писемника (`[]`, `{}`, число, рядок).
+        other => write_canonical(out, other),
+    }
+}
+
 /// Канонічна копія значення — порт `canonicalize`.
 ///
 /// У Rust порядок ключів у [`Value`] не спостережний для споживача (його
