@@ -13,16 +13,20 @@
 //! застосовує bash (`normalize-decisions.sh`); формат операцій дзеркальний
 //! до JS-версії поле в поле.
 
+/// Спільний 2-хвильовий batch-каскад стадій (tier1 → tier2) і типи хвилі.
 pub mod cascade;
+/// Каркас MADR-документа: секції, frontmatter, детерміновані слаги й дати.
 pub mod madr;
+/// Головний конвеєр нормалізації: стадії, рішення по драфтах, операції.
 pub mod pipeline;
+/// Stage 0 — детермінований відбір кандидатів на порівняння (ребра).
 pub mod retrieval;
 
 use std::sync::Arc;
 
-use cascade::{SubmitBatchFn, WaveItem, WaveResult};
+use cascade::{ChainRef, SubmitBatchFn, WaveItem, WaveResult};
 use llm_lib::attempt::BoxFuture;
-use llm_lib::batch::{dispatch, BatchItem};
+use llm_lib::batch::{dispatch, BatchItem, DispatchConfig};
 use llm_lib::budget::EgressPolicy;
 use llm_lib::local_cloud::{default_local_openai_provider, LocalCloud};
 use llm_lib::remote_batch::RemoteBatchConfig;
@@ -39,9 +43,19 @@ const CALLER: &str = "rules-adr";
 /// хоч би як користувач його назвав. Egress тут завжди `AllowCloud` —
 /// приватність вирішується вище (`allow_cloud` каскаду просто не подає
 /// tier2-хвилю), а не забороною на рівні транспорту.
+///
+/// # Ланцюжок
+///
+/// Handle прогону передається в `dispatch` як `Some(&mut …)`, тож per-item
+/// рядки trace усіх хвиль лягають під один `chainId` із наскрізним
+/// `chainStep`. Guard тримається на весь виклик хвилі — саме тому
+/// [`ChainRef`] на `tokio::sync::Mutex` (див. його доккоментар). `end()`
+/// звідси НЕ викликається: підсумковий рядок закриває власник ланцюжка
+/// ([`pipeline::normalize_pipeline`]) — лише він знає, що хвиля була
+/// остання.
 #[must_use]
 pub fn native_submit_batch() -> SubmitBatchFn {
-    Arc::new(|model: String, items: Vec<WaveItem>| {
+    Arc::new(|model: String, items: Vec<WaveItem>, chain: ChainRef| {
         let fut: BoxFuture<'static, Result<Vec<WaveResult>, String>> = Box::pin(async move {
             let mut providers = std::collections::HashMap::new();
             if let Ok((prefix, _)) = parse_model_spec(&model) {
@@ -56,19 +70,20 @@ pub fn native_submit_batch() -> SubmitBatchFn {
                     system: Some(i.system),
                 })
                 .collect();
-            let results = dispatch(
-                &cascade,
-                &model,
-                batch_items,
-                &RemoteBatchConfig::default(),
-                None,
-                None,
-                EgressPolicy::AllowCloud,
-                |_progress| {},
-                CALLER,
-            )
-            .await
-            .map_err(|e| e.to_string())?;
+            let remote_config = RemoteBatchConfig::default();
+            let config = DispatchConfig {
+                cascade: &cascade,
+                model_spec_or_tier: &model,
+                remote_config: &remote_config,
+                global_system: None,
+                acp_config: None,
+                egress: EgressPolicy::AllowCloud,
+                caller: CALLER,
+            };
+            let mut chain = chain.lock().await;
+            let results = dispatch(&config, batch_items, |_progress| {}, Some(&mut chain))
+                .await
+                .map_err(|e| e.to_string())?;
             Ok(results
                 .into_iter()
                 .map(|r| WaveResult {

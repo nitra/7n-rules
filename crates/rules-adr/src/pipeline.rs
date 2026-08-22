@@ -6,8 +6,9 @@
 //! глобальних рішень і не форматує — повертає лише вузький verifiable зміст.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
-use crate::cascade::{extract_json, keyed_cascade, CascadeCfg, Stats, WaveItem};
+use crate::cascade::{extract_json, keyed_cascade, CascadeCfg, ChainRef, Stats, WaveItem};
 use crate::madr::{assemble_madr, madr_date, normalize_sections, slugify, validate_madr};
 use crate::retrieval::{build_edges, capture_field, draft_title, is_no_decision, strip_adr_name};
 
@@ -209,13 +210,64 @@ impl Decision {
     }
 }
 
-/// Головний конвеєр — порт `normalizePipelineCore` (chain-обгортку JS не
-/// відтворюємо: trace-рядки пише сам batch-фасад із `caller`; агрегатний
-/// chain-рівень — свідома девіація, зафіксована в реєстрі).
+/// `chainKind` прогону — дослівно як у JS (`kind: 'adr-normalize'`): за цим
+/// рядком аналітика ланцюжків відрізняє задачу нормалізації ADR від решти
+/// писемників, тож він контрактний, а не описовий.
+const CHAIN_KIND: &str = "adr-normalize";
+
+/// Головний конвеєр — порт обгортки `normalizePipeline`: заводить ланцюжок
+/// прогону, віддає тіло [`normalize_pipeline_core`] і закриває ланцюжок
+/// підсумковим рядком.
+///
+/// Один ланцюжок на ВЕСЬ прогін (не на хвилю): batch-хвилі не мають
+/// per-item-гранулярності, а стадій чотири — розділені ланцюжки показували б
+/// одну задачу як чотири незалежні. Це та сама свідома девіація реєстру
+/// (§5.0.3), яку знімає chain-API `n7n-llm-lib 0.4`: тепер і per-item рядки
+/// хвиль ідуть під цим самим `chainId` (через [`crate::cascade::ChainRef`] у
+/// конфізі каскаду), чого JS-оригінал не вмів.
+///
+/// `outcome` — порт JS-правила дослівно: `partial`, якщо є провалені items
+/// або невалідний MADR, інакше `success`. Третього стану JS досягав через
+/// `catch` (виняток → `fail`); тут тіло конвеєра не повертає `Result` і не
+/// має шляху виходу з помилкою — усі провали вже пораховані в `stats` і
+/// закриті conservative fallback-ами стадій, тож `fail` недосяжний за
+/// побудовою, а не забутий.
 pub async fn normalize_pipeline(
     drafts: &[Draft],
     clean_list: &[String],
     opts: &PipelineOpts,
+) -> PipelineOutput {
+    let mut start = trace::ChainStart::new(CHAIN_KIND, format!("batch:{}", drafts.len()));
+    if let Ok(cwd) = std::env::current_dir() {
+        start = start.with_cwd(cwd.to_string_lossy().into_owned());
+    }
+    let chain: ChainRef = Arc::new(tokio::sync::Mutex::new(trace::ChainHandle::start(start)));
+
+    let out = normalize_pipeline_core(drafts, clean_list, opts, &chain).await;
+
+    let outcome = if out.stats.failures > 0 || out.stats.madr_invalid > 0 {
+        trace::ChainOutcome::Partial
+    } else {
+        trace::ChainOutcome::Success
+    };
+    chain.lock().await.end(
+        outcome,
+        serde_json::json!({
+            "drafts": drafts.len(),
+            "ops": out.operations.len(),
+            "stats": out.stats,
+        }),
+    );
+    out
+}
+
+/// Тіло конвеєра — порт `normalizePipelineCore` (ланцюжок належить обгортці
+/// [`normalize_pipeline`], сюди приходить уже заведеним).
+async fn normalize_pipeline_core(
+    drafts: &[Draft],
+    clean_list: &[String],
+    opts: &PipelineOpts,
+    chain: &ChainRef,
 ) -> PipelineOutput {
     let log = &opts.on_progress;
     let mut stats = Stats::default();
@@ -223,7 +275,8 @@ pub async fn normalize_pipeline(
         tier1: opts.tier1.clone(),
         tier2: opts.tier2.clone(),
         allow_cloud: opts.allow_cloud,
-        submit: std::sync::Arc::clone(&opts.submit),
+        submit: Arc::clone(&opts.submit),
+        chain: Arc::clone(chain),
     };
 
     let titles: Vec<String> = drafts

@@ -4,8 +4,9 @@
 //! сценарій-у-сценарій: інжектований submit відповідає за префіксом
 //! `customId` (`dd:`/`dc:`/`kind:`/`gen:`/`merge:`), рахує хвилі й items.
 
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use llm_lib::attempt::BoxFuture;
 use rules_adr::cascade::{SubmitBatchFn, WaveItem, WaveResult};
@@ -18,15 +19,34 @@ type WaveShapes = Arc<Mutex<Vec<(String, usize)>>>;
 fn fake_submit(
     respond: impl Fn(&str, &str) -> Result<String, String> + Send + Sync + 'static,
 ) -> (SubmitBatchFn, Arc<AtomicUsize>, WaveShapes) {
+    let (submit, calls, waves, _) = fake_submit_observing_chain(respond);
+    (submit, calls, waves)
+}
+
+/// Той самий фейк плюс `chainId`, який побачила КОЖНА хвиля — так тест
+/// перевіряє наскрізність ланцюжка, не заглядаючи у файли trace.
+fn fake_submit_observing_chain(
+    respond: impl Fn(&str, &str) -> Result<String, String> + Send + Sync + 'static,
+) -> (
+    SubmitBatchFn,
+    Arc<AtomicUsize>,
+    WaveShapes,
+    Arc<Mutex<Vec<String>>>,
+) {
     let calls = Arc::new(AtomicUsize::new(0));
     let waves = Arc::new(Mutex::new(Vec::new()));
+    let chain_ids = Arc::new(Mutex::new(Vec::new()));
     let (calls_out, waves_out) = (Arc::clone(&calls), Arc::clone(&waves));
+    let chain_ids_out = Arc::clone(&chain_ids);
     let respond = Arc::new(respond);
-    let submit: SubmitBatchFn = Arc::new(move |model: String, items: Vec<WaveItem>| {
+    let submit: SubmitBatchFn = Arc::new(move |model: String, items: Vec<WaveItem>, chain| {
         calls.fetch_add(1, Ordering::SeqCst);
         waves.lock().unwrap().push((model.clone(), items.len()));
         let respond = Arc::clone(&respond);
+        let chain_ids = Arc::clone(&chain_ids);
         let fut: BoxFuture<'static, Result<Vec<WaveResult>, String>> = Box::pin(async move {
+            let id = chain.lock().await.id().to_string();
+            chain_ids.lock().unwrap().push(id);
             Ok(items
                 .into_iter()
                 .map(|item| WaveResult {
@@ -37,7 +57,7 @@ fn fake_submit(
         });
         fut
     });
-    (submit, calls_out, waves_out)
+    (submit, calls_out, waves_out, chain_ids_out)
 }
 
 fn by_prefix(
@@ -60,7 +80,49 @@ fn draft(file: &str, title: &str, body: &str) -> Draft {
     }
 }
 
+/// Trace-корінь тестового бінарника: `normalize_pipeline` пише підсумковий
+/// рядок ланцюжка НА КОЖЕН прогін, тож без цього кожен тест забруднював би
+/// `~/.n-llm-lib` користувача.
+///
+/// Один корінь на процес (не на тест) свідомо: `N_LLM_TRACE_DIR` —
+/// ПРОЦЕСНА змінна, а тести бінарника йдуть паралельно, тож
+/// per-тестовий каталог був би гонкою (той, хто виставив останнім, вирішує
+/// за всіх). Замість ізоляції каталогом тести фільтрують рядки за власним
+/// `chainId` — він унікальний за побудовою, і сусідній прогін у тому самому
+/// файлі їм не заважає.
+fn isolate_trace_dir() -> PathBuf {
+    static DIR: OnceLock<PathBuf> = OnceLock::new();
+    DIR.get_or_init(|| {
+        let dir = std::env::temp_dir().join(format!("rules-adr-trace-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("тимчасовий trace-корінь створюється");
+        std::env::set_var("N_LLM_TRACE_DIR", &dir);
+        dir
+    })
+    .clone()
+}
+
+/// Рядки trace із коренем [`isolate_trace_dir`], що належать саме цьому
+/// ланцюжку.
+fn chain_rows(chain_id: &str) -> Vec<serde_json::Value> {
+    let dir = isolate_trace_dir();
+    let mut rows = Vec::new();
+    for entry in std::fs::read_dir(&dir).expect("trace-корінь читається") {
+        let path = entry.expect("запис теки").path();
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        for line in text.lines().filter(|l| !l.trim().is_empty()) {
+            let row: serde_json::Value = serde_json::from_str(line).expect("рядок trace — JSON");
+            if row.get("chainId").and_then(serde_json::Value::as_str) == Some(chain_id) {
+                rows.push(row);
+            }
+        }
+    }
+    rows
+}
+
 fn opts(submit: SubmitBatchFn, allow_cloud: bool) -> PipelineOpts {
+    isolate_trace_dir();
     PipelineOpts {
         allow_cloud,
         votes: 2,
@@ -349,4 +411,99 @@ fn operations_serialize_to_the_bash_contract() {
             {"op":"merge-into","file":"c.md","target":"t.md","additions":"## Update…"}
         ])
     );
+}
+
+// ── ланцюжок прогону (chain-API `n7n-llm-lib 0.4`) ──────────────────────────────
+
+/// Головне, заради чого chain-API взагалі протягнуто в конвеєр: прогін із
+/// кількох хвиль — ОДНА задача для аналітики, а не по задачі на хвилю.
+/// Перевіряємо на боці виконавця хвилі (він і є той, хто передає ланцюжок у
+/// `dispatch`), а не за файлом trace: фейковий submit нічого не диспатчить.
+#[tokio::test]
+async fn every_wave_of_a_run_sees_the_same_chain() {
+    // Два драфти з підтвердженим ребром → kind + gen + merge-хвилі.
+    let drafts = vec![
+        draft("a.md", "Рішення А", DECIDED),
+        draft("b.md", "Рішення А уточнення", DECIDED),
+    ];
+    let (submit, calls, _, chain_ids) = fake_submit_observing_chain(by_prefix(vec![
+        ("dd", EDGE_SAME),
+        ("kind", KIND_STANDALONE),
+        ("gen", GEN_OK),
+        ("merge", MERGE_OK),
+    ]));
+
+    normalize_pipeline(&drafts, &[], &opts(submit, false)).await;
+
+    let ids = chain_ids.lock().unwrap().clone();
+    assert!(
+        ids.len() >= 2,
+        "прогін мав кілька хвиль, було {}",
+        ids.len()
+    );
+    assert_eq!(
+        ids.len(),
+        calls.load(Ordering::SeqCst),
+        "ланцюжок бачить КОЖНА хвиля, не лише перша"
+    );
+    assert_eq!(
+        ids.iter().collect::<std::collections::HashSet<_>>().len(),
+        1,
+        "усі хвилі прогону — під одним chainId, було: {ids:?}"
+    );
+    assert!(!ids[0].is_empty(), "chainId не порожній");
+}
+
+/// Підсумковий рядок — рівно ОДИН на прогін, із порт-у-порт JS-змістом
+/// (`kind`/`unit`/`outcome`/`extra`). Два рядки на один `chainId`
+/// порахувались би аналітикою як дві задачі.
+#[tokio::test]
+async fn a_successful_run_closes_the_chain_with_exactly_one_summary_row() {
+    let drafts = vec![draft("a.md", "Рішення А", DECIDED)];
+    let (submit, _, _, chain_ids) =
+        fake_submit_observing_chain(by_prefix(vec![("kind", KIND_STANDALONE), ("gen", GEN_OK)]));
+
+    let out = normalize_pipeline(&drafts, &[], &opts(submit, false)).await;
+
+    let chain_id = chain_ids.lock().unwrap()[0].clone();
+    let rows = chain_rows(&chain_id);
+    let summaries: Vec<_> = rows
+        .iter()
+        .filter(|r| r["kind"] == "chain")
+        .cloned()
+        .collect();
+    assert_eq!(summaries.len(), 1, "рівно один агрегатний рядок: {rows:?}");
+
+    let row = &summaries[0];
+    assert_eq!(row["chainKind"], "adr-normalize");
+    assert_eq!(row["unit"], "batch:1", "одиниця роботи — розмір батчу");
+    assert_eq!(row["outcome"], "success");
+    assert_eq!(row["extra"]["drafts"], 1);
+    assert_eq!(row["extra"]["ops"], out.operations.len());
+    assert_eq!(
+        row["extra"]["stats"]["madrInvalid"], 0,
+        "лічильники в extra — камелкейсом JS, не snake_case"
+    );
+}
+
+/// Провалені items (жоден тир не відповів) — це `partial`, не `fail`:
+/// conservative fallback стадії все одно дав операції, задача зроблена
+/// частково. Дослівне JS-правило.
+#[tokio::test]
+async fn a_run_with_failures_closes_the_chain_as_partial() {
+    let drafts = vec![draft("a.md", "Рішення А", DECIDED)];
+    // kind-хвиля відповідає, gen-хвиля — ні: gen-стадія провалює item.
+    let (submit, _, _, chain_ids) =
+        fake_submit_observing_chain(by_prefix(vec![("kind", KIND_STANDALONE)]));
+
+    let out = normalize_pipeline(&drafts, &[], &opts(submit, false)).await;
+    assert!(out.stats.failures > 0, "сценарій має дати провал item-а");
+
+    let chain_id = chain_ids.lock().unwrap()[0].clone();
+    let row = chain_rows(&chain_id)
+        .into_iter()
+        .find(|r| r["kind"] == "chain")
+        .expect("агрегатний рядок написано і на частковому результаті");
+    assert_eq!(row["outcome"], "partial");
+    assert_eq!(row["extra"]["stats"]["failures"], out.stats.failures);
 }

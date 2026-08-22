@@ -23,13 +23,21 @@
 //!   `llm_lib::fix::runner::run_attempt` (там-таки доккомент про відому
 //!   прогалину з `AttemptContext::capture` — звіт задачі).
 
+/// Модуль спроби `fix`: будує `AttemptFn` і обгортає `llm_lib::fix::runner::run_attempt`.
 pub mod attempt;
+/// Модуль конфіга `fix`: збирає `PipelineConfig` з `ConcernMeta`.
 pub mod config;
+/// Модуль детекції `fix`: канонічний detector і розрахунок `target_files`.
 pub mod detect;
+/// Модуль помилок `fix`: типи помилок для публічного API крейта.
 pub mod error;
+/// Модуль `T0`-кроку: детермінований стартовий крок для `fix`-потоку.
 pub mod t0;
+/// Модуль верифікації `fix`: перевіряє один attempt і будує звіт.
 pub mod verify;
+/// Модуль мапінгу порушень: переводить типи violation між `rules-core` і pipeline.
 pub mod violation_map;
+/// Модуль worker-ів: спеціалізовані виконавці для окремих concern-ів.
 pub mod workers;
 
 use std::path::Path;
@@ -152,7 +160,7 @@ pub async fn fix_concern(
     let target_files = detect::target_files_from_violations(&initial);
 
     let pipeline_config =
-        config::build_pipeline_config(&meta, cwd.to_path_buf(), target_files.clone())
+        config::build_pipeline_config(&meta, key, cwd.to_path_buf(), target_files.clone())
             .map_err(FixConcernError::Pipeline)?;
 
     // Воркерні concern-и (клас «один one-shot усередині драбини», дзеркало

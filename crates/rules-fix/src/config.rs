@@ -22,6 +22,13 @@ const CALLER: &str = "rules-fix";
 /// concern-ом. `target_files` — межа редагування (типово: файли з
 /// початкового прогону детектора, [`crate::detect::target_files_from_violations`]).
 ///
+/// `key` — повний ключ concern-а (`"<rule>/<concern>"`), а не `meta.name`:
+/// саме він іде в `PipelineConfig::unit` як одиниця роботи агрегатного
+/// рядка ланцюжка. `meta.name` — лише basename каталогу (`"cspell"`), тож
+/// однойменні концерни різних правил злились би для аналітики в одну
+/// одиницю; повний ключ — той самий простір імен, яким concern адресують
+/// CLI й реєстр.
+///
 /// # Чому драбина звужується тут, а не в `run_fix`
 ///
 /// Новий контракт `PipelineConfig::ladder` очікує ПОВНУ драбину і звужує її
@@ -37,6 +44,7 @@ const CALLER: &str = "rules-fix";
 /// моделі в env) — текстом, придатним для діагностики CLI.
 pub fn build_pipeline_config(
     meta: &ConcernMeta,
+    key: &str,
     cwd: PathBuf,
     target_files: Vec<PathBuf>,
 ) -> Result<PipelineConfig, String> {
@@ -79,6 +87,7 @@ pub fn build_pipeline_config(
         caller: CALLER.to_string(),
         // Нова сесія щоразу — resume журналу поза цим зрізом.
         chain_id: None,
+        unit: Some(key.to_string()),
     })
 }
 
@@ -111,6 +120,7 @@ mod tests {
         let targets = vec![PathBuf::from("a.mjs"), PathBuf::from("b.mjs")];
         let config = build_pipeline_config(
             &meta(ConcernFixability::Structural, false),
+            "text/concern",
             cwd.clone(),
             targets.clone(),
         )
@@ -120,6 +130,11 @@ mod tests {
         assert_eq!(config.fixability, PipelineFixability::ConfigOrStructural);
         assert_eq!(config.caller, "rules-fix");
         assert!(config.chain_id.is_none(), "resume поза цим зрізом");
+        assert_eq!(
+            config.unit.as_deref(),
+            Some("text/concern"),
+            "одиниця роботи ланцюжка — ПОВНИЙ ключ concern-а, не basename"
+        );
     }
 
     /// `skip_local_tier: true` без жодної хмарної `N_*_MODEL` у тестовому
@@ -129,6 +144,7 @@ mod tests {
     fn skip_local_tier_without_cloud_models_is_a_config_error() {
         let result = build_pipeline_config(
             &meta(ConcernFixability::Code, true),
+            "text/concern",
             PathBuf::from("/repo"),
             Vec::new(),
         );

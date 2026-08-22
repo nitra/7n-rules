@@ -11,6 +11,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use llm_lib::attempt::BoxFuture;
+use tokio::sync::Mutex;
 
 /// Один item batch-хвилі (порт форми `submitBatch`-item-а).
 #[derive(Debug, Clone)]
@@ -32,16 +33,44 @@ pub struct WaveResult {
     pub outcome: Result<String, String>,
 }
 
-/// Інʼєкція виконавця хвилі: model-spec + items → результати. Бойова
-/// реалізація — обгортка над `llm_lib::batch::dispatch`; тестова — фейк.
+/// Спільний handle ланцюжка прогону: один на всі хвилі всіх стадій.
+///
+/// # Чому `tokio::sync::Mutex`, а не `std`
+///
+/// `trace::ChainHandle` мутується (`&mut self`) на кожен виклик, а
+/// [`SubmitBatchFn`] повертає `BoxFuture<'static, _>` — тобто **Send**-future
+/// без запозичень із викликача, тож передати `&mut` усередину неможливо, і
+/// handle мусить бути спільним. Бойова реалізація тримає guard **через
+/// `.await`** самого `dispatch` (інакше кроки ланцюжка не рахувались би
+/// всередині хвилі), а `std::sync::MutexGuard` не `Send` — future перестав
+/// би влазити в `BoxFuture`. Плата — послідовність хвиль, якої конвеєр і так
+/// дотримується: наступна стадія починається лише після повного результату
+/// попередньої.
+pub type ChainRef = Arc<Mutex<trace::ChainHandle>>;
+
+/// Інʼєкція виконавця хвилі: model-spec + items + ланцюжок → результати.
+/// Бойова реалізація — обгортка над `llm_lib::batch::dispatch`; тестова —
+/// фейк.
+///
+/// [`ChainRef`] тут не «для повноти»: саме через нього per-item рядки trace
+/// усіх хвиль отримують ОДИН `chainId` і наскрізний `chainStep`. Без нього
+/// прогін із чотирьох хвиль виглядав би для аналітики як чотири незалежні
+/// задачі — та сама межа, що була в JS-оригіналі (`submitBatch` не приймав
+/// chain), і саме її знімає chain-API `n7n-llm-lib 0.4`.
 pub type SubmitBatchFn = Arc<
-    dyn Fn(String, Vec<WaveItem>) -> BoxFuture<'static, Result<Vec<WaveResult>, String>>
+    dyn Fn(String, Vec<WaveItem>, ChainRef) -> BoxFuture<'static, Result<Vec<WaveResult>, String>>
         + Send
         + Sync,
 >;
 
 /// Лічильники прогону — порт `stats` (мутуються стадіями через каскад).
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+///
+/// `Serialize` — не зручність: лічильники дослівно лягають у `extra`
+/// підсумкового рядка ланцюжка, який читає зовнішня аналітика, тож імена
+/// полів там мусять лишитись JS-камелкейсом (`madrInvalid`, не
+/// `madr_invalid`).
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Stats {
     pub local_calls: usize,
     pub cloud_calls: usize,
@@ -60,6 +89,8 @@ pub struct CascadeCfg {
     pub allow_cloud: bool,
     /// Виконавець хвилі.
     pub submit: SubmitBatchFn,
+    /// Ланцюжок прогону — той самий для всіх стадій і обох тирів.
+    pub chain: ChainRef,
 }
 
 /// Одна хвиля — порт `runWave`: провал САМОГО виклику хвилі не кидає далі,
@@ -72,7 +103,7 @@ async fn run_wave(
     if items.is_empty() || model.is_empty() {
         return HashMap::new();
     }
-    match (cfg.submit)(model.to_string(), items.to_vec()).await {
+    match (cfg.submit)(model.to_string(), items.to_vec(), Arc::clone(&cfg.chain)).await {
         Ok(results) => results
             .into_iter()
             .map(|r| (r.custom_id, r.outcome))
@@ -142,14 +173,24 @@ pub(crate) mod test_support {
     use std::collections::HashMap as Map;
     use std::sync::Mutex;
 
+    /// Ланцюжок для тестів каскаду: `end()` на ньому НЕ викликається, тож
+    /// жодного рядка trace ці тести не пишуть — handle тут лише щоб
+    /// задовольнити [`CascadeCfg`].
+    pub fn test_chain() -> ChainRef {
+        Arc::new(tokio::sync::Mutex::new(trace::ChainHandle::start(
+            trace::ChainStart::new("test", "cascade"),
+        )))
+    }
+
     /// Фейковий submit: відповіді за (model, custom_id); відсутній ключ —
-    /// item-помилка. Рахує виклики хвиль на модель.
+    /// item-помилка. Рахує виклики хвиль на модель. Ланцюжок ігнорує:
+    /// нічого не диспатчить, тож і крокам взятись нізвідки.
     pub fn scripted_submit(
         replies: Map<(String, String), String>,
     ) -> (SubmitBatchFn, Arc<Mutex<Vec<String>>>) {
         let waves = Arc::new(Mutex::new(Vec::new()));
         let waves_out = Arc::clone(&waves);
-        let submit: SubmitBatchFn = Arc::new(move |model: String, items: Vec<WaveItem>| {
+        let submit: SubmitBatchFn = Arc::new(move |model: String, items: Vec<WaveItem>, _chain| {
             waves.lock().unwrap().push(model.clone());
             let replies = replies.clone();
             let fut: BoxFuture<'static, Result<Vec<WaveResult>, String>> = Box::pin(async move {
@@ -172,7 +213,7 @@ pub(crate) mod test_support {
 
 #[cfg(test)]
 mod tests {
-    use super::test_support::scripted_submit;
+    use super::test_support::{scripted_submit, test_chain};
     use super::*;
 
     fn item(id: &str) -> WaveItem {
@@ -192,6 +233,7 @@ mod tests {
             tier2: "t2".into(),
             allow_cloud: true,
             submit,
+            chain: test_chain(),
         };
         let mut stats = Stats::default();
         let out = keyed_cascade(
@@ -225,6 +267,7 @@ mod tests {
             tier2: "t2".into(),
             allow_cloud: true,
             submit,
+            chain: test_chain(),
         };
         let mut stats = Stats::default();
         let parse = |raw: &str, _: &str| {
@@ -254,6 +297,7 @@ mod tests {
             tier2: "t2".into(),
             allow_cloud: false,
             submit,
+            chain: test_chain(),
         };
         let mut stats = Stats::default();
         let out = keyed_cascade(

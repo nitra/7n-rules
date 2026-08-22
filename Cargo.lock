@@ -1116,7 +1116,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2250,7 +2250,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1a791e6620676a875f362f3156ed213e73ca099a09bf992c18812abe65cc37b1"
 dependencies = [
  "bstr",
- "hashbrown 0.15.5",
+ "hashbrown 0.17.1",
 ]
 
 [[package]]
@@ -4082,18 +4082,18 @@ dependencies = [
 
 [[package]]
 name = "n7n-gix-util"
-version = "0.1.0"
+version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b1a78d42a21e72c1b00c4405424857f0d995aaf5233e0ea8cb32d52a3f20977"
+checksum = "bdabc895f57da8ad0551e9470e644852a6684e6be433c0bb1641d044836a4aa8"
 dependencies = [
  "gix 0.70.0",
 ]
 
 [[package]]
 name = "n7n-harness"
-version = "0.1.1"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81717f42ff009438a6c75b598608afe0ff46e65fdcd2858199d5574e0aae5a69"
+checksum = "fff1ff7f8262d4d060945354f3797839b68053fa5dda059686910d764aa8c842"
 dependencies = [
  "n7n-gix-util",
  "n7n-llm-lib",
@@ -4106,9 +4106,9 @@ dependencies = [
 
 [[package]]
 name = "n7n-llm-lib"
-version = "0.3.1"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "98ef7fb66c0b0685807e2c41a29cb28462260a2f78fb74b6d147bd6807aab63d"
+checksum = "35e48ef91903295dea149d0c455aa2c6e9c1b04ec74675b248743eb5157f7eea"
 dependencies = [
  "agent-client-protocol",
  "bytes",
@@ -4131,14 +4131,15 @@ dependencies = [
 
 [[package]]
 name = "n7n-trace"
-version = "0.1.0"
+version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "87cf0743d2034ab5311a4341be11f56153a7252e380d9f86f0d08d8dcd563e59"
+checksum = "12b261554ddd0f2799847333d9771c08e6b3dabc925a791e3f195dc03e633e0a"
 dependencies = [
  "gethostname",
  "jiff 0.2.35",
  "serde",
  "serde_json",
+ "sha2 0.11.0",
  "uuid",
 ]
 
@@ -4849,7 +4850,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -5191,6 +5192,7 @@ name = "rules-adr"
 version = "0.1.0"
 dependencies = [
  "n7n-llm-lib",
+ "n7n-trace",
  "regex",
  "serde",
  "serde_json",
@@ -5333,7 +5335,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.12.1",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -5401,7 +5403,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -5949,10 +5951,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "once_cell",
  "rustix 1.1.4",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6991,7 +6993,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

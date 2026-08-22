@@ -22,8 +22,8 @@ rules-contract = { path = "../rules-contract" }
 # і шапка `rules-core/src/lib.rs`, рішення Р9 спеки rules-v2): цей крейт і є
 # тим місцем, де фікс РЕАЛЬНО виконується, тож важкий async/HTTP/rig-стек
 # (`agents`/`fix-agent`) тут потрібен цілком.
-harness = { version = "0.1", package = "n7n-harness" }
-llm-lib = { version = "0.3", package = "n7n-llm-lib", features = ["fix-agent"] }
+harness = { version = "0.2", package = "n7n-harness" }
+llm-lib = { version = "0.4", package = "n7n-llm-lib", features = ["fix-agent"] }
 # `ToolServer`/`ToolServerHandle` для підйому toolset-у одного attempt-у
 # (`llm_lib::fix::runner::run_attempt` приймає вже піднятий handle, не сам
 # його піднімає) — та сама версія, що вже резолвлена в `Cargo.lock` через
