@@ -19,5 +19,6 @@ resource: crates/rules-docs/src/
 | [publish.rs](publish.md)             | Rust Module |
 | [render.rs](render.md)               | Rust Module |
 | [topics.rs](topics.md)               | Rust Module |
+| [validator.rs](validator.md)         | Rust Module |
 | [wave.rs](wave.md)                   | Rust Module |
 | [zones.rs](zones.md)                 | Rust Module |

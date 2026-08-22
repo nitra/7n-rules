@@ -3,7 +3,7 @@ type: Rust Module
 title: lib.rs
 resource: crates/rules-docs/src/lib.rs
 docgen:
-  crc: 79ac7d9b
+  crc: 2d45f18e
   model: local-openai/gemma-4-26b-a4b-it
   tier: local-min
   score: 80

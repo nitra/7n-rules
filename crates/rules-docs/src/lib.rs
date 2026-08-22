@@ -51,6 +51,8 @@ pub mod publish;
 pub mod render;
 /// Виявлення стабільних тем домену.
 pub mod topics;
+/// Детерміновані quality gates графа перед публікацією.
+pub mod validator;
 /// Транспорт хвиль: інʼєкція batch-фасаду, драбина тирів, ланцюжок задачі.
 pub mod wave;
 /// Зони згенерованого Markdown: розбір, запис AUTOGEN, захист авторського.
@@ -70,6 +72,7 @@ pub use planner::{plan_semantic_chunks, Plan, PlanOutcome, PlannerInput, SourceT
 pub use publish::{publish_knowledge_artifacts, PublishOutcome, ValidationOutcome};
 pub use render::{render_knowledge_artifacts, RenderOutcome};
 pub use topics::{collect_reachable_node_ids, discover_topics, resolve_topic, Topic};
+pub use validator::{validate_knowledge_graph, ValidationInput, ValidationReport};
 pub use wave::{
     default_model_policy, native_submit_batch, new_chain, ChainRef, SubmitBatchFn, WaveItem,
     WaveResult,

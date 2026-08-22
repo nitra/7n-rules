@@ -34,3 +34,4 @@ npm/scripts/lib/tools.json
 .marksman.toml
 npm/rules/doc-files/marksman_config/data/marksman_config/marksman.baseline.toml
 crates/*/tests/fixtures/**
+crates/*/schema/**
