@@ -1,0 +1,427 @@
+{
+  "cycle": {
+    "plannerVersion": 1,
+    "maxTokens": 100,
+    "chunks": [
+      {
+        "id": "chunk:340a57587b7b94ff9d129d60",
+        "wave": 0,
+        "componentIds": [
+          "scc:85228c00f230e581e3e0947b"
+        ],
+        "nodeIds": [
+          "node:alpha",
+          "node:beta"
+        ],
+        "edgeIds": [
+          "edge:alpha-beta",
+          "edge:beta-alpha"
+        ],
+        "unitSlices": [
+          {
+            "nodeId": "node:alpha",
+            "path": "src/a.mjs",
+            "span": {
+              "startByte": 0,
+              "endByte": 8
+            },
+            "text": "alpha();",
+            "contentHash": "sha256:7e5b30b0a3f2b054a99fb995b5e9c1b83e558a0821c5a2f7fd7a62ba0456cf35"
+          },
+          {
+            "nodeId": "node:beta",
+            "path": "src/a.mjs",
+            "span": {
+              "startByte": 9,
+              "endByte": 16
+            },
+            "text": "beta();",
+            "contentHash": "sha256:7e5b30b0a3f2b054a99fb995b5e9c1b83e558a0821c5a2f7fd7a62ba0456cf35"
+          }
+        ],
+        "edgeEvidence": [
+          {
+            "edgeId": "edge:alpha-beta",
+            "evidence": [
+              {
+                "id": "e:alpha-beta",
+                "path": "src/a.mjs",
+                "span": {
+                  "startByte": 0,
+                  "endByte": 8
+                },
+                "text": "alpha();",
+                "contentHash": "sha256:7e5b30b0a3f2b054a99fb995b5e9c1b83e558a0821c5a2f7fd7a62ba0456cf35"
+              }
+            ]
+          },
+          {
+            "edgeId": "edge:beta-alpha",
+            "evidence": [
+              {
+                "id": "e:beta-alpha",
+                "path": "src/a.mjs",
+                "span": {
+                  "startByte": 9,
+                  "endByte": 16
+                },
+                "text": "beta();",
+                "contentHash": "sha256:7e5b30b0a3f2b054a99fb995b5e9c1b83e558a0821c5a2f7fd7a62ba0456cf35"
+              }
+            ]
+          }
+        ],
+        "estimatedTokens": 64,
+        "dependsOnChunkIds": [],
+        "cacheFingerprint": "sha256:1e3795ee253b9a17975de052e9d8b39b8098aac68576ff9321e6b4b0c0a280e0"
+      },
+      {
+        "id": "chunk:c766e12f505fd3201c4e2de5",
+        "wave": 1,
+        "componentIds": [
+          "scc:d6a029a5eb22bb5b0cc002b6"
+        ],
+        "nodeIds": [
+          "node:gamma"
+        ],
+        "edgeIds": [
+          "edge:gamma-alpha"
+        ],
+        "unitSlices": [
+          {
+            "nodeId": "node:gamma",
+            "path": "src/a.mjs",
+            "span": {
+              "startByte": 17,
+              "endByte": 25
+            },
+            "text": "gamma();",
+            "contentHash": "sha256:7e5b30b0a3f2b054a99fb995b5e9c1b83e558a0821c5a2f7fd7a62ba0456cf35"
+          }
+        ],
+        "edgeEvidence": [
+          {
+            "edgeId": "edge:gamma-alpha",
+            "evidence": [
+              {
+                "id": "e:gamma-alpha",
+                "path": "src/a.mjs",
+                "span": {
+                  "startByte": 17,
+                  "endByte": 25
+                },
+                "text": "gamma();",
+                "contentHash": "sha256:7e5b30b0a3f2b054a99fb995b5e9c1b83e558a0821c5a2f7fd7a62ba0456cf35"
+              }
+            ]
+          }
+        ],
+        "estimatedTokens": 32,
+        "dependsOnChunkIds": [
+          "chunk:340a57587b7b94ff9d129d60"
+        ],
+        "cacheFingerprint": "sha256:a713dfe1557d84cbd821db1499b98d7dd975f5afdac8202513d99e0baba9d92e"
+      }
+    ],
+    "waves": [
+      {
+        "index": 0,
+        "chunkIds": [
+          "chunk:340a57587b7b94ff9d129d60"
+        ],
+        "componentIds": [
+          "scc:85228c00f230e581e3e0947b"
+        ]
+      },
+      {
+        "index": 1,
+        "chunkIds": [
+          "chunk:c766e12f505fd3201c4e2de5"
+        ],
+        "componentIds": [
+          "scc:d6a029a5eb22bb5b0cc002b6"
+        ]
+      }
+    ],
+    "coverage": {
+      "requiredNodeIds": [
+        "node:alpha",
+        "node:beta",
+        "node:gamma"
+      ],
+      "requiredEdgeIds": [
+        "edge:alpha-beta",
+        "edge:beta-alpha",
+        "edge:gamma-alpha"
+      ],
+      "coveredNodeIds": [
+        "node:alpha",
+        "node:beta",
+        "node:gamma"
+      ],
+      "coveredEdgeIds": [
+        "edge:alpha-beta",
+        "edge:beta-alpha",
+        "edge:gamma-alpha"
+      ],
+      "complete": true
+    },
+    "reduce": {
+      "levels": [
+        {
+          "level": 0,
+          "groups": [
+            {
+              "id": "reduce:0:5d64ecadb640804f4d2f0571",
+              "childIds": [
+                "chunk:340a57587b7b94ff9d129d60",
+                "chunk:c766e12f505fd3201c4e2de5"
+              ]
+            }
+          ]
+        }
+      ],
+      "rootIds": [
+        "reduce:0:5d64ecadb640804f4d2f0571"
+      ]
+    },
+    "cachePolicy": {
+      "parser": {},
+      "schema": {},
+      "prompt": {},
+      "modelPolicy": {}
+    }
+  },
+  "budget": {
+    "plannerVersion": 1,
+    "maxTokens": 30,
+    "chunks": [
+      {
+        "id": "chunk:f4218788e2c807fed54af44e",
+        "wave": 0,
+        "componentIds": [
+          "scc:d0b78d5e6dca1460127a57d2"
+        ],
+        "nodeIds": [
+          "node:c"
+        ],
+        "edgeIds": [],
+        "unitSlices": [
+          {
+            "nodeId": "node:c",
+            "path": "src/a.mjs",
+            "span": {
+              "startByte": 8,
+              "endByte": 12
+            },
+            "text": "c();",
+            "contentHash": "sha256:f47e055a11bafad26797c79d2694fe8906d2980d7482775223459b092f353a28"
+          }
+        ],
+        "edgeEvidence": [],
+        "estimatedTokens": 13,
+        "dependsOnChunkIds": [],
+        "cacheFingerprint": "sha256:7ad309de59bdb620a43ff5a3f2c6ab9071b2fa790c3fa38f175723ff32dddf15"
+      },
+      {
+        "id": "chunk:dcef295c28eb4bb9b0ab0dca",
+        "wave": 1,
+        "componentIds": [
+          "scc:7eaff31d7ce8beddc1241358"
+        ],
+        "nodeIds": [
+          "node:b"
+        ],
+        "edgeIds": [
+          "edge:b-c"
+        ],
+        "unitSlices": [
+          {
+            "nodeId": "node:b",
+            "path": "src/a.mjs",
+            "span": {
+              "startByte": 4,
+              "endByte": 8
+            },
+            "text": "b();",
+            "contentHash": "sha256:f47e055a11bafad26797c79d2694fe8906d2980d7482775223459b092f353a28"
+          }
+        ],
+        "edgeEvidence": [
+          {
+            "edgeId": "edge:b-c",
+            "evidence": [
+              {
+                "id": "e:b-c",
+                "path": "src/a.mjs",
+                "span": {
+                  "startByte": 4,
+                  "endByte": 8
+                },
+                "text": "b();",
+                "contentHash": "sha256:f47e055a11bafad26797c79d2694fe8906d2980d7482775223459b092f353a28"
+              }
+            ]
+          }
+        ],
+        "estimatedTokens": 30,
+        "dependsOnChunkIds": [
+          "chunk:f4218788e2c807fed54af44e"
+        ],
+        "cacheFingerprint": "sha256:6ab1ee28feff4b460d780b938963157d7fec65d68e1b0290774e01af19a961fd"
+      },
+      {
+        "id": "chunk:7f04b30aa5b1f46f2f76be20",
+        "wave": 2,
+        "componentIds": [
+          "scc:a123fd0e6143a223bb129056"
+        ],
+        "nodeIds": [
+          "node:a"
+        ],
+        "edgeIds": [
+          "edge:a-b"
+        ],
+        "unitSlices": [
+          {
+            "nodeId": "node:a",
+            "path": "src/a.mjs",
+            "span": {
+              "startByte": 0,
+              "endByte": 4
+            },
+            "text": "a();",
+            "contentHash": "sha256:f47e055a11bafad26797c79d2694fe8906d2980d7482775223459b092f353a28"
+          }
+        ],
+        "edgeEvidence": [
+          {
+            "edgeId": "edge:a-b",
+            "evidence": [
+              {
+                "id": "e:a-b",
+                "path": "src/a.mjs",
+                "span": {
+                  "startByte": 0,
+                  "endByte": 4
+                },
+                "text": "a();",
+                "contentHash": "sha256:f47e055a11bafad26797c79d2694fe8906d2980d7482775223459b092f353a28"
+              }
+            ]
+          }
+        ],
+        "estimatedTokens": 30,
+        "dependsOnChunkIds": [
+          "chunk:dcef295c28eb4bb9b0ab0dca"
+        ],
+        "cacheFingerprint": "sha256:610ba494897c3daf0bee56cc21506013ff85625ea207ea572e89229ff3e95d09"
+      }
+    ],
+    "waves": [
+      {
+        "index": 0,
+        "chunkIds": [
+          "chunk:f4218788e2c807fed54af44e"
+        ],
+        "componentIds": [
+          "scc:d0b78d5e6dca1460127a57d2"
+        ]
+      },
+      {
+        "index": 1,
+        "chunkIds": [
+          "chunk:dcef295c28eb4bb9b0ab0dca"
+        ],
+        "componentIds": [
+          "scc:7eaff31d7ce8beddc1241358"
+        ]
+      },
+      {
+        "index": 2,
+        "chunkIds": [
+          "chunk:7f04b30aa5b1f46f2f76be20"
+        ],
+        "componentIds": [
+          "scc:a123fd0e6143a223bb129056"
+        ]
+      }
+    ],
+    "coverage": {
+      "requiredNodeIds": [
+        "node:a",
+        "node:b",
+        "node:c"
+      ],
+      "requiredEdgeIds": [
+        "edge:a-b",
+        "edge:b-c"
+      ],
+      "coveredNodeIds": [
+        "node:a",
+        "node:b",
+        "node:c"
+      ],
+      "coveredEdgeIds": [
+        "edge:a-b",
+        "edge:b-c"
+      ],
+      "complete": true
+    },
+    "reduce": {
+      "levels": [
+        {
+          "level": 0,
+          "groups": [
+            {
+              "id": "reduce:0:153d8e67709df482a93eb810",
+              "childIds": [
+                "chunk:7f04b30aa5b1f46f2f76be20",
+                "chunk:dcef295c28eb4bb9b0ab0dca"
+              ]
+            },
+            {
+              "id": "reduce:0:0532f27754188e44cbf894ae",
+              "childIds": [
+                "chunk:f4218788e2c807fed54af44e"
+              ]
+            }
+          ]
+        },
+        {
+          "level": 1,
+          "groups": [
+            {
+              "id": "reduce:1:b474606131fc03126c62312b",
+              "childIds": [
+                "reduce:0:153d8e67709df482a93eb810",
+                "reduce:0:0532f27754188e44cbf894ae"
+              ]
+            }
+          ]
+        }
+      ],
+      "rootIds": [
+        "reduce:1:b474606131fc03126c62312b"
+      ]
+    },
+    "cachePolicy": {
+      "parser": {
+        "id": "oxc",
+        "version": "1"
+      },
+      "schema": {
+        "version": 1
+      },
+      "prompt": {
+        "version": "map-v1"
+      },
+      "modelPolicy": {
+        "tiers": [
+          "local-min",
+          "cloud"
+        ]
+      }
+    }
+  }
+}
