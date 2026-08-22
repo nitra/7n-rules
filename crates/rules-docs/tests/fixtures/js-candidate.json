@@ -1,0 +1,678 @@
+{
+  "stable-order": {
+    "ok": true,
+    "graph": {
+      "claims": [],
+      "domain": {
+        "ecosystem": "npm",
+        "id": "npm:@fixture/orders",
+        "name": "@fixture/orders",
+        "rootManifest": "package.json",
+        "sourceFingerprint": "sha256:domain"
+      },
+      "edges": [],
+      "evidence": [
+        {
+          "contentHash": "sha256:855f60a25e36ddd7e6a7778a728a1b1e7b5a6b9be2c4c4396c45aa26f0da20f9",
+          "id": "evidence:574d41fece2923aa7cc23acd",
+          "kind": "code",
+          "path": "src/z.mjs",
+          "role": "syntax",
+          "span": {
+            "endByte": 6,
+            "startByte": 0
+          },
+          "symbolId": "code-unit:npm:@fixture/orders:js:src/z.mjs#submit"
+        },
+        {
+          "contentHash": "sha256:855f60a25e36ddd7e6a7778a728a1b1e7b5a6b9be2c4c4396c45aa26f0da20f9",
+          "id": "evidence:881ad9d020684232d75f54e4",
+          "kind": "code",
+          "path": "src/a.mjs",
+          "role": "syntax",
+          "span": {
+            "endByte": 6,
+            "startByte": 0
+          },
+          "symbolId": "code-unit:npm:@fixture/orders:js:src/a.mjs#submit"
+        }
+      ],
+      "gaps": [],
+      "nodes": [
+        {
+          "attributes": {
+            "language": "js",
+            "qualifiedPath": "src/a.mjs#submit",
+            "signature": null,
+            "sourcePath": "src/a.mjs",
+            "span": {
+              "endByte": 6,
+              "startByte": 0
+            },
+            "unitKind": "function"
+          },
+          "domainId": "npm:@fixture/orders",
+          "id": "code-unit:npm:@fixture/orders:js:src/a.mjs#submit",
+          "kind": "code-unit",
+          "name": "submit",
+          "sourceFingerprint": "sha256:855f60a25e36ddd7e6a7778a728a1b1e7b5a6b9be2c4c4396c45aa26f0da20f9",
+          "visibility": "public"
+        },
+        {
+          "attributes": {
+            "language": "js",
+            "qualifiedPath": "src/z.mjs#submit",
+            "signature": null,
+            "sourcePath": "src/z.mjs",
+            "span": {
+              "endByte": 6,
+              "startByte": 0
+            },
+            "unitKind": "function"
+          },
+          "domainId": "npm:@fixture/orders",
+          "id": "code-unit:npm:@fixture/orders:js:src/z.mjs#submit",
+          "kind": "code-unit",
+          "name": "submit",
+          "sourceFingerprint": "sha256:855f60a25e36ddd7e6a7778a728a1b1e7b5a6b9be2c4c4396c45aa26f0da20f9",
+          "visibility": "public"
+        }
+      ],
+      "schemaVersion": 1,
+      "topics": [
+        {
+          "id": "process:npm:@fixture/orders:681e895c27a84c0d43e90d7d",
+          "kind": "process",
+          "title": "submit",
+          "domainId": "npm:@fixture/orders",
+          "anchorIds": [
+            "code-unit:npm:@fixture/orders:js:src/z.mjs#submit"
+          ],
+          "aliases": []
+        },
+        {
+          "id": "process:npm:@fixture/orders:8a44b0bccfa1f32374f61e0f",
+          "kind": "process",
+          "title": "submit",
+          "domainId": "npm:@fixture/orders",
+          "anchorIds": [
+            "code-unit:npm:@fixture/orders:js:src/a.mjs#submit"
+          ],
+          "aliases": []
+        }
+      ]
+    },
+    "fragments": [
+      {
+        "ok": true,
+        "file": {
+          "path": "src/a.mjs",
+          "language": "js",
+          "contentHash": "sha256:855f60a25e36ddd7e6a7778a728a1b1e7b5a6b9be2c4c4396c45aa26f0da20f9"
+        },
+        "units": [
+          {
+            "localId": "submit",
+            "qualifiedPath": "src/a.mjs#submit",
+            "kind": "function",
+            "name": "submit",
+            "visibility": "public",
+            "span": {
+              "startByte": 0,
+              "endByte": 6
+            }
+          }
+        ],
+        "edges": [],
+        "coverage": {
+          "requiredUnits": 1,
+          "coveredUnits": 1,
+          "requiredEdges": 0,
+          "coveredEdges": 0,
+          "complete": true
+        }
+      },
+      {
+        "ok": true,
+        "file": {
+          "path": "src/z.mjs",
+          "language": "js",
+          "contentHash": "sha256:855f60a25e36ddd7e6a7778a728a1b1e7b5a6b9be2c4c4396c45aa26f0da20f9"
+        },
+        "units": [
+          {
+            "localId": "submit",
+            "qualifiedPath": "src/z.mjs#submit",
+            "kind": "function",
+            "name": "submit",
+            "visibility": "public",
+            "span": {
+              "startByte": 0,
+              "endByte": 6
+            }
+          }
+        ],
+        "edges": [],
+        "coverage": {
+          "requiredUnits": 1,
+          "coveredUnits": 1,
+          "requiredEdges": 0,
+          "coveredEdges": 0,
+          "complete": true
+        }
+      }
+    ],
+    "migrationPlan": {
+      "status": "resolved",
+      "mappings": []
+    }
+  },
+  "expected-overlay": {
+    "ok": true,
+    "graph": {
+      "claims": [
+        {
+          "confidence": 1,
+          "evidenceIds": [
+            "evidence:expected"
+          ],
+          "id": "claim:expected-submit",
+          "layer": "expected",
+          "predicate": "produces",
+          "sourceFingerprint": "sha256:expected",
+          "subjectId": "code-unit:npm:@fixture/orders:js:src/order.mjs#submit",
+          "value": "order"
+        }
+      ],
+      "domain": {
+        "ecosystem": "npm",
+        "id": "npm:@fixture/orders",
+        "name": "@fixture/orders",
+        "rootManifest": "package.json",
+        "sourceFingerprint": "sha256:domain"
+      },
+      "edges": [],
+      "evidence": [
+        {
+          "contentHash": "sha256:855f60a25e36ddd7e6a7778a728a1b1e7b5a6b9be2c4c4396c45aa26f0da20f9",
+          "id": "evidence:578298dd26a411a04971156b",
+          "kind": "code",
+          "path": "src/order.mjs",
+          "role": "syntax",
+          "span": {
+            "endByte": 6,
+            "startByte": 0
+          },
+          "symbolId": "code-unit:npm:@fixture/orders:js:src/order.mjs#submit"
+        },
+        {
+          "contentHash": "sha256:expected",
+          "id": "evidence:expected",
+          "kind": "spec",
+          "path": "docs/spec.md"
+        }
+      ],
+      "gaps": [
+        {
+          "id": "gap:claim:expected-submit",
+          "status": "missing",
+          "expectedClaimId": "claim:expected-submit",
+          "implementedClaimIds": [],
+          "evidenceIds": [
+            "evidence:expected"
+          ]
+        }
+      ],
+      "nodes": [
+        {
+          "attributes": {
+            "language": "js",
+            "qualifiedPath": "src/order.mjs#submit",
+            "signature": null,
+            "sourcePath": "src/order.mjs",
+            "span": {
+              "endByte": 6,
+              "startByte": 0
+            },
+            "unitKind": "function"
+          },
+          "domainId": "npm:@fixture/orders",
+          "id": "code-unit:npm:@fixture/orders:js:src/order.mjs#submit",
+          "kind": "code-unit",
+          "name": "submit",
+          "sourceFingerprint": "sha256:855f60a25e36ddd7e6a7778a728a1b1e7b5a6b9be2c4c4396c45aa26f0da20f9",
+          "visibility": "public"
+        }
+      ],
+      "schemaVersion": 1,
+      "topics": [
+        {
+          "id": "process:npm:@fixture/orders:79e22d9a8a839bd5d7e47c73",
+          "kind": "process",
+          "title": "submit",
+          "domainId": "npm:@fixture/orders",
+          "anchorIds": [
+            "code-unit:npm:@fixture/orders:js:src/order.mjs#submit"
+          ],
+          "aliases": []
+        }
+      ]
+    },
+    "fragments": [
+      {
+        "ok": true,
+        "file": {
+          "path": "src/order.mjs",
+          "language": "js",
+          "contentHash": "sha256:855f60a25e36ddd7e6a7778a728a1b1e7b5a6b9be2c4c4396c45aa26f0da20f9"
+        },
+        "units": [
+          {
+            "localId": "submit",
+            "qualifiedPath": "src/order.mjs#submit",
+            "kind": "function",
+            "name": "submit",
+            "visibility": "public",
+            "span": {
+              "startByte": 0,
+              "endByte": 6
+            }
+          }
+        ],
+        "edges": [],
+        "coverage": {
+          "requiredUnits": 1,
+          "coveredUnits": 1,
+          "requiredEdges": 0,
+          "coveredEdges": 0,
+          "complete": true
+        }
+      }
+    ],
+    "migrationPlan": {
+      "status": "resolved",
+      "mappings": []
+    }
+  },
+  "structured-fragments": {
+    "ok": true,
+    "graph": {
+      "claims": [
+        {
+          "confidence": 1,
+          "evidenceIds": [
+            "evidence:openapi"
+          ],
+          "id": "claim:sha256:5d6412770f9ecc8212658425be81c90052cf539ef56dabf66ad54bcc45219894",
+          "layer": "implemented",
+          "predicate": "declares-artifact",
+          "sourceFingerprint": "sha256:openapi",
+          "subjectId": "schema:npm:@fixture/orders:openapi",
+          "value": {
+            "artifact": "openapi",
+            "format": "yaml"
+          }
+        }
+      ],
+      "domain": {
+        "ecosystem": "npm",
+        "id": "npm:@fixture/orders",
+        "name": "@fixture/orders",
+        "rootManifest": "package.json",
+        "sourceFingerprint": "sha256:domain"
+      },
+      "edges": [
+        {
+          "evidenceIds": [
+            "evidence:openapi"
+          ],
+          "fromId": "schema:npm:@fixture/orders:openapi",
+          "id": "edge:openapi",
+          "kind": "implements",
+          "toId": "contract:npm:@fixture/orders:openapi"
+        }
+      ],
+      "evidence": [
+        {
+          "contentHash": "sha256:855f60a25e36ddd7e6a7778a728a1b1e7b5a6b9be2c4c4396c45aa26f0da20f9",
+          "id": "evidence:578298dd26a411a04971156b",
+          "kind": "code",
+          "path": "src/order.mjs",
+          "role": "syntax",
+          "span": {
+            "endByte": 6,
+            "startByte": 0
+          },
+          "symbolId": "code-unit:npm:@fixture/orders:js:src/order.mjs#submit"
+        },
+        {
+          "contentHash": "sha256:openapi",
+          "id": "evidence:openapi",
+          "kind": "schema",
+          "path": "contracts/openapi.yaml",
+          "symbolId": "schema:npm:@fixture/orders:openapi"
+        }
+      ],
+      "gaps": [],
+      "nodes": [
+        {
+          "attributes": {
+            "language": "js",
+            "qualifiedPath": "src/order.mjs#submit",
+            "signature": null,
+            "sourcePath": "src/order.mjs",
+            "span": {
+              "endByte": 6,
+              "startByte": 0
+            },
+            "unitKind": "function"
+          },
+          "domainId": "npm:@fixture/orders",
+          "id": "code-unit:npm:@fixture/orders:js:src/order.mjs#submit",
+          "kind": "code-unit",
+          "name": "submit",
+          "sourceFingerprint": "sha256:855f60a25e36ddd7e6a7778a728a1b1e7b5a6b9be2c4c4396c45aa26f0da20f9",
+          "visibility": "public"
+        },
+        {
+          "attributes": {
+            "sourcePath": "package.json"
+          },
+          "domainId": "npm:@fixture/orders",
+          "id": "config:npm:@fixture/orders:package",
+          "kind": "config",
+          "name": "package.json",
+          "sourceFingerprint": "sha256:package",
+          "visibility": "package"
+        },
+        {
+          "attributes": {
+            "boundary": "contract",
+            "sourcePath": "contracts/openapi.yaml"
+          },
+          "domainId": "npm:@fixture/orders",
+          "id": "contract:npm:@fixture/orders:openapi",
+          "kind": "integration",
+          "name": "Orders API",
+          "sourceFingerprint": "sha256:openapi",
+          "visibility": "external"
+        },
+        {
+          "attributes": {
+            "artifact": "schema",
+            "sourcePath": "contracts/openapi.yaml"
+          },
+          "domainId": "npm:@fixture/orders",
+          "id": "schema:npm:@fixture/orders:openapi",
+          "kind": "config",
+          "name": "Orders schema",
+          "sourceFingerprint": "sha256:openapi",
+          "visibility": "public"
+        }
+      ],
+      "schemaVersion": 1,
+      "topics": [
+        {
+          "id": "contract:npm:@fixture/orders:6640911d4b5dfcc013313d26",
+          "kind": "contract",
+          "title": "Orders API",
+          "domainId": "npm:@fixture/orders",
+          "anchorIds": [
+            "contract:npm:@fixture/orders:openapi"
+          ],
+          "aliases": []
+        },
+        {
+          "id": "process:npm:@fixture/orders:79e22d9a8a839bd5d7e47c73",
+          "kind": "process",
+          "title": "submit",
+          "domainId": "npm:@fixture/orders",
+          "anchorIds": [
+            "code-unit:npm:@fixture/orders:js:src/order.mjs#submit"
+          ],
+          "aliases": []
+        }
+      ]
+    },
+    "fragments": [
+      {
+        "ok": true,
+        "file": {
+          "path": "src/order.mjs",
+          "language": "js",
+          "contentHash": "sha256:855f60a25e36ddd7e6a7778a728a1b1e7b5a6b9be2c4c4396c45aa26f0da20f9"
+        },
+        "units": [
+          {
+            "localId": "submit",
+            "qualifiedPath": "src/order.mjs#submit",
+            "kind": "function",
+            "name": "submit",
+            "visibility": "public",
+            "span": {
+              "startByte": 0,
+              "endByte": 6
+            }
+          }
+        ],
+        "edges": [],
+        "coverage": {
+          "requiredUnits": 1,
+          "coveredUnits": 1,
+          "requiredEdges": 0,
+          "coveredEdges": 0,
+          "complete": true
+        }
+      }
+    ],
+    "migrationPlan": {
+      "status": "resolved",
+      "mappings": []
+    }
+  },
+  "previous-manifest": {
+    "ok": true,
+    "graph": {
+      "claims": [],
+      "domain": {
+        "ecosystem": "npm",
+        "id": "npm:@fixture/orders",
+        "name": "@fixture/orders",
+        "rootManifest": "package.json",
+        "sourceFingerprint": "sha256:domain"
+      },
+      "edges": [],
+      "evidence": [
+        {
+          "contentHash": "sha256:855f60a25e36ddd7e6a7778a728a1b1e7b5a6b9be2c4c4396c45aa26f0da20f9",
+          "id": "evidence:f494703ec0e7ac09d5b145c4",
+          "kind": "code",
+          "path": "src/flows/orders.mjs",
+          "role": "syntax",
+          "span": {
+            "endByte": 6,
+            "startByte": 0
+          },
+          "symbolId": "code-unit:npm:@fixture/orders:js:src/flows/orders.mjs#submit"
+        }
+      ],
+      "gaps": [],
+      "nodes": [
+        {
+          "attributes": {
+            "language": "js",
+            "qualifiedPath": "src/flows/orders.mjs#submit",
+            "signature": null,
+            "sourcePath": "src/flows/orders.mjs",
+            "span": {
+              "endByte": 6,
+              "startByte": 0
+            },
+            "unitKind": "function"
+          },
+          "domainId": "npm:@fixture/orders",
+          "id": "code-unit:npm:@fixture/orders:js:src/flows/orders.mjs#submit",
+          "kind": "code-unit",
+          "name": "submit",
+          "sourceFingerprint": "sha256:855f60a25e36ddd7e6a7778a728a1b1e7b5a6b9be2c4c4396c45aa26f0da20f9",
+          "visibility": "public"
+        }
+      ],
+      "schemaVersion": 1,
+      "topics": [
+        {
+          "id": "process:npm:@fixture/orders:daa6e45bab935cf8a3151133",
+          "kind": "process",
+          "title": "submit",
+          "domainId": "npm:@fixture/orders",
+          "anchorIds": [
+            "code-unit:npm:@fixture/orders:js:src/flows/orders.mjs#submit"
+          ],
+          "aliases": []
+        }
+      ]
+    },
+    "fragments": [
+      {
+        "ok": true,
+        "file": {
+          "path": "src/flows/orders.mjs",
+          "language": "js",
+          "contentHash": "sha256:855f60a25e36ddd7e6a7778a728a1b1e7b5a6b9be2c4c4396c45aa26f0da20f9"
+        },
+        "units": [
+          {
+            "localId": "submit",
+            "qualifiedPath": "src/flows/orders.mjs#submit",
+            "kind": "function",
+            "name": "submit",
+            "visibility": "public",
+            "span": {
+              "startByte": 0,
+              "endByte": 6
+            }
+          }
+        ],
+        "edges": [],
+        "coverage": {
+          "requiredUnits": 1,
+          "coveredUnits": 1,
+          "requiredEdges": 0,
+          "coveredEdges": 0,
+          "complete": true
+        }
+      }
+    ],
+    "migrationPlan": {
+      "status": "resolved",
+      "mappings": [
+        {
+          "fromTopicId": "process:npm:@fixture/orders:daa6e45bab935cf8a3151133",
+          "toTopicId": "process:npm:@fixture/orders:a57ec324ec0e224a8d775a01",
+          "score": 0.75,
+          "reason": "semantic-rename"
+        }
+      ]
+    }
+  },
+  "extractor-missing": {
+    "ok": false,
+    "diagnostics": [
+      {
+        "code": "extractor-missing",
+        "detail": "Немає knowledge extractor для .py.",
+        "path": "src/order.py"
+      }
+    ]
+  },
+  "extractor-threw": {
+    "ok": false,
+    "diagnostics": [
+      {
+        "code": "extractor-threw",
+        "detail": "parse crash",
+        "path": "src/order.mjs"
+      }
+    ]
+  },
+  "extractor-failed": {
+    "ok": false,
+    "diagnostics": [
+      {
+        "code": "extractor-failed",
+        "detail": "Extractor завершився без diagnostic.",
+        "path": "src/order.mjs"
+      }
+    ]
+  },
+  "extractor-result-invalid": {
+    "ok": false,
+    "diagnostics": [
+      {
+        "code": "extractor-result-invalid",
+        "detail": "Extractor не повернув structured result.",
+        "path": "src/order.mjs"
+      }
+    ]
+  },
+  "incomplete-coverage": {
+    "ok": false,
+    "diagnostics": [
+      {
+        "code": "coverage-incomplete",
+        "message": "Extractor coverage неповне для src/order.mjs.",
+        "id": "src/order.mjs"
+      }
+    ]
+  },
+  "unsafe-sources": {
+    "ok": false,
+    "diagnostics": [
+      {
+        "code": "invalid-source",
+        "detail": "Source мусить мати safe relative path і string content.",
+        "path": null
+      },
+      {
+        "code": "invalid-source",
+        "detail": "Source мусить мати safe relative path і string content.",
+        "path": null
+      },
+      {
+        "code": "duplicate-source-path",
+        "detail": "src/order.mjs",
+        "path": "src/order.mjs"
+      }
+    ]
+  },
+  "duplicate-extension": {
+    "ok": false,
+    "diagnostics": [
+      {
+        "code": "duplicate-extractor-extension",
+        "detail": "Розширення .mjs належить кільком knowledge extractors.",
+        "path": null
+      }
+    ]
+  },
+  "dotfile": {
+    "ok": false,
+    "diagnostics": [
+      {
+        "code": "extractor-missing",
+        "detail": "Немає knowledge extractor для src/.bashrc.",
+        "path": "src/.bashrc"
+      }
+    ]
+  },
+  "invalid-domain": {
+    "ok": false,
+    "diagnostics": [
+      {
+        "code": "invalid-domain",
+        "detail": "Domain мусить мати stable id.",
+        "path": null
+      }
+    ]
+  }
+}

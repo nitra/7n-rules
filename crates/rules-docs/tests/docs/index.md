@@ -6,6 +6,7 @@ resource: crates/rules-docs/tests/
 
 | Файл                                           | Тип         |
 | ---------------------------------------------- | ----------- |
+| [candidate.rs](candidate.md)                   | Rust Module |
 | [claims.rs](claims.md)                         | Rust Module |
 | [domains.rs](domains.md)                       | Rust Module |
 | [expected_overlay.rs](expected_overlay.md)     | Rust Module |

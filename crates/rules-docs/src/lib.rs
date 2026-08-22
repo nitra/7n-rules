@@ -27,6 +27,8 @@
 //! свого зрізу. Гейти вже приймають [`wave::ChainRef`] ззовні саме тому, що
 //! коли runner переїде, ОДИН ланцюжок має накрити весь build.
 
+/// Детермінований кандидат графа: зшивання стадій в одну атомарну операцію.
+pub mod candidate;
 /// Побудова evidence-backed implemented claims через batch map/reduce.
 pub mod claims;
 /// Канонічний JSON, `sha256:`-хеш і versioned-кеш успішних відповідей.
@@ -70,6 +72,10 @@ pub mod wave;
 /// Зони згенерованого Markdown: розбір, запис AUTOGEN, захист авторського.
 pub mod zones;
 
+pub use candidate::{
+    build_knowledge_candidate, Candidate, CandidateInput, CandidateOutcome, ExtractorFile,
+    KnowledgeExtractor,
+};
 pub use claims::{build_structured_claims, ClaimsInput, ClaimsOutcome};
 pub use deterministic::{canonical_hash, canonical_json, VersionedCache};
 pub use domains::{
