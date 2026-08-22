@@ -3,7 +3,7 @@ type: Rust Module
 title: fix_k8s_manifests.rs
 resource: crates/rules-core/src/concerns/fix_k8s_manifests.rs
 docgen:
-  crc: 91285131
+  crc: 0267b598
   model: local-openai/gemma-4-26b-a4b-it
   tier: local-min
   score: 60
@@ -21,6 +21,9 @@ Native fix-поверхня концерну `k8s/manifests` — Rust-порт T
 - ensure_svc_cluster_ip_type — Проставляє `spec.type: ClusterIP` у кожен `kind: Service` — порт `ensureSvcClusterIpType`.
 - ensure_svc_hl_cluster_ip — Проставляє `spec.clusterIP: None` у кожен `kind: Service` — порт `ensureSvcHlClusterIp`.  `metadata.name` НЕ чіпається: суфікс `-hl` — це перейменування ресурсу, на яке посилаються інші файли, тобто не T0.
 - ensure_deployment_strategy — Проставляє канонічний `spec.strategy` у кожен `kind: Deployment` — порт `ensureDeploymentStrategy`.  Ідемпотентність перевіряється за ТРЬОМА листками, а не за рівністю всього обʼєкта, як у JS. Різниці у наслідку немає: коли листки збігаються, а під `strategy` є ще щось, JS теж переписує файл тими самими значеннями й отримує байт-у-байт той самий текст, тобто запису не робить.
+- ensure_hasura_configmap_required_env — Проставляє обовʼязкові `HASURA_GRAPHQL_*` у `data` ConfigMap — порт `ensureHasuraConfigMapRequiredEnv`.
+- ensure_hasura_httproute_rule1_filters — Проставляє канонічний `RequestRedirect` у правило 1 Hasura-канона — порт `ensureHasuraHttpRouteRule1Filters`.  Лагодить ЛИШЕ наявне правило (перезапис `filters`). Правила 2-4 потребують синтезу нового правила з `backendRef`, якого нізвідки достовірно вивести, — це рішення про інфраструктуру, не T0.
+- ensure_network_policy_egress — Проставляє канонічний `spec.egress` у кожен `kind: NetworkPolicy` — порт `ensureNetworkPolicyEgress`.  Джерело egress — ТОЙ САМИЙ сніпет, яким rego темплейтить перевірку, тож збіг із очікуванням re-detect гарантований конструкцією, а не звіркою.
 - k8s_manifests_fix — Будує [`FixPlan`] для `k8s/manifests` — порт `patterns` із `fix-manifests.mjs`.  Родина порушення береться з `data.kind` детектора (#3 fix-hints), як і в JS. Незнайома родина просто не має трансформера — це не помилка, а «цей зріз її ще не лагодить».  Порядок правок стабільний за шляхом: план — детермінований артефакт, який іде в JSON, і нестабільний порядок робив би diff шумним.
 
 ## Гарантії поведінки
