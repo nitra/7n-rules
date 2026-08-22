@@ -5248,6 +5248,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "rules-docs"
+version = "0.1.0"
+dependencies = [
+ "n7n-llm-lib",
+ "n7n-trace",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "tokio",
+]
+
+[[package]]
 name = "rules-fix"
 version = "0.1.0"
 dependencies = [
