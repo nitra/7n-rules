@@ -97,6 +97,25 @@ mod tests {
     use harness::pipeline::Fixability as PipelineFixability;
     use rules_core::concern_meta::Fixability as ConcernFixability;
 
+    /// Ті самі змінні, що читає `harness::ladder::resolve_ladder_models`
+    /// (перелік-близнюк у `tests/fix_concern.rs`): якщо жодної не задано,
+    /// драбина БУДЬ-ЯКОГО concern-а порожня — і це не дефект, а середовище
+    /// без моделей (саме таке в CI).
+    const MODEL_ENV_VARS: &[&str] = &[
+        "N_LOCAL_MIN_MODEL",
+        "N_LOCAL_AVG_MODEL",
+        "N_LOCAL_MAX_MODEL",
+        "N_CLOUD_MIN_MODEL",
+        "N_CLOUD_AVG_MODEL",
+        "N_CLOUD_MAX_MODEL",
+    ];
+
+    fn any_model_env_configured() -> bool {
+        MODEL_ENV_VARS
+            .iter()
+            .any(|name| std::env::var(name).is_ok_and(|value| !value.is_empty()))
+    }
+
     /// Мінімальний `ConcernMeta` для тестів — лише поля, які читає
     /// [`build_pipeline_config`]; решта нейтральна.
     fn meta(fixability: ConcernFixability, skip_local_tier: bool) -> ConcernMeta {
@@ -118,13 +137,24 @@ mod tests {
     fn fixability_and_cwd_and_target_files_pass_through() {
         let cwd = PathBuf::from("/repo");
         let targets = vec![PathBuf::from("a.mjs"), PathBuf::from("b.mjs")];
-        let config = build_pipeline_config(
+        let built = build_pipeline_config(
             &meta(ConcernFixability::Structural, false),
             "text/concern",
             cwd.clone(),
             targets.clone(),
-        )
-        .expect("драбина резолвиться");
+        );
+        // Без жодної моделі в env драбина порожня ЗАКОНОМІРНО. Тест не
+        // пропускається мовчки: він перевіряє, що це саме помилка драбини, а
+        // не тихий успіх із порожнім набором рунгів.
+        if !any_model_env_configured() {
+            let error = built.expect_err("без моделей драбина мусить бути помилкою");
+            assert!(
+                error.contains("драбина порожня"),
+                "очікувалась помилка драбини, а не {error}"
+            );
+            return;
+        }
+        let config = built.expect("драбина резолвиться");
         assert_eq!(config.cwd, cwd);
         assert_eq!(config.target_files, targets);
         assert_eq!(config.fixability, PipelineFixability::ConfigOrStructural);
