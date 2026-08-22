@@ -107,6 +107,20 @@ fn topic_token(topic_id: &str) -> String {
     hex
 }
 
+/// Шлях сторінки теми — `<тека виду>/<токен>.md`.
+///
+/// Єдине джерело істини для ідентичності сторінки: реєстр захищених зон
+/// ([`crate::runner::protected_zones_from_pages`]) мусить шукати рівно там,
+/// куди рендерер пише. У JS ця відповідність тримається на тому, що дві
+/// таблиці тек у різних файлах збігаються.
+///
+/// `None` — вид теми не має власної сторінки.
+#[must_use]
+pub fn topic_page_path(kind: &str, topic_id: &str) -> Option<String> {
+    let directory = lookup(&PAGE_KIND_PATHS, kind)?;
+    Some(format!("{directory}/{}.md", topic_token(topic_id)))
+}
+
 fn sorted_strings(mut values: Vec<String>) -> Vec<String> {
     values.sort_by(|left, right| js_locale_cmp(left, right));
     values

@@ -21,6 +21,7 @@ resource: crates/rules-docs/tests/
 | [planner_parity.rs](planner_parity.md)         | Rust Module |
 | [publish.rs](publish.md)                       | Rust Module |
 | [render.rs](render.md)                         | Rust Module |
+| [runner.rs](runner.md)                         | Rust Module |
 | [sources.rs](sources.md)                       | Rust Module |
 | [structured_sources.rs](structured_sources.md) | Rust Module |
 | [topics.rs](topics.md)                         | Rust Module |

@@ -59,6 +59,8 @@ pub mod planner;
 pub mod publish;
 /// Детерміновані Markdown- і manifest-проєкції графа.
 pub mod render;
+/// Самодостатні деталі оркестратора `docs build`.
+pub mod runner;
 /// Завантаження джерел одного домену.
 pub mod sources;
 /// Структуровані джерела домену: контракти, схеми, конфіги.
@@ -93,7 +95,12 @@ pub use identity::{reconcile_topic_identities, MigrationOutcome, MigrationPlan};
 pub use impact::{create_impact_slice, ImpactSlice};
 pub use planner::{plan_semantic_chunks, Plan, PlanOutcome, PlannerInput, SourceText};
 pub use publish::{publish_knowledge_artifacts, PublishOutcome, ValidationOutcome};
-pub use render::{render_knowledge_artifacts, RenderOutcome};
+pub use render::{render_knowledge_artifacts, topic_page_path, RenderOutcome};
+pub use runner::{
+    claims_chunks, domain_fingerprint, entailment_evidence_content_by_id, merge_gap_mappings,
+    parser_version, protected_zones_from_pages, read_existing_markdown, read_previous_manifest,
+    source_evidence_content_by_id, source_fingerprint, write_shadow_candidate, ParserProvenance,
+};
 pub use sources::{discover_domain_code_extensions, load_domain_sources, DomainScope, SourceFile};
 pub use topics::{collect_reachable_node_ids, discover_topics, resolve_topic, Topic};
 pub use validator::{validate_knowledge_graph, ValidationInput, ValidationReport};

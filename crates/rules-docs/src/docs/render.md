@@ -3,7 +3,7 @@ type: Rust Module
 title: render.rs
 resource: crates/rules-docs/src/render.rs
 docgen:
-  crc: 48dbe998
+  crc: 826a1b8e
   model: local-openai/gemma-4-26b-a4b-it
   tier: local-min
   score: 75
@@ -17,6 +17,7 @@ docgen:
 
 - Diagnostic — Діагностика рендерера.
 - RenderOutcome — Результат рендерингу: мапа `шлях → вміст`.
+- topic_page_path — Шлях сторінки теми — `<тека виду>/<токен>.md`.  Єдине джерело істини для ідентичності сторінки: реєстр захищених зон ([`crate::runner::protected_zones_from_pages`]) мусить шукати рівно там, куди рендерер пише. У JS ця відповідність тримається на тому, що дві таблиці тек у різних файлах збігаються.  `None` — вид теми не має власної сторінки.
 - render_knowledge_artifacts — Рендерить сторінки-кандидати і manifest — порт `renderKnowledgeArtifacts`.  Наприкінці ще раз перевіряє ВЕСЬ згенерований Markdown на приватні імена: кожна окрема проєкція вже безпечна, але ця перевірка ловить те, що могло просочитись через щойно доданий шлях.
 
 ## Гарантії поведінки
