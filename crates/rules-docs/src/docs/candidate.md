@@ -3,7 +3,7 @@ type: Rust Module
 title: candidate.rs
 resource: crates/rules-docs/src/candidate.rs
 docgen:
-  crc: 97fcf6dc
+  crc: 83b0c466
   model: local-openai/gemma-4-26b-a4b-it
   tier: local-min
   score: 70
@@ -16,6 +16,7 @@ docgen:
 ## Публічний API
 
 - ExtractorFile — Файл у тій формі, в якій його бачить екстрактор.
+- ParserProvenance — Provenance парсера екстрактора — частина ключів кешу тверджень.
 - KnowledgeExtractor — Мовний екстрактор — Rust-подоба контракту `knowledge.extractor@1`.  # Чому синхронний  У JS `analyzeFile` асинхронний лише тому, що адаптер — динамічно імпортований модуль; жодна стадія конвеєра не робить I/O, і `signal`, який JS проносить крізь усю сигнатуру, не читає ЖОДЕН споживач у `runner.mjs`. Синхронний метод не втрачає нічого з наявної поведінки й не заражає `async`-ом викликача.
 - CandidateInput — Вхід конвеєра.
 - Candidate — Готовий кандидат.

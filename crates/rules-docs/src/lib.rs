@@ -22,10 +22,15 @@
 //!
 //! # Чого тут ще немає
 //!
-//! Це LLM-контур, а не вся команда `docs build`: детермінований конвеєр
-//! (candidate, chunk-planner, render, publish, runner) лишається в JS до
-//! свого зрізу. Гейти вже приймають [`wave::ChainRef`] ззовні саме тому, що
-//! коли runner переїде, ОДИН ланцюжок має накрити весь build.
+//! Команда `docs build` зібрана цілком — [`runner::build_package_knowledge`]
+//! зшиває всі стадії, і той самий [`wave::ChainRef`] накриває всі чотири
+//! LLM-стадії однією трасою (заради цього гейти й приймали його ззовні з
+//! самого початку).
+//!
+//! Одне лишилось ЗЗОВНІ: мовні екстрактори. У JS їх матеріалізує слот-шина
+//! плагінів (`load-adapters.mjs`); тут вони приходять у
+//! [`runner::BuildInput`] як [`candidate::KnowledgeExtractor`] — точка
+//! підключення є, самі екстрактори прийдуть зі slot-dispatch-ем.
 
 /// Детермінований кандидат графа: зшивання стадій в одну атомарну операцію.
 pub mod candidate;
@@ -97,9 +102,10 @@ pub use planner::{plan_semantic_chunks, Plan, PlanOutcome, PlannerInput, SourceT
 pub use publish::{publish_knowledge_artifacts, PublishOutcome, ValidationOutcome};
 pub use render::{render_knowledge_artifacts, topic_page_path, RenderOutcome};
 pub use runner::{
-    claims_chunks, domain_fingerprint, entailment_evidence_content_by_id, merge_gap_mappings,
-    parser_version, protected_zones_from_pages, read_existing_markdown, read_previous_manifest,
-    source_evidence_content_by_id, source_fingerprint, write_shadow_candidate, ParserProvenance,
+    build_package_knowledge, claims_chunks, domain_fingerprint, entailment_evidence_content_by_id,
+    merge_gap_mappings, parser_version, protected_zones_from_pages, read_existing_markdown,
+    read_previous_manifest, source_evidence_content_by_id, source_fingerprint,
+    write_shadow_candidate, BuildInput, BuildMode, BuildOutcome, BuildReport, ParserProvenance,
 };
 pub use sources::{discover_domain_code_extensions, load_domain_sources, DomainScope, SourceFile};
 pub use topics::{collect_reachable_node_ids, discover_topics, resolve_topic, Topic};

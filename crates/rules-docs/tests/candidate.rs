@@ -6,7 +6,9 @@ use std::cell::RefCell;
 
 use rules_docs::candidate::{
     build_knowledge_candidate, CandidateInput, CandidateOutcome, ExtractorFile, KnowledgeExtractor,
+    ParserProvenance,
 };
+use rules_docs::expected_sources::{Diagnostic as ExpectedDiagnostic, Scenario, TestFile};
 use rules_docs::graph::Domain;
 use rules_docs::sources::SourceFile;
 use serde_json::{json, Value};
@@ -55,6 +57,21 @@ impl Fixture {
 impl KnowledgeExtractor for Fixture {
     fn extensions(&self) -> Vec<String> {
         vec![".mjs".to_string()]
+    }
+
+    fn parser(&self) -> ParserProvenance {
+        ParserProvenance {
+            id: "fixture".to_string(),
+            grammar_version: "1".to_string(),
+            runtime_version: "1".to_string(),
+        }
+    }
+
+    fn collect_test_scenarios(
+        &self,
+        _file: &TestFile,
+    ) -> Result<Vec<Scenario>, Vec<ExpectedDiagnostic>> {
+        Ok(Vec::new())
     }
 
     fn analyze_file(&self, _domain: &Domain, file: &ExtractorFile) -> Result<Value, String> {

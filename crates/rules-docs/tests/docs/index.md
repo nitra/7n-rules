@@ -17,6 +17,7 @@ resource: crates/rules-docs/tests/
 | [graph.rs](graph.md)                           | Rust Module |
 | [identity.rs](identity.md)                     | Rust Module |
 | [impact.rs](impact.md)                         | Rust Module |
+| [pipeline.rs](pipeline.md)                     | Rust Module |
 | [planner.rs](planner.md)                       | Rust Module |
 | [planner_parity.rs](planner_parity.md)         | Rust Module |
 | [publish.rs](publish.md)                       | Rust Module |
