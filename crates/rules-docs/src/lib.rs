@@ -31,6 +31,8 @@
 pub mod claims;
 /// Канонічний JSON, `sha256:`-хеш і versioned-кеш успішних відповідей.
 pub mod deterministic;
+/// Резолв документаційних доменів репозиторію.
+pub mod domains;
 /// Верифікатор evidence-entailment.
 pub mod entailment;
 /// Накладання шару expected-claims.
@@ -43,12 +45,16 @@ pub mod gaps;
 pub mod graph;
 /// Privacy-safe зріз впливу для однієї теми.
 pub mod impact;
+/// Спільні path-інваріанти виявлення джерел.
+pub mod paths;
 /// Планувальник bounded semantic chunks і хвиль залежностей.
 pub mod planner;
 /// Атомарна публікація артефактів у дерево `docs/`.
 pub mod publish;
 /// Детерміновані Markdown- і manifest-проєкції графа.
 pub mod render;
+/// Завантаження джерел одного домену.
+pub mod sources;
 /// Виявлення стабільних тем домену.
 pub mod topics;
 /// Детерміновані quality gates графа перед публікацією.
@@ -60,6 +66,9 @@ pub mod zones;
 
 pub use claims::{build_structured_claims, ClaimsInput, ClaimsOutcome};
 pub use deterministic::{canonical_hash, canonical_json, VersionedCache};
+pub use domains::{
+    canonical_domain_name, resolve_documentation_domains, resolve_domain_for_path, ResolvedDomains,
+};
 pub use entailment::{verify_evidence_entailment, EntailmentInput, EntailmentOutcome};
 pub use expected::{apply_expected_overlay, OverlayOutcome};
 pub use gap_mappings::{compare_claim_mappings, GapMappingInput, GapMappingOutcome, Mapping};
@@ -71,6 +80,7 @@ pub use impact::{create_impact_slice, ImpactSlice};
 pub use planner::{plan_semantic_chunks, Plan, PlanOutcome, PlannerInput, SourceText};
 pub use publish::{publish_knowledge_artifacts, PublishOutcome, ValidationOutcome};
 pub use render::{render_knowledge_artifacts, RenderOutcome};
+pub use sources::{discover_domain_code_extensions, load_domain_sources, DomainScope, SourceFile};
 pub use topics::{collect_reachable_node_ids, discover_topics, resolve_topic, Topic};
 pub use validator::{validate_knowledge_graph, ValidationInput, ValidationReport};
 pub use wave::{
