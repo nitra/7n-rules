@@ -16,6 +16,7 @@ resource: crates/rules-docs/src/
 | [impact.rs](impact.md)               | Rust Module |
 | [lib.rs](lib.md)                     | Rust Module |
 | [planner.rs](planner.md)             | Rust Module |
+| [publish.rs](publish.md)             | Rust Module |
 | [render.rs](render.md)               | Rust Module |
 | [topics.rs](topics.md)               | Rust Module |
 | [wave.rs](wave.md)                   | Rust Module |
