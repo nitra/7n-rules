@@ -3,7 +3,7 @@ type: Rust Module
 title: config.rs
 resource: crates/rules-fix/src/config.rs
 docgen:
-  crc: ae2a42a0
+  crc: 1008a5c8
   model: local-openai/gemma-4-26b-a4b-it
   tier: local-min
   score: 80

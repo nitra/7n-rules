@@ -43,7 +43,7 @@ pub mod workers;
 use std::path::Path;
 
 use harness::ladder::RungCapBudget;
-use harness::pipeline::{run_fix, FixReport, PipelineDeps};
+use harness::pipeline::{run_fix, FixReport, PipelineDeps, PipelineOutcome};
 use rules_core::concern_meta::read_concern_meta;
 use rules_core::rules_package::rules_root;
 
@@ -162,6 +162,30 @@ pub async fn fix_concern(
     let pipeline_config =
         config::build_pipeline_config(&meta, key, cwd.to_path_buf(), target_files.clone())
             .map_err(FixConcernError::Pipeline)?;
+
+    // Порожня драбина + наявні порушення: рунга, який міг би лагодити, немає
+    // взагалі. `run_fix` у цьому випадку віддає помилку конвеєра, але для
+    // виклику це не збій — це чесний звіт «нікому лагодити», рівно як і
+    // `CleanNoWork` для concern-а без порушень (його `run_fix` складає сам).
+    // Без цієї межі `rules-fix` падав би скрізь, де моделі не налаштовані.
+    if pipeline_config.ladder.is_empty() && !initial.is_empty() {
+        return Ok(FixReport {
+            outcome: PipelineOutcome::Failed,
+            resolved_by: None,
+            attempts: Vec::new(),
+            rollbacks: 0,
+            cap_skipped: false,
+            touched_files: Vec::new(),
+            t0_touched: Vec::new(),
+            t0_error: None,
+            rollback_failures: Vec::new(),
+            usage_unreported_fallbacks: 0,
+            chain_id: String::new(),
+            journal_persist_errors: Vec::new(),
+            git_snapshot_error: None,
+            journal: std::sync::Arc::new(std::sync::Mutex::new(llm_lib::journal::Journal::new())),
+        });
+    }
 
     // Воркерні concern-и (клас «один one-shot усередині драбини», дзеркало
     // JS fix-worker.mjs) отримують воркер ЗАМІСТЬ агентної сесії — та сама

@@ -48,13 +48,19 @@ pub fn build_pipeline_config(
     cwd: PathBuf,
     target_files: Vec<PathBuf>,
 ) -> Result<PipelineConfig, String> {
+    // Порожня драбина — НЕ помилка конфіга, а середовище без жодної моделі
+    // в env (саме таке в CI). Concern-у, якому нема що лагодити, драбина
+    // взагалі не потрібна, а concern із порушеннями має отримати чесний звіт
+    // «жодного рунга», а не збій виклику: обидва випадки складає `run_fix`,
+    // побачивши порожній набір. Повертати тут `Err` означало б, що
+    // `rules-fix` падає скрізь, де моделі не налаштовані.
     let ladder = select_ladder(
         &build_ladder(&resolve_ladder_models()),
         !meta.skip_local_tier,
         EgressPolicy::AllowCloud,
         meta.cloud_timeout_ms,
     )
-    .map_err(|err| err.to_string())?;
+    .unwrap_or_default();
 
     let policy = FixPolicy {
         // Повторне звуження в run_fix має бути no-op над уже звуженою
@@ -137,24 +143,21 @@ mod tests {
     fn fixability_and_cwd_and_target_files_pass_through() {
         let cwd = PathBuf::from("/repo");
         let targets = vec![PathBuf::from("a.mjs"), PathBuf::from("b.mjs")];
-        let built = build_pipeline_config(
+        let config = build_pipeline_config(
             &meta(ConcernFixability::Structural, false),
             "text/concern",
             cwd.clone(),
             targets.clone(),
+        )
+        .expect("конфіг будується навіть без моделей");
+        // Без жодної моделі в env драбина порожня ЗАКОНОМІРНО — і це не
+        // заважає решті конфіга бути правильною. Тест не пропускається
+        // мовчки: він перевіряє саме цю межу.
+        assert_eq!(
+            config.ladder.is_empty(),
+            !any_model_env_configured(),
+            "драбина порожня рівно тоді, коли в env немає жодної моделі"
         );
-        // Без жодної моделі в env драбина порожня ЗАКОНОМІРНО. Тест не
-        // пропускається мовчки: він перевіряє, що це саме помилка драбини, а
-        // не тихий успіх із порожнім набором рунгів.
-        if !any_model_env_configured() {
-            let error = built.expect_err("без моделей драбина мусить бути помилкою");
-            assert!(
-                error.contains("драбина порожня"),
-                "очікувалась помилка драбини, а не {error}"
-            );
-            return;
-        }
-        let config = built.expect("драбина резолвиться");
         assert_eq!(config.cwd, cwd);
         assert_eq!(config.target_files, targets);
         assert_eq!(config.fixability, PipelineFixability::ConfigOrStructural);
