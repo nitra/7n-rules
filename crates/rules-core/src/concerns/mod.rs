@@ -42,6 +42,10 @@ mod firebase_hosting;
 pub mod fix;
 mod fix_abie_security;
 mod fix_env_dremio;
+/// Native fix-поверхня концерну `k8s/manifests` — T0-патерни
+/// `fix-manifests.mjs`. `pub` заради parity-гейтів, які звіряють кожен
+/// трансформер із JS-каноном окремо.
+pub mod fix_k8s_manifests;
 mod forbidden_prettier;
 mod gha_workflow;
 mod glob_compat;
