@@ -516,13 +516,14 @@ fn unknown_command_delegates_argv_and_exit_code_to_js_entrypoint() {
     assert_eq!(stdout(&out), "/fake/n-rules.js lint --full --no-fix\n");
 }
 
-/// Пʼять поверхонь, які фаза 8 свідомо лишає в JS (інвентаризація — реєстр
-/// відкладених питань, §3.5): `release`, `docs`, `taze`,
-/// `adr-normalize-local` і дефолтний sync без підкоманди. Native-гілки в них
-/// немає й не планується, тож єдиний контракт бінаря щодо них — довезти argv
-/// незміненим і повернути exit-код. Саме це й ламається мовчки, якщо
-/// граматика [`crate::cli`] колись почне їх «розуміти» (питання без
-/// відповіді у §3.2 реєстру), — тому воно закріплене тут.
+/// Поверхні, які фаза 8 свідомо лишає в JS (інвентаризація — реєстр
+/// відкладених питань, §3.5): `release`, `docs`, `taze` і дефолтний sync
+/// без підкоманди. (`adr-normalize-local` цю групу ПОКИНУВ — конвеєр
+/// портовано в `crates/rules-adr`, команда нативна.) Native-гілки в решти
+/// немає й не планується, тож єдиний контракт бінаря щодо них — довезти
+/// argv незміненим і повернути exit-код. Саме це й ламається мовчки, якщо
+/// граматика [`crate::cli`] колись почне їх «розуміти» — тому воно
+/// закріплене тут.
 #[cfg(unix)]
 #[test]
 fn commands_kept_in_js_delegate_argv_verbatim() {
@@ -540,7 +541,6 @@ fn commands_kept_in_js_delegate_argv_verbatim() {
         vec!["docs", "domains"],
         vec!["docs", "build", "--domain", "npm-rules", "--publish"],
         vec!["taze", "diff", "--backup-suffix", ".taze-bak"],
-        vec!["adr-normalize-local", "--batch", "batch.txt"],
     ] {
         let label = args.join(" ");
         let out = bin()

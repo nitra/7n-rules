@@ -111,7 +111,7 @@ ACP-kind-и включно з goose (клас 2) або власний цикл 
 | `agent-skill.mjs` | скіл-раннер (skills-cli, taze, git-reconcile) | 2 | ✅ **зроблено** (зріз `skill`): `skill <runner> <id>` і `skill <id>` нативні в `rules-cli`, усі kind-и через `one_shot_acp_with_tier`. Делегованою лишилась ОДНА гілка за КЛАСОМ, не за обсягом: оркестровані скіли (`taze`, `git-reconcile` — конвеєр детермінованих кроків, не один хід). Раннера `claude` у JS уже немає (`RUNNERS` = `{pi, cursor, codex}`), тож native-роутер віддає це ім'я в JS лише заради його usage-повідомлення |
 | `batch.mjs` / `chain.mjs` | doc-files/claims/entailment, coverage classify, adr-normalize | 1 | batch-фасад §3.6 (native → ACP-емуляція) |
 | `internal/registry.mjs` (pi ModelRegistry) | резолвінг моделей | — | тир-мапа `llm-lib` (§3.2) |
-| `adr-normalize-local` (925-рядковий конвеєр) | ADR-нормалізація | 1 | порт конвеєра в Rust, LLM-ходи через batch-фасад; retrieval лексичний (Jaccard), ембедингів немає — rig-core для retrieval не потрібен |
+| `adr-normalize-local` (925-рядковий конвеєр) | ADR-нормалізація | 1 | ✅ **зроблено** (2026-08-19): конвеєр у `crates/rules-adr`, CLI-команда нативна, LLM-хвилі через `llm_lib::batch::dispatch`; промпти всіх 4 стадій звірені з JS ПОБАЙТОВО, оркестрація — тест-у-тест |
 | `docs build [--publish]` | doc-files генерація | 1 | порт на batch-фасад §3.6 |
 | `acp.mjs` (JS-обгортка napi) | ACP-виклики з JS | — | зникає разом з napi |
 | `harness.mjs`, `web-tools.mjs`, `coverage/lib/llm.mjs` (`callText`/`callAgent`) | публічні експорти без in-repo споживачів | — | не портуються: вивід/deprecate при міграції відповідного контуру (`harness`-профіль `{kind:'fix'}` — основа контракту §3.7) |

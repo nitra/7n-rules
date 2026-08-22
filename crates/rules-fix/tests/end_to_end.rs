@@ -51,6 +51,7 @@ fn test_config(cwd: PathBuf, target_files: Vec<PathBuf>) -> PipelineConfig {
         base_tokens: llm_lib::budget::CONSERVATIVE_BASE_TOKENS,
         caller: "rules-fix-test".to_string(),
         chain_id: None,
+        unit: Some("text/forbidden-prettier".to_string()),
     }
 }
 

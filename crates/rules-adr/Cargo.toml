@@ -1,0 +1,24 @@
+[package]
+name = "rules-adr"
+version = "0.1.0"
+edition = "2021"
+description = "Локальний ADR-нормалізатор: порт конвеєра normalize-pipeline.mjs (клас 1 спеки ACP-only) — JS оркеструє померло, Rust оркеструє; LLM-ходи через batch-фасад n7n-llm-lib"
+license = "MIT"
+publish = false
+
+[dependencies]
+llm-lib = { version = "0.4", package = "n7n-llm-lib" }
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# `trace` — публічний тип у сигнатурі `llm_lib::batch::dispatch`
+# (`Option<&mut trace::ChainHandle>`), тож консюмер мусить називати його сам:
+# `n7n-llm-lib` цей крейт не реекспортує. Версія та сама, що в llm-lib, —
+# інакше `ChainHandle` був би ІНШИМ типом (два semver-несумісні 0.1.x у графі).
+trace = { version = "0.1", package = "n7n-trace" }
+# Лише `sync` — потрібен рівно `tokio::sync::Mutex` для `cascade::ChainRef`
+# (Send-guard через `.await`, див. доккоментар типу). Рантайм тягне CLI-шар.
+tokio = { version = "1", features = ["sync"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

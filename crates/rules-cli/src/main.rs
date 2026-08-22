@@ -67,8 +67,10 @@
 //! них не портується** — не через обсяг, а за класом (докладна класифікація і
 //! виміри — §3.5 реєстру `docs/plans/2026-08-05-open-questions-register.md`):
 //!
-//! - `adr-normalize-local` і `docs build` — **LLM-орієнтовані**: латентність
-//!   тримає модель, а не рантайм. Той самий урок, що вже виміряний на `hook`;
+//! - `docs build` — **LLM-орієнтований**: латентність тримає модель, а не
+//!   рантайм. Той самий урок, що вже виміряний на `hook`. (Сусідній
+//!   `adr-normalize-local` цю межу ПОКИНУВ: спека ACP-only портувала весь
+//!   конвеєр — [`adr_cmd`], ядро в `crates/rules-adr`);
 //! - `docs domains|index|slice|validate` — портовна read-only логіка, але її
 //!   кличе агент між LLM-ходами: стеля виграшу ≈ 70 мс;
 //! - `taze diff` — не логіка, а dispatch слоту `taze.provider@1` у
@@ -90,6 +92,7 @@
 //! Що уніфіковано, що свідомо лишилось різним і хто це реально споживає —
 //! доккомент модуля [`cli`].
 
+mod adr_cmd;
 mod bridge;
 mod changed_files_cmd;
 mod ci_cmd;
@@ -141,6 +144,12 @@ fn run(args: &[String]) -> ExitCode {
         // Дефолтний sync без підкоманди — цілком JS-поверхня.
         return js_fallback::delegate(args);
     };
+    // `adr-normalize-local` — нативний конвеєр (порт §3.3 спеки ACP-only);
+    // перехоплюється ДО clap: команда не в граматиці native-поверхонь, а
+    // делегування в JS уже не має сенсу — двигун конвеєра тепер тут.
+    if head == "adr-normalize-local" {
+        return adr_cmd::run(&args[1..]);
+    }
     // `lint --help`/`-h` — чиста довідка (у JS — без root-guard і мутацій
     // devDependencies), байт-у-байт із `printLintHelp`. Перехоплюється ДО
     // `clap`: це єдина довідка бінаря, яку читає хтось зовні, тож генерувати
