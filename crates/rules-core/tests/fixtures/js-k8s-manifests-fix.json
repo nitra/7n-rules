@@ -77,6 +77,11 @@
       "output": "apiVersion: apps/v1\nkind: Deployment\nspec:\n  replicas: 1 # коментар\n  strategy:\n    type: RollingUpdate\n    rollingUpdate:\n      maxUnavailable: 0\n      maxSurge: 1\n"
     },
     {
+      "label": "рядкові числа",
+      "input": "kind: Deployment\nspec:\n  strategy:\n    type: RollingUpdate\n    rollingUpdate:\n      maxUnavailable: '0'\n      maxSurge: '1'\n",
+      "output": "kind: Deployment\nspec:\n  strategy:\n    type: RollingUpdate\n    rollingUpdate:\n      maxUnavailable: 0\n      maxSurge: 1\n"
+    },
+    {
       "label": "вже канонічна",
       "input": "kind: Deployment\nspec:\n  strategy:\n    type: RollingUpdate\n    rollingUpdate:\n      maxUnavailable: 0\n      maxSurge: 1\n",
       "output": null
@@ -103,6 +108,11 @@
     }
   ],
   "svc-clusterip-type": [
+    {
+      "label": "у лапках канонічний",
+      "input": "kind: Service\nspec:\n  type: \"ClusterIP\"\n",
+      "output": null
+    },
     {
       "label": "без type",
       "input": "# lead\nkind: Service\nspec:\n  ports:\n    - port: 80 # p\n",
@@ -132,6 +142,84 @@
       "label": "провідний ---",
       "input": "---\nkind: Service\nspec:\n  ports: []\n",
       "output": "kind: Service\nspec:\n  ports: []\n  type: ClusterIP\n"
+    }
+  ],
+  "hasura-configmap-env": [
+    {
+      "label": "порожня data",
+      "input": "kind: ConfigMap\nmetadata:\n  name: hasura # c\ndata:\n  OTHER: x\n",
+      "output": "kind: ConfigMap\nmetadata:\n  name: hasura # c\ndata:\n  OTHER: x\n  HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS: \"true\"\n  HASURA_GRAPHQL_ENABLE_RELAY: \"false\"\n  HASURA_GRAPHQL_ENABLE_TELEMETRY: \"false\"\n  HASURA_GRAPHQL_ENABLED_LOG_TYPES: startup,http-log\n  HASURA_GRAPHQL_ENABLED_APIS: metadata,graphql,pgdump\n  HASURA_GRAPHQL_DISABLE_EVENTING: \"true\"\n"
+    },
+    {
+      "label": "частково",
+      "input": "kind: ConfigMap\ndata:\n  HASURA_GRAPHQL_ENABLE_RELAY: 'false'\n  HASURA_GRAPHQL_ENABLE_TELEMETRY: 'true'\n",
+      "output": "kind: ConfigMap\ndata:\n  HASURA_GRAPHQL_ENABLE_RELAY: 'false'\n  HASURA_GRAPHQL_ENABLE_TELEMETRY: 'false'\n  HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS: \"true\"\n  HASURA_GRAPHQL_ENABLED_LOG_TYPES: startup,http-log\n  HASURA_GRAPHQL_ENABLED_APIS: metadata,graphql,pgdump\n  HASURA_GRAPHQL_DISABLE_EVENTING: \"true\"\n"
+    },
+    {
+      "label": "булеві",
+      "input": "kind: ConfigMap\ndata:\n  HASURA_GRAPHQL_ENABLE_RELAY: false\n  HASURA_GRAPHQL_ENABLE_TELEMETRY: FALSE\n",
+      "output": "kind: ConfigMap\ndata:\n  HASURA_GRAPHQL_ENABLE_RELAY: false\n  HASURA_GRAPHQL_ENABLE_TELEMETRY: FALSE\n  HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS: \"true\"\n  HASURA_GRAPHQL_ENABLED_LOG_TYPES: startup,http-log\n  HASURA_GRAPHQL_ENABLED_APIS: metadata,graphql,pgdump\n  HASURA_GRAPHQL_DISABLE_EVENTING: \"true\"\n"
+    },
+    {
+      "label": "не ConfigMap",
+      "input": "kind: Service\nspec: {}\n",
+      "output": null
+    },
+    {
+      "label": "другий документ ConfigMap",
+      "input": "kind: Service\nspec: {}\n---\nkind: ConfigMap\ndata: {}\n",
+      "output": null
+    }
+  ],
+  "hasura-httproute-rule1-filters": [
+    {
+      "label": "без filters",
+      "input": "kind: HTTPRoute\nspec:\n  rules:\n    - matches:\n        - path:\n            type: Exact\n            value: /api/ql\n",
+      "output": "kind: HTTPRoute\nspec:\n  rules:\n    - matches:\n        - path:\n            type: Exact\n            value: /api/ql\n      filters:\n        - type: RequestRedirect\n          requestRedirect:\n            statusCode: 302\n            path:\n              type: ReplaceFullPath\n              replaceFullPath: /api/ql/console\n"
+    },
+    {
+      "label": "вже канонічно",
+      "input": "kind: HTTPRoute\nspec:\n  rules:\n    - matches:\n        - path:\n            type: Exact\n            value: /api/ql\n      filters:\n        - type: RequestRedirect\n          requestRedirect:\n            statusCode: 302\n            path:\n              type: ReplaceFullPath\n              replaceFullPath: /api/ql/console\n",
+      "output": null
+    },
+    {
+      "label": "канон не знайдено",
+      "input": "kind: HTTPRoute\nspec:\n  rules:\n    - matches:\n        - path:\n            type: PathPrefix\n            value: /api\n",
+      "output": null
+    },
+    {
+      "label": "друге правило канон",
+      "input": "kind: HTTPRoute\nspec:\n  rules:\n    - matches:\n        - path:\n            type: PathPrefix\n            value: /x\n    - matches:\n        - path:\n            type: Exact\n            value: /api/ql\n",
+      "output": "kind: HTTPRoute\nspec:\n  rules:\n    - matches:\n        - path:\n            type: PathPrefix\n            value: /x\n    - matches:\n        - path:\n            type: Exact\n            value: /api/ql\n      filters:\n        - type: RequestRedirect\n          requestRedirect:\n            statusCode: 302\n            path:\n              type: ReplaceFullPath\n              replaceFullPath: /api/ql/console\n"
+    },
+    {
+      "label": "не HTTPRoute",
+      "input": "kind: Service\nspec: {}\n",
+      "output": null
+    }
+  ],
+  "networkpolicy-egress": [
+    {
+      "label": "без egress",
+      "input": "kind: NetworkPolicy\nmetadata:\n  name: api # c\nspec:\n  podSelector: {}\n",
+      "output": "kind: NetworkPolicy\nmetadata:\n  name: api # c\nspec:\n  podSelector: {}\n  egress:\n    - to:\n        - namespaceSelector:\n            matchLabels:\n              kubernetes.io/metadata.name: kube-system\n          podSelector:\n            matchLabels:\n              k8s-app: kube-dns\n      ports:\n        - protocol: UDP\n          port: 53\n        - protocol: TCP\n          port: 53\n    - to:\n        - ipBlock:\n            cidr: 169.254.0.0/16\n      ports:\n        - protocol: UDP\n          port: 53\n        - protocol: TCP\n          port: 53\n    - to:\n        - ipBlock:\n            cidr: 0.0.0.0/0\n      ports:\n        - protocol: TCP\n          port: 80\n        - protocol: TCP\n          port: 443\n    - to:\n        - namespaceSelector: {}\n      ports:\n        - protocol: TCP\n          port: 80\n        - protocol: TCP\n          port: 443\n        - protocol: TCP\n          port: 5432\n        - protocol: TCP\n          port: 3306\n        - protocol: TCP\n          port: 1433\n        - protocol: TCP\n          port: 6379\n        - protocol: TCP\n          port: 8080\n        - protocol: TCP\n          port: 4222\n        - protocol: TCP\n          port: 4317\n        - protocol: TCP\n          port: 4318\n"
+    },
+    {
+      "label": "statefulSet-анотація",
+      "input": "kind: NetworkPolicy\nmetadata:\n  annotations:\n    nitra.dev/workload-kind: StatefulSet\nspec:\n  podSelector: {}\n",
+      "output": "kind: NetworkPolicy\nmetadata:\n  annotations:\n    nitra.dev/workload-kind: StatefulSet\nspec:\n  podSelector: {}\n  egress:\n    - to:\n        - namespaceSelector:\n            matchLabels:\n              kubernetes.io/metadata.name: kube-system\n          podSelector:\n            matchLabels:\n              k8s-app: kube-dns\n      ports:\n        - protocol: UDP\n          port: 53\n        - protocol: TCP\n          port: 53\n    - to:\n        - ipBlock:\n            cidr: 169.254.0.0/16\n      ports:\n        - protocol: UDP\n          port: 53\n        - protocol: TCP\n          port: 53\n    - to:\n        - ipBlock:\n            cidr: 0.0.0.0/0\n      ports:\n        - protocol: TCP\n          port: 80\n        - protocol: TCP\n          port: 443\n    - to:\n        - namespaceSelector: {}\n      ports:\n        - protocol: TCP\n          port: 80\n        - protocol: TCP\n          port: 443\n        - protocol: TCP\n          port: 5432\n        - protocol: TCP\n          port: 3306\n        - protocol: TCP\n          port: 1433\n        - protocol: TCP\n          port: 6379\n        - protocol: TCP\n          port: 8080\n        - protocol: TCP\n          port: 4222\n        - protocol: TCP\n          port: 4317\n        - protocol: TCP\n          port: 4318\n    - to:\n        - podSelector:\n            matchLabels: {}\n"
+    },
+    {
+      "label": "невідомий kind",
+      "input": "kind: NetworkPolicy\nmetadata:\n  annotations:\n    nitra.dev/workload-kind: Unknown\nspec:\n  podSelector: {}\n",
+      "output": {
+        "threw": "Error: Unknown workload kind for NetworkPolicy canon: Unknown"
+      }
+    },
+    {
+      "label": "не NetworkPolicy",
+      "input": "kind: Service\nspec: {}\n",
+      "output": null
     }
   ],
   "svc-hl-cluster-ip": [

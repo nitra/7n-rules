@@ -200,9 +200,18 @@ fn split_documents(content: &str) -> Vec<(String, String)> {
 /// `patch` повертає `None`, коли документ чіпати не треба. Помилка розбору
 /// БУДЬ-ЯКОГО документа — no-op на весь файл: JS так само не чіпає файли,
 /// які парсяться з помилками.
+/// Правка одного документа.
+enum DocumentEdit {
+    /// Операції `yamlpatch`.
+    Patches(Vec<yamlpatch::Patch<'static>>),
+    /// Готове тіло документа — шлях для випадків, яких `yamlpatch` не вміє
+    /// (див. [`insert_block_key`]).
+    Body(String),
+}
+
 fn patch_documents(
     content: &str,
-    mut patch: impl FnMut(&yamlpath::Document) -> Option<Vec<yamlpatch::Patch<'static>>>,
+    mut patch: impl FnMut(&serde_yaml::Value, &yamlpath::Document) -> Option<DocumentEdit>,
 ) -> Option<String> {
     let chunks = split_documents(content);
     let mut out = String::with_capacity(content.len());
@@ -216,32 +225,150 @@ fn patch_documents(
         let Ok(document) = yamlpath::Document::new(&body) else {
             return None;
         };
-        let Some(patches) = patch(&document) else {
-            out.push_str(&body);
-            continue;
-        };
-        if patches.is_empty() {
-            out.push_str(&body);
-            continue;
-        }
-        let Ok(patched) = yamlpatch::apply_yaml_patches(&document, &patches) else {
+        // Рішення приймаються по РОЗІБРАНОМУ документу, а не по сирому
+        // тексту: JS дивиться на `doc.getIn(...)`, тобто на значення. Інакше
+        // `type: "ClusterIP"` у лапках виглядав би неканонічним і файл
+        // переписувався б там, де канон уже витримано.
+        let Ok(parsed) = serde_yaml::from_str::<serde_yaml::Value>(&body) else {
             return None;
         };
-        changed = true;
-        out.push_str(patched.source());
+        let Some(edit) = patch(&parsed, &document) else {
+            out.push_str(&body);
+            continue;
+        };
+        match edit {
+            DocumentEdit::Body(next) => {
+                changed = true;
+                out.push_str(&next);
+            }
+            DocumentEdit::Patches(patches) if patches.is_empty() => out.push_str(&body),
+            DocumentEdit::Patches(patches) => {
+                let Ok(patched) = yamlpatch::apply_yaml_patches(&document, &patches) else {
+                    return None;
+                };
+                changed = true;
+                out.push_str(patched.source());
+            }
+        }
     }
     changed.then_some(out)
 }
 
-/// Значення скалярного поля за маршрутом; `None` — поля немає.
-fn scalar_at(document: &yamlpath::Document, route: &yamlpath::Route) -> Option<String> {
-    let feature = document.query_exact(route).ok()??;
-    Some(document.extract(&feature).trim().to_string())
+/// Патчить лише ПЕРШИЙ документ потоку.
+///
+/// Не спрощення: `ensureHasuraConfigMapRequiredEnv` у JS бере
+/// `parseDocument`, а не `parseAllDocuments`, тобто далі першого документа не
+/// дивиться. Ця межа тут відтворена свідомо.
+fn patch_first_document(
+    content: &str,
+    patch: impl FnOnce(&serde_yaml::Value) -> Option<DocumentEdit>,
+) -> Option<String> {
+    let mut done = false;
+    let mut patch = Some(patch);
+    patch_documents(content, move |parsed, _| {
+        if done {
+            return None;
+        }
+        done = true;
+        patch.take()?(parsed)
+    })
 }
 
-/// Значення скалярного поля верхнього рівня документа.
-fn top_level_scalar(document: &yamlpath::Document, key: &str) -> Option<String> {
-    scalar_at(document, &yamlpath::route!(key))
+/// Знімає спільний відступ блоку, лишаючи його внутрішню структуру.
+fn dedent(block: &str) -> String {
+    let base = block
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| line.len() - line.trim_start().len())
+        .min()
+        .unwrap_or(0);
+    block
+        .lines()
+        .map(|line| line.get(base..).unwrap_or("").to_string())
+        .collect::<Vec<String>>()
+        .join("\n")
+}
+
+/// Ставить ключ із БЛОКОВИМ значенням у мапу, зберігаючи блоковий стиль.
+///
+/// Чому текстом, а не операцією `yamlpatch`: обидва його шляхи псують вигляд
+/// саме тут. `Op::Add` для послідовності жорстко серіалізує її у flow
+/// (`[{ … }]`) — валідний YAML, але однорядкова каша замість списку, і
+/// жоден сусідній ресурс так не записаний. `Op::Replace` бере значення з
+/// `yaml_serde`, а той не робить відступу елементам ВКЛАДЕНОЇ послідовності
+/// (`ports:` під `- to:`), тобто дає інший вигляд, ніж канон.
+///
+/// Точка вставки й відступ рахуються ДВОМА публічними помічниками самого
+/// `yamlpatch`, тобто тією ж логікою, що і в нього.
+fn set_block_key(
+    document: &yamlpath::Document,
+    parent: &yamlpath::Route,
+    key: &str,
+    block: &str,
+) -> Option<String> {
+    let source = document.source();
+    let feature = document.query_exact(parent).ok()??;
+    let indent = yamlpatch::extract_leading_indentation_for_block_item(document, &feature);
+    let padding = " ".repeat(indent);
+    let mut rendered = String::new();
+    for line in dedent(block).lines() {
+        rendered.push('\n');
+        if !line.trim().is_empty() {
+            rendered.push_str(&padding);
+            rendered.push_str("  ");
+            rendered.push_str(line);
+        }
+    }
+
+    let mut route = parent.clone();
+    route = route.with_key(key);
+    if let Ok(Some(existing)) = document.query_exact(&route) {
+        // Ключ уже є — міняємо САМЕ ЙОГО значення, не чіпаючи ні ключа, ні
+        // сусідів.
+        let (start, end) = existing.location.byte_span;
+        let mut out = String::with_capacity(source.len() + rendered.len());
+        out.push_str(source.get(..start)?);
+        out.push_str(rendered.trim_start_matches('\n'));
+        out.push_str(source.get(end..)?);
+        return Some(out);
+    }
+
+    // Точка вставки приходить ПІСЛЯ переводу рядка останнього рядка вузла.
+    // Вставляти там означало б лишити порожній рядок перед новим ключем і
+    // зʼїсти кінцевий перевід рядка файла, тож відступаємо за нього.
+    let mut insertion = yamlpatch::find_content_end(&feature, document);
+    if source[..insertion].ends_with('\n') {
+        insertion -= 1;
+        if source[..insertion].ends_with('\r') {
+            insertion -= 1;
+        }
+    }
+    let mut out = String::with_capacity(source.len() + rendered.len());
+    out.push_str(source.get(..insertion)?);
+    out.push_str(&format!("\n{padding}{key}:"));
+    out.push_str(&rendered);
+    out.push_str(source.get(insertion..)?);
+    Some(out)
+}
+
+/// Значення за шляхом у розібраному документі.
+fn value_at<'a>(parsed: &'a serde_yaml::Value, path: &[&str]) -> Option<&'a serde_yaml::Value> {
+    let mut current = parsed;
+    for key in path {
+        current = current.get(*key)?;
+    }
+    Some(current)
+}
+
+/// Рядкове значення за шляхом; не-рядок (число, булеве) — `None`, як і
+/// `=== 'ClusterIP'` у JS.
+fn string_at(parsed: &serde_yaml::Value, path: &[&str]) -> Option<String> {
+    value_at(parsed, path)?.as_str().map(str::to_string)
+}
+
+/// `kind` документа.
+fn document_kind(parsed: &serde_yaml::Value) -> Option<String> {
+    string_at(parsed, &["kind"])
 }
 
 /// Проставляє `spec.type: ClusterIP` у кожен `kind: Service` — порт
@@ -267,25 +394,26 @@ fn ensure_service_spec_field(
     key: &'static str,
     value: &'static str,
 ) -> Option<String> {
-    patch_documents(content, move |document| {
-        if top_level_scalar(document, "kind")? != "Service" {
+    patch_documents(content, move |parsed, _| {
+        if document_kind(parsed)? != "Service" {
             return None;
         }
-        match scalar_at(document, &yamlpath::route!("spec", key)) {
+        let patch = match string_at(parsed, &["spec", key]) {
             // Ідемпотентність: уже канонічне значення — не чіпаємо.
-            Some(current) if current == value => None,
-            Some(_) => Some(vec![yamlpatch::Patch {
+            Some(current) if current == value => return None,
+            Some(_) => yamlpatch::Patch {
                 route: yamlpath::route!("spec", key),
                 operation: yamlpatch::Op::Replace(yaml_serde::Value::String(value.to_string())),
-            }]),
-            None => Some(vec![yamlpatch::Patch {
+            },
+            None => yamlpatch::Patch {
                 route: yamlpath::route!("spec"),
                 operation: yamlpatch::Op::Add {
                     key: key.to_string(),
                     value: yaml_serde::Value::String(value.to_string()),
                 },
-            }]),
-        }
+            },
+        };
+        Some(DocumentEdit::Patches(vec![patch]))
     })
 }
 
@@ -301,27 +429,20 @@ const STRATEGY_TYPE: &str = "RollingUpdate";
 /// отримує байт-у-байт той самий текст, тобто запису не робить.
 #[must_use]
 pub fn ensure_deployment_strategy(content: &str) -> Option<String> {
-    patch_documents(content, |document| {
-        if top_level_scalar(document, "kind")? != "Deployment" {
+    patch_documents(content, |parsed, _| {
+        if document_kind(parsed)? != "Deployment" {
             return None;
         }
         // `spec` має бути: JS вимагає `doc.has('spec')` і мовчки пропускає
         // документ без нього.
-        document
-            .query_exists(&yamlpath::route!("spec"))
-            .then_some(())?;
-        let canonical = scalar_at(document, &yamlpath::route!("spec", "strategy", "type"))
+        value_at(parsed, &["spec"])?;
+        let number_is = |path: &[&str], expected: u64| {
+            value_at(parsed, path).and_then(serde_yaml::Value::as_u64) == Some(expected)
+        };
+        let canonical = string_at(parsed, &["spec", "strategy", "type"])
             .is_some_and(|value| value == STRATEGY_TYPE)
-            && scalar_at(
-                document,
-                &yamlpath::route!("spec", "strategy", "rollingUpdate", "maxUnavailable"),
-            )
-            .is_some_and(|value| value == "0")
-            && scalar_at(
-                document,
-                &yamlpath::route!("spec", "strategy", "rollingUpdate", "maxSurge"),
-            )
-            .is_some_and(|value| value == "1");
+            && number_is(&["spec", "strategy", "rollingUpdate", "maxUnavailable"], 0)
+            && number_is(&["spec", "strategy", "rollingUpdate", "maxSurge"], 1);
         if canonical {
             return None;
         }
@@ -340,7 +461,7 @@ pub fn ensure_deployment_strategy(content: &str) -> Option<String> {
             yaml_serde::Value::Number(0.into()),
         );
         rolling.insert("maxSurge".to_string(), yaml_serde::Value::Number(1.into()));
-        Some(vec![
+        Some(DocumentEdit::Patches(vec![
             yamlpatch::Patch {
                 route: yamlpath::route!("spec"),
                 operation: yamlpatch::Op::MergeInto {
@@ -355,19 +476,336 @@ pub fn ensure_deployment_strategy(content: &str) -> Option<String> {
                     updates: rolling,
                 },
             },
-        ])
+        ]))
     })
 }
 
-/// Родина порушення, яку вміє лагодити цей зріз.
-fn transform_for(kind: &str) -> Option<fn(&str) -> Option<String>> {
+/// Обовʼязкові `HASURA_GRAPHQL_*` — порт `HASURA_REQUIRED_ENV_VALUES`
+/// (дзеркалить `k8s.hasura_configmap.rego`).
+///
+/// `None` як очікування означає «значення довільне»: ключ лише не має бути
+/// відсутнім.
+const HASURA_REQUIRED_ENV_VALUES: &[(&str, Option<&str>)] = &[
+    (
+        "HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS",
+        Some("true"),
+    ),
+    ("HASURA_GRAPHQL_ENABLE_RELAY", Some("false")),
+    ("HASURA_GRAPHQL_ENABLE_TELEMETRY", Some("false")),
+    ("HASURA_GRAPHQL_ENABLED_LOG_TYPES", Some("startup,http-log")),
+    (
+        "HASURA_GRAPHQL_ENABLED_APIS",
+        Some("metadata,graphql,pgdump"),
+    ),
+    ("HASURA_GRAPHQL_DISABLE_EVENTING", None),
+];
+
+/// Чи значення читається як логічне `true` — дзеркалить `is_value_true` в
+/// rego: булеве `true` АБО рядок `"true"` у будь-якому регістрі.
+fn is_truthy_bool(value: Option<&serde_yaml::Value>) -> bool {
+    match value {
+        Some(serde_yaml::Value::Bool(flag)) => *flag,
+        Some(serde_yaml::Value::String(text)) => text.trim().eq_ignore_ascii_case("true"),
+        _ => false,
+    }
+}
+
+/// Чи значення читається як логічне `false` — дзеркалить `is_value_false`.
+fn is_falsy_bool(value: Option<&serde_yaml::Value>) -> bool {
+    match value {
+        Some(serde_yaml::Value::Bool(flag)) => !*flag,
+        Some(serde_yaml::Value::String(text)) => text.trim().eq_ignore_ascii_case("false"),
+        _ => false,
+    }
+}
+
+/// Значення для одного `HASURA_GRAPHQL_*` ключа — порт
+/// `resolveHasuraEnvValue`. `None` — змін не потрібно.
+fn resolve_hasura_env_value(
+    expected: Option<&str>,
+    current: Option<&serde_yaml::Value>,
+) -> Option<String> {
+    match expected {
+        // Довільне значення: проставляємо, лише коли ключа немає взагалі.
+        None => current.is_none().then(|| "true".to_string()),
+        Some("true") => (!is_truthy_bool(current)).then(|| "true".to_string()),
+        Some("false") => (!is_falsy_bool(current)).then(|| "false".to_string()),
+        Some(expected) => (current.and_then(serde_yaml::Value::as_str) != Some(expected))
+            .then(|| expected.to_string()),
+    }
+}
+
+/// Проставляє обовʼязкові `HASURA_GRAPHQL_*` у `data` ConfigMap — порт
+/// `ensureHasuraConfigMapRequiredEnv`.
+#[must_use]
+pub fn ensure_hasura_configmap_required_env(content: &str) -> Option<String> {
+    patch_first_document(content, |parsed| {
+        if document_kind(parsed)? != "ConfigMap" {
+            return None;
+        }
+        let mut patches = Vec::new();
+        for (key, expected) in HASURA_REQUIRED_ENV_VALUES {
+            let current = value_at(parsed, &["data", key]);
+            let Some(value) = resolve_hasura_env_value(*expected, current) else {
+                continue;
+            };
+            let value = yaml_serde::Value::String(value);
+            patches.push(if current.is_some() {
+                yamlpatch::Patch {
+                    route: yamlpath::route!("data", *key),
+                    operation: yamlpatch::Op::Replace(value),
+                }
+            } else {
+                yamlpatch::Patch {
+                    route: yamlpath::route!("data"),
+                    operation: yamlpatch::Op::Add {
+                        key: (*key).to_string(),
+                        value,
+                    },
+                }
+            });
+        }
+        (!patches.is_empty()).then_some(DocumentEdit::Patches(patches))
+    })
+}
+
+/// Початок Hasura-канона в `spec.rules` — порт `findHasuraCanonStart`.
+///
+/// Канон починається з правила з РІВНО одним `matches`, без `headers`, і зі
+/// шляхом `Exact`, що закінчується на `/ql`. Повертає префікс і індекс.
+fn find_hasura_canon_start(rules: &[serde_yaml::Value]) -> Option<(String, usize)> {
+    for (index, rule) in rules.iter().enumerate() {
+        let Some(matches) = rule.get("matches").and_then(serde_yaml::Value::as_sequence) else {
+            continue;
+        };
+        if matches.len() != 1 {
+            continue;
+        }
+        let first = &matches[0];
+        if !first.is_mapping() || first.get("headers").is_some() {
+            continue;
+        }
+        let Some(path) = first.get("path") else {
+            continue;
+        };
+        if path.get("type").and_then(serde_yaml::Value::as_str) != Some("Exact") {
+            continue;
+        }
+        let Some(value) = path.get("value").and_then(serde_yaml::Value::as_str) else {
+            continue;
+        };
+        if let Some(prefix) = value.strip_suffix("/ql") {
+            return Some((prefix.to_string(), index));
+        }
+    }
+    None
+}
+
+/// Чи правило вже несе канонічний `RequestRedirect` — порт
+/// `hasuraRuleHasExactRedirect`.
+fn hasura_rule_has_exact_redirect(rule: &serde_yaml::Value, to_path: &str) -> bool {
+    let Some(filters) = rule.get("filters").and_then(serde_yaml::Value::as_sequence) else {
+        return false;
+    };
+    if filters.len() != 1 {
+        return false;
+    }
+    let filter = &filters[0];
+    if filter.get("type").and_then(serde_yaml::Value::as_str) != Some("RequestRedirect") {
+        return false;
+    }
+    let Some(redirect) = filter.get("requestRedirect") else {
+        return false;
+    };
+    if redirect
+        .get("statusCode")
+        .and_then(serde_yaml::Value::as_u64)
+        != Some(302)
+    {
+        return false;
+    }
+    let Some(path) = redirect.get("path") else {
+        return false;
+    };
+    path.get("type").and_then(serde_yaml::Value::as_str) == Some("ReplaceFullPath")
+        && path
+            .get("replaceFullPath")
+            .and_then(serde_yaml::Value::as_str)
+            == Some(to_path)
+}
+
+/// Проставляє канонічний `RequestRedirect` у правило 1 Hasura-канона — порт
+/// `ensureHasuraHttpRouteRule1Filters`.
+///
+/// Лагодить ЛИШЕ наявне правило (перезапис `filters`). Правила 2-4
+/// потребують синтезу нового правила з `backendRef`, якого нізвідки
+/// достовірно вивести, — це рішення про інфраструктуру, не T0.
+#[must_use]
+pub fn ensure_hasura_httproute_rule1_filters(content: &str) -> Option<String> {
+    patch_documents(content, |parsed, document| {
+        if document_kind(parsed)? != "HTTPRoute" {
+            return None;
+        }
+        let rules = value_at(parsed, &["spec", "rules"])?.as_sequence()?;
+        if rules.is_empty() {
+            return None;
+        }
+        let (prefix, index) = find_hasura_canon_start(rules)?;
+        let console_path = format!("{prefix}/ql/console");
+        if hasura_rule_has_exact_redirect(&rules[index], &console_path) {
+            return None; // вже канонічно
+        }
+        let quoted = serde_yaml::to_string(&serde_yaml::Value::String(console_path))
+            .ok()?
+            .trim()
+            .to_string();
+        let filters = format!(
+            "- type: RequestRedirect\n  requestRedirect:\n    statusCode: 302\n    path:\n      type: ReplaceFullPath\n      replaceFullPath: {quoted}"
+        );
+        set_block_key(
+            document,
+            &yamlpath::route!("spec", "rules", index),
+            "filters",
+            &filters,
+        )
+        .map(DocumentEdit::Body)
+    })
+}
+
+/// Snippet NetworkPolicy для workload-kind — порт `KIND_TO_SNIPPET` +
+/// `snippetNameForKind`.
+///
+/// `None` — невідомий kind. У JS тут `throw`, який ловить обгортка фіксу й
+/// перетворює на no-op ДЛЯ ВСЬОГО ФАЙЛА; порт тримає ту саму межу.
+fn snippet_file_for_kind(kind: &str) -> Option<&'static str> {
     match kind {
-        "gateway-httproute-v1beta1" => Some(replace_gateway_httproute_v1beta1),
-        "batch-v1beta1-apiversion" => Some(replace_batch_v1beta1),
-        "schema-modeline-first" => Some(move_schema_modeline_first),
-        "deployment-strategy" => Some(ensure_deployment_strategy),
-        "svc-clusterip-type" => Some(ensure_svc_cluster_ip_type),
-        "svc-hl-cluster-ip" => Some(ensure_svc_hl_cluster_ip),
+        "Deployment" | "Job" | "CronJob" | "DaemonSet" => {
+            Some("k8s/network_policy/template/deployment.snippet.yaml")
+        }
+        "StatefulSet" => Some("k8s/network_policy/template/stateful-set.snippet.yaml"),
+        _ => None,
+    }
+}
+
+/// Читає `spec.egress` сніпета NetworkPolicy — порт `loadSnippetSpec`.
+///
+/// Повертає і РОЗІБРАНЕ значення (для перевірки на ідемпотентність), і його
+/// СИРИЙ текст: канон — це сам файл сніпета, тож переносити його дослівно
+/// точніше, ніж пересеріалізовувати.
+fn load_snippet_egress(rules_root: &Path, kind: &str) -> Option<(serde_yaml::Value, String)> {
+    let rel = snippet_file_for_kind(kind)?;
+    let raw = std::fs::read_to_string(rules_root.join(rel)).ok()?;
+    let parsed = serde_yaml::from_str::<serde_yaml::Value>(&raw).ok()?;
+    let value = parsed.get("spec")?.get("egress")?.clone();
+    if !value.is_sequence() {
+        return None;
+    }
+    let document = yamlpath::Document::new(&raw).ok()?;
+    let feature = document
+        .query_exact(&yamlpath::route!("spec", "egress"))
+        .ok()??;
+    // `extract` віддає ПЕРШИЙ рядок від позиції значення, тобто без
+    // відступу, а решту — з їхнім початковим. Повертаємо першому рядку його
+    // відступ, щоб блок був однорідним.
+    let extracted = document.extract(&feature);
+    let base = extracted
+        .lines()
+        .skip(1)
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| line.len() - line.trim_start().len())
+        .min()
+        .unwrap_or(0);
+    let mut block = String::new();
+    for line in extracted.lines() {
+        // Рядки-коментарі сніпета лишаються в сніпеті. Вони пояснюють САМ
+        // канон («matchLabels:{} лишається без JS-substitution»), а не
+        // маніфест, у який його переносять; JS їх теж не переносить, бо
+        // пересеріалізовує значення. Припущення вузьке й перевірене: у
+        // блоці egress немає блокових скалярів, де `#` був би вмістом.
+        if line.trim_start().starts_with('#') {
+            continue;
+        }
+        if block.is_empty() {
+            block.push_str(&" ".repeat(base));
+        } else {
+            block.push('\n');
+        }
+        block.push_str(line);
+    }
+    Some((value, dedent(&block)))
+}
+
+/// Проставляє канонічний `spec.egress` у кожен `kind: NetworkPolicy` — порт
+/// `ensureNetworkPolicyEgress`.
+///
+/// Джерело egress — ТОЙ САМИЙ сніпет, яким rego темплейтить перевірку, тож
+/// збіг із очікуванням re-detect гарантований конструкцією, а не звіркою.
+#[must_use]
+pub fn ensure_network_policy_egress(content: &str, rules_root: &Path) -> Option<String> {
+    let mut unknown_kind = false;
+    let patched = patch_documents(content, |parsed, document| {
+        if unknown_kind || document_kind(parsed)? != "NetworkPolicy" {
+            return None;
+        }
+        value_at(parsed, &["spec"])?;
+        let workload = value_at(
+            parsed,
+            &["metadata", "annotations", "nitra.dev/workload-kind"],
+        )
+        .and_then(serde_yaml::Value::as_str)
+        .unwrap_or("Deployment")
+        .to_string();
+        if snippet_file_for_kind(&workload).is_none() {
+            unknown_kind = true;
+            return None;
+        }
+        let (egress_value, egress_block) = load_snippet_egress(rules_root, &workload)?;
+        if value_at(parsed, &["spec", "egress"]) == Some(&egress_value) {
+            return None; // ідемпотентність
+        }
+        set_block_key(document, &yamlpath::route!("spec"), "egress", &egress_block)
+            .map(DocumentEdit::Body)
+    });
+    // Невідомий workload-kind — no-op на весь файл, як `throw` у JS.
+    if unknown_kind {
+        return None;
+    }
+    patched
+}
+
+/// Чи вміє цей зріз лагодити родину порушення.
+fn handles(kind: &str) -> bool {
+    matches!(
+        kind,
+        "gateway-httproute-v1beta1"
+            | "batch-v1beta1-apiversion"
+            | "schema-modeline-first"
+            | "deployment-strategy"
+            | "svc-clusterip-type"
+            | "svc-hl-cluster-ip"
+            | "hasura-configmap-env"
+            | "hasura-httproute-rule1-filters"
+            | "networkpolicy-egress"
+    )
+}
+
+/// Застосовує трансформер родини до вмісту файла.
+///
+/// `rules_root` потрібен лише `networkpolicy-egress`: канонічний egress
+/// береться з того самого сніпета, яким rego темплейтить перевірку. Коли
+/// корінь пакета не знайдено, ця родина стає no-op — вигадати канон
+/// самотужки означало б розійтися з re-detect.
+fn apply_transform(kind: &str, content: &str, rules_root: Option<&Path>) -> Option<String> {
+    match kind {
+        "gateway-httproute-v1beta1" => replace_gateway_httproute_v1beta1(content),
+        "batch-v1beta1-apiversion" => replace_batch_v1beta1(content),
+        "schema-modeline-first" => move_schema_modeline_first(content),
+        "deployment-strategy" => ensure_deployment_strategy(content),
+        "svc-clusterip-type" => ensure_svc_cluster_ip_type(content),
+        "svc-hl-cluster-ip" => ensure_svc_hl_cluster_ip(content),
+        "hasura-configmap-env" => ensure_hasura_configmap_required_env(content),
+        "hasura-httproute-rule1-filters" => ensure_hasura_httproute_rule1_filters(content),
+        "networkpolicy-egress" => ensure_network_policy_egress(content, rules_root?),
         _ => None,
     }
 }
@@ -396,7 +834,7 @@ pub fn k8s_manifests_fix(cwd: &Path, violations: &[Violation]) -> FixPlan {
         else {
             continue;
         };
-        if transform_for(kind).is_none() {
+        if !handles(kind) {
             continue;
         }
         if !targets
@@ -408,11 +846,9 @@ pub fn k8s_manifests_fix(cwd: &Path, violations: &[Violation]) -> FixPlan {
     }
     targets.sort_by(|left, right| left.0.cmp(&right.0).then_with(|| left.1.cmp(right.1)));
 
+    let rules_root = crate::rules_package::rules_root(cwd);
     let mut edits: Vec<FileEdit> = Vec::new();
     for (file, kind) in targets {
-        let Some(transform) = transform_for(kind) else {
-            continue;
-        };
         // Наступний трансформер тієї ж родини мусить бачити вже
         // застосовану правку — інакше два порушення в одному файлі
         // затирали б одне одного.
@@ -427,7 +863,7 @@ pub fn k8s_manifests_fix(cwd: &Path, violations: &[Violation]) -> FixPlan {
         let Some(current) = current else {
             continue; // файл відсутній/нечитабельний — пропустити, як у JS
         };
-        let Some(next) = transform(&current) else {
+        let Some(next) = apply_transform(kind, &current, rules_root.as_deref()) else {
             continue;
         };
         if next == current {
@@ -599,6 +1035,45 @@ mod tests {
             })
             .collect();
         assert_eq!(paths, ["k8s/base/a.yaml", "k8s/base/b.yaml"]);
+    }
+
+    /// `networkpolicy-egress` без кореня пакета правил — no-op, а не
+    /// вигаданий канон: джерело egress мусить бути тим самим сніпетом, який
+    /// темплейтить перевірку.
+    #[test]
+    fn egress_without_the_rules_package_is_a_no_op() {
+        let root = temp_root("no-package");
+        std::fs::create_dir_all(root.join("k8s/base")).expect("тека");
+        std::fs::write(
+            root.join("k8s/base/np.yaml"),
+            "kind: NetworkPolicy\nspec:\n  podSelector: {}\n",
+        )
+        .expect("запис");
+        let plan = k8s_manifests_fix(
+            &root,
+            &[violation(
+                Some("k8s/base/np.yaml"),
+                Some("networkpolicy-egress"),
+            )],
+        );
+        assert!(plan.edits.is_empty());
+    }
+
+    /// Невідомий workload-kind — no-op на ВЕСЬ файл, як `throw` у JS.
+    #[test]
+    fn unknown_workload_kind_stops_the_whole_file() {
+        let rules_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../npm/rules");
+        let content = concat!(
+            "kind: NetworkPolicy\nspec:\n  podSelector: {}\n",
+            "---\n",
+            "kind: NetworkPolicy\nmetadata:\n  annotations:\n",
+            "    nitra.dev/workload-kind: Unknown\nspec:\n  podSelector: {}\n"
+        );
+        assert_eq!(
+            ensure_network_policy_egress(content, &rules_root),
+            None,
+            "перший документ полагодився б, але другий зупиняє весь файл"
+        );
     }
 
     /// Зламаний YAML — no-op на весь файл, а не часткова правка.
