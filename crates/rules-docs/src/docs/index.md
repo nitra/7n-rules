@@ -6,6 +6,7 @@ resource: crates/rules-docs/src/
 
 | Файл                                           | Тип         |
 | ---------------------------------------------- | ----------- |
+| [candidate.rs](candidate.md)                   | Rust Module |
 | [claims.rs](claims.md)                         | Rust Module |
 | [deterministic.rs](deterministic.md)           | Rust Module |
 | [domains.rs](domains.md)                       | Rust Module |

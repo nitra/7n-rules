@@ -104,6 +104,7 @@
     "EXDEV",
     "exfiltration",
     "Extglob",
+    "extname",
     "fixability",
     "FNDA",
     "footgun",
