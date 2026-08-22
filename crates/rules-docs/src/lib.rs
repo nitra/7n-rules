@@ -45,6 +45,8 @@ pub mod graph;
 pub mod impact;
 /// Планувальник bounded semantic chunks і хвиль залежностей.
 pub mod planner;
+/// Детерміновані Markdown- і manifest-проєкції графа.
+pub mod render;
 /// Виявлення стабільних тем домену.
 pub mod topics;
 /// Транспорт хвиль: інʼєкція batch-фасаду, драбина тирів, ланцюжок задачі.
@@ -63,6 +65,7 @@ pub use graph::{
 };
 pub use impact::{create_impact_slice, ImpactSlice};
 pub use planner::{plan_semantic_chunks, Plan, PlanOutcome, PlannerInput, SourceText};
+pub use render::{render_knowledge_artifacts, RenderOutcome};
 pub use topics::{collect_reachable_node_ids, discover_topics, resolve_topic, Topic};
 pub use wave::{
     default_model_policy, native_submit_batch, new_chain, ChainRef, SubmitBatchFn, WaveItem,
