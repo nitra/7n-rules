@@ -1,0 +1,2273 @@
+{
+  "cases": [
+    {
+      "name": "валідний",
+      "ok": true,
+      "graph": {
+        "schemaVersion": 1,
+        "domain": {
+          "id": "npm:@fixture/orders",
+          "ecosystem": "npm",
+          "name": "@fixture/orders",
+          "rootManifest": "package.json",
+          "sourceFingerprint": "sha256:domain"
+        },
+        "nodes": [
+          {
+            "id": "code:submit",
+            "kind": "code-unit",
+            "name": "submitOrder",
+            "visibility": "public",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:submit"
+          },
+          {
+            "id": "code:secret",
+            "kind": "code-unit",
+            "name": "privateSecret",
+            "visibility": "private",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:secret"
+          }
+        ],
+        "edges": [
+          {
+            "id": "edge:submit-secret",
+            "fromId": "code:submit",
+            "toId": "code:secret",
+            "kind": "invokes",
+            "evidenceIds": [
+              "evidence:submit"
+            ]
+          }
+        ],
+        "claims": [
+          {
+            "id": "claim:submit",
+            "subjectId": "code:submit",
+            "layer": "implemented",
+            "predicate": "produces",
+            "value": "order",
+            "evidenceIds": [
+              "evidence:submit"
+            ],
+            "confidence": 1,
+            "sourceFingerprint": "sha256:claim"
+          }
+        ],
+        "topics": [
+          {
+            "id": "process:submit",
+            "kind": "process",
+            "title": "Submit order",
+            "domainId": "npm:@fixture/orders",
+            "anchorIds": [
+              "code:submit"
+            ]
+          }
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "id": "evidence:submit",
+            "kind": "code",
+            "path": "src/submit.mjs",
+            "contentHash": "sha256:evidence"
+          }
+        ]
+      }
+    },
+    {
+      "name": "немає schemaVersion",
+      "ok": false,
+      "graph": {
+        "domain": {
+          "id": "npm:@fixture/orders",
+          "ecosystem": "npm",
+          "name": "@fixture/orders",
+          "rootManifest": "package.json",
+          "sourceFingerprint": "sha256:domain"
+        },
+        "nodes": [
+          {
+            "id": "code:submit",
+            "kind": "code-unit",
+            "name": "submitOrder",
+            "visibility": "public",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:submit"
+          },
+          {
+            "id": "code:secret",
+            "kind": "code-unit",
+            "name": "privateSecret",
+            "visibility": "private",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:secret"
+          }
+        ],
+        "edges": [
+          {
+            "id": "edge:submit-secret",
+            "fromId": "code:submit",
+            "toId": "code:secret",
+            "kind": "invokes",
+            "evidenceIds": [
+              "evidence:submit"
+            ]
+          }
+        ],
+        "claims": [
+          {
+            "id": "claim:submit",
+            "subjectId": "code:submit",
+            "layer": "implemented",
+            "predicate": "produces",
+            "value": "order",
+            "evidenceIds": [
+              "evidence:submit"
+            ],
+            "confidence": 1,
+            "sourceFingerprint": "sha256:claim"
+          }
+        ],
+        "topics": [
+          {
+            "id": "process:submit",
+            "kind": "process",
+            "title": "Submit order",
+            "domainId": "npm:@fixture/orders",
+            "anchorIds": [
+              "code:submit"
+            ]
+          }
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "id": "evidence:submit",
+            "kind": "code",
+            "path": "src/submit.mjs",
+            "contentHash": "sha256:evidence"
+          }
+        ]
+      }
+    },
+    {
+      "name": "schemaVersion інший",
+      "ok": false,
+      "graph": {
+        "schemaVersion": 2,
+        "domain": {
+          "id": "npm:@fixture/orders",
+          "ecosystem": "npm",
+          "name": "@fixture/orders",
+          "rootManifest": "package.json",
+          "sourceFingerprint": "sha256:domain"
+        },
+        "nodes": [
+          {
+            "id": "code:submit",
+            "kind": "code-unit",
+            "name": "submitOrder",
+            "visibility": "public",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:submit"
+          },
+          {
+            "id": "code:secret",
+            "kind": "code-unit",
+            "name": "privateSecret",
+            "visibility": "private",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:secret"
+          }
+        ],
+        "edges": [
+          {
+            "id": "edge:submit-secret",
+            "fromId": "code:submit",
+            "toId": "code:secret",
+            "kind": "invokes",
+            "evidenceIds": [
+              "evidence:submit"
+            ]
+          }
+        ],
+        "claims": [
+          {
+            "id": "claim:submit",
+            "subjectId": "code:submit",
+            "layer": "implemented",
+            "predicate": "produces",
+            "value": "order",
+            "evidenceIds": [
+              "evidence:submit"
+            ],
+            "confidence": 1,
+            "sourceFingerprint": "sha256:claim"
+          }
+        ],
+        "topics": [
+          {
+            "id": "process:submit",
+            "kind": "process",
+            "title": "Submit order",
+            "domainId": "npm:@fixture/orders",
+            "anchorIds": [
+              "code:submit"
+            ]
+          }
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "id": "evidence:submit",
+            "kind": "code",
+            "path": "src/submit.mjs",
+            "contentHash": "sha256:evidence"
+          }
+        ]
+      }
+    },
+    {
+      "name": "немає domain",
+      "ok": false,
+      "graph": {
+        "schemaVersion": 1,
+        "nodes": [
+          {
+            "id": "code:submit",
+            "kind": "code-unit",
+            "name": "submitOrder",
+            "visibility": "public",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:submit"
+          },
+          {
+            "id": "code:secret",
+            "kind": "code-unit",
+            "name": "privateSecret",
+            "visibility": "private",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:secret"
+          }
+        ],
+        "edges": [
+          {
+            "id": "edge:submit-secret",
+            "fromId": "code:submit",
+            "toId": "code:secret",
+            "kind": "invokes",
+            "evidenceIds": [
+              "evidence:submit"
+            ]
+          }
+        ],
+        "claims": [
+          {
+            "id": "claim:submit",
+            "subjectId": "code:submit",
+            "layer": "implemented",
+            "predicate": "produces",
+            "value": "order",
+            "evidenceIds": [
+              "evidence:submit"
+            ],
+            "confidence": 1,
+            "sourceFingerprint": "sha256:claim"
+          }
+        ],
+        "topics": [
+          {
+            "id": "process:submit",
+            "kind": "process",
+            "title": "Submit order",
+            "domainId": "npm:@fixture/orders",
+            "anchorIds": [
+              "code:submit"
+            ]
+          }
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "id": "evidence:submit",
+            "kind": "code",
+            "path": "src/submit.mjs",
+            "contentHash": "sha256:evidence"
+          }
+        ]
+      }
+    },
+    {
+      "name": "немає domain.sourceFingerprint",
+      "ok": false,
+      "graph": {
+        "schemaVersion": 1,
+        "domain": {
+          "id": "npm:@fixture/orders",
+          "ecosystem": "npm",
+          "name": "@fixture/orders",
+          "rootManifest": "package.json"
+        },
+        "nodes": [
+          {
+            "id": "code:submit",
+            "kind": "code-unit",
+            "name": "submitOrder",
+            "visibility": "public",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:submit"
+          },
+          {
+            "id": "code:secret",
+            "kind": "code-unit",
+            "name": "privateSecret",
+            "visibility": "private",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:secret"
+          }
+        ],
+        "edges": [
+          {
+            "id": "edge:submit-secret",
+            "fromId": "code:submit",
+            "toId": "code:secret",
+            "kind": "invokes",
+            "evidenceIds": [
+              "evidence:submit"
+            ]
+          }
+        ],
+        "claims": [
+          {
+            "id": "claim:submit",
+            "subjectId": "code:submit",
+            "layer": "implemented",
+            "predicate": "produces",
+            "value": "order",
+            "evidenceIds": [
+              "evidence:submit"
+            ],
+            "confidence": 1,
+            "sourceFingerprint": "sha256:claim"
+          }
+        ],
+        "topics": [
+          {
+            "id": "process:submit",
+            "kind": "process",
+            "title": "Submit order",
+            "domainId": "npm:@fixture/orders",
+            "anchorIds": [
+              "code:submit"
+            ]
+          }
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "id": "evidence:submit",
+            "kind": "code",
+            "path": "src/submit.mjs",
+            "contentHash": "sha256:evidence"
+          }
+        ]
+      }
+    },
+    {
+      "name": "порожній domain.id",
+      "ok": false,
+      "graph": {
+        "schemaVersion": 1,
+        "domain": {
+          "id": "",
+          "ecosystem": "npm",
+          "name": "@fixture/orders",
+          "rootManifest": "package.json",
+          "sourceFingerprint": "sha256:domain"
+        },
+        "nodes": [
+          {
+            "id": "code:submit",
+            "kind": "code-unit",
+            "name": "submitOrder",
+            "visibility": "public",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:submit"
+          },
+          {
+            "id": "code:secret",
+            "kind": "code-unit",
+            "name": "privateSecret",
+            "visibility": "private",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:secret"
+          }
+        ],
+        "edges": [
+          {
+            "id": "edge:submit-secret",
+            "fromId": "code:submit",
+            "toId": "code:secret",
+            "kind": "invokes",
+            "evidenceIds": [
+              "evidence:submit"
+            ]
+          }
+        ],
+        "claims": [
+          {
+            "id": "claim:submit",
+            "subjectId": "code:submit",
+            "layer": "implemented",
+            "predicate": "produces",
+            "value": "order",
+            "evidenceIds": [
+              "evidence:submit"
+            ],
+            "confidence": 1,
+            "sourceFingerprint": "sha256:claim"
+          }
+        ],
+        "topics": [
+          {
+            "id": "process:submit",
+            "kind": "process",
+            "title": "Submit order",
+            "domainId": "npm:@fixture/orders",
+            "anchorIds": [
+              "code:submit"
+            ]
+          }
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "id": "evidence:submit",
+            "kind": "code",
+            "path": "src/submit.mjs",
+            "contentHash": "sha256:evidence"
+          }
+        ]
+      }
+    },
+    {
+      "name": "domain.id не рядок",
+      "ok": false,
+      "graph": {
+        "schemaVersion": 1,
+        "domain": {
+          "id": 7,
+          "ecosystem": "npm",
+          "name": "@fixture/orders",
+          "rootManifest": "package.json",
+          "sourceFingerprint": "sha256:domain"
+        },
+        "nodes": [
+          {
+            "id": "code:submit",
+            "kind": "code-unit",
+            "name": "submitOrder",
+            "visibility": "public",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:submit"
+          },
+          {
+            "id": "code:secret",
+            "kind": "code-unit",
+            "name": "privateSecret",
+            "visibility": "private",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:secret"
+          }
+        ],
+        "edges": [
+          {
+            "id": "edge:submit-secret",
+            "fromId": "code:submit",
+            "toId": "code:secret",
+            "kind": "invokes",
+            "evidenceIds": [
+              "evidence:submit"
+            ]
+          }
+        ],
+        "claims": [
+          {
+            "id": "claim:submit",
+            "subjectId": "code:submit",
+            "layer": "implemented",
+            "predicate": "produces",
+            "value": "order",
+            "evidenceIds": [
+              "evidence:submit"
+            ],
+            "confidence": 1,
+            "sourceFingerprint": "sha256:claim"
+          }
+        ],
+        "topics": [
+          {
+            "id": "process:submit",
+            "kind": "process",
+            "title": "Submit order",
+            "domainId": "npm:@fixture/orders",
+            "anchorIds": [
+              "code:submit"
+            ]
+          }
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "id": "evidence:submit",
+            "kind": "code",
+            "path": "src/submit.mjs",
+            "contentHash": "sha256:evidence"
+          }
+        ]
+      }
+    },
+    {
+      "name": "зайве поле в domain",
+      "ok": false,
+      "graph": {
+        "schemaVersion": 1,
+        "domain": {
+          "id": "npm:@fixture/orders",
+          "ecosystem": "npm",
+          "name": "@fixture/orders",
+          "rootManifest": "package.json",
+          "sourceFingerprint": "sha256:domain",
+          "extra": true
+        },
+        "nodes": [
+          {
+            "id": "code:submit",
+            "kind": "code-unit",
+            "name": "submitOrder",
+            "visibility": "public",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:submit"
+          },
+          {
+            "id": "code:secret",
+            "kind": "code-unit",
+            "name": "privateSecret",
+            "visibility": "private",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:secret"
+          }
+        ],
+        "edges": [
+          {
+            "id": "edge:submit-secret",
+            "fromId": "code:submit",
+            "toId": "code:secret",
+            "kind": "invokes",
+            "evidenceIds": [
+              "evidence:submit"
+            ]
+          }
+        ],
+        "claims": [
+          {
+            "id": "claim:submit",
+            "subjectId": "code:submit",
+            "layer": "implemented",
+            "predicate": "produces",
+            "value": "order",
+            "evidenceIds": [
+              "evidence:submit"
+            ],
+            "confidence": 1,
+            "sourceFingerprint": "sha256:claim"
+          }
+        ],
+        "topics": [
+          {
+            "id": "process:submit",
+            "kind": "process",
+            "title": "Submit order",
+            "domainId": "npm:@fixture/orders",
+            "anchorIds": [
+              "code:submit"
+            ]
+          }
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "id": "evidence:submit",
+            "kind": "code",
+            "path": "src/submit.mjs",
+            "contentHash": "sha256:evidence"
+          }
+        ]
+      }
+    },
+    {
+      "name": "nodes не масив",
+      "ok": false,
+      "graph": {
+        "schemaVersion": 1,
+        "domain": {
+          "id": "npm:@fixture/orders",
+          "ecosystem": "npm",
+          "name": "@fixture/orders",
+          "rootManifest": "package.json",
+          "sourceFingerprint": "sha256:domain"
+        },
+        "nodes": "no",
+        "edges": [
+          {
+            "id": "edge:submit-secret",
+            "fromId": "code:submit",
+            "toId": "code:secret",
+            "kind": "invokes",
+            "evidenceIds": [
+              "evidence:submit"
+            ]
+          }
+        ],
+        "claims": [
+          {
+            "id": "claim:submit",
+            "subjectId": "code:submit",
+            "layer": "implemented",
+            "predicate": "produces",
+            "value": "order",
+            "evidenceIds": [
+              "evidence:submit"
+            ],
+            "confidence": 1,
+            "sourceFingerprint": "sha256:claim"
+          }
+        ],
+        "topics": [
+          {
+            "id": "process:submit",
+            "kind": "process",
+            "title": "Submit order",
+            "domainId": "npm:@fixture/orders",
+            "anchorIds": [
+              "code:submit"
+            ]
+          }
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "id": "evidence:submit",
+            "kind": "code",
+            "path": "src/submit.mjs",
+            "contentHash": "sha256:evidence"
+          }
+        ]
+      }
+    },
+    {
+      "name": "немає evidence",
+      "ok": false,
+      "graph": {
+        "schemaVersion": 1,
+        "domain": {
+          "id": "npm:@fixture/orders",
+          "ecosystem": "npm",
+          "name": "@fixture/orders",
+          "rootManifest": "package.json",
+          "sourceFingerprint": "sha256:domain"
+        },
+        "nodes": [
+          {
+            "id": "code:submit",
+            "kind": "code-unit",
+            "name": "submitOrder",
+            "visibility": "public",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:submit"
+          },
+          {
+            "id": "code:secret",
+            "kind": "code-unit",
+            "name": "privateSecret",
+            "visibility": "private",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:secret"
+          }
+        ],
+        "edges": [
+          {
+            "id": "edge:submit-secret",
+            "fromId": "code:submit",
+            "toId": "code:secret",
+            "kind": "invokes",
+            "evidenceIds": [
+              "evidence:submit"
+            ]
+          }
+        ],
+        "claims": [
+          {
+            "id": "claim:submit",
+            "subjectId": "code:submit",
+            "layer": "implemented",
+            "predicate": "produces",
+            "value": "order",
+            "evidenceIds": [
+              "evidence:submit"
+            ],
+            "confidence": 1,
+            "sourceFingerprint": "sha256:claim"
+          }
+        ],
+        "topics": [
+          {
+            "id": "process:submit",
+            "kind": "process",
+            "title": "Submit order",
+            "domainId": "npm:@fixture/orders",
+            "anchorIds": [
+              "code:submit"
+            ]
+          }
+        ],
+        "gaps": []
+      }
+    },
+    {
+      "name": "node без kind",
+      "ok": false,
+      "graph": {
+        "schemaVersion": 1,
+        "domain": {
+          "id": "npm:@fixture/orders",
+          "ecosystem": "npm",
+          "name": "@fixture/orders",
+          "rootManifest": "package.json",
+          "sourceFingerprint": "sha256:domain"
+        },
+        "nodes": [
+          {
+            "id": "code:submit",
+            "name": "submitOrder",
+            "visibility": "public",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:submit"
+          },
+          {
+            "id": "code:secret",
+            "kind": "code-unit",
+            "name": "privateSecret",
+            "visibility": "private",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:secret"
+          }
+        ],
+        "edges": [
+          {
+            "id": "edge:submit-secret",
+            "fromId": "code:submit",
+            "toId": "code:secret",
+            "kind": "invokes",
+            "evidenceIds": [
+              "evidence:submit"
+            ]
+          }
+        ],
+        "claims": [
+          {
+            "id": "claim:submit",
+            "subjectId": "code:submit",
+            "layer": "implemented",
+            "predicate": "produces",
+            "value": "order",
+            "evidenceIds": [
+              "evidence:submit"
+            ],
+            "confidence": 1,
+            "sourceFingerprint": "sha256:claim"
+          }
+        ],
+        "topics": [
+          {
+            "id": "process:submit",
+            "kind": "process",
+            "title": "Submit order",
+            "domainId": "npm:@fixture/orders",
+            "anchorIds": [
+              "code:submit"
+            ]
+          }
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "id": "evidence:submit",
+            "kind": "code",
+            "path": "src/submit.mjs",
+            "contentHash": "sha256:evidence"
+          }
+        ]
+      }
+    },
+    {
+      "name": "node.kind поза enum",
+      "ok": false,
+      "graph": {
+        "schemaVersion": 1,
+        "domain": {
+          "id": "npm:@fixture/orders",
+          "ecosystem": "npm",
+          "name": "@fixture/orders",
+          "rootManifest": "package.json",
+          "sourceFingerprint": "sha256:domain"
+        },
+        "nodes": [
+          {
+            "id": "code:submit",
+            "kind": "unknown-kind",
+            "name": "submitOrder",
+            "visibility": "public",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:submit"
+          },
+          {
+            "id": "code:secret",
+            "kind": "code-unit",
+            "name": "privateSecret",
+            "visibility": "private",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:secret"
+          }
+        ],
+        "edges": [
+          {
+            "id": "edge:submit-secret",
+            "fromId": "code:submit",
+            "toId": "code:secret",
+            "kind": "invokes",
+            "evidenceIds": [
+              "evidence:submit"
+            ]
+          }
+        ],
+        "claims": [
+          {
+            "id": "claim:submit",
+            "subjectId": "code:submit",
+            "layer": "implemented",
+            "predicate": "produces",
+            "value": "order",
+            "evidenceIds": [
+              "evidence:submit"
+            ],
+            "confidence": 1,
+            "sourceFingerprint": "sha256:claim"
+          }
+        ],
+        "topics": [
+          {
+            "id": "process:submit",
+            "kind": "process",
+            "title": "Submit order",
+            "domainId": "npm:@fixture/orders",
+            "anchorIds": [
+              "code:submit"
+            ]
+          }
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "id": "evidence:submit",
+            "kind": "code",
+            "path": "src/submit.mjs",
+            "contentHash": "sha256:evidence"
+          }
+        ]
+      }
+    },
+    {
+      "name": "node.visibility поза enum",
+      "ok": false,
+      "graph": {
+        "schemaVersion": 1,
+        "domain": {
+          "id": "npm:@fixture/orders",
+          "ecosystem": "npm",
+          "name": "@fixture/orders",
+          "rootManifest": "package.json",
+          "sourceFingerprint": "sha256:domain"
+        },
+        "nodes": [
+          {
+            "id": "code:submit",
+            "kind": "code-unit",
+            "name": "submitOrder",
+            "visibility": "semi",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:submit"
+          },
+          {
+            "id": "code:secret",
+            "kind": "code-unit",
+            "name": "privateSecret",
+            "visibility": "private",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:secret"
+          }
+        ],
+        "edges": [
+          {
+            "id": "edge:submit-secret",
+            "fromId": "code:submit",
+            "toId": "code:secret",
+            "kind": "invokes",
+            "evidenceIds": [
+              "evidence:submit"
+            ]
+          }
+        ],
+        "claims": [
+          {
+            "id": "claim:submit",
+            "subjectId": "code:submit",
+            "layer": "implemented",
+            "predicate": "produces",
+            "value": "order",
+            "evidenceIds": [
+              "evidence:submit"
+            ],
+            "confidence": 1,
+            "sourceFingerprint": "sha256:claim"
+          }
+        ],
+        "topics": [
+          {
+            "id": "process:submit",
+            "kind": "process",
+            "title": "Submit order",
+            "domainId": "npm:@fixture/orders",
+            "anchorIds": [
+              "code:submit"
+            ]
+          }
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "id": "evidence:submit",
+            "kind": "code",
+            "path": "src/submit.mjs",
+            "contentHash": "sha256:evidence"
+          }
+        ]
+      }
+    },
+    {
+      "name": "зайве поле у node",
+      "ok": false,
+      "graph": {
+        "schemaVersion": 1,
+        "domain": {
+          "id": "npm:@fixture/orders",
+          "ecosystem": "npm",
+          "name": "@fixture/orders",
+          "rootManifest": "package.json",
+          "sourceFingerprint": "sha256:domain"
+        },
+        "nodes": [
+          {
+            "id": "code:submit",
+            "kind": "code-unit",
+            "name": "submitOrder",
+            "visibility": "public",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:submit",
+            "extra": 1
+          },
+          {
+            "id": "code:secret",
+            "kind": "code-unit",
+            "name": "privateSecret",
+            "visibility": "private",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:secret"
+          }
+        ],
+        "edges": [
+          {
+            "id": "edge:submit-secret",
+            "fromId": "code:submit",
+            "toId": "code:secret",
+            "kind": "invokes",
+            "evidenceIds": [
+              "evidence:submit"
+            ]
+          }
+        ],
+        "claims": [
+          {
+            "id": "claim:submit",
+            "subjectId": "code:submit",
+            "layer": "implemented",
+            "predicate": "produces",
+            "value": "order",
+            "evidenceIds": [
+              "evidence:submit"
+            ],
+            "confidence": 1,
+            "sourceFingerprint": "sha256:claim"
+          }
+        ],
+        "topics": [
+          {
+            "id": "process:submit",
+            "kind": "process",
+            "title": "Submit order",
+            "domainId": "npm:@fixture/orders",
+            "anchorIds": [
+              "code:submit"
+            ]
+          }
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "id": "evidence:submit",
+            "kind": "code",
+            "path": "src/submit.mjs",
+            "contentHash": "sha256:evidence"
+          }
+        ]
+      }
+    },
+    {
+      "name": "edge.kind поза enum",
+      "ok": false,
+      "graph": {
+        "schemaVersion": 1,
+        "domain": {
+          "id": "npm:@fixture/orders",
+          "ecosystem": "npm",
+          "name": "@fixture/orders",
+          "rootManifest": "package.json",
+          "sourceFingerprint": "sha256:domain"
+        },
+        "nodes": [
+          {
+            "id": "code:submit",
+            "kind": "code-unit",
+            "name": "submitOrder",
+            "visibility": "public",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:submit"
+          },
+          {
+            "id": "code:secret",
+            "kind": "code-unit",
+            "name": "privateSecret",
+            "visibility": "private",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:secret"
+          }
+        ],
+        "edges": [
+          {
+            "id": "edge:submit-secret",
+            "fromId": "code:submit",
+            "toId": "code:secret",
+            "kind": "teleports",
+            "evidenceIds": [
+              "evidence:submit"
+            ]
+          }
+        ],
+        "claims": [
+          {
+            "id": "claim:submit",
+            "subjectId": "code:submit",
+            "layer": "implemented",
+            "predicate": "produces",
+            "value": "order",
+            "evidenceIds": [
+              "evidence:submit"
+            ],
+            "confidence": 1,
+            "sourceFingerprint": "sha256:claim"
+          }
+        ],
+        "topics": [
+          {
+            "id": "process:submit",
+            "kind": "process",
+            "title": "Submit order",
+            "domainId": "npm:@fixture/orders",
+            "anchorIds": [
+              "code:submit"
+            ]
+          }
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "id": "evidence:submit",
+            "kind": "code",
+            "path": "src/submit.mjs",
+            "contentHash": "sha256:evidence"
+          }
+        ]
+      }
+    },
+    {
+      "name": "edge без evidenceIds",
+      "ok": false,
+      "graph": {
+        "schemaVersion": 1,
+        "domain": {
+          "id": "npm:@fixture/orders",
+          "ecosystem": "npm",
+          "name": "@fixture/orders",
+          "rootManifest": "package.json",
+          "sourceFingerprint": "sha256:domain"
+        },
+        "nodes": [
+          {
+            "id": "code:submit",
+            "kind": "code-unit",
+            "name": "submitOrder",
+            "visibility": "public",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:submit"
+          },
+          {
+            "id": "code:secret",
+            "kind": "code-unit",
+            "name": "privateSecret",
+            "visibility": "private",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:secret"
+          }
+        ],
+        "edges": [
+          {
+            "id": "edge:submit-secret",
+            "fromId": "code:submit",
+            "toId": "code:secret",
+            "kind": "invokes"
+          }
+        ],
+        "claims": [
+          {
+            "id": "claim:submit",
+            "subjectId": "code:submit",
+            "layer": "implemented",
+            "predicate": "produces",
+            "value": "order",
+            "evidenceIds": [
+              "evidence:submit"
+            ],
+            "confidence": 1,
+            "sourceFingerprint": "sha256:claim"
+          }
+        ],
+        "topics": [
+          {
+            "id": "process:submit",
+            "kind": "process",
+            "title": "Submit order",
+            "domainId": "npm:@fixture/orders",
+            "anchorIds": [
+              "code:submit"
+            ]
+          }
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "id": "evidence:submit",
+            "kind": "code",
+            "path": "src/submit.mjs",
+            "contentHash": "sha256:evidence"
+          }
+        ]
+      }
+    },
+    {
+      "name": "edge.evidenceIds порожній",
+      "ok": false,
+      "graph": {
+        "schemaVersion": 1,
+        "domain": {
+          "id": "npm:@fixture/orders",
+          "ecosystem": "npm",
+          "name": "@fixture/orders",
+          "rootManifest": "package.json",
+          "sourceFingerprint": "sha256:domain"
+        },
+        "nodes": [
+          {
+            "id": "code:submit",
+            "kind": "code-unit",
+            "name": "submitOrder",
+            "visibility": "public",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:submit"
+          },
+          {
+            "id": "code:secret",
+            "kind": "code-unit",
+            "name": "privateSecret",
+            "visibility": "private",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:secret"
+          }
+        ],
+        "edges": [
+          {
+            "id": "edge:submit-secret",
+            "fromId": "code:submit",
+            "toId": "code:secret",
+            "kind": "invokes",
+            "evidenceIds": []
+          }
+        ],
+        "claims": [
+          {
+            "id": "claim:submit",
+            "subjectId": "code:submit",
+            "layer": "implemented",
+            "predicate": "produces",
+            "value": "order",
+            "evidenceIds": [
+              "evidence:submit"
+            ],
+            "confidence": 1,
+            "sourceFingerprint": "sha256:claim"
+          }
+        ],
+        "topics": [
+          {
+            "id": "process:submit",
+            "kind": "process",
+            "title": "Submit order",
+            "domainId": "npm:@fixture/orders",
+            "anchorIds": [
+              "code:submit"
+            ]
+          }
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "id": "evidence:submit",
+            "kind": "code",
+            "path": "src/submit.mjs",
+            "contentHash": "sha256:evidence"
+          }
+        ]
+      }
+    },
+    {
+      "name": "edge.evidenceIds з дублікатом",
+      "ok": false,
+      "graph": {
+        "schemaVersion": 1,
+        "domain": {
+          "id": "npm:@fixture/orders",
+          "ecosystem": "npm",
+          "name": "@fixture/orders",
+          "rootManifest": "package.json",
+          "sourceFingerprint": "sha256:domain"
+        },
+        "nodes": [
+          {
+            "id": "code:submit",
+            "kind": "code-unit",
+            "name": "submitOrder",
+            "visibility": "public",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:submit"
+          },
+          {
+            "id": "code:secret",
+            "kind": "code-unit",
+            "name": "privateSecret",
+            "visibility": "private",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:secret"
+          }
+        ],
+        "edges": [
+          {
+            "id": "edge:submit-secret",
+            "fromId": "code:submit",
+            "toId": "code:secret",
+            "kind": "invokes",
+            "evidenceIds": [
+              "evidence:submit",
+              "evidence:submit"
+            ]
+          }
+        ],
+        "claims": [
+          {
+            "id": "claim:submit",
+            "subjectId": "code:submit",
+            "layer": "implemented",
+            "predicate": "produces",
+            "value": "order",
+            "evidenceIds": [
+              "evidence:submit"
+            ],
+            "confidence": 1,
+            "sourceFingerprint": "sha256:claim"
+          }
+        ],
+        "topics": [
+          {
+            "id": "process:submit",
+            "kind": "process",
+            "title": "Submit order",
+            "domainId": "npm:@fixture/orders",
+            "anchorIds": [
+              "code:submit"
+            ]
+          }
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "id": "evidence:submit",
+            "kind": "code",
+            "path": "src/submit.mjs",
+            "contentHash": "sha256:evidence"
+          }
+        ]
+      }
+    },
+    {
+      "name": "claim.layer поза enum",
+      "ok": false,
+      "graph": {
+        "schemaVersion": 1,
+        "domain": {
+          "id": "npm:@fixture/orders",
+          "ecosystem": "npm",
+          "name": "@fixture/orders",
+          "rootManifest": "package.json",
+          "sourceFingerprint": "sha256:domain"
+        },
+        "nodes": [
+          {
+            "id": "code:submit",
+            "kind": "code-unit",
+            "name": "submitOrder",
+            "visibility": "public",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:submit"
+          },
+          {
+            "id": "code:secret",
+            "kind": "code-unit",
+            "name": "privateSecret",
+            "visibility": "private",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:secret"
+          }
+        ],
+        "edges": [
+          {
+            "id": "edge:submit-secret",
+            "fromId": "code:submit",
+            "toId": "code:secret",
+            "kind": "invokes",
+            "evidenceIds": [
+              "evidence:submit"
+            ]
+          }
+        ],
+        "claims": [
+          {
+            "id": "claim:submit",
+            "subjectId": "code:submit",
+            "layer": "assumed",
+            "predicate": "produces",
+            "value": "order",
+            "evidenceIds": [
+              "evidence:submit"
+            ],
+            "confidence": 1,
+            "sourceFingerprint": "sha256:claim"
+          }
+        ],
+        "topics": [
+          {
+            "id": "process:submit",
+            "kind": "process",
+            "title": "Submit order",
+            "domainId": "npm:@fixture/orders",
+            "anchorIds": [
+              "code:submit"
+            ]
+          }
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "id": "evidence:submit",
+            "kind": "code",
+            "path": "src/submit.mjs",
+            "contentHash": "sha256:evidence"
+          }
+        ]
+      }
+    },
+    {
+      "name": "claim.confidence > 1",
+      "ok": false,
+      "graph": {
+        "schemaVersion": 1,
+        "domain": {
+          "id": "npm:@fixture/orders",
+          "ecosystem": "npm",
+          "name": "@fixture/orders",
+          "rootManifest": "package.json",
+          "sourceFingerprint": "sha256:domain"
+        },
+        "nodes": [
+          {
+            "id": "code:submit",
+            "kind": "code-unit",
+            "name": "submitOrder",
+            "visibility": "public",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:submit"
+          },
+          {
+            "id": "code:secret",
+            "kind": "code-unit",
+            "name": "privateSecret",
+            "visibility": "private",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:secret"
+          }
+        ],
+        "edges": [
+          {
+            "id": "edge:submit-secret",
+            "fromId": "code:submit",
+            "toId": "code:secret",
+            "kind": "invokes",
+            "evidenceIds": [
+              "evidence:submit"
+            ]
+          }
+        ],
+        "claims": [
+          {
+            "id": "claim:submit",
+            "subjectId": "code:submit",
+            "layer": "implemented",
+            "predicate": "produces",
+            "value": "order",
+            "evidenceIds": [
+              "evidence:submit"
+            ],
+            "confidence": 1.5,
+            "sourceFingerprint": "sha256:claim"
+          }
+        ],
+        "topics": [
+          {
+            "id": "process:submit",
+            "kind": "process",
+            "title": "Submit order",
+            "domainId": "npm:@fixture/orders",
+            "anchorIds": [
+              "code:submit"
+            ]
+          }
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "id": "evidence:submit",
+            "kind": "code",
+            "path": "src/submit.mjs",
+            "contentHash": "sha256:evidence"
+          }
+        ]
+      }
+    },
+    {
+      "name": "claim.confidence < 0",
+      "ok": false,
+      "graph": {
+        "schemaVersion": 1,
+        "domain": {
+          "id": "npm:@fixture/orders",
+          "ecosystem": "npm",
+          "name": "@fixture/orders",
+          "rootManifest": "package.json",
+          "sourceFingerprint": "sha256:domain"
+        },
+        "nodes": [
+          {
+            "id": "code:submit",
+            "kind": "code-unit",
+            "name": "submitOrder",
+            "visibility": "public",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:submit"
+          },
+          {
+            "id": "code:secret",
+            "kind": "code-unit",
+            "name": "privateSecret",
+            "visibility": "private",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:secret"
+          }
+        ],
+        "edges": [
+          {
+            "id": "edge:submit-secret",
+            "fromId": "code:submit",
+            "toId": "code:secret",
+            "kind": "invokes",
+            "evidenceIds": [
+              "evidence:submit"
+            ]
+          }
+        ],
+        "claims": [
+          {
+            "id": "claim:submit",
+            "subjectId": "code:submit",
+            "layer": "implemented",
+            "predicate": "produces",
+            "value": "order",
+            "evidenceIds": [
+              "evidence:submit"
+            ],
+            "confidence": -0.1,
+            "sourceFingerprint": "sha256:claim"
+          }
+        ],
+        "topics": [
+          {
+            "id": "process:submit",
+            "kind": "process",
+            "title": "Submit order",
+            "domainId": "npm:@fixture/orders",
+            "anchorIds": [
+              "code:submit"
+            ]
+          }
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "id": "evidence:submit",
+            "kind": "code",
+            "path": "src/submit.mjs",
+            "contentHash": "sha256:evidence"
+          }
+        ]
+      }
+    },
+    {
+      "name": "claim.confidence не число",
+      "ok": false,
+      "graph": {
+        "schemaVersion": 1,
+        "domain": {
+          "id": "npm:@fixture/orders",
+          "ecosystem": "npm",
+          "name": "@fixture/orders",
+          "rootManifest": "package.json",
+          "sourceFingerprint": "sha256:domain"
+        },
+        "nodes": [
+          {
+            "id": "code:submit",
+            "kind": "code-unit",
+            "name": "submitOrder",
+            "visibility": "public",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:submit"
+          },
+          {
+            "id": "code:secret",
+            "kind": "code-unit",
+            "name": "privateSecret",
+            "visibility": "private",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:secret"
+          }
+        ],
+        "edges": [
+          {
+            "id": "edge:submit-secret",
+            "fromId": "code:submit",
+            "toId": "code:secret",
+            "kind": "invokes",
+            "evidenceIds": [
+              "evidence:submit"
+            ]
+          }
+        ],
+        "claims": [
+          {
+            "id": "claim:submit",
+            "subjectId": "code:submit",
+            "layer": "implemented",
+            "predicate": "produces",
+            "value": "order",
+            "evidenceIds": [
+              "evidence:submit"
+            ],
+            "confidence": "high",
+            "sourceFingerprint": "sha256:claim"
+          }
+        ],
+        "topics": [
+          {
+            "id": "process:submit",
+            "kind": "process",
+            "title": "Submit order",
+            "domainId": "npm:@fixture/orders",
+            "anchorIds": [
+              "code:submit"
+            ]
+          }
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "id": "evidence:submit",
+            "kind": "code",
+            "path": "src/submit.mjs",
+            "contentHash": "sha256:evidence"
+          }
+        ]
+      }
+    },
+    {
+      "name": "claim без value",
+      "ok": false,
+      "graph": {
+        "schemaVersion": 1,
+        "domain": {
+          "id": "npm:@fixture/orders",
+          "ecosystem": "npm",
+          "name": "@fixture/orders",
+          "rootManifest": "package.json",
+          "sourceFingerprint": "sha256:domain"
+        },
+        "nodes": [
+          {
+            "id": "code:submit",
+            "kind": "code-unit",
+            "name": "submitOrder",
+            "visibility": "public",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:submit"
+          },
+          {
+            "id": "code:secret",
+            "kind": "code-unit",
+            "name": "privateSecret",
+            "visibility": "private",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:secret"
+          }
+        ],
+        "edges": [
+          {
+            "id": "edge:submit-secret",
+            "fromId": "code:submit",
+            "toId": "code:secret",
+            "kind": "invokes",
+            "evidenceIds": [
+              "evidence:submit"
+            ]
+          }
+        ],
+        "claims": [
+          {
+            "id": "claim:submit",
+            "subjectId": "code:submit",
+            "layer": "implemented",
+            "predicate": "produces",
+            "evidenceIds": [
+              "evidence:submit"
+            ],
+            "confidence": 1,
+            "sourceFingerprint": "sha256:claim"
+          }
+        ],
+        "topics": [
+          {
+            "id": "process:submit",
+            "kind": "process",
+            "title": "Submit order",
+            "domainId": "npm:@fixture/orders",
+            "anchorIds": [
+              "code:submit"
+            ]
+          }
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "id": "evidence:submit",
+            "kind": "code",
+            "path": "src/submit.mjs",
+            "contentHash": "sha256:evidence"
+          }
+        ]
+      }
+    },
+    {
+      "name": "topic.kind поза enum",
+      "ok": false,
+      "graph": {
+        "schemaVersion": 1,
+        "domain": {
+          "id": "npm:@fixture/orders",
+          "ecosystem": "npm",
+          "name": "@fixture/orders",
+          "rootManifest": "package.json",
+          "sourceFingerprint": "sha256:domain"
+        },
+        "nodes": [
+          {
+            "id": "code:submit",
+            "kind": "code-unit",
+            "name": "submitOrder",
+            "visibility": "public",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:submit"
+          },
+          {
+            "id": "code:secret",
+            "kind": "code-unit",
+            "name": "privateSecret",
+            "visibility": "private",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:secret"
+          }
+        ],
+        "edges": [
+          {
+            "id": "edge:submit-secret",
+            "fromId": "code:submit",
+            "toId": "code:secret",
+            "kind": "invokes",
+            "evidenceIds": [
+              "evidence:submit"
+            ]
+          }
+        ],
+        "claims": [
+          {
+            "id": "claim:submit",
+            "subjectId": "code:submit",
+            "layer": "implemented",
+            "predicate": "produces",
+            "value": "order",
+            "evidenceIds": [
+              "evidence:submit"
+            ],
+            "confidence": 1,
+            "sourceFingerprint": "sha256:claim"
+          }
+        ],
+        "topics": [
+          {
+            "id": "process:submit",
+            "kind": "saga",
+            "title": "Submit order",
+            "domainId": "npm:@fixture/orders",
+            "anchorIds": [
+              "code:submit"
+            ]
+          }
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "id": "evidence:submit",
+            "kind": "code",
+            "path": "src/submit.mjs",
+            "contentHash": "sha256:evidence"
+          }
+        ]
+      }
+    },
+    {
+      "name": "topic.anchorIds порожній",
+      "ok": false,
+      "graph": {
+        "schemaVersion": 1,
+        "domain": {
+          "id": "npm:@fixture/orders",
+          "ecosystem": "npm",
+          "name": "@fixture/orders",
+          "rootManifest": "package.json",
+          "sourceFingerprint": "sha256:domain"
+        },
+        "nodes": [
+          {
+            "id": "code:submit",
+            "kind": "code-unit",
+            "name": "submitOrder",
+            "visibility": "public",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:submit"
+          },
+          {
+            "id": "code:secret",
+            "kind": "code-unit",
+            "name": "privateSecret",
+            "visibility": "private",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:secret"
+          }
+        ],
+        "edges": [
+          {
+            "id": "edge:submit-secret",
+            "fromId": "code:submit",
+            "toId": "code:secret",
+            "kind": "invokes",
+            "evidenceIds": [
+              "evidence:submit"
+            ]
+          }
+        ],
+        "claims": [
+          {
+            "id": "claim:submit",
+            "subjectId": "code:submit",
+            "layer": "implemented",
+            "predicate": "produces",
+            "value": "order",
+            "evidenceIds": [
+              "evidence:submit"
+            ],
+            "confidence": 1,
+            "sourceFingerprint": "sha256:claim"
+          }
+        ],
+        "topics": [
+          {
+            "id": "process:submit",
+            "kind": "process",
+            "title": "Submit order",
+            "domainId": "npm:@fixture/orders",
+            "anchorIds": []
+          }
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "id": "evidence:submit",
+            "kind": "code",
+            "path": "src/submit.mjs",
+            "contentHash": "sha256:evidence"
+          }
+        ]
+      }
+    },
+    {
+      "name": "evidence.kind поза enum",
+      "ok": false,
+      "graph": {
+        "schemaVersion": 1,
+        "domain": {
+          "id": "npm:@fixture/orders",
+          "ecosystem": "npm",
+          "name": "@fixture/orders",
+          "rootManifest": "package.json",
+          "sourceFingerprint": "sha256:domain"
+        },
+        "nodes": [
+          {
+            "id": "code:submit",
+            "kind": "code-unit",
+            "name": "submitOrder",
+            "visibility": "public",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:submit"
+          },
+          {
+            "id": "code:secret",
+            "kind": "code-unit",
+            "name": "privateSecret",
+            "visibility": "private",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:secret"
+          }
+        ],
+        "edges": [
+          {
+            "id": "edge:submit-secret",
+            "fromId": "code:submit",
+            "toId": "code:secret",
+            "kind": "invokes",
+            "evidenceIds": [
+              "evidence:submit"
+            ]
+          }
+        ],
+        "claims": [
+          {
+            "id": "claim:submit",
+            "subjectId": "code:submit",
+            "layer": "implemented",
+            "predicate": "produces",
+            "value": "order",
+            "evidenceIds": [
+              "evidence:submit"
+            ],
+            "confidence": 1,
+            "sourceFingerprint": "sha256:claim"
+          }
+        ],
+        "topics": [
+          {
+            "id": "process:submit",
+            "kind": "process",
+            "title": "Submit order",
+            "domainId": "npm:@fixture/orders",
+            "anchorIds": [
+              "code:submit"
+            ]
+          }
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "id": "evidence:submit",
+            "kind": "rumour",
+            "path": "src/submit.mjs",
+            "contentHash": "sha256:evidence"
+          }
+        ]
+      }
+    },
+    {
+      "name": "порожній id вузла",
+      "ok": false,
+      "graph": {
+        "schemaVersion": 1,
+        "domain": {
+          "id": "npm:@fixture/orders",
+          "ecosystem": "npm",
+          "name": "@fixture/orders",
+          "rootManifest": "package.json",
+          "sourceFingerprint": "sha256:domain"
+        },
+        "nodes": [
+          {
+            "id": "",
+            "kind": "code-unit",
+            "name": "submitOrder",
+            "visibility": "public",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:submit"
+          },
+          {
+            "id": "code:secret",
+            "kind": "code-unit",
+            "name": "privateSecret",
+            "visibility": "private",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:secret"
+          }
+        ],
+        "edges": [
+          {
+            "id": "edge:submit-secret",
+            "fromId": "code:submit",
+            "toId": "code:secret",
+            "kind": "invokes",
+            "evidenceIds": [
+              "evidence:submit"
+            ]
+          }
+        ],
+        "claims": [
+          {
+            "id": "claim:submit",
+            "subjectId": "code:submit",
+            "layer": "implemented",
+            "predicate": "produces",
+            "value": "order",
+            "evidenceIds": [
+              "evidence:submit"
+            ],
+            "confidence": 1,
+            "sourceFingerprint": "sha256:claim"
+          }
+        ],
+        "topics": [
+          {
+            "id": "process:submit",
+            "kind": "process",
+            "title": "Submit order",
+            "domainId": "npm:@fixture/orders",
+            "anchorIds": [
+              "code:submit"
+            ]
+          }
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "id": "evidence:submit",
+            "kind": "code",
+            "path": "src/submit.mjs",
+            "contentHash": "sha256:evidence"
+          }
+        ]
+      }
+    },
+    {
+      "name": "gap зі статусом поза enum",
+      "ok": false,
+      "graph": {
+        "schemaVersion": 1,
+        "domain": {
+          "id": "npm:@fixture/orders",
+          "ecosystem": "npm",
+          "name": "@fixture/orders",
+          "rootManifest": "package.json",
+          "sourceFingerprint": "sha256:domain"
+        },
+        "nodes": [
+          {
+            "id": "code:submit",
+            "kind": "code-unit",
+            "name": "submitOrder",
+            "visibility": "public",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:submit"
+          },
+          {
+            "id": "code:secret",
+            "kind": "code-unit",
+            "name": "privateSecret",
+            "visibility": "private",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:secret"
+          }
+        ],
+        "edges": [
+          {
+            "id": "edge:submit-secret",
+            "fromId": "code:submit",
+            "toId": "code:secret",
+            "kind": "invokes",
+            "evidenceIds": [
+              "evidence:submit"
+            ]
+          }
+        ],
+        "claims": [
+          {
+            "id": "claim:submit",
+            "subjectId": "code:submit",
+            "layer": "implemented",
+            "predicate": "produces",
+            "value": "order",
+            "evidenceIds": [
+              "evidence:submit"
+            ],
+            "confidence": 1,
+            "sourceFingerprint": "sha256:claim"
+          }
+        ],
+        "topics": [
+          {
+            "id": "process:submit",
+            "kind": "process",
+            "title": "Submit order",
+            "domainId": "npm:@fixture/orders",
+            "anchorIds": [
+              "code:submit"
+            ]
+          }
+        ],
+        "gaps": [
+          {
+            "id": "gap:x",
+            "status": "maybe",
+            "expectedClaimId": "claim:submit",
+            "implementedClaimIds": [],
+            "evidenceIds": [
+              "evidence:submit"
+            ]
+          }
+        ],
+        "evidence": [
+          {
+            "id": "evidence:submit",
+            "kind": "code",
+            "path": "src/submit.mjs",
+            "contentHash": "sha256:evidence"
+          }
+        ]
+      }
+    },
+    {
+      "name": "валідний gap",
+      "ok": true,
+      "graph": {
+        "schemaVersion": 1,
+        "domain": {
+          "id": "npm:@fixture/orders",
+          "ecosystem": "npm",
+          "name": "@fixture/orders",
+          "rootManifest": "package.json",
+          "sourceFingerprint": "sha256:domain"
+        },
+        "nodes": [
+          {
+            "id": "code:submit",
+            "kind": "code-unit",
+            "name": "submitOrder",
+            "visibility": "public",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:submit"
+          },
+          {
+            "id": "code:secret",
+            "kind": "code-unit",
+            "name": "privateSecret",
+            "visibility": "private",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {},
+            "sourceFingerprint": "sha256:secret"
+          }
+        ],
+        "edges": [
+          {
+            "id": "edge:submit-secret",
+            "fromId": "code:submit",
+            "toId": "code:secret",
+            "kind": "invokes",
+            "evidenceIds": [
+              "evidence:submit"
+            ]
+          }
+        ],
+        "claims": [
+          {
+            "id": "claim:submit",
+            "subjectId": "code:submit",
+            "layer": "implemented",
+            "predicate": "produces",
+            "value": "order",
+            "evidenceIds": [
+              "evidence:submit"
+            ],
+            "confidence": 1,
+            "sourceFingerprint": "sha256:claim"
+          }
+        ],
+        "topics": [
+          {
+            "id": "process:submit",
+            "kind": "process",
+            "title": "Submit order",
+            "domainId": "npm:@fixture/orders",
+            "anchorIds": [
+              "code:submit"
+            ]
+          }
+        ],
+        "gaps": [
+          {
+            "id": "gap:x",
+            "status": "missing",
+            "expectedClaimId": "claim:submit",
+            "implementedClaimIds": [],
+            "evidenceIds": [
+              "evidence:submit"
+            ]
+          }
+        ],
+        "evidence": [
+          {
+            "id": "evidence:submit",
+            "kind": "code",
+            "path": "src/submit.mjs",
+            "contentHash": "sha256:evidence"
+          }
+        ]
+      }
+    }
+  ]
+}

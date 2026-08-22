@@ -18,4 +18,5 @@ resource: crates/rules-docs/tests/
 | [publish.rs](publish.md)                   | Rust Module |
 | [render.rs](render.md)                     | Rust Module |
 | [topics.rs](topics.md)                     | Rust Module |
+| [validator.rs](validator.md)               | Rust Module |
 | [zones.rs](zones.md)                       | Rust Module |
