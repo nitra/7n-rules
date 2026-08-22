@@ -7,6 +7,7 @@ resource: crates/rules-docs/tests/
 | Файл                                       | Тип         |
 | ------------------------------------------ | ----------- |
 | [claims.rs](claims.md)                     | Rust Module |
+| [domains.rs](domains.md)                   | Rust Module |
 | [expected_overlay.rs](expected_overlay.md) | Rust Module |
 | [gaps.rs](gaps.md)                         | Rust Module |
 | [gaps_parity.rs](gaps_parity.md)           | Rust Module |
@@ -17,6 +18,7 @@ resource: crates/rules-docs/tests/
 | [planner_parity.rs](planner_parity.md)     | Rust Module |
 | [publish.rs](publish.md)                   | Rust Module |
 | [render.rs](render.md)                     | Rust Module |
+| [sources.rs](sources.md)                   | Rust Module |
 | [topics.rs](topics.md)                     | Rust Module |
 | [validator.rs](validator.md)               | Rust Module |
 | [zones.rs](zones.md)                       | Rust Module |
