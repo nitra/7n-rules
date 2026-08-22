@@ -1,0 +1,95 @@
+{
+  "discovered": {
+    "ok": true,
+    "sources": [
+      {
+        "id": "source:expected:655d59a19264931356df56e2",
+        "evidence": {
+          "id": "evidence:expected:ff7301cfb817ba10a6edce8f",
+          "kind": "adr",
+          "path": "docs/adr/accepted.md",
+          "span": {
+            "startByte": 0,
+            "endByte": 102
+          },
+          "contentHash": "sha256:02bd8187df7249e2dadbba9a90b0195ba2cc6f90866b9506b756afab30d00c82"
+        },
+        "content": "<!-- PACKAGE-KNOWLEDGE:domain id=\"npm:@fixture/orders\" -->\n**Status:** Accepted\n\nUse accepted orders.\n",
+        "anchor": "adr:docs/adr/accepted.md"
+      },
+      {
+        "id": "source:expected:a12d1ff639344060c69fd35b",
+        "evidence": {
+          "id": "evidence:expected:0b9468c8dfedd2b01ec527e0",
+          "kind": "spec",
+          "path": "docs/specs/orders.md",
+          "span": {
+            "startByte": 0,
+            "endByte": 89
+          },
+          "contentHash": "sha256:0ab953f276f3dbe28514cffb60f41d0eae14d24fd2b3e80415b045dcd04949da"
+        },
+        "content": "<!-- PACKAGE-KNOWLEDGE:domain id=\"npm:@fixture/orders\" -->\n# Orders\n\nOrders need review.\n",
+        "anchor": "spec:docs/specs/orders.md"
+      },
+      {
+        "id": "source:expected:cdfd97c41ed8025fb32b38d6",
+        "evidence": {
+          "id": "evidence:expected:125c4e5155db19a7145f650a",
+          "kind": "manual",
+          "path": "docs/index.md",
+          "span": {
+            "startByte": 41,
+            "endByte": 64
+          },
+          "contentHash": "sha256:cf2a35d90be618e1427be7575131573baef4529e919ef2f88bf56e06de9d7c00"
+        },
+        "content": "Order must be accepted.",
+        "anchor": "EXPECTED:accept-order"
+      }
+    ]
+  },
+  "mapped": {
+    "ok": true,
+    "overlay": {
+      "claims": [
+        {
+          "id": "claim:expected:d58904a6ddaf9bdb05867c1f",
+          "subjectId": "code-unit:npm:@fixture/orders:js:submit",
+          "predicate": "outcome",
+          "value": "accepted",
+          "evidenceIds": [
+            "evidence:expected:spec"
+          ],
+          "confidence": 1,
+          "sourceFingerprint": "sha256:56ede17d46e7a5c1d965c793fe50b3887dfd1717e6d393936086cc3f726f64f6"
+        }
+      ],
+      "evidence": [
+        {
+          "contentHash": "sha256:spec",
+          "id": "evidence:expected:spec",
+          "kind": "spec",
+          "path": "docs/specs/orders.md"
+        }
+      ]
+    },
+    "cache": {
+      "entries": {
+        "sha256:9a76e07792f1e9835ed8e4e9ae987452deb976db5eb72d759189abd93375dae5": "{\"claims\":[{\"subjectId\":\"code-unit:npm:@fixture/orders:js:submit\",\"predicate\":\"outcome\",\"value\":\"accepted\",\"evidenceIds\":[\"evidence:expected:spec\"],\"confidence\":1}]}"
+      },
+      "version": 1
+    }
+  },
+  "empty": {
+    "ok": true,
+    "overlay": {
+      "claims": [],
+      "evidence": []
+    },
+    "cache": {
+      "entries": {},
+      "version": 1
+    }
+  }
+}

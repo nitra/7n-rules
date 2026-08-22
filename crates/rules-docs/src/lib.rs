@@ -37,6 +37,8 @@ pub mod domains;
 pub mod entailment;
 /// Накладання шару expected-claims.
 pub mod expected;
+/// Пошук і мапінг явних джерел очікувань.
+pub mod expected_sources;
 /// Comparator expected↔implemented claims.
 pub mod gap_mappings;
 /// Детерміновані вердикти по expected-шару.
@@ -73,6 +75,7 @@ pub use domains::{
 };
 pub use entailment::{verify_evidence_entailment, EntailmentInput, EntailmentOutcome};
 pub use expected::{apply_expected_overlay, OverlayOutcome};
+pub use expected_sources::{discover_expected_sources, map_expected_sources, ExpectedSource};
 pub use gap_mappings::{compare_claim_mappings, GapMappingInput, GapMappingOutcome, Mapping};
 pub use gaps::{evaluate_gaps, Gap, GapInput, GapOutcome};
 pub use graph::{

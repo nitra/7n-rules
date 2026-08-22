@@ -9,6 +9,7 @@ resource: crates/rules-docs/tests/
 | [claims.rs](claims.md)                     | Rust Module |
 | [domains.rs](domains.md)                   | Rust Module |
 | [expected_overlay.rs](expected_overlay.md) | Rust Module |
+| [expected_sources.rs](expected_sources.md) | Rust Module |
 | [gaps.rs](gaps.md)                         | Rust Module |
 | [gaps_parity.rs](gaps_parity.md)           | Rust Module |
 | [gates.rs](gates.md)                       | Rust Module |
