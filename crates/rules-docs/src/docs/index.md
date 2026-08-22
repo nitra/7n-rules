@@ -6,6 +6,7 @@ resource: crates/rules-docs/src/
 
 | Файл                                 | Тип         |
 | ------------------------------------ | ----------- |
+| [claims.rs](claims.md)               | Rust Module |
 | [deterministic.rs](deterministic.md) | Rust Module |
 | [entailment.rs](entailment.md)       | Rust Module |
 | [gap_mappings.rs](gap_mappings.md)   | Rust Module |
