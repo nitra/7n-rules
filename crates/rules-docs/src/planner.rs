@@ -12,7 +12,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use serde::Serialize;
 use serde_json::{json, Value};
 
-use crate::deterministic::{canonical_hash, canonical_json, js_locale_cmp};
+use crate::deterministic::{canonical_hash, canonical_value, js_locale_cmp};
 
 /// Типовий бюджет одного chunk-а в токенах.
 pub const DEFAULT_MAX_TOKENS: u64 = 1200;
@@ -1170,13 +1170,4 @@ pub fn plan_semantic_chunks(input: PlannerInput<'_>) -> PlanOutcome {
             model_policy: canonical_value(&input.model_policy),
         },
     }))
-}
-
-/// Канонічна копія значення — порт `canonicalize` для `cachePolicy`.
-///
-/// У Rust порядок ключів у `Value` не спостережний для споживача (його задає
-/// серіалізація), тож канонізація тут — це нормалізація ЗМІСТУ через той
-/// самий писемник, яким рахуються хеші: одна дорога, одні правила.
-fn canonical_value(value: &Value) -> Value {
-    serde_json::from_str(&canonical_json(value)).unwrap_or_else(|_| value.clone())
 }

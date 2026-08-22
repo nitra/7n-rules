@@ -3,7 +3,7 @@ type: Rust Module
 title: deterministic.rs
 resource: crates/rules-docs/src/deterministic.rs
 docgen:
-  crc: f26cc9d2
+  crc: cd5aac73
   model: local-openai/gemma-4-26b-a4b-it
   tier: local-min
   score: 55
@@ -17,6 +17,7 @@ docgen:
 
 - js_locale_cmp — Порівняння рядків у стилі `String.prototype.localeCompare` (коренева колація ICU) для простору ключів, який реально трапляється в графі: ASCII-ідентифікатори, пунктуація, цифри, кирилиця.  Побайтове порівняння тут НЕ підходить — див. [`collation_weights`].
 - canonical_json — Канонічний JSON-рядок значення — порт `JSON.stringify(canonicalize(v))`.
+- canonical_value — Канонічна копія значення — порт `canonicalize`.  У Rust порядок ключів у [`Value`] не спостережний для споживача (його задає серіалізація), тож канонізація тут — це нормалізація ЗМІСТУ через той самий писемник, яким рахуються хеші: одна дорога, одні правила.
 - canonical_hash — `sha256:`-префіксований digest канонічного JSON — порт `canonicalHash`.
 - VersionedCache — Кеш успішних відповідей верифікатора: `version` + `entries` (ключ → СИРИЙ текст відповіді моделі).  Значення лишається [`Value`], а не `String`, свідомо: чужий чи побитий файл може мати там що завгодно, і відкидати таке має ПАРСЕР відповіді (тим самим кодом, що й для живої відповіді), а не десеріалізація кешу.
 - empty — Порожній кеш заданої версії.

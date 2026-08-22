@@ -3,7 +3,7 @@ type: Rust Module
 title: planner.rs
 resource: crates/rules-docs/src/planner.rs
 docgen:
-  crc: 5a587184
+  crc: 214ae032
   model: local-openai/gemma-4-26b-a4b-it
   tier: local-min
   score: 80

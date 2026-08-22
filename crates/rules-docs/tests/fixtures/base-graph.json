@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "domain": {
+    "id": "npm:@fixture/orders",
+    "ecosystem": "npm",
+    "name": "@fixture/orders",
+    "rootManifest": "package.json",
+    "sourceFingerprint": "domain-hash"
+  },
+  "nodes": [
+    {
+      "id": "code-unit:npm:@fixture/orders:js:submitOrder",
+      "kind": "code-unit",
+      "name": "submitOrder",
+      "visibility": "public",
+      "domainId": "npm:@fixture/orders",
+      "attributes": {},
+      "sourceFingerprint": "source-hash"
+    }
+  ],
+  "edges": [],
+  "claims": [
+    {
+      "id": "claim:implemented:accepts-order",
+      "subjectId": "code-unit:npm:@fixture/orders:js:submitOrder",
+      "layer": "implemented",
+      "predicate": "order-status",
+      "value": "accepted",
+      "evidenceIds": ["evidence:code"],
+      "confidence": 1,
+      "sourceFingerprint": "implemented-hash"
+    }
+  ],
+  "topics": [],
+  "gaps": [],
+  "evidence": [
+    { "id": "evidence:code", "kind": "code", "path": "src/orders.mjs", "contentHash": "code-hash" },
+    { "id": "evidence:spec", "kind": "spec", "path": "docs/spec.md", "contentHash": "spec-hash" },
+    { "id": "evidence:mapping", "kind": "test", "path": "tests/orders.test.mjs", "contentHash": "test-hash" }
+  ]
+}

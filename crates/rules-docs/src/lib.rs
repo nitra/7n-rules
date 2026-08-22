@@ -33,8 +33,12 @@ pub mod claims;
 pub mod deterministic;
 /// Верифікатор evidence-entailment.
 pub mod entailment;
+/// Накладання шару expected-claims.
+pub mod expected;
 /// Comparator expected↔implemented claims.
 pub mod gap_mappings;
+/// Детерміновані вердикти по expected-шару.
+pub mod gaps;
 /// Планувальник bounded semantic chunks і хвиль залежностей.
 pub mod planner;
 /// Транспорт хвиль: інʼєкція batch-фасаду, драбина тирів, ланцюжок задачі.
@@ -43,7 +47,9 @@ pub mod wave;
 pub use claims::{build_structured_claims, ClaimsInput, ClaimsOutcome};
 pub use deterministic::{canonical_hash, canonical_json, VersionedCache};
 pub use entailment::{verify_evidence_entailment, EntailmentInput, EntailmentOutcome};
+pub use expected::{apply_expected_overlay, OverlayOutcome};
 pub use gap_mappings::{compare_claim_mappings, GapMappingInput, GapMappingOutcome, Mapping};
+pub use gaps::{evaluate_gaps, Gap, GapInput, GapOutcome};
 pub use planner::{plan_semantic_chunks, Plan, PlanOutcome, PlannerInput, SourceText};
 pub use wave::{
     default_model_policy, native_submit_batch, new_chain, ChainRef, SubmitBatchFn, WaveItem,
