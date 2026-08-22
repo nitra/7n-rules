@@ -3,7 +3,7 @@ type: Rust Module
 title: candidate.rs
 resource: crates/rules-docs/tests/candidate.rs
 docgen:
-  crc: e0b19308
+  crc: 709d56a0
   model: openai-codex/gpt-5.4-mini
   tier: cloud-min
   score: 70

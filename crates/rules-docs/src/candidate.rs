@@ -71,6 +71,14 @@ pub struct ExtractorFile {
     pub content_hash: String,
 }
 
+/// Provenance парсера екстрактора — частина ключів кешу тверджень.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParserProvenance {
+    pub id: String,
+    pub grammar_version: String,
+    pub runtime_version: String,
+}
+
 /// Мовний екстрактор — Rust-подоба контракту `knowledge.extractor@1`.
 ///
 /// # Чому синхронний
@@ -94,6 +102,23 @@ pub trait KnowledgeExtractor {
     /// `Err` — порт гілки `catch`: екстрактор впав і не має що сказати
     /// структуровано; текст стає деталлю діагностики `extractor-threw`.
     fn analyze_file(&self, domain: &Domain, file: &ExtractorFile) -> Result<Value, String>;
+
+    /// Provenance парсера — входить у ключ кешу тверджень, тож мусить
+    /// мінятись разом із граматикою чи рантаймом.
+    fn parser(&self) -> ParserProvenance;
+
+    /// Збирає сценарії очікувань із файла тесту.
+    ///
+    /// Частина того самого контракту `knowledge.extractor@1`: у JS це
+    /// метод того самого обʼєкта адаптера, і оркестратор передає його
+    /// далі в [`crate::expected_sources`] без розділення.
+    ///
+    /// # Errors
+    /// Структурована невдача збирача.
+    fn collect_test_scenarios(
+        &self,
+        file: &crate::expected_sources::TestFile,
+    ) -> Result<Vec<crate::expected_sources::Scenario>, Vec<crate::expected_sources::Diagnostic>>;
 }
 
 /// Вхід конвеєра.
