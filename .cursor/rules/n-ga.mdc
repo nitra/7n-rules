@@ -412,6 +412,14 @@ Rego-пакет: `ga.lint_ga`
 - `steps[*].run` (сукупно) — містить `open-policy-agent/conftest` (Install conftest)
 - `steps[*].run` (сукупно) — містить `n-rules lint ga --no-fix`
 
+### Preinstalled `ci-tools`
+
+Forgejo runner може мапити сумісну мітку `ubuntu-latest` на власний образ, де вже
+встановлені `uv` і `conftest`. Для цього workflow декларативно встановлює
+`jobs.lint-ga.env.NITRA_CI_TOOLS: 'true'`. За цієї явної opt-in policy не вимагає
+`astral-sh/setup-uv` і крок завантаження Conftest; `checkout`, локальний
+`setup-bun-deps` і `n-rules lint ga --no-fix` лишаються обов'язковими.
+
 Канон: [lint-ga.yml.snippet.yml](./template/lint-ga.yml.snippet.yml)
 
 ## Deep-subset `.github/workflows/lint-repo.yml` (repo-wide перевірки)

@@ -3,9 +3,9 @@ type: Rust Module
 title: config.rs
 resource: crates/rules-fix/src/config.rs
 docgen:
-  crc: 2900e20f
-  model: openai-codex/gpt-5.4-mini
-  tier: cloud-min
+  crc: 1008a5c8
+  model: local-openai/gemma-4-26b-a4b-it
+  tier: local-min
   score: 80
 ---
 

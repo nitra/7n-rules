@@ -1,16 +1,16 @@
 {
-  "pinnedAt": "2026-07-19",
+  "pinnedAt": "2026-08-22",
   "versions": {
-    "hk": "1.51.0",
-    "conftest": "0.68.2",
-    "shellcheck": "0.11.0",
     "actionlint": "1.7.12",
+    "conftest": "0.69.0",
     "dotenv-linter": "4.0.0",
-    "opa": "1.18.2",
-    "regal": "0.42.0",
-    "hadolint": "2.14.0",
+    "hadolint": "2.15.1",
+    "hk": "1.56.0",
     "kubeconform": "0.8.0",
-    "kubescape": "4.0.10",
-    "mago": "1.45.0"
+    "kubescape": "4.0.12",
+    "mago": "1.47.2",
+    "opa": "1.19.1",
+    "regal": "0.42.0",
+    "shellcheck": "0.11.0"
   }
 }

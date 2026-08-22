@@ -48,13 +48,19 @@ pub fn build_pipeline_config(
     cwd: PathBuf,
     target_files: Vec<PathBuf>,
 ) -> Result<PipelineConfig, String> {
+    // Порожня драбина — НЕ помилка конфіга, а середовище без жодної моделі
+    // в env (саме таке в CI). Concern-у, якому нема що лагодити, драбина
+    // взагалі не потрібна, а concern із порушеннями має отримати чесний звіт
+    // «жодного рунга», а не збій виклику: обидва випадки складає `run_fix`,
+    // побачивши порожній набір. Повертати тут `Err` означало б, що
+    // `rules-fix` падає скрізь, де моделі не налаштовані.
     let ladder = select_ladder(
         &build_ladder(&resolve_ladder_models()),
         !meta.skip_local_tier,
         EgressPolicy::AllowCloud,
         meta.cloud_timeout_ms,
     )
-    .map_err(|err| err.to_string())?;
+    .unwrap_or_default();
 
     let policy = FixPolicy {
         // Повторне звуження в run_fix має бути no-op над уже звуженою
@@ -97,6 +103,25 @@ mod tests {
     use harness::pipeline::Fixability as PipelineFixability;
     use rules_core::concern_meta::Fixability as ConcernFixability;
 
+    /// Ті самі змінні, що читає `harness::ladder::resolve_ladder_models`
+    /// (перелік-близнюк у `tests/fix_concern.rs`): якщо жодної не задано,
+    /// драбина БУДЬ-ЯКОГО concern-а порожня — і це не дефект, а середовище
+    /// без моделей (саме таке в CI).
+    const MODEL_ENV_VARS: &[&str] = &[
+        "N_LOCAL_MIN_MODEL",
+        "N_LOCAL_AVG_MODEL",
+        "N_LOCAL_MAX_MODEL",
+        "N_CLOUD_MIN_MODEL",
+        "N_CLOUD_AVG_MODEL",
+        "N_CLOUD_MAX_MODEL",
+    ];
+
+    fn any_model_env_configured() -> bool {
+        MODEL_ENV_VARS
+            .iter()
+            .any(|name| std::env::var(name).is_ok_and(|value| !value.is_empty()))
+    }
+
     /// Мінімальний `ConcernMeta` для тестів — лише поля, які читає
     /// [`build_pipeline_config`]; решта нейтральна.
     fn meta(fixability: ConcernFixability, skip_local_tier: bool) -> ConcernMeta {
@@ -124,7 +149,15 @@ mod tests {
             cwd.clone(),
             targets.clone(),
         )
-        .expect("драбина резолвиться");
+        .expect("конфіг будується навіть без моделей");
+        // Без жодної моделі в env драбина порожня ЗАКОНОМІРНО — і це не
+        // заважає решті конфіга бути правильною. Тест не пропускається
+        // мовчки: він перевіряє саме цю межу.
+        assert_eq!(
+            config.ladder.is_empty(),
+            !any_model_env_configured(),
+            "драбина порожня рівно тоді, коли в env немає жодної моделі"
+        );
         assert_eq!(config.cwd, cwd);
         assert_eq!(config.target_files, targets);
         assert_eq!(config.fixability, PipelineFixability::ConfigOrStructural);
