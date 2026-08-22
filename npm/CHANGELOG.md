@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.93.1] - 2026-08-22
+
+### Changed
+
+- feat(rules-core): fix-поверхня k8s/manifests портована повністю (#460)
+
+### Fixed
+
+- changelog presence: додано change-файл для змін у npm
+
 ## [1.93.0] - 2026-08-19
 
 ### Added
