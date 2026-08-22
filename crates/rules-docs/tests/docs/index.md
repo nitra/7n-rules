@@ -15,6 +15,7 @@ resource: crates/rules-docs/tests/
 | [impact.rs](impact.md)                     | Rust Module |
 | [planner.rs](planner.md)                   | Rust Module |
 | [planner_parity.rs](planner_parity.md)     | Rust Module |
+| [publish.rs](publish.md)                   | Rust Module |
 | [render.rs](render.md)                     | Rust Module |
 | [topics.rs](topics.md)                     | Rust Module |
 | [zones.rs](zones.md)                       | Rust Module |
