@@ -1,0 +1,623 @@
+{
+  "domainId": "npm:@fixture/orders",
+  "domainFingerprint": "sha256:2e62d0aaf227f8a32c8a02d74470f5f8ffa6ef4c61b45b5d3dcb8c53f4634a63",
+  "sources": [
+    {
+      "path": "src/orders.mjs",
+      "content": "export function submit() {}"
+    },
+    {
+      "path": "src/alpha.mjs",
+      "content": "export function alpha() {}"
+    }
+  ],
+  "sourceFingerprint": "sha256:7e801bc59e874be37a52dfbda324e6e824448d3dd160487f1f5931d0de955bce",
+  "parserVersion": "fixture@1/1",
+  "candidateGraph": {
+    "claims": [],
+    "domain": {
+      "ecosystem": "npm",
+      "id": "npm:@fixture/orders",
+      "name": "@fixture/orders",
+      "rootManifest": "package.json",
+      "sourceFingerprint": "sha256:7e801bc59e874be37a52dfbda324e6e824448d3dd160487f1f5931d0de955bce"
+    },
+    "edges": [
+      {
+        "evidenceIds": [
+          "evidence:8c3317c7d7e3700c336f016f"
+        ],
+        "fromId": "code-unit:npm:@fixture/orders:js:src/alpha.mjs#submit",
+        "id": "edge:3ac6119d594c565c7add9141",
+        "kind": "invokes",
+        "toId": "contract:npm:@fixture/orders:bc5eea0e24880b4392f2bde7"
+      },
+      {
+        "evidenceIds": [
+          "evidence:83a42ad59a8005dbf0e34400"
+        ],
+        "fromId": "code-unit:npm:@fixture/orders:js:src/orders.mjs#submit",
+        "id": "edge:90875fbc0180189d8583b823",
+        "kind": "invokes",
+        "toId": "contract:npm:@fixture/orders:bc5eea0e24880b4392f2bde7"
+      },
+      {
+        "evidenceIds": [
+          "evidence:orders-openapi"
+        ],
+        "fromId": "config:npm:@fixture/orders:openapi",
+        "id": "edge:orders-openapi",
+        "kind": "implements",
+        "toId": "contract:npm:@fixture/orders:orders-api"
+      }
+    ],
+    "evidence": [
+      {
+        "contentHash": "sha256:855f60a25e36ddd7e6a7778a728a1b1e7b5a6b9be2c4c4396c45aa26f0da20f9",
+        "id": "evidence:565761798a1ef736c8d0af00",
+        "kind": "code",
+        "path": "src/orders.mjs",
+        "role": "syntax",
+        "span": {
+          "endByte": 27,
+          "startByte": 0
+        },
+        "symbolId": "code-unit:npm:@fixture/orders:js:src/orders.mjs#submit"
+      },
+      {
+        "contentHash": "sha256:855f60a25e36ddd7e6a7778a728a1b1e7b5a6b9be2c4c4396c45aa26f0da20f9",
+        "id": "evidence:83a42ad59a8005dbf0e34400",
+        "kind": "code",
+        "path": "src/orders.mjs",
+        "role": "syntax",
+        "span": {
+          "endByte": 27,
+          "startByte": 0
+        },
+        "symbolId": "code-unit:npm:@fixture/orders:js:src/orders.mjs#submit"
+      },
+      {
+        "contentHash": "sha256:6c5c8a4b3b0d1cd6342f7fb904fb90229521a01d785197980d02e1ae1fca5cf8",
+        "id": "evidence:8c3317c7d7e3700c336f016f",
+        "kind": "code",
+        "path": "src/alpha.mjs",
+        "role": "syntax",
+        "span": {
+          "endByte": 26,
+          "startByte": 0
+        },
+        "symbolId": "code-unit:npm:@fixture/orders:js:src/alpha.mjs#submit"
+      },
+      {
+        "contentHash": "sha256:6c5c8a4b3b0d1cd6342f7fb904fb90229521a01d785197980d02e1ae1fca5cf8",
+        "id": "evidence:c4afdd25158c91b3b6671686",
+        "kind": "code",
+        "path": "src/alpha.mjs",
+        "role": "syntax",
+        "span": {
+          "endByte": 26,
+          "startByte": 0
+        },
+        "symbolId": "code-unit:npm:@fixture/orders:js:src/alpha.mjs#submit"
+      },
+      {
+        "contentHash": "sha256:openapi",
+        "id": "evidence:orders-openapi",
+        "kind": "schema",
+        "path": "contracts/openapi.yaml",
+        "symbolId": "config:npm:@fixture/orders:openapi"
+      }
+    ],
+    "gaps": [],
+    "nodes": [
+      {
+        "attributes": {
+          "language": "js",
+          "qualifiedPath": "src/alpha.mjs#submit",
+          "signature": null,
+          "sourcePath": "src/alpha.mjs",
+          "span": {
+            "endByte": 26,
+            "startByte": 0
+          },
+          "unitKind": "function"
+        },
+        "domainId": "npm:@fixture/orders",
+        "id": "code-unit:npm:@fixture/orders:js:src/alpha.mjs#submit",
+        "kind": "code-unit",
+        "name": "submit",
+        "sourceFingerprint": "sha256:6c5c8a4b3b0d1cd6342f7fb904fb90229521a01d785197980d02e1ae1fca5cf8",
+        "visibility": "public"
+      },
+      {
+        "attributes": {
+          "language": "js",
+          "qualifiedPath": "src/orders.mjs#submit",
+          "signature": null,
+          "sourcePath": "src/orders.mjs",
+          "span": {
+            "endByte": 27,
+            "startByte": 0
+          },
+          "unitKind": "function"
+        },
+        "domainId": "npm:@fixture/orders",
+        "id": "code-unit:npm:@fixture/orders:js:src/orders.mjs#submit",
+        "kind": "code-unit",
+        "name": "submit",
+        "sourceFingerprint": "sha256:855f60a25e36ddd7e6a7778a728a1b1e7b5a6b9be2c4c4396c45aa26f0da20f9",
+        "visibility": "public"
+      },
+      {
+        "attributes": {
+          "artifact": "schema",
+          "sourcePath": "contracts/openapi.yaml"
+        },
+        "domainId": "npm:@fixture/orders",
+        "id": "config:npm:@fixture/orders:openapi",
+        "kind": "config",
+        "name": "Orders API schema",
+        "sourceFingerprint": "sha256:openapi",
+        "visibility": "public"
+      },
+      {
+        "attributes": {
+          "opaque": true,
+          "specifier": "fixture-transport"
+        },
+        "domainId": "npm:@fixture/orders",
+        "id": "contract:npm:@fixture/orders:bc5eea0e24880b4392f2bde7",
+        "kind": "integration",
+        "name": "fixture-transport",
+        "sourceFingerprint": "bc5eea0e24880b4392f2bde7",
+        "visibility": "external"
+      },
+      {
+        "attributes": {
+          "boundary": "contract",
+          "sourcePath": "contracts/openapi.yaml"
+        },
+        "domainId": "npm:@fixture/orders",
+        "id": "contract:npm:@fixture/orders:orders-api",
+        "kind": "integration",
+        "name": "Orders API",
+        "sourceFingerprint": "sha256:openapi",
+        "visibility": "external"
+      }
+    ],
+    "schemaVersion": 1,
+    "topics": [
+      {
+        "id": "contract:npm:@fixture/orders:6e83a1f878b9e035ab9399fa",
+        "kind": "contract",
+        "title": "Orders API",
+        "domainId": "npm:@fixture/orders",
+        "anchorIds": [
+          "contract:npm:@fixture/orders:orders-api"
+        ],
+        "aliases": []
+      },
+      {
+        "id": "process:npm:@fixture/orders:943e29bdfaa1e2eb4e36b517",
+        "kind": "process",
+        "title": "submit",
+        "domainId": "npm:@fixture/orders",
+        "anchorIds": [
+          "code-unit:npm:@fixture/orders:js:src/alpha.mjs#submit",
+          "code-unit:npm:@fixture/orders:js:src/orders.mjs#submit",
+          "contract:npm:@fixture/orders:bc5eea0e24880b4392f2bde7"
+        ],
+        "aliases": [
+          "process:npm:@fixture/orders:3a9f38af1c3e3649e7def329",
+          "process:npm:@fixture/orders:b33b69d48d504c2233fa739e"
+        ]
+      }
+    ]
+  },
+  "plannerInput": {
+    "parser": {
+      "version": "fixture@1/1"
+    },
+    "schema": {
+      "version": "package-knowledge-claims-v2"
+    },
+    "prompt": {
+      "version": "package-knowledge-claims-v2"
+    },
+    "modelPolicy": {
+      "tiers": [
+        "min",
+        "avg",
+        "max"
+      ]
+    }
+  },
+  "planChunks": [
+    {
+      "id": "chunk:f6327914d5ffe41bd0f0b521",
+      "wave": 0,
+      "componentIds": [
+        "scc:ecb4dc19198934a8116d3c4d",
+        "scc:f64359c3c8429262b33c7c5e"
+      ],
+      "nodeIds": [
+        "code-unit:npm:@fixture/orders:js:src/alpha.mjs#submit",
+        "code-unit:npm:@fixture/orders:js:src/orders.mjs#submit"
+      ],
+      "edgeIds": [
+        "edge:3ac6119d594c565c7add9141",
+        "edge:90875fbc0180189d8583b823"
+      ],
+      "unitSlices": [
+        {
+          "nodeId": "code-unit:npm:@fixture/orders:js:src/alpha.mjs#submit",
+          "path": "src/alpha.mjs",
+          "span": {
+            "startByte": 0,
+            "endByte": 26
+          },
+          "text": "export function alpha() {}",
+          "contentHash": "sha256:a3742666af1466c568c33c6ef2320d83d84d150db099b71a431944cd464f6679"
+        },
+        {
+          "nodeId": "code-unit:npm:@fixture/orders:js:src/orders.mjs#submit",
+          "path": "src/orders.mjs",
+          "span": {
+            "startByte": 0,
+            "endByte": 27
+          },
+          "text": "export function submit() {}",
+          "contentHash": "sha256:74b53b0566e3e1fb59f4d72627ca359d262c31259be90a93b28cff0de703fcb2"
+        }
+      ],
+      "edgeEvidence": [
+        {
+          "edgeId": "edge:3ac6119d594c565c7add9141",
+          "evidence": [
+            {
+              "id": "evidence:8c3317c7d7e3700c336f016f",
+              "path": "src/alpha.mjs",
+              "span": {
+                "startByte": 0,
+                "endByte": 26
+              },
+              "text": "export function alpha() {}",
+              "contentHash": "sha256:a3742666af1466c568c33c6ef2320d83d84d150db099b71a431944cd464f6679"
+            }
+          ]
+        },
+        {
+          "edgeId": "edge:90875fbc0180189d8583b823",
+          "evidence": [
+            {
+              "id": "evidence:83a42ad59a8005dbf0e34400",
+              "path": "src/orders.mjs",
+              "span": {
+                "startByte": 0,
+                "endByte": 27
+              },
+              "text": "export function submit() {}",
+              "contentHash": "sha256:74b53b0566e3e1fb59f4d72627ca359d262c31259be90a93b28cff0de703fcb2"
+            }
+          ]
+        }
+      ],
+      "estimatedTokens": 84,
+      "dependsOnChunkIds": [],
+      "cacheFingerprint": "sha256:3008df8262ab146a75c8af0f53caee7747f6f03cc0958683d340b3a54cd1ca86"
+    }
+  ],
+  "claimsChunks": [
+    {
+      "id": "chunk:f6327914d5ffe41bd0f0b521",
+      "requiredNodeIds": [
+        "code-unit:npm:@fixture/orders:js:src/alpha.mjs#submit",
+        "code-unit:npm:@fixture/orders:js:src/orders.mjs#submit"
+      ],
+      "requiredEdgeIds": [
+        "edge:3ac6119d594c565c7add9141",
+        "edge:90875fbc0180189d8583b823"
+      ],
+      "allowedEvidenceIds": [
+        "evidence:565761798a1ef736c8d0af00",
+        "evidence:83a42ad59a8005dbf0e34400",
+        "evidence:8c3317c7d7e3700c336f016f",
+        "evidence:c4afdd25158c91b3b6671686"
+      ],
+      "dependsOnChunkIds": [],
+      "wave": 0,
+      "contentHash": "sha256:3008df8262ab146a75c8af0f53caee7747f6f03cc0958683d340b3a54cd1ca86",
+      "prompt": "{\"unitSlices\":[{\"nodeId\":\"code-unit:npm:@fixture/orders:js:src/alpha.mjs#submit\",\"path\":\"src/alpha.mjs\",\"span\":{\"startByte\":0,\"endByte\":26},\"text\":\"export function alpha() {}\",\"contentHash\":\"sha256:a3742666af1466c568c33c6ef2320d83d84d150db099b71a431944cd464f6679\"},{\"nodeId\":\"code-unit:npm:@fixture/orders:js:src/orders.mjs#submit\",\"path\":\"src/orders.mjs\",\"span\":{\"startByte\":0,\"endByte\":27},\"text\":\"export function submit() {}\",\"contentHash\":\"sha256:74b53b0566e3e1fb59f4d72627ca359d262c31259be90a93b28cff0de703fcb2\"}],\"edgeEvidence\":[{\"edgeId\":\"edge:3ac6119d594c565c7add9141\",\"evidence\":[{\"id\":\"evidence:8c3317c7d7e3700c336f016f\",\"path\":\"src/alpha.mjs\",\"span\":{\"startByte\":0,\"endByte\":26},\"text\":\"export function alpha() {}\",\"contentHash\":\"sha256:a3742666af1466c568c33c6ef2320d83d84d150db099b71a431944cd464f6679\"}]},{\"edgeId\":\"edge:90875fbc0180189d8583b823\",\"evidence\":[{\"id\":\"evidence:83a42ad59a8005dbf0e34400\",\"path\":\"src/orders.mjs\",\"span\":{\"startByte\":0,\"endByte\":27},\"text\":\"export function submit() {}\",\"contentHash\":\"sha256:74b53b0566e3e1fb59f4d72627ca359d262c31259be90a93b28cff0de703fcb2\"}]}],\"evidenceRefs\":[{\"contentHash\":\"sha256:855f60a25e36ddd7e6a7778a728a1b1e7b5a6b9be2c4c4396c45aa26f0da20f9\",\"id\":\"evidence:565761798a1ef736c8d0af00\",\"kind\":\"code\",\"path\":\"src/orders.mjs\",\"role\":\"syntax\",\"span\":{\"endByte\":27,\"startByte\":0},\"symbolId\":\"code-unit:npm:@fixture/orders:js:src/orders.mjs#submit\"},{\"contentHash\":\"sha256:855f60a25e36ddd7e6a7778a728a1b1e7b5a6b9be2c4c4396c45aa26f0da20f9\",\"id\":\"evidence:83a42ad59a8005dbf0e34400\",\"kind\":\"code\",\"path\":\"src/orders.mjs\",\"role\":\"syntax\",\"span\":{\"endByte\":27,\"startByte\":0},\"symbolId\":\"code-unit:npm:@fixture/orders:js:src/orders.mjs#submit\"},{\"contentHash\":\"sha256:6c5c8a4b3b0d1cd6342f7fb904fb90229521a01d785197980d02e1ae1fca5cf8\",\"id\":\"evidence:8c3317c7d7e3700c336f016f\",\"kind\":\"code\",\"path\":\"src/alpha.mjs\",\"role\":\"syntax\",\"span\":{\"endByte\":26,\"startByte\":0},\"symbolId\":\"code-unit:npm:@fixture/orders:js:src/alpha.mjs#submit\"},{\"contentHash\":\"sha256:6c5c8a4b3b0d1cd6342f7fb904fb90229521a01d785197980d02e1ae1fca5cf8\",\"id\":\"evidence:c4afdd25158c91b3b6671686\",\"kind\":\"code\",\"path\":\"src/alpha.mjs\",\"role\":\"syntax\",\"span\":{\"endByte\":26,\"startByte\":0},\"symbolId\":\"code-unit:npm:@fixture/orders:js:src/alpha.mjs#submit\"}],\"dependsOnChunkIds\":[]}"
+    }
+  ],
+  "entailmentGraph": {
+    "claims": [
+      {
+        "confidence": 1,
+        "evidenceIds": [
+          "evidence:expected"
+        ],
+        "id": "claim:expected",
+        "layer": "expected",
+        "predicate": "outcome",
+        "sourceFingerprint": "sha256:expected",
+        "subjectId": "code-unit:npm:@fixture/orders:js:src/alpha.mjs#submit",
+        "value": true
+      },
+      {
+        "confidence": 1,
+        "evidenceIds": [
+          "evidence:565761798a1ef736c8d0af00"
+        ],
+        "id": "claim:sha256:350b7d922bb60bba2d47802ac318a27ee664b1e5a2c820b0cc057e235a3f6317",
+        "layer": "implemented",
+        "predicate": "outcome",
+        "sourceFingerprint": "sha256:759de517ba2cf18d6720400a612e662f46efef0f131ae1087633b7790e67cbd8",
+        "subjectId": "code-unit:npm:@fixture/orders:js:src/alpha.mjs#submit",
+        "value": true
+      },
+      {
+        "confidence": 1,
+        "evidenceIds": [
+          "evidence:565761798a1ef736c8d0af00"
+        ],
+        "id": "claim:sha256:befaf58ca14f360767d3824ef3dd8036ae8d7679ab4d82fdbe0d19272995abd5",
+        "layer": "implemented",
+        "predicate": "outcome",
+        "sourceFingerprint": "sha256:6749528d839b8d171464a9fc9a2418bb57291b3f04d3989c8b482234f50da22a",
+        "subjectId": "code-unit:npm:@fixture/orders:js:src/orders.mjs#submit",
+        "value": true
+      }
+    ],
+    "domain": {
+      "ecosystem": "npm",
+      "id": "npm:@fixture/orders",
+      "name": "@fixture/orders",
+      "rootManifest": "package.json",
+      "sourceFingerprint": "sha256:7e801bc59e874be37a52dfbda324e6e824448d3dd160487f1f5931d0de955bce"
+    },
+    "edges": [
+      {
+        "evidenceIds": [
+          "evidence:8c3317c7d7e3700c336f016f"
+        ],
+        "fromId": "code-unit:npm:@fixture/orders:js:src/alpha.mjs#submit",
+        "id": "edge:3ac6119d594c565c7add9141",
+        "kind": "invokes",
+        "toId": "contract:npm:@fixture/orders:bc5eea0e24880b4392f2bde7"
+      },
+      {
+        "evidenceIds": [
+          "evidence:83a42ad59a8005dbf0e34400"
+        ],
+        "fromId": "code-unit:npm:@fixture/orders:js:src/orders.mjs#submit",
+        "id": "edge:90875fbc0180189d8583b823",
+        "kind": "invokes",
+        "toId": "contract:npm:@fixture/orders:bc5eea0e24880b4392f2bde7"
+      },
+      {
+        "evidenceIds": [
+          "evidence:orders-openapi"
+        ],
+        "fromId": "config:npm:@fixture/orders:openapi",
+        "id": "edge:orders-openapi",
+        "kind": "implements",
+        "toId": "contract:npm:@fixture/orders:orders-api"
+      }
+    ],
+    "evidence": [
+      {
+        "contentHash": "sha256:855f60a25e36ddd7e6a7778a728a1b1e7b5a6b9be2c4c4396c45aa26f0da20f9",
+        "id": "evidence:565761798a1ef736c8d0af00",
+        "kind": "code",
+        "path": "src/orders.mjs",
+        "role": "syntax",
+        "span": {
+          "endByte": 27,
+          "startByte": 0
+        },
+        "symbolId": "code-unit:npm:@fixture/orders:js:src/orders.mjs#submit"
+      },
+      {
+        "contentHash": "sha256:855f60a25e36ddd7e6a7778a728a1b1e7b5a6b9be2c4c4396c45aa26f0da20f9",
+        "id": "evidence:83a42ad59a8005dbf0e34400",
+        "kind": "code",
+        "path": "src/orders.mjs",
+        "role": "syntax",
+        "span": {
+          "endByte": 27,
+          "startByte": 0
+        },
+        "symbolId": "code-unit:npm:@fixture/orders:js:src/orders.mjs#submit"
+      },
+      {
+        "contentHash": "sha256:6c5c8a4b3b0d1cd6342f7fb904fb90229521a01d785197980d02e1ae1fca5cf8",
+        "id": "evidence:8c3317c7d7e3700c336f016f",
+        "kind": "code",
+        "path": "src/alpha.mjs",
+        "role": "syntax",
+        "span": {
+          "endByte": 26,
+          "startByte": 0
+        },
+        "symbolId": "code-unit:npm:@fixture/orders:js:src/alpha.mjs#submit"
+      },
+      {
+        "contentHash": "sha256:6c5c8a4b3b0d1cd6342f7fb904fb90229521a01d785197980d02e1ae1fca5cf8",
+        "id": "evidence:c4afdd25158c91b3b6671686",
+        "kind": "code",
+        "path": "src/alpha.mjs",
+        "role": "syntax",
+        "span": {
+          "endByte": 26,
+          "startByte": 0
+        },
+        "symbolId": "code-unit:npm:@fixture/orders:js:src/alpha.mjs#submit"
+      },
+      {
+        "contentHash": "sha256:expected",
+        "id": "evidence:expected",
+        "kind": "spec",
+        "path": "docs/specs/orders.md"
+      },
+      {
+        "contentHash": "sha256:openapi",
+        "id": "evidence:orders-openapi",
+        "kind": "schema",
+        "path": "contracts/openapi.yaml",
+        "symbolId": "config:npm:@fixture/orders:openapi"
+      }
+    ],
+    "gaps": [],
+    "nodes": [
+      {
+        "attributes": {
+          "language": "js",
+          "qualifiedPath": "src/alpha.mjs#submit",
+          "signature": null,
+          "sourcePath": "src/alpha.mjs",
+          "span": {
+            "endByte": 26,
+            "startByte": 0
+          },
+          "unitKind": "function"
+        },
+        "domainId": "npm:@fixture/orders",
+        "id": "code-unit:npm:@fixture/orders:js:src/alpha.mjs#submit",
+        "kind": "code-unit",
+        "name": "submit",
+        "sourceFingerprint": "sha256:6c5c8a4b3b0d1cd6342f7fb904fb90229521a01d785197980d02e1ae1fca5cf8",
+        "visibility": "public"
+      },
+      {
+        "attributes": {
+          "language": "js",
+          "qualifiedPath": "src/orders.mjs#submit",
+          "signature": null,
+          "sourcePath": "src/orders.mjs",
+          "span": {
+            "endByte": 27,
+            "startByte": 0
+          },
+          "unitKind": "function"
+        },
+        "domainId": "npm:@fixture/orders",
+        "id": "code-unit:npm:@fixture/orders:js:src/orders.mjs#submit",
+        "kind": "code-unit",
+        "name": "submit",
+        "sourceFingerprint": "sha256:855f60a25e36ddd7e6a7778a728a1b1e7b5a6b9be2c4c4396c45aa26f0da20f9",
+        "visibility": "public"
+      },
+      {
+        "attributes": {
+          "artifact": "schema",
+          "sourcePath": "contracts/openapi.yaml"
+        },
+        "domainId": "npm:@fixture/orders",
+        "id": "config:npm:@fixture/orders:openapi",
+        "kind": "config",
+        "name": "Orders API schema",
+        "sourceFingerprint": "sha256:openapi",
+        "visibility": "public"
+      },
+      {
+        "attributes": {
+          "opaque": true,
+          "specifier": "fixture-transport"
+        },
+        "domainId": "npm:@fixture/orders",
+        "id": "contract:npm:@fixture/orders:bc5eea0e24880b4392f2bde7",
+        "kind": "integration",
+        "name": "fixture-transport",
+        "sourceFingerprint": "bc5eea0e24880b4392f2bde7",
+        "visibility": "external"
+      },
+      {
+        "attributes": {
+          "boundary": "contract",
+          "sourcePath": "contracts/openapi.yaml"
+        },
+        "domainId": "npm:@fixture/orders",
+        "id": "contract:npm:@fixture/orders:orders-api",
+        "kind": "integration",
+        "name": "Orders API",
+        "sourceFingerprint": "sha256:openapi",
+        "visibility": "external"
+      }
+    ],
+    "schemaVersion": 1,
+    "topics": [
+      {
+        "aliases": [],
+        "anchorIds": [
+          "contract:npm:@fixture/orders:orders-api"
+        ],
+        "domainId": "npm:@fixture/orders",
+        "id": "contract:npm:@fixture/orders:6e83a1f878b9e035ab9399fa",
+        "kind": "contract",
+        "title": "Orders API"
+      },
+      {
+        "aliases": [
+          "process:npm:@fixture/orders:3a9f38af1c3e3649e7def329",
+          "process:npm:@fixture/orders:b33b69d48d504c2233fa739e"
+        ],
+        "anchorIds": [
+          "code-unit:npm:@fixture/orders:js:src/alpha.mjs#submit",
+          "code-unit:npm:@fixture/orders:js:src/orders.mjs#submit",
+          "contract:npm:@fixture/orders:bc5eea0e24880b4392f2bde7"
+        ],
+        "domainId": "npm:@fixture/orders",
+        "id": "process:npm:@fixture/orders:943e29bdfaa1e2eb4e36b517",
+        "kind": "process",
+        "title": "submit"
+      }
+    ]
+  },
+  "structuredEvidenceContentById": {
+    "evidence:orders-openapi": "openapi: 3.1.0\n"
+  },
+  "expectedSources": [
+    {
+      "id": "evidence:expected",
+      "content": "Orders must be accepted."
+    }
+  ],
+  "entailmentEvidenceContentById": {
+    "evidence:565761798a1ef736c8d0af00": "export function submit() {}",
+    "evidence:83a42ad59a8005dbf0e34400": "export function submit() {}",
+    "evidence:8c3317c7d7e3700c336f016f": "export function alpha() {}",
+    "evidence:c4afdd25158c91b3b6671686": "export function alpha() {}",
+    "evidence:orders-openapi": "openapi: 3.1.0\n",
+    "evidence:expected": "Orders must be accepted."
+  },
+  "existingFiles": {
+    "docs/explanation/processes/d28c31d3123f1c02281b5ef3.md": "# Тема\n\n<!-- MANUAL:start id=\"intro\" -->\nАвторський вступ.\n<!-- MANUAL:end id=\"intro\" -->\n\n<!-- EXPECTED:start id=\"expect\" -->\nОчікування автора.\n<!-- EXPECTED:end id=\"expect\" -->\n"
+  },
+  "previousManifest": {
+    "topics": [
+      {
+        "id": "process:npm:@fixture/orders:seed",
+        "kind": "process",
+        "title": "Замовлення",
+        "domainId": "npm:@fixture/orders",
+        "anchorIds": [],
+        "aliases": []
+      }
+    ]
+  },
+  "protectedZonesByTopicId": {
+    "process:npm:@fixture/orders:seed": [
+      {
+        "id": "intro",
+        "kind": "MANUAL",
+        "content": "\nАвторський вступ.\n"
+      },
+      {
+        "id": "expect",
+        "kind": "EXPECTED",
+        "content": "\nОчікування автора.\n"
+      }
+    ]
+  }
+}
