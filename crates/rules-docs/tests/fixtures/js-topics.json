@@ -1,0 +1,178 @@
+{
+  "topics": {
+    "base": [
+      {
+        "id": "process:npm:@fixture/orders:537fc09b6ef12b79aa265edc",
+        "kind": "process",
+        "title": "submitOrder",
+        "domainId": "npm:@fixture/orders",
+        "anchorIds": [
+          "code-unit:npm:@fixture/orders:js:src/orders.mjs#submitOrder",
+          "contract:payments",
+          "outcome:order-created"
+        ],
+        "aliases": []
+      }
+    ],
+    "renamed": [
+      {
+        "id": "process:npm:@fixture/orders:537fc09b6ef12b79aa265edc",
+        "kind": "process",
+        "title": "placeOrder",
+        "domainId": "npm:@fixture/orders",
+        "anchorIds": [
+          "code-unit:npm:@fixture/orders:js:src/orders.mjs#submitOrder",
+          "contract:payments",
+          "outcome:order-created"
+        ],
+        "aliases": []
+      }
+    ],
+    "grouped": [
+      {
+        "id": "process:npm:@fixture/orders:9127b46f44529c5f8621886f",
+        "kind": "process",
+        "title": "retryOrder",
+        "domainId": "npm:@fixture/orders",
+        "anchorIds": [
+          "code-unit:npm:@fixture/orders:js:src/orders.mjs#retryOrder",
+          "code-unit:npm:@fixture/orders:js:src/orders.mjs#submitOrder",
+          "contract:payments",
+          "outcome:order-created"
+        ],
+        "aliases": [
+          "process:npm:@fixture/orders:070a938242cc4fd8c02e5fde",
+          "process:npm:@fixture/orders:537fc09b6ef12b79aa265edc"
+        ]
+      }
+    ],
+    "distinct": [
+      {
+        "id": "process:npm:@fixture/orders:2116f73ec614bc7df1ad5749",
+        "kind": "process",
+        "title": "cancelOrder",
+        "domainId": "npm:@fixture/orders",
+        "anchorIds": [
+          "code-unit:npm:@fixture/orders:js:src/orders.mjs#cancelOrder",
+          "outcome:order-cancelled"
+        ],
+        "aliases": []
+      },
+      {
+        "id": "process:npm:@fixture/orders:537fc09b6ef12b79aa265edc",
+        "kind": "process",
+        "title": "submitOrder",
+        "domainId": "npm:@fixture/orders",
+        "anchorIds": [
+          "code-unit:npm:@fixture/orders:js:src/orders.mjs#submitOrder",
+          "contract:payments",
+          "outcome:order-created"
+        ],
+        "aliases": []
+      }
+    ],
+    "aliased": [
+      {
+        "id": "process:npm:@fixture/orders:537fc09b6ef12b79aa265edc",
+        "kind": "process",
+        "title": "submitOrder",
+        "domainId": "npm:@fixture/orders",
+        "anchorIds": [
+          "code-unit:npm:@fixture/orders:js:src/orders.mjs#submitOrder",
+          "contract:payments",
+          "outcome:order-created"
+        ],
+        "aliases": [
+          "process:legacy-order"
+        ]
+      }
+    ]
+  },
+  "reachable": [
+    "code-unit:npm:@fixture/orders:js:src/orders.mjs#persistOrder",
+    "code-unit:npm:@fixture/orders:js:src/orders.mjs#submitOrder",
+    "contract:payments",
+    "outcome:order-created"
+  ],
+  "impactTopics": [
+    {
+      "id": "process:npm:@fixture/orders:d46e12b968eb97f48fdc7e2d",
+      "kind": "process",
+      "title": "submitOrder",
+      "domainId": "npm:@fixture/orders",
+      "anchorIds": [
+        "code-unit:npm:@fixture/orders:js:src/orders.mjs#submitOrder",
+        "contract:payments"
+      ],
+      "aliases": []
+    }
+  ],
+  "impact": {
+    "ok": true,
+    "slice": {
+      "domain": {
+        "id": "npm:@fixture/orders"
+      },
+      "topics": [
+        {
+          "id": "process:npm:@fixture/orders:d46e12b968eb97f48fdc7e2d",
+          "kind": "process",
+          "title": "submitOrder",
+          "aliases": []
+        }
+      ],
+      "files": [
+        "src/orders.mjs",
+        "src/persistence.mjs"
+      ],
+      "tests": [
+        "tests/orders.test.mjs"
+      ],
+      "contracts": [
+        {
+          "id": "contract:payments",
+          "name": "payments"
+        }
+      ],
+      "configs": [
+        "config/orders.json"
+      ]
+    }
+  },
+  "zones": {
+    "parsed": {
+      "ok": true,
+      "zones": [
+        {
+          "kind": "AUTOGEN",
+          "id": "summary",
+          "hash": "sha256:cba06b5736faf67e54b07b561eae94395e774c517a7d910a54369e1263ccfbd4",
+          "content": "old",
+          "start": 8,
+          "end": 158,
+          "contentStart": 122,
+          "contentEnd": 125
+        },
+        {
+          "kind": "EXPECTED",
+          "id": "expect-save",
+          "hash": null,
+          "content": "must save",
+          "start": 159,
+          "end": 246,
+          "contentStart": 199,
+          "contentEnd": 208
+        }
+      ],
+      "implicitManual": [
+        "# Title\n",
+        "\n",
+        ""
+      ]
+    },
+    "updated": {
+      "ok": true,
+      "markdown": "<!-- AUTOGEN:start id=\"summary\" hash=\"sha256:11507a0e2f5e69d5dfa40a62a1bd7b6ee57e6bcd85c67c9b8431b36fff21c437\" -->new<!-- AUTOGEN:end id=\"summary\" --><!-- MANUAL:start id=\"note\" -->keep<!-- MANUAL:end id=\"note\" -->"
+    }
+  }
+}
