@@ -1,0 +1,181 @@
+{
+  "moved": {
+    "ok": true,
+    "topics": [
+      {
+        "id": "process:order-submit",
+        "kind": "process",
+        "title": "Submit an order",
+        "domainId": "npm:@fixture/orders",
+        "anchorIds": [
+          "code-unit:npm:@fixture/orders:js:src/flows/order-submit.mjs#submitOrder",
+          "outcome:order-created"
+        ],
+        "aliases": [
+          "process:legacy-submit"
+        ]
+      }
+    ],
+    "protectedZonesByTopicId": {},
+    "migrationPlan": {
+      "status": "resolved",
+      "mappings": [
+        {
+          "fromTopicId": "process:order-submit",
+          "toTopicId": "process:generated-new",
+          "score": 1,
+          "reason": "semantic-rename"
+        }
+      ]
+    }
+  },
+  "renamed": {
+    "ok": true,
+    "topics": [
+      {
+        "id": "process:order-submit",
+        "kind": "process",
+        "title": "placeOrder",
+        "domainId": "npm:@fixture/orders",
+        "anchorIds": [
+          "code-unit:npm:@fixture/orders:js:src/orders.mjs#placeOrder",
+          "outcome:order-created"
+        ],
+        "aliases": []
+      }
+    ],
+    "protectedZonesByTopicId": {},
+    "migrationPlan": {
+      "status": "resolved",
+      "mappings": [
+        {
+          "fromTopicId": "process:order-submit",
+          "toTopicId": "process:generated-new",
+          "score": 0.766667,
+          "reason": "semantic-rename"
+        }
+      ]
+    }
+  },
+  "split": {
+    "ok": false,
+    "diagnostics": [
+      {
+        "code": "ambiguous-topic-split",
+        "detail": "Topic process:old має кілька однаково придатних successor topics; потрібен explicit migration plan.",
+        "previousTopicIds": [
+          "process:old"
+        ],
+        "nextTopicIds": [
+          "process:domestic",
+          "process:international"
+        ]
+      }
+    ],
+    "migrationPlan": {
+      "status": "blocked",
+      "mappings": []
+    }
+  },
+  "merge": {
+    "ok": false,
+    "diagnostics": [
+      {
+        "code": "ambiguous-topic-merge",
+        "detail": "Topic process:merged має кілька predecessor topics; потрібен explicit migration plan.",
+        "previousTopicIds": [
+          "process:domestic",
+          "process:international"
+        ],
+        "nextTopicIds": [
+          "process:merged"
+        ]
+      }
+    ],
+    "migrationPlan": {
+      "status": "blocked",
+      "mappings": []
+    }
+  },
+  "registryKept": {
+    "ok": true,
+    "topics": [
+      {
+        "id": "process:order-submit",
+        "kind": "process",
+        "title": "Submit an order",
+        "domainId": "npm:@fixture/orders",
+        "anchorIds": [
+          "code-unit:npm:@fixture/orders:js:src/flows/order-submit.mjs#submitOrder",
+          "outcome:order-created"
+        ],
+        "aliases": [
+          "process:legacy-submit"
+        ]
+      }
+    ],
+    "protectedZonesByTopicId": {
+      "process:order-submit": [
+        {
+          "id": "order-context",
+          "kind": "MANUAL",
+          "content": "Keep the operational context."
+        },
+        {
+          "id": "must-create",
+          "kind": "EXPECTED",
+          "content": "Must create an order."
+        }
+      ]
+    },
+    "migrationPlan": {
+      "status": "resolved",
+      "mappings": [
+        {
+          "fromTopicId": "process:order-submit",
+          "toTopicId": "process:generated-new",
+          "score": 1,
+          "reason": "semantic-rename"
+        }
+      ]
+    }
+  },
+  "registryUnresolved": {
+    "ok": false,
+    "diagnostics": [
+      {
+        "code": "protected-zone-migration-unresolved",
+        "detail": "Protected MANUAL/EXPECTED zones topic process:order-submit не мають однозначного topic mapping.",
+        "previousTopicIds": [
+          "process:order-submit"
+        ],
+        "nextTopicIds": []
+      }
+    ],
+    "migrationPlan": {
+      "status": "blocked",
+      "mappings": []
+    }
+  },
+  "firstRun": {
+    "ok": true,
+    "topics": [
+      {
+        "id": "process:generated-new",
+        "kind": "process",
+        "title": "Submit an order",
+        "domainId": "npm:@fixture/orders",
+        "anchorIds": [
+          "code-unit:npm:@fixture/orders:js:src/flows/order-submit.mjs#submitOrder",
+          "outcome:order-created"
+        ],
+        "aliases": []
+      }
+    ],
+    "protectedZonesByTopicId": {},
+    "migrationPlan": {
+      "status": "resolved",
+      "mappings": []
+    }
+  }
+}

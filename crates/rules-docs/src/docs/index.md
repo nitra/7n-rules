@@ -14,6 +14,7 @@ resource: crates/rules-docs/src/
 | [gap_mappings.rs](gap_mappings.md)   | Rust Module |
 | [gaps.rs](gaps.md)                   | Rust Module |
 | [graph.rs](graph.md)                 | Rust Module |
+| [identity.rs](identity.md)           | Rust Module |
 | [impact.rs](impact.md)               | Rust Module |
 | [lib.rs](lib.md)                     | Rust Module |
 | [paths.rs](paths.md)                 | Rust Module |
