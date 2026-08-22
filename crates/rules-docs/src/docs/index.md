@@ -11,4 +11,5 @@ resource: crates/rules-docs/src/
 | [entailment.rs](entailment.md)       | Rust Module |
 | [gap_mappings.rs](gap_mappings.md)   | Rust Module |
 | [lib.rs](lib.md)                     | Rust Module |
+| [planner.rs](planner.md)             | Rust Module |
 | [wave.rs](wave.md)                   | Rust Module |
