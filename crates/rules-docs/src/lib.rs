@@ -39,10 +39,16 @@ pub mod expected;
 pub mod gap_mappings;
 /// Детерміновані вердикти по expected-шару.
 pub mod gaps;
+/// Privacy-safe зріз впливу для однієї теми.
+pub mod impact;
 /// Планувальник bounded semantic chunks і хвиль залежностей.
 pub mod planner;
+/// Виявлення стабільних тем домену.
+pub mod topics;
 /// Транспорт хвиль: інʼєкція batch-фасаду, драбина тирів, ланцюжок задачі.
 pub mod wave;
+/// Зони згенерованого Markdown: розбір, запис AUTOGEN, захист авторського.
+pub mod zones;
 
 pub use claims::{build_structured_claims, ClaimsInput, ClaimsOutcome};
 pub use deterministic::{canonical_hash, canonical_json, VersionedCache};
@@ -50,8 +56,13 @@ pub use entailment::{verify_evidence_entailment, EntailmentInput, EntailmentOutc
 pub use expected::{apply_expected_overlay, OverlayOutcome};
 pub use gap_mappings::{compare_claim_mappings, GapMappingInput, GapMappingOutcome, Mapping};
 pub use gaps::{evaluate_gaps, Gap, GapInput, GapOutcome};
+pub use impact::{create_impact_slice, ImpactSlice};
 pub use planner::{plan_semantic_chunks, Plan, PlanOutcome, PlannerInput, SourceText};
+pub use topics::{collect_reachable_node_ids, discover_topics, resolve_topic, Topic};
 pub use wave::{
     default_model_policy, native_submit_batch, new_chain, ChainRef, SubmitBatchFn, WaveItem,
     WaveResult,
+};
+pub use zones::{
+    apply_autogen_updates, assert_protected_zones_preserved, parse_knowledge_zones, zone_hash,
 };
