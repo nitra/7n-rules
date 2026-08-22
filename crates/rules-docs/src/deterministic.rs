@@ -137,6 +137,16 @@ pub fn canonical_json(value: &Value) -> String {
     out
 }
 
+/// Канонічна копія значення — порт `canonicalize`.
+///
+/// У Rust порядок ключів у [`Value`] не спостережний для споживача (його
+/// задає серіалізація), тож канонізація тут — це нормалізація ЗМІСТУ через
+/// той самий писемник, яким рахуються хеші: одна дорога, одні правила.
+#[must_use]
+pub fn canonical_value(value: &Value) -> Value {
+    serde_json::from_str(&canonical_json(value)).unwrap_or_else(|_| value.clone())
+}
+
 /// `sha256:`-префіксований digest канонічного JSON — порт `canonicalHash`.
 #[must_use]
 pub fn canonical_hash(value: &Value) -> String {

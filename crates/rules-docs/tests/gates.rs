@@ -3,10 +3,10 @@
 //! проти ЖИВИХ значень JS (хеші й побайтовий промпт зняті з Node, не
 //! відтворені з голови).
 //!
-//! Асерти на `evaluateGaps` із JS-набору сюди не перенесені свідомо:
-//! gap-engine — детермінований модуль, що цим зрізом не портується. Його
-//! статуси (`satisfied`/`missing`/`diverged`/`unresolved`) перевіряються тут
-//! опосередковано — через рівно ті `mappings` і `unresolved…`, які він читає.
+//! Асерти на `evaluateGaps` тут ПОВНІ: comparator і двигун вердиктів
+//! перевіряються разом, як у JS-наборі. Сенс саме в парі — comparator може
+//! віддати формально валідні `mappings`, з яких двигун зробить не той
+//! статус; окремо ця розбіжність не видно.
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
@@ -15,7 +15,10 @@ use llm_lib::attempt::BoxFuture;
 use llm_lib::tiers::Tier;
 use rules_docs::deterministic::{canonical_hash, VersionedCache};
 use rules_docs::entailment::{verify_evidence_entailment, EntailmentInput, EntailmentOutcome};
-use rules_docs::gap_mappings::{compare_claim_mappings, GapMappingInput, GapMappingOutcome};
+use rules_docs::gap_mappings::{
+    compare_claim_mappings, GapMappingInput, GapMappingOutcome, Mapping,
+};
+use rules_docs::gaps::{evaluate_gaps, GapInput, GapOutcome, Validation};
 use rules_docs::wave::{
     default_model_policy, new_chain, ChainRef, SubmitBatchFn, WaveItem, WaveResult,
 };
@@ -423,6 +426,33 @@ async fn the_entailment_prompt_is_byte_identical_to_the_js_one() {
 
 // ── comparator expected↔implemented ────────────────────────────────────────────
 
+/// Граф comparator-а — дослівний порт JS-хелпера `graph(claims)`: разом із
+/// `evidence[]`, який сам comparator не читає, але читає двигун вердиктів.
+fn gap_graph(claims: Vec<Value>) -> Value {
+    json!({
+        "claims": claims,
+        "evidence": [{"id": "evidence:expected"}, {"id": "evidence:implemented"}]
+    })
+}
+
+/// Статус, який двигун вердиктів робить із результату comparator-а — та
+/// сама пара стадій, що в конвеєрі `docs build`.
+fn gap_status(graph: &Value, mappings: &[Mapping], unresolved: &[String]) -> String {
+    match evaluate_gaps(GapInput {
+        graph,
+        mappings,
+        unresolved_expected_claim_ids: unresolved,
+        validation: Validation::default(),
+        minimum_confidence: 1.0,
+    }) {
+        GapOutcome::Evaluated(gaps) => {
+            assert_eq!(gaps.len(), 1, "одне очікування — одна прогалина");
+            gaps[0].status.clone()
+        }
+        GapOutcome::Blocked(diagnostics) => panic!("двигун вердиктів заблокував: {diagnostics:?}"),
+    }
+}
+
 fn gap_expected() -> Value {
     json!({
         "id": "claim:expected:receipt",
@@ -460,7 +490,7 @@ fn comparison_response(expected_id: &str, comparisons: Value, unresolved: bool) 
 
 #[tokio::test]
 async fn an_exact_equivalent_mapping_costs_zero_model_calls() {
-    let graph = json!({"claims": [gap_expected(), gap_implemented()]});
+    let graph = gap_graph(vec![gap_expected(), gap_implemented()]);
     let (never, never_waves) = never_called();
     let chain = new_chain("test", "gap-mappings");
 
@@ -499,7 +529,7 @@ async fn an_exact_equivalent_mapping_costs_zero_model_calls() {
 async fn an_expectation_stays_missing_only_without_a_same_subject_implementation() {
     let mut other = gap_implemented();
     other["subjectId"] = json!("node:other");
-    let graph = json!({"claims": [gap_expected(), other]});
+    let graph = gap_graph(vec![gap_expected(), other]);
     let (never, never_waves) = never_called();
     let chain = new_chain("test", "gap-mappings");
 
@@ -518,6 +548,7 @@ async fn an_expectation_stays_missing_only_without_a_same_subject_implementation
                 unresolved_expected_claim_ids.is_empty(),
                 "відсутність кандидата детермінована: це missing, а не невизначеність"
             );
+            assert_eq!(gap_status(&graph, &mappings, &[]), "missing");
         }
         GapMappingOutcome::Blocked { diagnostics, .. } => {
             panic!("несподівані блокери: {diagnostics:?}")
@@ -530,7 +561,7 @@ async fn an_expectation_stays_missing_only_without_a_same_subject_implementation
 async fn a_semantic_contradiction_maps_with_combined_evidence() {
     let mut divergent = gap_implemented();
     divergent["value"] = json!("invoice");
-    let graph = json!({"claims": [gap_expected(), divergent]});
+    let graph = gap_graph(vec![gap_expected(), divergent]);
     let (submit, waves, _) = fake_submit(|_, id| {
         Some(Ok(comparison_response(
             id,
@@ -552,6 +583,7 @@ async fn a_semantic_contradiction_maps_with_combined_evidence() {
                 mappings[0].evidence_ids,
                 vec!["evidence:expected", "evidence:implemented"]
             );
+            assert_eq!(gap_status(&graph, &mappings, &[]), "diverged");
         }
         GapMappingOutcome::Blocked { diagnostics, .. } => {
             panic!("несподівані блокери: {diagnostics:?}")
@@ -564,7 +596,7 @@ async fn a_semantic_contradiction_maps_with_combined_evidence() {
 async fn an_ambiguous_comparison_stays_unresolved_instead_of_missing() {
     let mut divergent = gap_implemented();
     divergent["value"] = json!("invoice");
-    let graph = json!({"claims": [gap_expected(), divergent]});
+    let graph = gap_graph(vec![gap_expected(), divergent]);
     let (submit, _, _) = fake_submit(|_, id| Some(Ok(comparison_response(id, json!([]), true))));
     let chain = new_chain("test", "gap-mappings");
 
@@ -584,6 +616,11 @@ async fn an_ambiguous_comparison_stays_unresolved_instead_of_missing() {
                 vec!["claim:expected:receipt".to_string()],
                 "невизначеність лишається ЯВНОЮ — інакше gap-engine назвав би її прогалиною"
             );
+            assert_eq!(
+                gap_status(&graph, &mappings, &unresolved_expected_claim_ids),
+                "unresolved",
+                "і двигун вердиктів справді читає цей список, а не здогадується"
+            );
         }
         GapMappingOutcome::Blocked { diagnostics, .. } => {
             panic!("несподівані блокери: {diagnostics:?}")
@@ -595,7 +632,7 @@ async fn an_ambiguous_comparison_stays_unresolved_instead_of_missing() {
 async fn malformed_comparison_escalates_and_the_verdict_is_then_cached() {
     let mut divergent = gap_implemented();
     divergent["value"] = json!("invoice");
-    let graph = json!({"claims": [gap_expected(), divergent]});
+    let graph = gap_graph(vec![gap_expected(), divergent]);
     let chain = new_chain("test", "gap-mappings");
     let (submit, waves, _) = fake_submit(|tier, id| {
         Some(if tier == Tier::Local {

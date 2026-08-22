@@ -1,0 +1,172 @@
+{
+  "mergedGraph": {
+    "claims": [
+      {
+        "confidence": 1,
+        "evidenceIds": [
+          "evidence:spec"
+        ],
+        "id": "claim:expected:order-accepted",
+        "layer": "expected",
+        "predicate": "order-status",
+        "sourceFingerprint": "expected-hash",
+        "subjectId": "code-unit:npm:@fixture/orders:js:submitOrder",
+        "value": "accepted"
+      },
+      {
+        "confidence": 1,
+        "evidenceIds": [
+          "evidence:code"
+        ],
+        "id": "claim:implemented:accepts-order",
+        "layer": "implemented",
+        "predicate": "order-status",
+        "sourceFingerprint": "implemented-hash",
+        "subjectId": "code-unit:npm:@fixture/orders:js:submitOrder",
+        "value": "accepted"
+      }
+    ],
+    "domain": {
+      "ecosystem": "npm",
+      "id": "npm:@fixture/orders",
+      "name": "@fixture/orders",
+      "rootManifest": "package.json",
+      "sourceFingerprint": "domain-hash"
+    },
+    "edges": [],
+    "evidence": [
+      {
+        "contentHash": "code-hash",
+        "id": "evidence:code",
+        "kind": "code",
+        "path": "src/orders.mjs"
+      },
+      {
+        "contentHash": "test-hash",
+        "id": "evidence:mapping",
+        "kind": "test",
+        "path": "tests/orders.test.mjs"
+      },
+      {
+        "contentHash": "spec-hash",
+        "id": "evidence:spec",
+        "kind": "spec",
+        "path": "docs/spec.md"
+      }
+    ],
+    "gaps": [],
+    "nodes": [
+      {
+        "attributes": {},
+        "domainId": "npm:@fixture/orders",
+        "id": "code-unit:npm:@fixture/orders:js:submitOrder",
+        "kind": "code-unit",
+        "name": "submitOrder",
+        "sourceFingerprint": "source-hash",
+        "visibility": "public"
+      }
+    ],
+    "schemaVersion": 1,
+    "topics": []
+  },
+  "satisfied": {
+    "ok": true,
+    "gaps": [
+      {
+        "id": "gap:claim:expected:order-accepted",
+        "status": "satisfied",
+        "expectedClaimId": "claim:expected:order-accepted",
+        "implementedClaimIds": [
+          "claim:implemented:accepts-order"
+        ],
+        "evidenceIds": [
+          "evidence:code",
+          "evidence:mapping",
+          "evidence:spec"
+        ]
+      }
+    ]
+  },
+  "missing": {
+    "ok": true,
+    "gaps": [
+      {
+        "id": "gap:claim:expected:order-accepted",
+        "status": "missing",
+        "expectedClaimId": "claim:expected:order-accepted",
+        "implementedClaimIds": [],
+        "evidenceIds": [
+          "evidence:spec"
+        ]
+      }
+    ]
+  },
+  "diverged": {
+    "ok": true,
+    "gaps": [
+      {
+        "id": "gap:claim:expected:order-accepted",
+        "status": "diverged",
+        "expectedClaimId": "claim:expected:order-accepted",
+        "implementedClaimIds": [
+          "claim:implemented:accepts-order"
+        ],
+        "evidenceIds": [
+          "evidence:code",
+          "evidence:mapping",
+          "evidence:spec"
+        ]
+      }
+    ]
+  },
+  "ambiguous": {
+    "ok": true,
+    "gaps": [
+      {
+        "id": "gap:claim:expected:order-accepted",
+        "status": "unresolved",
+        "expectedClaimId": "claim:expected:order-accepted",
+        "implementedClaimIds": [
+          "claim:implemented:accepts-order"
+        ],
+        "evidenceIds": [
+          "evidence:code",
+          "evidence:mapping",
+          "evidence:spec"
+        ]
+      }
+    ]
+  },
+  "lowConfidence": {
+    "ok": true,
+    "gaps": [
+      {
+        "id": "gap:claim:expected:order-accepted",
+        "status": "unresolved",
+        "expectedClaimId": "claim:expected:order-accepted",
+        "implementedClaimIds": [
+          "claim:implemented:accepts-order"
+        ],
+        "evidenceIds": [
+          "evidence:code",
+          "evidence:mapping",
+          "evidence:spec"
+        ]
+      }
+    ]
+  },
+  "explicitUnresolved": {
+    "ok": true,
+    "gaps": [
+      {
+        "id": "gap:claim:expected:order-accepted",
+        "status": "unresolved",
+        "expectedClaimId": "claim:expected:order-accepted",
+        "implementedClaimIds": [],
+        "evidenceIds": [
+          "evidence:spec"
+        ]
+      }
+    ]
+  }
+}
