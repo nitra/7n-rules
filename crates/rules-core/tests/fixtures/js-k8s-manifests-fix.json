@@ -1,0 +1,154 @@
+{
+  "schema-modeline-first": [
+    {
+      "label": "вже перший",
+      "input": "# yaml-language-server: $schema=https://x/y.json\nkind: Service\n",
+      "output": null
+    },
+    {
+      "label": "третій рядок",
+      "input": "kind: Service\nmetadata:\n  # yaml-language-server: $schema=https://x/y.json\n  name: a\n",
+      "output": "# yaml-language-server: $schema=https://x/y.json\nkind: Service\nmetadata:\n  name: a\n"
+    },
+    {
+      "label": "немає",
+      "input": "kind: Service\n",
+      "output": null
+    },
+    {
+      "label": "з відступом",
+      "input": "kind: Service\n   # yaml-language-server: $schema=https://x/y.json\n",
+      "output": "# yaml-language-server: $schema=https://x/y.json\nkind: Service\n"
+    }
+  ],
+  "gateway-httproute-v1beta1": [
+    {
+      "label": "простий",
+      "input": "apiVersion: gateway.networking.k8s.io/v1beta1\nkind: HTTPRoute\n",
+      "output": "apiVersion: gateway.networking.k8s.io/v1\nkind: HTTPRoute\n"
+    },
+    {
+      "label": "у лапках",
+      "input": "apiVersion: 'gateway.networking.k8s.io/v1beta1'\nkind: HTTPRoute\n",
+      "output": "apiVersion: gateway.networking.k8s.io/v1\nkind: HTTPRoute\n"
+    },
+    {
+      "label": "зі схемою",
+      "input": "# yaml-language-server: $schema=https://x/httproute_v1beta1.json\napiVersion: gateway.networking.k8s.io/v1beta1\nkind: HTTPRoute\n",
+      "output": "# yaml-language-server: $schema=https://x/httproute_v1.json\napiVersion: gateway.networking.k8s.io/v1\nkind: HTTPRoute\n"
+    },
+    {
+      "label": "коментар",
+      "input": "# apiVersion: gateway.networking.k8s.io/v1beta1\nkind: HTTPRoute\n",
+      "output": null
+    },
+    {
+      "label": "вже v1",
+      "input": "apiVersion: gateway.networking.k8s.io/v1\nkind: HTTPRoute\n",
+      "output": null
+    },
+    {
+      "label": "CRLF",
+      "input": "apiVersion: gateway.networking.k8s.io/v1beta1\r\nkind: HTTPRoute\r\n",
+      "output": "apiVersion: gateway.networking.k8s.io/v1\r\nkind: HTTPRoute\r\n"
+    }
+  ],
+  "batch-v1beta1-apiversion": [
+    {
+      "label": "простий",
+      "input": "apiVersion: batch/v1beta1\nkind: CronJob\n",
+      "output": "apiVersion: batch/v1\nkind: CronJob\n"
+    },
+    {
+      "label": "відступ і хвіст",
+      "input": "  apiVersion:   batch/v1beta1   \nkind: Job\n",
+      "output": "  apiVersion:   batch/v1   \nkind: Job\n"
+    },
+    {
+      "label": "інший apiVersion",
+      "input": "apiVersion: apps/v1\nkind: Deployment\n",
+      "output": null
+    }
+  ],
+  "deployment-strategy": [
+    {
+      "label": "без strategy",
+      "input": "apiVersion: apps/v1\nkind: Deployment\nspec:\n  replicas: 1 # коментар\n",
+      "output": "apiVersion: apps/v1\nkind: Deployment\nspec:\n  replicas: 1 # коментар\n  strategy:\n    type: RollingUpdate\n    rollingUpdate:\n      maxUnavailable: 0\n      maxSurge: 1\n"
+    },
+    {
+      "label": "вже канонічна",
+      "input": "kind: Deployment\nspec:\n  strategy:\n    type: RollingUpdate\n    rollingUpdate:\n      maxUnavailable: 0\n      maxSurge: 1\n",
+      "output": null
+    },
+    {
+      "label": "часткова",
+      "input": "kind: Deployment\nspec:\n  strategy:\n    type: Recreate\n",
+      "output": "kind: Deployment\nspec:\n  strategy:\n    type: RollingUpdate\n    rollingUpdate:\n      maxUnavailable: 0\n      maxSurge: 1\n"
+    },
+    {
+      "label": "не Deployment",
+      "input": "kind: Service\nspec:\n  ports: []\n",
+      "output": null
+    },
+    {
+      "label": "без spec",
+      "input": "kind: Deployment\nmetadata:\n  name: a\n",
+      "output": null
+    },
+    {
+      "label": "мультидок",
+      "input": "kind: Deployment\nspec:\n  replicas: 1\n---\nkind: Deployment\nspec:\n  replicas: 2\n",
+      "output": "kind: Deployment\nspec:\n  replicas: 1\n  strategy:\n    type: RollingUpdate\n    rollingUpdate:\n      maxUnavailable: 0\n      maxSurge: 1\n---\nkind: Deployment\nspec:\n  replicas: 2\n  strategy:\n    type: RollingUpdate\n    rollingUpdate:\n      maxUnavailable: 0\n      maxSurge: 1\n"
+    }
+  ],
+  "svc-clusterip-type": [
+    {
+      "label": "без type",
+      "input": "# lead\nkind: Service\nspec:\n  ports:\n    - port: 80 # p\n",
+      "output": "# lead\nkind: Service\nspec:\n  ports:\n    - port: 80 # p\n  type: ClusterIP\n"
+    },
+    {
+      "label": "вже ClusterIP",
+      "input": "kind: Service\nspec:\n  type: ClusterIP\n",
+      "output": null
+    },
+    {
+      "label": "інший type",
+      "input": "kind: Service\nspec:\n  type: NodePort\n",
+      "output": "kind: Service\nspec:\n  type: ClusterIP\n"
+    },
+    {
+      "label": "не Service",
+      "input": "kind: ConfigMap\ndata: {}\n",
+      "output": null
+    },
+    {
+      "label": "мультидок",
+      "input": "kind: Service\nspec:\n  ports: []\n---\nkind: Service\nspec:\n  ports: []\n",
+      "output": "kind: Service\nspec:\n  ports: []\n  type: ClusterIP\n---\nkind: Service\nspec:\n  ports: []\n  type: ClusterIP\n"
+    },
+    {
+      "label": "провідний ---",
+      "input": "---\nkind: Service\nspec:\n  ports: []\n",
+      "output": "kind: Service\nspec:\n  ports: []\n  type: ClusterIP\n"
+    }
+  ],
+  "svc-hl-cluster-ip": [
+    {
+      "label": "без clusterIP",
+      "input": "kind: Service\nmetadata:\n  name: api-hl\nspec:\n  ports: []\n",
+      "output": "kind: Service\nmetadata:\n  name: api-hl\nspec:\n  ports: []\n  clusterIP: None\n"
+    },
+    {
+      "label": "вже None",
+      "input": "kind: Service\nspec:\n  clusterIP: None\n",
+      "output": null
+    },
+    {
+      "label": "зламаний yaml",
+      "input": "kind: Service\nspec:\n  - [\n",
+      "output": null
+    }
+  ]
+}
