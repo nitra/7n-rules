@@ -20,9 +20,18 @@ jsonschema = "0.50"
 # на якому стоїть ripgrep. Семантика gitignore (порядок правил, заперечення,
 # вкладені файли) надто тонка, щоб її відтворювати вручну: тут ціна власної
 # реалізації — тихо інший набір файлів у документації.
+# Розбір GraphQL-контрактів (`structured_sources`). Саме apollo-parser, а не
+# `graphql-parser`/`async-graphql-parser`: ті розділяють SDL і операції
+# окремими функціями, а канонічна фікстура — ЗМІШАНИЙ документ (`type` і
+# `query` в одному файлі), який JS-`parse()` читає цілком.
+apollo-parser = "0.8"
 ignore = "0.4"
 regex = "1"
 serde = { version = "1", features = ["derive"] }
+# YAML-артефакти (OpenAPI/AsyncAPI можуть бути `.yaml`). Уже в графі через
+# `rules-core` — приросту немає; `serde_yaml::Value` дає прямий еквівалент
+# `doc.toJS()` пакета `yaml` без власного конвертера.
+serde_yaml = "0.9"
 # Маніфести доменів `Cargo.toml`/`pyproject.toml` (`domains`). Уже в графі
 # через `rules-core` і `plugin-lang-js` — приросту немає.
 toml = "0.8"

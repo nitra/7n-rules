@@ -59,6 +59,8 @@ pub mod publish;
 pub mod render;
 /// Завантаження джерел одного домену.
 pub mod sources;
+/// Структуровані джерела домену: контракти, схеми, конфіги.
+pub mod structured_sources;
 /// Виявлення стабільних тем домену.
 pub mod topics;
 /// Детерміновані quality gates графа перед публікацією.

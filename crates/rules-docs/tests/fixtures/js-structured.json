@@ -1,0 +1,518 @@
+{
+  "loaded": {
+    "ok": true,
+    "fragments": [
+      {
+        "ok": true,
+        "file": {
+          "path": "config/app.yaml",
+          "contentHash": "sha256:e04a690661b15ecb191cc61243014cdb590444d3adfedecbd69300b947c8eee2"
+        },
+        "nodes": [
+          {
+            "id": "config:npm:@fixture/orders:14746e42dbf4e7f0a4ec00ed",
+            "kind": "config",
+            "name": "config/app.yaml",
+            "visibility": "package",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {
+              "sourcePath": "config/app.yaml",
+              "artifact": "config",
+              "format": "yaml"
+            },
+            "sourceFingerprint": "sha256:e04a690661b15ecb191cc61243014cdb590444d3adfedecbd69300b947c8eee2"
+          }
+        ],
+        "edges": [],
+        "evidence": [
+          {
+            "id": "evidence:c982a217764ab16f92c66825",
+            "kind": "config",
+            "path": "config/app.yaml",
+            "contentHash": "sha256:e04a690661b15ecb191cc61243014cdb590444d3adfedecbd69300b947c8eee2",
+            "role": "syntax",
+            "symbolId": "config:npm:@fixture/orders:14746e42dbf4e7f0a4ec00ed"
+          }
+        ],
+        "claims": [
+          {
+            "id": "claim:sha256:4771775978b32aeb5176b0b66230e1bd4ce7a27776fb69c2b2394b27876e9abf",
+            "subjectId": "config:npm:@fixture/orders:14746e42dbf4e7f0a4ec00ed",
+            "layer": "implemented",
+            "predicate": "declares-artifact",
+            "value": {
+              "artifact": "config",
+              "format": "yaml"
+            },
+            "evidenceIds": [
+              "evidence:c982a217764ab16f92c66825"
+            ],
+            "confidence": 1,
+            "sourceFingerprint": "sha256:e04a690661b15ecb191cc61243014cdb590444d3adfedecbd69300b947c8eee2"
+          }
+        ]
+      },
+      {
+        "ok": true,
+        "file": {
+          "path": "contracts/asyncapi.yaml",
+          "contentHash": "sha256:097b8cde549c3a72a56208faf369bea01f58a762195e628fc826cdedcbf52351"
+        },
+        "nodes": [
+          {
+            "id": "schema:npm:@fixture/orders:280b7da2037b25ddfd6332eb",
+            "kind": "config",
+            "name": "Orders events schema",
+            "visibility": "public",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {
+              "sourcePath": "contracts/asyncapi.yaml",
+              "artifact": "schema",
+              "format": "yaml"
+            },
+            "sourceFingerprint": "sha256:097b8cde549c3a72a56208faf369bea01f58a762195e628fc826cdedcbf52351"
+          },
+          {
+            "id": "contract:npm:@fixture/orders:280b7da2037b25ddfd6332eb",
+            "kind": "integration",
+            "name": "Orders events",
+            "visibility": "external",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {
+              "sourcePath": "contracts/asyncapi.yaml",
+              "artifact": "asyncapi",
+              "format": "yaml",
+              "boundary": "contract"
+            },
+            "sourceFingerprint": "sha256:097b8cde549c3a72a56208faf369bea01f58a762195e628fc826cdedcbf52351"
+          }
+        ],
+        "edges": [
+          {
+            "id": "edge:9891d10dc4c71d345a6803e4",
+            "kind": "implements",
+            "fromId": "schema:npm:@fixture/orders:280b7da2037b25ddfd6332eb",
+            "toId": "contract:npm:@fixture/orders:280b7da2037b25ddfd6332eb",
+            "evidenceIds": [
+              "evidence:3393350388fd008712c8178d"
+            ]
+          }
+        ],
+        "evidence": [
+          {
+            "id": "evidence:3393350388fd008712c8178d",
+            "kind": "schema",
+            "path": "contracts/asyncapi.yaml",
+            "contentHash": "sha256:097b8cde549c3a72a56208faf369bea01f58a762195e628fc826cdedcbf52351",
+            "role": "syntax",
+            "symbolId": "schema:npm:@fixture/orders:280b7da2037b25ddfd6332eb"
+          }
+        ],
+        "claims": [
+          {
+            "id": "claim:sha256:0541f4a8ec100e389c14845674e871df770e1539e332b0b7a612cdeac6d78191",
+            "subjectId": "contract:npm:@fixture/orders:280b7da2037b25ddfd6332eb",
+            "layer": "implemented",
+            "predicate": "declares-asyncapi-channel",
+            "value": {
+              "channel": "orders.created"
+            },
+            "evidenceIds": [
+              "evidence:3393350388fd008712c8178d"
+            ],
+            "confidence": 1,
+            "sourceFingerprint": "sha256:097b8cde549c3a72a56208faf369bea01f58a762195e628fc826cdedcbf52351"
+          },
+          {
+            "id": "claim:sha256:57ee1701ed504c0f9655934087b62ca5ca01aa6a374614c9148d0a36eda60691",
+            "subjectId": "schema:npm:@fixture/orders:280b7da2037b25ddfd6332eb",
+            "layer": "implemented",
+            "predicate": "declares-artifact",
+            "value": {
+              "artifact": "asyncapi",
+              "format": "yaml"
+            },
+            "evidenceIds": [
+              "evidence:3393350388fd008712c8178d"
+            ],
+            "confidence": 1,
+            "sourceFingerprint": "sha256:097b8cde549c3a72a56208faf369bea01f58a762195e628fc826cdedcbf52351"
+          },
+          {
+            "id": "claim:sha256:94cff4569ed614fc72b537261e2b10d148dded8cf8f5cf31080ed394f7ed4f17",
+            "subjectId": "contract:npm:@fixture/orders:280b7da2037b25ddfd6332eb",
+            "layer": "implemented",
+            "predicate": "declares-asyncapi-channel",
+            "value": {
+              "channel": "orders.cancelled"
+            },
+            "evidenceIds": [
+              "evidence:3393350388fd008712c8178d"
+            ],
+            "confidence": 1,
+            "sourceFingerprint": "sha256:097b8cde549c3a72a56208faf369bea01f58a762195e628fc826cdedcbf52351"
+          }
+        ]
+      },
+      {
+        "ok": true,
+        "file": {
+          "path": "contracts/openapi.yaml",
+          "contentHash": "sha256:c10820aebf876263d274ae308173e28deac4fdb21068c20205592d5ec9d451fa"
+        },
+        "nodes": [
+          {
+            "id": "schema:npm:@fixture/orders:85195b29274ec1fc06ad21da",
+            "kind": "config",
+            "name": "Orders API schema",
+            "visibility": "public",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {
+              "sourcePath": "contracts/openapi.yaml",
+              "artifact": "schema",
+              "format": "yaml"
+            },
+            "sourceFingerprint": "sha256:c10820aebf876263d274ae308173e28deac4fdb21068c20205592d5ec9d451fa"
+          },
+          {
+            "id": "contract:npm:@fixture/orders:85195b29274ec1fc06ad21da",
+            "kind": "integration",
+            "name": "Orders API",
+            "visibility": "external",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {
+              "sourcePath": "contracts/openapi.yaml",
+              "artifact": "openapi",
+              "format": "yaml",
+              "boundary": "contract"
+            },
+            "sourceFingerprint": "sha256:c10820aebf876263d274ae308173e28deac4fdb21068c20205592d5ec9d451fa"
+          }
+        ],
+        "edges": [
+          {
+            "id": "edge:8c1c22427f7305e94f640ccd",
+            "kind": "implements",
+            "fromId": "schema:npm:@fixture/orders:85195b29274ec1fc06ad21da",
+            "toId": "contract:npm:@fixture/orders:85195b29274ec1fc06ad21da",
+            "evidenceIds": [
+              "evidence:60509d330d441378681e5633"
+            ]
+          }
+        ],
+        "evidence": [
+          {
+            "id": "evidence:60509d330d441378681e5633",
+            "kind": "schema",
+            "path": "contracts/openapi.yaml",
+            "contentHash": "sha256:c10820aebf876263d274ae308173e28deac4fdb21068c20205592d5ec9d451fa",
+            "role": "syntax",
+            "symbolId": "schema:npm:@fixture/orders:85195b29274ec1fc06ad21da"
+          }
+        ],
+        "claims": [
+          {
+            "id": "claim:sha256:4485c5d17f4648320d75f38568ec0e3ef514757544db810c9ed8187d5ec30ac4",
+            "subjectId": "contract:npm:@fixture/orders:85195b29274ec1fc06ad21da",
+            "layer": "implemented",
+            "predicate": "declares-openapi-operation",
+            "value": {
+              "path": "/orders",
+              "method": "get"
+            },
+            "evidenceIds": [
+              "evidence:60509d330d441378681e5633"
+            ],
+            "confidence": 1,
+            "sourceFingerprint": "sha256:c10820aebf876263d274ae308173e28deac4fdb21068c20205592d5ec9d451fa"
+          },
+          {
+            "id": "claim:sha256:b4002b928f6bf2a7ec2167b5ed5fbc1741b5c8e442dbc80eba4e12257da3af96",
+            "subjectId": "schema:npm:@fixture/orders:85195b29274ec1fc06ad21da",
+            "layer": "implemented",
+            "predicate": "declares-artifact",
+            "value": {
+              "artifact": "openapi",
+              "format": "yaml"
+            },
+            "evidenceIds": [
+              "evidence:60509d330d441378681e5633"
+            ],
+            "confidence": 1,
+            "sourceFingerprint": "sha256:c10820aebf876263d274ae308173e28deac4fdb21068c20205592d5ec9d451fa"
+          },
+          {
+            "id": "claim:sha256:f7ce832bab807465663c93f898e69b845a2be565fe1020f5f04ccbb189b6983e",
+            "subjectId": "contract:npm:@fixture/orders:85195b29274ec1fc06ad21da",
+            "layer": "implemented",
+            "predicate": "declares-openapi-operation",
+            "value": {
+              "path": "/orders",
+              "method": "post"
+            },
+            "evidenceIds": [
+              "evidence:60509d330d441378681e5633"
+            ],
+            "confidence": 1,
+            "sourceFingerprint": "sha256:c10820aebf876263d274ae308173e28deac4fdb21068c20205592d5ec9d451fa"
+          }
+        ]
+      },
+      {
+        "ok": true,
+        "file": {
+          "path": "contracts/orders.schema.json",
+          "contentHash": "sha256:cdd4d7c06e60e3baba0f307b4ac60a31ad556d3c5b003ecaea25cf7317a8febe"
+        },
+        "nodes": [
+          {
+            "id": "schema:npm:@fixture/orders:fd1896f1d656621c9279e00e",
+            "kind": "config",
+            "name": "orders.schema.json schema",
+            "visibility": "public",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {
+              "sourcePath": "contracts/orders.schema.json",
+              "artifact": "schema",
+              "format": "json"
+            },
+            "sourceFingerprint": "sha256:cdd4d7c06e60e3baba0f307b4ac60a31ad556d3c5b003ecaea25cf7317a8febe"
+          },
+          {
+            "id": "contract:npm:@fixture/orders:fd1896f1d656621c9279e00e",
+            "kind": "integration",
+            "name": "orders.schema.json",
+            "visibility": "external",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {
+              "sourcePath": "contracts/orders.schema.json",
+              "artifact": "json-schema",
+              "format": "json",
+              "boundary": "contract"
+            },
+            "sourceFingerprint": "sha256:cdd4d7c06e60e3baba0f307b4ac60a31ad556d3c5b003ecaea25cf7317a8febe"
+          }
+        ],
+        "edges": [
+          {
+            "id": "edge:91e61ead5b7624c6cbd8380d",
+            "kind": "implements",
+            "fromId": "schema:npm:@fixture/orders:fd1896f1d656621c9279e00e",
+            "toId": "contract:npm:@fixture/orders:fd1896f1d656621c9279e00e",
+            "evidenceIds": [
+              "evidence:6baefcd1ff288e8f2fcb8b8e"
+            ]
+          }
+        ],
+        "evidence": [
+          {
+            "id": "evidence:6baefcd1ff288e8f2fcb8b8e",
+            "kind": "schema",
+            "path": "contracts/orders.schema.json",
+            "contentHash": "sha256:cdd4d7c06e60e3baba0f307b4ac60a31ad556d3c5b003ecaea25cf7317a8febe",
+            "role": "syntax",
+            "symbolId": "schema:npm:@fixture/orders:fd1896f1d656621c9279e00e"
+          }
+        ],
+        "claims": [
+          {
+            "id": "claim:sha256:0882bc2aa7ce700b1c65a9d681bb9f17d3a200cb3030e1dbf34982f16f75a498",
+            "subjectId": "schema:npm:@fixture/orders:fd1896f1d656621c9279e00e",
+            "layer": "implemented",
+            "predicate": "declares-artifact",
+            "value": {
+              "artifact": "json-schema",
+              "format": "json"
+            },
+            "evidenceIds": [
+              "evidence:6baefcd1ff288e8f2fcb8b8e"
+            ],
+            "confidence": 1,
+            "sourceFingerprint": "sha256:cdd4d7c06e60e3baba0f307b4ac60a31ad556d3c5b003ecaea25cf7317a8febe"
+          },
+          {
+            "id": "claim:sha256:b1b1b48d431fdbe8df26d6a8c89e03deba249f54c55cb20a173714f044566de5",
+            "subjectId": "schema:npm:@fixture/orders:fd1896f1d656621c9279e00e",
+            "layer": "implemented",
+            "predicate": "declares-json-schema",
+            "value": {
+              "title": "Order",
+              "type": [
+                "null",
+                "object"
+              ]
+            },
+            "evidenceIds": [
+              "evidence:6baefcd1ff288e8f2fcb8b8e"
+            ],
+            "confidence": 1,
+            "sourceFingerprint": "sha256:cdd4d7c06e60e3baba0f307b4ac60a31ad556d3c5b003ecaea25cf7317a8febe"
+          }
+        ]
+      },
+      {
+        "ok": true,
+        "file": {
+          "path": "contracts/schema.graphql",
+          "contentHash": "sha256:7524b03faead943bee57e5de5bdff4b816a6f4af31852376cf96cb3be9d53bd4"
+        },
+        "nodes": [
+          {
+            "id": "schema:npm:@fixture/orders:2f8e2e8a1f8ef23de852251c",
+            "kind": "config",
+            "name": "schema.graphql schema",
+            "visibility": "public",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {
+              "sourcePath": "contracts/schema.graphql",
+              "artifact": "schema",
+              "format": "graphql"
+            },
+            "sourceFingerprint": "sha256:7524b03faead943bee57e5de5bdff4b816a6f4af31852376cf96cb3be9d53bd4"
+          },
+          {
+            "id": "contract:npm:@fixture/orders:2f8e2e8a1f8ef23de852251c",
+            "kind": "integration",
+            "name": "schema.graphql",
+            "visibility": "external",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {
+              "sourcePath": "contracts/schema.graphql",
+              "artifact": "graphql",
+              "format": "graphql",
+              "boundary": "contract"
+            },
+            "sourceFingerprint": "sha256:7524b03faead943bee57e5de5bdff4b816a6f4af31852376cf96cb3be9d53bd4"
+          }
+        ],
+        "edges": [
+          {
+            "id": "edge:cb39798241208c4e70ac24a6",
+            "kind": "implements",
+            "fromId": "schema:npm:@fixture/orders:2f8e2e8a1f8ef23de852251c",
+            "toId": "contract:npm:@fixture/orders:2f8e2e8a1f8ef23de852251c",
+            "evidenceIds": [
+              "evidence:eef2ba16bb9c7389673c81f2"
+            ]
+          }
+        ],
+        "evidence": [
+          {
+            "id": "evidence:eef2ba16bb9c7389673c81f2",
+            "kind": "schema",
+            "path": "contracts/schema.graphql",
+            "contentHash": "sha256:7524b03faead943bee57e5de5bdff4b816a6f4af31852376cf96cb3be9d53bd4",
+            "role": "syntax",
+            "symbolId": "schema:npm:@fixture/orders:2f8e2e8a1f8ef23de852251c"
+          }
+        ],
+        "claims": [
+          {
+            "id": "claim:sha256:23ef0bc73778e508e207e115952e98bd69b199a16fab9154e6e59ec09e93b416",
+            "subjectId": "contract:npm:@fixture/orders:2f8e2e8a1f8ef23de852251c",
+            "layer": "implemented",
+            "predicate": "declares-graphql-definition",
+            "value": {
+              "definition": "ObjectTypeDefinition",
+              "name": "Order"
+            },
+            "evidenceIds": [
+              "evidence:eef2ba16bb9c7389673c81f2"
+            ],
+            "confidence": 1,
+            "sourceFingerprint": "sha256:7524b03faead943bee57e5de5bdff4b816a6f4af31852376cf96cb3be9d53bd4"
+          },
+          {
+            "id": "claim:sha256:a480e0396089fc354e74d524ff344a618e3a84274c9169f099efebf7ba8fb7f8",
+            "subjectId": "contract:npm:@fixture/orders:2f8e2e8a1f8ef23de852251c",
+            "layer": "implemented",
+            "predicate": "declares-graphql-definition",
+            "value": {
+              "definition": "operation",
+              "operation": "query",
+              "name": "GetOrder"
+            },
+            "evidenceIds": [
+              "evidence:eef2ba16bb9c7389673c81f2"
+            ],
+            "confidence": 1,
+            "sourceFingerprint": "sha256:7524b03faead943bee57e5de5bdff4b816a6f4af31852376cf96cb3be9d53bd4"
+          },
+          {
+            "id": "claim:sha256:ee82ff98903fadff72600ea801776186ab99b1cf441c347d25d516f479baee4a",
+            "subjectId": "schema:npm:@fixture/orders:2f8e2e8a1f8ef23de852251c",
+            "layer": "implemented",
+            "predicate": "declares-artifact",
+            "value": {
+              "artifact": "graphql",
+              "format": "graphql"
+            },
+            "evidenceIds": [
+              "evidence:eef2ba16bb9c7389673c81f2"
+            ],
+            "confidence": 1,
+            "sourceFingerprint": "sha256:7524b03faead943bee57e5de5bdff4b816a6f4af31852376cf96cb3be9d53bd4"
+          }
+        ]
+      },
+      {
+        "ok": true,
+        "file": {
+          "path": "package.json",
+          "contentHash": "sha256:22f295bfd9164c711d80c80595c70953f0831b032b1bafb4f76cb8f72b937297"
+        },
+        "nodes": [
+          {
+            "id": "config:npm:@fixture/orders:c4480ca02ca1739038ad91bb",
+            "kind": "config",
+            "name": "package.json",
+            "visibility": "package",
+            "domainId": "npm:@fixture/orders",
+            "attributes": {
+              "sourcePath": "package.json",
+              "artifact": "manifest",
+              "format": "json"
+            },
+            "sourceFingerprint": "sha256:22f295bfd9164c711d80c80595c70953f0831b032b1bafb4f76cb8f72b937297"
+          }
+        ],
+        "edges": [],
+        "evidence": [
+          {
+            "id": "evidence:c3e0c680ece7a240c548d3a2",
+            "kind": "config",
+            "path": "package.json",
+            "contentHash": "sha256:22f295bfd9164c711d80c80595c70953f0831b032b1bafb4f76cb8f72b937297",
+            "role": "syntax",
+            "symbolId": "config:npm:@fixture/orders:c4480ca02ca1739038ad91bb"
+          }
+        ],
+        "claims": [
+          {
+            "id": "claim:sha256:8eb88c003efd1745141a29ea4f2004134c2ea3f5c0fd816fc73156743801dde8",
+            "subjectId": "config:npm:@fixture/orders:c4480ca02ca1739038ad91bb",
+            "layer": "implemented",
+            "predicate": "declares-artifact",
+            "value": {
+              "artifact": "manifest",
+              "format": "json"
+            },
+            "evidenceIds": [
+              "evidence:c3e0c680ece7a240c548d3a2"
+            ],
+            "confidence": 1,
+            "sourceFingerprint": "sha256:22f295bfd9164c711d80c80595c70953f0831b032b1bafb4f76cb8f72b937297"
+          }
+        ]
+      }
+    ],
+    "evidenceContentById": {
+      "evidence:3393350388fd008712c8178d": "asyncapi: 3.0.0\ninfo:\n  title: Orders events\n  version: 1.0.0\nchannels:\n  orders.created: {}\n  orders.cancelled: {}\n",
+      "evidence:60509d330d441378681e5633": "openapi: 3.1.0\ninfo:\n  title: Orders API\n  version: 1.0.0\npaths:\n  /orders:\n    get: {}\n    post: {}\n",
+      "evidence:6baefcd1ff288e8f2fcb8b8e": "{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"title\":\"Order\",\"type\":[\"null\",\"object\"]}\n",
+      "evidence:c3e0c680ece7a240c548d3a2": "{\"name\":\"@fixture/orders\",\"version\":\"1.0.0\"}\n",
+      "evidence:c982a217764ab16f92c66825": "service: orders\n",
+      "evidence:eef2ba16bb9c7389673c81f2": "type Order { id: ID! }\nquery GetOrder { order { id } }\n"
+    }
+  }
+}
