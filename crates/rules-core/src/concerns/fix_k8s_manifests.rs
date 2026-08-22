@@ -261,16 +261,16 @@ fn patch_documents(
 /// дивиться. Ця межа тут відтворена свідомо.
 fn patch_first_document(
     content: &str,
-    patch: impl FnOnce(&serde_yaml::Value) -> Option<DocumentEdit>,
+    patch: impl FnOnce(&serde_yaml::Value, &yamlpath::Document) -> Option<DocumentEdit>,
 ) -> Option<String> {
     let mut done = false;
     let mut patch = Some(patch);
-    patch_documents(content, move |parsed, _| {
+    patch_documents(content, move |parsed, document| {
         if done {
             return None;
         }
         done = true;
-        patch.take()?(parsed)
+        patch.take()?(parsed, document)
     })
 }
 
@@ -539,7 +539,7 @@ fn resolve_hasura_env_value(
 /// `ensureHasuraConfigMapRequiredEnv`.
 #[must_use]
 pub fn ensure_hasura_configmap_required_env(content: &str) -> Option<String> {
-    patch_first_document(content, |parsed| {
+    patch_first_document(content, |parsed, _| {
         if document_kind(parsed)? != "ConfigMap" {
             return None;
         }
@@ -773,6 +773,158 @@ pub fn ensure_network_policy_egress(content: &str, rules_root: &Path) -> Option<
     patched
 }
 
+/// Ключ упорядкування одного запису `patches[]` — порт
+/// `kustomizationPatchSortKey`.
+///
+/// Порядок полів контрактний: `target.kind` → `target.name` →
+/// `target.namespace` → `path`. Відсутнє чи не-рядкове поле — порожній
+/// рядок, і він сортується ПЕРШИМ.
+fn kustomization_patch_sort_key(item: &serde_yaml::Value) -> [String; 4] {
+    let field = |parent: &serde_yaml::Value, key: &str| {
+        parent
+            .get(key)
+            .and_then(serde_yaml::Value::as_str)
+            .unwrap_or_default()
+            .to_string()
+    };
+    let empty = serde_yaml::Value::Null;
+    let target = item
+        .get("target")
+        .filter(|t| t.is_mapping())
+        .unwrap_or(&empty);
+    [
+        field(target, "kind"),
+        field(target, "name"),
+        field(target, "namespace"),
+        field(item, "path"),
+    ]
+}
+
+/// Порівняння tuple-ключів — порт `compareStringTuplesEn`
+/// (`localeCompare(…, 'en', { sensitivity: 'base' })`).
+fn compare_string_tuples_en(left: &[String; 4], right: &[String; 4]) -> std::cmp::Ordering {
+    for (left, right) in left.iter().zip(right.iter()) {
+        let order = crate::locale::locale_compare_base(left, right);
+        if order != std::cmp::Ordering::Equal {
+            return order;
+        }
+    }
+    std::cmp::Ordering::Equal
+}
+
+/// Один запис `patches[]` разом із коментарями, які йому передують.
+struct PatchBlock {
+    lines: Vec<String>,
+}
+
+/// Ріже рядки послідовності на блоки «коментарі + елемент».
+///
+/// Рядок-коментар перед елементом належить ЙОМУ — це та сама прив'язка,
+/// що `commentBefore` у CST пакета `yaml`. Саме вона дає коментарям
+/// їхати разом зі своїм записом.
+fn split_patch_blocks(
+    lines: &[&str],
+    item_indent: usize,
+) -> Option<(Vec<PatchBlock>, Vec<String>)> {
+    let is_item_start = |line: &str| {
+        let trimmed = line.trim_start();
+        line.len() - trimmed.len() == item_indent && (trimmed == "-" || trimmed.starts_with("- "))
+    };
+    let mut blocks: Vec<PatchBlock> = Vec::new();
+    let mut pending: Vec<String> = Vec::new();
+    for line in lines {
+        if is_item_start(line) {
+            let mut own = std::mem::take(&mut pending);
+            own.push((*line).to_string());
+            blocks.push(PatchBlock { lines: own });
+            continue;
+        }
+        if line.trim_start().starts_with('#') || line.trim().is_empty() {
+            pending.push((*line).to_string());
+            continue;
+        }
+        blocks.last_mut()?.lines.push((*line).to_string());
+    }
+    Some((blocks, pending))
+}
+
+/// Упорядковує `patches[]` Kustomization — порт `sortKustomizationPatches`.
+///
+/// Ключі й порядок ті самі, що в детектора, тож re-detect бачить рівно те,
+/// чого чекає.
+///
+/// # Розбіжність із JS — свідома
+///
+/// У JS коментарі при перестановці НЕ їдуть за своїм записом: `yaml` друкує
+/// коментар перед першим елементом як власний коментар послідовності, тож
+/// після сортування пояснення до Service опиняється над записом Deployment.
+/// Тобто фікс лишає в файлі оману. Порт возить коментар разом із його
+/// записом; rego-звірка від цього не залежить (коментарі їй байдужі), а
+/// файл лишається правдивим.
+#[must_use]
+pub fn sort_kustomization_patches(content: &str) -> Option<String> {
+    patch_first_document(content, |parsed, document| {
+        let items = parsed.get("patches")?.as_sequence()?;
+        if items.len() < 2 {
+            return None;
+        }
+        let mut order: Vec<usize> = (0..items.len()).collect();
+        order.sort_by(|left, right| {
+            compare_string_tuples_en(
+                &kustomization_patch_sort_key(&items[*left]),
+                &kustomization_patch_sort_key(&items[*right]),
+            )
+            .then(left.cmp(right))
+        });
+        if order.iter().enumerate().all(|(index, item)| index == *item) {
+            return None; // вже відсортовано
+        }
+
+        let source = document.source();
+        let feature = document.query_exact(&yamlpath::route!("patches")).ok()??;
+        let (start, end) = feature.location.byte_span;
+        let mut start = source[..start].rfind('\n').map_or(0, |index| index + 1);
+        let end = source[end..]
+            .find('\n')
+            .map_or(source.len(), |index| end + index);
+        let item_indent = source
+            .get(start..end)?
+            .split('\n')
+            .next()
+            .map(|line| line.len() - line.trim_start().len())?;
+        // Коментарі ПЕРЕД першим елементом теж належать йому, тож регіон
+        // розширюється вгору по суцільних рядках-коментарях з тим самим (або
+        // глибшим) відступом. Коментар над самим ключем `patches:` має
+        // менший відступ і лишається на місці.
+        while start > 0 {
+            let previous_end = start - 1;
+            let previous_start = source[..previous_end].rfind('\n').map_or(0, |i| i + 1);
+            let line = source.get(previous_start..previous_end)?;
+            let indent = line.len() - line.trim_start().len();
+            if !line.trim_start().starts_with('#') || indent < item_indent {
+                break;
+            }
+            start = previous_start;
+        }
+        let region: Vec<&str> = source.get(start..end)?.split('\n').collect();
+        let (blocks, trailing) = split_patch_blocks(&region, item_indent)?;
+        if blocks.len() != items.len() {
+            return None; // розмітка не збіглася з розібраним — не чіпаємо
+        }
+
+        let mut rebuilt: Vec<String> = Vec::new();
+        for index in order {
+            rebuilt.extend(blocks[index].lines.iter().cloned());
+        }
+        rebuilt.extend(trailing);
+        let mut out = String::with_capacity(source.len());
+        out.push_str(source.get(..start)?);
+        out.push_str(&rebuilt.join("\n"));
+        out.push_str(source.get(end..)?);
+        Some(DocumentEdit::Body(out))
+    })
+}
+
 /// Чи вміє цей зріз лагодити родину порушення.
 fn handles(kind: &str) -> bool {
     matches!(
@@ -786,6 +938,7 @@ fn handles(kind: &str) -> bool {
             | "hasura-configmap-env"
             | "hasura-httproute-rule1-filters"
             | "networkpolicy-egress"
+            | "kustomization-patches-sort"
     )
 }
 
@@ -806,6 +959,7 @@ fn apply_transform(kind: &str, content: &str, rules_root: Option<&Path>) -> Opti
         "hasura-configmap-env" => ensure_hasura_configmap_required_env(content),
         "hasura-httproute-rule1-filters" => ensure_hasura_httproute_rule1_filters(content),
         "networkpolicy-egress" => ensure_network_policy_egress(content, rules_root?),
+        "kustomization-patches-sort" => sort_kustomization_patches(content),
         _ => None,
     }
 }
@@ -1073,6 +1227,38 @@ mod tests {
             ensure_network_policy_egress(content, &rules_root),
             None,
             "перший документ полагодився б, але другий зупиняє весь файл"
+        );
+    }
+
+    /// Перестановка возить коментар РАЗОМ із його записом — саме те, чого
+    /// не робить JS-канон.
+    #[test]
+    fn sorting_moves_comments_with_their_entry() {
+        let sorted = sort_kustomization_patches(concat!(
+            "patches:\n",
+            "  # сервіс\n  - target:\n      kind: Service\n      name: b\n",
+            "  # деплоймент\n  - target:\n      kind: Deployment\n      name: a\n"
+        ))
+        .expect("порядок міняється");
+        assert_eq!(
+            sorted,
+            concat!(
+                "patches:\n",
+                "  # деплоймент\n  - target:\n      kind: Deployment\n      name: a\n",
+                "  # сервіс\n  - target:\n      kind: Service\n      name: b\n"
+            )
+        );
+    }
+
+    /// Розмітка, яка не збіглася з розібраним документом, — no-op: краще
+    /// нічого, ніж переставити не те.
+    #[test]
+    fn sorting_bails_out_when_layout_does_not_match() {
+        // Потік-послідовність: розібраних елементів два, рядків-елементів
+        // жодного.
+        assert_eq!(
+            sort_kustomization_patches("patches: [{ path: b.yaml }, { path: a.yaml }]\n"),
+            None
         );
     }
 

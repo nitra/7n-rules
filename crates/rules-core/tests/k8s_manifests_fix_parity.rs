@@ -10,7 +10,7 @@ use rules_core::concerns::fix_k8s_manifests::{
     ensure_deployment_strategy, ensure_hasura_configmap_required_env,
     ensure_hasura_httproute_rule1_filters, ensure_network_policy_egress,
     ensure_svc_cluster_ip_type, ensure_svc_hl_cluster_ip, move_schema_modeline_first,
-    replace_batch_v1beta1, replace_gateway_httproute_v1beta1,
+    replace_batch_v1beta1, replace_gateway_httproute_v1beta1, sort_kustomization_patches,
 };
 use serde_json::Value;
 
@@ -33,6 +33,7 @@ fn transform(kind: &str, input: &str) -> Option<String> {
         "hasura-configmap-env" => ensure_hasura_configmap_required_env(input),
         "hasura-httproute-rule1-filters" => ensure_hasura_httproute_rule1_filters(input),
         "networkpolicy-egress" => ensure_network_policy_egress(input, &rules_root()),
+        "kustomization-patches-sort" => sort_kustomization_patches(input),
         other => panic!("невідома родина у фікстурі: {other}"),
     }
 }
@@ -48,6 +49,24 @@ fn verbatim_divergence(kind: &str, label: &str) -> Option<&'static str> {
         ("svc-clusterip-type", "провідний ---") => {
             Some("---\nkind: Service\nspec:\n  ports: []\n  type: ClusterIP\n")
         }
+        // JS НЕ возить коментар за його записом: `yaml` друкує коментар
+        // перед першим елементом як власний коментар послідовності, тож
+        // після сортування пояснення до Service опиняється над записом
+        // Deployment — фікс лишає в файлі оману. Порт возить коментар разом
+        // із записом.
+        ("kustomization-patches-sort", "з коментарями") => Some(concat!(
+            "# head\npatches:\n",
+            "  # про деплоймент\n  - target:\n      kind: Deployment\n      name: a\n    path: p1.yaml\n",
+            "  # про сервіс\n  - target:\n      kind: Service\n      name: b\n    path: p2.yaml\n"
+        )),
+        // JS додає порожній рядок перед хвостовим коментарем; порт лишає
+        // файл як є.
+        ("kustomization-patches-sort", "хвостовий коментар") => Some(concat!(
+            "patches:\n",
+            "  - target:\n      kind: Deployment\n      name: a\n    path: p1.yaml\n",
+            "  - target:\n      kind: Service\n      name: b # тут\n    path: p2.yaml\n",
+            "# хвіст\n"
+        )),
         _ => None,
     }
 }
@@ -123,5 +142,5 @@ fn every_transform_matches_the_live_js_canon() {
             checked += 1;
         }
     }
-    assert_eq!(checked, 44, "фікстура втратила кейси");
+    assert_eq!(checked, 53, "фікстура втратила кейси");
 }

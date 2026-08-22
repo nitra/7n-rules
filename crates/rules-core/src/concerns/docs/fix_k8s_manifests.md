@@ -3,7 +3,7 @@ type: Rust Module
 title: fix_k8s_manifests.rs
 resource: crates/rules-core/src/concerns/fix_k8s_manifests.rs
 docgen:
-  crc: 0267b598
+  crc: cd7a1608
   model: local-openai/gemma-4-26b-a4b-it
   tier: local-min
   score: 60
@@ -24,6 +24,7 @@ Native fix-поверхня концерну `k8s/manifests` — Rust-порт T
 - ensure_hasura_configmap_required_env — Проставляє обовʼязкові `HASURA_GRAPHQL_*` у `data` ConfigMap — порт `ensureHasuraConfigMapRequiredEnv`.
 - ensure_hasura_httproute_rule1_filters — Проставляє канонічний `RequestRedirect` у правило 1 Hasura-канона — порт `ensureHasuraHttpRouteRule1Filters`.  Лагодить ЛИШЕ наявне правило (перезапис `filters`). Правила 2-4 потребують синтезу нового правила з `backendRef`, якого нізвідки достовірно вивести, — це рішення про інфраструктуру, не T0.
 - ensure_network_policy_egress — Проставляє канонічний `spec.egress` у кожен `kind: NetworkPolicy` — порт `ensureNetworkPolicyEgress`.  Джерело egress — ТОЙ САМИЙ сніпет, яким rego темплейтить перевірку, тож збіг із очікуванням re-detect гарантований конструкцією, а не звіркою.
+- sort_kustomization_patches — Упорядковує `patches[]` Kustomization — порт `sortKustomizationPatches`.  Ключі й порядок ті самі, що в детектора, тож re-detect бачить рівно те, чого чекає.  # Розбіжність із JS — свідома  У JS коментарі при перестановці НЕ їдуть за своїм записом: `yaml` друкує коментар перед першим елементом як власний коментар послідовності, тож після сортування пояснення до Service опиняється над записом Deployment. Тобто фікс лишає в файлі оману. Порт возить коментар разом із його записом; rego-звірка від цього не залежить (коментарі їй байдужі), а файл лишається правдивим.
 - k8s_manifests_fix — Будує [`FixPlan`] для `k8s/manifests` — порт `patterns` із `fix-manifests.mjs`.  Родина порушення береться з `data.kind` детектора (#3 fix-hints), як і в JS. Незнайома родина просто не має трансформера — це не помилка, а «цей зріз її ще не лагодить».  Порядок правок стабільний за шляхом: план — детермінований артефакт, який іде в JSON, і нестабільний порядок робив би diff шумним.
 
 ## Гарантії поведінки

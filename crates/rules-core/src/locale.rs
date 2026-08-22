@@ -88,6 +88,19 @@ pub fn locale_compare(a: &str, b: &str) -> Ordering {
         .cmp(b.chars().map(tertiary_weight))
 }
 
+/// Порівнює рядки БЕЗ урахування регістру — заміна
+/// `a.localeCompare(b, 'en', { sensitivity: 'base' })`.
+///
+/// Відрізняється від [`locale_compare`] рівно тим, що не дивиться на
+/// третинну вагу: за `sensitivity: 'base'` `'a'` і `'A'` — те саме, і
+/// порівняння повертає `Equal`.
+#[must_use]
+pub fn locale_compare_base(a: &str, b: &str) -> Ordering {
+    a.chars()
+        .map(primary_weight)
+        .cmp(b.chars().map(primary_weight))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -136,5 +149,20 @@ mod tests {
     #[test]
     fn accented_latin_diverges_from_icu_documented_limit() {
         assert_eq!(locale_compare("é", "z"), Ordering::Greater);
+    }
+}
+
+#[cfg(test)]
+mod base_tests {
+    use super::*;
+
+    /// `sensitivity: 'base'` не бачить регістру — на відміну від типової
+    /// чутливості [`locale_compare`].
+    #[test]
+    fn base_sensitivity_ignores_case() {
+        assert_eq!(locale_compare_base("a", "A"), Ordering::Equal);
+        assert_eq!(locale_compare("a", "A"), Ordering::Less);
+        assert_eq!(locale_compare_base("Deployment", "service"), Ordering::Less);
+        assert_eq!(locale_compare_base("", "a"), Ordering::Less);
     }
 }
