@@ -43,6 +43,8 @@ pub mod gap_mappings;
 pub mod gaps;
 /// Побудова нормалізованого knowledge-графа з мовних фрагментів.
 pub mod graph;
+/// Узгодження ідентичностей тем між прогонами.
+pub mod identity;
 /// Privacy-safe зріз впливу для однієї теми.
 pub mod impact;
 /// Спільні path-інваріанти виявлення джерел.
@@ -76,6 +78,7 @@ pub use gaps::{evaluate_gaps, Gap, GapInput, GapOutcome};
 pub use graph::{
     build_normalized_graph, create_code_unit_id, serialize_knowledge_graph, Domain, GraphOutcome,
 };
+pub use identity::{reconcile_topic_identities, MigrationOutcome, MigrationPlan};
 pub use impact::{create_impact_slice, ImpactSlice};
 pub use planner::{plan_semantic_chunks, Plan, PlanOutcome, PlannerInput, SourceText};
 pub use publish::{publish_knowledge_artifacts, PublishOutcome, ValidationOutcome};
