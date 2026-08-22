@@ -1,0 +1,13 @@
+---
+type: Directory Index
+title: crates/rules-docs/src
+resource: crates/rules-docs/src/
+---
+
+| Файл                                 | Тип         |
+| ------------------------------------ | ----------- |
+| [deterministic.rs](deterministic.md) | Rust Module |
+| [entailment.rs](entailment.md)       | Rust Module |
+| [gap_mappings.rs](gap_mappings.md)   | Rust Module |
+| [lib.rs](lib.md)                     | Rust Module |
+| [wave.rs](wave.md)                   | Rust Module |
