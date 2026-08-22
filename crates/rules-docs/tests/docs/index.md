@@ -11,6 +11,7 @@ resource: crates/rules-docs/tests/
 | [gaps.rs](gaps.md)                         | Rust Module |
 | [gaps_parity.rs](gaps_parity.md)           | Rust Module |
 | [gates.rs](gates.md)                       | Rust Module |
+| [graph.rs](graph.md)                       | Rust Module |
 | [impact.rs](impact.md)                     | Rust Module |
 | [planner.rs](planner.md)                   | Rust Module |
 | [planner_parity.rs](planner_parity.md)     | Rust Module |

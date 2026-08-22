@@ -12,6 +12,7 @@ resource: crates/rules-docs/src/
 | [expected.rs](expected.md)           | Rust Module |
 | [gap_mappings.rs](gap_mappings.md)   | Rust Module |
 | [gaps.rs](gaps.md)                   | Rust Module |
+| [graph.rs](graph.md)                 | Rust Module |
 | [impact.rs](impact.md)               | Rust Module |
 | [lib.rs](lib.md)                     | Rust Module |
 | [planner.rs](planner.md)             | Rust Module |
