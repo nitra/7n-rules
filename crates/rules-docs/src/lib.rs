@@ -27,6 +27,8 @@
 //! свого зрізу. Гейти вже приймають [`wave::ChainRef`] ззовні саме тому, що
 //! коли runner переїде, ОДИН ланцюжок має накрити весь build.
 
+/// Побудова evidence-backed implemented claims через batch map/reduce.
+pub mod claims;
 /// Канонічний JSON, `sha256:`-хеш і versioned-кеш успішних відповідей.
 pub mod deterministic;
 /// Верифікатор evidence-entailment.
@@ -36,6 +38,7 @@ pub mod gap_mappings;
 /// Транспорт хвиль: інʼєкція batch-фасаду, драбина тирів, ланцюжок задачі.
 pub mod wave;
 
+pub use claims::{build_structured_claims, ClaimsInput, ClaimsOutcome};
 pub use deterministic::{canonical_hash, canonical_json, VersionedCache};
 pub use entailment::{verify_evidence_entailment, EntailmentInput, EntailmentOutcome};
 pub use gap_mappings::{compare_claim_mappings, GapMappingInput, GapMappingOutcome, Mapping};
