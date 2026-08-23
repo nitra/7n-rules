@@ -65,8 +65,8 @@ server {
 }
 ```
 
-Обов'язкові вимоги до структури (перевіряються автоматично, `nginxTemplateViolations` у
-`npm/rules/nginx-default-tpl/template/main.mjs`):
+Обов'язкові вимоги до структури (перевіряються автоматично, `nginx_template_violations` у
+`crates/rules-core/src/concerns/nginx_default_tpl_template.rs`):
 
 - `server_tokens off` — приховує версію nginx у відповідях
 - `port_in_redirect off` — виключає порт з redirect-заголовків
@@ -102,8 +102,8 @@ SERVICE_NAME=my-frontend
 (через envsubst). Якщо у `*.ini` є ключ, що відсутній у шаблоні — його треба вилучити з ini
 або додати в шаблон.
 
-Перевірки (автоматичні, `checkTemplateFile`/`iniKeysMissingInTemplate` у
-`npm/rules/nginx-default-tpl/template/main.mjs`):
+Перевірки (автоматичні, `check_template_file`/`ini_keys_missing_in_template` у
+`crates/rules-core/src/concerns/nginx_default_tpl_template.rs`):
 
 - Поруч з кожним `default.conf.template` є щонайменше один `*.ini` файл
 - Кожен ключ з `*.ini` (рядки виду `KEY=value`, без коментарів `#`/`;` і порожніх рядків)
@@ -144,7 +144,8 @@ RUN NAMES=$(sed -nE '/^\s*[#;]/d; /^\s*$/d; s/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=.*
 конкретні шляхи залежать від проєкту, важливі лише сама послідовність кроків і імена
 директив (`envsubst`, `default.conf.template`).
 
-Перевірки (автоматичні, `checkDockerfiles` у `npm/rules/nginx-default-tpl/template/main.mjs`,
+Перевірки (автоматичні, `check_dockerfiles` у
+`crates/rules-core/src/concerns/nginx_default_tpl_template.rs`,
 викликається один раз для всього репозиторію — не окремо по кожному `default.conf.template`):
 
 - Десь у репозиторії є Dockerfile/Containerfile, що містить `find … /usr/share/nginx/html … gzip -k` — крок стиснення статики

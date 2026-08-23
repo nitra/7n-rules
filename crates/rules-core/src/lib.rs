@@ -39,6 +39,9 @@ pub mod conftest;
 pub mod diagnostics;
 /// Versioned JSON DTO-межа з `rules-napi` (Р10 спеки).
 pub mod dto;
+/// `read_git_policy` — повний порт `readGitPolicy` (`npm/scripts/lib/git-policy.mjs`),
+/// спільний для `concerns::changelog_consistency` і `rules-cli` (доккомент модуля).
+pub mod git_policy;
 /// `build_lint_plan`/`match_lint_globs` — plan-контур lint-оркестрації
 /// (P1 фази 7, `buildPlan` + п'ять builders з `run-detectors.mjs`).
 pub mod lint_plan;

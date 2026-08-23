@@ -43,4 +43,4 @@ Merge-коміт (готовий, з другим предком, або `MERGE_
 
 Канонічне pre-commit wiring (крок `npm-changelog` у `hk.pkl`, autofix через `N_RULES_CHANGELOG_AUTOFIX=1`) — деталь `npm-module.mdc`, тут не дублюється.
 
-Перевірка програмна (`changelog/consistency/main.mjs`, delta-гейт присутності — `changelog/presence/main.mjs`).
+Перевірка програмна — native-концерни **`crates/rules-core/src/concerns/changelog_consistency.rs`** (+ `changelog_consistency_git.rs`/`changelog_consistency_version.rs`/`changelog_consistency_workspace.rs`), delta-гейт присутності — **`crates/rules-core/src/concerns/changelog_presence.rs`**.

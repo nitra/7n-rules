@@ -5482,6 +5482,7 @@ dependencies = [
 name = "rules-core"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "gix 0.86.0",
  "globset",
  "ignore",

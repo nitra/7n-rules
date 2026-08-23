@@ -6,16 +6,35 @@ import { copyFile, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { lint as lintNginx } from '../rules/nginx-default-tpl/template/main.mjs'
+import { runConcernDetector } from '../scripts/lib/lint-surface/detect.mjs'
 // Плагінні правила — пакетними specifier-ами, не `../../plugins/…`: sandbox-копія
 // Stryker містить лише npm/, відносний шлях там не резолвиться.
 import { lint as lintStyle } from '@7n/rules-lang-js/rules/style/tooling/main.mjs'
 import { lint as lintVue } from '@7n/rules-lang-js/rules/vue/packages/main.mjs'
 import { ensureDir, withTmpDir, writeJson } from '../scripts/utils/test-helpers.mjs'
 
+const TEST_DIR = fileURLToPath(new URL('.', import.meta.url))
+
+// `nginx-default-tpl/template` — native-портований concern (фаза 5): `main.mjs`
+// видалено, лишається лише native-реєстр (`crates/rules-core`), тож диспатч тут —
+// через `runConcernDetector` (той самий прийом, що `checkDocker`/`checkGraphql` у
+// `npm/tests/integration-repo-checks.test.mjs::mkNative`), а не прямий `lint()`-імпорт.
+const NGINX_CONCERN_DIR = join(TEST_DIR, '..', 'rules/nginx-default-tpl/template')
+
+// Гейт відкритий (шаблон валідний, `.vscode/extensions.json`/`settings.json` є) доходить
+// до `run_conftest_batch`, який резолвить корінь пакета `@7n/rules` від `cwd` (тимчасовий
+// каталог поза репо в `withTmpDir`) — без override нема звідки взяти
+// `npm/rules/nginx-default-tpl/vscode_extensions`. Той самий явний override, що вже
+// задокументований у `npm/rules/graphql/tooling/tests/tooling.test.mjs` (доккомент
+// `crates/rules-core/src/rules_package.rs`).
+process.env.N_RULES_PACKAGE_ROOT ??= join(TEST_DIR, '..')
+
 // Адаптери під unified lint surface: detector → 0 (чисто) / 1 (є violations).
 const checkNginx = async dir => {
-  const result = await lintNginx({ cwd: dir, ruleId: 'nginx-default-tpl', concernId: 'template' })
+  const result = await runConcernDetector(
+    { dir: NGINX_CONCERN_DIR },
+    { cwd: dir, ruleId: 'nginx-default-tpl', concernId: 'template', files: undefined }
+  )
   return result.violations.length === 0 ? 0 : 1
 }
 const checkStyle = async dir => {
