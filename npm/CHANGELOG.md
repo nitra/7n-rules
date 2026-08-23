@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.94.1] - 2026-08-23
+
+### Changed
+
+- test(plugin-lang-js): закрити борг покриття js-run/runtime (+66 тестів) (#472)
+
 ## [1.94.0] - 2026-08-23
 
 ### Changed
