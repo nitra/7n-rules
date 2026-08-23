@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.94.2] - 2026-08-23
+
+### Changed
+
+- feat(plugin-lang-python): другий wasm-гість + applies/tooling/doc_comments (#474); chore(release): синк пінів платформних napi-пакетів @7n/rules
+
 ## [1.94.1] - 2026-08-23
 
 ### Changed
