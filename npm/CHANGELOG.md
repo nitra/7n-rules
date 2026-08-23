@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.93.6] - 2026-08-23
+
+### Changed
+
+- feat(rules-core): rego/opa_check, rego/regal, security/scan нативно (#465)
+
 ## [1.93.5] - 2026-08-23
 
 ### Changed
