@@ -157,6 +157,35 @@ describe('R2 зрізу 3 фази 7 — batch native-сегменти vs per-it
     })
   })
 
+  test('ноти концерну (diagnostics) на batch-шляху не гинуть — той самий verbose-вихід, що per-item', async () => {
+    await withTmpDir(async dir => {
+      // `security/tracked_symlink` поза git-робочим деревом віддає ПОРОЖНІЙ
+      // `violations` і info-ноту про пропуск — а tmpdir саме такий. Це єдиний
+      // детермінований спосіб дістати `ConcernReport.diagnostics` з реального
+      // native-концерну, не підробляючи native-шар.
+      //
+      // Тест закриває конкретний дефект, а не гіпотезу: batch-шлях napi клав
+      // ВЕСЬ `ConcernReport` у поле `violations`, тож JS діставав обʼєкт там,
+      // де чекав масив, і ноти зникали цілком. Решта тестів файлу цього не
+      // ловила — жоден їхній концерн нот не віддає.
+      const rulesDir = join(dir, 'rules')
+      await seedConcern(rulesDir, 'security', 'tracked_symlink', { scope: 'full', glob: [] })
+      await writeJson(join(dir, '.n-rules.json'), { rules: ['security'] })
+
+      const batchedLogs = []
+      await detectAll({ rulesDir, cwd: dir, full: true, verbose: true, log: s => batchedLogs.push(s) })
+
+      vi.stubEnv('N_RULES_LINT_CONCURRENCY', '2')
+      const perItemLogs = []
+      await detectAll({ rulesDir, cwd: dir, full: true, verbose: true, log: s => perItemLogs.push(s) })
+      vi.unstubAllEnvs()
+
+      expect(batchedLogs.join('')).toEqual(perItemLogs.join(''))
+      // Нота справді була — інакше рівність вище трималась би на двох порожнечах.
+      expect(batchedLogs.join('')).toMatch(/tracked_symlink/)
+    })
+  })
+
   test('verbose progress-лог: batch-шлях логує ТІ САМІ рядки (concern/scope/файли), що per-item', async () => {
     await withTmpDir(async dir => {
       const rulesDir = await seedMixedRules(dir)
