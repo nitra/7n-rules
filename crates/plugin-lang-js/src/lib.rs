@@ -17542,4 +17542,967 @@ plugins: [VueMacros({}), AutoImport({ imports: ['vue'] })] }\n";
         // U+0085 — навпаки: Unicode `White_Space`, але не JS-пробіл.
         assert_eq!(js_trim("\u{85}"), "\u{85}");
     }
+
+    // --- js-run/runtime (продовження — звірка покриття видаленого
+    // `plugins/lang-js/rules/js-run/runtime/tests/check-fixture.test.mjs`,
+    // 19 наскрізних сценаріїв через `lint()`) ---
+    //
+    // 17 із 19 уже покриті: 15 — через `wasm-plugin-parity.test.mjs`
+    // (`fixtures/wasm-parity/js-run/runtime.json`, золотий вивід колишнього
+    // JS-канону проти wasm-плагіна), 4 — через `#[test]` вище в цьому ж
+    // блоці (`detect_js_run_runtime_flags_bunyan_side_effect_import_and_allows_pino`,
+    // conn-файл mssql-read / невалідний префікс / kebab→camel,
+    // `detect_js_run_runtime_flags_temporal_import_form`) — ті самі чисті
+    // гілки, що й у check-fixture, лише з іншими конкретними значеннями:
+    // bunyan default-import класифікується ЛИШЕ за `it.source.value`
+    // (`visit_import_declaration`), специфікатор ролі не грає, тож
+    // `import log from '@nitra/bunyan'` іде тим самим кодом, що вже
+    // перевірений на side-effect `import 'bunyan'`; camelCase-звірка
+    // conn-файла — точна рівність у `Vec::contains` (`find_conn_file_rule_violations`),
+    // не префікс, тож "mssqlWriter" проти очікуваного "mssqlWrite" ловиться
+    // тим самим кодом, що вже перевірений на "pgWriteContract"; повністю
+    // валідний "mssql-write"-варіант — та сама гілка регексу
+    // `CONN_FILENAME_DB_PATTERN`, що вже пройдена на "mssql-write-b2b";
+    // кастомний `#conn/*`-аліас на інший каталог — та сама opaque-рядкова
+    // гілка `resolve_conn_dir_from_package_json`, що вже перевірена на
+    // `lib/conn/*`; checkEnv(['X']) поряд із СИРИМ `process.env.X` не
+    // впливає на `EnvViolationKind::ProcessEnv` (`visit_static_member_expression`
+    // репортить її БЕЗУМОВНО, `checked`-множина читається лише в гілці
+    // `env.X`) — той самий код, що вже покритий на "check-env: process.env,
+    // деструктуризація і env без checkEnv".
+    //
+    // Два сценарії — СПРАВЖНІ прогалини, жодна наявна перевірка їх не
+    // будує, і обидві гілки нетривіальні:
+
+    /// `await setTimeout(ms)` — простий `CallExpression`, не
+    /// `NewExpression`; [`is_promise_set_timeout_delay`] дивиться ЛИШЕ на
+    /// `new Promise(...)`, тож коректний канонічний патерн
+    /// `node:timers/promises` не повинен зачепити цю гілку. Жодна наявна
+    /// перевірка (ні parity-фікстура, ні #[test] вище) не будує саме "0" на
+    /// цьому патерні — лише хибний `new Promise` + `setTimeout`.
+    #[test]
+    fn detect_js_run_runtime_allows_set_timeout_from_node_timers_promises() {
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "lib/sleep.mjs",
+            "import { setTimeout } from 'node:timers/promises'\n\nexport async function pause() {\n  await setTimeout(500)\n}\n",
+        ));
+        assert!(diagnostics.is_empty());
+    }
+
+    /// `has_check_env_import` вимагає `import { env } … from '@nitra/check-env'`
+    /// САМЕ з цього пакета (`decl.source.value != CHECK_ENV_PACKAGE` — рання
+    /// відсіч); той самий локальний біндінг `env`, імпортований з
+    /// `node:process`, не вмикає `env_from_check_env`, тож `env.OPTIONAL`
+    /// не дає `MissingCheckEnv`. Ані parity-фікстура, ані
+    /// #[test] вище не конструюють `env` з ІНШОГО пакета — лише з
+    /// `@nitra/check-env`.
+    #[test]
+    fn detect_js_run_runtime_ignores_env_imported_from_node_process() {
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "lib/env.mjs",
+            "import { env } from 'node:process'\nconsole.log(env.OPTIONAL)\n",
+        ));
+        assert!(diagnostics.is_empty());
+    }
+
+    // --- js-run/runtime: conn-file-rules + conn-imports-scan (борг покриття
+    // видалених `conn-file-rules.test.mjs`/`conn-imports-scan.test.mjs`) ---
+
+    #[test]
+    fn detect_js_run_runtime_conn_file_valid_mssql_write_name_passes() {
+        // mssql-write, дзеркало гілки `write` (сусідній тест покриває лише `read`).
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            CONN_ALIAS_PKG_EXTRA,
+            "lib/conn/mssql-write.mjs",
+            "import sql from 'mssql'\nexport const mssqlWrite = sql\n",
+        ));
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn detect_js_run_runtime_conn_file_valid_mssql_id_variants_multiple_extensions_pass() {
+        // `mssql-{read|write}-<id>` з розширеннями `.cjs`/`.ts` (не лише `.mjs`).
+        let write_diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            CONN_ALIAS_PKG_EXTRA,
+            "lib/conn/mssql-write-tenant.cjs",
+            "export const mssqlWriteTenant = 1\n",
+        ));
+        assert!(write_diagnostics.is_empty());
+
+        let read_diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            CONN_ALIAS_PKG_EXTRA,
+            "lib/conn/mssql-read-warehouse.ts",
+            "export const mssqlReadWarehouse = 1\n",
+        ));
+        assert!(read_diagnostics.is_empty());
+    }
+
+    #[test]
+    fn detect_js_run_runtime_conn_file_valid_mysql_prefix_passes() {
+        // `mysql-` — backward-compat префікс, окрема гілка альтернації регексу.
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            CONN_ALIAS_PKG_EXTRA,
+            "lib/conn/mysql-read.js",
+            "export const mysqlRead = 1\n",
+        ));
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn detect_js_run_runtime_conn_file_mssql_without_read_write_suffix_is_flagged() {
+        // `mssql.js` без `-read`/`-write` — інша гілка невалідності, ніж
+        // `msql-read` (помилковий префікс) із сусіднього тесту.
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            CONN_ALIAS_PKG_EXTRA,
+            "lib/conn/mssql.js",
+            "export const mssql = 1\n",
+        ));
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0]
+            .message
+            .contains("не відповідає канону js-run"));
+    }
+
+    #[test]
+    fn detect_js_run_runtime_conn_file_d_ts_is_not_scanned() {
+        // `.d.ts` виключений із джерел (`is_js_run_scan_source_file`) — навіть
+        // з канонічно-невалідним іменем і `export default` файл НЕ звучить.
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            CONN_ALIAS_PKG_EXTRA,
+            "lib/conn/types.d.ts",
+            "export default {}\n",
+        ));
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn detect_js_run_runtime_conn_file_json_is_not_scanned() {
+        // `.json` не входить у `SOURCE_FILE_RE` — інша гілка виключення, ніж
+        // явний carve-out `.d.ts` вище.
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            CONN_ALIAS_PKG_EXTRA,
+            "lib/conn/data.json",
+            "{\"a\":1}\n",
+        ));
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn detect_js_run_runtime_conn_file_valid_ql_prefix_passes() {
+        // `ql-<id>` — окремий регекс (`CONN_FILENAME_QL_PATTERN`), досі не
+        // зачеплений жодним conn-тестом.
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            CONN_ALIAS_PKG_EXTRA,
+            "lib/conn/ql-dashboard.js",
+            "export const qlDashboard = 1\n",
+        ));
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn detect_js_run_runtime_conn_file_ql_without_id_is_flagged() {
+        // `ql-.js` — префікс є, але `id`-частина порожня (регекс вимагає
+        // мінімум один символ `[a-z0-9]`).
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            CONN_ALIAS_PKG_EXTRA,
+            "lib/conn/ql-.js",
+            "export const x = 1\n",
+        ));
+        assert!(diagnostics
+            .iter()
+            .any(|d| d.message.contains("не відповідає канону js-run")));
+    }
+
+    #[test]
+    fn detect_js_run_runtime_conn_file_pg_prefix_with_and_without_id_pass() {
+        // `pg-` — префікс досі не зачеплений жодним conn-тестом; перевіряємо
+        // обидві гілки опційного `-<id>` суфіксу.
+        let without_id = detect_js_run_runtime(&js_run_workspace_files(
+            CONN_ALIAS_PKG_EXTRA,
+            "lib/conn/pg-write.ts",
+            "export const pgWrite = 1\n",
+        ));
+        assert!(without_id.is_empty());
+
+        let with_id = detect_js_run_runtime(&js_run_workspace_files(
+            CONN_ALIAS_PKG_EXTRA,
+            "lib/conn/pg-read-analytics.js",
+            "export const pgReadAnalytics = 1\n",
+        ));
+        assert!(with_id.is_empty());
+    }
+
+    #[test]
+    fn detect_js_run_runtime_conn_file_function_declaration_export_passes() {
+        // `export function pgRead() {}` — гілка `Declaration::FunctionDeclaration`
+        // у `collect_named_export_names`, досі не зачеплена (сусідні тести
+        // використовують лише `export const`).
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            CONN_ALIAS_PKG_EXTRA,
+            "lib/conn/pg-read.js",
+            "export function pgRead() { return null }\n",
+        ));
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn detect_js_run_runtime_conn_file_class_export_wrong_name_is_flagged() {
+        // `export class PgWrite {}` — гілка `Declaration::ClassDeclaration`,
+        // імʼя класу (PascalCase) не збігається з очікуваним camelCase `pgWrite`.
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            CONN_ALIAS_PKG_EXTRA,
+            "lib/conn/pg-write.js",
+            "export class PgWrite {}\n",
+        ));
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].message.contains("export const pgWrite = "));
+        assert!(diagnostics[0].message.contains("знайдено: PgWrite"));
+    }
+
+    #[test]
+    fn detect_js_run_runtime_conn_file_class_export_correct_name_passes() {
+        // `export class pgRead {}` — той самий вузол, що вище, але імʼя
+        // класу вже точно дорівнює очікуваному camelCase.
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            CONN_ALIAS_PKG_EXTRA,
+            "lib/conn/pg-read.js",
+            "export class pgRead {}\n",
+        ));
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn detect_js_run_runtime_conn_file_aliased_reexport_passes() {
+        // `export { pool as pgRead }` — гілка `declaration = None` +
+        // `specifiers` у `collect_named_export_names` (re-export з аліасом).
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            CONN_ALIAS_PKG_EXTRA,
+            "lib/conn/pg-read.js",
+            "import { pool } from './internal'\nexport { pool as pgRead }\n",
+        ));
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn detect_js_run_runtime_conn_file_invalid_name_and_default_export_both_flagged() {
+        // Невалідне імʼя + `export default` одночасно — перевіряє порядок з
+        // доккоменту `find_conn_file_rule_violations`: `default-export`
+        // рахується РАНІШЕ раннього виходу через невалідне імʼя, тож обидва
+        // порушення потрапляють у результат (а не лише `name`).
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            CONN_ALIAS_PKG_EXTRA,
+            "lib/conn/bad-name.js",
+            "export default {}\n",
+        ));
+        assert_eq!(diagnostics.len(), 2);
+        assert!(diagnostics
+            .iter()
+            .any(|d| d.message.contains("не відповідає канону js-run")));
+        assert!(diagnostics
+            .iter()
+            .any(|d| d.message.contains("'export default' заборонений")));
+    }
+
+    #[test]
+    fn detect_js_run_runtime_conn_file_syntax_error_yields_no_violations() {
+        // Валідне імʼя + синтаксична помилка: парсер падає, `default-export`
+        // і `export-name` перевірки НЕ виконуються — жодного порушення (а не
+        // крах чи best-effort аналіз часткового AST).
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            CONN_ALIAS_PKG_EXTRA,
+            "lib/conn/pg-read.js",
+            "import { from broken\n",
+        ));
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn detect_js_run_runtime_conn_file_wrong_export_name_is_flagged() {
+        // Неправильне імʼя експорту для файла з одним сегментом
+        // `mssql-write` — `expectedName` має дорівнювати саме `mssqlWrite`,
+        // не префіксу знайденого імені `mssqlWriter` (перевіряємо точний
+        // фрагмент з прогалиною, щоб не зловити цей самий префікс).
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            CONN_ALIAS_PKG_EXTRA,
+            "lib/conn/mssql-write.mjs",
+            "import sql from 'mssql'\nexport const mssqlWriter = sql\n",
+        ));
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0]
+            .message
+            .contains("export const mssqlWrite = "));
+    }
+
+    #[test]
+    fn detect_js_run_runtime_conn_file_default_export_with_valid_name_is_flagged() {
+        // `export default` у файлі з ВАЛІДНИМ іменем (на відміну від
+        // `..._invalid_name_and_default_export_both_flagged` вище) — `name`
+        // не порушено, тож `export-name`-перевірка теж виконується і теж
+        // падає (нема жодного `export const mssqlWrite`), разом — 2 діагностики.
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            CONN_ALIAS_PKG_EXTRA,
+            "lib/conn/mssql-write.js",
+            "import sql from 'mssql'\nexport default sql\n",
+        ));
+        assert_eq!(diagnostics.len(), 2);
+        assert!(diagnostics
+            .iter()
+            .any(|d| d.message.contains("'export default' заборонений")));
+        assert!(diagnostics
+            .iter()
+            .any(|d| d.message.contains("export const mssqlWrite = ")));
+    }
+
+    #[test]
+    fn detect_js_run_runtime_conn_file_multi_segment_wrong_export_is_flagged() {
+        // Негативна пара до існуючого
+        // `detect_js_run_runtime_conn_file_kebab_to_camel_multi_segment`
+        // (там — коректний `mssqlWriteB2b` без порушень): тут імʼя файла те
+        // саме, але експорт `wrong` — очікуване імʼя все одно обчислюється з
+        // kebab-case basename файла, а не задається напряму.
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            CONN_ALIAS_PKG_EXTRA,
+            "lib/conn/mssql-write-b2b.mts",
+            "import sql from 'mssql'\nexport const wrong = sql\n",
+        ));
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0]
+            .message
+            .contains("export const mssqlWriteB2b = "));
+    }
+
+    #[test]
+    fn detect_js_run_runtime_conn_import_bun_sql_flagged_spawn_allowed() {
+        // `import { SQL } from 'bun'` поза `connDir/` — порушення; `spawn` з
+        // того самого модуля — НЕ порушення (перевіряємо разом, щоб довести,
+        // що фільтр специфікатора `SQL`, а не сам модуль `bun`).
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            CONN_ALIAS_PKG_EXTRA,
+            "index.mjs",
+            "import { SQL } from 'bun'\nimport { spawn } from 'bun'\n",
+        ));
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].message.contains("{ SQL } from 'bun'"));
+        assert!(!diagnostics[0].message.contains("spawn"));
+    }
+
+    #[test]
+    fn detect_js_run_runtime_conn_import_mssql_default_import_flagged() {
+        // БУДЬ-ЯКИЙ імпорт з `mssql` (не лише named) — порушення
+        // (`classifyConnImport` повертає специфікатор `*` для цього модуля).
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            CONN_ALIAS_PKG_EXTRA,
+            "index.mjs",
+            "import sql from 'mssql'\n",
+        ));
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].message.contains("імпорт 'mssql'"));
+    }
+
+    #[test]
+    fn detect_js_run_runtime_conn_import_graphql_client_flagged_gql_allowed() {
+        // `GraphQLClient` з `@nitra/graphql-request` — порушення; `gql` з
+        // того самого модуля — НЕ порушення (аналогічно до bun/SQL вище).
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            CONN_ALIAS_PKG_EXTRA,
+            "index.mjs",
+            "import { GraphQLClient } from '@nitra/graphql-request'\nimport { gql } from '@nitra/graphql-request'\n",
+        ));
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].message.contains("GraphQLClient"));
+    }
+
+    #[test]
+    fn detect_js_run_runtime_conn_dir_defaults_to_src_conn_without_alias() {
+        // Без `imports["#conn/*"]` у package.json — `connDir` за замовчуванням
+        // `src/conn` (`CONN_DIR_FALLBACK`): факторний імпорт і нейминг файла
+        // ВСЕРЕДИНІ `src/conn/` не звучать (на відміну від
+        // `..._conn_import_boundary_prefix_is_not_inside_conn_dir` нижче, де
+        // файл лише СХОЖИЙ на шлях під conn, але насправді поза ним).
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "src/conn/mssql-read.mjs",
+            "import sql from 'mssql'\nexport const mssqlRead = sql\n",
+        ));
+        assert!(!diagnostics.iter().any(|d| d.message.contains("має бути в")));
+        assert!(!diagnostics
+            .iter()
+            .any(|d| d.message.contains("не відповідає канону js-run")));
+        assert!(!diagnostics
+            .iter()
+            .any(|d| d.message.contains("export const mssqlRead = ")));
+    }
+
+    #[test]
+    fn detect_js_run_runtime_conn_dir_reads_conditional_exports_default() {
+        // `imports["#conn/*"]` як умовний експорт `{ default: '...' }`
+        // (не рядком, як у `CONN_ALIAS_PKG_EXTRA`) — інша гілка
+        // `resolve_conn_dir_from_package_json` (`serde_json::Value::Object`).
+        // Факторний імпорт `mssql` у складі контенту — якщо об'єктну форму
+        // не розпізнати і впасти на дефолтний `src/conn`, цей файл (реально
+        // під `app/conn/`) вважався б ПОЗА conn-каталогом і диагностика
+        // фабричного імпорту з'явилася б помилково.
+        let extra = r##","imports":{"#conn/*":{"default":"./app/conn/*"}}"##;
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            extra,
+            "app/conn/pg-read.js",
+            "import sql from 'mssql'\nexport const pgRead = sql\n",
+        ));
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn detect_js_run_runtime_conn_import_boundary_prefix_is_not_inside_conn_dir() {
+        // `src/connect.js` — рядок ПОЧИНАЄТЬСЯ з `src/conn`, але не є ні самим
+        // каталогом, ні вкладеним у нього файлом (немає `/` одразу після
+        // `src/conn`). `is_inside_conn_dir` мусить трактувати його як «поза
+        // conn» — інакше факторний імпорт mssql тут пройшов би непоміченим.
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "src/connect.js",
+            "import sql from 'mssql'\n",
+        ));
+        assert!(diagnostics
+            .iter()
+            .any(|d| d.message.contains("імпорт 'mssql'") && d.message.contains("src/conn/")));
+    }
+
+    // =====================================================================
+    // js-run/runtime — борг покриття видалених JS-тестів (реєстр боргу,
+    // видалений канон `js-run-canon/tests/{check-env-scan,
+    // promise-settimeout-scan,bunyan-imports,temporal-scan}.test.mjs`).
+    // Через `detect_js_run_runtime` + `js_run_workspace_files`, той самий
+    // тестовий каркас, що сусідні `detect_js_run_runtime_flags_bunyan_…`/
+    // `..._flags_temporal_…` вище.
+    // =====================================================================
+
+    // ---------------------------------------------------------------------
+    // Під-перевірка 5 — `lib/check-env-scan.mjs`
+    // (check-env-scan.test.mjs)
+    // ---------------------------------------------------------------------
+
+    #[test]
+    fn detect_js_run_runtime_check_env_process_env_dot_access_is_violation() {
+        // 'process.env.X — порушення з kind=process-env'.
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "lib/x.ts",
+            "console.log(process.env.PG_CONN)\n",
+        ));
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0]
+            .message
+            .contains("lib/x.ts:1 — process.env.PG_CONN: заміни на env"));
+    }
+
+    #[test]
+    fn detect_js_run_runtime_check_env_process_env_survives_check_env_call() {
+        // 'process.env.X навіть із checkEnv лишається порушенням (треба
+        // замінити на env)' — checkEnv([...]) закриває лише `env.X`, не
+        // `process.env.X`.
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "lib/x.ts",
+            "import { checkEnv } from '@nitra/check-env'\ncheckEnv(['PG_CONN'])\nconsole.log(process.env.PG_CONN)\n",
+        ));
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].message.contains("process.env.PG_CONN"));
+    }
+
+    #[test]
+    fn detect_js_run_runtime_check_env_process_env_computed_string_literal_key() {
+        // 'process.env["X"] (computed string) теж ловиться як process-env'.
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "lib/x.ts",
+            "const v = process.env['SECRET']\n",
+        ));
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].message.contains("process.env.SECRET"));
+    }
+
+    #[test]
+    fn detect_js_run_runtime_check_env_process_env_computed_dynamic_key_is_skipped() {
+        // 'process.env[varName] (динамічний ключ) — пропускаємо без помилки'
+        // — статичний AST не може встановити ім'я змінної.
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "lib/x.ts",
+            "const k = 'X'\nconst v = process.env[k]\n",
+        ));
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn detect_js_run_runtime_check_env_process_env_object_destructuring() {
+        // 'деструктуризація { X, Y } = process.env — кожне поле як
+        // process-env'.
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "lib/x.ts",
+            "const { A, B } = process.env\n",
+        ));
+        assert_eq!(diagnostics.len(), 2);
+        assert!(diagnostics
+            .iter()
+            .any(|d| d.message.contains("process.env.A")));
+        assert!(diagnostics
+            .iter()
+            .any(|d| d.message.contains("process.env.B")));
+    }
+
+    #[test]
+    fn detect_js_run_runtime_check_env_process_env_ignore_directive_suppresses() {
+        // 'коментар-маркер на попередньому рядку приглушує і process.env'.
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "lib/x.ts",
+            "// n-rules:ignore-next-line checkEnv\nconsole.log(process.env.OPTIONAL)\n",
+        ));
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn detect_js_run_runtime_check_env_env_without_check_env_call_is_violation() {
+        // "env.X без checkEnv після import { env } from '@nitra/check-env' —
+        // порушення".
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "lib/x.ts",
+            "import { env } from '@nitra/check-env'\nconsole.log(env.PG_CONN)\n",
+        ));
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].message.contains("env.PG_CONN"));
+        assert!(diagnostics[0].message.contains("без checkEnv"));
+    }
+
+    #[test]
+    fn detect_js_run_runtime_check_env_env_with_check_env_call_passes() {
+        // 'env.X з checkEnv — без порушення'.
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "lib/x.ts",
+            "import { checkEnv, env } from '@nitra/check-env'\ncheckEnv(['PG_CONN'])\nconsole.log(env.PG_CONN)\n",
+        ));
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn detect_js_run_runtime_check_env_check_env_call_order_does_not_matter() {
+        // 'checkEnv після використання теж покриває (порядок не важливий)' —
+        // collectCheckedEnvNames проходить весь файл окремим першим
+        // walk-ом, ще до генерації порушень.
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "lib/x.ts",
+            "import { checkEnv, env } from '@nitra/check-env'\nconsole.log(env.PG_CONN)\ncheckEnv(['PG_CONN'])\n",
+        ));
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn detect_js_run_runtime_check_env_partial_destructuring_flags_only_uncovered() {
+        // 'частково покрита деструктуризація — лише непокрите поле fail'.
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "lib/x.ts",
+            "import { checkEnv, env } from '@nitra/check-env'\ncheckEnv(['A'])\nconst { A, B } = env\n",
+        ));
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].message.contains("env.B"));
+    }
+
+    #[test]
+    fn detect_js_run_runtime_check_env_multiple_check_env_calls_merge() {
+        // 'кілька checkEnv-викликів зливаються в один список'.
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "lib/x.ts",
+            "import { checkEnv, env } from '@nitra/check-env'\ncheckEnv(['A'])\ncheckEnv(['B'])\nconst { A, B } = env\n",
+        ));
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn detect_js_run_runtime_check_env_env_from_other_package_is_ignored() {
+        // "env без імпорту з '@nitra/check-env' — не наша турбота" — `env`
+        // імпортований з 'node:process'.
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "lib/x.ts",
+            "import { env } from 'node:process'\nconsole.log(env.OPTIONAL)\n",
+        ));
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn detect_js_run_runtime_check_env_local_env_parameter_is_not_confused() {
+        // 'локальний env без імпорту — не плутаємо з check-env'.
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "lib/x.ts",
+            "function f(env) { return env.X }\n",
+        ));
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn detect_js_run_runtime_check_env_ignore_directive_suppresses_env_x() {
+        // 'коментар-маркер приглушує і env.X'.
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "lib/x.ts",
+            "import { env } from '@nitra/check-env'\n// n-rules:ignore-next-line checkEnv\nconsole.log(env.LEGACY)\n",
+        ));
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn detect_js_run_runtime_check_env_scan_source_file_extension_filter() {
+        // 'isCheckEnvScanSourceFile фільтрує розширення' — спільний предикат
+        // [`is_js_run_scan_source_file`] (doc-коментар вище, «Спільний
+        // предикат... УСІХ шести lib-сканерів»): `.json`/`.d.ts` не
+        // сканує, `.ts`/`.mjs`/`.tsx` — так.
+        assert!(detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "config.json",
+            "process.env.PG_CONN\n",
+        ))
+        .is_empty());
+        assert!(detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "types.d.ts",
+            "console.log(process.env.PG_CONN)\n",
+        ))
+        .is_empty());
+        assert!(!detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "index.mjs",
+            "console.log(process.env.PG_CONN)\n",
+        ))
+        .is_empty());
+    }
+
+    #[test]
+    fn detect_js_run_runtime_check_env_syntax_error_yields_no_diagnostics() {
+        // 'синтаксична помилка → порожній результат'.
+        let diagnostics =
+            detect_js_run_runtime(&js_run_workspace_files("", "lib/x.ts", "function (\n"));
+        assert!(diagnostics.is_empty());
+    }
+
+    // ---------------------------------------------------------------------
+    // Під-перевірка 6 — `lib/promise-settimeout-scan.mjs`
+    // (promise-settimeout-scan.test.mjs)
+    // ---------------------------------------------------------------------
+
+    #[test]
+    fn detect_js_run_runtime_promise_settimeout_await_bare_resolve_is_violation() {
+        // 'await new Promise(r => setTimeout(r, 500)) — порушення'.
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "lib/x.ts",
+            "await new Promise(resolve => setTimeout(resolve, 500))\n",
+        ));
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].message.contains("lib/x.ts:1 —"));
+    }
+
+    #[test]
+    fn detect_js_run_runtime_promise_settimeout_without_await_still_flagged() {
+        // 'без await — все одно порушення (інших легітимних застосувань
+        // паттерна нема)'.
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "lib/x.js",
+            "const p = new Promise(r => setTimeout(r, 100))\n",
+        ));
+        assert_eq!(diagnostics.len(), 1);
+    }
+
+    #[test]
+    fn detect_js_run_runtime_promise_settimeout_block_body_form() {
+        // 'block-body форма: new Promise(r => { setTimeout(r, 1000) })'.
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "lib/x.ts",
+            "await new Promise(r => { setTimeout(r, 1000) })\n",
+        ));
+        assert_eq!(diagnostics.len(), 1);
+    }
+
+    #[test]
+    fn detect_js_run_runtime_promise_settimeout_function_expression_form() {
+        // 'function expression: new Promise(function (r) { setTimeout(r, 50) })'.
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "lib/x.ts",
+            "await new Promise(function (resolve) { setTimeout(resolve, 50) })\n",
+        ));
+        assert_eq!(diagnostics.len(), 1);
+    }
+
+    #[test]
+    fn detect_js_run_runtime_promise_settimeout_wrapped_arrow_resolve_call() {
+        // 'обгорнутий arrow: new Promise(r => setTimeout(() => r(), 200))'.
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "lib/x.ts",
+            "await new Promise(r => setTimeout(() => r(), 200))\n",
+        ));
+        assert_eq!(diagnostics.len(), 1);
+    }
+
+    #[test]
+    fn detect_js_run_runtime_promise_settimeout_timers_promises_import_is_clean() {
+        // "імпорт promise-варіанта setTimeout — без порушень".
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "lib/x.ts",
+            "import { setTimeout } from 'node:timers/promises'\n\nawait setTimeout(500)\n",
+        ));
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn detect_js_run_runtime_promise_settimeout_non_timer_promise_is_clean() {
+        // "Promise з логікою (не таймер) — без порушень".
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "lib/x.ts",
+            "await new Promise((resolve, reject) => fetch('/x').then(resolve, reject))\n",
+        ));
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn detect_js_run_runtime_promise_settimeout_resolve_with_value_is_out_of_pattern() {
+        // 'Promise з resolve(value) у callback — поза паттерном (передає
+        // значення)'.
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "lib/x.ts",
+            "await new Promise(r => setTimeout(() => r(42), 500))\n",
+        ));
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn detect_js_run_runtime_promise_settimeout_non_resolve_first_arg_is_out_of_pattern() {
+        // 'setTimeout без resolve у першому аргументі — поза паттерном'.
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "lib/x.ts",
+            "await new Promise(resolve => setTimeout(otherCb, 500))\n",
+        ));
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn detect_js_run_runtime_promise_settimeout_multiple_statements_in_block_is_out_of_pattern() {
+        // 'кілька стейтментів у блоці — поза паттерном (не «чиста» пауза)'.
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "lib/x.ts",
+            "await new Promise(r => { log('wait'); setTimeout(r, 500) })\n",
+        ));
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn detect_js_run_runtime_promise_settimeout_multiline_keeps_new_expression_start_line() {
+        // 'multiline зберігає номер рядка початку NewExpression'.
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "lib/x.ts",
+            "// header\nawait new Promise(\n  resolve => setTimeout(resolve, 1000)\n)\n",
+        ));
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].message.contains("lib/x.ts:2 —"));
+    }
+
+    #[test]
+    fn detect_js_run_runtime_promise_settimeout_multiple_occurrences_each_flagged() {
+        // 'кілька входжень в одному файлі — кожне порушення окремо'.
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "lib/x.ts",
+            "await new Promise(r => setTimeout(r, 100))\nconst p = new Promise(r => setTimeout(r, 200))\n",
+        ));
+        assert_eq!(diagnostics.len(), 2);
+    }
+
+    #[test]
+    fn detect_js_run_runtime_promise_settimeout_scan_source_file_extension_filter() {
+        // "isPromiseSetTimeoutScanSourceFile — JS/TS-сім'я, без .d.ts".
+        assert!(detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "types.d.ts",
+            "await new Promise(r => setTimeout(r, 100))\n",
+        ))
+        .is_empty());
+        assert!(!detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "index.tsx",
+            "await new Promise(r => setTimeout(r, 100))\n",
+        ))
+        .is_empty());
+    }
+
+    // ---------------------------------------------------------------------
+    // Під-перевірка 2 — `lib/bunyan-imports.mjs`
+    // (bunyan-imports.test.mjs; 'side-effect import все одно порушення' і
+    // половина 'імпорти з @nitra/pino — без порушень' уже покриті сусіднім
+    // `detect_js_run_runtime_flags_bunyan_side_effect_import_and_allows_pino`
+    // вище — тут лише сценарії, яких там нема.)
+    // ---------------------------------------------------------------------
+
+    #[test]
+    fn detect_js_run_runtime_bunyan_default_import_is_violation() {
+        // 'default import з @nitra/bunyan'.
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "lib/x.ts",
+            "import log from '@nitra/bunyan'\n",
+        ));
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].message.contains("'@nitra/bunyan'"));
+        assert!(diagnostics[0].message.contains("lib/x.ts:1 —"));
+    }
+
+    #[test]
+    fn detect_js_run_runtime_bunyan_named_import_from_legacy_module() {
+        // 'named import з застарілого bunyan'.
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "lib/x.js",
+            "import { createLogger } from 'bunyan'\n",
+        ));
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].message.contains("'bunyan'"));
+    }
+
+    #[test]
+    fn detect_js_run_runtime_bunyan_require_call_is_violation() {
+        // 'require("@nitra/bunyan") — порушення'.
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "lib/x.cjs",
+            "const log = require('@nitra/bunyan')\n",
+        ));
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].message.contains("'@nitra/bunyan'"));
+    }
+
+    #[test]
+    fn detect_js_run_runtime_bunyan_dynamic_import_is_violation() {
+        // 'динамічний import("@nitra/bunyan") — порушення'.
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "lib/x.ts",
+            "const m = await import('@nitra/bunyan')\n",
+        ));
+        assert_eq!(diagnostics.len(), 1);
+    }
+
+    #[test]
+    fn detect_js_run_runtime_bunyan_require_from_pino_is_clean() {
+        // 'імпорти з @nitra/pino — без порушень' — половина `require`
+        // (import-половина вже покрита сусіднім тестом вище).
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "lib/x.cjs",
+            "const x = require('@nitra/pino')\n",
+        ));
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn detect_js_run_runtime_bunyan_multiline_import_keeps_start_line() {
+        // 'multiline import зберігає номер рядка початку'.
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "lib/x.ts",
+            "// header\nimport {\n  a,\n  b\n} from '@nitra/bunyan'\n",
+        ));
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].message.contains("lib/x.ts:2 —"));
+    }
+
+    #[test]
+    fn detect_js_run_runtime_bunyan_scan_source_file_extension_filter() {
+        // 'isBunyanScanSourceFile / shouldSkipFileForBunyanScan'.
+        assert!(detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "types.d.ts",
+            "import log from '@nitra/bunyan'\n",
+        ))
+        .is_empty());
+        assert!(!detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "index.mjs",
+            "import log from '@nitra/bunyan'\n",
+        ))
+        .is_empty());
+    }
+
+    // ---------------------------------------------------------------------
+    // Під-перевірка 7 — `lib/temporal-scan.mjs`
+    // (temporal-scan.test.mjs)
+    // ---------------------------------------------------------------------
+
+    #[test]
+    fn detect_js_run_runtime_temporal_bare_global_usage_without_import() {
+        // 'Temporal.Now.instant() — порушення' — без імпорту, лише
+        // глобальний ідентифікатор `Temporal`.
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "lib/x.js",
+            "const now = Temporal.Now.instant()\n",
+        ));
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].message.contains("lib/x.js:1 —"));
+    }
+
+    #[test]
+    fn detect_js_run_runtime_temporal_import_specifier_without_usage() {
+        // "import { Temporal } from '@js-temporal/polyfill' — порушення" —
+        // сам імпорт, без подальшого використання ідентифікатора.
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "lib/x.ts",
+            "import { Temporal } from '@js-temporal/polyfill'\n",
+        ));
+        assert_eq!(diagnostics.len(), 1);
+    }
+
+    #[test]
+    fn detect_js_run_runtime_temporal_plain_date_is_clean() {
+        // 'звичайний Date не дає порушень'.
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "lib/x.js",
+            "const stamp = new Date().toISOString()\n",
+        ));
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn detect_js_run_runtime_temporal_scan_source_file_extension_filter() {
+        // "isTemporalScanSourceFile — JS/TS-сім'я, без .d.ts".
+        assert!(detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "types.d.ts",
+            "const now = Temporal.Now.instant()\n",
+        ))
+        .is_empty());
+        assert!(!detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "index.mjs",
+            "const now = Temporal.Now.instant()\n",
+        ))
+        .is_empty());
+    }
 }
