@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.13.0] - 2026-08-23
+
+### Changed
+
+- python/mypy та python/ruff: delta-режим тепер лінтує лише змінені .py-файли (lint.anchors додає pyproject.toml до batch-у)
+
 ## [0.12.4] - 2026-08-05
 
 ### Changed

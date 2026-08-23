@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.95.0] - 2026-08-23
+
+### Added
+
+- wasm-порт python/mypy та python/ruff (exec-tool) у plugin-lang-python + parity-тести
+
 ## [1.94.2] - 2026-08-23
 
 ### Changed
