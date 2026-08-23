@@ -8,4 +8,3 @@ resource: npm/rules/tauri/tooling/
 
 | Файл                | Тип       |
 | ------------------- | --------- |
-| [main.mjs](main.md) | JS Module |

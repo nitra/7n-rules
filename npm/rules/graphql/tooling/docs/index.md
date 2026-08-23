@@ -6,4 +6,3 @@ resource: npm/rules/graphql/tooling/
 
 | Файл                | Тип       |
 | ------------------- | --------- |
-| [main.mjs](main.md) | JS Module |
