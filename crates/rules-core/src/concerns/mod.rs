@@ -55,6 +55,7 @@ mod glob_compat;
 mod hasura_internal_urls;
 mod hasura_migrations;
 mod image_avif_generation;
+mod image_compress_check;
 mod image_compress_package_setup;
 /// Спільний шар відкриття файлів k8s-кластера (`findK8sRoots` і його
 /// хелпери) — база концернів `npm/rules/k8s/**`.
@@ -97,6 +98,7 @@ pub mod k8s_manifests_rego;
 pub mod k8s_manifests_workloads;
 mod marksman_config;
 mod package_manifest;
+mod rego_conftest_verify;
 mod rego_opa_check;
 mod rego_regal;
 mod rego_tooling;
@@ -116,6 +118,8 @@ mod template_subset;
 #[cfg(test)]
 mod test_support;
 mod text_formatting;
+mod text_markdownlint;
+mod text_oxfmt;
 mod tracked_symlink;
 mod workspaces;
 
@@ -139,6 +143,7 @@ pub use forbidden_prettier::forbidden_prettier;
 pub use hasura_internal_urls::hasura_internal_urls;
 pub use hasura_migrations::hasura_migrations;
 pub use image_avif_generation::image_avif_generation;
+pub use image_compress_check::{image_compress_check, image_compress_check_with};
 pub use image_compress_package_setup::image_compress_package_setup;
 /// Вибірка `*.yaml`/`*.yml` під `k8s` — вхід усіх концернів кластера. `pub`
 /// заради parity-гейта `tests/k8s_manifests_parity.rs`: він рахує список
@@ -150,6 +155,7 @@ pub use k8s_hasura_httproute::k8s_hasura_httproute;
 pub use k8s_kubeconform::k8s_kubeconform;
 pub use k8s_manifests::k8s_manifests;
 pub use marksman_config::marksman_config;
+pub use rego_conftest_verify::rego_conftest_verify;
 pub use rego_opa_check::rego_opa_check;
 pub use rego_regal::rego_regal;
 pub use rego_tooling::rego_tooling;
@@ -164,6 +170,8 @@ pub use tauri_release::tauri_release;
 pub use tauri_tool_surface::tauri_tool_surface;
 pub use tauri_updater::tauri_updater;
 pub use text_formatting::text_formatting;
+pub use text_markdownlint::text_markdownlint;
+pub use text_oxfmt::text_oxfmt;
 pub use tracked_symlink::tracked_symlink;
 
 /// Ключі native-портованих concern-ів у форматі `ruleId/concernId` — той
@@ -178,6 +186,7 @@ pub const NATIVE_CONCERNS: &[&str] = &[
     "security/tracked_symlink",
     "k8s/dremio_logging",
     "k8s/manifests",
+    "rego/conftest_verify",
     "rego/opa_check",
     "rego/regal",
     "rego/tooling",
@@ -185,6 +194,7 @@ pub const NATIVE_CONCERNS: &[&str] = &[
     "abie/firebase_hosting",
     "abie/env_dns",
     "hasura/migrations",
+    "image-compress/check",
     "image-compress/package_setup",
     "tauri/cargo_mutants_config",
     "tauri/gitignore_target",
@@ -195,6 +205,8 @@ pub const NATIVE_CONCERNS: &[&str] = &[
     "abie/ua_http_route",
     "hasura/internal_urls",
     "text/formatting",
+    "text/markdownlint",
+    "text/oxfmt",
     "tauri/release",
     "tauri/updater",
     "tauri/tool_surface",
@@ -227,11 +239,14 @@ pub fn run_concern(
     match key {
         // Концерни, які мають що сказати ПОНАД порушення, віддають звіт самі.
         "security/tracked_symlink" => Ok(tracked_symlink(cwd)),
+
         // Концерни, які ще й можуть впасти (тула не резолвиться, спавн
         // не вдався), віддають `Result` — гілку не треба загортати в `Ok`.
         "rego/opa_check" => rego_opa_check(cwd, files),
         "rego/regal" => rego_regal(cwd, files),
         "security/scan" => security_scan(cwd),
+        "text/oxfmt" => text_oxfmt(cwd, files),
+        "rego/conftest_verify" => Ok(rego_conftest_verify(cwd)),
         // Решта — лише порушення; конвертація безкоштовна.
         other => concern_violations(other, cwd, files).map(ConcernReport::from),
     }
@@ -248,6 +263,8 @@ fn concern_violations(
         "text/forbidden-prettier" => Ok(forbidden_prettier(cwd)),
         "text/cspell-fix" => Ok(cspell_fix::cspell_fix(cwd, files)),
         "security/sample_secret" => Ok(sample_secret(cwd)),
+        "image-compress/check" => Ok(image_compress_check(cwd).violations),
+        "text/markdownlint" => text_markdownlint(cwd, files),
         "k8s/dremio_logging" => Ok(dremio_logging(cwd, files)),
         "rego/tooling" => Ok(rego_tooling(cwd)),
         "doc-files/marksman_config" => Ok(marksman_config(cwd)),
@@ -291,17 +308,17 @@ mod tests {
     /// `Lint repo-wide`), не додаючи нічого до сили перевірки — будь-яка зміна
     /// складу чи порядку так само валить цей assert.
     #[test]
-    fn native_concerns_lists_all_thirty_five_entries() {
-        assert_eq!(NATIVE_CONCERNS.len(), 35);
+    fn native_concerns_lists_all_thirty_nine_entries() {
+        assert_eq!(NATIVE_CONCERNS.len(), 39);
         assert_eq!(
             NATIVE_CONCERNS.join(" "),
             "text/forbidden-prettier text/cspell-fix security/sample_secret security/scan security/tracked_symlink \
              k8s/dremio_logging \
-             k8s/manifests rego/opa_check rego/regal rego/tooling \
+             k8s/manifests rego/conftest_verify rego/opa_check rego/regal rego/tooling \
              doc-files/marksman_config abie/firebase_hosting abie/env_dns hasura/migrations \
-             image-compress/package_setup tauri/cargo_mutants_config tauri/gitignore_target \
+             image-compress/check image-compress/package_setup tauri/cargo_mutants_config tauri/gitignore_target \
              tauri/linux_deps tauri/core_test_isolation abie/hc_pairing abie/ua_node_selector \
-             abie/ua_http_route hasura/internal_urls text/formatting tauri/release tauri/updater \
+             abie/ua_http_route hasura/internal_urls text/formatting text/markdownlint text/oxfmt tauri/release tauri/updater \
              tauri/tool_surface security/trufflehog changelog/presence adr/hooks \
              capacitor/platforms image-avif/avif_generation k8s/kubeconform \
              k8s/hasura_configmap k8s/hasura_httproute"

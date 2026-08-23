@@ -7,4 +7,3 @@ resource: npm/rules/text/markdownlint/
 | Файл                                        | Тип       |
 | ------------------------------------------- | --------- |
 | [fix-markdownlint.mjs](fix-markdownlint.md) | JS Module |
-| [main.mjs](main.md)                         | JS Module |
