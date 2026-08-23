@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.93.2] - 2026-08-23
+
+### Changed
+
+- fix(text/cspell-fix): зняти подвійну реалізацію main.mjs + native (#462); chore(release): синк пінів платформних napi-пакетів @7n/rules
+
 ## [1.93.1] - 2026-08-22
 
 ### Changed
