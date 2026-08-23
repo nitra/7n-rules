@@ -13,7 +13,7 @@ import { afterEach, describe, expect, test } from 'vitest'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'
 
-import { runV8rWithFiles } from '../run-v8r/main.mjs'
+import { runV8rWithFiles } from './v8r-catalog-runner.mjs'
 
 const VALID_LAYERS_CONFIG = {
   version: 1,

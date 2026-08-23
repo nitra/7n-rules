@@ -1,12 +1,12 @@
 /**
- * Тести run-shellcheck.mjs: edge cases i error paths.
+ * Тести fix-run-shellcheck.mjs (write-режим, колишній `run-shellcheck.mjs`): edge cases i error paths.
  * patch не знайдено, немає .sh-файлів, spawnAsync-помилки (mock).
  */
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { listShellScriptPaths, runShellcheckText } from '../run-shellcheck/main.mjs'
+import { listShellScriptPaths, runShellcheckText } from '../run-shellcheck/fix-run-shellcheck.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
 import { withTmpDir } from '../../../scripts/utils/test-helpers.mjs'
 

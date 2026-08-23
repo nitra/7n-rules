@@ -120,6 +120,9 @@ mod test_support;
 mod text_formatting;
 mod text_markdownlint;
 mod text_oxfmt;
+mod text_run_dotenv_linter;
+mod text_run_shellcheck;
+mod text_run_v8r;
 mod tracked_symlink;
 mod workspaces;
 
@@ -172,6 +175,9 @@ pub use tauri_updater::tauri_updater;
 pub use text_formatting::text_formatting;
 pub use text_markdownlint::text_markdownlint;
 pub use text_oxfmt::text_oxfmt;
+pub use text_run_dotenv_linter::text_run_dotenv_linter;
+pub use text_run_shellcheck::text_run_shellcheck;
+pub use text_run_v8r::text_run_v8r;
 pub use tracked_symlink::tracked_symlink;
 
 /// Ключі native-портованих concern-ів у форматі `ruleId/concernId` — той
@@ -207,6 +213,9 @@ pub const NATIVE_CONCERNS: &[&str] = &[
     "text/formatting",
     "text/markdownlint",
     "text/oxfmt",
+    "text/run-dotenv-linter",
+    "text/run-shellcheck",
+    "text/run-v8r",
     "tauri/release",
     "tauri/updater",
     "tauri/tool_surface",
@@ -246,6 +255,9 @@ pub fn run_concern(
         "rego/regal" => rego_regal(cwd, files),
         "security/scan" => security_scan(cwd),
         "text/oxfmt" => text_oxfmt(cwd, files),
+        "text/run-dotenv-linter" => text_run_dotenv_linter(cwd, files),
+        "text/run-shellcheck" => text_run_shellcheck(cwd, files),
+        "text/run-v8r" => text_run_v8r(cwd, files),
         "rego/conftest_verify" => Ok(rego_conftest_verify(cwd)),
         // Решта — лише порушення; конвертація безкоштовна.
         other => concern_violations(other, cwd, files).map(ConcernReport::from),
@@ -308,8 +320,8 @@ mod tests {
     /// `Lint repo-wide`), не додаючи нічого до сили перевірки — будь-яка зміна
     /// складу чи порядку так само валить цей assert.
     #[test]
-    fn native_concerns_lists_all_thirty_nine_entries() {
-        assert_eq!(NATIVE_CONCERNS.len(), 39);
+    fn native_concerns_lists_all_forty_two_entries() {
+        assert_eq!(NATIVE_CONCERNS.len(), 42);
         assert_eq!(
             NATIVE_CONCERNS.join(" "),
             "text/forbidden-prettier text/cspell-fix security/sample_secret security/scan security/tracked_symlink \
@@ -318,7 +330,8 @@ mod tests {
              doc-files/marksman_config abie/firebase_hosting abie/env_dns hasura/migrations \
              image-compress/check image-compress/package_setup tauri/cargo_mutants_config tauri/gitignore_target \
              tauri/linux_deps tauri/core_test_isolation abie/hc_pairing abie/ua_node_selector \
-             abie/ua_http_route hasura/internal_urls text/formatting text/markdownlint text/oxfmt tauri/release tauri/updater \
+             abie/ua_http_route hasura/internal_urls text/formatting text/markdownlint text/oxfmt \
+             text/run-dotenv-linter text/run-shellcheck text/run-v8r tauri/release tauri/updater \
              tauri/tool_surface security/trufflehog changelog/presence adr/hooks \
              capacitor/platforms image-avif/avif_generation k8s/kubeconform \
              k8s/hasura_configmap k8s/hasura_httproute"

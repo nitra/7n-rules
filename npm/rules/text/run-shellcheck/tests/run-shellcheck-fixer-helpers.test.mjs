@@ -1,16 +1,20 @@
 /**
- * Тести run-shellrules/text/check.mjs: авто-виправлення через diff+patch і фінальний shellcheck.
+ * Тести `listShellScriptPaths`/`runShellcheckText` — перенесено з колишнього `run-shellcheck.test.mjs`
+ * (тестував ці самі функції з видаленого `main.mjs`; read-only detector-бік того самого концерну
+ * портовано у `rules-core`, `crates/rules-core/src/concerns/text_run_shellcheck.rs`, і має власне
+ * покриття там). Обидві функції тепер живуть у `fix-run-shellcheck.mjs` (write-режим/T0-фіксер) —
+ * тут перевіряється саме write-режим: авто-виправлення через diff+patch і фінальний shellcheck.
  */
 import { describe, expect, test } from 'vitest'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { execFileSync } from 'node:child_process'
 
-import { listShellScriptPaths, runShellcheckText } from '../main.mjs'
+import { listShellScriptPaths, runShellcheckText } from '../fix-run-shellcheck.mjs'
 import { resolveCmd } from '../../../../scripts/utils/resolve-cmd.mjs'
 import { ensureDir, withBinRemovedFromPath, withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
-describe('run-shellrules/text/check.mjs', () => {
+describe('fix-run-shellcheck.mjs: listShellScriptPaths/runShellcheckText', () => {
   test('listShellScriptPaths у тимчасовому каталозі без git повертає вкладені .sh', async () => {
     await withTmpDir(async dir => {
       await ensureDir(join(dir, 'a/b'))
