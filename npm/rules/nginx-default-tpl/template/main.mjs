@@ -3,7 +3,6 @@ import { existsSync } from 'node:fs'
 import { readdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
 import { basename, dirname, join, relative } from 'node:path'
 
-import { findDockerfilePaths } from '../../docker/lint/main.mjs'
 import { createViolationReporter } from '../../../scripts/lib/lint-surface/violation-reporter.mjs'
 import { loadCursorIgnorePaths } from '../../../scripts/lib/load-cursor-config.mjs'
 import { runConftestBatch } from '../../../scripts/lib/run-conftest-batch.mjs'
@@ -25,6 +24,41 @@ const ERROR_LOG_OFF_RE = /error_log\s+off\s*;/gu
 // Non-global варіант для одноразового .test() (без stateful lastIndex, як у глобального ERROR_LOG_OFF_RE).
 const ERROR_LOG_OFF_TEST_RE = /error_log\s+off\s*;/u
 const ERROR_LOG_CANONICAL = 'error_log /dev/null crit;'
+
+/**
+ * Чи є basename Dockerfile / Containerfile (у т.ч. Dockerfile.prod). Локальна копія —
+ * раніше імпортувалась з `../../docker/lint/main.mjs`, але той концерн переїхав у native
+ * (`crates/rules-core/src/concerns/docker_lint.rs`, без `main.mjs`, JS-боку тому нема звідки
+ * імпортувати), а цей concern (`nginx-default-tpl`) лишається JS-only. Той самий канон,
+ * що docker.mdc: `Dockerfile.txt` теж true (будь-який суфікс після `dockerfile.` минає).
+ * @param {string} name basename шляху
+ * @returns {boolean} true для Dockerfile / Dockerfile.* / Containerfile / Containerfile.*
+ */
+function isDockerfileName(name) {
+  const n = name.toLowerCase()
+  if (n === 'dockerfile' || n === 'containerfile') return true
+  return Boolean(n.startsWith('dockerfile.') || n.startsWith('containerfile.'))
+}
+
+/**
+ * Збирає абсолютні шляхи до Dockerfile / Containerfile від кореня `root`. Локальна копія
+ * (доккомент `isDockerfileName` вище пояснює чому).
+ * @param {string} root корінь репозиторію
+ * @param {string[]} [ignorePaths] шляхи каталогів, повністю виключених з обходу
+ * @returns {Promise<string[]>} відсортовані абсолютні шляхи
+ */
+async function findDockerfilePaths(root, ignorePaths = []) {
+  /** @type {string[]} */
+  const out = []
+  await walkDir(
+    root,
+    p => {
+      if (isDockerfileName(basename(p))) out.push(p)
+    },
+    ignorePaths
+  )
+  return out.toSorted((a, b) => a.localeCompare(b))
+}
 
 /**
  * Збирає абсолютні шляхи до **default.conf.template** у репозиторії; будь-який сегмент

@@ -7,7 +7,7 @@ alwaysApply: false
 
 # Docker — hadolint
 
-Правило перевіряє Dockerfile / Containerfile: GCR-дзеркало замість Docker Hub, multistage build з дозволеними runtime-образами, компіляцію bun-проєктів у бінарник, виняток для нативних `.node`-аддонів, non-root у фінальному stage, nginx-специфічні вимоги та hadolint CI-workflow. Усі перевірки нижче — один прохід по кожному Dockerfile/Containerfile у **`npm/rules/docker/lint/main.mjs`** (`npx @7n/rules lint docker`).
+Правило перевіряє Dockerfile / Containerfile: GCR-дзеркало замість Docker Hub, multistage build з дозволеними runtime-образами, компіляцію bun-проєктів у бінарник, виняток для нативних `.node`-аддонів, non-root у фінальному stage, nginx-специфічні вимоги та hadolint CI-workflow. Усі перевірки нижче — один прохід по кожному Dockerfile/Containerfile у native-концерні `docker/lint` (**`crates/rules-core/src/concerns/docker_lint.rs`**, `npx @7n/rules lint docker`).
 
 ## Активація
 
@@ -25,7 +25,7 @@ alwaysApply: false
 | `node` | `mirror.gcr.io/library/node` |
 | `nginxinc/nginx-unprivileged` | `mirror.gcr.io/nginxinc/nginx-unprivileged` |
 
-Перевіряє **`npm/rules/docker/lib/docker-mirror.mjs`** (через `getMirrorGcrHint`).
+Перевіряє **`crates/rules-core/src/concerns/docker_lint_mirror.rs`** (`get_mirror_gcr_hint`).
 
 ## Multistage build і дозволені runtime-образи
 
@@ -39,7 +39,7 @@ Dockerfile/Containerfile **має бути multistage build**: окремий bu
 
 Це стримує зайвий build tooling (Bun, **node_modules** зі збірки) у фінальному образі; для **alpine** / **nginx** / **openresty** у **runtime** лишаються лише відповідні вимоги, для **php** / **python** (виняток) — цільовий інтерпретований **stack**; **scratch** і **debian** з тегом **`*slim*`** — коли glibc і мінімальне оточення Debian важливіші за musl в **alpine**.
 
-Перевіряє `getMultistageAndRuntimeHint` у **`npm/rules/docker/lint/main.mjs`**.
+Перевіряє `get_multistage_and_runtime_hint` у **`crates/rules-core/src/concerns/docker_lint.rs`**.
 
 ## Компіляція bun-проєкту в бінарник
 
@@ -86,7 +86,7 @@ COPY --from=build-env /app/app ./app
 CMD ["./app"]
 ```
 
-Перевіряє `getBunCompileHint` у **`npm/rules/docker/lint/main.mjs`**.
+Перевіряє `get_bun_compile_hint` у **`crates/rules-core/src/concerns/docker_lint.rs`**.
 
 ## Виняток: нативний `.node`-аддон (sharp / @img/* / argon2)
 
@@ -96,7 +96,7 @@ CMD ["./app"]
 
 Канон — ship `node_modules` і запускати через `bun <entry>` на базі `mirror.gcr.io/oven/bun:alpine` (це легітимний виняток до правила «лише alpine/scratch у фінальному stage» — тут потрібен саме bun-рантайм). База `oven/bun` уже має non-root користувача `bun` (uid/gid 1000). Entry бери з наявного `--outfile`-таргета / `package.json#main` / `scripts.start`; якщо не визначити — лиши TODO-маркер, не вгадуй.
 
-Список нативних аддонів — розширювана константа `NATIVE_ADDON_PACKAGES` / `NATIVE_ADDON_SCOPES` у **`npm/rules/docker/lib/docker-native-addon.mjs`** (підключено в **`npm/rules/docker/lint/main.mjs`**).
+Список нативних аддонів — розширювана константа `NATIVE_ADDON_PACKAGES` / `NATIVE_ADDON_SCOPES` у **`crates/rules-core/src/concerns/docker_lint_native_addon.rs`** (підключено в **`crates/rules-core/src/concerns/docker_lint.rs`**).
 
 ### Антипатерн (це правило ловить)
 
@@ -154,7 +154,7 @@ USER bun
 CMD ["bun", "src/index.js"]
 ```
 
-Маркер — **не** заміна нативно-аддонного винятку (той визначається автоматично з `package.json`) і **не** привід уникати компіляції там, де вона можлива — це escape hatch для нового, не закодованого в checker класу причин; використовуй лише коли `bun build --compile` доведено не працює. Перевіряють `hasBunNoCompileMarker` / `getBunCompileHint` / `getMultistageAndRuntimeHint` у **`npm/rules/docker/lint/main.mjs`**.
+Маркер — **не** заміна нативно-аддонного винятку (той визначається автоматично з `package.json`) і **не** привід уникати компіляції там, де вона можлива — це escape hatch для нового, не закодованого в checker класу причин; використовуй лише коли `bun build --compile` доведено не працює. Перевіряють `has_bun_no_compile_marker` / `get_bun_compile_hint` / `get_multistage_and_runtime_hint` у **`crates/rules-core/src/concerns/docker_lint.rs`**.
 
 ## Non-root принцип у фінальному stage
 
@@ -192,7 +192,7 @@ USER app
 CMD ["./app"]
 ```
 
-Перевіряє `getNonRootRuntimeHint` у **`npm/rules/docker/lint/main.mjs`**.
+Перевіряє `get_non_root_runtime_hint` у **`crates/rules-core/src/concerns/docker_lint.rs`**.
 
 > **Примітка:** для `nginxinc/nginx-unprivileged` канон відрізняється — дивись розділ нижче про nginx non-root.
 
@@ -202,7 +202,7 @@ CMD ["./app"]
 
 Тег `alpine-slim` є обов'язковим для всіх `FROM` з образом `nginxinc/nginx-unprivileged` — будь-який інший тег (включаючи без тега) прапорцюється як порушення.
 
-Перевіряє `getNginxAlpineSlimTagHint` у **`npm/rules/docker/lint/main.mjs`**.
+Перевіряє `get_nginx_alpine_slim_tag_hint` у **`crates/rules-core/src/concerns/docker_lint.rs`**.
 
 ## nginx-unprivileged — без USER, із --chown
 
@@ -212,7 +212,7 @@ CMD ["./app"]
 - **жодного switch-back** `USER 101` / `USER nginx` наприкінці stage — це лише симптом зайвого `USER root` на початку (повертати треба саме **числовим** UID, бо kubelet не підтверджує non-root за іменем `nginx`). Канон — взагалі не виходити з-під дефолтного 101;
 - **`COPY`/`ADD` лише з `--chown`** (канон — `--chown=nginx:nginx`): без нього файли копіюються власником root і дефолтний non-root користувач (uid=101) не зможе читати статику.
 
-Build-stage не чіпаємо — там root і tooling норма. Перевіряє **`npm/rules/docker/lib/docker-nginx-user.mjs`**.
+Build-stage не чіпаємо — там root і tooling норма. Перевіряє **`crates/rules-core/src/concerns/docker_lint_nginx_user.rs`**.
 
 ### Антипатерн (це правило ловить)
 
@@ -244,9 +244,9 @@ RUN find ./ -type f -name "*.js" -exec gzip -k {} \;
 
 ## hadolint
 
-CLI **`hadolint`** приймає лише **явні шляхи** (`[DOCKERFILE...]` у **`hadolint --help`**); обхід репозиторію робить **`npm/rules/docker/lint/main.mjs`** (правило `npx @7n/rules lint docker`) — файли з іменем **`Dockerfile`**, **`*.Dockerfile`**, **`Containerfile`**, **`*.Containerfile`** (суфікс без урахування регістру), з тими самими пропусками каталогів, що й решта обходу репозиторію.
+CLI **`hadolint`** приймає лише **явні шляхи** (`[DOCKERFILE...]` у **`hadolint --help`**); обхід репозиторію робить `find_dockerfile_paths` у **`crates/rules-core/src/concerns/docker_lint.rs`** (правило `npx @7n/rules lint docker`) — файли з іменем **`Dockerfile`**, **`*.Dockerfile`**, **`Containerfile`**, **`*.Containerfile`** (суфікс без урахування регістру), з тими самими пропусками каталогів, що й решта обходу репозиторію.
 
-Виклик **`hadolint`** як **нативного бінарника** через **`ensureTool`** (PATH → кеш → авто-install brew/scoop/GitHub Release; **без** `docker run`) — спільна логіка **`npm/rules/docker/lib/docker-hadolint.mjs`**. Для CI-workflow, що встановлює hadolint і викликає `npx @7n/rules lint docker`, дивись `npm/rules/docker/lint_docker_yml/lint_docker_yml.mdc` (там канонічний шаблон і rego-перевірка `.github/workflows/lint-docker.yml`).
+Виклик **`hadolint`** як **нативного бінарника** через спільний реєстр тулів (`crate::tool_resolve` — PATH → керований кеш; **без** `docker run`) — спільна логіка **`crates/rules-core/src/concerns/docker_lint_hadolint.rs`**. Для CI-workflow, що встановлює hadolint і викликає `npx @7n/rules lint docker`, дивись `npm/rules/docker/lint_docker_yml/lint_docker_yml.mdc` (там канонічний шаблон і rego-перевірка `.github/workflows/lint-docker.yml`).
 
 ### Конфігурація hadolint
 
@@ -264,7 +264,7 @@ ignored:
 
 ### Запуск
 
-**`npx @7n/rules lint docker`** — виклик hadolint як у **`docker-hadolint.mjs`** (нативний бінарник через **`ensureTool`**; **без** `docker run`), разом з іншими docker-перевірками (mirror/multistage/compile/non-root/nginx) в одному проході по кожному Dockerfile/Containerfile.
+**`npx @7n/rules lint docker`** — виклик hadolint як у **`docker_lint_hadolint.rs`** (нативний бінарник через спільний реєстр тулів; **без** `docker run`), разом з іншими docker-перевірками (mirror/multistage/compile/non-root/nginx) в одному проході по кожному Dockerfile/Containerfile.
 
 Якщо немає жодного Dockerfile/Containerfile у репозиторії — перевірка пропускається (exit 0).
 

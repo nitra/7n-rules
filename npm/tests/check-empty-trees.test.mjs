@@ -5,15 +5,19 @@ import { describe, expect, test } from 'vitest'
 import { join } from 'node:path'
 import { writeFile } from 'node:fs/promises'
 
-import { lint as lintDocker } from '../rules/docker/lint/main.mjs'
 import { runConcernDetector } from '../scripts/lib/lint-surface/detect.mjs'
 import { ensureDir, withBinStubInPath, withTmpDir } from '../scripts/utils/test-helpers.mjs'
 
 const TEST_DIR = import.meta.dirname
 
-// Адаптери під unified lint surface: detector → 0 (чисто) / 1 (є violations).
+// `docker/lint` і `k8s/manifests` — native-концерни без `main.mjs`, тож
+// виклик іде через той самий диспетчер, що й у бойовому прогоні. Перший
+// аргумент `runConcernDetector` (`concern`-entry з policy-`dir`) читається
+// лише в JS/wasm-гілках нижче native-перевірки (`detect.mjs:220-230`) — для
+// вже native-зареєстрованого ключа `null` безпечний, той самий патерн, що й
+// нижче для `checkK8s`.
 const checkDocker = async dir => {
-  const result = await lintDocker({ cwd: dir, ruleId: 'docker', concernId: 'lint' })
+  const result = await runConcernDetector(null, { cwd: dir, ruleId: 'docker', concernId: 'lint' })
   return result.violations.length === 0 ? 0 : 1
 }
 // `k8s/manifests` — native-концерн без `main.mjs`, тож виклик іде через той

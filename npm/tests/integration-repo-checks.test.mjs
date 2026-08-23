@@ -10,9 +10,7 @@ import { runConcernDetector } from '../scripts/lib/lint-surface/detect.mjs'
 // Плагінні правила — пакетними specifier-ами, не `../../plugins/…`: sandbox-копія
 // Stryker містить лише npm/, відносний шлях там не резолвиться.
 import { lint as _bun } from '@7n/rules-lang-js/rules/bun/layout/main.mjs'
-import { lint as _docker } from '../rules/docker/lint/main.mjs'
 import { lint as _ga } from '@7n/rules-ci-github/rules/ga/workflows/main.mjs'
-import { lint as _graphql } from '../rules/graphql/tooling/main.mjs'
 import { lint as _jsLint } from '@7n/rules-lang-js/rules/js/check/main.mjs'
 import { lint as _jsRun } from '@7n/rules-lang-js/rules/js-run/runtime/main.mjs'
 import { lint as _npmModule } from '@7n/rules-lang-js/rules/npm-module/package_structure/main.mjs'
@@ -24,9 +22,7 @@ const mk = (fn, ruleId, concernId) => async cwd => {
   return result.violations.length === 0 ? 0 : 1
 }
 const checkBun = mk(_bun, 'bun', 'layout')
-const checkDocker = mk(_docker, 'docker', 'lint')
 const checkGa = mk(_ga, 'ga', 'workflows')
-const checkGraphql = mk(_graphql, 'graphql', 'tooling')
 const checkJsLint = mk(_jsLint, 'js', 'check')
 const checkJsRun = mk(_jsRun, 'js-run', 'runtime')
 const checkK8s = mk(
@@ -47,11 +43,12 @@ const REPO_ROOT = join(TEST_DIR, '..', '..')
 process.env.N_RULES_PACKAGE_ROOT ??= join(REPO_ROOT, 'npm')
 
 // firebase_hosting, env_dns (F1 фази 5 батчу 2), hc_pairing/ua_node_selector/
-// ua_http_route (H1 фази 5 батчу 4, YAML-кластер частина 1) і
-// text/formatting (I1 фази 5 батчу 4, YAML-кластер частина 2) — native-портовані
-// concern-и: `main.mjs` видалено, лишається лише native-реєстр
-// (`crates/rules-core`), тож диспатч тут — через `runConcernDetector` (той
-// самий шлях, що й dispatch-рівень concern-тестів), а не прямий `lint()`-імпорт.
+// ua_http_route (H1 фази 5 батчу 4, YAML-кластер частина 1), text/formatting
+// (I1 фази 5 батчу 4, YAML-кластер частина 2) і docker/lint (цей зріз) —
+// native-портовані concern-и: `main.mjs` видалено, лишається лише
+// native-реєстр (`crates/rules-core`), тож диспатч тут — через
+// `runConcernDetector` (той самий шлях, що й dispatch-рівень
+// concern-тестів), а не прямий `lint()`-імпорт.
 const mkNative = (ruleDirName, concernDirName, ruleId, concernId) => async cwd => {
   const result = await runConcernDetector(
     { dir: join(TEST_DIR, '..', 'rules', ruleDirName, concernDirName) },
@@ -65,6 +62,8 @@ const checkAbieHc = mkNative('abie', 'hc_pairing', 'abie', 'hc_pairing')
 const checkAbieUaNs = mkNative('abie', 'ua_node_selector', 'abie', 'ua_node_selector')
 const checkAbieUaHr = mkNative('abie', 'ua_http_route', 'abie', 'ua_http_route')
 const checkText = mkNative('text', 'formatting', 'text', 'formatting')
+const checkDocker = mkNative('docker', 'lint', 'docker', 'lint')
+const checkGraphql = mkNative('graphql', 'tooling', 'graphql', 'tooling')
 
 /**
  * @param {string} cwd корінь репозиторію

@@ -36,6 +36,13 @@ mod change_file;
 mod changelog_presence;
 mod cspell_fix;
 pub(crate) mod cursor_ignore;
+/// Оркестратор native-концерну `docker/lint` — точний порядок кроків
+/// `lint(ctx)` поверх портованих шарів.
+mod docker_lint;
+mod docker_lint_hadolint;
+mod docker_lint_mirror;
+mod docker_lint_native_addon;
+mod docker_lint_nginx_user;
 mod dremio_logging;
 mod env_dns;
 mod find_src_tauri;
@@ -52,6 +59,7 @@ pub mod fix_k8s_manifests;
 mod forbidden_prettier;
 mod gha_workflow;
 mod glob_compat;
+mod graphql_tooling;
 mod hasura_internal_urls;
 mod hasura_migrations;
 mod image_avif_generation;
@@ -111,6 +119,7 @@ mod tauri_gitignore_target;
 mod tauri_linux_deps;
 mod tauri_release;
 mod tauri_tool_surface;
+mod tauri_tooling;
 mod tauri_updater;
 mod template_subset;
 /// Спільні тест-хелпери concern-модулів (лише `cfg(test)`) — одне джерело
@@ -139,10 +148,12 @@ pub use abie_ua_node_selector::ua_node_selector as abie_ua_node_selector;
 pub use adr_hooks::adr_hooks;
 pub use capacitor_platforms::capacitor_platforms;
 pub use changelog_presence::changelog_presence;
+pub use docker_lint::docker_lint;
 pub use dremio_logging::{dremio_logging, zk_logback_root_level_violation};
 pub use env_dns::env_dns;
 pub use firebase_hosting::firebase_hosting;
 pub use forbidden_prettier::forbidden_prettier;
+pub use graphql_tooling::graphql_tooling;
 pub use hasura_internal_urls::hasura_internal_urls;
 pub use hasura_migrations::hasura_migrations;
 pub use image_avif_generation::image_avif_generation;
@@ -171,6 +182,7 @@ pub use tauri_gitignore_target::tauri_gitignore_target;
 pub use tauri_linux_deps::tauri_linux_deps;
 pub use tauri_release::tauri_release;
 pub use tauri_tool_surface::tauri_tool_surface;
+pub use tauri_tooling::tauri_tooling;
 pub use tauri_updater::tauri_updater;
 pub use text_formatting::text_formatting;
 pub use text_markdownlint::text_markdownlint;
@@ -227,6 +239,9 @@ pub const NATIVE_CONCERNS: &[&str] = &[
     "k8s/kubeconform",
     "k8s/hasura_configmap",
     "k8s/hasura_httproute",
+    "docker/lint",
+    "graphql/tooling",
+    "tauri/tooling",
 ];
 
 /// Запускає native-порт concern-а за ключем `ruleId/concernId`.
@@ -259,6 +274,8 @@ pub fn run_concern(
         "text/run-shellcheck" => text_run_shellcheck(cwd, files),
         "text/run-v8r" => text_run_v8r(cwd, files),
         "rego/conftest_verify" => Ok(rego_conftest_verify(cwd)),
+        "docker/lint" => docker_lint(cwd, files),
+        "tauri/tooling" => tauri_tooling(cwd, files),
         // Решта — лише порушення; конвертація безкоштовна.
         other => concern_violations(other, cwd, files).map(ConcernReport::from),
     }
@@ -304,6 +321,7 @@ fn concern_violations(
         "k8s/kubeconform" => k8s_kubeconform(cwd, files),
         "k8s/hasura_configmap" => k8s_hasura_configmap(cwd),
         "k8s/hasura_httproute" => k8s_hasura_httproute(cwd),
+        "graphql/tooling" => graphql_tooling(cwd),
         other => Err(RulesError::Concern(format!(
             "невідомий native concern: {other}"
         ))),
@@ -320,8 +338,8 @@ mod tests {
     /// `Lint repo-wide`), не додаючи нічого до сили перевірки — будь-яка зміна
     /// складу чи порядку так само валить цей assert.
     #[test]
-    fn native_concerns_lists_all_forty_two_entries() {
-        assert_eq!(NATIVE_CONCERNS.len(), 42);
+    fn native_concerns_lists_all_forty_five_entries() {
+        assert_eq!(NATIVE_CONCERNS.len(), 45);
         assert_eq!(
             NATIVE_CONCERNS.join(" "),
             "text/forbidden-prettier text/cspell-fix security/sample_secret security/scan security/tracked_symlink \
@@ -334,7 +352,8 @@ mod tests {
              text/run-dotenv-linter text/run-shellcheck text/run-v8r tauri/release tauri/updater \
              tauri/tool_surface security/trufflehog changelog/presence adr/hooks \
              capacitor/platforms image-avif/avif_generation k8s/kubeconform \
-             k8s/hasura_configmap k8s/hasura_httproute"
+             k8s/hasura_configmap k8s/hasura_httproute \
+             docker/lint graphql/tooling tauri/tooling"
         );
     }
 

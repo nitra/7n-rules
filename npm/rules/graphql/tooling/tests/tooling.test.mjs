@@ -1,18 +1,43 @@
 /**
  * Тести виявлення **`gql\`…\``** у тексті джерел (graphql.mdc / graphql-gql-scan.mjs).
- * І інтеграційні тести для check() з tooling.mjs.
+ * Ця частина не чіпається портом: `graphql-gql-scan.mjs` НЕ входить у `main.mjs`
+ * і має другий живий споживач — `scripts/auto-rules.mjs` (предикат `gqlTaggedTemplate`).
+ *
+ * І інтеграційні тести самого concern-а `graphql/tooling` — через
+ * `runConcernDetector` (dispatch-рівень), не пряма функція: JS `main.mjs`
+ * видалений (native-порт), concern тепер живе лише в
+ * `crates/rules-core/src/concerns/graphql_tooling.rs` і виконується через
+ * native-гілку `runConcernDetector` (той самий прийом, що
+ * `npm/rules/abie/env_dns/tests/env_dns.test.mjs`).
  */
 import { describe, expect, test } from 'vitest'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
 
 import { sourceFileHasGqlTaggedTemplate } from '../../lib/graphql-gql-scan.mjs'
-import { lint } from '../main.mjs'
+import { runConcernDetector } from '../../../../scripts/lib/lint-surface/detect.mjs'
 import { ensureDir, withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
+/** Абсолютний шлях теки концерну (тека з `concern.json`, без main.mjs — native-порт). */
+const CONCERN_DIR = join(dirname(fileURLToPath(import.meta.url)), '..')
+const CONCERN = { dir: CONCERN_DIR }
+
+// Короткий формат ruleId/concernId — узгоджений з `NATIVE_CONCERNS` (`graphql/tooling`).
+const ruleId = 'graphql'
+const concernId = 'tooling'
+
+// `check_extensions_recommendation` (гілка з наявним `.vscode/extensions.json`)
+// доходить до `run_conftest_batch`, який резолвить корінь пакета `@7n/rules` від
+// `cwd` (тимчасовий каталог поза репо в `withTmpDir`) — без override там нема
+// звідки взяти `npm/rules/graphql/vscode_extensions`. Той самий явний override,
+// що вже задокументований у `npm/tests/integration-repo-checks.test.mjs` для
+// `k8s/manifests` (доккомент `crates/rules-core/src/rules_package.rs`).
+process.env.N_RULES_PACKAGE_ROOT ??= join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..')
+
 const check = async dir => {
-  const r = await lint({ cwd: dir, ruleId: 'graphql', concernId: 'tooling', files: undefined })
-  return r.violations
+  const result = await runConcernDetector(CONCERN, { cwd: dir, ruleId, concernId, files: undefined })
+  return result.violations
 }
 
 describe('sourceFileHasGqlTaggedTemplate', () => {
@@ -55,7 +80,7 @@ describe('sourceFileHasGqlTaggedTemplate', () => {
   })
 })
 
-describe('check (tooling.mjs)', () => {
+describe('check (graphql/tooling native concern)', () => {
   test('exit 0 — немає gql шаблонів у джерелах', async () => {
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'index.js'), 'const x = 1\n', 'utf8')
