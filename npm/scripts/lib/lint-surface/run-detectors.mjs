@@ -705,10 +705,15 @@ function runNativeSegmentSync(segmentItems, { cwd, verbose, progress, log }) {
         error: new DetectorError(item.entry.ruleId, item.entry.concern.name, `native concern кинув: ${r.error}`)
       }
     }
+    // Ноти концерну (`diagnostics`) передаються нарівні з порушеннями — batch-шлях
+    // має бути спостережувано ідентичним per-item, а `runConcernDetector` їх віддає.
     const normalized = normalizeResult(
-      { violations: r.violations },
+      { violations: r.violations, diagnostics: r.diagnostics },
       { ruleId: item.entry.ruleId, concernId: item.entry.concern.name }
     )
+    if (verbose && normalized.diagnostics && normalized.diagnostics.length > 0) {
+      log(renderDiagnostics(normalized.diagnostics))
+    }
     outcomes.push({ entry: item.entry, violations: normalized.violations })
   }
   return { outcomes, error: null }

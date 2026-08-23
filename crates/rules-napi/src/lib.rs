@@ -273,7 +273,18 @@ pub fn run_native_concerns_batch(
     let results: Vec<serde_json::Value> = batch_results
         .into_iter()
         .map(|r| match r.result {
-            Ok(violations) => serde_json::json!({ "key": r.key, "violations": violations }),
+            // `r.result` — це `ConcernReport` (`{violations, diagnostics}`), а не
+            // голий вектор порушень: батч мусить розкласти його на ТІ САМІ два
+            // поля, що їх віддає одиночний [`run_native_concern`] вище, інакше
+            // JS-бік дістає обʼєкт там, де `normalizeResult` чекає масив.
+            // Ноти передаються далі, а не гинуть на batch-шляху — інакше
+            // «перевірку пропущено» зникало б саме на гарячому шляху
+            // `detectAll`, тобто там, де його майже завжди й видно.
+            Ok(report) => serde_json::json!({
+                "key": r.key,
+                "violations": report.violations,
+                "diagnostics": report.diagnostics,
+            }),
             Err(err) => serde_json::json!({ "key": r.key, "error": err.to_string() }),
         })
         .collect();
