@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.27.0] - 2026-08-23
+
+### Removed
+
+- прибрано JS-детектори кластера style/vue/bun (admin_table, gap, lint, quasar_fixes, tooling, packages, tfm-translations, layout, licensee) — логіка вже в crates/plugin-lang-js (wasm); T0-фіксери лишаються JS
+- Прибрано JS-фолбек кластера js/*, npm-module/*, js-run/runtime, js-bun-redis/imports, js-mssql/deps, js-bun-db/safety, js/jscpd_duplicates (main.mjs + lib-сканери) — wasm/native Rust-порт canonical, T0-фіксери лишились у JS
+- test/*-кластер (15 концернів): видалено JS lint-детектори (main.mjs), покриття перенесено в wasm-плагін crates/plugin-lang-js; T0-фіксери й спільні AST/утиліти лишаються JS-каноном
+
 ## [0.26.3] - 2026-08-23
 
 ### Changed
