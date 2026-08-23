@@ -39,3 +39,11 @@ globset = "0.4"
 
 [build-dependencies]
 napi-build = "2"
+
+[dev-dependencies]
+# Юніт [`read_source_files`] на пропуск неіснуючого шляху (задача: якорі
+# `lint.anchors`, доккомент `rules_core::lint_plan::plan_concern_for_delta`)
+# — уже в `Cargo.lock` кореня транзитивно (сусідні крейти, `tempfile = "3"`
+# у їхніх `[dev-dependencies]`), пряма залежність нового крейта в граф не
+# додає.
+tempfile = "3"

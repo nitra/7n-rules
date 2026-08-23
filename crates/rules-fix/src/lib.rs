@@ -252,6 +252,7 @@ mod tests {
         let meta = meta_with(Some(LintSurface {
             scope: LintScope::PerFile,
             glob: vec!["**/dremio_v2/templates/zookeeper.yaml".to_string()],
+            anchors: Vec::new(),
         }));
         let resolved = resolve_per_file_scope(&meta, dir.path(), None).expect("скоуп резолвиться");
         assert_eq!(
@@ -267,6 +268,7 @@ mod tests {
         let meta = meta_with(Some(LintSurface {
             scope: LintScope::PerFile,
             glob: vec!["**/*.yaml".to_string()],
+            anchors: Vec::new(),
         }));
         let explicit = vec!["a.yaml".to_string()];
         assert!(
@@ -283,6 +285,7 @@ mod tests {
         let meta = meta_with(Some(LintSurface {
             scope: LintScope::Full,
             glob: vec!["**/*".to_string()],
+            anchors: Vec::new(),
         }));
         assert!(resolve_per_file_scope(&meta, dir.path(), None).is_none());
     }

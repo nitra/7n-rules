@@ -10,6 +10,11 @@ import { join } from 'node:path'
  * @typedef {object} LintSurface
  * @property {'per-file'|'full'} scope область лінту: per-file чи повний прогін.
  * @property {string[]} glob масив glob-ів (нормалізований з string|string[]); порожній якщо не задано
+ * @property {string[]} anchors repo-relative шляхи, які planner (`build_lint_plan` →
+ *   `plan_concern_for_delta`, `crates/rules-core/src/lint_plan.rs`) додає до НЕПОРОЖНЬОГО
+ *   delta-batch-у, навіть якщо самі не змінювались (напр. `pyproject.toml` — гейт-маркер
+ *   per-file wasm-концерну); порожній масив якщо не задано. Порожній збіг лишається
+ *   порожнім — якір сам по собі concern не тригерить.
  * @property {string|undefined} extensionsSlot slot із extension-map contributions (напр.
  *   `doc-files.extensions`) — ефективний glob виводиться з розширень активних плагінів
  *   (резолвиться у run-detectors, де відомий cwd); статичний `glob` — fallback без contributions
@@ -71,8 +76,15 @@ function parseLintSurface(rawLint) {
   } else if (typeof rawGlob === 'string') {
     glob = [rawGlob]
   }
+  const rawAnchors = rawLint.anchors
+  let anchors = []
+  if (Array.isArray(rawAnchors)) {
+    anchors = rawAnchors.filter(a => typeof a === 'string')
+  } else if (typeof rawAnchors === 'string') {
+    anchors = [rawAnchors]
+  }
   const extensionsSlot = typeof rawLint.extensionsSlot === 'string' ? rawLint.extensionsSlot : undefined
-  return { scope, glob, extensionsSlot }
+  return { scope, glob, anchors, extensionsSlot }
 }
 
 /**

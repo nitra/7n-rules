@@ -469,6 +469,7 @@ fn to_plan_dto(
                                 _ => "full".to_string(),
                             },
                             glob: lint.map(|l| l.glob.clone()).unwrap_or_default(),
+                            anchors: lint.map(|l| l.anchors.clone()).unwrap_or_default(),
                         },
                     }
                 })

@@ -319,6 +319,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
+name = "basic-toml"
+version = "0.1.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ba62675e8242a4c4e806d12f11d136e626e6c8361d6b829310732241652a178a"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "bisync"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4882,7 +4891,9 @@ dependencies = [
 name = "plugin-lang-python"
 version = "0.1.0"
 dependencies = [
+ "basic-toml",
  "regex",
+ "serde",
  "toml",
  "wit-bindgen 0.60.0",
 ]
@@ -5557,6 +5568,7 @@ dependencies = [
  "rules-core",
  "rules-plugin-host",
  "serde_json",
+ "tempfile",
 ]
 
 [[package]]

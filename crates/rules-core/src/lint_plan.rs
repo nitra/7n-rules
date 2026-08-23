@@ -77,6 +77,13 @@ pub struct LintSurfaceInput {
     pub scope: String,
     #[serde(default)]
     pub glob: Vec<String>,
+    /// Repo-relative «якірні» шляхи (`LintSurface.anchors`,
+    /// `npm/scripts/lib/concern-meta.mjs`) — `plan_concern_for_delta`
+    /// додає їх до НЕПОРОЖНЬОГО per-file delta-batch-у концерну навіть коли
+    /// вони самі не змінювались (доккомент функції нижче). Порожній масив —
+    /// «без якорів», той самий контракт відсутності, що `glob`.
+    #[serde(default)]
+    pub anchors: Vec<String>,
 }
 
 /// Один concern у складі `byRule[ruleId]` — лише те, що читають
@@ -204,8 +211,34 @@ pub fn match_lint_globs(patterns: &[String], files: &[String]) -> Vec<String> {
 }
 
 /// Точний порт `planConcernForDelta`
-/// (`run-detectors.mjs:400-412`) — один concern у delta/explicit-files
-/// режимі за його `lint.scope`.
+/// (`run-detectors.mjs:400-412`), РОЗШИРЕНИЙ якорями (`lint.anchors`,
+/// доккомент [`LintSurfaceInput::anchors`]) — один concern у
+/// delta/explicit-files режимі за його `lint.scope`.
+///
+/// # Якорі — чому й де саме
+///
+/// Per-file wasm-концерн, чий гейт застосовності перевіряє МАРКЕРНИЙ файл
+/// поза власним glob-ом (напр. `python/mypy`/`python/ruff`: `existsSync
+/// (pyproject.toml)` ДО будь-якого `.py`-файлу, `crates/plugin-lang-python
+/// /src/lib.rs`), у чистому per-file delta-batch-і цей маркер НІКОЛИ не
+/// бачить — batch звужений до `**/*.py`, а типовий diff міняє код, не
+/// `pyproject.toml`. Без якоря єдиним виходом був би `scope: "full"`
+/// (host-walked ЦІЛОГО дерева на кожен тригер — дорожче й ширше за
+/// потрібне: підіймає pre-existing порушення поза diff-ом). Якір — точковий
+/// фікс: `files` (уже непорожній за збігом glob-у) отримує ДОДАНІ шляхи
+/// `lint.anchors`, `read_source_files` (`crates/rules-napi/src/lib.rs`,
+/// сусідній крейт) тихо пропускає ті з них, яких немає на диску — гість
+/// бачить якір у batch-і РІВНО тоді, коли він реально існує, без жодного
+/// `existsSync` власного ходу диском.
+///
+/// Порожній `files` (glob не зловив жодного зміненого файлу) якорі НЕ
+/// рятують — `if files.is_empty()` перевіряється ДО їхнього додавання,
+/// якір сам по собі концерн не тригерить (інакше `mypy`/`ruff` бігали б на
+/// КОЖНІЙ зміні будь-якого нерелевантного файлу, доккомент задачі).
+/// Дедуп через `contains`: якщо якір випадково вже потрапив у `files` за
+/// збігом glob-у (не очікувано для типового `anchors: ["pyproject.toml"]`
+/// проти `glob: ["**/*.py"]`, але не заборонено структурно), дубль не
+/// додається.
 fn plan_concern_for_delta(
     rule_id: &str,
     concern: &ConcernPlanInput,
@@ -213,7 +246,7 @@ fn plan_concern_for_delta(
 ) -> Option<PlanItem> {
     let glob = &concern.lint.glob;
     if concern.lint.scope == "per-file" {
-        let files: Vec<String> = if glob.is_empty() {
+        let mut files: Vec<String> = if glob.is_empty() {
             changed.to_vec()
         } else {
             match_lint_globs(glob, changed)
@@ -221,6 +254,11 @@ fn plan_concern_for_delta(
         if files.is_empty() {
             None
         } else {
+            for anchor in &concern.lint.anchors {
+                if !files.contains(anchor) {
+                    files.push(anchor.clone());
+                }
+            }
             Some(PlanItem {
                 rule_id: rule_id.to_string(),
                 concern_id: concern.name.clone(),
@@ -404,11 +442,26 @@ mod tests {
     use super::*;
 
     fn concern(name: &str, scope: &str, glob: &[&str]) -> ConcernPlanInput {
+        concern_with_anchors(name, scope, glob, &[])
+    }
+
+    /// [`concern`] плюс `lint.anchors` — окремий конструктор лише для
+    /// тестів якорів `plan_concern_for_delta`, щоб решта викликів
+    /// [`concern`] (уся секція «`build_lint_plan` / п'ять режимів» нижче)
+    /// лишалась незмінною (регресія на існуючу поведінку: `anchors:
+    /// vec![]` — той самий контракт відсутності, що дефолт serde).
+    fn concern_with_anchors(
+        name: &str,
+        scope: &str,
+        glob: &[&str],
+        anchors: &[&str],
+    ) -> ConcernPlanInput {
         ConcernPlanInput {
             name: name.to_string(),
             lint: LintSurfaceInput {
                 scope: scope.to_string(),
                 glob: glob.iter().map(|s| s.to_string()).collect(),
+                anchors: anchors.iter().map(|s| s.to_string()).collect(),
             },
         }
     }
@@ -530,6 +583,52 @@ mod tests {
         let changed = vec!["a.mjs".to_string(), "b.txt".to_string()];
         let item = plan_concern_for_delta("probe", &c, &changed).unwrap();
         assert_eq!(item.files, None);
+    }
+
+    // --- lint.anchors (задача: python/mypy + python/ruff, доккомент
+    // plan_concern_for_delta вище) -------------------------------------
+
+    #[test]
+    fn plan_concern_for_delta_anchor_appended_on_nonempty_match() {
+        // Непорожній збіг glob-у ("a.py") + якір ("pyproject.toml") —
+        // обидва в `files`, якір ІДЕ ПІСЛЯ вже знайдених за glob-ом файлів.
+        let c = concern_with_anchors("mypy", "per-file", &["**/*.py"], &["pyproject.toml"]);
+        let changed = vec!["a.py".to_string(), "b.txt".to_string()];
+        let item = plan_concern_for_delta("python", &c, &changed).unwrap();
+        assert_eq!(
+            item.files,
+            Some(vec!["a.py".to_string(), "pyproject.toml".to_string()])
+        );
+    }
+
+    #[test]
+    fn plan_concern_for_delta_anchor_does_not_trigger_concern_alone() {
+        // Жоден змінений файл не матчить glob ("**/*.py") — концерн НЕ
+        // тригериться, якір сам по собі не рахується (інакше mypy/ruff
+        // бігали б на кожній зміні будь-якого нерелевантного файлу).
+        let c = concern_with_anchors("mypy", "per-file", &["**/*.py"], &["pyproject.toml"]);
+        let changed = vec!["README.md".to_string()];
+        assert!(plan_concern_for_delta("python", &c, &changed).is_none());
+    }
+
+    #[test]
+    fn plan_concern_for_delta_without_anchors_behaves_as_before() {
+        // Регресія: `anchors: []` (дефолт serde) — точно та сама поведінка,
+        // що до появи поля.
+        let c = concern("check", "per-file", &["**/*.mjs"]);
+        let changed = vec!["a.mjs".to_string(), "b.txt".to_string()];
+        let item = plan_concern_for_delta("probe", &c, &changed).unwrap();
+        assert_eq!(item.files, Some(vec!["a.mjs".to_string()]));
+    }
+
+    #[test]
+    fn plan_concern_for_delta_anchor_not_duplicated_if_already_matched() {
+        // Якір, що випадково вже потрапив у `files` за збігом glob-у
+        // (структурно не заборонено, доккомент функції) — не дублюється.
+        let c = concern_with_anchors("check", "per-file", &["**/*"], &["a.py"]);
+        let changed = vec!["a.py".to_string()];
+        let item = plan_concern_for_delta("probe", &c, &changed).unwrap();
+        assert_eq!(item.files, Some(vec!["a.py".to_string()]));
     }
 
     // --- build_lint_plan / п'ять режимів -----------------------------------
