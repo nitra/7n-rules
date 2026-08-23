@@ -33,6 +33,18 @@ mod batch;
 mod capacitor_platforms;
 mod cargo_workspace;
 mod change_file;
+/// Оркестратор native-концерну `changelog/consistency` — точний порядок
+/// кроків `lint(ctx)` поверх портованих шарів нижче.
+mod changelog_consistency;
+/// Портований зріз концерну `changelog/consistency` — git-хелпери
+/// (`gitOrNull` і все на ньому).
+mod changelog_consistency_git;
+/// Портований зріз концерну `changelog/consistency` — semver-порівняння і
+/// резолв опублікованої версії (npm view / PyPI).
+mod changelog_consistency_version;
+/// Портований зріз концерну `changelog/consistency` — per-workspace
+/// перевірки і автофікс відсутнього change-файлу.
+mod changelog_consistency_workspace;
 mod changelog_presence;
 mod cspell_fix;
 pub(crate) mod cursor_ignore;
@@ -105,6 +117,7 @@ pub mod k8s_manifests_rego;
 /// що [`k8s_manifests_cross_file`].
 pub mod k8s_manifests_workloads;
 mod marksman_config;
+mod nginx_default_tpl_template;
 mod package_manifest;
 mod rego_conftest_verify;
 mod rego_opa_check;
@@ -147,6 +160,7 @@ pub use abie_ua_http_route::ua_http_route as abie_ua_http_route;
 pub use abie_ua_node_selector::ua_node_selector as abie_ua_node_selector;
 pub use adr_hooks::adr_hooks;
 pub use capacitor_platforms::capacitor_platforms;
+pub use changelog_consistency::changelog_consistency;
 pub use changelog_presence::changelog_presence;
 pub use docker_lint::docker_lint;
 pub use dremio_logging::{dremio_logging, zk_logback_root_level_violation};
@@ -169,6 +183,7 @@ pub use k8s_hasura_httproute::k8s_hasura_httproute;
 pub use k8s_kubeconform::k8s_kubeconform;
 pub use k8s_manifests::k8s_manifests;
 pub use marksman_config::marksman_config;
+pub use nginx_default_tpl_template::nginx_default_tpl_template;
 pub use rego_conftest_verify::rego_conftest_verify;
 pub use rego_opa_check::rego_opa_check;
 pub use rego_regal::rego_regal;
@@ -242,6 +257,8 @@ pub const NATIVE_CONCERNS: &[&str] = &[
     "docker/lint",
     "graphql/tooling",
     "tauri/tooling",
+    "nginx-default-tpl/template",
+    "changelog/consistency",
 ];
 
 /// Запускає native-порт concern-а за ключем `ruleId/concernId`.
@@ -276,6 +293,7 @@ pub fn run_concern(
         "rego/conftest_verify" => Ok(rego_conftest_verify(cwd)),
         "docker/lint" => docker_lint(cwd, files),
         "tauri/tooling" => tauri_tooling(cwd, files),
+        "changelog/consistency" => changelog_consistency(cwd, files),
         // Решта — лише порушення; конвертація безкоштовна.
         other => concern_violations(other, cwd, files).map(ConcernReport::from),
     }
@@ -322,6 +340,7 @@ fn concern_violations(
         "k8s/hasura_configmap" => k8s_hasura_configmap(cwd),
         "k8s/hasura_httproute" => k8s_hasura_httproute(cwd),
         "graphql/tooling" => graphql_tooling(cwd),
+        "nginx-default-tpl/template" => nginx_default_tpl_template(cwd),
         other => Err(RulesError::Concern(format!(
             "невідомий native concern: {other}"
         ))),
@@ -338,8 +357,8 @@ mod tests {
     /// `Lint repo-wide`), не додаючи нічого до сили перевірки — будь-яка зміна
     /// складу чи порядку так само валить цей assert.
     #[test]
-    fn native_concerns_lists_all_forty_five_entries() {
-        assert_eq!(NATIVE_CONCERNS.len(), 45);
+    fn native_concerns_lists_all_forty_seven_entries() {
+        assert_eq!(NATIVE_CONCERNS.len(), 47);
         assert_eq!(
             NATIVE_CONCERNS.join(" "),
             "text/forbidden-prettier text/cspell-fix security/sample_secret security/scan security/tracked_symlink \
@@ -353,7 +372,8 @@ mod tests {
              tauri/tool_surface security/trufflehog changelog/presence adr/hooks \
              capacitor/platforms image-avif/avif_generation k8s/kubeconform \
              k8s/hasura_configmap k8s/hasura_httproute \
-             docker/lint graphql/tooling tauri/tooling"
+             docker/lint graphql/tooling tauri/tooling \
+             nginx-default-tpl/template changelog/consistency"
         );
     }
 

@@ -88,7 +88,17 @@ which = "8"
 # зрілий крейт (Р11 п.1): каталог прибирається по `drop`, а не ручним
 # `finally`, і він уже в дереві як dev-dependency — новий вузол у граф збірки
 # не додається.
+# Local-time timestamp формат для назв change-файлів (`concerns::change_file::write_change`,
+# порт `formatChangeTimestamp`/`changeFileName` з `npm/rules/release/lib/change-file.mjs`):
+# `new Date(timestamp)` + `getFullYear`/`getMonth`/`getDate`/`getHours`/`getMinutes`
+# JS-канону читають системний ЛОКАЛЬНИЙ час — прямий відповідник тут `chrono::Local`.
+# Уже транзитивно В ГРАФІ САМЕ rules-core через `mt-core` — звірено
+# `cargo tree -p rules-core -e normal | grep chrono` (не workspace-wide
+# `cargo tree -i chrono`, який показує зовсім інший граф: ту саму пастку
+# розбирає коментар нижче про `ureq`, якого тут навмисно НЕМАЄ). Пряма
+# залежність нового вузла графу не додає, лише синхронізує пін (0.4.45).
 tempfile = "3"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
 yamlpatch = "1.29.0"
 yamlpath = "1.29.0"
 yaml_serde = "0.10.7"
