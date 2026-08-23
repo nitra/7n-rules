@@ -1,0 +1,78 @@
+[
+  {
+    "reason": "manifests",
+    "message": "svc/k8s/base/deployment.yaml: Deployment \"api\", контейнер \"app\": відсутнє resources.requests.cpu — додай (за замовчуванням 0.5) (k8s.mdc)"
+  },
+  {
+    "reason": "manifests",
+    "message": "svc/k8s/base/deployment.yaml: Deployment \"api\", контейнер \"app\": відсутнє resources.requests.memory — додай (за замовчуванням 512Mi) (k8s.mdc)"
+  },
+  {
+    "reason": "deployment-strategy",
+    "message": "svc/k8s/base/deployment.yaml: Deployment \"api\": spec.strategy має бути RollingUpdate з rollingUpdate.maxUnavailable=0 і rollingUpdate.maxSurge=1 (оновлення по одному pod без зменшення кількості ready pod-ів) (k8s.mdc)",
+    "file": "svc/k8s/base/deployment.yaml",
+    "data": {
+      "kind": "deployment-strategy"
+    }
+  },
+  {
+    "reason": "manifests",
+    "message": "svc/k8s/base/deployment.yaml: Deployment \"api\": відсутній канонічний запис у spec.template.spec.topologySpreadConstraints — додай maxSkew=1, topologyKey=kubernetes.io/hostname, whenUnsatisfiable=ScheduleAnyway, labelSelector.matchLabels.app=\"api\" (k8s.mdc)"
+  },
+  {
+    "reason": "networkpolicy-egress",
+    "message": "svc/k8s/base/networkpolicy.yaml: NetworkPolicy api: відсутнє обовʼязкове egress-правило (deployment.snippet.yaml; k8s.mdc): {\"ports\":[{\"port\":53,\"protocol\":\"UDP\"},{\"port\":53,\"protocol\":\"TCP\"}],\"to\":[{\"ipBlock\":{\"cidr\":\"169.254.0.0/16\"}}]}",
+    "file": "svc/k8s/base/networkpolicy.yaml",
+    "data": {
+      "kind": "networkpolicy-egress"
+    }
+  },
+  {
+    "reason": "networkpolicy-egress",
+    "message": "svc/k8s/base/networkpolicy.yaml: NetworkPolicy api: відсутнє обовʼязкове egress-правило (deployment.snippet.yaml; k8s.mdc): {\"ports\":[{\"port\":53,\"protocol\":\"UDP\"},{\"port\":53,\"protocol\":\"TCP\"}],\"to\":[{\"namespaceSelector\":{\"matchLabels\":{\"kubernetes.io/metadata.name\":\"kube-system\"}},\"podSelector\":{\"matchLabels\":{\"k8s-app\":\"kube-dns\"}}}]}",
+    "file": "svc/k8s/base/networkpolicy.yaml",
+    "data": {
+      "kind": "networkpolicy-egress"
+    }
+  },
+  {
+    "reason": "networkpolicy-egress",
+    "message": "svc/k8s/base/networkpolicy.yaml: NetworkPolicy api: відсутнє обовʼязкове egress-правило (deployment.snippet.yaml; k8s.mdc): {\"ports\":[{\"port\":80,\"protocol\":\"TCP\"},{\"port\":443,\"protocol\":\"TCP\"},{\"port\":5432,\"protocol\":\"TCP\"},{\"port\":3306,\"protocol\":\"TCP\"},{\"port\":1433,\"protocol\":\"TCP\"},{\"port\":6379,\"protocol\":\"TCP\"},{\"port\":8080,\"protocol\":\"TCP\"},{\"port\":4222,\"protocol\":\"TCP\"},{\"port\":4317,\"protocol\":\"TCP\"},{\"port\":4318,\"protocol\":\"TCP\"}],\"to\":[{\"namespaceSelector\":{}}]}",
+    "file": "svc/k8s/base/networkpolicy.yaml",
+    "data": {
+      "kind": "networkpolicy-egress"
+    }
+  },
+  {
+    "reason": "networkpolicy-egress",
+    "message": "svc/k8s/base/networkpolicy.yaml: NetworkPolicy api: відсутнє обовʼязкове egress-правило (deployment.snippet.yaml; k8s.mdc): {\"ports\":[{\"port\":80,\"protocol\":\"TCP\"},{\"port\":443,\"protocol\":\"TCP\"}],\"to\":[{\"ipBlock\":{\"cidr\":\"0.0.0.0/0\"}}]}",
+    "file": "svc/k8s/base/networkpolicy.yaml",
+    "data": {
+      "kind": "networkpolicy-egress"
+    }
+  },
+  {
+    "reason": "manifests",
+    "message": "svc/k8s/base/kustomization.yaml: Kustomization.resources має бути за алфавітом (en, case-insensitive). Зараз: svc.yaml, deployment.yaml; очікувано: deployment.yaml, svc.yaml (k8s.mdc)"
+  },
+  {
+    "reason": "svc-clusterip-type",
+    "message": "svc/k8s/base/svc.yaml: Service spec.type має бути ClusterIP (svc.yaml; зараз: <absent>; k8s.mdc)",
+    "file": "svc/k8s/base/svc.yaml",
+    "data": {
+      "kind": "svc-clusterip-type"
+    }
+  },
+  {
+    "reason": "svc-hl-cluster-ip",
+    "message": "svc/k8s/base/svc-hl.yaml: Service spec.clusterIP має бути None (headless, svc-hl.yaml; зараз: <absent>; k8s.mdc)",
+    "file": "svc/k8s/base/svc-hl.yaml",
+    "data": {
+      "kind": "svc-hl-cluster-ip"
+    }
+  },
+  {
+    "reason": "manifests",
+    "message": "svc/k8s/base/kustomization.yaml: у base/kustomization.yaml завжди додай непорожній namespace: (наприклад namespace: dev; k8s.mdc)"
+  }
+]

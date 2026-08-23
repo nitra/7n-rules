@@ -49,6 +49,6 @@ patches:
 
 ## Batch-ресурси: `apiVersion: batch/v1beta1` → `batch/v1`
 
-Ресурси **batch** (наприклад **CronJob**, **Job**): застаріле **`apiVersion: batch/v1beta1`** у файлах під **`k8s`** під час `check k8s` автоматично переписується на **`apiVersion: batch/v1`** (рядково, зі збереженням відступів/лапок). Детектор — `detectBatchV1beta1InK8sYamlFiles`, автофікс — T0-патерн `k8s-manifests-batch-v1beta1-apiversion` (обидва в **`npm/rules/k8s/manifests/main.mjs`** / **`fix-manifests.mjs`**), той самий механізм, що й `gateway-httproute-v1beta1` вище по домену gateway (див. **`gateway.mdc`**).
+Ресурси **batch** (наприклад **CronJob**, **Job**): застаріле **`apiVersion: batch/v1beta1`** у файлах під **`k8s`** під час `check k8s` автоматично переписується на **`apiVersion: batch/v1`** (рядково, зі збереженням відступів/лапок). Детектор — `detectBatchV1beta1InK8sYamlFiles`, автофікс — T0-патерн `k8s-manifests-batch-v1beta1-apiversion` (обидва в **`crates/rules-core/src/concerns/k8s_manifests_per_file.rs`** / **`fix_k8s_manifests.rs`**), той самий механізм, що й `gateway-httproute-v1beta1` вище по домену gateway (див. **`gateway.mdc`**).
 
 `apiVersion: autoscaling/v1` (заборонено для HPA, потрібен `autoscaling/v2`) — рядок 10 вище і **`hpa_pdb.mdc`**.

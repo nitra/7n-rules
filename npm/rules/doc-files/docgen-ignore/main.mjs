@@ -19,7 +19,6 @@ export const DOCGEN_IGNORE_GLOBS = Object.freeze([
   '**/docs/**',
   'npm/reports/**',
   'npm/bin/**',
-  'npm/rules/k8s/manifests/main.mjs'
 ])
 
 const ig = ignore().add(DOCGEN_IGNORE_GLOBS)

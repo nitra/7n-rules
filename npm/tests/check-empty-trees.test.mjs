@@ -6,16 +6,23 @@ import { join } from 'node:path'
 import { writeFile } from 'node:fs/promises'
 
 import { lint as lintDocker } from '../rules/docker/lint/main.mjs'
-import { lint as lintK8s } from '../rules/k8s/manifests/main.mjs'
+import { runConcernDetector } from '../scripts/lib/lint-surface/detect.mjs'
 import { ensureDir, withBinStubInPath, withTmpDir } from '../scripts/utils/test-helpers.mjs'
+
+const TEST_DIR = import.meta.dirname
 
 // Адаптери під unified lint surface: detector → 0 (чисто) / 1 (є violations).
 const checkDocker = async dir => {
   const result = await lintDocker({ cwd: dir, ruleId: 'docker', concernId: 'lint' })
   return result.violations.length === 0 ? 0 : 1
 }
+// `k8s/manifests` — native-концерн без `main.mjs`, тож виклик іде через той
+// самий диспетчер, що й у бойовому прогоні. Детектор шукає rego-політики й
+// сніпети у КОРЕНІ ПАКЕТА, а тимчасове дерево його не містить — звідси явний
+// override, задокументований саме під цей випадок (`rules_package.rs`).
+process.env.N_RULES_PACKAGE_ROOT ??= join(TEST_DIR, '..')
 const checkK8s = async dir => {
-  const result = await lintK8s({ cwd: dir, ruleId: 'k8s', concernId: 'manifests' })
+  const result = await runConcernDetector(null, { cwd: dir, ruleId: 'k8s', concernId: 'manifests' })
   return result.violations.length === 0 ? 0 : 1
 }
 

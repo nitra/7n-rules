@@ -15,7 +15,6 @@ import { lint as _ga } from '@7n/rules-ci-github/rules/ga/workflows/main.mjs'
 import { lint as _graphql } from '../rules/graphql/tooling/main.mjs'
 import { lint as _jsLint } from '@7n/rules-lang-js/rules/js/check/main.mjs'
 import { lint as _jsRun } from '@7n/rules-lang-js/rules/js-run/runtime/main.mjs'
-import { lint as _k8s } from '../rules/k8s/manifests/main.mjs'
 import { lint as _npmModule } from '@7n/rules-lang-js/rules/npm-module/package_structure/main.mjs'
 import { withShellcheckStubInPath } from '../scripts/utils/test-helpers.mjs'
 
@@ -30,12 +29,22 @@ const checkGa = mk(_ga, 'ga', 'workflows')
 const checkGraphql = mk(_graphql, 'graphql', 'tooling')
 const checkJsLint = mk(_jsLint, 'js', 'check')
 const checkJsRun = mk(_jsRun, 'js-run', 'runtime')
-const checkK8s = mk(_k8s, 'k8s', 'manifests')
+const checkK8s = mk(
+  (ctx) => runConcernDetector(null, ctx),
+  'k8s',
+  'manifests'
+)
 const checkNpmModule = mk(_npmModule, 'npm-module', 'package_structure')
 
 const TEST_DIR =
   typeof import.meta.dirname === 'string' ? import.meta.dirname : fileURLToPath(new URL('.', import.meta.url))
 const REPO_ROOT = join(TEST_DIR, '..', '..')
+
+// `k8s/manifests` — native-концерн без `main.mjs`: диспетчер, не прямий
+// імпорт. Детектор шукає rego-політики й сніпети у КОРЕНІ ПАКЕТА, якого в
+// тимчасовому дереві немає — звідси явний override, задокументований саме під
+// цей випадок (`rules_package.rs`).
+process.env.N_RULES_PACKAGE_ROOT ??= join(REPO_ROOT, 'npm')
 
 // firebase_hosting, env_dns (F1 фази 5 батчу 2), hc_pairing/ua_node_selector/
 // ua_http_route (H1 фази 5 батчу 4, YAML-кластер частина 1) і

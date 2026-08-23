@@ -23,4 +23,4 @@ Rego-пакет: `k8s.hasura_configmap`
 
 Ця перевірка не обмежена Hasura — стосується **будь-якого** `configmap.yaml` під `k8s/base/`. Якщо в тому самому каталозі є **`configmap.yaml`** і **Deployment**, і цей Deployment посилається рівно на **один** ConfigMap (через `envFrom[*].configMapRef.name` або `volumes[*].configMap.name`) — `metadata.name` ConfigMap має збігатися з `metadata.name` Deployment.
 
-Перевірка — cross-file, у **`npm/rules/k8s/manifests/main.mjs`** (`validateConfigMapNameMatchesDeployment` / `validateSingleConfigMapNameMatch`). Якщо Deployment посилається на кілька ConfigMap або жодного — перевірка пропускається (немає однозначного відповідника).
+Перевірка — cross-file, у **`crates/rules-core/src/concerns/k8s_manifests_cross_file.rs`** (`validateConfigMapNameMatchesDeployment` / `validateSingleConfigMapNameMatch`). Якщо Deployment посилається на кілька ConfigMap або жодного — перевірка пропускається (немає однозначного відповідника).

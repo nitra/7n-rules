@@ -594,6 +594,7 @@ pub const NATIVE_FIXES: &[&str] = &[
     "hasura/internal_urls",
     "hasura/migrations",
     "k8s/dremio_logging",
+    "k8s/manifests",
     "security/sample_secret",
     "tauri/cargo_mutants_config",
     "tauri/gitignore_target",
@@ -624,6 +625,7 @@ pub fn run_concern_fix(
         "hasura/internal_urls" => Ok(hasura_internal_urls_fix(cwd, violations)),
         "hasura/migrations" => Ok(hasura_migrations_fix(violations)),
         "k8s/dremio_logging" => Ok(super::fix_env_dremio::dremio_logging_fix(cwd, violations)),
+        "k8s/manifests" => Ok(super::fix_k8s_manifests::k8s_manifests_fix(cwd, violations)),
         "security/sample_secret" => {
             Ok(super::fix_abie_security::sample_secret_fix(cwd, violations))
         }
@@ -1378,6 +1380,7 @@ mod tests {
                 "hasura/internal_urls",
                 "hasura/migrations",
                 "k8s/dremio_logging",
+                "k8s/manifests",
                 "security/sample_secret",
                 "tauri/cargo_mutants_config",
                 "tauri/gitignore_target",

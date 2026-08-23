@@ -1,0 +1,165 @@
+{
+  "k8s_manifests_parity/clean": [],
+  "k8s_manifests_parity/clean-configmap-owner-fix": [],
+  "k8s_manifests_parity/configmap-mismatch": [
+    "svc/k8s/base/configmap.yaml: metadata.name 'cfg' має збігатися з назвою Deployment 'api' — Deployment посилається рівно на один ConfigMap (k8s.mdc)"
+  ],
+  "k8s_manifests_parity/configmap-owner-fix": [
+    "svc/k8s/base/configmap.yaml: metadata.name 'cfg' має збігатися з назвою Deployment 'api' — Deployment посилається рівно на один ConfigMap (k8s.mdc)"
+  ],
+  "k8s_manifests_parity/dev-dir": [
+    "svc/k8s/dev/deployment.yaml: заборонена директорія k8s/dev/ — середовище dev відповідає base (див. k8s.mdc)"
+  ],
+  "k8s_manifests_parity/kustomization-refs": [
+    "svc/k8s/base/kustomization.yaml: посилання «missing.yaml» вказує на неіснуючий ресурс (очікувано файл або каталог; k8s.mdc)",
+    "svc/k8s/base/kustomization.yaml: «notes.txt» — за правилами k8s у kustomization для файлів дозволені лише розширення .yaml / .yml (k8s.mdc)",
+    "svc/k8s/base/kustomization.yaml: посилання «../../../../outside.yaml» виходить за межі репозиторію (resolve: ../outside.yaml) (k8s.mdc)"
+  ],
+  "k8s_manifests_parity/kustomization-svc-hl": [
+    "svc/k8s/base/kustomization.yaml: kustomization посилається на «svc.yaml» — додай у тому ж kustomization.yaml посилання на відповідний svc-hl.yaml (очікуваний шлях поруч, наприклад той самий префікс каталогу + svc-hl.yaml; див. k8s.mdc)"
+  ],
+  "k8s_manifests_parity/mixed": [
+    "svc/k8s/dev/deployment.yaml: заборонена директорія k8s/dev/ — середовище dev відповідає base (див. k8s.mdc)",
+    "svc/k8s/base/svc.yaml: поруч обов’язковий svc-hl.yaml (headless-копія з суфіксом -hl у metadata.name; див. k8s.mdc)",
+    "svc/k8s/base/kustomization.yaml: посилання «missing.yaml» вказує на неіснуючий ресурс (очікувано файл або каталог; k8s.mdc)",
+    "svc/k8s/base/kustomization.yaml: kustomization посилається на «svc.yaml» — додай у тому ж kustomization.yaml посилання на відповідний svc-hl.yaml (очікуваний шлях поруч, наприклад той самий префікс каталогу + svc-hl.yaml; див. k8s.mdc)",
+    "svc/k8s/base/configmap.yaml: metadata.name 'cfg' має збігатися з назвою Deployment 'api' — Deployment посилається рівно на один ConfigMap (k8s.mdc)"
+  ],
+  "k8s_manifests_parity/svc-pairs": [
+    "a/k8s/base/svc-hl.yaml: svc-hl.yaml потребує svc.yaml у тому самому каталозі (див. k8s.mdc)",
+    "b/k8s/base/svc.yaml: поруч обов’язковий svc-hl.yaml (headless-копія з суфіксом -hl у metadata.name; див. k8s.mdc)",
+    "c/k8s/base/svc.yaml: для Service «c» у svc.yaml у svc-hl.yaml має бути Service з metadata.name «c-hl» (див. k8s.mdc)",
+    "c/k8s/base/svc-hl.yaml: Service «c-x-hl» у svc-hl.yaml не відповідає жодному Service у svc.yaml (очікується базове ім’я «c-x»; див. k8s.mdc)",
+    "d/k8s/base/svc.yaml: для Service «d» у svc.yaml у svc-hl.yaml має бути Service з metadata.name «d-hl» (див. k8s.mdc)",
+    "d/k8s/base/svc-hl.yaml: Service «d» у svc-hl.yaml: metadata.name має закінчуватися на «-hl» (див. k8s.mdc)"
+  ],
+  "k8s_manifests_parity/svc-shape": [
+    "a/k8s/base/svc.yaml: svc.yaml має містити принаймні один kind: Service (див. k8s.mdc)",
+    "b/k8s/base/svc.yaml: svc.yaml (документ 2): Service без metadata.name (див. k8s.mdc)"
+  ],
+  "k8s_manifests_slice2_parity/alb-http-backend-group": [
+    "svc/k8s/base/bg-below.yaml: для kind HttpBackendGroup (apiVersion alb.yc.io/v1alpha1) не використовуй # yaml-language-server: $schema у файлі (k8s.mdc)",
+    "svc/k8s/base/bg-first.yaml: для kind HttpBackendGroup (apiVersion alb.yc.io/v1alpha1) не задавай # yaml-language-server: $schema — прибери перший рядок modeline (k8s.mdc)"
+  ],
+  "k8s_manifests_slice2_parity/clean": [],
+  "k8s_manifests_slice2_parity/clean-modelines": [],
+  "k8s_manifests_slice2_parity/components-broken": [
+    "svc/k8s/components/kustomization.yaml: apiVersion має бути 'kustomize.config.k8s.io/v1alpha1' (зараз: \"kustomize.config.k8s.io/v1beta1\") (k8s.mdc)",
+    "svc/k8s/components/kustomization.yaml: kind має бути 'Component' (зараз: \"Kustomization\") (k8s.mdc)",
+    "svc/k8s/components/kustomization.yaml: у resources має бути 'hpa.yaml' (k8s.mdc)",
+    "svc/k8s/components/kustomization.yaml: у resources має бути 'pdb.yaml' (k8s.mdc)",
+    "svc/k8s/components/hpa.yaml: apiVersion має бути autoscaling/v2 (зараз: \"autoscaling/v1\") (k8s.mdc)",
+    "svc/k8s/components/hpa.yaml: spec.scaleTargetRef.apiVersion має бути apps/v1 (зараз: \"apps/v2\") (k8s.mdc)",
+    "svc/k8s/components/hpa.yaml: spec.scaleTargetRef.kind має бути Deployment (зараз: \"StatefulSet\") (k8s.mdc)",
+    "svc/k8s/components/hpa.yaml: spec.minReplicas (3) не може бути більше spec.maxReplicas (2) (k8s.mdc)",
+    "svc/k8s/components/hpa.yaml: spec.minReplicas для dev-like (base/dev/*-qa) має бути 1 (зараз: 3) (k8s.mdc)",
+    "svc/k8s/components/hpa.yaml: spec.maxReplicas для dev-like (base/dev/*-qa) має бути 1 (зараз: 2) (k8s.mdc)",
+    "svc/k8s/components/hpa.yaml: spec.metrics має бути непорожнім масивом (наприклад, Resource/cpu/Utilization) (k8s.mdc)",
+    "svc/k8s/components/hpa.yaml: spec.behavior.scaleUp.policies має бути непорожнім масивом (k8s.mdc)",
+    "svc/k8s/components/hpa.yaml: spec.behavior.scaleDown відсутній (k8s.mdc)",
+    "svc/k8s/components/pdb.yaml: відсутній або не знайдено PDB зі selector.matchLabels.app='api' поруч із Deployment (k8s.mdc)"
+  ],
+  "k8s_manifests_slice2_parity/components-contract": [
+    "svc/k8s/base/hpa.yaml: у шарі k8s/.../base не тримай локальний hpa.yaml — HPA живе у sibling components/ (k8s.mdc)",
+    "svc/k8s/base/pdb.yaml: у шарі k8s/.../base не тримай локальний pdb.yaml — PDB живе у sibling components/ (k8s.mdc)",
+    "svc/k8s/components: для Deployment 'api' з sibling base/ обов'язковий каталог components/ з hpa.yaml і pdb.yaml (Kustomize Component) (k8s.mdc)"
+  ],
+  "k8s_manifests_slice2_parity/components-missing-files": [
+    "svc/k8s/components/hpa.yaml: відсутній — додай HorizontalPodAutoscaler для Deployment 'api' (k8s.mdc)",
+    "svc/k8s/components/pdb.yaml: відсутній — додай PodDisruptionBudget для Deployment 'api' (k8s.mdc)"
+  ],
+  "k8s_manifests_slice2_parity/deployment-degenerate": [
+    "svc/k8s/base: Deployment без metadata.name — не можу перевірити HPA/PDB (k8s.mdc)",
+    "svc/k8s/base: Deployment 'api' без spec.selector.matchLabels.app — додай мітку (k8s.mdc)",
+    "svc/k8s/base: Deployment без metadata.name — не можу перевірити NetworkPolicy (k8s.mdc)",
+    "svc/k8s/base: Deployment 'api' без мітки app (spec.selector.matchLabels.app; Job — spec.template.metadata.labels.app; CronJob — spec.jobTemplate.spec.template.metadata.labels.app) (k8s.mdc)"
+  ],
+  "k8s_manifests_slice2_parity/modeline-short-circuits": [
+    "svc/k8s/base/below.yaml: рядок # yaml-language-server: $schema=… має бути першим у файлі (без префіксів перед #; k8s.mdc)",
+    "svc/k8s/base/file-scheme.yaml: $schema=file:… заборонено (фальшива валідація без публічної схеми). Якщо публічної схеми для цього apiVersion/kind немає — прибери modeline зовсім (k8s.mdc)",
+    "svc/k8s/base/http.yaml: $schema має бути https URL (file: і інші схеми заборонені — якщо публічної схеми немає, прибери modeline; k8s.mdc)",
+    "svc/k8s/base/legacy.yml: розширення .yml — перейменуй на .yaml (див. k8s.mdc)",
+    "svc/k8s/base/twice.yaml: кілька рядків yaml-language-server $schema — лиш один modeline на файл (див. k8s.mdc)"
+  ],
+  "k8s_manifests_slice2_parity/multi-deployment": [
+    "svc/k8s/components: для Deployment 'alpha' з sibling base/ обов'язковий каталог components/ з hpa.yaml і pdb.yaml (Kustomize Component) (k8s.mdc)",
+    "svc/k8s/components: для Deployment 'beta' з sibling base/ обов'язковий каталог components/ з hpa.yaml і pdb.yaml (Kustomize Component) (k8s.mdc)",
+    "svc/k8s/components: для Deployment 'gamma' з sibling base/ обов'язковий каталог components/ з hpa.yaml і pdb.yaml (Kustomize Component) (k8s.mdc)",
+    "svc/k8s/base/networkpolicy.yaml: відсутній або не знайдено NetworkPolicy з metadata.name='beta' для Deployment (k8s.mdc)"
+  ],
+  "k8s_manifests_slice2_parity/network-policy-kinds": [
+    "svc/k8s/base/networkpolicy.yaml: NetworkPolicy 'api' spec.podSelector.matchLabels.app='other' не відповідає мітці workload 'api' (k8s.mdc)",
+    "worker/k8s/base/networkpolicy.yaml: відсутній або не знайдено NetworkPolicy з metadata.name='rotate' для CronJob (k8s.mdc)",
+    "worker/k8s/base/networkpolicy.yaml: відсутній або не знайдено NetworkPolicy з metadata.name='seed' для Job (k8s.mdc)",
+    "worker/k8s/base: DaemonSet 'agent' без мітки app (spec.selector.matchLabels.app; Job — spec.template.metadata.labels.app; CronJob — spec.jobTemplate.spec.template.metadata.labels.app) (k8s.mdc)",
+    "worker/k8s/base/networkpolicy.yaml: відсутній або не знайдено NetworkPolicy з metadata.name='db' для StatefulSet (k8s.mdc)"
+  ],
+  "k8s_manifests_slice2_parity/non-base-overlay": [
+    "svc/k8s/prod/networkpolicy.yaml: відсутній або не знайдено NetworkPolicy з metadata.name='api' для Deployment (k8s.mdc)"
+  ],
+  "k8s_manifests_slice2_parity/wrong-schema-urls": [
+    "svc/k8s/base/deployment.yaml: $schema не відповідає правилу (вбудований API Kubernetes (yannh)). Очікується:\n     https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.33.9-standalone-strict/deployment-apps-v1.json\n     Зараз: https://a.test/wrong.json",
+    "svc/k8s/base/no-kind.yaml: не знайдено apiVersion/kind у першому документі (потрібні для перевірки $schema)",
+    "svc/k8s/base/route.yaml: $schema не відповідає правилу (CRD / група поза yannh (datree CRDs-catalog)). Очікується:\n     https://datreeio.github.io/CRDs-catalog/gateway.networking.k8s.io/httproute_v1.json\n     Зараз: https://a.test/wrong.json",
+    "svc/k8s/base/secret.yaml: $schema не відповідає правилу (Secret type kubernetes.io/basic-auth (явна таблиця схем, yannh secret-v1.json)). Очікується:\n     https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.33.9-standalone-strict/secret-v1.json\n     Зараз: https://a.test/wrong.json",
+    "svc/k8s/base/svc.yaml: $schema не відповідає правилу (core v1 (yannh)). Очікується:\n     https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.33.9-standalone-strict/service-v1.json\n     Зараз: https://a.test/wrong.json",
+    "svc/k8s/base/weird.yaml: нестандартний apiVersion \"weird\" — очікується v1 або group/version",
+    "svc/k8s/base: Deployment 'api' без spec.selector.matchLabels.app — додай мітку (k8s.mdc)",
+    "svc/k8s/base: Deployment 'api' без мітки app (spec.selector.matchLabels.app; Job — spec.template.metadata.labels.app; CronJob — spec.jobTemplate.spec.template.metadata.labels.app) (k8s.mdc)"
+  ],
+  "k8s_manifests_slice3_parity/base-tree-has-hpa": [
+    "svc/k8s/base/kustomization.yaml: у base-дереві kustomize є HorizontalPodAutoscaler і/або PodDisruptionBudget — HPA/PDB заборонені у base, переведіть у sibling каталог components/ і підключайте з overlay (k8s.mdc)"
+  ],
+  "k8s_manifests_slice3_parity/batch-v1beta1": [
+    "svc/k8s/base/cronjob.yaml: apiVersion: batch/v1beta1 застаріло — оновіть до batch/v1 (k8s.mdc)"
+  ],
+  "k8s_manifests_slice3_parity/batch-v1beta1-quoted": [
+    "svc/k8s/base/job.yaml: apiVersion: batch/v1beta1 застаріло — оновіть до batch/v1 (k8s.mdc)"
+  ],
+  "k8s_manifests_slice3_parity/clean-batch-comment": [],
+  "k8s_manifests_slice3_parity/clean-dev-like-overlay": [],
+  "k8s_manifests_slice3_parity/clean-hasura-component": [],
+  "k8s_manifests_slice3_parity/clean-hasura-overlay": [
+    "svc/k8s/prod/kustomization.yaml: patches[1].target — немає відповідного ресурсу в resources/bases/components/crds (рекурсивно): kind=ConfigMap, name=hasura"
+  ],
+  "k8s_manifests_slice3_parity/clean-nested-catalog": [],
+  "k8s_manifests_slice3_parity/clean-prod-overrides": [],
+  "k8s_manifests_slice3_parity/gateway-v1beta1": [
+    "svc/k8s/base/httproute.yaml: apiVersion: gateway.networking.k8s.io/v1beta1 заборонено для HTTPRoute — оновіть до gateway.networking.k8s.io/v1 (k8s.mdc)"
+  ],
+  "k8s_manifests_slice3_parity/hasura-overlay-missing-overrides": [
+    "svc/k8s/prod/kustomization.yaml: overlay 'prod' має у patches[] перевизначати data.HASURA_GRAPHQL_ENABLED_APIS до \"metadata,graphql\" (pgdump лише для base/dev) (k8s.mdc)",
+    "svc/k8s/prod/kustomization.yaml: overlay 'prod' має у patches[] перевизначати data.HASURA_GRAPHQL_ENABLED_LOG_TYPES до \"startup\" (http-log лише для base/dev) (k8s.mdc)"
+  ],
+  "k8s_manifests_slice3_parity/hasura-overlay-wrong-values": [
+    "svc/k8s/prod/kustomization.yaml: patches[1].target — немає відповідного ресурсу в resources/bases/components/crds (рекурсивно): kind=ConfigMap, name=hasura",
+    "svc/k8s/prod/kustomization.yaml: patches[2].target — немає відповідного ресурсу в resources/bases/components/crds (рекурсивно): kind=ConfigMap, name=hasura",
+    "svc/k8s/prod/kustomization.yaml: overlay 'prod' patch data.HASURA_GRAPHQL_ENABLED_APIS має бути \"metadata,graphql\" (зараз: \"metadata\") (k8s.mdc)",
+    "svc/k8s/prod/kustomization.yaml: overlay 'prod' patch data.HASURA_GRAPHQL_ENABLED_LOG_TYPES має бути \"startup\" (зараз: \"startup,http-log\") (k8s.mdc)"
+  ],
+  "k8s_manifests_slice3_parity/overlay-hpa-no-base-deployment": [
+    "svc/k8s/stage/kustomization.yaml: посилання «hpa.yaml» містить HorizontalPodAutoscaler і/або PodDisruptionBudget, а наслідуваний k8s/base не дає у дереві Deployment — прибери HPA/PDB або додай Deployment у base (k8s.mdc)",
+    "svc/k8s/stage/kustomization.yaml: прод-оверлей має перевизначати spec.minReplicas для HorizontalPodAutoscaler (мінімум 2 у проді) (k8s.mdc)",
+    "svc/k8s/stage/kustomization.yaml: прод-оверлей має перевизначати spec.maxReplicas для HorizontalPodAutoscaler (мінімум 2 у проді) (k8s.mdc)"
+  ],
+  "k8s_manifests_slice3_parity/patch-target-missing": [
+    "svc/k8s/base/kustomization.yaml: patches[1].target — немає відповідного ресурсу в resources/bases/components/crds (рекурсивно): kind=StatefulSet, name=ghost"
+  ],
+  "k8s_manifests_slice3_parity/patch-target-redundant-gv": [
+    "svc/k8s/base/kustomization.yaml: patches[1].target — прибери зайві поля group, version; для kind=Deployment, name=api в інвентарі немає колізії між різними API-групами/версіями (див. k8s.mdc «patches[].target: лише kind і name»)"
+  ],
+  "k8s_manifests_slice3_parity/path-only-patch-missing": [
+    "svc/k8s/base/kustomization.yaml: patches[1] path «svc/k8s/base/only-path.yaml» документ 1 — у каталозі resources немає ресурсу Deployment/nowhere (namespace=dev, apiVersion group/version=apps/v1)"
+  ],
+  "k8s_manifests_slice3_parity/prod-overrides-missing": [
+    "svc/k8s/prod/kustomization.yaml: прод-оверлей має перевизначати spec.minReplicas для HorizontalPodAutoscaler (мінімум 2 у проді) (k8s.mdc)",
+    "svc/k8s/prod/kustomization.yaml: прод-оверлей має перевизначати spec.maxReplicas для HorizontalPodAutoscaler (мінімум 2 у проді) (k8s.mdc)",
+    "svc/k8s/prod/kustomization.yaml: прод-оверлей має перевизначати spec.minAvailable для PodDisruptionBudget (мінімум 1 у проді) (k8s.mdc)"
+  ],
+  "k8s_manifests_slice3_parity/prod-overrides-strategic-merge": [
+    "svc/k8s/prod/kustomization.yaml: прод-оверлей має перевизначати spec.maxReplicas для HorizontalPodAutoscaler (мінімум 2 у проді) (k8s.mdc)"
+  ],
+  "k8s_manifests_slice3_parity/strategic-merge-missing": [
+    "svc/k8s/base/kustomization.yaml: patchesStrategicMerge[1] «svc/k8s/base/patch.yaml» документ 1 — у каталозі resources немає ресурсу Deployment/other (namespace=dev, apiVersion group/version=apps/v1)"
+  ]
+}

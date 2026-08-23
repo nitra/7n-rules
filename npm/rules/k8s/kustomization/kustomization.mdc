@@ -27,7 +27,7 @@ Rego-пакет: `k8s.kustomization`
 
 - За основу бери **все, що відповідає середовищу dev** (як воно має виглядати в кластері для dev).
 - У **такому вигляді** цей набір стає каталогом **`base`**: спільні маніфести без окремої директорії **`dev/`**.
-- Окремої директорії **`k8s/dev/`** **не повинно існувати**: за середовище **dev** відповідає **`base`**. `check k8s` падає на будь-якому шляху `…/k8s/dev/…` (`isForbiddenK8sDevPath` у `npm/rules/k8s/manifests/main.mjs`).
+- Окремої директорії **`k8s/dev/`** **не повинно існувати**: за середовище **dev** відповідає **`base`**. `check k8s` падає на будь-якому шляху `…/k8s/dev/…` (`isForbiddenK8sDevPath` у `crates/rules-core/src/concerns/k8s_manifests_cross_file.rs`).
 
 ### Overlays (не-dev)
 
@@ -57,7 +57,7 @@ images:
     newTag: v2025-04-29
 ```
 
-**`check k8s` автоматично** для кожного `kustomization.yaml` (конвертація в `npm/rules/k8s/manifests/main.mjs`):
+**`check k8s` автоматично** для кожного `kustomization.yaml` (конвертація в `crates/rules-core/src/concerns/k8s_manifests.rs`):
 
 1. конвертує кожну JSON6902-операцію `op: replace` на `/spec/template/spec/containers/<N>/image` у запис `images:`;
 2. чистить існуючий блок `images:` — зрізає `:tag` з `name` і видаляє `newTag`, який збігається з відрізаним тегом.
