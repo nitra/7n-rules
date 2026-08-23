@@ -11,7 +11,10 @@
 
 use std::path::Path;
 
-use crate::{diagnostics::Violation, RulesError};
+use crate::{
+    diagnostics::{ConcernReport, Violation},
+    RulesError,
+};
 
 mod abie_hc_pairing;
 mod abie_hc_yaml;
@@ -110,6 +113,7 @@ mod template_subset;
 #[cfg(test)]
 mod test_support;
 mod text_formatting;
+mod tracked_symlink;
 mod workspaces;
 
 pub use batch::{run_concerns_batch, BatchItem, BatchItemResult};
@@ -154,6 +158,7 @@ pub use tauri_release::tauri_release;
 pub use tauri_tool_surface::tauri_tool_surface;
 pub use tauri_updater::tauri_updater;
 pub use text_formatting::text_formatting;
+pub use tracked_symlink::tracked_symlink;
 
 /// Ключі native-портованих concern-ів у форматі `ruleId/concernId` — той
 /// самий формат, що й `progressKey` у JS-оркестраторі
@@ -163,6 +168,7 @@ pub const NATIVE_CONCERNS: &[&str] = &[
     "text/forbidden-prettier",
     "text/cspell-fix",
     "security/sample_secret",
+    "security/tracked_symlink",
     "k8s/dremio_logging",
     "k8s/manifests",
     "rego/tooling",
@@ -205,6 +211,20 @@ pub const NATIVE_CONCERNS: &[&str] = &[
 /// приналежність до [`NATIVE_CONCERNS`] ДО виклику — це остання лінія
 /// захисту, не основний контракт).
 pub fn run_concern(
+    key: &str,
+    cwd: &Path,
+    files: Option<&[String]>,
+) -> Result<ConcernReport, RulesError> {
+    match key {
+        // Концерни, які мають що сказати ПОНАД порушення, віддають звіт самі.
+        "security/tracked_symlink" => Ok(tracked_symlink(cwd)),
+        // Решта — лише порушення; конвертація безкоштовна.
+        other => concern_violations(other, cwd, files).map(ConcernReport::from),
+    }
+}
+
+/// Матч детекторів, що віддають самі лише порушення.
+fn concern_violations(
     key: &str,
     cwd: &Path,
     files: Option<&[String]>,
@@ -257,11 +277,12 @@ mod tests {
     /// `Lint repo-wide`), не додаючи нічого до сили перевірки — будь-яка зміна
     /// складу чи порядку так само валить цей assert.
     #[test]
-    fn native_concerns_lists_all_thirty_one_entries() {
-        assert_eq!(NATIVE_CONCERNS.len(), 31);
+    fn native_concerns_lists_all_thirty_two_entries() {
+        assert_eq!(NATIVE_CONCERNS.len(), 32);
         assert_eq!(
             NATIVE_CONCERNS.join(" "),
-            "text/forbidden-prettier text/cspell-fix security/sample_secret k8s/dremio_logging \
+            "text/forbidden-prettier text/cspell-fix security/sample_secret security/tracked_symlink \
+             k8s/dremio_logging \
              k8s/manifests rego/tooling \
              doc-files/marksman_config abie/firebase_hosting abie/env_dns hasura/migrations \
              image-compress/package_setup tauri/cargo_mutants_config tauri/gitignore_target \
@@ -281,7 +302,7 @@ mod tests {
     fn run_concern_dispatches_k8s_kubeconform_key() {
         let tmp = tempfile::TempDir::new().unwrap();
         let violations = run_concern("k8s/kubeconform", tmp.path(), None).unwrap();
-        assert!(violations.is_empty());
+        assert!(violations.violations.is_empty());
     }
 
     /// Обидва gated-детектори кластера диспатчаться на свої функції.
@@ -293,7 +314,7 @@ mod tests {
         let tmp = tempfile::TempDir::new().unwrap();
         for key in ["k8s/hasura_configmap", "k8s/hasura_httproute"] {
             let violations = run_concern(key, tmp.path(), None).unwrap();
-            assert!(violations.is_empty(), "{key}");
+            assert!(violations.violations.is_empty(), "{key}");
         }
     }
 
@@ -301,7 +322,7 @@ mod tests {
     fn run_concern_dispatches_known_key() {
         let tmp = tempfile::TempDir::new().unwrap();
         let violations = run_concern("text/forbidden-prettier", tmp.path(), None).unwrap();
-        assert!(violations.is_empty());
+        assert!(violations.violations.is_empty());
     }
 
     /// Кожен із шести нових ключів F1 батчу 2 диспатчиться на свою функцію

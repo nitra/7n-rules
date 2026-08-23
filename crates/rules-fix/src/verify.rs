@@ -25,14 +25,15 @@ pub type VerifyFn = Arc<dyn Fn() -> BoxFuture<'static, VerifyReport> + Send + Sy
 /// «і далі порушено» (доккомент `runner.rs`).
 fn canonical_report(key: &str, cwd: &Path, files: Option<&[String]>) -> VerifyReport {
     match run_concern(key, cwd, files) {
-        Ok(violations) if violations.is_empty() => VerifyReport {
+        Ok(report) if report.violations.is_empty() => VerifyReport {
             ok: true,
             output: String::new(),
             infra_error: false,
         },
-        Ok(violations) => VerifyReport {
+        Ok(report) => VerifyReport {
             ok: false,
-            output: violations
+            output: report
+                .violations
                 .iter()
                 .map(|v| v.message.clone())
                 .collect::<Vec<_>>()

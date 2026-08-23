@@ -24,7 +24,13 @@ pub fn run_canonical(
     files: Option<&[String]>,
 ) -> Result<Vec<PipelineViolation>, String> {
     run_concern(key, cwd, files)
-        .map(|violations| violations.iter().map(to_pipeline_violation).collect())
+        .map(|report| {
+            report
+                .violations
+                .iter()
+                .map(to_pipeline_violation)
+                .collect()
+        })
         .map_err(|error| error.to_string())
 }
 

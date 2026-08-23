@@ -654,7 +654,7 @@ fn run_native_segment(items: &[&PlanItem], cwd: &Path) -> (Vec<LintViolation>, O
                     )),
                 );
             }
-            Ok(raw) => violations.extend(raw.iter().map(|v| LintViolation {
+            Ok(raw) => violations.extend(raw.violations.iter().map(|v| LintViolation {
                 rule_id: item.rule_id.clone(),
                 concern_id: item.concern_id.clone(),
                 reason: v.reason.clone(),

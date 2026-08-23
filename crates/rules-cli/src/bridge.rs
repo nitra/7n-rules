@@ -27,6 +27,7 @@ use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant, SystemTime};
 
 use serde_json::{json, Value};
@@ -64,8 +65,16 @@ fn socket_path_for(pid: u32) -> PathBuf {
     let nanos = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .map_or(0, |d| d.as_nanos());
-    PathBuf::from(format!("/tmp/n-rules-bridge-{pid}-{nanos:x}.sock"))
+    // Самого часу НЕ досить: два виклики поспіль потрапляють в одну
+    // наносекунду (роздільна здатність годинника грубіша за виклик), і
+    // шляхи збігаються — саме це ловив власний тест унікальності. Лічильник
+    // робить збіг неможливим у межах процесу, час — між процесами.
+    let seq = SOCKET_SEQ.fetch_add(1, Ordering::Relaxed);
+    PathBuf::from(format!("/tmp/n-rules-bridge-{pid}-{nanos:x}-{seq:x}.sock"))
 }
+
+/// Лічильник сокетів процесу.
+static SOCKET_SEQ: AtomicU64 = AtomicU64::new(0);
 
 impl Bridge {
     /// Піднімає міст: сокет + дочірній рантайм + handshake `hello`.

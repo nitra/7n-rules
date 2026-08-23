@@ -195,9 +195,13 @@ pub fn run_native_concern(
     cwd: String,
     files: Option<Vec<String>>,
 ) -> Result<serde_json::Value> {
-    let violations = rules_core::concerns::run_concern(&key, &PathBuf::from(cwd), files.as_deref())
+    let report = rules_core::concerns::run_concern(&key, &PathBuf::from(cwd), files.as_deref())
         .map_err(to_napi_err)?;
-    Ok(serde_json::json!({ "violations": violations }))
+    // Ноти йдуть окремим полем — рівно як їх чекає `normalizeResult`
+    // (`detect.mjs`); порожній вектор серіалізується у ВІДСУТНЄ поле, тож
+    // форма для концернів без нот не змінилась.
+    serde_json::to_value(report)
+        .map_err(|error| Error::from_reason(format!("серіалізація звіту концерну: {error}")))
 }
 
 /// Виконує batch builtin-native concern-ів ОДНИМ native-викликом — тонкий
@@ -251,7 +255,7 @@ pub fn run_native_concerns_batch(
         }
         let payload = match result {
             Ok(violations) => {
-                serde_json::json!({ "key": key, "violationsCount": violations.len() })
+                serde_json::json!({ "key": key, "violationsCount": violations.violations.len() })
             }
             Err(err) => {
                 serde_json::json!({ "key": key, "violationsCount": 0, "error": err.to_string() })
