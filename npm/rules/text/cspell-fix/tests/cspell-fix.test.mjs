@@ -5,7 +5,7 @@ import { writeFile, readFile } from 'node:fs/promises'
 
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 import { resolveCmd } from '../../../../scripts/utils/resolve-cmd.mjs'
-import { unknownWords, appendWordsToDict, detectCspell } from '../main.mjs'
+import { unknownWords, appendWordsToDict, detectCspell } from '../fix-worker.mjs'
 
 const FILES_CHECKED_ZERO_RE = /Files checked:\s*0/u
 const UNKNOWN_WORD_RE = /Unknown word/u

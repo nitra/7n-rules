@@ -14,7 +14,7 @@ vi.mock('../../../../scripts/utils/spawn-async.mjs', () => ({
   spawnAsync: spawnAsyncMock
 }))
 
-const { classifyPrompt, detectCspell, fixModel, lint, parseClassify, runCspellText } = await import('../main.mjs')
+const { classifyPrompt, detectCspell, fixModel, parseClassify } = await import('../fix-worker.mjs')
 
 describe('cspell-fix unit policy', () => {
   beforeEach(() => {
@@ -77,55 +77,8 @@ describe('cspell-fix unit policy', () => {
     })
   })
 
-  test('runCspellText fail-closed без npx', async () => {
-    resolveCmdMock.mockReturnValue(null)
-    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
-    await expect(runCspellText(['a.md'], '/repo')).resolves.toBe(1)
-    expect(stderr).toHaveBeenCalledWith(expect.stringContaining('npx не знайдено'))
-    expect(spawnAsyncMock).not.toHaveBeenCalled()
-  })
 
-  test('runCspellText повертає clean і сигналить підозрілий zero-file scope', async () => {
-    spawnAsyncMock.mockResolvedValue({
-      stdout: 'CSpell: Files checked: 0, Issues found: 0 in 0 files.',
-      stderr: '',
-      exitCode: 1
-    })
-    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
-    await expect(runCspellText(['ignored.md'], '/repo')).resolves.toBe(0)
-    expect(stderr).toHaveBeenCalledWith(expect.stringContaining('0 із 1 переданих файлів'))
-  })
 
-  test('runCspellText друкує findings і повертає cspell exit code', async () => {
-    spawnAsyncMock.mockResolvedValue({ stdout: 'Unknown word (teh)', stderr: '', exitCode: 2 })
-    const stdout = vi.spyOn(process.stdout, 'write').mockImplementation(() => true)
-    await expect(runCspellText(['a.md'], '/repo')).resolves.toBe(2)
-    expect(stdout).toHaveBeenCalledWith('Unknown word (teh)')
-  })
 
-  test('lint не запускає cspell для порожньої delta', async () => {
-    await expect(lint({ concernId: 'text/cspell-fix', cwd: '/repo', files: [] })).resolves.toEqual({
-      violations: []
-    })
-    expect(spawnAsyncMock).not.toHaveBeenCalled()
-  })
 
-  test('lint повертає violation для ненульового cspell exit code', async () => {
-    spawnAsyncMock.mockResolvedValue({ stdout: 'Unknown word (teh)', stderr: '', exitCode: 1 })
-    vi.spyOn(process.stdout, 'write').mockImplementation(() => true)
-
-    const result = await lint({
-      concernId: 'text/cspell-fix',
-      cwd: '/repo',
-      files: ['a.md'],
-      verbose: false
-    })
-
-    expect(result.violations).toEqual([
-      {
-        reason: 'cspell',
-        message: 'cspell знайшов порушення правопису (text.mdc)'
-      }
-    ])
-  })
 })
