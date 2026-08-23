@@ -6,4 +6,3 @@ resource: npm/rules/tauri/tool_surface/
 
 | Файл                | Тип       |
 | ------------------- | --------- |
-| [main.mjs](main.md) | JS Module |
