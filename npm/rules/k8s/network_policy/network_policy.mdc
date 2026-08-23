@@ -25,7 +25,7 @@ Rego-пакет: `k8s.network_policy`
 
 Для **кожного** workload (**Deployment**, **StatefulSet**, **DaemonSet**, **Job**, **CronJob**) під `k8s` обов'язковий **NetworkPolicy** у **`base/networkpolicy.yaml`** поруч з workload-маніфестом (multi-doc через `---`, якщо workload-ів кілька). Відсутні документи **`check k8s`** створює автоматично (канон і snippet-структура — вище) і додає `networkpolicy.yaml` у `base/kustomization.yaml` `resources:`.
 
-Перевірка/генерація — **`npm/rules/k8s/manifests/main.mjs`** (`validateNetworkPoliciesForK8sWorkloads`, `regenerateLegacyNetworkPolicyDocsInFile`).
+Перевірка/генерація — **`crates/rules-core/src/concerns/k8s_manifests_workloads.rs`** (`validateNetworkPoliciesForK8sWorkloads`, `regenerateLegacyNetworkPolicyDocsInFile`).
 
 ## HTTPRoute → NetworkPolicy ingress (GCLB + Envoy)
 
@@ -33,7 +33,7 @@ Rego-пакет: `k8s.network_policy`
 
 Без цього правила трафік від **GKE Gateway** (Envoy proxy-only subnet) і **Google health checks** блокується базовим NetworkPolicy.
 
-CIDR-набір зафіксовано (`npm/rules/k8s/manifests/main.mjs`, `NETWORK_POLICY_GCLB_INGRESS_FROM`):
+CIDR-набір зафіксовано (`crates/rules-core/src/concerns/k8s_manifests_workloads.rs`, `NETWORK_POLICY_GCLB_INGRESS_FROM`):
 
 - `35.191.0.0/16` — GCP HC global
 - `130.211.0.0/22` — GCP HC global (legacy)
@@ -52,4 +52,4 @@ spec:
         - { protocol: TCP, port: 8080 }
 ```
 
-Алгоритм: функція `collectHttpRouteIngressForWorkload` у **`npm/rules/k8s/manifests/main.mjs`** (mapping `backendRef.name` → `Service.metadata.name` → `service.spec.selector.matchLabels.app`).
+Алгоритм: функція `collectHttpRouteIngressForWorkload` у **`crates/rules-core/src/concerns/k8s_manifests_workloads.rs`** (mapping `backendRef.name` → `Service.metadata.name` → `service.spec.selector.matchLabels.app`).

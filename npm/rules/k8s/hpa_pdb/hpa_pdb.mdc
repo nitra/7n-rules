@@ -38,7 +38,7 @@ PDB (`kind: PodDisruptionBudget` або `apiVersion: policy/v1`):
 
 **`kind: Component`** (не `kind: Kustomization`) — це **джерело** канонічних HPA/PDB для всіх overlays, а не overlay сам по собі; всередині самого Component prod-патчі не потрібні (env-неутральний).
 
-Перевірка — **`npm/rules/k8s/manifests/main.mjs`** (`validateComponentsForBaseDeployment`).
+Перевірка — **`crates/rules-core/src/concerns/k8s_manifests_workloads.rs`** (`validateComponentsForBaseDeployment`).
 
 ### Env-залежні межі (за сегментом шляху після `/k8s/`)
 
@@ -52,7 +52,7 @@ PDB (`kind: PodDisruptionBudget` або `apiVersion: policy/v1`):
 - HPA: `minReplicas` — мінімум **2**, `maxReplicas` — мінімум **2** (і `minReplicas <= maxReplicas`).
 - PDB: `minAvailable` — мінімум **1**.
 
-Перевірка — **`npm/rules/k8s/manifests/main.mjs`** (`hpaManifestViolations`, `pdbManifestViolations`; сегмент середовища визначає `isDevLikeK8sEnvSegment`).
+Перевірка — **`crates/rules-core/src/concerns/k8s_manifests_workloads.rs`** (`hpaManifestViolations`, `pdbManifestViolations`; сегмент середовища визначає `isDevLikeK8sEnvSegment`).
 
 ### Прод-оверрайди у `kustomization.yaml`
 
@@ -89,7 +89,7 @@ patches:
         value: 1
 ```
 
-Не застосовується до dev-like оточень. Перевірка — **`npm/rules/k8s/manifests/main.mjs`** (`prodOverlayHpaPdbOverrideNeeds`, `validateProdKustomizationOverrides`).
+Не застосовується до dev-like оточень. Перевірка — **`crates/rules-core/src/concerns/k8s_manifests_kustomize.rs`** (`prodOverlayHpaPdbOverrideNeeds`, `validateProdKustomizationOverrides`).
 
 ### Приклад: `components/hpa.yaml` і `components/pdb.yaml`
 

@@ -32,18 +32,6 @@ pub fn repo_root() -> PathBuf {
         .to_path_buf()
 }
 
-/// Чи є все потрібне для JS-боку (інакше гейт пропускається) — `node` у PATH,
-/// `node_modules` у корені репо і сам канон на місці.
-pub fn js_canon_available() -> bool {
-    let root = repo_root();
-    root.join("node_modules").is_dir()
-        && root.join("npm/rules/k8s/manifests/main.mjs").is_file()
-        && Command::new("node")
-            .arg("--version")
-            .output()
-            .is_ok_and(|out| out.status.success())
-}
-
 /// Кладе файл у тимчасове дерево, створюючи батьківські каталоги.
 pub fn write(tmp: &TempDir, rel: &str, content: &str) {
     let abs = tmp.path().join(rel);
@@ -102,19 +90,64 @@ pub fn assert_parity(
     native: impl Fn(&Path, &[PathBuf]) -> Vec<String>,
     build: impl Fn(&TempDir),
 ) {
-    if !js_canon_available() {
-        eprintln!("{gate}[{label}]: пропуск — немає node/node_modules");
-        return;
-    }
     let tmp = TempDir::new().expect("tempdir");
     build(&tmp);
     let files = find_k8s_yaml_files(tmp.path(), &[]);
     assert!(!files.is_empty(), "[{label}] фікстура без YAML під k8s");
     let native = native(tmp.path(), &files);
-    let js = js_messages(&tmp, driver_src, &files);
-    assert_eq!(native, js, "[{label}] розбіжність native ↔ JS");
+    let key = format!("{gate}/{label}");
+
+    // Режим ЗНЯТТЯ: JS-канон іще на місці, тож його вихід зберігається у
+    // фікстуру. Вмикається лише вручну (`N_K8S_PARITY_CAPTURE=<тека>`) —
+    // звичайний прогін ніколи сюди не заходить.
+    if let Some(dir) = std::env::var_os(CAPTURE_ENV) {
+        let js = js_messages(&tmp, driver_src, &files);
+        capture(&PathBuf::from(dir), &key, &js);
+        assert_eq!(native, js, "[{label}] розбіжність native ↔ JS");
+    } else {
+        assert_eq!(
+            native,
+            expected_messages(&key),
+            "[{label}] розбіжність із каноном"
+        );
+    }
     assert!(
         !native.is_empty() || label.starts_with("clean"),
         "[{label}] фікстура нічого не репортує — гейт був би порожній"
     );
+}
+
+/// Змінна режиму зняття фікстури.
+const CAPTURE_ENV: &str = "N_K8S_PARITY_CAPTURE";
+
+/// Знята з живого JS-канону відповідь на кожен сценарій.
+///
+/// Канон видалено разом із портом, тож звірятися напряму більше нема з чим.
+/// Фікстура — його ЗБЕРЕЖЕНИЙ вихід: та сама сила перевірки, лише без
+/// дочірнього `node`. Перезняти можна, повернувши `main.mjs` з історії й
+/// прогнавши з `N_K8S_PARITY_CAPTURE=<тека>`.
+const CANON: &str = include_str!("../fixtures/js-k8s-parity.json");
+
+fn expected_messages(key: &str) -> Vec<String> {
+    let canon: serde_json::Value = serde_json::from_str(CANON).expect("фікстура — валідний JSON");
+    let entry = canon
+        .get(key)
+        .unwrap_or_else(|| panic!("у фікстурі немає сценарію {key} — перезніми з каноном"));
+    entry
+        .as_array()
+        .expect("сценарій — масив рядків")
+        .iter()
+        .map(|item| item.as_str().expect("повідомлення — рядок").to_string())
+        .collect()
+}
+
+fn capture(dir: &Path, key: &str, messages: &[String]) {
+    std::fs::create_dir_all(dir).expect("тека зняття");
+    let name = key.replace(['/', ' ', ':'], "_");
+    std::fs::write(
+        dir.join(format!("{name}.json")),
+        serde_json::to_string(&serde_json::json!({ "key": key, "messages": messages }))
+            .expect("serialize"),
+    )
+    .expect("запис знятого сценарію");
 }

@@ -35,7 +35,7 @@ alwaysApply: false
 
 **Виняток — modeline заборонено:** `apiVersion: alb.yc.io/v1alpha1`, `kind: HttpBackendGroup` (Yandex ALB) — рядка **`# yaml-language-server: $schema=…`** у файлі **не** має бути. Перший рядок — одразу YAML (`apiVersion:` тощо).
 
-Перевірка й побудова URL — **`npm/rules/k8s/manifests/main.mjs`** (`expectedSchemaUrl`, `expectedSchemaUrlForTypedManifest`).
+Перевірка й побудова URL — **`crates/rules-core/src/concerns/k8s_manifests_per_file.rs`** (`expectedSchemaUrl`, `expectedSchemaUrlForTypedManifest`).
 
 ### Правила визначення URL схеми
 
@@ -51,7 +51,7 @@ alwaysApply: false
    # yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.33.9-standalone-strict/secret-v1.json
    ```
 
-3. **`apiVersion: group/version`** і **group** у переліку yannh-груп (`apps`, `autoscaling`, `batch`, `policy`, `networking.k8s.io`, `rbac.authorization.k8s.io`, `flowcontrol.apiserver.k8s.io`, `apiextensions.k8s.io` та ін. — повний перелік `YANNH_GROUPS` у `npm/rules/k8s/manifests/main.mjs`) → yannh:
+3. **`apiVersion: group/version`** і **group** у переліку yannh-груп (`apps`, `autoscaling`, `batch`, `policy`, `networking.k8s.io`, `rbac.authorization.k8s.io`, `flowcontrol.apiserver.k8s.io`, `apiextensions.k8s.io` та ін. — повний перелік `YANNH_GROUPS` у `crates/rules-core/src/concerns/k8s_manifests_per_file.rs`) → yannh:
    `https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/<PIN>/<kind>-<group-частина>-<version>.json`
    де **`<group-частина>`** — **перший сегмент** `group` до першої крапки: для груп без крапок збігається з усією group (`apps/v1` + `Deployment` → `deployment-apps-v1.json`); для `*.k8s.io` / `*.apiserver.k8s.io` — лише префікс до `.k8s.io` (`networking.k8s.io/v1` + `Ingress` → `ingress-networking-v1.json`; `networking.k8s.io/v1` + `NetworkPolicy` → `networkpolicy-networking-v1.json`; `rbac.authorization.k8s.io/v1` + `ClusterRole` → `clusterrole-rbac-v1.json`; `flowcontrol.apiserver.k8s.io/v1` + `FlowSchema` → `flowschema-flowcontrol-v1.json`). У yannh **немає** файлів з фрагментом `-k8s-io-` у назві.
 
@@ -85,6 +85,6 @@ alwaysApply: false
 
 ## Розширення файлів: лише `.yaml`
 
-Усі маніфести під **`k8s`** (визначаються відносно кореня репо), включно з **`kustomization.yaml`**, — лише **`.yaml`**. Розширення **`.yml`** під `k8s` заборонене: `check k8s` падає з порадою перейменувати файл на `.yaml` (перевірка — `npm/rules/k8s/manifests/main.mjs`, повідомлення `розширення .yml — перейменуй на .yaml`).
+Усі маніфести під **`k8s`** (визначаються відносно кореня репо), включно з **`kustomization.yaml`**, — лише **`.yaml`**. Розширення **`.yml`** під `k8s` заборонене: `check k8s` падає з порадою перейменувати файл на `.yaml` (перевірка — `crates/rules-core/src/concerns/k8s_manifests.rs`, повідомлення `розширення .yml — перейменуй на .yaml`).
 
 Цей канон стосується лише дерев **`k8s`** — під **`.github/workflows/`** і **`.github/actions/`** діє протилежний канон (`.yml`), див. **`ga.mdc`**.

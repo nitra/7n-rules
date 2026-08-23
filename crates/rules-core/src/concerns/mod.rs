@@ -164,6 +164,7 @@ pub const NATIVE_CONCERNS: &[&str] = &[
     "text/cspell-fix",
     "security/sample_secret",
     "k8s/dremio_logging",
+    "k8s/manifests",
     "rego/tooling",
     "doc-files/marksman_config",
     "abie/firebase_hosting",
@@ -209,6 +210,7 @@ pub fn run_concern(
     files: Option<&[String]>,
 ) -> Result<Vec<Violation>, RulesError> {
     match key {
+        "k8s/manifests" => k8s_manifests::k8s_manifests(cwd),
         "text/forbidden-prettier" => Ok(forbidden_prettier(cwd)),
         "text/cspell-fix" => Ok(cspell_fix::cspell_fix(cwd, files)),
         "security/sample_secret" => Ok(sample_secret(cwd)),
@@ -255,11 +257,12 @@ mod tests {
     /// `Lint repo-wide`), не додаючи нічого до сили перевірки — будь-яка зміна
     /// складу чи порядку так само валить цей assert.
     #[test]
-    fn native_concerns_lists_all_thirty_entries() {
-        assert_eq!(NATIVE_CONCERNS.len(), 30);
+    fn native_concerns_lists_all_thirty_one_entries() {
+        assert_eq!(NATIVE_CONCERNS.len(), 31);
         assert_eq!(
             NATIVE_CONCERNS.join(" "),
-            "text/forbidden-prettier text/cspell-fix security/sample_secret k8s/dremio_logging rego/tooling \
+            "text/forbidden-prettier text/cspell-fix security/sample_secret k8s/dremio_logging \
+             k8s/manifests rego/tooling \
              doc-files/marksman_config abie/firebase_hosting abie/env_dns hasura/migrations \
              image-compress/package_setup tauri/cargo_mutants_config tauri/gitignore_target \
              tauri/linux_deps tauri/core_test_isolation abie/hc_pairing abie/ua_node_selector \

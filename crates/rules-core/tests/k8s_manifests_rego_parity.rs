@@ -20,6 +20,15 @@
 //!
 //! Без `conftest`, `node` чи `node_modules` тест пропускається — та сама
 //! умова, що в `hasura-native-parity.test.mjs`.
+//!
+//! # Канон живе у фікстурі, а не в дочірньому `node`
+//!
+//! JS-оригінал видалено разом із заведенням концерну в `NATIVE_CONCERNS`,
+//! тож звірятися напряму більше нема з чим. Фікстура
+//! (`fixtures/js-k8s-rego-parity.json`) — його ЗБЕРЕЖЕНИЙ вихід на цих самих
+//! сценаріях: та сама сила перевірки, лише без спавна. Перезняти можна,
+//! повернувши `main.mjs` з історії й прогнавши з
+//! `N_K8S_REGO_PARITY_CAPTURE=<файл>`.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -233,6 +242,8 @@ resources:
 /// `--data`.
 #[test]
 fn rego_layer_matches_js_canon_end_to_end() {
+    // `conftest` потрібен і native-боку (він проганяє rego сам), тож без
+    // нього міряти нічого.
     if !prerequisites_met() {
         eprintln!("k8s_manifests_rego_parity: пропуск — немає node/node_modules/conftest");
         return;
@@ -256,11 +267,26 @@ fn rego_layer_matches_js_canon_end_to_end() {
             data: v.data,
         })
         .collect();
-    let js = js_reported(&tmp, &files);
-
     assert!(
         !native.is_empty(),
         "фікстура нічого не порушує — гейт був би порожній"
     );
-    assert_eq!(native, js, "розбіжність native ↔ JS у rego-шарі");
+
+    // Режим ЗНЯТТЯ: JS-канон іще на місці, тож його вихід зберігається у
+    // фікстуру. Звичайний прогін звіряється з нею — канон видалено разом із
+    // портом, і дочірнього `node` більше немає з чим запускати.
+    if let Some(path) = std::env::var_os("N_K8S_REGO_PARITY_CAPTURE") {
+        let js = js_reported(&tmp, &files);
+        std::fs::write(
+            PathBuf::from(path),
+            serde_json::to_string_pretty(&js).expect("serialize"),
+        )
+        .expect("запис знятої фікстури");
+        assert_eq!(native, js, "розбіжність native ↔ JS у rego-шарі");
+        return;
+    }
+    let canon: Vec<Reported> =
+        serde_json::from_str(include_str!("fixtures/js-k8s-rego-parity.json"))
+            .expect("фікстура — валідний JSON");
+    assert_eq!(native, canon, "розбіжність із каноном rego-шару");
 }
