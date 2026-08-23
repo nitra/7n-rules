@@ -7,4 +7,3 @@ resource: plugins/lang-js/rules/style/lint/
 | Файл                        | Тип       |
 | --------------------------- | --------- |
 | [fix-lint.mjs](fix-lint.md) | JS Module |
-| [main.mjs](main.md)         | JS Module |

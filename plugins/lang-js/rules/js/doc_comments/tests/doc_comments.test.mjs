@@ -3,11 +3,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, test } from 'vitest'
 
-import { lint, checkFileDocComments, isDocCommentTarget } from '../main.mjs'
 import { patterns, promoteLineBlock } from '../fix-doc_comments.mjs'
 
 // Фікстури зібрані динамічно, щоб цей файл сам не тригерив власний детектор.
-const jsdoc = text => ['/**', ` * ${text}`, ' */'].join('\n')
 const lineComment = text => `// ${text}`
 
 let dir
@@ -31,83 +29,40 @@ function makeProject(files) {
   return dir
 }
 
-describe('check js.doc_comments — детектор', () => {
-  test('файл без експортів — поза вимогою', () => {
-    expect(checkFileDocComments('const a = 1\n', 'x.mjs')).toEqual([])
-  })
+/**
+ * Ручна конструкція promotable-violation для T0-патерну: замінює
+ * `checkFileDocComments` (видалений разом з `main.mjs`) — офсети рахуються
+ * прямо через `indexOf` над РЕАЛЬНИМ вмістом файлу, той самий формат
+ * `data`, що видавав детектор (`{ start, end, promotable: true }`).
+ * @param {string} content вміст файлу
+ * @param {string} block точний текст `//`-блоку всередині `content`
+ * @param {string} file шлях файлу (як у `LintViolation.file`)
+ * @returns {{ reason: string, file: string, data: { start: number, end: number, promotable: true } }} violation
+ */
+function promotableViolation(content, block, file) {
+  const start = content.indexOf(block)
+  if (start === -1) throw new Error(`фікстура-помилка: блок "${block}" не знайдено в content`)
+  return { reason: 'missing-file-header', file, data: { start, end: start + block.length, promotable: true } }
+}
 
-  test('header + JSDoc над експортом → чисто', () => {
-    const src = [jsdoc('Намір файлу.'), '', jsdoc('Робить X.'), 'export function go() {}', ''].join('\n')
-    expect(checkFileDocComments(src, 'x.mjs')).toEqual([])
-  })
-
-  test('без header і без JSDoc → два порушення', () => {
-    const src = 'export function go() {}\n'
-    const v = checkFileDocComments(src, 'x.mjs')
-    expect(v.map(x => x.reason).toSorted()).toEqual(['missing-export-doc', 'missing-file-header'])
-    expect(v.every(x => !x.data?.promotable)).toBe(true)
-  })
-
-  test('//-блок впритул над експортом → promotable', () => {
-    const src = [jsdoc('Header.'), '', lineComment('робить X і Y'), 'export function go() {}', ''].join('\n')
-    const v = checkFileDocComments(src, 'x.mjs')
-    expect(v).toHaveLength(1)
-    expect(v[0].reason).toBe('missing-export-doc')
-    expect(v[0].data.promotable).toBe(true)
-  })
-
-  test('//-блок на початку файлу → promotable header', () => {
-    const src = [lineComment('намір файлу'), '', jsdoc('Робить X.'), 'export function go() {}', ''].join('\n')
-    const v = checkFileDocComments(src, 'x.mjs')
-    expect(v).toHaveLength(1)
-    expect(v[0].reason).toBe('missing-file-header')
-    expect(v[0].data.promotable).toBe(true)
-  })
-
-  test('розрив рядком між //-блоком і експортом → НЕ promotable', () => {
-    const src = [jsdoc('Header.'), '', lineComment('десь вище'), '', 'const gap = 1', 'export const a = gap', ''].join(
-      '\n'
-    )
-    const v = checkFileDocComments(src, 'x.mjs')
-    expect(v[0].data?.promotable).toBeUndefined()
-  })
-
-  test('tests/fixtures/*.d.ts — поза вимогою', () => {
-    expect(isDocCommentTarget('src/tests/a.mjs')).toBe(false)
-    expect(isDocCommentTarget('a.test.mjs')).toBe(false)
-    expect(isDocCommentTarget('types/a.d.ts')).toBe(false)
-    expect(isDocCommentTarget('src/a.mjs')).toBe(true)
-  })
-
-  test('shebang перед header-JSDoc — header зарахований, shebang не promotable', () => {
-    // napi-oxc-parser віддає `#!…` як Line-коментар; концерн його ігнорує
-    // (`withoutHashbangComment`), інакше T0 підвищив би shebang у doc-коментар
-    // і зламав виконуваний файл.
-    const src = ['#!/usr/bin/env node', jsdoc('Намір файлу.'), jsdoc('Робить X.'), 'export function go() {}', ''].join(
-      '\n'
-    )
-    expect(checkFileDocComments(src, 'bin/x.mjs')).toEqual([])
-  })
-
-  test('shebang без header-JSDoc — порушення є, але блок shebang-а НЕ promotable', () => {
-    const src = ['#!/usr/bin/env node', jsdoc('Робить X.'), 'export function go() {}', ''].join('\n')
-    // JSDoc після shebang-а зараховується і як header, і як опис експорту.
-    expect(checkFileDocComments(src, 'bin/x.mjs')).toEqual([])
-
-    // Без жодного коментаря, крім shebang-а: порушення є, але promotable-блоку
-    // немає — інакше T0 підвищив би сам shebang.
-    const bare = ['#!/usr/bin/env node', 'export function go() {}', ''].join('\n')
-    const v = checkFileDocComments(bare, 'bin/x.mjs')
-    expect(v.map(x => x.reason)).toEqual(['missing-file-header', 'missing-export-doc'])
-    expect(v.every(x => !x.data?.promotable)).toBe(true)
-  })
-
-  test('lint(ctx) із files фільтрує нецільові', async () => {
-    const cwd = makeProject({ 'src/a.mjs': 'export const a = 1\n', 'src/a.test.mjs': 'export const t = 1\n' })
-    const { violations } = await lint({ cwd, files: ['src/a.mjs', 'src/a.test.mjs'] })
-    expect(violations.every(v => v.file === 'src/a.mjs')).toBe(true)
-  })
-})
+// Детектор («check js.doc_comments») цього файлу видалено разом з
+// `main.mjs` — JS-фолбек кластера `js/*` прибрано, канон тепер
+// `detect_doc_comments`/`check_file_doc_comments` у
+// `crates/plugin-lang-js/src/lib.rs` (секція «Зріз 4 контракту v3.1»,
+// зокрема `detect_doc_comments_emits_utf16_offsets_not_byte_offsets`,
+// `detect_doc_comments_reports_header_and_each_export`,
+// `detect_doc_comments_skips_files_without_exports_and_broken_syntax`,
+// `detect_doc_comments_accepts_jsdoc_header_after_shebang`,
+// `detect_doc_comments_blank_line_breaks_promotable_link`,
+// `is_doc_comment_target_mirrors_js_predicate` — повний 1:1 еквівалент усіх
+// сценаріїв, що були тут). Detect+fix round-trip (wasm-детект → JS-фікс)
+// перевіряє `npm/scripts/lib/lint-surface/tests/wasm-plugin-parity.test.mjs`
+// (`describe('wasm-plugin parity — js/doc_comments (T0-фікс: …)')`).
+//
+// Тут лишається лише fix-половина (T0-фіксер — свідома JS-прогалина
+// host-мосту, §2.3 реєстру `docs/plans/2026-08-05-open-questions-register.md`):
+// violations конструюються вручну (реальні UTF-16-офсети через `indexOf`),
+// без залежності від видаленого детектора.
 
 describe('fix js.doc_comments — T0 підвищення // → JSDoc', () => {
   test('promoteLineBlock: символ закриття коментаря у тексті екранується — JSDoc не рветься', () => {
@@ -124,11 +79,15 @@ describe('fix js.doc_comments — T0 підвищення // → JSDoc', () => {
     expect(promoteLineBlock(multi, '')).toBe(['/**', ' * перший', ' * другий', ' */'].join('\n'))
   })
 
-  test('apply: блок над експортом стає JSDoc, детектор чистий', async () => {
-    const src = [lineComment('намір файлу'), '', lineComment('робить X'), 'export function go() {}', ''].join('\n')
+  test('apply: блок над експортом стає JSDoc', async () => {
+    const headerBlock = lineComment('намір файлу')
+    const exportBlock = lineComment('робить X')
+    const src = [headerBlock, '', exportBlock, 'export function go() {}', ''].join('\n')
     const cwd = makeProject({ 'src/a.mjs': src })
-    const before = checkFileDocComments(src, 'src/a.mjs').map(v => ({ ...v, file: 'src/a.mjs' }))
-    expect(before.some(v => v.data?.promotable)).toBe(true)
+    const before = [
+      promotableViolation(src, headerBlock, 'src/a.mjs'),
+      promotableViolation(src, exportBlock, 'src/a.mjs')
+    ]
 
     const writes = []
     await patterns[0].apply(before, {
@@ -141,16 +100,17 @@ describe('fix js.doc_comments — T0 підвищення // → JSDoc', () => {
     expect(writes).toHaveLength(1)
     expect(after).toContain('/** намір файлу */')
     expect(after).toContain('/** робить X */')
-    expect(checkFileDocComments(after, 'src/a.mjs')).toEqual([])
   })
 
   test('apply: несвіжі офсети (файл уже підвищено) — no-op, файл не псується', async () => {
     // Продакшн-сценарій: `applyT0` ганяє ВСІ патерни концерну одним масивом
     // violations, тож після wasm-плану (`wasm-fix:js/doc_comments`) цей
     // фіксер бачить уже підвищений `/** … */` за тими самими офсетами.
-    const src = [lineComment('намір файлу'), '', lineComment('робить X'), 'export function go() {}', ''].join('\n')
+    const headerBlock = lineComment('намір файлу')
+    const exportBlock = lineComment('робить X')
+    const src = [headerBlock, '', exportBlock, 'export function go() {}', ''].join('\n')
     const cwd = makeProject({ 'src/a.mjs': src })
-    const v = checkFileDocComments(src, 'src/a.mjs').map(x => ({ ...x, file: 'src/a.mjs' }))
+    const v = [promotableViolation(src, headerBlock, 'src/a.mjs'), promotableViolation(src, exportBlock, 'src/a.mjs')]
     await patterns[0].apply(v, { cwd })
     const promoted = readFileSync(join(cwd, 'src/a.mjs'), 'utf8')
 
@@ -162,7 +122,9 @@ describe('fix js.doc_comments — T0 підвищення // → JSDoc', () => {
   test('apply: не-promotable порушення не чіпаються', async () => {
     const src = 'export function go() {}\n'
     const cwd = makeProject({ 'src/a.mjs': src })
-    const v = checkFileDocComments(src, 'src/a.mjs').map(x => ({ ...x, file: 'src/a.mjs' }))
+    // `data` без `promotable` — той самий формат, що детектор видає для
+    // невіддільного (не впритул до `//`-блоку) порушення.
+    const v = [{ reason: 'missing-export-doc', file: 'src/a.mjs', data: { name: 'go' } }]
     const writes = []
     const res = await patterns[0].apply(v, {
       cwd,

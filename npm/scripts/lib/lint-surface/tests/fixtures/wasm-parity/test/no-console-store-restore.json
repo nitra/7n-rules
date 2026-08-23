@@ -1,0 +1,11 @@
+{
+  "wasm-plugin parity — test/no-console-store-restore (JS канон vs wasm plugin-lang-js, full-scope міст) > успіх: тест без присвоєння console → без порушень з обох реалізацій": [],
+  "wasm-plugin parity — test/no-console-store-restore (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: console.log = fn → однакове violation з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "no-console-store-restore",
+      "message": "tests/bad.test.mjs:1: пряме присвоєння console.<method> = … заборонено — використовуй vi.spyOn(console, 'method').mockReturnValue() (test.mdc, no-console-store-restore)"
+    }
+  ],
+  "wasm-plugin parity — test/no-console-store-restore (JS канон vs wasm plugin-lang-js, full-scope міст) > успіх: vi.spyOn(console, \"log\") не вважається порушенням → без порушень з обох реалізацій": []
+}

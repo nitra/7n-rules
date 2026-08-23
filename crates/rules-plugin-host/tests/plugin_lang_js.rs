@@ -2366,6 +2366,39 @@ fn licensee_splits_metadata_and_third_party_violations() {
     );
 }
 
+/// Лише `Invalid license metadata`, БЕЗ жодного стороннього порушення — гілка
+/// `if !third_party.is_empty()` не мала б додати порожній/зайвий
+/// агрегований `license-violation`: рівно одна діагностика
+/// `license-metadata-invalid` (порт JS-тесту main.test.mjs «лише Invalid
+/// license metadata (без сторонніх порушень) → тільки license-metadata-invalid»).
+#[cfg(unix)]
+#[test]
+fn licensee_reports_only_metadata_violation_without_empty_third_party_entry() {
+    let dir = tempfile::tempdir().expect("tempdir має створитись");
+    let host = licensee_host(
+        dir.path(),
+        "#!/bin/sh\nprintf 'root-pkg@0.0.0\\n  Terms: Invalid license metadata\\n'\nexit 1\n",
+    );
+    let path = require_fixture();
+    let mut plugin = host.load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let diagnostics = plugin.detect(&licensee_batch_with_config()).unwrap();
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].reason, "license-metadata-invalid");
+    assert_eq!(
+        diagnostics[0].message,
+        "lint-bun: licensee — root-pkg: Invalid license metadata (bun.mdc)"
+    );
+    assert_eq!(
+        diagnostics[0]
+            .data
+            .as_ref()
+            .and_then(|d| d.get("package"))
+            .and_then(|v| v.as_str()),
+        Some("root-pkg")
+    );
+}
+
 /// Формат `licensee` змінився (stdout є, але блоки не розбираються) —
 /// fallback на агрегований `license-violation`, щоб не втратити сигнал.
 #[cfg(unix)]

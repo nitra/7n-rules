@@ -13126,6 +13126,63 @@ mod tests {
         assert_eq!(detect_no_console_store_restore(&files).len(), 1);
     }
 
+    /// `no-console-store-restore.test.mjs` — «порушення: console.error/warn =
+    /// stub → exit 1»: метод-альтернація [`CONSOLE_ASSIGN_PATTERN`] не лише
+    /// для `log`.
+    #[test]
+    fn detect_no_console_store_restore_flags_error_and_warn_assignment() {
+        let err_assign = ["console.err", "or ="].join("");
+        let warn_assign = ["console.wa", "rn ="].join("");
+        assert_eq!(
+            detect_no_console_store_restore(&[source(
+                "tests/bad.test.mjs",
+                &format!("{err_assign} () => {{}}\n"),
+            )])
+            .len(),
+            1
+        );
+        assert_eq!(
+            detect_no_console_store_restore(&[source(
+                "tests/bad.test.mjs",
+                &format!("{warn_assign} vi.fn()\n"),
+            )])
+            .len(),
+            1
+        );
+    }
+
+    /// `no-console-store-restore.test.mjs` — «vi.spyOn(...) не порушення» і
+    /// «console.log(...) виклик (не присвоєння) не порушення»: обидва не
+    /// матчать `console.<method> =` взагалі (не про негативний lookahead, а
+    /// про відсутність символу `=` одразу після методу).
+    #[test]
+    fn detect_no_console_store_restore_ignores_spy_on_and_plain_call() {
+        assert!(detect_no_console_store_restore(&[source(
+            "tests/ok.test.mjs",
+            "vi.spyOn(console, \"log\").mockReturnValue()\n",
+        )])
+        .is_empty());
+        assert!(detect_no_console_store_restore(&[source(
+            "tests/ok.test.mjs",
+            "console.log(\"msg\")\nconsole.error(\"err\")\n",
+        )])
+        .is_empty());
+    }
+
+    /// `no-console-store-restore.test.mjs` — «кілька порушень у різних файлах
+    /// — повідомляється кожне»: батч агрегує діагностики по ВСІХ файлах, не
+    /// зупиняється на першому.
+    #[test]
+    fn detect_no_console_store_restore_flags_across_multiple_files() {
+        let log_assign = ["console.lo", "g ="].join("");
+        let err_assign = ["console.err", "or ="].join("");
+        let files = vec![
+            source("tests/a.test.mjs", &format!("{log_assign} fn1\n")),
+            source("tests/b.test.mjs", &format!("{err_assign} fn2\n")),
+        ];
+        assert_eq!(detect_no_console_store_restore(&files).len(), 2);
+    }
+
     // --- test/no-bun-test-import ---
 
     #[test]
@@ -13624,6 +13681,29 @@ mod tests {
         assert!(!detect_mssql_deps(&files).is_empty());
     }
 
+    // Спільний [`find_sql_dynamic_list`] (bun-db і mssql) уже покритий
+    // тестами bun-db-боку — тут перевіряємо САМЕ mssql-виклик і його
+    // повідомлення (раніше жодного тесту не було, знахідка grepped
+    // `findUnsafeMssqlDynamicSqlListInText` не мала прямого виклику з тестів).
+    #[test]
+    fn detect_mssql_deps_flags_join_dynamic_sql_list() {
+        let files = vec![
+            source(
+                "package.json",
+                "{\"name\":\"t\",\"dependencies\":{\"mssql\":\"^12.5.0\"}}",
+            ),
+            source(
+                "src/db.ts",
+                "export async function findUsers(ids) {\n  return pool.request().query`SELECT * FROM users WHERE id IN (${ids.join(',')})`\n}\n",
+            ),
+        ];
+        let diagnostics = detect_mssql_deps(&files);
+        assert!(diagnostics
+            .iter()
+            .any(|d| d.message.contains("динамічні списки через")
+                && d.message.contains(".join(',')")));
+    }
+
     // --- батч 4 (задача Q4): AST-специфічні поведінки, які regex-groundwork
     // не відтворював — дзеркала live-прогонів JS-оригіналів.
 
@@ -13786,6 +13866,88 @@ mod tests {
             ),
         ];
         assert!(detect_bun_db_safety(&files).is_empty());
+    }
+
+    // Три сканери нижче ([`find_pg_format_shims`], [`find_pg_query_wrappers`],
+    // [`find_json_stringify_before_jsonb`]) раніше не мали ЖОДНОГО прямого
+    // `#[test]` (ні тут, ні у фікстурах parity-файлу) — знайдено grep-ом по
+    // JS-оригіналах `findPgFormatShimDefinitionInText`/
+    // `findPgFormatLikeQueryWrapperInText`/аналогу для `::jsonb` при
+    // видаленні JS-фолбеку кластера `js/*`.
+
+    #[test]
+    fn detect_bun_db_safety_flags_pg_format_shim_function() {
+        let files = vec![
+            source("package.json", "{\"name\":\"t\"}"),
+            source(
+                "src/db.ts",
+                "import { sql } from 'bun'\nfunction pgFormat(tpl, val) {\n  return tpl.replace('%L', val)\n}\nexport const f = pgFormat\n",
+            ),
+        ];
+        let diagnostics = detect_bun_db_safety(&files);
+        assert!(diagnostics.iter().any(
+            |d| d.message.contains("pg-format-сумісний шим") && d.message.contains("pgFormat")
+        ));
+    }
+
+    #[test]
+    fn detect_bun_db_safety_flags_pg_format_quote_helper() {
+        let files = vec![
+            source("package.json", "{\"name\":\"t\"}"),
+            source(
+                "src/db.ts",
+                "import { sql } from 'bun'\nfunction quoteLiteral(v) {\n  return `'${v}'`\n}\nexport const q = quoteLiteral\n",
+            ),
+        ];
+        let diagnostics = detect_bun_db_safety(&files);
+        assert!(diagnostics.iter().any(|d| d
+            .message
+            .contains("pg-format-специфічний escape-хелпер")
+            && d.message.contains("quoteLiteral")));
+    }
+
+    #[test]
+    fn detect_bun_db_safety_flags_pg_format_like_query_wrapper() {
+        let files = vec![
+            source("package.json", "{\"name\":\"t\"}"),
+            source(
+                "src/db.ts",
+                "import { sql } from 'bun'\nexport const db = {\n  query(text, params) {\n    return sql.unsafe(text, params)\n  }\n}\n",
+            ),
+        ];
+        let diagnostics = detect_bun_db_safety(&files);
+        assert!(diagnostics
+            .iter()
+            .any(|d| d.message.contains("query(text, params)-обгортка над")));
+    }
+
+    #[test]
+    fn detect_bun_db_safety_flags_json_stringify_before_jsonb_cast() {
+        let files = vec![
+            source("package.json", "{\"name\":\"t\"}"),
+            source(
+                "src/db.ts",
+                "import { sql } from 'bun'\nexport const q = obj => sql`INSERT INTO t (data) VALUES (${JSON.stringify(obj)}::jsonb)`\n",
+            ),
+        ];
+        let diagnostics = detect_bun_db_safety(&files);
+        assert!(diagnostics.iter().any(|d| d
+            .message
+            .contains("JSON.stringify(...) перед ::jsonb зайвий")));
+    }
+
+    #[test]
+    fn detect_bun_db_safety_passes_json_stringify_without_jsonb_cast() {
+        let files = vec![
+            source("package.json", "{\"name\":\"t\"}"),
+            source(
+                "src/db.ts",
+                "import { sql } from 'bun'\nexport const q = obj => sql`INSERT INTO t (data) VALUES (${JSON.stringify(obj)})`\n",
+            ),
+        ];
+        assert!(!detect_bun_db_safety(&files).iter().any(|d| d
+            .message
+            .contains("JSON.stringify(...) перед ::jsonb зайвий")));
     }
 
     #[test]
@@ -14354,6 +14516,81 @@ mod tests {
         assert!(detect_storybook_hygiene(&files).is_empty());
     }
 
+    /// «немає Vue component library пакетів у скоупі — без порушень»
+    /// (`hygiene.test.mjs` — перший тест describe-блоку): порожній батч і
+    /// батч, де жоден пакет не долає поріг `VUE_FILE_THRESHOLD`, обидва
+    /// дають нуль діагностик через ранній `pkgs.is_empty()` guard.
+    #[test]
+    fn detect_storybook_hygiene_empty_scope_is_silent() {
+        assert!(detect_storybook_hygiene(&[]).is_empty());
+        // Пакет під порогом (2 < VUE_FILE_THRESHOLD) — теж поза скоупом.
+        assert!(detect_storybook_hygiene(&vue_library_files(2)).is_empty());
+    }
+
+    /// «subpath-імпорт: pkg/sub звіряється за іменем пакета верхнього рівня»
+    /// (`hygiene.test.mjs`) — звичайний (не scoped) пакет: `lodash/debounce`
+    /// при задекларованому `lodash` не мусить давати undeclared-import,
+    /// гілка `top_level_package_name` без `@`-префікса.
+    #[test]
+    fn detect_storybook_hygiene_declared_top_level_covers_plain_subpath_import() {
+        let mut files = vec![
+            source(
+                "package.json",
+                "{\"name\":\"root\",\"workspaces\":[\"packages/*\"]}",
+            ),
+            source(
+                "packages/ui/package.json",
+                "{\"name\":\"ui\",\"peerDependencies\":{\"vue\":\"^3.6.0\"},\"dependencies\":{\"lodash\":\"^4.17.21\"}}",
+            ),
+        ];
+        files.push(source(
+            "packages/ui/src/components/Debounced.vue",
+            "<script setup>\nimport debounce from 'lodash/debounce'\n</script>\n",
+        ));
+        for i in 0..2 {
+            files.push(source(
+                &format!("packages/ui/src/components/Filler{i}.vue"),
+                "<template><div/></template>\n",
+            ));
+        }
+        assert!(detect_storybook_hygiene(&files).is_empty());
+    }
+
+    /// Хвиля 2a (app-пакети): свідомо ЛИШЕ `type: 'library'` проходить
+    /// hygiene-перевірки (`main.mjs:235-246`) — app-пакет із тим самим
+    /// undeclared-import і тими самими sass-variables-умовами, що дають
+    /// порушення для library, тут не перевіряється взагалі (структурний
+    /// `Kind::Library`-фільтр на початку [`detect_storybook_hygiene`]).
+    #[test]
+    fn detect_storybook_hygiene_skips_app_packages_entirely() {
+        let files = vec![
+            source(
+                "package.json",
+                "{\"name\":\"root\",\"workspaces\":[\"packages/*\"]}",
+            ),
+            source(".n-rules.json", "{\"storybook\":{\"detectApps\":true}}"),
+            source(
+                "packages/demo/package.json",
+                "{\"name\":\"demo\",\"dependencies\":{\"vue\":\"^3.6.0\"}}",
+            ),
+            // Той самий undeclared import, що дав би порушення для library.
+            source(
+                "packages/demo/src/pages/task/[id].vue",
+                "<script setup>\nimport VueDatePicker from '@vuepic/vue-datepicker'\n</script>\n",
+            ),
+            source(
+                "packages/demo/src/css/quasar.variables.scss",
+                "$primary: #000;\n",
+            ),
+            // main.js без sassVariables-маркера — теж дав би warn для library.
+            source(
+                "packages/demo/.storybook/main.js",
+                "export default { framework: '@storybook/vue3-vite' }\n",
+            ),
+        ];
+        assert!(detect_storybook_hygiene(&files).is_empty());
+    }
+
     /// App-пакет `packages/demo` у скоупі (detectApps) з опційними stories.
     fn app_pkg_files(with_story: bool) -> Vec<SourceFile> {
         let mut files = vec![
@@ -14394,6 +14631,38 @@ mod tests {
     fn detect_storybook_page_coverage_story_in_same_dir_passes() {
         // Ім'я story НЕ мусить збігатись із basename сторінки — досить "поряд".
         assert!(detect_storybook_page_coverage(&app_pkg_files(true)).is_empty());
+    }
+
+    /// `page-coverage.test.mjs` — «немає app-пакетів у скоупі — без порушень»:
+    /// ранній `pkgs.is_empty()` guard.
+    #[test]
+    fn detect_storybook_page_coverage_empty_scope_is_silent() {
+        assert!(detect_storybook_page_coverage(&[]).is_empty());
+    }
+
+    /// `page-coverage.test.mjs` — «кілька сторінок — репортує лише ту, що без
+    /// story»: story поряд з однією сторінкою НЕ приховує порушення для іншої.
+    #[test]
+    fn detect_storybook_page_coverage_reports_only_uncovered_page() {
+        let mut files = app_pkg_files(true);
+        files.push(source(
+            "packages/demo/src/pages/Tasks.vue",
+            "<template><div/></template>\n",
+        ));
+        let diagnostics = detect_storybook_page_coverage(&files);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(
+            diagnostics[0].file.as_deref(),
+            Some("packages/demo/src/pages/Tasks.vue")
+        );
+    }
+
+    /// `page-coverage.test.mjs` — «бібліотечний пакет (type library) не
+    /// потрапляє в перевірку page-coverage»: [`ScopePkgKind::App`]-фільтр на
+    /// початку [`detect_storybook_page_coverage`] структурно виключає library.
+    #[test]
+    fn detect_storybook_page_coverage_skips_library_packages() {
+        assert!(detect_storybook_page_coverage(&vue_library_files(3)).is_empty());
     }
 
     #[test]
@@ -14486,6 +14755,166 @@ mod tests {
         assert!(detect_storybook_scaffold(&files).is_empty());
     }
 
+    /// `scaffold.test.mjs` — «немає пакетів у скоупі — без порушень»: ранній
+    /// `pkgs.is_empty()` guard.
+    #[test]
+    fn detect_storybook_scaffold_empty_scope_is_silent() {
+        assert!(detect_storybook_scaffold(&[]).is_empty());
+    }
+
+    /// `scaffold.test.mjs` — «script неканонічний — лише
+    /// missing-storybook-script»: усі канонічні файли присутні, лише
+    /// `scripts.storybook` не збігається — жодного marker/missing-файл
+    /// порушення, ЛИШЕ script.
+    #[test]
+    fn detect_storybook_scaffold_script_only_mismatch() {
+        let files = vec![
+            source(
+                "package.json",
+                "{\"name\":\"root\",\"workspaces\":[\"packages/*\"]}",
+            ),
+            source(
+                "packages/ui/package.json",
+                "{\"name\":\"ui\",\"peerDependencies\":{\"vue\":\"^3.6.0\"},\"scripts\":{\"storybook\":\"storybook dev\"}}",
+            ),
+            source(
+                "packages/ui/.storybook/main.js",
+                "// @storybook/vue3-vite viteFinal 'vite-plugin-pages' 'vite-plugin-vue-layouts' \
+                 'vite-plugin-vue-layouts-next' isVueTransformFamily resolvePluginEntry \
+                 viteConfigPath\n",
+            ),
+            source(
+                "packages/ui/.storybook/preview.js",
+                "// Quasar iconSet iconMapFn msw-storybook-addon onUnhandledRequest mswLoader\n",
+            ),
+            source(
+                "packages/ui/.storybook/empty-vite.config.js",
+                "import { defineConfig } from 'vite'\nexport default defineConfig({})\n",
+            ),
+            source(
+                "packages/ui/.storybook/vitest.setup.js",
+                "// setProjectAnnotations beforeAll\n",
+            ),
+            source("packages/ui/src/components/Comp0.vue", "<template/>\n"),
+            source("packages/ui/src/components/Comp1.vue", "<template/>\n"),
+            source("packages/ui/src/components/Comp2.vue", "<template/>\n"),
+        ];
+        let diagnostics = detect_storybook_scaffold(&files);
+        assert_eq!(
+            diagnostics
+                .iter()
+                .map(|d| d.reason.as_str())
+                .collect::<Vec<_>>(),
+            vec!["missing-storybook-script"]
+        );
+    }
+
+    /// `scaffold.test.mjs` — «vitest.setup.js без канонічних маркерів —
+    /// marker-порушення, не missing»: обидва маркери [`VITEST_SETUP_JS_MARKERS`]
+    /// відсутні → ДВІ окремі `vitest-setup-js-marker-missing` діагностики
+    /// (`missingMarkers` повертає масив, `checkCanonFile` репортить кожен).
+    #[test]
+    fn detect_storybook_scaffold_vitest_setup_marker_missing_reports_each_marker() {
+        let mut files = vec![
+            source(
+                "package.json",
+                "{\"name\":\"root\",\"workspaces\":[\"packages/*\"]}",
+            ),
+            source(
+                "packages/ui/package.json",
+                "{\"name\":\"ui\",\"peerDependencies\":{\"vue\":\"^3.6.0\"},\"scripts\":{\"storybook\":\"storybook dev -p 6006 --no-open\"}}",
+            ),
+            source(
+                "packages/ui/.storybook/main.js",
+                "// @storybook/vue3-vite viteFinal 'vite-plugin-pages' 'vite-plugin-vue-layouts' \
+                 'vite-plugin-vue-layouts-next' isVueTransformFamily resolvePluginEntry \
+                 viteConfigPath\n",
+            ),
+            source(
+                "packages/ui/.storybook/preview.js",
+                "// Quasar iconSet iconMapFn msw-storybook-addon onUnhandledRequest mswLoader\n",
+            ),
+            source(
+                "packages/ui/.storybook/empty-vite.config.js",
+                "import { defineConfig } from 'vite'\nexport default defineConfig({})\n",
+            ),
+            source("packages/ui/.storybook/vitest.setup.js", "export default {}\n"),
+        ];
+        for i in 0..3 {
+            files.push(source(
+                &format!("packages/ui/src/components/Comp{i}.vue"),
+                "<template><div/></template>\n",
+            ));
+        }
+        let diagnostics = detect_storybook_scaffold(&files);
+        assert_eq!(
+            diagnostics
+                .iter()
+                .map(|d| d.reason.as_str())
+                .collect::<Vec<_>>(),
+            vec![
+                "vitest-setup-js-marker-missing",
+                "vitest-setup-js-marker-missing"
+            ]
+        );
+    }
+
+    /// `scaffold.test.mjs` — «app-пакет без .storybook/ — 4 порушення
+    /// (app-main.js, app-preview.js, vitest.setup.js, script), БЕЗ
+    /// empty-vite-config» (дзеркальна асиметрія app/library, `main.mjs:254-290`).
+    #[test]
+    fn detect_storybook_scaffold_app_reports_missing_files_without_empty_vite_config() {
+        let diagnostics = detect_storybook_scaffold(&app_pkg_files(false));
+        assert_eq!(
+            diagnostics
+                .iter()
+                .map(|d| d.reason.as_str())
+                .collect::<Vec<_>>(),
+            vec![
+                "missing-app-main-js",
+                "missing-app-preview-js",
+                "missing-vitest-setup-js",
+                "missing-storybook-script",
+            ]
+        );
+        assert!(!diagnostics
+            .iter()
+            .any(|d| d.reason.contains("empty-vite-config")));
+    }
+
+    /// `scaffold.test.mjs` — «app-пакет з канонічним app-main.js/app-preview.js/
+    /// vitest.setup.js — без порушень».
+    #[test]
+    fn detect_storybook_scaffold_app_canonical_is_silent() {
+        let files = vec![
+            source(
+                "package.json",
+                "{\"name\":\"root\",\"workspaces\":[\"packages/*\"]}",
+            ),
+            source(".n-rules.json", "{\"storybook\":{\"detectApps\":true}}"),
+            source(
+                "packages/demo/package.json",
+                "{\"name\":\"demo\",\"dependencies\":{\"vue\":\"^3.6.0\"},\"scripts\":{\"storybook\":\"storybook dev -p 6006 --no-open\"}}",
+            ),
+            source("packages/demo/src/pages/task/[id].vue", "<template/>"),
+            source(
+                "packages/demo/.storybook/main.js",
+                "// @storybook/vue3-vite staticDirs viteFinal 'vite-plugin-vue-layouts' \
+                 'vite-plugin-vue-layouts-next' 'unplugin-vue-router'\n",
+            ),
+            source(
+                "packages/demo/.storybook/preview.js",
+                "// msw-storybook-addon onUnhandledRequest mswLoader pageLoader createMemoryHistory \
+                 QLayout QPageContainer\n",
+            ),
+            source(
+                "packages/demo/.storybook/vitest.setup.js",
+                "// setProjectAnnotations beforeAll\n",
+            ),
+        ];
+        assert!(detect_storybook_scaffold(&files).is_empty());
+    }
+
     #[test]
     fn detect_storybook_ci_reports_both_missing_repo_files() {
         let diagnostics = detect_storybook_ci(&vue_library_files(3));
@@ -14519,6 +14948,43 @@ mod tests {
         assert_eq!(diagnostics.len(), 1);
         assert_eq!(diagnostics[0].reason, "playwright-action-marker-missing");
         assert!(diagnostics[0].message.contains("install лише chromium"));
+    }
+
+    /// `ci.test.mjs` — «workflow без канонічних маркерів — marker-порушення,
+    /// не missing»: канонічний action + неканонічний workflow → лише
+    /// `storybook-workflow-marker-missing`.
+    #[test]
+    fn detect_storybook_ci_flags_workflow_marker_violations_only() {
+        let mut files = vue_library_files(3);
+        files.push(source(
+            ".github/actions/setup-playwright-chromium/action.yml",
+            "# ms-playwright кеш через actions/cache@v4 playwright install chromium\n",
+        ));
+        files.push(source(
+            ".github/workflows/lint-storybook.yml",
+            "name: Lint Storybook\non: push\njobs:\n  test:\n    runs-on: ubuntu-latest\n",
+        ));
+        let diagnostics = detect_storybook_ci(&files);
+        assert!(!diagnostics.is_empty());
+        assert!(diagnostics
+            .iter()
+            .all(|d| d.reason == "storybook-workflow-marker-missing"));
+    }
+
+    /// `ci.test.mjs` — «повністю канонічний репо — без порушень».
+    #[test]
+    fn detect_storybook_ci_fully_canonical_repo_is_silent() {
+        let mut files = vue_library_files(3);
+        files.push(source(
+            ".github/actions/setup-playwright-chromium/action.yml",
+            "# ms-playwright кеш через actions/cache@v4 playwright install chromium\n",
+        ));
+        files.push(source(
+            ".github/workflows/lint-storybook.yml",
+            "# ./.github/actions/setup-bun-deps ./.github/actions/setup-playwright-chromium \
+             vitest --project=storybook\n",
+        ));
+        assert!(detect_storybook_ci(&files).is_empty());
     }
 
     // --- батч 6 ---
@@ -14640,6 +15106,160 @@ mod tests {
                  'chromium' }], provider: playwright() } }, plugins: [storybookTest({ configDir: \
                  '.storybook' })] }] } })\n",
                 true,
+            ),
+            None,
+        );
+        assert!(diagnostics.is_empty());
+    }
+
+    /// `vitest-config.test.mjs` — «немає пакетів у скоупі — без порушень»:
+    /// ранній `pkgs.is_empty()` guard.
+    #[test]
+    fn detect_storybook_vitest_config_empty_scope_is_silent() {
+        assert!(detect_storybook_vitest_config(&[], None).is_empty());
+    }
+
+    /// `vitest-config.test.mjs` — «базовий vitest.config без projects —
+    /// unit+storybook+stryker-config відсутні»: test-блок присутній, `projects`
+    /// взагалі немає, stryker-файл теж відсутній — ТРИ причини одразу
+    /// (`checkPackage` не зупиняється на ранньому return
+    /// `checkVitestConfigContent`).
+    #[test]
+    fn detect_storybook_vitest_config_no_projects_field_reports_three_reasons() {
+        let diagnostics = detect_storybook_vitest_config(
+            &vitest_config_files(
+                "import { defineConfig } from 'vitest/config'\nexport default defineConfig({ \
+                 test: { include: ['**/*.test.mjs'] } })\n",
+                false,
+            ),
+            None,
+        );
+        let mut reasons: Vec<&str> = diagnostics.iter().map(|d| d.reason.as_str()).collect();
+        reasons.sort_unstable();
+        let mut expected = vec![
+            "unit-project-missing",
+            "storybook-project-missing",
+            "stryker-config-missing",
+        ];
+        expected.sort_unstable();
+        assert_eq!(reasons, expected);
+    }
+
+    /// `vitest-config.test.mjs` — «storybookTest({ configDir }) без явного
+    /// include — валідний stories-маркер»: `hasStoriesMarker` приймає
+    /// `STORYBOOK_TEST_CONFIG_DIR_RE` як альтернативу до `STORIES_RE`.
+    #[test]
+    fn detect_storybook_vitest_config_config_dir_without_include_is_valid_marker() {
+        let diagnostics = detect_storybook_vitest_config(
+            &vitest_config_files(
+                "import { defineConfig } from 'vitest/config'\nimport { playwright } from \
+                 '@vitest/browser-playwright'\nexport default defineConfig({ test: { projects: [{ \
+                 name: 'unit' }, { name: 'storybook', plugins: [storybookTest({ configDir: \
+                 join(dirName, '.storybook') })], test: { browser: { enabled: true, provider: \
+                 playwright({}), instances: [{ browser: 'chromium' }] } } }] } })\n",
+                true,
+            ),
+            None,
+        );
+        assert!(diagnostics.is_empty());
+    }
+
+    /// `vitest-config.test.mjs` — «provider: 'playwright' (застаріле рядкове
+    /// API) — marker-порушення навіть з chromium/browser/stories»:
+    /// [`PROVIDER_FACTORY_PATTERN`] вимагає саме factory-виклик
+    /// `playwright(...)`, не рядок.
+    #[test]
+    fn detect_storybook_vitest_config_string_provider_is_marker_violation() {
+        let diagnostics = detect_storybook_vitest_config(
+            &vitest_config_files(
+                "import { defineConfig } from 'vitest/config'\nexport default defineConfig({ \
+                 test: { projects: [{ name: 'unit' }, { name: 'storybook', test: { include: \
+                 ['src/components/**/*.stories.@(js|ts)'], browser: { enabled: true, provider: \
+                 'playwright', instances: [{ browser: 'chromium' }] } } }] } })\n",
+                true,
+            ),
+            None,
+        );
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].reason, "storybook-project-marker-missing");
+        assert!(diagnostics[0].message.contains("provider-factory"));
+    }
+
+    /// `vitest-config.test.mjs` — «лише unit-проєкт наявний — тільки
+    /// storybook-project-missing (+ stryker)»: `hasUnit` вже `true`, тож БЕЗ
+    /// unit-project-missing.
+    #[test]
+    fn detect_storybook_vitest_config_only_unit_present_skips_unit_missing() {
+        let diagnostics = detect_storybook_vitest_config(
+            &vitest_config_files(
+                "import { defineConfig } from 'vitest/config'\nexport default defineConfig({ \
+                 test: { projects: [{ extends: true, test: { name: 'unit' } }] } })\n",
+                false,
+            ),
+            None,
+        );
+        let mut reasons: Vec<&str> = diagnostics.iter().map(|d| d.reason.as_str()).collect();
+        reasons.sort_unstable();
+        let mut expected = vec!["storybook-project-missing", "stryker-config-missing"];
+        expected.sort_unstable();
+        assert_eq!(reasons, expected);
+    }
+
+    /// App-пакет `packages/demo` у скоупі (detectApps) з переданим вмістом
+    /// `vitest.config.mjs`.
+    fn app_vitest_config_files(config: &str) -> Vec<SourceFile> {
+        vec![
+            source(
+                "package.json",
+                "{\"name\":\"root\",\"workspaces\":[\"packages/*\"]}",
+            ),
+            source(".n-rules.json", "{\"storybook\":{\"detectApps\":true}}"),
+            source(
+                "packages/demo/package.json",
+                "{\"name\":\"demo\",\"dependencies\":{\"vue\":\"^3.6.0\"}}",
+            ),
+            source("packages/demo/src/pages/task/[id].vue", "<template/>"),
+            source("packages/demo/vitest.config.mjs", config),
+            source(
+                "packages/demo/vitest.stryker.config.mjs",
+                "export default {}\n",
+            ),
+        ]
+    }
+
+    /// `vitest-config.test.mjs` — «app-пакет: storybook-project без
+    /// quasar/AutoImport/Pages — marker-порушення (хвиля 2a)».
+    #[test]
+    fn detect_storybook_vitest_config_app_without_wave2a_plugins_is_marker_violation() {
+        let diagnostics = detect_storybook_vitest_config(
+            &app_vitest_config_files(
+                "import { defineConfig } from 'vitest/config'\nexport default defineConfig({ \
+                 test: { projects: [{ name: 'unit' }, { name: 'storybook', plugins: \
+                 [storybookTest({ configDir: '.storybook' })], test: { include: \
+                 ['src/**/*.stories.@(js|ts)'], browser: { enabled: true, provider: playwright(), \
+                 instances: [{ browser: 'chromium' }] } } }] } })\n",
+            ),
+            None,
+        );
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].reason, "storybook-project-marker-missing");
+        assert!(diagnostics[0].message.contains("quasar()"));
+        assert!(diagnostics[0].message.contains("AutoImport()"));
+        assert!(diagnostics[0].message.contains("Pages()"));
+    }
+
+    /// `vitest-config.test.mjs` — «app-пакет: storybook-project з
+    /// quasar/AutoImport/Pages — без порушень».
+    #[test]
+    fn detect_storybook_vitest_config_app_with_wave2a_plugins_is_silent() {
+        let diagnostics = detect_storybook_vitest_config(
+            &app_vitest_config_files(
+                "import { defineConfig } from 'vitest/config'\nexport default defineConfig({ \
+                 test: { projects: [{ name: 'unit' }, { name: 'storybook', plugins: \
+                 [storybookTest({ configDir: '.storybook' }), quasar({ sassVariables: true }), \
+                 AutoImport({ imports: ['vue'] }), Pages()], test: { include: \
+                 ['src/**/*.stories.@(js|ts)'], browser: { enabled: true, provider: playwright(), \
+                 instances: [{ browser: 'chromium' }] } } }] } })\n",
             ),
             None,
         );
@@ -15079,6 +15699,243 @@ mod tests {
         );
     }
 
+    // Дзеркало `check.test.mjs` «є eslint.config.mjs без getConfig → fail»
+    // — прибрано разом з JS-фолбеком (видалення JS-детектора кластера
+    // `js/*`), випадок переносимо сюди, щоб не втратити покриття.
+    #[test]
+    fn detect_js_check_flags_eslint_config_without_get_config() {
+        let files = vec![source("eslint.config.mjs", "export default []\n")];
+        let diagnostics = detect_js_check(&files);
+        assert!(diagnostics
+            .iter()
+            .any(|d| d.reason == JS_CHECK_REASON && d.message.contains("getConfig")));
+        assert!(diagnostics
+            .iter()
+            .any(|d| d.message.contains("@nitra/eslint-config")));
+    }
+
+    // Дзеркало `check.test.mjs` «невалідний JSON у .oxlintrc.json → fail».
+    #[test]
+    fn detect_js_check_flags_invalid_oxlintrc_json() {
+        let files = vec![source(".oxlintrc.json", "{ invalid json ]")];
+        let diagnostics = detect_js_check(&files);
+        assert!(diagnostics.iter().any(
+            |d| d.reason == JS_CHECK_REASON && d.message == ".oxlintrc.json не є валідним JSON"
+        ));
+        // Розбіжність-drift не звітується — розбір взагалі не дійшов до порівняння.
+        assert!(diagnostics
+            .iter()
+            .all(|d| d.reason != OXLINTRC_DRIFT_REASON));
+    }
+
+    // Дзеркало `check.test.mjs` «lint.yml з дубльованими кроками
+    // oxlint+eslint+jscpd → fail» і «lint.yml існує, але не дублює lint-js
+    // → pass для lint.yml».
+    #[test]
+    fn detect_js_check_flags_duplicate_lint_yml_steps() {
+        let dup = vec![source(
+            ".github/workflows/lint.yml",
+            "steps:\n  - run: bunx oxlint .\n  - run: bunx eslint .\n  - run: jscpd .\n",
+        )];
+        assert!(detect_js_check(&dup)
+            .iter()
+            .any(|d| d.reason == JS_CHECK_REASON
+                && d.message
+                    .contains(".github/workflows/lint.yml дублює кроки lint-js.yml")));
+
+        let clean = vec![source(
+            ".github/workflows/lint.yml",
+            "steps:\n  - run: echo hello\n",
+        )];
+        assert!(detect_js_check(&clean)
+            .iter()
+            .all(|d| !d.message.contains("дублює кроки lint-js.yml")));
+    }
+
+    // Дзеркало `wasm-plugin-parity.test.mjs` «vue-воркспейс (за `.vue`-файлом,
+    // glob-патерн workspaces)» і «`.vue` під `dist/` не робить воркспейс
+    // vue-воркспейсом» — `expand_workspaces`/`is_vue_workspace` досі не мали
+    // прямого `#[test]` через `detect_js_check` (лише непрямо, через
+    // фіксований `workspaces: ["app"]` в іншому тесті).
+    #[test]
+    fn detect_js_check_expands_glob_workspaces_and_ignores_vue_under_dist() {
+        let files = vec![
+            source(
+                "eslint.config.js",
+                "import { getConfig } from '@nitra/eslint-config'\nexport default [{ ignores: ['**/auto-imports.d.ts'] }, ...getConfig({ node: ['packages/ui'] })]\n",
+            ),
+            source("package.json", r#"{"workspaces":["packages/*"]}"#),
+            source(
+                "packages/ui/package.json",
+                r#"{"type":"module","engines":{"node":">=24","bun":">=1.3"}}"#,
+            ),
+            source("packages/ui/src/Widget.vue", "<template><div /></template>\n"),
+            // `dist/` — навіть під vue-воркспейсом не рахується (`is_vue_workspace`).
+            source("packages/ui/dist/Bundled.vue", "<template><div /></template>\n"),
+            source(".oxlintrc.json", OXLINT_CANONICAL_JSON),
+            source("knip.json", "{}"),
+        ];
+        let diagnostics = detect_js_check(&files);
+        let vue = diagnostics
+            .iter()
+            .find(|d| d.reason == ESLINT_CONFIG_VUE_WORKSPACE_REASON)
+            .expect("glob-розгорнутий packages/ui — vue-воркспейс поза vue: [...]");
+        assert!(vue
+            .message
+            .contains("воркспейс 'packages/ui' містить Vue-код"));
+    }
+
+    // Дзеркало «`.oxlintrc.json` із вилученими jsPlugins/ignorePatterns —
+    // порядок повідомлень за порядком ключів канону» (jsPlugins ПЕРЕД
+    // ignorePatterns у каноні).
+    #[test]
+    fn detect_js_check_oxlintrc_drift_orders_js_plugins_before_ignore_patterns() {
+        let mut cfg = parse_json_ordered(OXLINT_CANONICAL_JSON).expect("валідний");
+        if let JsonOrdered::Object(entries) = &mut cfg {
+            for (key, value) in entries.iter_mut() {
+                if key == "jsPlugins" || key == "ignorePatterns" {
+                    *value = JsonOrdered::Array(Vec::new());
+                }
+            }
+        }
+        let files = vec![source(".oxlintrc.json", &js_json_stringify(&cfg))];
+        let drift: Vec<String> = detect_js_check(&files)
+            .into_iter()
+            .filter(|d| d.reason == OXLINTRC_DRIFT_REASON)
+            .map(|d| d.message)
+            .collect();
+        assert_eq!(drift.len(), 2);
+        assert!(drift[0].contains("jsPlugins має містити канонічні plugins"));
+        assert!(drift[1].contains("ignorePatterns має містити канонічні патерни"));
+    }
+
+    // Дзеркало «застарілі конфіги ESLint — по одному порушенню на кожен, у
+    // фіксованому порядку» — `LEGACY_ESLINT_CONFIGS`-цикл раніше не мав
+    // прямого тесту з ДВОМА одночасними легасі-файлами.
+    #[test]
+    fn detect_js_check_flags_multiple_legacy_eslint_configs_in_order() {
+        let files = vec![
+            source(".eslintrc", "{}"),
+            source(".eslintrc.yml", "root: true\n"),
+        ];
+        let messages: Vec<String> = detect_js_check(&files)
+            .into_iter()
+            .map(|d| d.message)
+            .filter(|m| m.contains("застарілий конфіг ESLint"))
+            .collect();
+        assert_eq!(
+            messages,
+            vec![
+                "Знайдено застарілий конфіг ESLint: .eslintrc — видали, використовуй flat config",
+                "Знайдено застарілий конфіг ESLint: .eslintrc.yml — видали, використовуй flat config",
+            ]
+        );
+    }
+
+    // --- js-run/runtime (доповнення при звірці покриття перед видаленням
+    // JS-фолбеку кластера `js/*`) ---
+    //
+    // `detect_js_run_runtime` не мала ЖОДНОГО прямого `#[test]` тут —
+    // покриття було виключно інтеграційне (18 сценаріїв колишньої
+    // parity-фікстури `wasm-plugin-parity.test.mjs`, перетвореної на
+    // wasm-регресію, + 5 edge-case-тестів
+    // `crates/rules-plugin-host/tests/plugin_lang_js.rs`). Тести нижче
+    // закривають частину додаткових сценаріїв із семи видалених
+    // `plugins/lang-js/rules/js-run/runtime/tests/*.test.mjs`, які НЕ
+    // дублюють уже наявне покриття: side-effect bunyan-імпорт і дозволений
+    // `@nitra/pino`, специфічні db-conn-імена (mssql-read, невалідний
+    // префікс, kebab→camel багатосегментний), Temporal у формі імпорту.
+    // Решта дрібних сценаріїв цих семи файлів (варіанти форм
+    // Promise+setTimeout, `resolveConnDirFromPackageJson`, комп'ютед-ключі
+    // `process.env[...]`) СВІДОМО не продубльована — ті самі чисті функції
+    // (`function_like_parts`, `single_call_expression`) уже покриті іншими
+    // тестами через спільний код, регресія в форму НЕ вносить нову гілку.
+
+    /// Мінімальний workspace-батч (root `package.json` з `workspaces: ["api"]`
+    /// разом з `api/package.json`) — той самий мотив, що JS-фікстура
+    /// `writeWorkspaceRoot` колишнього parity-файлу. `api_pkg_extra` — сирі
+    /// поля, що домішуються у `api/package.json` (напр.
+    /// `"imports":{"#conn/*":"./lib/conn/*"}` — без цього connDir падає на
+    /// дефолтний `src/conn`, доккомент [`CONN_DIR_FALLBACK`]).
+    fn js_run_workspace_files(
+        api_pkg_extra: &str,
+        api_file_path: &str,
+        api_file_content: &str,
+    ) -> Vec<SourceFile> {
+        vec![
+            source("package.json", r#"{"name":"root","workspaces":["api"]}"#),
+            source(
+                "api/package.json",
+                &format!("{{\"name\":\"api\"{api_pkg_extra}}}"),
+            ),
+            source(&format!("api/{api_file_path}"), api_file_content),
+        ]
+    }
+
+    #[test]
+    fn detect_js_run_runtime_flags_bunyan_side_effect_import_and_allows_pino() {
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "lib/log.mjs",
+            "import 'bunyan'\nimport { createLogger } from '@nitra/pino'\nexport const log = createLogger()\n",
+        ));
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0]
+            .message
+            .contains("заміни 'bunyan' на '@nitra/pino'"));
+    }
+
+    /// Домішка `package.json`, що декларує канонічний conn-аліас —
+    /// той самий мотив, що `writeWorkspaceRoot(dir, { imports: { '#conn/*':
+    /// './lib/conn/*' } })` колишньої parity-фікстури.
+    const CONN_ALIAS_PKG_EXTRA: &str = r##","imports":{"#conn/*":"./lib/conn/*"}"##;
+
+    #[test]
+    fn detect_js_run_runtime_conn_file_valid_mssql_read_name_passes() {
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            CONN_ALIAS_PKG_EXTRA,
+            "lib/conn/mssql-read.mjs",
+            "export const mssqlRead = 1\n",
+        ));
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn detect_js_run_runtime_conn_file_invalid_prefix_is_flagged() {
+        // `msql-` (без другого `s`) не входить у канонічний набір
+        // префіксів (`pg`/`mysql`/`mssql`).
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            CONN_ALIAS_PKG_EXTRA,
+            "lib/conn/msql-read.mjs",
+            "export const msqlRead = 1\n",
+        ));
+        assert!(diagnostics
+            .iter()
+            .any(|d| d.message.contains("не відповідає канону js-run")));
+    }
+
+    #[test]
+    fn detect_js_run_runtime_conn_file_kebab_to_camel_multi_segment() {
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            CONN_ALIAS_PKG_EXTRA,
+            "lib/conn/mssql-write-b2b.mjs",
+            "export const mssqlWriteB2b = 1\n",
+        ));
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn detect_js_run_runtime_flags_temporal_import_form() {
+        let diagnostics = detect_js_run_runtime(&js_run_workspace_files(
+            "",
+            "lib/time.mjs",
+            "import { Temporal } from '@js-temporal/polyfill'\nexport const now = () => Temporal.Now.instant()\n",
+        ));
+        assert!(diagnostics
+            .iter()
+            .any(|d| d.message.contains("Temporal API заборонений у Bun runtime")));
+    }
+
     // --- маніфест ---
 
     // --- bun/licensee (зріз 5 контракту v3.1) ---
@@ -15456,6 +16313,26 @@ mod tests {
         assert_eq!(diagnostics[0].reason, RULE_META_REASON);
     }
 
+    // Дзеркало `rule_meta.test.mjs` — залишкові `main.json.lint`/`.llmFix`
+    // раніше не мали жодного `#[test]` (знайдено при звірці покриття перед
+    // видаленням JS-фолбеку кластера `js/*`).
+    #[test]
+    fn detect_rule_meta_flags_residual_lint_and_llm_fix_fields() {
+        let files = vec![
+            src("npm/rules/n-js/main.mdc", "# n-js\n"),
+            src(
+                "npm/rules/n-js/main.json",
+                r#"{"auto": "завжди", "lint": {}, "llmFix": true}"#,
+            ),
+        ];
+        let diagnostics = detect_rule_meta(&files);
+        assert_eq!(diagnostics.len(), 2);
+        assert!(diagnostics[0].message.contains("main.json.lint скасовано"));
+        assert!(diagnostics[1]
+            .message
+            .contains("main.json.llmFix скасовано"));
+    }
+
     #[test]
     fn detect_skill_meta_emits_all_field_violations_in_canonical_order() {
         let files = vec![src(
@@ -15479,6 +16356,30 @@ mod tests {
         );
     }
 
+    // Дзеркало `skill_meta.test.mjs` — відсутній main.json і залишковий
+    // auto.md раніше не мали жодного `#[test]` для skill_meta (лише
+    // rule_meta-еквіваленти були покриті).
+    #[test]
+    fn detect_skill_meta_flags_missing_main_json() {
+        let diagnostics = detect_skill_meta(&[src("npm/skills/n-lint/skill.mdc", "# n-lint\n")]);
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0]
+            .message
+            .contains("відсутній або невалідний main.json"));
+        assert_eq!(diagnostics[0].reason, SKILL_META_REASON);
+    }
+
+    #[test]
+    fn detect_skill_meta_flags_residual_auto_md() {
+        let files = vec![
+            src("npm/skills/n-lint/auto.md", "завжди\n"),
+            src("npm/skills/n-lint/main.json", r#"{"worktree": false}"#),
+        ];
+        let diagnostics = detect_skill_meta(&files);
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].message.contains("залишковий auto.md"));
+    }
+
     #[test]
     fn module_jsdoc_stops_at_first_import_or_export_line() {
         assert_eq!(
@@ -15494,6 +16395,132 @@ mod tests {
         assert_eq!(jsdoc_content_line_count("/** pointer */"), 0);
         assert_eq!(jsdoc_content_line_count("/**\n * один\n */"), 1);
         assert_eq!(jsdoc_content_line_count("/**\n * один\n *\n * два\n */"), 2);
+    }
+
+    // `detect_header_doc_pointer` мала лише golden-тест у
+    // `crates/rules-plugin-host/tests/plugin_lang_js.rs`
+    // (`detect_header_doc_pointer_flags_narrative_jsdoc_next_to_docs`), не
+    // прямий `#[test]` тут — і жоден з двох не покривав `.test.mjs`-фільтр
+    // чи гілку `npm/skills` (лише `npm/rules`). Знайдено при звірці
+    // покриття перед видаленням JS-фолбеку кластера `js/*`.
+    #[test]
+    fn detect_header_doc_pointer_skips_test_files_and_covers_skills_base() {
+        let files = vec![
+            // `npm/rules/...` — `.test.mjs` з тим самим module JSDoc, що
+            // тригерив би порушення на не-тестовому файлі, ігнорується.
+            src(
+                "npm/rules/n-js/js/check.test.mjs",
+                "/**\n * Опис поведінки.\n * Другий рядок.\n */\nexport const a = 1\n",
+            ),
+            src("npm/rules/n-js/js/docs/check.test.md", "# check.test\n"),
+            // `npm/skills/...` — той самий сценарій, що для `npm/rules`, але
+            // друга base-гілка `detect_header_doc_pointer`.
+            src(
+                "npm/skills/n-lint/js/run.mjs",
+                "/**\n * Опис поведінки.\n * Другий рядок.\n */\nexport const b = 1\n",
+            ),
+            src("npm/skills/n-lint/js/docs/run.md", "# run\n"),
+        ];
+        let diagnostics = detect_header_doc_pointer(&files);
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0]
+            .message
+            .starts_with("npm/skills/n-lint/js/run.mjs"));
+    }
+
+    /// Мінімальний "чистий" батч для `detect_package_structure`: усе, що
+    /// НЕ стосується hk.pkl/types, вже на місці — лишається ізольовано
+    /// звірити hk-гілку.
+    fn package_structure_clean_batch_except_hk(hk_pkl: &str) -> Vec<SourceFile> {
+        vec![
+            src("package.json", "{\"name\":\"root\"}"),
+            src(
+                "npm/package.json",
+                "{\"name\":\"@7n/rules\",\"types\":\"./types/index.d.ts\"}",
+            ),
+            src("npm/types/index.d.ts", "export {}\n"),
+            src("npm/tsconfig.emit-types.json", "{}"),
+            src(".github/workflows/npm-publish.yml", "on: push\n"),
+            src("hk.pkl", hk_pkl),
+        ]
+    }
+
+    // Дзеркало `package_structure.test.mjs` — `detect_package_structure` не
+    // мала ЖОДНОГО `#[test]` тут (лише інтеграційний golden-тест у
+    // `crates/rules-plugin-host/tests/plugin_lang_js.rs` і тести чистих
+    // хелперів нижче). Чотири гілки — deprecated "check changelog", відсутній
+    // npm-changelog крок, `use_src_js_layout`, `npm` як файл — не мали
+    // прямого покриття. Знайдено при звірці покриття перед видаленням
+    // JS-фолбеку кластера `js/*`.
+    #[test]
+    fn detect_package_structure_flags_deprecated_check_changelog_step() {
+        let hk =
+            "[\"pre-commit\"]\nbunx -p typescript tsc tsconfig.emit-types.json\ncheck changelog\n";
+        let diagnostics = detect_package_structure(&package_structure_clean_batch_except_hk(hk));
+        assert!(diagnostics
+            .iter()
+            .any(|d| d.message.contains("застарілий виклик \"check changelog\"")));
+    }
+
+    #[test]
+    fn detect_package_structure_flags_missing_npm_changelog_step() {
+        let hk = "[\"pre-commit\"]\nbunx -p typescript tsc tsconfig.emit-types.json\n";
+        let diagnostics = detect_package_structure(&package_structure_clean_batch_except_hk(hk));
+        assert!(diagnostics
+            .iter()
+            .any(|d| d.message.contains("онови крок npm-changelog")
+                && d.message.contains("npm-changelog")));
+    }
+
+    #[test]
+    fn detect_package_structure_passes_hk_with_npm_changelog_step() {
+        let hk = "[\"pre-commit\"]\nbunx -p typescript tsc tsconfig.emit-types.json\n\
+                  [\"npm-changelog\"]\nN_RULES_CHANGELOG_AUTOFIX=1 npx @7n/rules lint changelog\n";
+        let diagnostics = detect_package_structure(&package_structure_clean_batch_except_hk(hk));
+        assert!(diagnostics.iter().all(|d| !d.message.contains("hk.pkl")));
+    }
+
+    #[test]
+    fn detect_package_structure_flags_npm_as_plain_file_not_directory() {
+        let files = vec![
+            src("package.json", "{\"name\":\"root\"}"),
+            // `npm` — звичайний ФАЙЛ, не каталог.
+            src("npm", "not a directory\n"),
+        ];
+        let diagnostics = detect_package_structure(&files);
+        assert!(diagnostics
+            .iter()
+            .any(|d| d.message == "npm має бути директорією"));
+        // `npm/` "не існує" гілка НЕ повинна дублюватись — `npm`-як-файл
+        // виключна альтернатива (else if у канонічному порту).
+        assert!(diagnostics
+            .iter()
+            .all(|d| d.message != "npm/ директорія не існує"));
+    }
+
+    #[test]
+    fn detect_package_structure_use_src_js_layout_switches_types_and_hk_requirements() {
+        let files = vec![
+            src("package.json", "{\"name\":\"root\"}"),
+            src("npm/package.json", "{\"name\":\"@7n/rules\"}"),
+            src("npm/src/index.js", "module.exports = {}\n"),
+            // Немає npm/types/index.d.ts → фейл use_src_js_layout-гілки types.
+            src(
+                "hk.pkl",
+                "[\"pre-commit\"]\nbunx -p typescript tsc src/**/*.js --declaration --allowJs \
+                 --emitDeclarationOnly --outDir types --skipLibCheck\n[\"npm-changelog\"]\n\
+                 N_RULES_CHANGELOG_AUTOFIX=1 npx @7n/rules lint changelog\n",
+            ),
+            src(".github/workflows/npm-publish.yml", "on: push\n"),
+        ];
+        let diagnostics = detect_package_structure(&files);
+        assert!(diagnostics
+            .iter()
+            .any(|d| d.message.contains("Відсутній npm/types/index.d.ts")));
+        // use_src_js_layout=true → tsconfig.emit-types.json НЕ вимагається.
+        assert!(diagnostics
+            .iter()
+            .all(|d| !d.message.contains("tsconfig.emit-types.json")));
     }
 
     #[test]
@@ -15561,6 +16588,33 @@ mod tests {
         assert!(diagnostics[0]
             .message
             .starts_with("src/ua.mjs: заборонений"));
+    }
+
+    // Дзеркало `dep-policy.test.mjs` («порушення: dynamic import(...)»,
+    // «порушення: у .ts файлі», «кілька порушень у різних файлах — всі
+    // репортуються») — прибрано разом з JS-фолбеком (видалення
+    // JS-детектора кластера `js/*`), випадки переносимо сюди.
+    #[test]
+    fn detect_dep_policy_flags_dynamic_import_ts_files_and_multiple_files() {
+        let files = vec![
+            src(
+                "src/a.mjs",
+                "const m = await import('@nitra/as-integrations-fastify')\n",
+            ),
+            src(
+                "src/b.ts",
+                "import fastifyApollo, { fastifyApolloDrainPlugin } from '@nitra/as-integrations-fastify'\n",
+            ),
+        ];
+        let diagnostics = detect_dep_policy(&files);
+        assert_eq!(diagnostics.len(), 2);
+        assert!(diagnostics.iter().all(|d| d.reason == DEP_POLICY_REASON));
+        assert!(diagnostics
+            .iter()
+            .any(|d| d.message.starts_with("src/a.mjs")));
+        assert!(diagnostics
+            .iter()
+            .any(|d| d.message.starts_with("src/b.ts")));
     }
 
     // --- Батч 8: bun/layout ---
@@ -15778,6 +16832,33 @@ mod tests {
     fn detect_sandbox_aware_test_ignores_non_test_files() {
         let files = vec![src("src/deep.mjs", DEEP_NAV_BODY)];
         assert!(detect_sandbox_aware_test(&files).is_empty());
+    }
+
+    /// `sandbox-aware-test.test.mjs` — «успіх: тест без import.meta навігації»:
+    /// `has_deep_meta_navigation` не знаходить жодного `import.meta.*` взагалі
+    /// → рано повертає `false`, без діагностики.
+    #[test]
+    fn detect_sandbox_aware_test_passes_without_any_meta_navigation() {
+        let files = vec![src(
+            "tests/foo.test.mjs",
+            "import { test } from \"vitest\"\ntest(\"ok\", () => {})\n",
+        )];
+        assert!(detect_sandbox_aware_test(&files).is_empty());
+    }
+
+    /// `sandbox-aware-test.test.mjs` — «import.meta.url (не лише dirname) теж
+    /// детектується»: [`IMPORT_META_NAV_PATTERN`] — альтернація
+    /// `dirname|url`, цей тест тримає живою гілку `url`, не лише `dirname`.
+    #[test]
+    fn detect_sandbox_aware_test_flags_import_meta_url_variant() {
+        let files = vec![src(
+            "tests/url-based.test.mjs",
+            "const d = dirname(fileURLToPath(import.meta.url))\nconst R = join(d, '..', '..', '..', \
+             '..')\n",
+        )];
+        let diagnostics = detect_sandbox_aware_test(&files);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].reason, SANDBOX_AWARE_TEST_REASON);
     }
 
     #[test]

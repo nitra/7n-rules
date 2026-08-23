@@ -1,0 +1,72 @@
+{
+  "wasm-plugin parity — js/jscpd_duplicates (JS канон vs wasm plugin-lang-js, спільний фейковий bunx) > звіт із двома клонами → однакові violations (message/file/data) з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "duplicate-clone",
+      "message": "jscpd: дубльований фрагмент (25 рядків, javascript) src/a.mjs:1-26 ↔ src/b.mjs:10-35",
+      "file": "src/a.mjs",
+      "data": {
+        "line": 1,
+        "lines": 25,
+        "format": "javascript",
+        "first": {
+          "file": "src/a.mjs",
+          "start": 1,
+          "end": 26
+        },
+        "second": {
+          "file": "src/b.mjs",
+          "start": 10,
+          "end": 35
+        }
+      }
+    },
+    {
+      "severity": "error",
+      "reason": "duplicate-clone",
+      "message": "jscpd: дубльований фрагмент (30 рядків, vue) src/C.vue:2-32 ↔ src/D.vue:5-35",
+      "file": "src/C.vue",
+      "data": {
+        "line": 2,
+        "lines": 30,
+        "format": "vue",
+        "first": {
+          "file": "src/C.vue",
+          "start": 2,
+          "end": 32
+        },
+        "second": {
+          "file": "src/D.vue",
+          "start": 5,
+          "end": 35
+        }
+      }
+    }
+  ],
+  "wasm-plugin parity — js/jscpd_duplicates (JS канон vs wasm plugin-lang-js, спільний фейковий bunx) > порожній duplicates → без порушень з обох реалізацій": [],
+  "wasm-plugin parity — js/jscpd_duplicates (JS канон vs wasm plugin-lang-js, спільний фейковий bunx) > duplicates не масив → без порушень з обох реалізацій": [],
+  "wasm-plugin parity — js/jscpd_duplicates (JS канон vs wasm plugin-lang-js, спільний фейковий bunx) > ненульовий код тула зі звітом → вердикт беруть зі звіту обидві реалізації": [
+    {
+      "severity": "error",
+      "reason": "duplicate-clone",
+      "message": "jscpd: дубльований фрагмент (40 рядків, markdown) docs/a.md:3-43 ↔ docs/b.md:7-47",
+      "file": "docs/a.md",
+      "data": {
+        "line": 3,
+        "lines": 40,
+        "format": "markdown",
+        "first": {
+          "file": "docs/a.md",
+          "start": 3,
+          "end": 43
+        },
+        "second": {
+          "file": "docs/b.md",
+          "start": 7,
+          "end": 47
+        }
+      }
+    }
+  ],
+  "wasm-plugin parity — js/jscpd_duplicates (JS канон vs wasm plugin-lang-js, спільний фейковий bunx) > wasm-порт не лишає звіту в дереві репо — він живе у scratch-каталозі хоста": []
+}

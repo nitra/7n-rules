@@ -6,31 +6,22 @@ import { join } from 'node:path'
 import { env } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
+import { existsSync } from 'node:fs'
+
 import { runConcernDetector } from '../scripts/lib/lint-surface/detect.mjs'
+import { loadNative } from '../scripts/lib/native.mjs'
 // Плагінні правила — пакетними specifier-ами, не `../../plugins/…`: sandbox-копія
 // Stryker містить лише npm/, відносний шлях там не резолвиться.
-import { lint as _bun } from '@7n/rules-lang-js/rules/bun/layout/main.mjs'
 import { lint as _ga } from '@7n/rules-ci-github/rules/ga/workflows/main.mjs'
-import { lint as _jsLint } from '@7n/rules-lang-js/rules/js/check/main.mjs'
-import { lint as _jsRun } from '@7n/rules-lang-js/rules/js-run/runtime/main.mjs'
-import { lint as _npmModule } from '@7n/rules-lang-js/rules/npm-module/package_structure/main.mjs'
-import { withShellcheckStubInPath } from '../scripts/utils/test-helpers.mjs'
+import { realRepoRoot, withShellcheckStubInPath } from '../scripts/utils/test-helpers.mjs'
 
 // Адаптери під unified lint surface: detector → 0 (чисто) / 1 (є violations).
 const mk = (fn, ruleId, concernId) => async cwd => {
   const result = await fn({ cwd, ruleId, concernId })
   return result.violations.length === 0 ? 0 : 1
 }
-const checkBun = mk(_bun, 'bun', 'layout')
 const checkGa = mk(_ga, 'ga', 'workflows')
-const checkJsLint = mk(_jsLint, 'js', 'check')
-const checkJsRun = mk(_jsRun, 'js-run', 'runtime')
-const checkK8s = mk(
-  (ctx) => runConcernDetector(null, ctx),
-  'k8s',
-  'manifests'
-)
-const checkNpmModule = mk(_npmModule, 'npm-module', 'package_structure')
+const checkK8s = mk(ctx => runConcernDetector(null, ctx), 'k8s', 'manifests')
 
 const TEST_DIR =
   typeof import.meta.dirname === 'string' ? import.meta.dirname : fileURLToPath(new URL('.', import.meta.url))
@@ -64,6 +55,33 @@ const checkAbieUaHr = mkNative('abie', 'ua_http_route', 'abie', 'ua_http_route')
 const checkText = mkNative('text', 'formatting', 'text', 'formatting')
 const checkDocker = mkNative('docker', 'lint', 'docker', 'lint')
 const checkGraphql = mkNative('graphql', 'tooling', 'graphql', 'tooling')
+
+// `bun/layout`, `js/check`, `js-run/runtime`, `npm-module/package_structure` —
+// wasm-портовані концерни плагіна lang-js (`crates/plugin-lang-js/src/lib.rs`):
+// їхні `main.mjs` прибрано разом з рештою JS-фолбеку, канон тепер wasm.
+//
+// `runConcernDetector`/`mkNative` тут НЕ підходять, хоч і виглядають тим самим
+// патерном, що для native-концернів вище: їхній резолв іде через
+// `resolveWasmConcernMap`, який читає `npm/wasm-plugins/builtin-pins.json` —
+// білд-артефакт npm-релізу, якого в чистому dev-checkout немає. Тому прямий
+// `runWasmConcern` на щойно зібраний компонент (той самий шлях, що
+// `npm/tests/check-rule-fixtures.test.mjs` і
+// `npm/scripts/lib/lint-surface/tests/wasm-plugin-parity.test.mjs`).
+const WASM_PATH = join(realRepoRoot(), 'target', 'wasm32-wasip2', 'release', 'plugin_lang_js.wasm')
+const mkWasm = concernKey => async cwd => {
+  if (!existsSync(WASM_PATH)) {
+    throw new Error(
+      `integration-repo-checks.test.mjs: wasm-компонент plugin-lang-js не зібраний: ${WASM_PATH} відсутній.\n` +
+        'Зберіть його командою: bash crates/plugin-lang-js/build.sh'
+    )
+  }
+  const result = loadNative().runWasmConcern(WASM_PATH, concernKey, cwd, null)
+  return result.violations.length === 0 ? 0 : 1
+}
+const checkBun = mkWasm('bun/layout')
+const checkJsLint = mkWasm('js/check')
+const checkJsRun = mkWasm('js-run/runtime')
+const checkNpmModule = mkWasm('npm-module/package_structure')
 
 /**
  * @param {string} cwd корінь репозиторію

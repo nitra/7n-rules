@@ -1,0 +1,15 @@
+{
+  "wasm-plugin parity — test/no-process-chdir (JS канон vs wasm plugin-lang-js, full-scope міст) > успіх: тест без забороненого виклику → без порушень з обох реалізацій": [],
+  "wasm-plugin parity — test/no-process-chdir (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: тест із process.chdir(dir) → однакове violation з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "process-chdir-in-test",
+      "message": "tests/foo.test.mjs:2: process.chdir() у тесті заборонений — використовуй withTmpDir(async dir => …) + явні join(dir, …) + cwd: dir (test.mdc)",
+      "file": "tests/foo.test.mjs",
+      "data": {
+        "line": 2
+      }
+    }
+  ],
+  "wasm-plugin parity — test/no-process-chdir (JS канон vs wasm plugin-lang-js, full-scope міст) > обхід пропускає node_modules → без порушень з обох реалізацій": []
+}

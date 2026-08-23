@@ -2,16 +2,14 @@
  * Тести check-vue, check-style, check-nginx у штучних мінімальних проєктах (у репозиторії cursor ці правила не повністю застосовані).
  */
 import { describe, expect, test } from 'vitest'
+import { existsSync } from 'node:fs'
 import { copyFile, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { runConcernDetector } from '../scripts/lib/lint-surface/detect.mjs'
-// Плагінні правила — пакетними specifier-ами, не `../../plugins/…`: sandbox-копія
-// Stryker містить лише npm/, відносний шлях там не резолвиться.
-import { lint as lintStyle } from '@7n/rules-lang-js/rules/style/tooling/main.mjs'
-import { lint as lintVue } from '@7n/rules-lang-js/rules/vue/packages/main.mjs'
-import { ensureDir, withTmpDir, writeJson } from '../scripts/utils/test-helpers.mjs'
+import { loadNative } from '../scripts/lib/native.mjs'
+import { ensureDir, realRepoRoot, withTmpDir, writeJson } from '../scripts/utils/test-helpers.mjs'
 
 const TEST_DIR = fileURLToPath(new URL('.', import.meta.url))
 
@@ -20,6 +18,22 @@ const TEST_DIR = fileURLToPath(new URL('.', import.meta.url))
 // через `runConcernDetector` (той самий прийом, що `checkDocker`/`checkGraphql` у
 // `npm/tests/integration-repo-checks.test.mjs::mkNative`), а не прямий `lint()`-імпорт.
 const NGINX_CONCERN_DIR = join(TEST_DIR, '..', 'rules/nginx-default-tpl/template')
+
+// `style/tooling` і `vue/packages` — wasm-портовані concern-и плагіна lang-js
+// (`crates/plugin-lang-js/src/lib.rs`, детектори `detect_style_tooling`/
+// `detect_vue_packages`): `main.mjs` видалено, лишається wasm-контрибуція.
+// `runConcernDetector` (через `resolveWasmConcernMap`) тут НЕ підходить —
+// той резолв читає `npm/wasm-plugins/builtin-pins.json`, білд-артефакт
+// npm-релізу, якого в чистому dev-checkout немає; замість нього — прямий
+// `runWasmConcern` на щойно зібраний `target/wasm32-wasip2/release/plugin_lang_js.wasm`
+// (той самий шлях, що `npm/scripts/lib/lint-surface/tests/wasm-plugin-parity.test.mjs`).
+const WASM_PATH = join(realRepoRoot(), 'target', 'wasm32-wasip2', 'release', 'plugin_lang_js.wasm')
+if (!existsSync(WASM_PATH)) {
+  throw new Error(
+    `check-rule-fixtures.test.mjs: wasm-компонент plugin-lang-js не зібраний: ${WASM_PATH} відсутній.\n` +
+      'Зберіть його командою: bash crates/plugin-lang-js/build.sh'
+  )
+}
 
 // Гейт відкритий (шаблон валідний, `.vscode/extensions.json`/`settings.json` є) доходить
 // до `run_conftest_batch`, який резолвить корінь пакета `@7n/rules` від `cwd` (тимчасовий
@@ -38,11 +52,11 @@ const checkNginx = async dir => {
   return result.violations.length === 0 ? 0 : 1
 }
 const checkStyle = async dir => {
-  const result = await lintStyle({ cwd: dir, ruleId: 'style', concernId: 'tooling' })
+  const result = loadNative().runWasmConcern(WASM_PATH, 'style/tooling', dir, null)
   return result.violations.length === 0 ? 0 : 1
 }
 const checkVue = async dir => {
-  const result = await lintVue({ cwd: dir, ruleId: 'vue', concernId: 'packages' })
+  const result = loadNative().runWasmConcern(WASM_PATH, 'vue/packages', dir, null)
   return result.violations.length === 0 ? 0 : 1
 }
 

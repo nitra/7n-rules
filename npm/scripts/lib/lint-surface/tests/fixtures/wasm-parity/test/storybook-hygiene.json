@@ -1,0 +1,52 @@
+{
+  "wasm-plugin parity — test/storybook-hygiene (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: undeclared import у .vue (static + subpath-дедуп) → ідентичні violations": [
+    {
+      "severity": "error",
+      "reason": "undeclared-import",
+      "message": "[undeclared-import] packages/ui/src/components/Picker.vue: import '@vuepic/vue-datepicker' — пакет '@vuepic/vue-datepicker' відсутній у dependencies/peerDependencies packages/ui (storybook.mdc hygiene)",
+      "file": "packages/ui/src/components/Picker.vue",
+      "data": {
+        "rootDir": "packages/ui",
+        "package": "@vuepic/vue-datepicker",
+        "specifier": "@vuepic/vue-datepicker"
+      }
+    }
+  ],
+  "wasm-plugin parity — test/storybook-hygiene (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: динамічний import() і require() у script блоці → ідентичний порядок violations": [
+    {
+      "severity": "error",
+      "reason": "undeclared-import",
+      "message": "[undeclared-import] packages/ui/src/components/Lazy.vue: import 'legacy-pkg' — пакет 'legacy-pkg' відсутній у dependencies/peerDependencies packages/ui (storybook.mdc hygiene)",
+      "file": "packages/ui/src/components/Lazy.vue",
+      "data": {
+        "rootDir": "packages/ui",
+        "package": "legacy-pkg",
+        "specifier": "legacy-pkg"
+      }
+    },
+    {
+      "severity": "error",
+      "reason": "undeclared-import",
+      "message": "[undeclared-import] packages/ui/src/components/Lazy.vue: import 'dyn-pkg' — пакет 'dyn-pkg' відсутній у dependencies/peerDependencies packages/ui (storybook.mdc hygiene)",
+      "file": "packages/ui/src/components/Lazy.vue",
+      "data": {
+        "rootDir": "packages/ui",
+        "package": "dyn-pkg",
+        "specifier": "dyn-pkg"
+      }
+    }
+  ],
+  "wasm-plugin parity — test/storybook-hygiene (JS канон vs wasm plugin-lang-js, full-scope міст) > успіх: задекларована залежність і .vue із syntax error → без порушень з обох реалізацій": [],
+  "wasm-plugin parity — test/storybook-hygiene (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: sass-variables без sassVariables у .storybook/main.js → однаковий warn": [
+    {
+      "severity": "warn",
+      "reason": "missing-sass-variables",
+      "message": "[sass-variables] packages/ui/.storybook/main.js: пакет має глобальні Quasar SCSS-змінні (src/css/quasar.variables.scss | src/css/quasar.variables.sass), але quasar({ sassVariables }) не задано в .storybook/main.js (storybook.mdc hygiene)",
+      "file": "packages/ui/.storybook/main.js",
+      "data": {
+        "rootDir": "packages/ui"
+      }
+    }
+  ],
+  "wasm-plugin parity — test/storybook-hygiene (JS канон vs wasm plugin-lang-js, full-scope міст) > успіх: sassVariables заданий у main.js → без порушень з обох реалізацій": []
+}

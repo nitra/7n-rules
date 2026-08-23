@@ -17,7 +17,6 @@ import {
   collectInScopeVuePackages,
   countVueFiles,
   isVueAppPkg,
-  lint,
   readDetectAppsFlag,
   readStorybookOptOut,
   VUE_FILE_THRESHOLD
@@ -204,46 +203,5 @@ describe('collectInScopeVuePackages', () => {
     expect(result.map(r => r.rootDir)).toEqual(['packages/demo'])
     expect(result[0].vueFileCount).toBe(1)
     expect(result[0].type).toBe('app')
-  })
-})
-
-describe('lint (self-check конфігурації)', () => {
-  let root
-
-  beforeEach(async () => {
-    root = await mkdtemp(join(tmpdir(), 'storybook-scope-'))
-    await writeFileDeep(root, 'package.json', JSON.stringify({ name: 'root', workspaces: ['packages/*'] }, null, 2))
-  })
-
-  afterEach(async () => {
-    await rm(root, { recursive: true, force: true })
-  })
-
-  test('без storybook.optOut — без порушень', async () => {
-    const result = await lint({ cwd: root, ruleId: 'storybook', concernId: 'storybook/scope' })
-    expect(result.violations).toEqual([])
-  })
-
-  test('storybook.optOut на неіснуючий пакет — порушення stale-opt-out', async () => {
-    await writeVueLibraryPkg(root, 'packages/ui', VUE_FILE_THRESHOLD)
-    await writeFileDeep(
-      root,
-      '.n-rules.json',
-      JSON.stringify({ rules: [], storybook: { optOut: ['packages/ghost'] } }, null, 2)
-    )
-    const result = await lint({ cwd: root, ruleId: 'storybook', concernId: 'storybook/scope' })
-    expect(result.violations).toHaveLength(1)
-    expect(result.violations[0].reason).toBe('stale-opt-out')
-  })
-
-  test('storybook.optOut на існуючий пакет — без порушень', async () => {
-    await writeVueLibraryPkg(root, 'packages/ui', VUE_FILE_THRESHOLD)
-    await writeFileDeep(
-      root,
-      '.n-rules.json',
-      JSON.stringify({ rules: [], storybook: { optOut: ['packages/ui'] } }, null, 2)
-    )
-    const result = await lint({ cwd: root, ruleId: 'storybook', concernId: 'storybook/scope' })
-    expect(result.violations).toEqual([])
   })
 })

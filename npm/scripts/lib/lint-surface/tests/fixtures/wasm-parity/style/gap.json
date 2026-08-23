@@ -1,0 +1,11 @@
+{
+  "wasm-plugin parity — style/gap (JS канон vs wasm plugin-lang-js, full-scope міст) > exit 0 — n-gap-md використано і визначено → без порушень з обох реалізацій": [],
+  "wasm-plugin parity — style/gap (JS канон vs wasm plugin-lang-js, full-scope міст) > exit 1 — n-gap-lg використано, але не визначено → однакове violation з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "missing-gap-style",
+      "message": "Клас `.n-gap-lg` використовується у `.vue`, але не визначений у жодному `.scss`/`.css` (guide: style/gap.mdc) — додай клас до app.scss"
+    }
+  ],
+  "wasm-plugin parity — style/gap (JS канон vs wasm plugin-lang-js, full-scope міст) > exit 0 — n-gap-* взагалі не використовується → без порушень з обох реалізацій": []
+}

@@ -1,0 +1,11 @@
+{
+  "wasm-plugin parity — test/location (JS канон vs wasm plugin-lang-js, full-scope міст) > успіх: усі *.test.mjs у tests/ → без порушень з обох реалізацій": [],
+  "wasm-plugin parity — test/location (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: тест поряд із джерелом → однакове violation з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "location",
+      "message": "rules/foo/js/bar/check.test.mjs: тест має лежати у tests/ — перенеси у rules/foo/js/bar/tests/check.test.mjs (test.mdc)"
+    }
+  ],
+  "wasm-plugin parity — test/location (JS канон vs wasm plugin-lang-js, full-scope міст) > обхід пропускає node_modules → без порушень з обох реалізацій": []
+}

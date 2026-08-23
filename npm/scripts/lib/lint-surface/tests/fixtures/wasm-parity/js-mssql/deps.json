@@ -1,0 +1,44 @@
+{
+  "wasm-plugin parity — js-mssql/deps (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q4 AST-концерн) > успіх: без dependencies.mssql джерела не скануються → без порушень з обох реалізацій": [],
+  "wasm-plugin parity — js-mssql/deps (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q4 AST-концерн) > порушення: версія нижче мінімуму → однакове violation з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "deps",
+      "message": "js-mssql: package.json: dependencies.mssql \"^10.0.0\" — має бути >=12.5.0 (js-mssql.mdc)"
+    }
+  ],
+  "wasm-plugin parity — js-mssql/deps (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q4 AST-концерн) > порушення: невалідний JSON у вкладеному package.json → однакове violation навіть без mssql": [
+    {
+      "severity": "error",
+      "reason": "deps",
+      "message": "js-mssql: sub/package.json — невалідний JSON"
+    }
+  ],
+  "wasm-plugin parity — js-mssql/deps (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q4 AST-концерн) > порушення: new sql.ConnectionPool у функції → однакове violation з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "deps",
+      "message": "js-mssql: src/handler.ts:2 — не створюй new sql.ConnectionPool(...) на кожен запит; використовуй singleton sql.ConnectionPool: new sql.ConnectionPool(config)"
+    }
+  ],
+  "wasm-plugin parity — js-mssql/deps (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q4 AST-концерн) > порушення: query(`...`) не tagged → однакове violation; tagged query`...` — чисто": [
+    {
+      "severity": "error",
+      "reason": "deps",
+      "message": "js-mssql: src/bad.ts:2 — заборонено query(`...`): це не tagged template; використовуй pool.request().query`...` (js-mssql.mdc): pool.request().query(`SELECT * FROM users WHERE id = ${userId}`)"
+    }
+  ],
+  "wasm-plugin parity — js-mssql/deps (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q4 AST-концерн) > порушення: IN-плейсхолдер без числового парсера і guard → однакові 2 violations": [
+    {
+      "severity": "error",
+      "reason": "deps",
+      "message": "js-mssql: src/db.ts:2 — у SQL IN (${...}) значення мають бути попередньо приведені числовим парсером (parseInt/Number/BigInt/parseFloat) і відфільтровані від NaN, інакше можливий SQL injection (js-mssql.mdc): `SELECT 1 FROM t WHERE id IN (${ids})`"
+    },
+    {
+      "severity": "error",
+      "reason": "deps",
+      "message": "js-mssql: src/db.ts:2 — перед IN-списком \"ids\" потрібна перевірка на пустоту з throw (наприклад if (!ids.length) throw ...), інакше можливі некоректні запити (js-mssql.mdc): `SELECT 1 FROM t WHERE id IN (${ids})`"
+    }
+  ],
+  "wasm-plugin parity — js-mssql/deps (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q4 AST-концерн) > успіх: parseInt-трасування + guard на пустоту → без порушень з обох реалізацій": []
+}

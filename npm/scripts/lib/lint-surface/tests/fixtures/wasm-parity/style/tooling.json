@@ -1,0 +1,32 @@
+{
+  "wasm-plugin parity — style/tooling (JS канон vs wasm plugin-lang-js, full-scope міст) > успіх: поле stylelint у package.json + .stylelintignore з dist/ → без порушень": [],
+  "wasm-plugin parity — style/tooling (JS канон vs wasm plugin-lang-js, full-scope міст) > успіх: зовнішній stylelint.config.mjs замість поля + dist/ з пробілами навколо": [],
+  "wasm-plugin parity — style/tooling (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: ні конфігу, ні .stylelintignore → два однакові violations у тому самому порядку": [
+    {
+      "severity": "error",
+      "reason": "tooling",
+      "message": "Немає конфігу stylelint — додай \"stylelint\": { \"extends\": \"@nitra/stylelint-config\" } до package.json"
+    },
+    {
+      "severity": "error",
+      "reason": "tooling",
+      "message": ".stylelintignore не існує — створи з вмістом: dist/"
+    }
+  ],
+  "wasm-plugin parity — style/tooling (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: .stylelintignore без рядка dist/ → однакове violation": [
+    {
+      "severity": "error",
+      "reason": "tooling",
+      "message": ".stylelintignore не містить рядка dist/ — додай його (style.mdc)"
+    }
+  ],
+  "wasm-plugin parity — style/tooling (JS канон vs wasm plugin-lang-js, full-scope міст) > край: без кореневого package.json перевірка конфігу пропускається (лишається лише ignore-гілка)": [],
+  "wasm-plugin parity — style/tooling (JS канон vs wasm plugin-lang-js, full-scope міст) > край: stylelint-рядок не рахується конфігом, а stylelint-масив — рахується": [
+    {
+      "severity": "error",
+      "reason": "tooling",
+      "message": "Немає конфігу stylelint — додай \"stylelint\": { \"extends\": \"@nitra/stylelint-config\" } до package.json"
+    }
+  ],
+  "wasm-plugin parity — style/tooling (JS канон vs wasm plugin-lang-js, full-scope міст) > край: stylelint-рядок не рахується конфігом, а stylelint-масив — рахується #2": []
+}

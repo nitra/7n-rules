@@ -1,0 +1,93 @@
+{
+  "wasm-plugin parity — npm-module/rule_meta (JS канон vs wasm plugin-lang-js, full-scope міст) > успіх: npm/rules/ відсутній → без порушень з обох реалізацій": [],
+  "wasm-plugin parity — npm-module/rule_meta (JS канон vs wasm plugin-lang-js, full-scope міст) > успіх: валідне правило (main.mdc + main.json з auto \"завжди\") → тиша з обох реалізацій": [],
+  "wasm-plugin parity — npm-module/rule_meta (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: відсутній main.mdc + залишковий auto.md → два ідентичні violations у тому самому порядку": [
+    {
+      "severity": "error",
+      "reason": "rule_meta",
+      "message": "rules/n-js: залишковий auto.md — видали (метадані тепер у main.json)"
+    },
+    {
+      "severity": "error",
+      "reason": "rule_meta",
+      "message": "rules/n-js: відсутній main.mdc — обов'язковий (scripts.mdc)"
+    }
+  ],
+  "wasm-plugin parity — npm-module/rule_meta (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: main.json відсутній / битий JSON / масив / скаляр → однакове «відсутній або невалідний»": [
+    {
+      "severity": "error",
+      "reason": "rule_meta",
+      "message": "rules/a-missing: відсутній або невалідний main.json"
+    },
+    {
+      "severity": "error",
+      "reason": "rule_meta",
+      "message": "rules/b-broken: відсутній або невалідний main.json"
+    },
+    {
+      "severity": "error",
+      "reason": "rule_meta",
+      "message": "rules/c-array: відсутній або невалідний main.json"
+    },
+    {
+      "severity": "error",
+      "reason": "rule_meta",
+      "message": "rules/d-scalar: відсутній або невалідний main.json"
+    }
+  ],
+  "wasm-plugin parity — npm-module/rule_meta (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: нерозпізнане auto (порожній масив / {glob:[]} / {predicate:\"\"} / число)": [
+    {
+      "severity": "error",
+      "reason": "rule_meta",
+      "message": "rules/a: main.json.auto нерозпізнане (очікується \"завжди\" / масив / {glob} / {predicate})"
+    },
+    {
+      "severity": "error",
+      "reason": "rule_meta",
+      "message": "rules/b: main.json.auto нерозпізнане (очікується \"завжди\" / масив / {glob} / {predicate})"
+    },
+    {
+      "severity": "error",
+      "reason": "rule_meta",
+      "message": "rules/c: main.json.auto нерозпізнане (очікується \"завжди\" / масив / {glob} / {predicate})"
+    },
+    {
+      "severity": "error",
+      "reason": "rule_meta",
+      "message": "rules/d: main.json.auto нерозпізнане (очікується \"завжди\" / масив / {glob} / {predicate})"
+    }
+  ],
+  "wasm-plugin parity — npm-module/rule_meta (JS канон vs wasm plugin-lang-js, full-scope міст) > край: auto-масив із порожніх рядків і [[]] нерозпізнаний, а [null] і {glob:\"x\"} — валідні": [
+    {
+      "severity": "error",
+      "reason": "rule_meta",
+      "message": "rules/a-blank: main.json.auto нерозпізнане (очікується \"завжди\" / масив / {glob} / {predicate})"
+    },
+    {
+      "severity": "error",
+      "reason": "rule_meta",
+      "message": "rules/d-nested-empty: main.json.auto нерозпізнане (очікується \"завжди\" / масив / {glob} / {predicate})"
+    }
+  ],
+  "wasm-plugin parity — npm-module/rule_meta (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: скасовані поля lint і llmFix → два violations у порядку lint → llmFix": [
+    {
+      "severity": "error",
+      "reason": "rule_meta",
+      "message": "rules/n-js: main.json.lint скасовано — lint-scope декларується у <concern>/concern.json#lint"
+    },
+    {
+      "severity": "error",
+      "reason": "rule_meta",
+      "message": "rules/n-js: main.json.llmFix скасовано — fix-можливість = наявність fix-*.mjs/fix-worker.mjs у концерні"
+    }
+  ],
+  "wasm-plugin parity — npm-module/rule_meta (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: невідомий predicate → ідентичне повідомлення з назвою предиката": [
+    {
+      "severity": "error",
+      "reason": "rule_meta",
+      "message": "rules/n-js: main.json — невідомий predicate \"noSuchThing\" (немає в RULE_PREDICATES)"
+    }
+  ],
+  "wasm-plugin parity — npm-module/rule_meta (JS канон vs wasm plugin-lang-js, full-scope міст) > анти-дрейф: КОЖЕН ключ реального RULE_PREDICATES приймають обидві реалізації": [],
+  "wasm-plugin parity — npm-module/rule_meta (JS канон vs wasm plugin-lang-js, full-scope міст) > край: каталог із крапки та файл прямо в npm/rules/ ігноруються обома реалізаціями": []
+}

@@ -1,0 +1,52 @@
+{
+  "wasm-plugin parity — npm-module/skill_meta (JS канон vs wasm plugin-lang-js, full-scope міст) > успіх: npm/skills/ відсутній → без порушень з обох реалізацій": [],
+  "wasm-plugin parity — npm-module/skill_meta (JS канон vs wasm plugin-lang-js, full-scope міст) > успіх: валідний скіл (worktree:false, auto-масив, tier) → тиша з обох реалізацій": [],
+  "wasm-plugin parity — npm-module/skill_meta (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: main.json відсутній → «відсутній або невалідний» з формою очікуваного обʼєкта": [
+    {
+      "severity": "error",
+      "reason": "skill_meta",
+      "message": "skills/n-lint: відсутній або невалідний main.json (очікується {\"auto\"?, \"worktree\": bool})"
+    }
+  ],
+  "wasm-plugin parity — npm-module/skill_meta (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: усі поля биті → пʼять violations у канонічному порядку": [
+    {
+      "severity": "error",
+      "reason": "skill_meta",
+      "message": "skills/n-lint: залишковий auto.md — видали (метадані тепер у main.json)"
+    },
+    {
+      "severity": "error",
+      "reason": "skill_meta",
+      "message": "skills/n-lint: main.json.worktree має бути boolean"
+    },
+    {
+      "severity": "error",
+      "reason": "skill_meta",
+      "message": "skills/n-lint: main.json.auto нерозпізнане — очікується \"завжди\" або непорожній масив правил"
+    },
+    {
+      "severity": "error",
+      "reason": "skill_meta",
+      "message": "skills/n-lint: main.json.requireRoot має бути boolean"
+    },
+    {
+      "severity": "error",
+      "reason": "skill_meta",
+      "message": "skills/n-lint: main.json.tier має бути \"min\" | \"avg\" | \"max\""
+    }
+  ],
+  "wasm-plugin parity — npm-module/skill_meta (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: requireRoot:false при worktree:true → конфлікт-повідомлення з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "skill_meta",
+      "message": "skills/n-taze: requireRoot:false суперечить worktree:true (worktree вже вимагає кореня — прибери поле)"
+    }
+  ],
+  "wasm-plugin parity — npm-module/skill_meta (JS канон vs wasm plugin-lang-js, full-scope міст) > край: auto:\"завжди\" валідне, а auto:\"інколи\" — ні (кілька скілів у лексикографічному порядку)": [
+    {
+      "severity": "error",
+      "reason": "skill_meta",
+      "message": "skills/b-bad: main.json.auto нерозпізнане — очікується \"завжди\" або непорожній масив правил"
+    }
+  ]
+}

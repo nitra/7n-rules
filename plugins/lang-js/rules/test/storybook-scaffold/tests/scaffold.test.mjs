@@ -11,7 +11,16 @@ import { dirname, join } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 
-import { APP_STORIES_GLOB, detectStoriesGlob, lint, STORYBOOK_SCRIPT } from '../main.mjs'
+import {
+  APP_MAIN_JS_MARKERS,
+  APP_PREVIEW_JS_MARKERS,
+  APP_STORIES_GLOB,
+  detectStoriesGlob,
+  MAIN_JS_MARKERS,
+  missingMarkers,
+  PREVIEW_JS_MARKERS,
+  STORYBOOK_SCRIPT
+} from '../main.mjs'
 import { patterns } from '../fix-storybook-scaffold.mjs'
 
 const CONCERN_DIR = join(import.meta.dirname, '..')
@@ -97,163 +106,18 @@ describe('detectStoriesGlob', () => {
   })
 })
 
-describe('lint: перевірка канонічного скафолду', () => {
-  let root
-
-  beforeEach(async () => {
-    root = await mkdtemp(join(tmpdir(), 'storybook-scaffold-'))
-    await writeFileDeep(root, 'package.json', JSON.stringify({ name: 'root', workspaces: ['packages/*'] }, null, 2))
-  })
-
-  afterEach(async () => {
-    await rm(root, { recursive: true, force: true })
-  })
-
-  test('немає пакетів у скоупі — без порушень', async () => {
-    const result = await lint({ cwd: root, ruleId: 'storybook', concernId: 'storybook/scaffold' })
-    expect(result.violations).toEqual([])
-  })
-
-  test('пакет у скоупі без .storybook/ — 5 порушень (main.js, preview.js, empty-vite.config.js, vitest.setup.js, script)', async () => {
-    await writeVueLibraryPkg(root, 'packages/ui')
-    const result = await lint({ cwd: root, ruleId: 'storybook', concernId: 'storybook/scaffold' })
-    const reasons = result.violations.map(v => v.reason).toSorted()
-    expect(reasons).toEqual([
-      'missing-empty-vite-config',
-      'missing-main-js',
-      'missing-preview-js',
-      'missing-storybook-script',
-      'missing-vitest-setup-js'
-    ])
-    expect(
-      result.violations.every(v => v.data?.rootDir === 'packages/ui' || v.file === 'packages/ui/package.json')
-    ).toBe(true)
-  })
-
-  test('main.js без канонічних маркерів — marker-порушення, не missing', async () => {
-    await writeVueLibraryPkg(root, 'packages/ui', { scripts: { storybook: STORYBOOK_SCRIPT } })
-    await writeFileDeep(root, 'packages/ui/.storybook/main.js', 'export default {}\n')
-    await writeFileDeep(root, 'packages/ui/.storybook/preview.js', 'export default {}\n')
-    const result = await lint({ cwd: root, ruleId: 'storybook', concernId: 'storybook/scaffold' })
-    const reasons = result.violations.map(v => v.reason).toSorted()
-    expect(reasons).toContain('main-js-marker-missing')
-    expect(reasons).toContain('preview-js-marker-missing')
-    expect(reasons).not.toContain('missing-main-js')
-    expect(reasons).not.toContain('missing-preview-js')
-  })
-
-  test('повністю канонічний пакет — без порушень', async () => {
-    await writeVueLibraryPkg(root, 'packages/ui', { scripts: { storybook: STORYBOOK_SCRIPT } })
-    const mainTemplate = await readFile(join(CONCERN_DIR, 'template/main.js'), 'utf8')
-    const previewTemplate = await readFile(join(CONCERN_DIR, 'template/preview.js'), 'utf8')
-    const emptyViteConfigTemplate = await readFile(join(CONCERN_DIR, 'template/empty-vite.config.js'), 'utf8')
-    const vitestSetupTemplate = await readFile(join(CONCERN_DIR, 'template/vitest.setup.js'), 'utf8')
-    await writeFileDeep(
-      root,
-      'packages/ui/.storybook/main.js',
-      mainTemplate.split('__STORYBOOK_STORIES_GLOB__').join('../src/components/**/*.stories.@(js|ts)')
-    )
-    await writeFileDeep(root, 'packages/ui/.storybook/preview.js', previewTemplate)
-    await writeFileDeep(root, 'packages/ui/.storybook/empty-vite.config.js', emptyViteConfigTemplate)
-    await writeFileDeep(root, 'packages/ui/.storybook/vitest.setup.js', vitestSetupTemplate)
-    const result = await lint({ cwd: root, ruleId: 'storybook', concernId: 'storybook/scaffold' })
-    expect(result.violations).toEqual([])
-  })
-
-  test('script неканонічний — лише missing-storybook-script', async () => {
-    await writeVueLibraryPkg(root, 'packages/ui', { scripts: { storybook: 'storybook dev' } })
-    const mainTemplate = await readFile(join(CONCERN_DIR, 'template/main.js'), 'utf8')
-    const previewTemplate = await readFile(join(CONCERN_DIR, 'template/preview.js'), 'utf8')
-    const emptyViteConfigTemplate = await readFile(join(CONCERN_DIR, 'template/empty-vite.config.js'), 'utf8')
-    const vitestSetupTemplate = await readFile(join(CONCERN_DIR, 'template/vitest.setup.js'), 'utf8')
-    await writeFileDeep(
-      root,
-      'packages/ui/.storybook/main.js',
-      mainTemplate.split('__STORYBOOK_STORIES_GLOB__').join('../src/components/**/*.stories.@(js|ts)')
-    )
-    await writeFileDeep(root, 'packages/ui/.storybook/preview.js', previewTemplate)
-    await writeFileDeep(root, 'packages/ui/.storybook/empty-vite.config.js', emptyViteConfigTemplate)
-    await writeFileDeep(root, 'packages/ui/.storybook/vitest.setup.js', vitestSetupTemplate)
-    const result = await lint({ cwd: root, ruleId: 'storybook', concernId: 'storybook/scaffold' })
-    expect(result.violations.map(v => v.reason)).toEqual(['missing-storybook-script'])
-  })
-
-  test('vitest.setup.js без канонічних маркерів — marker-порушення, не missing', async () => {
-    await writeVueLibraryPkg(root, 'packages/ui', { scripts: { storybook: STORYBOOK_SCRIPT } })
-    const mainTemplate = await readFile(join(CONCERN_DIR, 'template/main.js'), 'utf8')
-    const previewTemplate = await readFile(join(CONCERN_DIR, 'template/preview.js'), 'utf8')
-    const emptyViteConfigTemplate = await readFile(join(CONCERN_DIR, 'template/empty-vite.config.js'), 'utf8')
-    await writeFileDeep(
-      root,
-      'packages/ui/.storybook/main.js',
-      mainTemplate.split('__STORYBOOK_STORIES_GLOB__').join('../src/components/**/*.stories.@(js|ts)')
-    )
-    await writeFileDeep(root, 'packages/ui/.storybook/preview.js', previewTemplate)
-    await writeFileDeep(root, 'packages/ui/.storybook/empty-vite.config.js', emptyViteConfigTemplate)
-    await writeFileDeep(root, 'packages/ui/.storybook/vitest.setup.js', 'export default {}\n')
-    const result = await lint({ cwd: root, ruleId: 'storybook', concernId: 'storybook/scaffold' })
-    expect(result.violations.map(v => v.reason)).toEqual([
-      'vitest-setup-js-marker-missing',
-      'vitest-setup-js-marker-missing'
-    ])
-  })
-})
-
-describe('lint: app-скафолд хвилі 2a (дзеркальна асиметрія з бібліотекою)', () => {
-  let root
-
-  beforeEach(async () => {
-    root = await mkdtemp(join(tmpdir(), 'storybook-scaffold-app-'))
-    await writeFileDeep(root, 'package.json', JSON.stringify({ name: 'root', workspaces: ['packages/*'] }, null, 2))
-  })
-
-  afterEach(async () => {
-    await rm(root, { recursive: true, force: true })
-  })
-
-  test('app-пакет без .storybook/ — 4 порушення (app-main.js, app-preview.js, vitest.setup.js, script), БЕЗ empty-vite-config', async () => {
-    await writeVueAppPkg(root, 'packages/gt')
-    const result = await lint({ cwd: root, ruleId: 'storybook', concernId: 'storybook/scaffold' })
-    const reasons = result.violations.map(v => v.reason).toSorted()
-    expect(reasons).toEqual([
-      'missing-app-main-js',
-      'missing-app-preview-js',
-      'missing-storybook-script',
-      'missing-vitest-setup-js'
-    ])
-  })
-
-  test('app-пакет з канонічним app-main.js/app-preview.js/vitest.setup.js — без порушень', async () => {
-    await writeVueAppPkg(root, 'packages/gt', { scripts: { storybook: STORYBOOK_SCRIPT } })
+/**
+ * Регресійні тести-без-lint для шаблонів `.storybook/` (детектор-lint видалено — покриття
+ * перенесено в `crates/plugin-lang-js` `#[cfg(test)]`, `detect_storybook_scaffold_*`):
+ * самі шаблони мають лишатись стабільними, бо `fix-storybook-scaffold.mjs` записує їх
+ * verbatim, а marker-набори (`MAIN_JS_MARKERS` тощо) звірені байт-у-байт у Rust.
+ */
+describe('шаблони app-скафолду хвилі 2a (дзеркальна асиметрія з бібліотекою)', () => {
+  test('app-main.js без viteConfigPath-обходу (свідома асиметрія з бібліотекою)', async () => {
     const mainTemplate = await readFile(join(CONCERN_DIR, 'template/app-main.js'), 'utf8')
-    const previewTemplate = await readFile(join(CONCERN_DIR, 'template/app-preview.js'), 'utf8')
-    const vitestSetupTemplate = await readFile(join(CONCERN_DIR, 'template/vitest.setup.js'), 'utf8')
-    await writeFileDeep(
-      root,
-      'packages/gt/.storybook/main.js',
-      mainTemplate.split('__STORYBOOK_STORIES_GLOB__').join(APP_STORIES_GLOB)
-    )
-    await writeFileDeep(root, 'packages/gt/.storybook/preview.js', previewTemplate)
-    await writeFileDeep(root, 'packages/gt/.storybook/vitest.setup.js', vitestSetupTemplate)
-    const result = await lint({ cwd: root, ruleId: 'storybook', concernId: 'storybook/scaffold' })
-    expect(result.violations).toEqual([])
-  })
-
-  test('app-main.js без viteConfigPath-обходу — це НЕ порушення (свідома асиметрія з бібліотекою)', async () => {
-    await writeVueAppPkg(root, 'packages/gt', { scripts: { storybook: STORYBOOK_SCRIPT } })
-    const mainTemplate = await readFile(join(CONCERN_DIR, 'template/app-main.js'), 'utf8')
-    const previewTemplate = await readFile(join(CONCERN_DIR, 'template/app-preview.js'), 'utf8')
     // Функціональний маркер обходу — core.builder.options, не сам підрядок "viteConfigPath"
     // (він згадується в коментарі шаблону як пояснення, ЧОМУ обходу немає).
     expect(mainTemplate).not.toContain('core: {')
-    await writeFileDeep(
-      root,
-      'packages/gt/.storybook/main.js',
-      mainTemplate.split('__STORYBOOK_STORIES_GLOB__').join(APP_STORIES_GLOB)
-    )
-    await writeFileDeep(root, 'packages/gt/.storybook/preview.js', previewTemplate)
-    const result = await lint({ cwd: root, ruleId: 'storybook', concernId: 'storybook/scaffold' })
-    expect(result.violations.some(v => v.reason.includes('empty-vite-config'))).toBe(false)
   })
 
   test('app-main.js НЕ знімає vite-plugin-pages (регрес фіксу пілота gt — знімати його ламає storybook build)', async () => {
@@ -263,22 +127,6 @@ describe('lint: app-скафолд хвилі 2a (дзеркальна асим�
     expect(mainTemplate).toContain("'unplugin-vue-router'")
     expect(mainTemplate).toContain("'vite-plugin-vue-layouts'")
     expect(mainTemplate).toContain("'vite-plugin-vue-layouts-next'")
-  })
-
-  test('app-main.js без vite-plugin-pages у ROUTING_PLUGIN_PREFIXES — НЕ порушення marker-перевірки', async () => {
-    await writeVueAppPkg(root, 'packages/gt', { scripts: { storybook: STORYBOOK_SCRIPT } })
-    const mainTemplate = await readFile(join(CONCERN_DIR, 'template/app-main.js'), 'utf8')
-    const previewTemplate = await readFile(join(CONCERN_DIR, 'template/app-preview.js'), 'utf8')
-    const vitestSetupTemplate = await readFile(join(CONCERN_DIR, 'template/vitest.setup.js'), 'utf8')
-    await writeFileDeep(
-      root,
-      'packages/gt/.storybook/main.js',
-      mainTemplate.split('__STORYBOOK_STORIES_GLOB__').join(APP_STORIES_GLOB)
-    )
-    await writeFileDeep(root, 'packages/gt/.storybook/preview.js', previewTemplate)
-    await writeFileDeep(root, 'packages/gt/.storybook/vitest.setup.js', vitestSetupTemplate)
-    const result = await lint({ cwd: root, ruleId: 'storybook', concernId: 'storybook/scaffold' })
-    expect(result.violations).toEqual([])
   })
 })
 
@@ -488,8 +336,18 @@ describe('fix-scaffold: T0 autofix відтворює канонічні фай�
       fixCtx()
     )
 
-    const result = await lint({ cwd: root, ruleId: 'storybook', concernId: 'storybook/scaffold' })
-    expect(result.violations).toEqual([])
+    // Детектор-lint видалено (wasm-порт — `detect_storybook_scaffold_canonical_package_is_silent`
+    // у `crates/plugin-lang-js`) — тут звіряємо напряму, що записаний фікс-аутпут не має жодного
+    // маркера, якого бракує (той самий предикат, що `checkCanonFile` виконував раніше).
+    const mainJs = await readFile(join(root, 'packages/ui/.storybook/main.js'), 'utf8')
+    const previewJs = await readFile(join(root, 'packages/ui/.storybook/preview.js'), 'utf8')
+    const vitestSetupJs = await readFile(join(root, 'packages/ui/.storybook/vitest.setup.js'), 'utf8')
+    const pkgJson = JSON.parse(await readFile(join(root, 'packages/ui/package.json'), 'utf8'))
+    expect(missingMarkers(mainJs, MAIN_JS_MARKERS)).toEqual([])
+    expect(missingMarkers(previewJs, PREVIEW_JS_MARKERS)).toEqual([])
+    expect(vitestSetupJs).toContain('setProjectAnnotations')
+    expect(vitestSetupJs).toContain('beforeAll')
+    expect(pkgJson.scripts.storybook).toBe(STORYBOOK_SCRIPT)
   })
 })
 
@@ -611,7 +469,17 @@ describe('fix-scaffold: T0 autofix для app-пакетів (хвиля 2a)', (
       fixCtx()
     )
 
-    const result = await lint({ cwd: root, ruleId: 'storybook', concernId: 'storybook/scaffold' })
-    expect(result.violations).toEqual([])
+    // Детектор-lint видалено (wasm-порт — `detect_storybook_scaffold_app_canonical_is_silent`
+    // у `crates/plugin-lang-js`) — тут звіряємо напряму, що записаний фікс-аутпут не має жодного
+    // маркера, якого бракує (той самий предикат, що `checkCanonFile` виконував раніше).
+    const mainJs = await readFile(join(root, 'packages/gt/.storybook/main.js'), 'utf8')
+    const previewJs = await readFile(join(root, 'packages/gt/.storybook/preview.js'), 'utf8')
+    const vitestSetupJs = await readFile(join(root, 'packages/gt/.storybook/vitest.setup.js'), 'utf8')
+    const pkgJson = JSON.parse(await readFile(join(root, 'packages/gt/package.json'), 'utf8'))
+    expect(missingMarkers(mainJs, APP_MAIN_JS_MARKERS)).toEqual([])
+    expect(missingMarkers(previewJs, APP_PREVIEW_JS_MARKERS)).toEqual([])
+    expect(vitestSetupJs).toContain('setProjectAnnotations')
+    expect(vitestSetupJs).toContain('beforeAll')
+    expect(pkgJson.scripts.storybook).toBe(STORYBOOK_SCRIPT)
   })
 })

@@ -1,0 +1,36 @@
+{
+  "wasm-plugin parity — test/vitest-api-conventions (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: toBe з об’єктним і масивним літералами → два однакові violations з file": [
+    {
+      "severity": "error",
+      "reason": "vitest-api-conventions",
+      "message": "tests/api.test.mjs:1: expect(...).toBe(...) з об'єктним/масивним літералом завжди false (Object.is на новому посиланні) — використовуй toEqual (test.mdc, vitest-api-conventions)",
+      "file": "tests/api.test.mjs"
+    },
+    {
+      "severity": "error",
+      "reason": "vitest-api-conventions",
+      "message": "tests/api.test.mjs:2: expect(...).toBe(...) з об'єктним/масивним літералом завжди false (Object.is на новому посиланні) — використовуй toEqual (test.mdc, vitest-api-conventions)",
+      "file": "tests/api.test.mjs"
+    }
+  ],
+  "wasm-plugin parity — test/vitest-api-conventions (JS канон vs wasm plugin-lang-js, full-scope міст) > успіх: літерал із приєднаним .join() — результат рядок, не посилання": [],
+  "wasm-plugin parity — test/vitest-api-conventions (JS канон vs wasm plugin-lang-js, full-scope міст) > успіх: примітивні аргументи toBe не чіпаються": [],
+  "wasm-plugin parity — test/vitest-api-conventions (JS канон vs wasm plugin-lang-js, full-scope міст) > край: дужки у рядкових і template-літералах усередині об’єкта": [
+    {
+      "severity": "error",
+      "reason": "vitest-api-conventions",
+      "message": "tests/api.test.mjs:1: expect(...).toBe(...) з об'єктним/масивним літералом завжди false (Object.is на новому посиланні) — використовуй toEqual (test.mdc, vitest-api-conventions)",
+      "file": "tests/api.test.mjs"
+    }
+  ],
+  "wasm-plugin parity — test/vitest-api-conventions (JS канон vs wasm plugin-lang-js, full-scope міст) > край: незбалансовані дужки — обидві сторони «здаються» без violation": [],
+  "wasm-plugin parity — test/vitest-api-conventions (JS канон vs wasm plugin-lang-js, full-scope міст) > край: багаторядковий літерал — рядок рахується від позиції виклику": [
+    {
+      "severity": "error",
+      "reason": "vitest-api-conventions",
+      "message": "tests/api.test.mjs:2: expect(...).toBe(...) з об'єктним/масивним літералом завжди false (Object.is на новому посиланні) — використовуй toEqual (test.mdc, vitest-api-conventions)",
+      "file": "tests/api.test.mjs"
+    }
+  ],
+  "wasm-plugin parity — test/vitest-api-conventions (JS канон vs wasm plugin-lang-js, full-scope міст) > край: не-тестовий файл із тим самим викликом ігнорується обома": []
+}

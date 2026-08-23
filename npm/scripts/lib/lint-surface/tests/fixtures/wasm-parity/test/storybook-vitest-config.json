@@ -1,0 +1,89 @@
+{
+  "wasm-plugin parity — test/storybook-vitest-config (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: бібліотека у скоупі без vitest.config.* → ідентичне vitest-config-missing (з data.rootDir/type)": [
+    {
+      "severity": "error",
+      "reason": "vitest-config-missing",
+      "message": "[packages/ui] відсутній vitest.config.{mjs,js,ts} — канонічні projects unit+storybook (vitest-config.mdc): npx @7n/rules fix storybook",
+      "file": "packages/ui/vitest.config.mjs",
+      "data": {
+        "rootDir": "packages/ui",
+        "type": "library"
+      }
+    }
+  ],
+  "wasm-plugin parity — test/storybook-vitest-config (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: конфіг без test-блоку → unresolvable І stryker-перевірка (вона НЕ припиняється early-return-ом)": [
+    {
+      "severity": "error",
+      "reason": "vitest-config-unresolvable",
+      "message": "[packages/ui] packages/ui/vitest.config.mjs: не вдалось знайти test-блок (defineConfig({ test: {...} })) — додай unit/storybook-projects вручну за template/ (vitest-config.mdc)",
+      "file": "packages/ui/vitest.config.mjs"
+    },
+    {
+      "severity": "error",
+      "reason": "stryker-config-missing",
+      "message": "[packages/ui] відсутній ізольований packages/ui/vitest.stryker.config.mjs — @stryker-mutator/vitest-runner крашиться на browser-mode projects: npx @7n/rules fix storybook (vitest-config.mdc)",
+      "file": "packages/ui/vitest.stryker.config.mjs",
+      "data": {
+        "rootDir": "packages/ui",
+        "vitestConfigPath": "<<WASM_PARITY_TMPDIR>>/packages/ui/vitest.config.mjs"
+      }
+    }
+  ],
+  "wasm-plugin parity — test/storybook-vitest-config (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: test.projects відсутній → data.vitestConfigPath АБСОЛЮТНИЙ на обох боках (слот repo-root@1)": [
+    {
+      "severity": "error",
+      "reason": "unit-project-missing",
+      "message": "[packages/ui] packages/ui/vitest.config.mjs: бракує test.projects (unit) — npx @7n/rules fix storybook (vitest-config.mdc)",
+      "file": "packages/ui/vitest.config.mjs",
+      "data": {
+        "rootDir": "packages/ui",
+        "type": "library",
+        "vitestConfigPath": "<<WASM_PARITY_TMPDIR>>/packages/ui/vitest.config.mjs"
+      }
+    },
+    {
+      "severity": "error",
+      "reason": "storybook-project-missing",
+      "message": "[packages/ui] packages/ui/vitest.config.mjs: бракує test.projects (storybook) — npx @7n/rules fix storybook (vitest-config.mdc)",
+      "file": "packages/ui/vitest.config.mjs",
+      "data": {
+        "rootDir": "packages/ui",
+        "type": "library",
+        "vitestConfigPath": "<<WASM_PARITY_TMPDIR>>/packages/ui/vitest.config.mjs"
+      }
+    }
+  ],
+  "wasm-plugin parity — test/storybook-vitest-config (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: test.projects — не статичний масив → ідентичне projects-dynamic": [
+    {
+      "severity": "error",
+      "reason": "projects-dynamic",
+      "message": "[packages/ui] packages/ui/vitest.config.mjs: test.projects — не статичний масив (spread/змінна) — додай unit/storybook-projects вручну (vitest-config.mdc)",
+      "file": "packages/ui/vitest.config.mjs"
+    }
+  ],
+  "wasm-plugin parity — test/storybook-vitest-config (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: storybook-project без канонічних маркерів → ідентичний список підказок (app-гілка)": [
+    {
+      "severity": "error",
+      "reason": "storybook-project-marker-missing",
+      "message": "[apps/web] apps/web/vitest.config.mjs: storybook-project без канонічних маркерів — бракує: chromium-інстанс, browser-mode, stories-джерело (include або storybookTest({ configDir })), provider-factory (vitest v4: import { playwright } from '@vitest/browser-playwright'), quasar()-плагін (SCSS sassVariables для сторінок), AutoImport()-плагін (auto-import globals сторінок), Pages()-плагін (обробник <route>-блоку) (vitest-config.mdc)",
+      "file": "apps/web/vitest.config.mjs",
+      "data": {
+        "rootDir": "apps/web",
+        "type": "app"
+      }
+    }
+  ],
+  "wasm-plugin parity — test/storybook-vitest-config (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: канонічний vitest.config без vitest.stryker.config.* → ідентичне stryker-config-missing": [
+    {
+      "severity": "error",
+      "reason": "stryker-config-missing",
+      "message": "[packages/ui] відсутній ізольований packages/ui/vitest.stryker.config.ts — @stryker-mutator/vitest-runner крашиться на browser-mode projects: npx @7n/rules fix storybook (vitest-config.mdc)",
+      "file": "packages/ui/vitest.stryker.config.ts",
+      "data": {
+        "rootDir": "packages/ui",
+        "vitestConfigPath": "<<WASM_PARITY_TMPDIR>>/packages/ui/vitest.config.ts"
+      }
+    }
+  ],
+  "wasm-plugin parity — test/storybook-vitest-config (JS канон vs wasm plugin-lang-js, full-scope міст) > успіх: немає пакетів у скоупі → тиша з обох реалізацій": []
+}

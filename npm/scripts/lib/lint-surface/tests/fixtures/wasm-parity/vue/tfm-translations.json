@@ -1,0 +1,14 @@
+{
+  "wasm-plugin parity — vue/tfm-translations (JS канон vs wasm plugin-lang-js) > порушення: імпортує tf, але не оголошує getTr() → однакове violation з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "tfm-translations",
+      "message": "Page.vue: імпортує 'tf' з '@nitra/tfm', але не оголошує функцію getTr() з перекладами (vue.mdc tfm-translations)",
+      "file": "Page.vue"
+    }
+  ],
+  "wasm-plugin parity — vue/tfm-translations (JS канон vs wasm plugin-lang-js) > успіх: використовує tf і оголошує getTr() → без порушень з обох реалізацій": [],
+  "wasm-plugin parity — vue/tfm-translations (JS канон vs wasm plugin-lang-js) > успіх: не використовує @nitra/tfm взагалі → без порушень з обох реалізацій": [],
+  "wasm-plugin parity — vue/tfm-translations (JS канон vs wasm plugin-lang-js) > успіх: імпортує з @nitra/tfm, але не саме tf → без порушень з обох реалізацій": [],
+  "wasm-plugin parity — vue/tfm-translations (JS канон vs wasm plugin-lang-js) > не .vue файл → без порушень з обох реалізацій": []
+}

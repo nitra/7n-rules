@@ -1,0 +1,193 @@
+{
+  "wasm-plugin parity — js/doc_comments (JS канон vs wasm plugin-lang-js, per-file) > файл без експортів — обидві реалізації мовчать": [],
+  "wasm-plugin parity — js/doc_comments (JS канон vs wasm plugin-lang-js, per-file) > header-JSDoc + JSDoc над експортом — без порушень з обох реалізацій": [],
+  "wasm-plugin parity — js/doc_comments (JS канон vs wasm plugin-lang-js, per-file) > немає header-а і немає JSDoc над експортом — обидва порушення однакові": [
+    {
+      "reason": "missing-file-header",
+      "message": "src/a.mjs: файл з експортами без провідного header-JSDoc. Глобальний сенс: конвеєр doc-files копіює цей коментар ДОСЛІВНО в секцію «Огляд» автоматично згенерованої документації файлу (0 LLM-токенів) — без нього «Огляд» вигадує LLM із самого коду.",
+      "file": "src/a.mjs",
+      "data": {}
+    },
+    {
+      "reason": "missing-export-doc",
+      "message": "src/a.mjs: export a без JSDoc-опису. Глобальний сенс: конвеєр doc-files бере цей опис ДОСЛІВНО в секцію «Публічний API» автоматично згенерованої документації файлу (0 LLM-токенів, isApiGap/renderApiLine) — без нього опис вигадує LLM.",
+      "file": "src/a.mjs",
+      "data": {
+        "name": "a"
+      }
+    },
+    {
+      "reason": "missing-export-doc",
+      "message": "src/a.mjs: export b без JSDoc-опису. Глобальний сенс: конвеєр doc-files бере цей опис ДОСЛІВНО в секцію «Публічний API» автоматично згенерованої документації файлу (0 LLM-токенів, isApiGap/renderApiLine) — без нього опис вигадує LLM.",
+      "file": "src/a.mjs",
+      "data": {
+        "name": "b"
+      }
+    }
+  ],
+  "wasm-plugin parity — js/doc_comments (JS канон vs wasm plugin-lang-js, per-file) > не-ASCII перед promotable-блоком — data.{start,end} збігаються (UTF-16, не байти)": [
+    {
+      "reason": "missing-export-doc",
+      "message": "src/файл.mjs: export робити без JSDoc-опису. Глобальний сенс: конвеєр doc-files бере цей опис ДОСЛІВНО в секцію «Публічний API» автоматично згенерованої документації файлу (0 LLM-токенів, isApiGap/renderApiLine) — без нього опис вигадує LLM.",
+      "file": "src/файл.mjs",
+      "data": {
+        "promotable": true,
+        "start": 37,
+        "end": 53,
+        "name": "робити"
+      }
+    }
+  ],
+  "wasm-plugin parity — js/doc_comments (JS канон vs wasm plugin-lang-js, per-file) > провідний //-блок на початку файлу — promotable header з обох реалізацій": [
+    {
+      "reason": "missing-file-header",
+      "message": "src/a.mjs: файл з експортами без провідного header-JSDoc. Глобальний сенс: конвеєр doc-files копіює цей коментар ДОСЛІВНО в секцію «Огляд» автоматично згенерованої документації файлу (0 LLM-токенів) — без нього «Огляд» вигадує LLM із самого коду.",
+      "file": "src/a.mjs",
+      "data": {
+        "promotable": true,
+        "start": 0,
+        "end": 34
+      }
+    },
+    {
+      "reason": "missing-export-doc",
+      "message": "src/a.mjs: export a без JSDoc-опису. Глобальний сенс: конвеєр doc-files бере цей опис ДОСЛІВНО в секцію «Публічний API» автоматично згенерованої документації файлу (0 LLM-токенів, isApiGap/renderApiLine) — без нього опис вигадує LLM.",
+      "file": "src/a.mjs",
+      "data": {
+        "promotable": true,
+        "start": 0,
+        "end": 34,
+        "name": "a"
+      }
+    }
+  ],
+  "wasm-plugin parity — js/doc_comments (JS канон vs wasm plugin-lang-js, per-file) > порожній рядок між //-блоком і експортом — порушення НЕ promotable": [
+    {
+      "reason": "missing-export-doc",
+      "message": "src/a.mjs: export a без JSDoc-опису. Глобальний сенс: конвеєр doc-files бере цей опис ДОСЛІВНО в секцію «Публічний API» автоматично згенерованої документації файлу (0 LLM-токенів, isApiGap/renderApiLine) — без нього опис вигадує LLM.",
+      "file": "src/a.mjs",
+      "data": {
+        "name": "a"
+      }
+    }
+  ],
+  "wasm-plugin parity — js/doc_comments (JS канон vs wasm plugin-lang-js, per-file) > shebang перед header-JSDoc — обидві реалізації бачать header": [],
+  "wasm-plugin parity — js/doc_comments (JS канон vs wasm plugin-lang-js, per-file) > export default / export-специфікатори — однакові імена в data.name": [
+    {
+      "reason": "missing-export-doc",
+      "message": "src/a.mjs: export default без JSDoc-опису. Глобальний сенс: конвеєр doc-files бере цей опис ДОСЛІВНО в секцію «Публічний API» автоматично згенерованої документації файлу (0 LLM-токенів, isApiGap/renderApiLine) — без нього опис вигадує LLM.",
+      "file": "src/a.mjs",
+      "data": {
+        "name": "default"
+      }
+    }
+  ],
+  "wasm-plugin parity — js/doc_comments (JS канон vs wasm plugin-lang-js, per-file) > syntax error — обидві реалізації мовчать (синтаксис ловлять інші концерни)": [],
+  "wasm-plugin parity — js/doc_comments (JS канон vs wasm plugin-lang-js, per-file) > тест/фікстура/декларація — поза вимогою в обох реалізаціях": [],
+  "wasm-plugin parity — js/doc_comments (JS канон vs wasm plugin-lang-js, per-file) > тест/фікстура/декларація — поза вимогою в обох реалізаціях #2": [],
+  "wasm-plugin parity — js/doc_comments (JS канон vs wasm plugin-lang-js, per-file) > тест/фікстура/декларація — поза вимогою в обох реалізаціях #3": [],
+  "wasm-plugin parity — js/doc_comments (JS канон vs wasm plugin-lang-js, per-file) > тест/фікстура/декларація — поза вимогою в обох реалізаціях #4": [],
+  "wasm-plugin parity — js/doc_comments (JS канон vs wasm plugin-lang-js, per-file) > T0-фікс: ASCII-блок підвищується однаково JS-патерном фікса і wasm-планом": [
+    {
+      "reason": "missing-file-header",
+      "message": "src/a.mjs: файл з експортами без провідного header-JSDoc. Глобальний сенс: конвеєр doc-files копіює цей коментар ДОСЛІВНО в секцію «Огляд» автоматично згенерованої документації файлу (0 LLM-токенів) — без нього «Огляд» вигадує LLM із самого коду.",
+      "file": "src/a.mjs",
+      "data": {
+        "promotable": true,
+        "start": 0,
+        "end": 36
+      }
+    },
+    {
+      "reason": "missing-export-doc",
+      "message": "src/a.mjs: export a без JSDoc-опису. Глобальний сенс: конвеєр doc-files бере цей опис ДОСЛІВНО в секцію «Публічний API» автоматично згенерованої документації файлу (0 LLM-токенів, isApiGap/renderApiLine) — без нього опис вигадує LLM.",
+      "file": "src/a.mjs",
+      "data": {
+        "promotable": true,
+        "start": 0,
+        "end": 36,
+        "name": "a"
+      }
+    }
+  ],
+  "wasm-plugin parity — js/doc_comments (JS канон vs wasm plugin-lang-js, per-file) > T0-фікс: не-ASCII вміст — JS-патерн фікса і wasm-план дають БАЙТ-У-БАЙТ той самий текст": [
+    {
+      "reason": "missing-file-header",
+      "message": "src/файл.mjs: файл з експортами без провідного header-JSDoc. Глобальний сенс: конвеєр doc-files копіює цей коментар ДОСЛІВНО в секцію «Огляд» автоматично згенерованої документації файлу (0 LLM-токенів) — без нього «Огляд» вигадує LLM із самого коду.",
+      "file": "src/файл.mjs",
+      "data": {
+        "promotable": true,
+        "start": 0,
+        "end": 17
+      }
+    },
+    {
+      "reason": "missing-export-doc",
+      "message": "src/файл.mjs: export робити без JSDoc-опису. Глобальний сенс: конвеєр doc-files бере цей опис ДОСЛІВНО в секцію «Публічний API» автоматично згенерованої документації файлу (0 LLM-токенів, isApiGap/renderApiLine) — без нього опис вигадує LLM.",
+      "file": "src/файл.mjs",
+      "data": {
+        "promotable": true,
+        "start": 41,
+        "end": 60,
+        "name": "робити"
+      }
+    }
+  ],
+  "wasm-plugin parity — js/doc_comments (JS канон vs wasm plugin-lang-js, per-file) > T0-фікс: кілька блоків в одному файлі — однаковий результат (заміна з кінця)": [
+    {
+      "reason": "missing-file-header",
+      "message": "src/файл.mjs: файл з експортами без провідного header-JSDoc. Глобальний сенс: конвеєр doc-files копіює цей коментар ДОСЛІВНО в секцію «Огляд» автоматично згенерованої документації файлу (0 LLM-токенів) — без нього «Огляд» вигадує LLM із самого коду.",
+      "file": "src/файл.mjs",
+      "data": {
+        "promotable": true,
+        "start": 0,
+        "end": 11
+      }
+    },
+    {
+      "reason": "missing-export-doc",
+      "message": "src/файл.mjs: export а без JSDoc-опису. Глобальний сенс: конвеєр doc-files бере цей опис ДОСЛІВНО в секцію «Публічний API» автоматично згенерованої документації файлу (0 LLM-токенів, isApiGap/renderApiLine) — без нього опис вигадує LLM.",
+      "file": "src/файл.mjs",
+      "data": {
+        "promotable": true,
+        "start": 24,
+        "end": 41,
+        "name": "а"
+      }
+    },
+    {
+      "reason": "missing-export-doc",
+      "message": "src/файл.mjs: export б без JSDoc-опису. Глобальний сенс: конвеєр doc-files бере цей опис ДОСЛІВНО в секцію «Публічний API» автоматично згенерованої документації файлу (0 LLM-токенів, isApiGap/renderApiLine) — без нього опис вигадує LLM.",
+      "file": "src/файл.mjs",
+      "data": {
+        "promotable": true,
+        "start": 61,
+        "end": 81,
+        "name": "б"
+      }
+    }
+  ],
+  "wasm-plugin parity — js/doc_comments (JS канон vs wasm plugin-lang-js, per-file) > T0-фікс: несвіжі офсети після wasm-плану — JS-патерн фікса лишає файл недоторканим": [
+    {
+      "reason": "missing-file-header",
+      "message": "src/файл.mjs: файл з експортами без провідного header-JSDoc. Глобальний сенс: конвеєр doc-files копіює цей коментар ДОСЛІВНО в секцію «Огляд» автоматично згенерованої документації файлу (0 LLM-токенів) — без нього «Огляд» вигадує LLM із самого коду.",
+      "file": "src/файл.mjs",
+      "data": {
+        "promotable": true,
+        "start": 0,
+        "end": 17
+      }
+    },
+    {
+      "reason": "missing-export-doc",
+      "message": "src/файл.mjs: export а без JSDoc-опису. Глобальний сенс: конвеєр doc-files бере цей опис ДОСЛІВНО в секцію «Публічний API» автоматично згенерованої документації файлу (0 LLM-токенів, isApiGap/renderApiLine) — без нього опис вигадує LLM.",
+      "file": "src/файл.mjs",
+      "data": {
+        "promotable": true,
+        "start": 41,
+        "end": 51,
+        "name": "а"
+      }
+    }
+  ]
+}

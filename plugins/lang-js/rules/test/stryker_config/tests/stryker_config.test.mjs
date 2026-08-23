@@ -1,25 +1,59 @@
 /**
- * Тести концерну `stryker_config` (test.mdc): self-gates через js
- * у `.n-rules.json#rules`. Read-only detector ЗВІТУЄ про відсутні
- * stryker/vitest baseline-и, vue-plugin, augment та `.gitignore`-патерни;
- * запис робить T0-fix (`fix-stryker_config.mjs`).
+ * Тести T0-autofix-у концерну `stryker_config` (test.mdc): запис canonical
+ * stryker/vitest baseline-ів, vue-plugin, augment та `.gitignore`-патернів
+ * робить `fix-stryker_config.mjs`. Read-only детектор (`lint()`, разом із
+ * self-gate через `js` у `.n-rules.json#rules`) видалено з `main.mjs` —
+ * покриття перенесено в `crates/plugin-lang-js` `#[cfg(test)]`
+ * (`detect_stryker_config_*`, включно з self-gate: `is_silent_without_js_rule`/
+ * `is_silent_when_js_rule_disabled`), wasm-порт лишається єдиним каноном
+ * lint-поверхні; T0-фікс і надалі — зафіксована прогалина host-мосту,
+ * JS-канон (§2.3 `docs/plans/2026-08-05-open-questions-register.md`).
+ * `planStrykerActions` (спільний планувальник detector/T0, лишається
+ * експортом `main.mjs`) тут відтворює ЛИШЕ translation-крок видаленого
+ * `lint()` (план → violations) — той самий, що й раніше, self-gate туди не
+ * входив: `fix-stryker_config.mjs` і без нього ігнорує `.n-rules.json`
+ * (production-диспетчер це вирішує ДО виклику фіксера).
  */
 import { describe, expect, test } from 'vitest'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, relative } from 'node:path'
 
 import vitestBaseline from '../data/vitest_config/vitest.config.baseline.js'
-import { lint } from '../main.mjs'
+import {
+  GITIGNORE_MISSING,
+  planStrykerActions,
+  STRYKER_CONFIG_MISSING,
+  STRYKER_VUE_AUGMENT,
+  STRYKER_VUE_AUGMENT_FAIL
+} from '../main.mjs'
 import { patterns } from '../fix-stryker_config.mjs'
 
-const detect = async dir => {
-  const { violations } = await lint({
-    cwd: dir,
-    ruleId: 'test',
-    concernId: 'stryker_config',
-    files: undefined
-  })
+/**
+ * Транслює план `planStrykerActions` у violations — той самий translation-крок,
+ * що раніше виконував видалений `lint()` (без self-gate — див. доккомент файлу).
+ * @param {string} cwd корінь проєкту
+ * @returns {Promise<object[]>} violations для `pattern.test`/дебаг-асертів нижче
+ */
+async function detect(cwd) {
+  const plan = await planStrykerActions(cwd)
+  const violations = []
+  if (plan.fatal) {
+    violations.push({ reason: STRYKER_CONFIG_MISSING, message: plan.fatal })
+    return violations
+  }
+  for (const a of plan.baselineActions) {
+    violations.push({ reason: STRYKER_CONFIG_MISSING, message: 'x', file: relative(cwd, a.target) })
+  }
+  for (const w of plan.augmentWrites) {
+    violations.push({ reason: STRYKER_VUE_AUGMENT, message: 'x', file: relative(cwd, w.target) })
+  }
+  for (const msg of plan.augmentFails) {
+    violations.push({ reason: STRYKER_VUE_AUGMENT_FAIL, message: msg })
+  }
+  if (plan.gitignoreMissing.length > 0) {
+    violations.push({ reason: GITIGNORE_MISSING, message: 'x' })
+  }
   return violations
 }
 
@@ -117,22 +151,6 @@ describe('stryker_config concern', () => {
     await applyT0(violations, proj.dir)
     expect(existsSync(join(proj.dir, 'stryker.config.mjs'))).toBe(true)
     expect(await check(proj.dir)).toBe(0)
-    proj.cleanup()
-  })
-
-  test('js НЕ в rules — silent skip, exit 0, файл не створюється', async () => {
-    const proj = makeProj({ rules: ['test'] })
-    const exitCode = await runCheckIn(proj.dir)
-    expect(exitCode).toBe(0)
-    expect(existsSync(join(proj.dir, 'stryker.config.mjs'))).toBe(false)
-    proj.cleanup()
-  })
-
-  test('js у disable-rules — silent skip', async () => {
-    const proj = makeProj({ rules: ['js', 'test'], disableRules: ['js'] })
-    const exitCode = await runCheckIn(proj.dir)
-    expect(exitCode).toBe(0)
-    expect(existsSync(join(proj.dir, 'stryker.config.mjs'))).toBe(false)
     proj.cleanup()
   })
 

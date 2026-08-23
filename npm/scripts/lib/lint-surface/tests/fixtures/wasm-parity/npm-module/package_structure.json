@@ -1,0 +1,118 @@
+{
+  "wasm-plugin parity — npm-module/package_structure (JS канон vs wasm plugin-lang-js, full-scope міст) > успіх: канонічний npm-monorepo → тиша з обох реалізацій": [],
+  "wasm-plugin parity — npm-module/package_structure (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: порожній репозиторій → повний набір structural-violations у канонічному порядку": [
+    {
+      "severity": "error",
+      "reason": "package_structure",
+      "message": "package.json не існує"
+    },
+    {
+      "severity": "error",
+      "reason": "package_structure",
+      "message": "npm/ директорія не існує"
+    },
+    {
+      "severity": "error",
+      "reason": "package_structure",
+      "message": "npm/package.json не існує — створи package.json для npm модуля"
+    },
+    {
+      "severity": "error",
+      "reason": "package_structure",
+      "message": "Без .js під npm/src потрібен npm/tsconfig.emit-types.json (див. npm-module.mdc: emit через tsconfig, без штучного src/index.js)"
+    },
+    {
+      "severity": "error",
+      "reason": "package_structure",
+      "message": "Очікується hk.pkl або .config/hk.pkl з pre-commit і tsc (npm-module.mdc)"
+    },
+    {
+      "severity": "error",
+      "reason": "package_structure",
+      "message": ".github/workflows/ не існує"
+    },
+    {
+      "severity": "error",
+      "reason": "package_structure",
+      "message": "Відсутній .github/workflows/npm-publish.yml (npm-module.mdc: npm publish)"
+    }
+  ],
+  "wasm-plugin parity — npm-module/package_structure (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: layout npm/src з .js → інший набір hk-фрагментів (types/index.d.ts на місці)": [
+    {
+      "severity": "error",
+      "reason": "package_structure",
+      "message": "hk.pkl: онови pre-commit крок (npm-module.mdc); не знайдено: src/**/*.js, --declaration, --allowJs, --emitDeclarationOnly, --outDir types, --skipLibCheck"
+    }
+  ],
+  "wasm-plugin parity — npm-module/package_structure (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: layout npm/src з .js без npm/types/index.d.ts → src-специфічне повідомлення про types": [
+    {
+      "severity": "error",
+      "reason": "package_structure",
+      "message": "Відсутній npm/types/index.d.ts (згенеруй tsc з npm-module.mdc)"
+    },
+    {
+      "severity": "error",
+      "reason": "package_structure",
+      "message": "hk.pkl: онови pre-commit крок (npm-module.mdc); не знайдено: src/**/*.js, --declaration, --allowJs, --emitDeclarationOnly, --outDir types, --skipLibCheck"
+    }
+  ],
+  "wasm-plugin parity — npm-module/package_structure (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: types вказує поза ./types/ → String(typesField) у повідомленні": [
+    {
+      "severity": "error",
+      "reason": "package_structure",
+      "message": "Файл для поля types не знайдено або шлях не під ./types/ — ./dist/index.d.ts"
+    }
+  ],
+  "wasm-plugin parity — npm-module/package_structure (JS канон vs wasm plugin-lang-js, full-scope міст) > край: types відсутнє зовсім → String(undefined) === \"undefined\" з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "package_structure",
+      "message": "Файл для поля types не знайдено або шлях не під ./types/ — undefined"
+    }
+  ],
+  "wasm-plugin parity — npm-module/package_structure (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: застарілий \"check changelog\" у hk.pkl витісняє перевірку кроку npm-changelog": [
+    {
+      "severity": "error",
+      "reason": "package_structure",
+      "message": "hk.pkl: крок містить застарілий виклик \"check changelog\" — команду `check` прибрано в v14 (уніфікована поверхня `lint`). Заміни на \"npx @7n/rules lint changelog\" (npm-module.mdc)"
+    }
+  ],
+  "wasm-plugin parity — npm-module/package_structure (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: тести у tarball — каталог, імʼя файлу й імпорт фреймворку": [
+    {
+      "severity": "error",
+      "reason": "package_structure",
+      "message": "npm/lib/fixtures/data.json: test-style каталог \"fixtures/\" — додай у \"files\" у npm/package.json негативний glob, що виключає цей файл з tarball (наприклад \"!**/*.test.mjs\", \"!**/fixtures/**\", \"!**/*_test.rego\") (npm-module.mdc)"
+    },
+    {
+      "severity": "error",
+      "reason": "package_structure",
+      "message": "npm/lib/hidden.mjs: імпорт test-фреймворку \"vitest\" — додай у \"files\" у npm/package.json негативний glob, що виключає цей файл з tarball (наприклад \"!**/*.test.mjs\", \"!**/fixtures/**\", \"!**/*_test.rego\") (npm-module.mdc)"
+    },
+    {
+      "severity": "error",
+      "reason": "package_structure",
+      "message": "npm/lib/util.test.mjs: test-style ім'я файлу — додай у \"files\" у npm/package.json негативний glob, що виключає цей файл з tarball (наприклад \"!**/*.test.mjs\", \"!**/fixtures/**\", \"!**/*_test.rego\") (npm-module.mdc)"
+    }
+  ],
+  "wasm-plugin parity — npm-module/package_structure (JS канон vs wasm plugin-lang-js, full-scope міст) > край: негативний glob у files виключає файл з tarball-простору обох реалізацій": [],
+  "wasm-plugin parity — npm-module/package_structure (JS канон vs wasm plugin-lang-js, full-scope міст) > край: carve-out rules/<rule-name>/ — правило з id \"test\" НЕ є test-fixture": [
+    {
+      "severity": "error",
+      "reason": "package_structure",
+      "message": "npm/rules/n-js/tests/deep.mjs: test-style каталог \"tests/\" — додай у \"files\" у npm/package.json негативний glob, що виключає цей файл з tarball (наприклад \"!**/*.test.mjs\", \"!**/fixtures/**\", \"!**/*_test.rego\") (npm-module.mdc)"
+    }
+  ],
+  "wasm-plugin parity — npm-module/package_structure (JS канон vs wasm plugin-lang-js, full-scope міст) > край: `require`/динамічний import test-фреймворку ловиться так само, як статичний": [
+    {
+      "severity": "error",
+      "reason": "package_structure",
+      "message": "npm/lib/a.cjs: імпорт test-фреймворку \"node:test\" — додай у \"files\" у npm/package.json негативний glob, що виключає цей файл з tarball (наприклад \"!**/*.test.mjs\", \"!**/fixtures/**\", \"!**/*_test.rego\") (npm-module.mdc)"
+    },
+    {
+      "severity": "error",
+      "reason": "package_structure",
+      "message": "npm/lib/b.mjs: імпорт test-фреймворку \"mocha\" — додай у \"files\" у npm/package.json негативний glob, що виключає цей файл з tarball (наприклад \"!**/*.test.mjs\", \"!**/fixtures/**\", \"!**/*_test.rego\") (npm-module.mdc)"
+    }
+  ],
+  "wasm-plugin parity — npm-module/package_structure (JS канон vs wasm plugin-lang-js, full-scope міст) > край: files-запис — окремий ФАЙЛ, а не каталог (сирий рядок запису в шляху)": []
+}

@@ -1,0 +1,74 @@
+{
+  "wasm-plugin parity — test/storybook-scaffold (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: бібліотека без жодного canon-файлу → ідентичні пʼять violations у тому ж порядку": [
+    {
+      "severity": "error",
+      "reason": "missing-main-js",
+      "message": "[packages/ui] відсутній .storybook/main.js — канонічний скафолд: npx @7n/rules fix storybook (storybook.mdc)",
+      "file": "packages/ui/.storybook/main.js",
+      "data": {
+        "rootDir": "packages/ui"
+      }
+    },
+    {
+      "severity": "error",
+      "reason": "missing-preview-js",
+      "message": "[packages/ui] відсутній .storybook/preview.js — канонічний скафолд: npx @7n/rules fix storybook (storybook.mdc)",
+      "file": "packages/ui/.storybook/preview.js",
+      "data": {
+        "rootDir": "packages/ui"
+      }
+    },
+    {
+      "severity": "error",
+      "reason": "missing-empty-vite-config",
+      "message": "[packages/ui] відсутній .storybook/empty-vite.config.js — канонічний скафолд: npx @7n/rules fix storybook (storybook.mdc)",
+      "file": "packages/ui/.storybook/empty-vite.config.js",
+      "data": {
+        "rootDir": "packages/ui"
+      }
+    },
+    {
+      "severity": "error",
+      "reason": "missing-vitest-setup-js",
+      "message": "[packages/ui] відсутній .storybook/vitest.setup.js — канонічний скафолд: npx @7n/rules fix storybook (storybook.mdc)",
+      "file": "packages/ui/.storybook/vitest.setup.js",
+      "data": {
+        "rootDir": "packages/ui"
+      }
+    },
+    {
+      "severity": "error",
+      "reason": "missing-storybook-script",
+      "message": "[packages/ui] package.json#scripts.storybook має бути 'storybook dev -p 6006 --no-open' (зараз: відсутній) — storybook.mdc",
+      "file": "packages/ui/package.json",
+      "data": {
+        "rootDir": "packages/ui"
+      }
+    }
+  ],
+  "wasm-plugin parity — test/storybook-scaffold (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: canon-файли без частини маркерів + некороткий script → ідентичні marker-violations": [
+    {
+      "severity": "error",
+      "reason": "main-js-marker-missing",
+      "message": "[packages/ui] .storybook/main.js не відповідає канону — бракує: core.builder.options.viteConfigPath на empty-vite.config.js (блокує builder-vite autodiscovery vite.config пакета — інакше подвійна SFC-трансформація на storybook build) (storybook.mdc)",
+      "file": "packages/ui/.storybook/main.js"
+    },
+    {
+      "severity": "error",
+      "reason": "preview-js-marker-missing",
+      "message": "[packages/ui] .storybook/preview.js не відповідає канону — бракує: mswLoader (не mswDecorator — deprecated у msw-storybook-addon 2.x) (storybook.mdc)",
+      "file": "packages/ui/.storybook/preview.js"
+    },
+    {
+      "severity": "error",
+      "reason": "missing-storybook-script",
+      "message": "[packages/ui] package.json#scripts.storybook має бути 'storybook dev -p 6006 --no-open' (зараз: 'storybook dev') — storybook.mdc",
+      "file": "packages/ui/package.json",
+      "data": {
+        "rootDir": "packages/ui"
+      }
+    }
+  ],
+  "wasm-plugin parity — test/storybook-scaffold (JS канон vs wasm plugin-lang-js, full-scope міст) > успіх: канонічний скафолд бібліотеки → без порушень з обох реалізацій": [],
+  "wasm-plugin parity — test/storybook-scaffold (JS канон vs wasm plugin-lang-js, full-scope міст) > крайове: .n-rules.json ignore знімає .vue-файли з порога скоупу в обох реалізацій": []
+}

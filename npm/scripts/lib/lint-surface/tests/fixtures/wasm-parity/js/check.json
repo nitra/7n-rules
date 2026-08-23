@@ -1,0 +1,133 @@
+{
+  "wasm-plugin parity — js/check (JS канон vs wasm plugin-lang-js, зріз 2 контракту v3.1) > порожній репо — три порушення в тому самому порядку": [
+    {
+      "severity": "error",
+      "reason": "eslint-config-missing",
+      "message": "Відсутній eslint.config.js або eslint.config.mjs — flat config з getConfig (js.mdc)"
+    },
+    {
+      "severity": "error",
+      "reason": "oxlintrc-missing",
+      "message": ".oxlintrc.json не існує — додай конфіг oxlint (js.mdc)"
+    },
+    {
+      "severity": "error",
+      "reason": "knip-missing",
+      "message": "knip.json відсутній — T0 створить його з канону пакета @7n/rules (js.mdc)"
+    }
+  ],
+  "wasm-plugin parity — js/check (JS канон vs wasm plugin-lang-js, зріз 2 контракту v3.1) > відсутній knip.json — порушення `knip-missing`, дерево не мутоване жодною реалізацією": [
+    {
+      "severity": "error",
+      "reason": "knip-missing",
+      "message": "knip.json відсутній — T0 створить його з канону пакета @7n/rules (js.mdc)"
+    }
+  ],
+  "wasm-plugin parity — js/check (JS канон vs wasm plugin-lang-js, зріз 2 контракту v3.1) > канонічний `.oxlintrc.json` — жодного drift-порушення в обох реалізаціях": [],
+  "wasm-plugin parity — js/check (JS канон vs wasm plugin-lang-js, зріз 2 контракту v3.1) > `.oxlintrc.json` із вирізаним правилом — текст drift-повідомлення збігається побайтово": [
+    {
+      "severity": "error",
+      "reason": "oxlintrc-drift",
+      "message": ".oxlintrc.json: rules[\"eqeqeq\"] очікується [\"deny\",\"always\",{\"null\":\"ignore\"}], зараз undefined"
+    }
+  ],
+  "wasm-plugin parity — js/check (JS канон vs wasm plugin-lang-js, зріз 2 контракту v3.1) > `.oxlintrc.json` із вилученими jsPlugins/ignorePatterns — порядок повідомлень за порядком ключів канону": [
+    {
+      "severity": "error",
+      "reason": "oxlintrc-drift",
+      "message": ".oxlintrc.json: jsPlugins має містити канонічні plugins — додай: \"@e18e/eslint-plugin\""
+    },
+    {
+      "severity": "error",
+      "reason": "oxlintrc-drift",
+      "message": ".oxlintrc.json: ignorePatterns має містити канонічні патерни — додай: \"npm/types/**\", \"demo/node/rules-demo.js\", \"**/schema.graphql\", \"**/auto-imports.d.ts\""
+    }
+  ],
+  "wasm-plugin parity — js/check (JS канон vs wasm plugin-lang-js, зріз 2 контракту v3.1) > невалідний `.oxlintrc.json` — однакове повідомлення й жодного drift-у": [
+    {
+      "severity": "error",
+      "reason": "check",
+      "message": ".oxlintrc.json не є валідним JSON"
+    }
+  ],
+  "wasm-plugin parity — js/check (JS канон vs wasm plugin-lang-js, зріз 2 контракту v3.1) > eslint.config без getConfig/@nitra/ignores — три текстові порушення в порядку канону": [
+    {
+      "severity": "error",
+      "reason": "check",
+      "message": "eslint.config.mjs: потрібен виклик getConfig (js.mdc)"
+    },
+    {
+      "severity": "error",
+      "reason": "check",
+      "message": "eslint.config.mjs: імпортуй getConfig з @nitra/eslint-config"
+    },
+    {
+      "severity": "error",
+      "reason": "eslint-config-ignores",
+      "message": "eslint.config.mjs: додай у ignores запис **/auto-imports.d.ts (js.mdc)"
+    }
+  ],
+  "wasm-plugin parity — js/check (JS канон vs wasm plugin-lang-js, зріз 2 контракту v3.1) > vue-воркспейс (за залежністю) поза `vue: [...]` — однакове порушення": [
+    {
+      "severity": "error",
+      "reason": "eslint-config-vue-workspace",
+      "message": "eslint.config.js: воркспейс 'app' містить Vue-код, але відсутній у vue: [...] getConfig — .vue файли не парсяться (js.mdc)"
+    }
+  ],
+  "wasm-plugin parity — js/check (JS канон vs wasm plugin-lang-js, зріз 2 контракту v3.1) > vue-воркспейс (за `.vue`-файлом, glob-патерн workspaces) — однакове порушення": [
+    {
+      "severity": "error",
+      "reason": "eslint-config-vue-workspace",
+      "message": "eslint.config.js: воркспейс 'packages/ui' містить Vue-код, але відсутній у vue: [...] getConfig — .vue файли не парсяться (js.mdc)"
+    }
+  ],
+  "wasm-plugin parity — js/check (JS канон vs wasm plugin-lang-js, зріз 2 контракту v3.1) > `.vue` під `dist/` не робить воркспейс vue-воркспейсом (ignore globby)": [],
+  "wasm-plugin parity — js/check (JS канон vs wasm plugin-lang-js, зріз 2 контракту v3.1) > workspace-`package.json` без type/engines — три порушення в порядку канону": [
+    {
+      "severity": "error",
+      "reason": "check",
+      "message": "app/package.json: має містити \"type\": \"module\" (js.mdc)"
+    },
+    {
+      "severity": "error",
+      "reason": "check",
+      "message": "app/package.json не містить engines.node — додай: \"engines\": { \"node\": \">=24\" }"
+    },
+    {
+      "severity": "error",
+      "reason": "check",
+      "message": "app/package.json не містить engines.bun — додай: \"engines\": { \"bun\": \">=1.3\" }"
+    }
+  ],
+  "wasm-plugin parity — js/check (JS канон vs wasm plugin-lang-js, зріз 2 контракту v3.1) > engines нижче порогів — однаковий текст порогових повідомлень": [
+    {
+      "severity": "error",
+      "reason": "check",
+      "message": "app/package.json: engines.node \">=22.1\" — має бути >=24"
+    },
+    {
+      "severity": "error",
+      "reason": "check",
+      "message": "app/package.json: engines.bun \"^1.2.9\" — має бути >=1.3"
+    }
+  ],
+  "wasm-plugin parity — js/check (JS канон vs wasm plugin-lang-js, зріз 2 контракту v3.1) > `lint.yml` дублює кроки lint-js.yml — однакове порушення": [
+    {
+      "severity": "error",
+      "reason": "check",
+      "message": ".github/workflows/lint.yml дублює кроки lint-js.yml — залиш один workflow на лінт JS (js.mdc)"
+    }
+  ],
+  "wasm-plugin parity — js/check (JS канон vs wasm plugin-lang-js, зріз 2 контракту v3.1) > застарілі конфіги ESLint — по одному порушенню на кожен, у фіксованому порядку": [
+    {
+      "severity": "error",
+      "reason": "check",
+      "message": "Знайдено застарілий конфіг ESLint: .eslintrc — видали, використовуй flat config"
+    },
+    {
+      "severity": "error",
+      "reason": "check",
+      "message": "Знайдено застарілий конфіг ESLint: .eslintrc.yml — видали, використовуй flat config"
+    }
+  ]
+}

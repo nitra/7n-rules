@@ -14,8 +14,6 @@ import { fileURLToPath } from 'node:url'
 
 import { parseSync } from 'oxc-parser'
 
-import { createViolationReporter } from '@7n/rules/scripts/lib/lint-surface/violation-reporter.mjs'
-import { readNRulesConfigLite } from '@7n/rules/scripts/lib/read-n-rules-config-lite.mjs'
 import { resolveAllJsRoots } from '@7n/rules/scripts/utils/resolve-js-root.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -462,50 +460,4 @@ export async function planStrykerActions(cwd) {
 
   plan.gitignoreMissing = await missingGitignoreEntries(cwd)
   return plan
-}
-
-/**
- * Виконує планувальник і транслює план у pass/fail-звіт лінту.
- * @param {import('@7n/rules/scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту (cwd, репортер).
- * @returns {Promise<import('@7n/rules/scripts/lib/lint-surface/types.mjs').LintResult>} результат перевірки з pass/fail.
- */
-export async function lint(ctx) {
-  const reporter = createViolationReporter(ctx)
-  const cwd = ctx.cwd
-  const config = await readNRulesConfigLite(cwd)
-
-  // Self-gate: js має бути enabled
-  if (!config.rules.includes('js') || config.disableRules.includes('js')) {
-    return reporter.result()
-  }
-
-  const plan = await planStrykerActions(cwd)
-  if (plan.fatal) {
-    reporter.fail(plan.fatal)
-    return reporter.result()
-  }
-
-  for (const a of plan.baselineActions) {
-    reporter.fail(
-      `${a.label} відсутній (${relative(cwd, a.target)}) — запусти \`npx @7n/rules lint test\` для canonical baseline (test.mdc)`,
-      { reason: STRYKER_CONFIG_MISSING, file: relative(cwd, a.target) }
-    )
-  }
-  for (const w of plan.augmentWrites) {
-    reporter.fail(
-      `vue-macros ignorer не зареєстровано у stryker.config.mjs (${relative(cwd, w.target)}) — запусти \`npx @7n/rules lint test\` (test.mdc)`,
-      { reason: STRYKER_VUE_AUGMENT, file: relative(cwd, w.target) }
-    )
-  }
-  for (const msg of plan.augmentFails) {
-    reporter.fail(msg, STRYKER_VUE_AUGMENT_FAIL)
-  }
-  if (plan.gitignoreMissing.length > 0) {
-    reporter.fail(
-      `.gitignore: бракує тест-патернів (${plan.gitignoreMissing.join(', ')}) — запусти \`npx @7n/rules lint test\` (test.mdc)`,
-      GITIGNORE_MISSING
-    )
-  }
-
-  return reporter.result()
 }

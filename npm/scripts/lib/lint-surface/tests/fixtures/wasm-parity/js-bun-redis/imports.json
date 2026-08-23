@@ -1,0 +1,37 @@
+{
+  "wasm-plugin parity — js-bun-redis/imports (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q4 AST-концерн) > без package.json у корені → без порушень з обох реалізацій": [],
+  "wasm-plugin parity — js-bun-redis/imports (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q4 AST-концерн) > порушення: import з ioredis → однакове violation з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "imports",
+      "message": "js-bun-redis: src/cache.mjs:1 — заміни 'ioredis' на Bun native Redis (import { redis } from 'bun', https://bun.com/docs/runtime/redis): import Redis from 'ioredis'"
+    }
+  ],
+  "wasm-plugin parity — js-bun-redis/imports (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q4 AST-концерн) > успіх: згадки в коментарях і рядкових літералах → без порушень (AST, не regex)": [],
+  "wasm-plugin parity — js-bun-redis/imports (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q4 AST-концерн) > порушення: require і динамічний import → однакові 2 violations": [
+    {
+      "severity": "error",
+      "reason": "imports",
+      "message": "js-bun-redis: src/a.cjs:1 — заміни 'ioredis' на Bun native Redis (import { redis } from 'bun', https://bun.com/docs/runtime/redis): require('ioredis')"
+    },
+    {
+      "severity": "error",
+      "reason": "imports",
+      "message": "js-bun-redis: src/b.mjs:1 — заміни 'redis' на Bun native Redis (import { redis } from 'bun', https://bun.com/docs/runtime/redis): import('redis')"
+    }
+  ],
+  "wasm-plugin parity — js-bun-redis/imports (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q4 AST-концерн) > порядок: require перед import у файлі → однаковий (двофазний) порядок violations": [
+    {
+      "severity": "error",
+      "reason": "imports",
+      "message": "js-bun-redis: src/mixed.cjs:2 — заміни 'ioredis' на Bun native Redis (import { redis } from 'bun', https://bun.com/docs/runtime/redis): import Redis from 'ioredis'"
+    },
+    {
+      "severity": "error",
+      "reason": "imports",
+      "message": "js-bun-redis: src/mixed.cjs:1 — заміни 'redis' на Bun native Redis (import { redis } from 'bun', https://bun.com/docs/runtime/redis): require('redis')"
+    }
+  ],
+  "wasm-plugin parity — js-bun-redis/imports (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q4 AST-концерн) > успіх: redis-mock не зачіпається → без порушень з обох реалізацій": [],
+  "wasm-plugin parity — js-bun-redis/imports (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q4 AST-концерн) > успіх: .d.ts з імпортом ioredis ігнорується → без порушень з обох реалізацій": []
+}

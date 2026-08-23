@@ -1,0 +1,25 @@
+{
+  "wasm-plugin parity — js/utils_imports (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q3 AST-концерн) > без utils-каталогів → без порушень з обох реалізацій": [],
+  "wasm-plugin parity — js/utils_imports (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q3 AST-концерн) > utils/ з бажаним ./same-dir імпортом → без порушень з обох реалізацій": [],
+  "wasm-plugin parity — js/utils_imports (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q3 AST-концерн) > utils/ з забороненим ../ імпортом → однакове violation з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "utils_imports",
+      "message": "utils/bad.mjs: заборонений імпорт '../lib/config.mjs' — utils/-файли мають бути generic (js.mdc)"
+    }
+  ],
+  "wasm-plugin parity — js/utils_imports (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q3 AST-концерн) > файл у utils/tests/ ігнорується — без порушень з обох реалізацій": [],
+  "wasm-plugin parity — js/utils_imports (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q3 AST-концерн) > файл у utils/__fixtures__/ ігнорується — без порушень з обох реалізацій": [],
+  "wasm-plugin parity — js/utils_imports (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q3 AST-концерн) > динамічний import()/require() з .. → однакова кількість violations з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "utils_imports",
+      "message": "utils/mixed.mjs: заборонений імпорт '../dynamic.mjs' — utils/-файли мають бути generic (js.mdc)"
+    },
+    {
+      "severity": "error",
+      "reason": "utils_imports",
+      "message": "utils/mixed.mjs: заборонений імпорт '../required.mjs' — utils/-файли мають бути generic (js.mdc)"
+    }
+  ]
+}

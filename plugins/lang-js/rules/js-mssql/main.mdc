@@ -15,7 +15,7 @@ JS-перевірка (`deps.mjs`) — authoritative: охоплює всі `pac
 
 ## Singleton ConnectionPool і заборона shared Request
 
-Потрібно використовувати connection pool (`sql.ConnectionPool`) як singleton, а **НЕ** створювати підключення на кожен запит. Перевіряється `findMssqlPerRequestConnectionInText` (`lib/mssql-pool-scan.mjs`, підключено в `deps/main.mjs`).
+Потрібно використовувати connection pool (`sql.ConnectionPool`) як singleton, а **НЕ** створювати підключення на кожен запит. Перевіряється `find_mssql_per_request_connection` (`crates/plugin-lang-js/src/lib.rs`, детектор `detect_mssql_deps`).
 
 ```javascript
 // db.js
