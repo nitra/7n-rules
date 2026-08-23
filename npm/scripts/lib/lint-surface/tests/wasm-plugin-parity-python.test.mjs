@@ -50,8 +50,9 @@
  * `wasm-plugin-parity.test.mjs`).
  */
 import { existsSync } from 'node:fs'
-import { mkdir, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { chmod, mkdir, writeFile } from 'node:fs/promises'
+import { delimiter, dirname, join } from 'node:path'
+import { env } from 'node:process'
 import { pathToFileURL } from 'node:url'
 
 import { describe, expect, test } from 'vitest'
@@ -73,10 +74,18 @@ const PYTHON_RULES_DIR = join(REPO_ROOT, 'plugins', 'lang-python', 'rules', 'pyt
 const APPLIES_MAIN_MJS_PATH = join(PYTHON_RULES_DIR, 'applies', 'main.mjs')
 const TOOLING_MAIN_MJS_PATH = join(PYTHON_RULES_DIR, 'tooling', 'main.mjs')
 const DOC_COMMENTS_MAIN_MJS_PATH = join(PYTHON_RULES_DIR, 'doc_comments', 'main.mjs')
+const WORKSPACE_ROOT_MAIN_MJS_PATH = join(PYTHON_RULES_DIR, 'workspace_root', 'main.mjs')
+const PROJECT_MAIN_MJS_PATH = join(PYTHON_RULES_DIR, 'project', 'main.mjs')
+const MYPY_MAIN_MJS_PATH = join(PYTHON_RULES_DIR, 'mypy', 'main.mjs')
+const RUFF_MAIN_MJS_PATH = join(PYTHON_RULES_DIR, 'ruff', 'main.mjs')
 
 const APPLIES_CONCERN_KEY = 'python/applies'
 const TOOLING_CONCERN_KEY = 'python/tooling'
 const DOC_COMMENTS_CONCERN_KEY = 'python/doc_comments'
+const WORKSPACE_ROOT_CONCERN_KEY = 'python/workspace_root'
+const PROJECT_CONCERN_KEY = 'python/project'
+const MYPY_CONCERN_KEY = 'python/mypy'
+const RUFF_CONCERN_KEY = 'python/ruff'
 
 /** Size-budget компонента — той самий бюджет, що `plugin-lang-js` (доккомент модуля). */
 const WASM_SIZE_BUDGET_BYTES = 2.5 * 1024 * 1024
@@ -394,6 +403,688 @@ describe('wasm-plugin parity — python/doc_comments (JS канон vs wasm plug
       expect(js).toHaveLength(1)
       expect(js[0].reason).toBe('missing-def-docstring')
       expect(js[0].file).toBe('pkg/облік.py')
+    })
+  })
+})
+
+// --- python/mypy + python/ruff (друга хвиля, доккомент секції
+// «`python/mypy` + `python/ruff`» перед `build_manifest` у
+// `crates/plugin-lang-python/src/lib.rs`) -------------------------------
+//
+// Обидва — per-file + `lint.anchors` (НЕ full-scope — перша спроба хвилі
+// full-scope замінена після рев'ю, доккомент секції в `lib.rs`): результат
+// залежить від зовнішнього `uv`, тож обидві реалізації ганяють ОДИН І ТОЙ
+// САМИЙ фейковий бінарник — той самий мотив, що `style/lint` у lang-js
+// (`wasm-plugin-parity.test.mjs`, секція «зріз 6»). Канон резолвить `uv` з
+// PATH (`resolveCmd('uv')`), тож PATH тимчасово звужується до каталогу
+// фейка (чи ПОРОЖНІЙ — канал «uv не знайдено») й відновлюється у `finally`;
+// wasm-бік отримує абсолютний шлях фейка (чи порожню мапу) у `toolPaths`
+// (`{ uv: toolPath }`).
+//
+// [`runPythonToolBoth`] бере ЯВНИЙ `pyFiles` (не `files: undefined`/`null`)
+// — дзеркалить те, що реально приходить у `ctx.files`/`runWasmConcern`
+// delta-режиму: JS-бік отримує `pyFiles` буквально (сам фільтрує `.py`,
+// `pyproject.toml` не потрібен — робить власний `existsSync`); wasm-бік
+// отримує `pyFiles` ПЛЮС доданий `pyproject.toml` — той самий якір, що
+// planner (`plan_concern_for_delta`, `crates/rules-core/src/lint_plan.rs`)
+// додає до непорожнього delta-batch-у, а `read_source_files`
+// (`crates/rules-napi/src/lib.rs`) тихо пропускає, якщо файлу немає на
+// диску. Це і є сам механізм, що тестує сценарій «delta зі зміненим одним
+// .py файлом» нижче: явний список — тула НЕ бачить інших `.py`-файлів
+// репозиторію, на відміну від full-scope host-walk, який був би тут
+// бекендом до рев'ю.
+
+const PY_FIXTURE_PATH = 'pkg/mod.py'
+const PY_FIXTURE_CONTENT = '"""Модуль."""\n\n\ndef run():\n    """Опис."""\n    return 1\n'
+
+/** Фейковий `uv`, що завжди провалюється — детектор помилкового виклику тула в Skip-сценаріях. */
+const UV_MUST_NOT_RUN = '#!/bin/sh\nexit 1\n'
+
+/** Фейковий `uv`: `--version` (probe) і реальний запуск обидва проходять мовчки. */
+const UV_CLEAN = '#!/bin/sh\ncase "$*" in\n  *--version*) exit 0 ;;\n  *) exit 0 ;;\nesac\n'
+
+/** Фейковий `uv`: `--version` (probe) провалюється — канал «tool недоступний у uv-середовищі» (fail-open). */
+const UV_TOOL_UNAVAILABLE = '#!/bin/sh\nexit 1\n'
+
+/**
+ * Пише виконуваний sh-скрипт (фейковий `uv`) і повертає його шлях — той
+ * самий helper, що `writeFakeTool` у `wasm-plugin-parity.test.mjs`.
+ * @param {string} path абсолютний шлях майбутнього бінарника
+ * @param {string} body тіло скрипта разом із shebang
+ * @returns {Promise<string>} той самий `path`
+ */
+async function writeFakeUv(path, body) {
+  await writeFile(path, body, 'utf8')
+  await chmod(path, 0o755)
+  return path
+}
+
+/**
+ * Ганяє `python/mypy`/`python/ruff` через JS-канон і wasm-порт на СПІЛЬНОМУ
+ * фейковому `uv`, обидва в per-file delta-режимі з ЯВНИМ `pyFiles`
+ * (доккомент секції вище — НЕ full-scope `files: null`).
+ * @param {string} mainMjsPath абсолютний шлях до `main.mjs` JS-канону
+ * @param {string} concernKey `ruleId/concernId`
+ * @param {string} concernId `ctx.concernId` для JS-виклику
+ * @param {string} dir абсолютний шлях tmp-каталогу з уже записаними фікстурами
+ * @param {string[]} pyFiles delta-список `.py`-шляхів (posix-relative від `dir`)
+ * @param {string | null} toolBody тіло фейкового `uv`; `null` — канал «uv не
+ *   знайдено» (порожній PATH, порожній `toolPaths`)
+ * @returns {Promise<{ js: unknown[], wasm: unknown[] }>} результати обох реалізацій
+ */
+async function runPythonToolBoth(mainMjsPath, concernKey, concernId, dir, pyFiles, toolBody) {
+  const originalPath = env.PATH
+  let toolPaths = {}
+  try {
+    if (toolBody === null) {
+      // Канал «uv не знайдено»: PATH БЕЗ фейкового `uv`, `toolPaths`
+      // порожній — `ToolResolver` (`crates/rules-plugin-host`) не знає
+      // `uv`, `exec_tool` повертає `status: none`.
+      env.PATH = ''
+    } else {
+      const binDir = join(dir, 'fake-bin')
+      await mkdir(binDir, { recursive: true })
+      const toolPath = await writeFakeUv(join(binDir, 'uv'), toolBody)
+      env.PATH = `${binDir}${delimiter}${originalPath ?? ''}`
+      toolPaths = { uv: toolPath }
+    }
+    // eslint-disable-next-line no-unsanitized/method
+    const { lint } = await import(pathToFileURL(mainMjsPath).href)
+    const jsResult = await lint({ cwd: dir, ruleId: 'python', concernId, files: pyFiles })
+    // Якір `pyproject.toml` додається ЛИШЕ до непорожнього збігу — той
+    // самий гейт, що `plan_concern_for_delta` (`if files.is_empty() {
+    // None } else { … append anchors … }`, доккомент секції вище).
+    const wasmFiles = pyFiles.length > 0 ? [...pyFiles, 'pyproject.toml'] : pyFiles
+    const wasmResult = loadNative().runWasmConcern(WASM_PATH, concernKey, dir, wasmFiles, toolPaths)
+    return { js: withDefaultSeverity(jsResult.violations), wasm: withDefaultSeverity(wasmResult.violations) }
+  } finally {
+    env.PATH = originalPath
+  }
+}
+
+describe('wasm-plugin parity — python/mypy (JS канон vs wasm plugin-lang-python, спільний фейковий uv)', () => {
+  const runMypyBoth = (dir, pyFiles, toolBody) =>
+    runPythonToolBoth(MYPY_MAIN_MJS_PATH, MYPY_CONCERN_KEY, 'mypy', dir, pyFiles, toolBody)
+
+  test('немає pyproject.toml — обидві реалізації мовчать, uv не спавниться', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, PY_FIXTURE_PATH, PY_FIXTURE_CONTENT)
+      const { js, wasm } = await runMypyBoth(dir, [PY_FIXTURE_PATH], UV_MUST_NOT_RUN)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('uv не резолвиться в PATH — однакове uv-missing порушення з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'pyproject.toml'), '[project]\nname = "demo"\n', 'utf8')
+      await writeFileDeep(dir, PY_FIXTURE_PATH, PY_FIXTURE_CONTENT)
+      const { js, wasm } = await runMypyBoth(dir, [PY_FIXTURE_PATH], null)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('uv-missing')
+      expect(js[0].message).toBe(
+        'lint-python: `uv` не знайдено в PATH (потрібен при наявному pyproject.toml, python.mdc)'
+      )
+    })
+  })
+
+  test('mypy недоступний у uv-середовищі (--version провалюється) — обидві реалізації мовчать (fail-open)', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'pyproject.toml'), '[project]\nname = "demo"\n', 'utf8')
+      await writeFileDeep(dir, PY_FIXTURE_PATH, PY_FIXTURE_CONTENT)
+      const { js, wasm } = await runMypyBoth(dir, [PY_FIXTURE_PATH], UV_TOOL_UNAVAILABLE)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('mypy exit 0 — без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'pyproject.toml'), '[project]\nname = "demo"\n', 'utf8')
+      await writeFileDeep(dir, PY_FIXTURE_PATH, PY_FIXTURE_CONTENT)
+      const { js, wasm } = await runMypyBoth(dir, [PY_FIXTURE_PATH], UV_CLEAN)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('mypy exit 1 з виводом — однакове mypy-violation, включно з чужим виводом у тексті', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'pyproject.toml'), '[project]\nname = "demo"\n', 'utf8')
+      await writeFileDeep(dir, PY_FIXTURE_PATH, PY_FIXTURE_CONTENT)
+      const toolBody =
+        '#!/bin/sh\ncase "$*" in\n  *--version*) exit 0 ;;\n  *) echo "mod.py:3: error: bad" ; echo "stderr-line" >&2 ; exit 1 ;;\nesac\n'
+      const { js, wasm } = await runMypyBoth(dir, [PY_FIXTURE_PATH], toolBody)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('mypy-violation')
+      expect(js[0].message).toBe('lint-python: mypy — помилка (код 1, python.mdc)\nmod.py:3: error: bad\nstderr-line')
+    })
+  })
+
+  test('вивід довший за 2000 символів обрізається однаково обома реалізаціями', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'pyproject.toml'), '[project]\nname = "demo"\n', 'utf8')
+      await writeFileDeep(dir, PY_FIXTURE_PATH, PY_FIXTURE_CONTENT)
+      const toolBody = `#!/bin/sh\ncase "$*" in\n  *--version*) exit 0 ;;\n  *) printf '%s' '${'x'.repeat(3000)}' ; exit 1 ;;\nesac\n`
+      const { js, wasm } = await runMypyBoth(dir, [PY_FIXTURE_PATH], toolBody)
+      expect(wasm).toEqual(js)
+      expect(js[0].message).toBe(`lint-python: mypy — помилка (код 1, python.mdc)\n${'x'.repeat(2000)}`)
+    })
+  })
+
+  test('delta зі зміненим лише одним .py файлом — тула отримує ЛИШЕ його, не увесь репозиторій', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'pyproject.toml'), '[project]\nname = "demo"\n', 'utf8')
+      await writeFileDeep(dir, 'pkg/changed.py', PY_FIXTURE_CONTENT)
+      await writeFileDeep(dir, 'pkg/untouched.py', PY_FIXTURE_CONTENT)
+      const argvPath = join(dir, 'argv.txt')
+      // Реальний запуск (не `--version`) дописує СВОЇ аргументи в
+      // `argv.txt` — і JS-канон (перший виклик), і wasm-порт (другий,
+      // доккомент [`runPythonToolBoth`]) переписують той самий файл, тож
+      // після прогону в ньому лишається слід ОСТАННЬОГО (wasm) виклику —
+      // саме той бік, чию поведінку тут перевіряємо.
+      const toolBody =
+        '#!/bin/sh\ncase "$*" in\n' +
+        '  *--version*) exit 0 ;;\n' +
+        `  *) printf '%s' "$*" > "${argvPath}" ; exit 0 ;;\n` +
+        'esac\n'
+      const { js, wasm } = await runMypyBoth(dir, ['pkg/changed.py'], toolBody)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+      const { readFile } = await import('node:fs/promises')
+      const argv = await readFile(argvPath, 'utf8')
+      expect(argv).toContain('pkg/changed.py')
+      expect(argv).not.toContain('pkg/untouched.py')
+    })
+  })
+})
+
+describe('wasm-plugin parity — python/ruff (JS канон vs wasm plugin-lang-python, спільний фейковий uv)', () => {
+  const runRuffBoth = (dir, pyFiles, toolBody) =>
+    runPythonToolBoth(RUFF_MAIN_MJS_PATH, RUFF_CONCERN_KEY, 'ruff', dir, pyFiles, toolBody)
+
+  test('немає pyproject.toml — обидві реалізації мовчать, uv не спавниться', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, PY_FIXTURE_PATH, PY_FIXTURE_CONTENT)
+      const { js, wasm } = await runRuffBoth(dir, [PY_FIXTURE_PATH], UV_MUST_NOT_RUN)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('uv не резолвиться в PATH — однакове uv-missing порушення з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'pyproject.toml'), '[project]\nname = "demo"\n', 'utf8')
+      await writeFileDeep(dir, PY_FIXTURE_PATH, PY_FIXTURE_CONTENT)
+      const { js, wasm } = await runRuffBoth(dir, [PY_FIXTURE_PATH], null)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('uv-missing')
+      expect(js[0].message).toBe(
+        'lint-python: `uv` не знайдено в PATH (потрібен при наявному pyproject.toml, python.mdc)'
+      )
+    })
+  })
+
+  test('ruff недоступний у uv-середовищі (--version провалюється) — обидві реалізації мовчать (fail-open)', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'pyproject.toml'), '[project]\nname = "demo"\n', 'utf8')
+      await writeFileDeep(dir, PY_FIXTURE_PATH, PY_FIXTURE_CONTENT)
+      const { js, wasm } = await runRuffBoth(dir, [PY_FIXTURE_PATH], UV_TOOL_UNAVAILABLE)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('ruff check + format --check обидва exit 0 — без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'pyproject.toml'), '[project]\nname = "demo"\n', 'utf8')
+      await writeFileDeep(dir, PY_FIXTURE_PATH, PY_FIXTURE_CONTENT)
+      const { js, wasm } = await runRuffBoth(dir, [PY_FIXTURE_PATH], UV_CLEAN)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('ruff check провалюється — лише ruff-check-violation, format --check НЕ виконується', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'pyproject.toml'), '[project]\nname = "demo"\n', 'utf8')
+      await writeFileDeep(dir, PY_FIXTURE_PATH, PY_FIXTURE_CONTENT)
+      const toolBody =
+        '#!/bin/sh\ncase "$*" in\n' +
+        '  *--version*) exit 0 ;;\n' +
+        '  *"format --check"*) echo "FORMAT МАВ НЕ ВИКОНАТИСЬ" ; exit 1 ;;\n' +
+        '  *"ruff check"*) echo "F401 unused import" ; exit 1 ;;\n' +
+        '  *) exit 0 ;;\n' +
+        'esac\n'
+      const { js, wasm } = await runRuffBoth(dir, [PY_FIXTURE_PATH], toolBody)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('ruff-check-violation')
+      expect(js[0].message).toBe('lint-python: ruff check — помилка (код 1, python.mdc)\nF401 unused import')
+    })
+  })
+
+  test('ruff check ОК, format --check провалюється — однакове ruff-format-violation', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'pyproject.toml'), '[project]\nname = "demo"\n', 'utf8')
+      await writeFileDeep(dir, PY_FIXTURE_PATH, PY_FIXTURE_CONTENT)
+      const toolBody =
+        '#!/bin/sh\ncase "$*" in\n' +
+        '  *--version*) exit 0 ;;\n' +
+        '  *"format --check"*) echo "Would reformat mod.py" ; exit 1 ;;\n' +
+        '  *"ruff check"*) exit 0 ;;\n' +
+        '  *) exit 0 ;;\n' +
+        'esac\n'
+      const { js, wasm } = await runRuffBoth(dir, [PY_FIXTURE_PATH], toolBody)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('ruff-format-violation')
+      expect(js[0].message).toBe(
+        'lint-python: ruff format --check — помилка (код 1, python.mdc)\nWould reformat mod.py'
+      )
+    })
+  })
+
+  test('delta зі зміненим лише одним .py файлом — тула отримує ЛИШЕ його, не увесь репозиторій', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'pyproject.toml'), '[project]\nname = "demo"\n', 'utf8')
+      await writeFileDeep(dir, 'pkg/changed.py', PY_FIXTURE_CONTENT)
+      await writeFileDeep(dir, 'pkg/untouched.py', PY_FIXTURE_CONTENT)
+      const argvPath = join(dir, 'argv.txt')
+      const toolBody =
+        '#!/bin/sh\ncase "$*" in\n' +
+        '  *--version*) exit 0 ;;\n' +
+        `  *"format --check"*) printf '%s' "$*" >> "${argvPath}" ; exit 0 ;;\n` +
+        `  *) printf '%s\\n' "$*" >> "${argvPath}" ; exit 0 ;;\n` +
+        'esac\n'
+      const { js, wasm } = await runRuffBoth(dir, ['pkg/changed.py'], toolBody)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+      const { readFile } = await import('node:fs/promises')
+      const argv = await readFile(argvPath, 'utf8')
+      expect(argv).toContain('pkg/changed.py')
+      expect(argv).not.toContain('pkg/untouched.py')
+    })
+  })
+})
+
+describe('wasm-plugin parity — python/workspace_root (JS канон vs wasm plugin-lang-python, full-scope, власний обхід дерева)', () => {
+  // Сценарії дзеркалять `plugins/lang-python/rules/python/workspace_root/
+  // tests/workspace_root.test.mjs` (букви a–g — той самий підпис сценарію в
+  // коментарі тесту, той самий мотив, що parity-юніти в `src/lib.rs`).
+  // JS-канон сам ходить `readdirSync` (ігнорує `ctx.files`, доккомент
+  // `main.mjs`) — той самий `runFullScopeBoth`, що `python/applies`/
+  // `python/tooling`, з `files: null` на wasm-боці (host сам будує batch за
+  // `**/pyproject.toml`/`**/uv.lock`, `ConcernContribution::glob`).
+  const runWorkspaceRootBoth = dir =>
+    runFullScopeBoth(WORKSPACE_ROOT_MAIN_MJS_PATH, WORKSPACE_ROOT_CONCERN_KEY, 'workspace_root', dir)
+
+  /**
+   * Пише pyproject.toml у `dir/relDir` (порожній `relDir` — кореневий файл) —
+   * дзеркало `writeManifest` (`workspace_root.test.mjs`).
+   * @param {string} dir абсолютний шлях tmp-каталогу
+   * @param {string} relDir відносний каталог (`''` — корінь)
+   * @param {string} content вміст pyproject.toml
+   * @returns {Promise<void>}
+   */
+  async function writeManifest(dir, relDir, content) {
+    await writeFileDeep(dir, relDir ? `${relDir}/pyproject.toml` : 'pyproject.toml', content)
+  }
+
+  /**
+   * Пише uv.lock у `dir/relDir` — дзеркало `writeLock` (`workspace_root.test.mjs`).
+   * @param {string} dir абсолютний шлях tmp-каталогу
+   * @param {string} relDir відносний каталог (`''` — корінь)
+   * @returns {Promise<void>}
+   */
+  async function writeLock(dir, relDir) {
+    await writeFileDeep(dir, relDir ? `${relDir}/uv.lock` : 'uv.lock', 'version = 1\n')
+  }
+
+  test('a) кореневий [tool.uv.workspace] покриває всіх members — чисто', async () => {
+    await withTmpDir(async dir => {
+      await writeManifest(dir, '', '[tool.uv.workspace]\nmembers = ["packages/a", "packages/b"]\n')
+      await writeManifest(dir, 'packages/a', '[project]\nname = "a"\nversion = "0.1.0"\n')
+      await writeManifest(dir, 'packages/b', '[project]\nname = "b"\nversion = "0.1.0"\n')
+      await writeLock(dir, '')
+      const { js, wasm } = await runWorkspaceRootBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('b) вкладений package без кореневого workspace взагалі → missing-root-workspace', async () => {
+    await withTmpDir(async dir => {
+      await writeManifest(dir, 'packages/a', '[project]\nname = "a"\nversion = "0.1.0"\n')
+      const { js, wasm } = await runWorkspaceRootBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('missing-root-workspace')
+      expect(js[0].file).toBeUndefined()
+    })
+  })
+
+  test('c) єдиний кореневий [project] без нащадків — чисто (неявний workspace root)', async () => {
+    await withTmpDir(async dir => {
+      await writeManifest(dir, '', '[project]\nname = "solo"\nversion = "0.1.0"\n')
+      await writeLock(dir, '')
+      const { js, wasm } = await runWorkspaceRootBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('d) вкладений [tool.uv.workspace] глибше кореня → nested-workspace violation', async () => {
+    await withTmpDir(async dir => {
+      await writeManifest(dir, '', '[tool.uv.workspace]\nmembers = ["packages/a"]\n')
+      await writeManifest(dir, 'packages/a', '[project]\nname = "a"\nversion = "0.1.0"\n')
+      await writeManifest(dir, 'nested', '[tool.uv.workspace]\nmembers = ["sub"]\n')
+      await writeManifest(dir, 'nested/sub', '[project]\nname = "sub"\nversion = "0.1.0"\n')
+      const { js, wasm } = await runWorkspaceRootBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js.some(v => v.reason === 'nested-workspace' && v.file === 'nested/pyproject.toml')).toBe(true)
+    })
+  })
+
+  test('e) package не покритий members кореня (і не excluded) → package-not-workspace-member violation', async () => {
+    await withTmpDir(async dir => {
+      await writeManifest(dir, '', '[tool.uv.workspace]\nmembers = ["packages/a"]\n')
+      await writeManifest(dir, 'packages/a', '[project]\nname = "a"\nversion = "0.1.0"\n')
+      await writeManifest(dir, 'packages/orphan', '[project]\nname = "orphan"\nversion = "0.1.0"\n')
+      const { js, wasm } = await runWorkspaceRootBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(
+        js.some(v => v.reason === 'package-not-workspace-member' && v.file === 'packages/orphan/pyproject.toml')
+      ).toBe(true)
+    })
+  })
+
+  test('f) вкладений uv.lock у не-excluded member → nested-lockfile violation', async () => {
+    await withTmpDir(async dir => {
+      await writeManifest(dir, '', '[tool.uv.workspace]\nmembers = ["packages/a"]\n')
+      await writeManifest(dir, 'packages/a', '[project]\nname = "a"\nversion = "0.1.0"\n')
+      await writeLock(dir, '')
+      await writeLock(dir, 'packages/a')
+      const { js, wasm } = await runWorkspaceRootBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js.some(v => v.reason === 'nested-lockfile' && v.file === 'packages/a/uv.lock')).toBe(true)
+    })
+  })
+
+  test('g) вкладений uv.lock у EXCLUDED member — чисто (escape hatch для конфліктних залежностей)', async () => {
+    await withTmpDir(async dir => {
+      await writeManifest(
+        dir,
+        '',
+        '[tool.uv.workspace]\nmembers = ["packages/*"]\nexclude = ["packages/conflicting"]\n'
+      )
+      await writeManifest(dir, 'packages/a', '[project]\nname = "a"\nversion = "0.1.0"\n')
+      await writeManifest(dir, 'packages/conflicting', '[project]\nname = "conflicting"\nversion = "0.1.0"\n')
+      await writeLock(dir, '')
+      await writeLock(dir, 'packages/conflicting')
+      const { js, wasm } = await runWorkspaceRootBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('немає жодного pyproject.toml з [project] — концерн не застосовний', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'app.py', 'print("hi")\n')
+      const { js, wasm } = await runWorkspaceRootBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('.venv/ і node_modules/ пропускаються обходом з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeManifest(dir, '', '[tool.uv.workspace]\nmembers = ["packages/a"]\n')
+      await writeManifest(dir, 'packages/a', '[project]\nname = "a"\nversion = "0.1.0"\n')
+      await writeManifest(dir, '.venv/lib/site-packages/foo', '[project]\nname = "ignored"\nversion = "0.1.0"\n')
+      await writeManifest(dir, 'node_modules/pkg', '[project]\nname = "ignored2"\nversion = "0.1.0"\n')
+      const { js, wasm } = await runWorkspaceRootBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+})
+
+/**
+ * Пише виконуваний фейковий `uv` у `<dir>/.fake-bin/uv` і повертає його
+ * абсолютний шлях — той самий мотив, що `write_executable_script`
+ * (`crates/rules-plugin-host/tests/contract_test_kit.rs`,
+ * `run_tool_reaches_resolved_fake_tool_binary`), адаптований для Node:
+ * `python/project` (доккомент `crates/plugin-lang-python/src/lib.rs`)
+ * розрізняє ЧОТИРИ кроки ланцюжка (`uv lock --check` → `uv sync --frozen` →
+ * `uv run --frozen pip-licenses --version` → `uv run --frozen pip-licenses
+ * --from=mixed --format=spdx-json`) виключно за `argv`, тож ОДИН скрипт
+ * ([`fakeUvScript`]) диспетчеризує усі чотири. Обидві реалізації бачать
+ * РІВНО той самий бінарник: wasm — через `toolPaths: { uv: … }`
+ * (`crates/rules-napi::run_wasm_concern`/`build_tool_resolver`), JS-канон —
+ * через тимчасово підмінений `PATH` ([`withUvOnPath`]).
+ * @param {string} dir абсолютний шлях tmp-каталогу
+ * @param {string} script POSIX shell-скрипт (без рядка `#!/bin/sh` — додається тут)
+ * @returns {Promise<string>} абсолютний шлях виконуваного файлу `uv`
+ */
+async function writeFakeTool(dir, script) {
+  const binDir = join(dir, '.fake-bin')
+  await mkdir(binDir, { recursive: true })
+  const path = join(binDir, 'uv')
+  await writeFile(path, `#!/bin/sh\n${script}`, 'utf8')
+  await chmod(path, 0o755)
+  return path
+}
+
+/**
+ * Генерує тіло POSIX shell-скрипта фейкового `uv` — `case` за ПОВНИМ рядком
+ * аргументів (`"$*"`), той самий диспетчер, що реальний ланцюжок
+ * `detect_project` (`crates/plugin-lang-python/src/lib.rs`). Крок, не
+ * досягнутий у конкретному сценарії (наприклад, `sync`, коли `lock` уже
+ * провалився), просто НЕ викликається — case для нього не спрацює, а
+ * дефолтна гілка (`*`) падає з `argv` у stderr, щоб непередбачений виклик
+ * провалив тест голосно, а не тихо пройшов.
+ * @param {{ lock?: string, sync?: string, version?: string, scan?: string }} steps
+ *   shell-тіло (без `case`-обгортки) для кожного кроку; відсутній крок —
+ *   дефолт `exit 0`.
+ * @returns {string} тіло POSIX shell-скрипта (без рядка `#!/bin/sh`)
+ */
+function fakeUvScript(steps = {}) {
+  const step = body => body ?? 'exit 0'
+  return `case "$*" in
+  "lock --check")
+${step(steps.lock)}
+    ;;
+  "sync --frozen")
+${step(steps.sync)}
+    ;;
+  "run --frozen pip-licenses --version")
+${step(steps.version)}
+    ;;
+  "run --frozen pip-licenses --from=mixed --format=spdx-json")
+${step(steps.scan)}
+    ;;
+  *)
+    echo "fake uv: несподівані аргументи: $*" >&2
+    exit 1
+    ;;
+esac
+`
+}
+
+/**
+ * Тимчасово ЗАМІНЮЄ `process.env.PATH` (не додає до наявного) на час
+ * виконання `fn` і гарантовано відновлює після — `resolveCmd`
+ * (`npm/scripts/utils/resolve-cmd.mjs`) читає `process.env.PATH` живцем на
+ * кожен виклик (доккомент того модуля), тож підміна видима одразу.
+ * Заміна, а не префікс: якщо на машині, де запущено тест, реально
+ * встановлений `uv`, префікс лишив би його резолвним як другого кандидата й
+ * тест перестав би бути детермінованим (вимога задачі — не залежати від
+ * того, що є на машині).
+ * @param {string | null} uvPath абсолютний шлях фейкового `uv` чи `null` —
+ *   PATH стає порожнім, `uv` НЕ резолвиться взагалі
+ * @param {() => Promise<T>} fn робота, що має бачити (чи не бачити) фейковий `uv`
+ * @returns {Promise<T>} результат `fn`
+ * @template T
+ */
+async function withUvOnPath(uvPath, fn) {
+  const original = env.PATH
+  env.PATH = uvPath ? dirname(uvPath) : ''
+  try {
+    return await fn()
+  } finally {
+    if (original === undefined) delete env.PATH
+    else env.PATH = original
+  }
+}
+
+/**
+ * Ганяє `python/project` через ЖИВИЙ JS-канон (бачить фейковий `uv` через
+ * підмінений `PATH`, [`withUvOnPath`]) і `runWasmConcern` з `toolPaths: {
+ * uv: uvPath }` (`crates/rules-napi::run_wasm_concern`/`build_tool_resolver`)
+ * — обидва боки резолвлять РІВНО той самий скрипт. `uvPath: null` — жоден
+ * бік не резолвить `uv` взагалі (сценарій «інструмента немає»).
+ * @param {string} dir абсолютний шлях tmp-каталогу з фікстурами
+ * @param {string | null} uvPath шлях фейкового `uv` чи `null`
+ * @returns {Promise<{ js: unknown[], wasm: unknown[] }>} результати обох реалізацій
+ */
+async function runProjectBoth(dir, uvPath) {
+  // eslint-disable-next-line no-unsanitized/method
+  const { lint } = await import(pathToFileURL(PROJECT_MAIN_MJS_PATH).href)
+  const jsResult = await withUvOnPath(uvPath, () =>
+    lint({ cwd: dir, ruleId: 'python', concernId: 'project', files: undefined })
+  )
+  const wasmResult = loadNative().runWasmConcern(
+    WASM_PATH,
+    PROJECT_CONCERN_KEY,
+    dir,
+    null,
+    uvPath ? { uv: uvPath } : {}
+  )
+  return { js: withDefaultSeverity(jsResult.violations), wasm: withDefaultSeverity(wasmResult.violations) }
+}
+
+describe('wasm-plugin parity — python/project (JS канон vs wasm plugin-lang-python, full-scope, exec-tool)', () => {
+  test('pyproject.toml відсутній — обидві реалізації мовчать (uv узагалі не спавниться)', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'package.json'), '{"name":"x"}', 'utf8')
+      const { js, wasm } = await runProjectBoth(dir, null)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('uv відсутній у PATH — однакове порушення `uv-missing` з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'pyproject.toml'), '[project]\nname = "demo"\n', 'utf8')
+      const { js, wasm } = await runProjectBoth(dir, null)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('uv-missing')
+      expect(js[0].message).toContain('`uv` не знайдено в PATH')
+    })
+  })
+
+  test('`uv lock --check` провалюється — однакове порушення `uv-lock-violation` з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'pyproject.toml'), '[project]\nname = "demo"\n', 'utf8')
+      const uvPath = await writeFakeTool(
+        dir,
+        fakeUvScript({ lock: 'echo "lock stdout"\necho "lock stderr" >&2\nexit 1' })
+      )
+      const { js, wasm } = await runProjectBoth(dir, uvPath)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('uv-lock-violation')
+      expect(js[0].message).toContain('uv lock --check')
+      expect(js[0].message).toContain('lock stdout')
+      expect(js[0].message).toContain('lock stderr')
+    })
+  })
+
+  test('`uv sync --frozen` провалюється — однакове порушення `uv-sync-violation` з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'pyproject.toml'), '[project]\nname = "demo"\n', 'utf8')
+      const uvPath = await writeFakeTool(
+        dir,
+        fakeUvScript({ sync: 'echo "sync stdout"\necho "sync stderr" >&2\nexit 1' })
+      )
+      const { js, wasm } = await runProjectBoth(dir, uvPath)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('uv-sync-violation')
+      expect(js[0].message).toContain('uv sync --frozen')
+    })
+  })
+
+  test('pip-licenses недоступний у uv-середовищі — fail-open, обидві реалізації мовчать', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'pyproject.toml'), '[project]\nname = "demo"\n', 'utf8')
+      const uvPath = await writeFakeTool(dir, fakeUvScript({ version: 'exit 1' }))
+      const { js, wasm } = await runProjectBoth(dir, uvPath)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('спавн `pip-licenses` (сам скан) провалюється — однакове порушення `pip-licenses-error`', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'pyproject.toml'), '[project]\nname = "demo"\n', 'utf8')
+      const uvPath = await writeFakeTool(dir, fakeUvScript({ scan: 'exit 1' }))
+      const { js, wasm } = await runProjectBoth(dir, uvPath)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('pip-licenses-error')
+    })
+  })
+
+  test('чистий валідний стан (усі кроки ОК, дозволена ліцензія) — без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'pyproject.toml'), '[project]\nname = "demo"\n', 'utf8')
+      const uvPath = await writeFakeTool(
+        dir,
+        fakeUvScript({
+          scan: 'printf \'%s\' \'{"packages":[{"name":"demo-pkg","versionInfo":"1.0.0","licenseDeclared":"MIT"}]}\'\nexit 0'
+        })
+      )
+      const { js, wasm } = await runProjectBoth(dir, uvPath)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('ліцензія поза Blue Oak Bronze+ — однакове порушення `license-violation` з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'pyproject.toml'), '[project]\nname = "demo"\n', 'utf8')
+      const uvPath = await writeFakeTool(
+        dir,
+        fakeUvScript({
+          scan: 'printf \'%s\' \'{"packages":[{"name":"bad-pkg","versionInfo":"2.0.0","licenseDeclared":"GPL-3.0-only"}]}\'\nexit 0'
+        })
+      )
+      const { js, wasm } = await runProjectBoth(dir, uvPath)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('license-violation')
+      expect(js[0].message).toContain('bad-pkg@2.0.0: GPL-3.0-only')
+    })
+  })
+
+  test('складений SPDX-вираз `MIT OR Apache-2.0` (обидві частини дозволені) — без порушень з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'pyproject.toml'), '[project]\nname = "demo"\n', 'utf8')
+      const uvPath = await writeFakeTool(
+        dir,
+        fakeUvScript({
+          scan: 'printf \'%s\' \'{"packages":[{"name":"dual-pkg","versionInfo":"3.0.0","licenseDeclared":"MIT OR Apache-2.0"}]}\'\nexit 0'
+        })
+      )
+      const { js, wasm } = await runProjectBoth(dir, uvPath)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
     })
   })
 })

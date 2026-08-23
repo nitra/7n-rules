@@ -18,10 +18,10 @@ domains = ["lint"]
 # а не до кореня (доккомент `crates/plugin-lang-js/plugin.toml` пояснює той
 # самий клас дрейфу, спійманий anti-drift тестом `plugin_toml_concern_keys_match_describe`).
 ci_artifacts = []
-# Жоден із трьох концернів першої хвилі не спавнить зовнішній тул —
-# `mypy`/`ruff` (наступна хвиля) принесуть перші `tools`-декларації цього
-# плагіна.
-tools = []
+# `python/mypy`+`python/ruff` (друга хвиля) — перші споживачі `run-tool`/
+# `exec-tool` цього плагіна, обидва йдуть через `uv run --frozen`, тож ОДНА
+# декларація на двох (доккомент `src/lib.rs` перед `build_manifest`).
+tools = ["path:uv"]
 
 [[concerns]]
 key = "python/applies"
@@ -44,6 +44,38 @@ glob = [
 key = "python/doc_comments"
 scope = "per-file"
 glob = ["**/*.py"]
+
+[[concerns]]
+# `pyproject.toml` до delta-batch-у приносить `lint.anchors` відповідного
+# `concern.json` (JS-планувальник, plan_concern_for_delta), НЕ цей glob —
+# доккомент `src/lib.rs` перед `build_manifest`, розділ «Per-file + якорі».
+key = "python/mypy"
+scope = "per-file"
+glob = ["**/*.py"]
+
+[[concerns]]
+key = "python/ruff"
+scope = "per-file"
+glob = ["**/*.py"]
+
+[[concerns]]
+# Друга хвиля (доккомент `src/lib.rs`) — єдиний концерн крейта, що бачить
+# УСЕ дерево репозиторію (host-batch за цим глобом + власний
+# `IGNORED_DIR_NAMES`-фільтр гостя,
+# `crates/plugin-lang-python/src/lib.rs::detect_workspace_root`).
+key = "python/workspace_root"
+scope = "full"
+glob = ["**/pyproject.toml", "**/uv.lock"]
+
+# Друга хвиля порту: read-only lockfile-аудит `uv` + ліцензійна перевірка
+# Blue Oak Council (доккомент `src/lib.rs`, секція `python/project`). Глоб
+# звужений до ОДНОГО файлу — той самий мотив, що `bun/licensee`
+# (`crates/plugin-lang-js/plugin.toml`): решту вердикту дає ланцюжок
+# `exec-tool`, не читання диска гостем.
+[[concerns]]
+key = "python/project"
+scope = "full"
+glob = ["pyproject.toml"]
 
 [capabilities]
 # Хост передає вміст файлів inline у `detect-batch` (host-побудований

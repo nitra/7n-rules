@@ -294,6 +294,7 @@ mod tests {
             lint: Some(LintSurface {
                 scope,
                 glob: glob.iter().map(|g| (*g).to_string()).collect(),
+                anchors: Vec::new(),
             }),
             requires_capability: None,
             fixability: crate::concern_meta::Fixability::Code,

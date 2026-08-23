@@ -731,3 +731,44 @@ pub fn run_wasm_concern(
     })?;
     Ok(serde_json::json!({ "violations": diagnostics }))
 }
+
+#[cfg(test)]
+mod tests {
+    //! [`read_source_files`] — «якорі» (`lint.anchors`,
+    //! `crates/rules-core/src/lint_plan.rs::plan_concern_for_delta`) кладуться
+    //! в `files` planner-ом БЕЗУМОВНО (незалежно від того, чи шлях реально є
+    //! на диску) — саме цей `filter_map`+`.ok()` тут і дає гостю точну
+    //! семантику «якір у batch-і РІВНО тоді, коли він існує». Поведінка сама
+    //! по собі НЕ нова (доккомент функції вже це стверджував), тест лише
+    //! робить твердження перевіреним, а не декларативним.
+    use super::*;
+
+    #[test]
+    fn read_source_files_skips_missing_path_and_keeps_existing() {
+        let dir = tempfile::tempdir().expect("tmp dir");
+        std::fs::write(
+            dir.path().join("pyproject.toml"),
+            "[project]\nname = \"demo\"\n",
+        )
+        .expect("запис фікстури");
+
+        let files = read_source_files(
+            dir.path(),
+            vec![
+                "pyproject.toml".to_string(),
+                "no-such-anchor.toml".to_string(),
+            ],
+        );
+
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].path, "pyproject.toml");
+        assert!(files[0].content.contains("demo"));
+    }
+
+    #[test]
+    fn read_source_files_all_missing_returns_empty() {
+        let dir = tempfile::tempdir().expect("tmp dir");
+        let files = read_source_files(dir.path(), vec!["missing.py".to_string()]);
+        assert!(files.is_empty());
+    }
+}

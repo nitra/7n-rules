@@ -55,6 +55,10 @@ pub struct LintSurface {
     pub scope: LintScope,
     /// Нормалізований масив глобів (порожній — «без glob»).
     pub glob: Vec<String>,
+    /// Нормалізований масив «якірних» шляхів (порт `LintSurface.anchors`,
+    /// `npm/scripts/lib/concern-meta.mjs`; порожній — «без якорів»),
+    /// доккомент `rules_core::lint_plan::plan_concern_for_delta`.
+    pub anchors: Vec<String>,
 }
 
 /// Двигун policy-поверхні (порт `PolicySurface.engine`).
@@ -268,6 +272,9 @@ fn derive_lint_from_policy(files: &PolicyFiles) -> LintSurface {
     LintSurface {
         scope: LintScope::Full,
         glob,
+        // Policy-похідна поверхня не має власного `anchors` у JSON — той
+        // самий контракт відсутності, що дефолт `parseLintSurface` (JS).
+        anchors: Vec::new(),
     }
 }
 
@@ -285,6 +292,7 @@ fn parse_lint_surface(raw: Option<&serde_json::Value>) -> Result<Option<LintSurf
     Ok(Some(LintSurface {
         scope,
         glob: string_or_string_array(raw.get("glob")),
+        anchors: string_or_string_array(raw.get("anchors")),
     }))
 }
 
@@ -398,6 +406,47 @@ mod tests {
         assert!(concerns[0].fix_hint.is_none());
     }
 
+    /// Порт нормалізації `LintSurface.anchors` (JS `parseLintSurface`,
+    /// `npm/scripts/lib/concern-meta.mjs`) — рядок нормалізується в
+    /// одноелементний масив, той самий контракт, що `glob`.
+    #[test]
+    fn reads_lint_surface_anchors() {
+        let tmp = TempDir::new().unwrap();
+        concern(
+            tmp.path(),
+            "python",
+            "mypy",
+            r#"{"lint":{"scope":"per-file","glob":"**/*.py","anchors":"pyproject.toml"},"check":true}"#,
+        );
+        let concerns = list_concerns(&tmp.path().join("python"));
+        assert_eq!(
+            concerns[0].lint,
+            Some(LintSurface {
+                scope: LintScope::PerFile,
+                glob: vec!["**/*.py".to_string()],
+                anchors: vec!["pyproject.toml".to_string()]
+            })
+        );
+    }
+
+    /// Відсутнє поле `anchors` — порожній масив (регресія на існуючу
+    /// поведінку, той самий контракт, що відсутній `glob`).
+    #[test]
+    fn missing_anchors_defaults_to_empty() {
+        let tmp = TempDir::new().unwrap();
+        concern(
+            tmp.path(),
+            "js",
+            "no-anchors",
+            r#"{"lint":{"scope":"per-file","glob":"**/*.js"},"check":true}"#,
+        );
+        let concerns = list_concerns(&tmp.path().join("js"));
+        assert_eq!(
+            concerns[0].lint.as_ref().unwrap().anchors,
+            Vec::<String>::new()
+        );
+    }
+
     #[test]
     fn reads_lint_surface_and_normalizes_glob() {
         let tmp = TempDir::new().unwrap();
@@ -417,7 +466,8 @@ mod tests {
             meta.lint,
             Some(LintSurface {
                 scope: LintScope::PerFile,
-                glob: vec!["**/*.js".to_string()]
+                glob: vec!["**/*.js".to_string()],
+                anchors: Vec::new()
             })
         );
     }
@@ -455,7 +505,8 @@ mod tests {
             detectors[0].lint,
             Some(LintSurface {
                 scope: LintScope::Full,
-                glob: vec!["k8s/**/*.yaml".to_string()]
+                glob: vec!["k8s/**/*.yaml".to_string()],
+                anchors: Vec::new()
             })
         );
     }

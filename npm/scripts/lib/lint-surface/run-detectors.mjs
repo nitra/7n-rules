@@ -357,18 +357,23 @@ async function discoverConcernsByRule(opts) {
  * Мінімальний DTO концернів для native `buildLintPlan` (P1 фази 7,
  * `docs/specs/2026-07-30-rules-v2-rust-core-migration.md` §4) — лише те, що
  * реально читають plan-builders у `rules_core::lint_plan`
- * (`concern.name`/`concern.lint.scope`/`concern.lint.glob`). Решта
- * `ConcernMeta` (`dir`/`policy`/`check`/`fixability`/`skipLocalTier`/
- * `cloudTimeoutMs`) лишається виключно тут, у JS — {@link fromPlanItems}
- * підставляє її назад за `(ruleId, concernId)` з уже наявного `byRule`.
+ * (`concern.name`/`concern.lint.scope`/`concern.lint.glob`/`concern.lint.anchors`
+ * — `anchors` додано разом із `LintSurfaceInput::anchors`, доккомент
+ * `plan_concern_for_delta` там же). Решта `ConcernMeta` (`dir`/`policy`/
+ * `check`/`fixability`/`skipLocalTier`/`cloudTimeoutMs`) лишається виключно
+ * тут, у JS — {@link fromPlanItems} підставляє її назад за
+ * `(ruleId, concernId)` з уже наявного `byRule`.
  * @param {Record<string, ConcernMeta[]>} byRule concerns згруповані за rule-id (уже відфільтровані capabilities+applies).
- * @returns {Record<string, { name: string, lint: { scope: string, glob: string[] } }[]>} мінімальний DTO для native.
+ * @returns {Record<string, { name: string, lint: { scope: string, glob: string[], anchors: string[] } }[]>} мінімальний DTO для native.
  */
 function toByRuleDto(byRule) {
-  /** @type {Record<string, { name: string, lint: { scope: string, glob: string[] } }[]>} */
+  /** @type {Record<string, { name: string, lint: { scope: string, glob: string[], anchors: string[] } }[]>} */
   const out = {}
   for (const [ruleId, concerns] of Object.entries(byRule)) {
-    out[ruleId] = concerns.map(c => ({ name: c.name, lint: { scope: c.lint.scope, glob: c.lint.glob } }))
+    out[ruleId] = concerns.map(c => ({
+      name: c.name,
+      lint: { scope: c.lint.scope, glob: c.lint.glob, anchors: c.lint.anchors ?? [] }
+    }))
   }
   return out
 }

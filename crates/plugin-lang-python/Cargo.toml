@@ -33,6 +33,28 @@ regex = { version = "1", default-features = false, features = [
   "perf",
   "unicode-perl",
 ] }
+# `python/workspace_root` парсить `pyproject.toml` (наявність `[project]`,
+# `[tool.uv.workspace].members`/`.exclude`). Емпірично зважено (release
+# wasm32-wasip2, той самий build.sh) проти `toml = "0.8"` (уже dev-dependency
+# нижче, той самий пін, що `rules-core`/`rules-docs`): ідентичний probe-виклик
+# (typed struct, `#[serde(default)]`, без `Value`/`Table`) додав ДО бінарника
+# ~183 KiB через `basic-toml`, ~286 KiB через `toml` — різниця ~106 KiB
+# (`toml` тягне `toml_edit` → `winnow` + `indexmap`, `basic-toml` — лише
+# `serde`, жодного style-preserving edit-шару, якого тут узагалі не треба:
+# лише читання кількох полів, без запису назад). За бюджету гостя 2,5 MiB
+# (зайнято ~1,03 MiB до цього концерну, спільний з ще двома паралельними
+# концернами хвилі) легший крейт — свідомий вибір, не дефолт "бо вже є в
+# lockfile".
+basic-toml = "0.1"
+# `serde` з `derive` — типізовані struct-и `PyProjectToml`/`UvWorkspace`
+# (`main.rs`) замість generic `Value`/`Table` (`basic-toml` жодного не дає,
+# доккомент вище): дерево з `#[serde(default)]` на кожному опційному полі
+# ігнорує всі невідомі ключі маніфеста без падіння (той самий tolerant-парсинг
+# дух, що `smol-toml`-виклик JS-оригіналу — `parseToml` без схеми). `derive`
+# macro не потрапляє в сам `.wasm` (proc-macro виконується під час компіляції
+# host-у, не лінкується) — вартість лише рантайм-крейт `serde`, вже
+# врахований у probe-вимірі вище (той самий виклик мав і `#[derive]`-структури).
+serde = { version = "1", default-features = false, features = ["derive"] }
 
 [dev-dependencies]
 # Anti-drift тест `plugin_toml_concern_keys_match_describe` (той самий
