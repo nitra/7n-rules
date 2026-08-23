@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.93.7] - 2026-08-23
+
+### Changed
+
+- text/run-shellcheck: read-only детектор портовано в rules-core (crates/rules-core/src/concerns/text_run_shellcheck.rs); main.mjs видалено, listShellScriptPaths/runShellcheckText (write-режим) перенесено у fix-run-shellcheck.mjs
+
 ## [1.93.6] - 2026-08-23
 
 ### Changed

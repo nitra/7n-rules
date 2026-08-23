@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.26.3] - 2026-08-23
+
+### Changed
+
+- sandbox-aware-test.mdc: приклад-посилання оновлено на актуальний шлях тесту після видалення npm/rules/text/run-shellcheck/main.mjs
+
 ## [0.26.2] - 2026-08-08
 
 ### Fixed
