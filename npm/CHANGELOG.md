@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.93.10] - 2026-08-23
+
+### Changed
+
+- feat(rules-core): nginx-default-tpl/template і changelog/consistency нативно (#470)
+
 ## [1.93.9] - 2026-08-23
 
 ### Changed
