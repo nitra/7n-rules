@@ -97,8 +97,11 @@ pub mod k8s_manifests_rego;
 pub mod k8s_manifests_workloads;
 mod marksman_config;
 mod package_manifest;
+mod rego_opa_check;
+mod rego_regal;
 mod rego_tooling;
 mod sample_secret;
+mod security_scan;
 mod security_trufflehog;
 mod tauri_cargo_mutants_config;
 mod tauri_core_test_isolation;
@@ -147,8 +150,11 @@ pub use k8s_hasura_httproute::k8s_hasura_httproute;
 pub use k8s_kubeconform::k8s_kubeconform;
 pub use k8s_manifests::k8s_manifests;
 pub use marksman_config::marksman_config;
+pub use rego_opa_check::rego_opa_check;
+pub use rego_regal::rego_regal;
 pub use rego_tooling::rego_tooling;
 pub use sample_secret::sample_secret;
+pub use security_scan::security_scan;
 pub use security_trufflehog::security_trufflehog;
 pub use tauri_cargo_mutants_config::tauri_cargo_mutants_config;
 pub use tauri_core_test_isolation::tauri_core_test_isolation;
@@ -168,9 +174,12 @@ pub const NATIVE_CONCERNS: &[&str] = &[
     "text/forbidden-prettier",
     "text/cspell-fix",
     "security/sample_secret",
+    "security/scan",
     "security/tracked_symlink",
     "k8s/dremio_logging",
     "k8s/manifests",
+    "rego/opa_check",
+    "rego/regal",
     "rego/tooling",
     "doc-files/marksman_config",
     "abie/firebase_hosting",
@@ -218,6 +227,11 @@ pub fn run_concern(
     match key {
         // Концерни, які мають що сказати ПОНАД порушення, віддають звіт самі.
         "security/tracked_symlink" => Ok(tracked_symlink(cwd)),
+        // Концерни, які ще й можуть впасти (тула не резолвиться, спавн
+        // не вдався), віддають `Result` — гілку не треба загортати в `Ok`.
+        "rego/opa_check" => rego_opa_check(cwd, files),
+        "rego/regal" => rego_regal(cwd, files),
+        "security/scan" => security_scan(cwd),
         // Решта — лише порушення; конвертація безкоштовна.
         other => concern_violations(other, cwd, files).map(ConcernReport::from),
     }
@@ -277,13 +291,13 @@ mod tests {
     /// `Lint repo-wide`), не додаючи нічого до сили перевірки — будь-яка зміна
     /// складу чи порядку так само валить цей assert.
     #[test]
-    fn native_concerns_lists_all_thirty_two_entries() {
-        assert_eq!(NATIVE_CONCERNS.len(), 32);
+    fn native_concerns_lists_all_thirty_five_entries() {
+        assert_eq!(NATIVE_CONCERNS.len(), 35);
         assert_eq!(
             NATIVE_CONCERNS.join(" "),
-            "text/forbidden-prettier text/cspell-fix security/sample_secret security/tracked_symlink \
+            "text/forbidden-prettier text/cspell-fix security/sample_secret security/scan security/tracked_symlink \
              k8s/dremio_logging \
-             k8s/manifests rego/tooling \
+             k8s/manifests rego/opa_check rego/regal rego/tooling \
              doc-files/marksman_config abie/firebase_hosting abie/env_dns hasura/migrations \
              image-compress/package_setup tauri/cargo_mutants_config tauri/gitignore_target \
              tauri/linux_deps tauri/core_test_isolation abie/hc_pairing abie/ua_node_selector \
