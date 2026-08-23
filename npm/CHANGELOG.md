@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.93.4] - 2026-08-23
+
+### Changed
+
+- feat(rules-core): канал діагностик у native-контракті + tracked_symlink (#464); chore(release): синк пінів платформних napi-пакетів @7n/rules
+
 ## [1.93.3] - 2026-08-23
 
 ### Changed
