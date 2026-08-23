@@ -204,8 +204,9 @@ pub fn build_t0_step(key: &str, cwd: &Path, files: Option<&[String]>) -> Option<
             let fut: BoxFuture<'static, EditPlan> = Box::pin(async move {
                 // Детектор напряму, не через `detect::run_canonical`:
                 // native-фікс приймає `rules_core::diagnostics::Violation`.
-                let violations: Vec<Violation> =
-                    run_concern(&key, &cwd, files.as_deref()).unwrap_or_default();
+                let violations: Vec<Violation> = run_concern(&key, &cwd, files.as_deref())
+                    .map(|report| report.violations)
+                    .unwrap_or_default();
                 if violations.is_empty() {
                     return EditPlan::empty();
                 }

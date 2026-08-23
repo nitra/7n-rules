@@ -19,7 +19,8 @@ use std::path::PathBuf;
 use serde::Deserialize;
 
 use super::run_concern;
-use crate::{diagnostics::Violation, RulesError};
+use crate::diagnostics::ConcernReport;
+use crate::RulesError;
 
 /// Один item batch-запиту — `ruleId/concernId`-ключ (той самий формат, що
 /// [`super::NATIVE_CONCERNS`]) + робочий каталог + опційний файловий набір
@@ -45,7 +46,7 @@ pub struct BatchItem {
 #[derive(Debug)]
 pub struct BatchItemResult {
     pub key: String,
-    pub result: Result<Vec<Violation>, RulesError>,
+    pub result: Result<ConcernReport, RulesError>,
 }
 
 /// Виконує послідовний батч [`BatchItem`]-ів: для кожного — [`super::run_concern`],
@@ -61,7 +62,7 @@ pub struct BatchItemResult {
 /// повернутого вектора, не ця функція.
 pub fn run_concerns_batch(
     items: &[BatchItem],
-    mut on_item: impl FnMut(&str, &Result<Vec<Violation>, RulesError>),
+    mut on_item: impl FnMut(&str, &Result<ConcernReport, RulesError>),
 ) -> Vec<BatchItemResult> {
     let mut out = Vec::with_capacity(items.len());
     for item in items {

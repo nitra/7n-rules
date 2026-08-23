@@ -85,6 +85,56 @@ pub struct Violation {
     pub data: Option<serde_json::Value>,
 }
 
+/// Нота детектора, що НЕ є порушенням — дзеркало `LintDiagnostic`
+/// (`npm/scripts/lib/lint-surface/types.mjs`).
+///
+/// Потрібна там, де перевірка свідомо НЕ виконалась: предмета немає (`git`
+/// поза PATH, каталог не є робочим деревом), тула недоступна тощо. Мовчазний
+/// пропуск робив би такі випадки невидимими — а пропущена перевірка мусить
+/// бути видною, і саме у структурованому звіті, а не лише в stderr.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConcernDiagnostic {
+    /// `info` | `warn`; JS-нормалізатор зводить усе інше до `info`.
+    pub level: String,
+    pub message: String,
+}
+
+impl ConcernDiagnostic {
+    /// Інформаційна нота (типовий випадок — пропуск перевірки).
+    #[must_use]
+    pub fn info(message: impl Into<String>) -> Self {
+        Self {
+            level: "info".to_string(),
+            message: message.into(),
+        }
+    }
+}
+
+/// Повний результат детектора: порушення ПЛЮС ноти.
+///
+/// До цього реєстр віддавав лише `Vec<Violation>`, тож ноти JS-концернів при
+/// порті нікуди було подіти. Концерн, якому нема чого сказати понад
+/// порушення, конвертується з вектора безкоштовно (`.into()`).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConcernReport {
+    pub violations: Vec<Violation>,
+    /// Порожній вектор серіалізується у відсутнє поле — JS-бік розрізняє
+    /// `{violations}` і `{violations, diagnostics}`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub diagnostics: Vec<ConcernDiagnostic>,
+}
+
+impl From<Vec<Violation>> for ConcernReport {
+    fn from(violations: Vec<Violation>) -> Self {
+        Self {
+            violations,
+            diagnostics: Vec::new(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
