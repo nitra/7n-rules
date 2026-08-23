@@ -1,0 +1,25 @@
+{
+  "wasm-plugin parity — test/storybook-ci (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: бібліотека у скоупі без обох .github-файлів → ідентичні два violations": [
+    {
+      "severity": "error",
+      "reason": "missing-playwright-action",
+      "message": "Відсутній .github/actions/setup-playwright-chromium/action.yml — канонічний Playwright-кеш для vitest storybook-проєкту: npx @7n/rules fix storybook (storybook.mdc, ADR Кластер 5)",
+      "file": ".github/actions/setup-playwright-chromium/action.yml"
+    },
+    {
+      "severity": "error",
+      "reason": "missing-storybook-workflow",
+      "message": "Відсутній .github/workflows/lint-storybook.yml — канонічний Playwright-кеш для vitest storybook-проєкту: npx @7n/rules fix storybook (storybook.mdc, ADR Кластер 5)",
+      "file": ".github/workflows/lint-storybook.yml"
+    }
+  ],
+  "wasm-plugin parity — test/storybook-ci (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: action без одного маркера, канонічний workflow → один marker-violation": [
+    {
+      "severity": "error",
+      "reason": "playwright-action-marker-missing",
+      "message": ".github/actions/setup-playwright-chromium/action.yml не відповідає канону — бракує: install лише chromium (не всі браузери) (storybook.mdc, ADR Кластер 5)",
+      "file": ".github/actions/setup-playwright-chromium/action.yml"
+    }
+  ],
+  "wasm-plugin parity — test/storybook-ci (JS канон vs wasm plugin-lang-js, full-scope міст) > успіх: немає пакетів у скоупі → тиша навіть без .github-файлів": []
+}

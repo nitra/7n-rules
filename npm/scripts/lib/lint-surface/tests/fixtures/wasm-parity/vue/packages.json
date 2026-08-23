@@ -1,0 +1,247 @@
+{
+  "wasm-plugin parity — vue/packages (JS канон vs wasm plugin-lang-js, full-scope міст) > успіх: чистий Vue-пакет — жодного violation з обох реалізацій": [],
+  "wasm-plugin parity — vue/packages (JS канон vs wasm plugin-lang-js, full-scope міст) > успіх: репо без vue у dependencies — концерн мовчить у обох": [],
+  "wasm-plugin parity — vue/packages (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: немає Vue.volar і двох кореневих vitest-devDeps": [
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "extensions.json не містить Vue.volar — додай до recommendations"
+    },
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "vue: кореневий devDependencies не містить '@vitest/coverage-v8' — перенеси з Vue workspace у корінь монорепо (vue.mdc testing)"
+    },
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "vue: кореневий devDependencies не містить '@stryker-mutator/vitest-runner' — перенеси з Vue workspace у корінь монорепо (vue.mdc testing)"
+    }
+  ],
+  "wasm-plugin parity — vue/packages (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: немає src/vite-env.d.ts — перевірка обривається на першому fail": [
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "[корінь] немає src/vite-env.d.ts — додай файл з рядком /// <reference types=\"vite/client\" /> (інакше TS/Volar не бачать типів для імпортів асетів: png, avif, css як URL)."
+    }
+  ],
+  "wasm-plugin parity — vue/packages (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: vite.config без lightningcss/VueMacros/AutoImport — три однакові violations": [
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "[корінь] vite.config.js не містить css: { transformer: 'lightningcss' } — додай у vite.config і встанови lightningcss у devDependencies (vue.mdc)"
+    },
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "[корінь] vite.config.js не містить VueMacros"
+    },
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "[корінь] vite.config.js не містить AutoImport"
+    }
+  ],
+  "wasm-plugin parity — vue/packages (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: AutoImport без `vue` у imports — value-імпорти НЕ перевіряються, лише сам конфіг": [
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "[корінь] vite.config.js: AutoImport не містить 'vue' у imports — додай 'vue' (інакше прибирати value-імпорти на кшталт `import { ref } from 'vue'` небезпечно: ref/createApp тощо нікому буде надати)"
+    }
+  ],
+  "wasm-plugin parity — vue/packages (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: явний value-імпорт з `vue` у .vue — рядок рахується по script-блоку": [
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "[корінь] src/Page.vue:2 — прибери явний value-імпорт з 'vue' (unplugin-auto-import): import { ref } from 'vue'"
+    }
+  ],
+  "wasm-plugin parity — vue/packages (JS канон vs wasm plugin-lang-js, full-scope міст) > успіх: type-only й side-effect імпорти з `vue` дозволені обома": [],
+  "wasm-plugin parity — vue/packages (JS канон vs wasm plugin-lang-js, full-scope міст) > успіх: тести, `__tests__` і `.d.ts` поза перевіркою auto-import у обох": [],
+  "wasm-plugin parity — vue/packages (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: імпорт Node-нативного модуля у .vue SFC": [
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "[корінь] src/Fs.vue:2 — імпорт Node-нативного модуля 'node:fs/promises' у .vue заборонено (SFC виконується в браузері, Node API недоступне). Винеси логіку у server-side утіліту. Фрагмент: import { readFile } from 'node:fs/promises'"
+    }
+  ],
+  "wasm-plugin parity — vue/packages (JS канон vs wasm plugin-lang-js, full-scope міст) > успіх: той самий Node-імпорт у .ts (не SFC) — обидві реалізації мовчать": [],
+  "wasm-plugin parity — vue/packages (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: згадка `esbuild` у .md — той самий rel:line і фрагмент": [
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "[корінь] docs/build.md:3 — знайдено 'esbuild'. Замінити на 'rolldown'. Фрагмент: Ми використовуємо esbuild."
+    }
+  ],
+  "wasm-plugin parity — vue/packages (JS канон vs wasm plugin-lang-js, full-scope міст) > край: `esbuild` у lock-файлі ігнорується обома": [],
+  "wasm-plugin parity — vue/packages (JS канон vs wasm plugin-lang-js, full-scope міст) > край: понад 30 згадок `esbuild` — обидві дають 30 + підсумкову": [
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "[корінь] notes.md:1 — знайдено 'esbuild'. Замінити на 'rolldown'. Фрагмент: esbuild"
+    },
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "[корінь] notes.md:2 — знайдено 'esbuild'. Замінити на 'rolldown'. Фрагмент: esbuild"
+    },
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "[корінь] notes.md:3 — знайдено 'esbuild'. Замінити на 'rolldown'. Фрагмент: esbuild"
+    },
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "[корінь] notes.md:4 — знайдено 'esbuild'. Замінити на 'rolldown'. Фрагмент: esbuild"
+    },
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "[корінь] notes.md:5 — знайдено 'esbuild'. Замінити на 'rolldown'. Фрагмент: esbuild"
+    },
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "[корінь] notes.md:6 — знайдено 'esbuild'. Замінити на 'rolldown'. Фрагмент: esbuild"
+    },
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "[корінь] notes.md:7 — знайдено 'esbuild'. Замінити на 'rolldown'. Фрагмент: esbuild"
+    },
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "[корінь] notes.md:8 — знайдено 'esbuild'. Замінити на 'rolldown'. Фрагмент: esbuild"
+    },
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "[корінь] notes.md:9 — знайдено 'esbuild'. Замінити на 'rolldown'. Фрагмент: esbuild"
+    },
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "[корінь] notes.md:10 — знайдено 'esbuild'. Замінити на 'rolldown'. Фрагмент: esbuild"
+    },
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "[корінь] notes.md:11 — знайдено 'esbuild'. Замінити на 'rolldown'. Фрагмент: esbuild"
+    },
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "[корінь] notes.md:12 — знайдено 'esbuild'. Замінити на 'rolldown'. Фрагмент: esbuild"
+    },
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "[корінь] notes.md:13 — знайдено 'esbuild'. Замінити на 'rolldown'. Фрагмент: esbuild"
+    },
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "[корінь] notes.md:14 — знайдено 'esbuild'. Замінити на 'rolldown'. Фрагмент: esbuild"
+    },
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "[корінь] notes.md:15 — знайдено 'esbuild'. Замінити на 'rolldown'. Фрагмент: esbuild"
+    },
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "[корінь] notes.md:16 — знайдено 'esbuild'. Замінити на 'rolldown'. Фрагмент: esbuild"
+    },
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "[корінь] notes.md:17 — знайдено 'esbuild'. Замінити на 'rolldown'. Фрагмент: esbuild"
+    },
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "[корінь] notes.md:18 — знайдено 'esbuild'. Замінити на 'rolldown'. Фрагмент: esbuild"
+    },
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "[корінь] notes.md:19 — знайдено 'esbuild'. Замінити на 'rolldown'. Фрагмент: esbuild"
+    },
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "[корінь] notes.md:20 — знайдено 'esbuild'. Замінити на 'rolldown'. Фрагмент: esbuild"
+    },
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "[корінь] notes.md:21 — знайдено 'esbuild'. Замінити на 'rolldown'. Фрагмент: esbuild"
+    },
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "[корінь] notes.md:22 — знайдено 'esbuild'. Замінити на 'rolldown'. Фрагмент: esbuild"
+    },
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "[корінь] notes.md:23 — знайдено 'esbuild'. Замінити на 'rolldown'. Фрагмент: esbuild"
+    },
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "[корінь] notes.md:24 — знайдено 'esbuild'. Замінити на 'rolldown'. Фрагмент: esbuild"
+    },
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "[корінь] notes.md:25 — знайдено 'esbuild'. Замінити на 'rolldown'. Фрагмент: esbuild"
+    },
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "[корінь] notes.md:26 — знайдено 'esbuild'. Замінити на 'rolldown'. Фрагмент: esbuild"
+    },
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "[корінь] notes.md:27 — знайдено 'esbuild'. Замінити на 'rolldown'. Фрагмент: esbuild"
+    },
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "[корінь] notes.md:28 — знайдено 'esbuild'. Замінити на 'rolldown'. Фрагмент: esbuild"
+    },
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "[корінь] notes.md:29 — знайдено 'esbuild'. Замінити на 'rolldown'. Фрагмент: esbuild"
+    },
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "[корінь] notes.md:30 — знайдено 'esbuild'. Замінити на 'rolldown'. Фрагмент: esbuild"
+    },
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "[корінь] показано перші 30 збігів 'esbuild' (замінити на 'rolldown')"
+    }
+  ],
+  "wasm-plugin parity — vue/packages (JS канон vs wasm plugin-lang-js, full-scope міст) > успіх: бібліотека компонентів (vue у peerDependencies) — auto-import не вимагається": [],
+  "wasm-plugin parity — vue/packages (JS канон vs wasm plugin-lang-js, full-scope міст) > workspace-пакет: префікс повідомлень — шлях пакета, не «корінь»": [
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "[packages/site] немає src/vite-env.d.ts — додай файл з рядком /// <reference types=\"vite/client\" /> (інакше TS/Volar не бачать типів для імпортів асетів: png, avif, css як URL)."
+    },
+    {
+      "severity": "error",
+      "reason": "packages",
+      "message": "[packages/site] немає vite.config.js|ts|mjs у каталозі пакета"
+    }
+  ]
+}

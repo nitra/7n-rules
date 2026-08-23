@@ -1,0 +1,33 @@
+{
+  "wasm-plugin parity — test/no-bun-test-import (JS канон vs wasm plugin-lang-js, full-scope міст) > успіх: import з vitest → без порушень з обох реалізацій": [],
+  "wasm-plugin parity — test/no-bun-test-import (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: import з bun:test (test, expect) → однакове fixable violation з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "bun-test-import",
+      "message": "tests/foo.test.mjs:1: import з 'bun:test' — vitest не резолвить цей пакет; auto-fix перепише джерело на 'vitest' (test.mdc)",
+      "file": "tests/foo.test.mjs",
+      "data": {
+        "fixable": true,
+        "specifiers": [
+          "test",
+          "expect"
+        ]
+      }
+    }
+  ],
+  "wasm-plugin parity — test/no-bun-test-import (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: import з bun:test (test, mock) → однакове НЕ-fixable violation з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "bun-test-import",
+      "message": "tests/foo.test.mjs:1: import з 'bun:test' містить специфікатори без прямого 1:1 еквіваленту у vitest (test, mock) — потрібне ручне виправлення call-sites (vi.fn/vi.spyOn мають інший API) (test.mdc)",
+      "file": "tests/foo.test.mjs",
+      "data": {
+        "fixable": false,
+        "specifiers": [
+          "test",
+          "mock"
+        ]
+      }
+    }
+  ]
+}

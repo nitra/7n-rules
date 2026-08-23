@@ -23,4 +23,4 @@
 Заглушки на кшталт «опис.» не рахуються документацією ніде в конвеєрі — пиши
 змістовно або лиши LLM-ladder-у.
 
-Перевірка: `rules/js/doc_comments/main.mjs`.
+Перевірка (детект): `crates/plugin-lang-js/src/lib.rs` (`detect_doc_comments`); T0-фікс лишається в JS — `rules/js/doc_comments/fix-doc_comments.mjs`.

@@ -1,0 +1,26 @@
+{
+  "wasm-plugin parity — npm-module/header_doc_pointer (JS канон vs wasm plugin-lang-js, full-scope міст) > успіх: docs/ немає → наратив у header-JSDoc дозволений обом реалізаціям": [],
+  "wasm-plugin parity — npm-module/header_doc_pointer (JS канон vs wasm plugin-lang-js, full-scope міст) > успіх: pointer-JSDoc (один рядок) поряд із docs/ → тиша з обох реалізацій": [],
+  "wasm-plugin parity — npm-module/header_doc_pointer (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: наратив у header-JSDoc при наявному docs/ → ідентичне violation із лічильником рядків": [
+    {
+      "severity": "error",
+      "reason": "header_doc_pointer",
+      "message": "npm/skills/n-lint/js/run.mjs: docs/run.md вже описує поведінку — module-level JSDoc має бути pointer (≤1 рядок, зараз 2)"
+    }
+  ],
+  "wasm-plugin parity — npm-module/header_doc_pointer (JS канон vs wasm plugin-lang-js, full-scope міст) > край: JSDoc ПІСЛЯ першого import/export не рахується module-level (regex-межа, не AST)": [],
+  "wasm-plugin parity — npm-module/header_doc_pointer (JS канон vs wasm plugin-lang-js, full-scope міст) > край: *.test.mjs і не-.mjs пропускаються, вкладені підкаталоги js/ не скануються": [],
+  "wasm-plugin parity — npm-module/header_doc_pointer (JS канон vs wasm plugin-lang-js, full-scope міст) > край: JSDoc у рядковому літералі до першого import — обидві реалізації беруть його однаково (regex-канон)": [],
+  "wasm-plugin parity — npm-module/header_doc_pointer (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: обидва base-сегменти (npm/rules і npm/skills) у порядку rules → skills": [
+    {
+      "severity": "error",
+      "reason": "header_doc_pointer",
+      "message": "npm/rules/x/js/m.mjs: docs/m.md вже описує поведінку — module-level JSDoc має бути pointer (≤1 рядок, зараз 2)"
+    },
+    {
+      "severity": "error",
+      "reason": "header_doc_pointer",
+      "message": "npm/skills/x/js/m.mjs: docs/m.md вже описує поведінку — module-level JSDoc має бути pointer (≤1 рядок, зараз 2)"
+    }
+  ]
+}

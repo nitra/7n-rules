@@ -1,0 +1,18 @@
+{
+  "wasm-plugin parity — test/storybook-scope (JS канон vs wasm plugin-lang-js, full-scope міст) > успіх: storybook.optOut порожній/не заданий → без порушень з обох реалізацій": [],
+  "wasm-plugin parity — test/storybook-scope (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: optOut на неіснуючий workspace-пакет → однакове stale-opt-out violation": [
+    {
+      "severity": "error",
+      "reason": "stale-opt-out",
+      "message": ".n-rules.json storybook.optOut містить 'packages/ghost' — такого workspace-пакета немає (застаріле opt-out, storybook.mdc)"
+    }
+  ],
+  "wasm-plugin parity — test/storybook-scope (JS канон vs wasm plugin-lang-js, full-scope міст) > успіх: optOut на існуючий пакет → без порушень з обох реалізацій": [],
+  "wasm-plugin parity — test/storybook-scope (JS канон vs wasm plugin-lang-js, full-scope міст) > крайове: legacy .n-cursor.json (без .n-rules.json) читається обома реалізаціями": [
+    {
+      "severity": "error",
+      "reason": "stale-opt-out",
+      "message": ".n-rules.json storybook.optOut містить 'packages/ghost' — такого workspace-пакета немає (застаріле opt-out, storybook.mdc)"
+    }
+  ]
+}

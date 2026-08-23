@@ -1,0 +1,11 @@
+{
+  "wasm-plugin parity — style/admin_table (JS канон vs wasm plugin-lang-js, full-scope міст) > exit 0 — n-admin-table використано і визначено → без порушень з обох реалізацій": [],
+  "wasm-plugin parity — style/admin_table (JS канон vs wasm plugin-lang-js, full-scope міст) > exit 1 — n-admin-table використано, але не визначено → однакове violation з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "missing-admin-table-style",
+      "message": "Клас `.n-admin-table` використовується у `.vue`, але не визначений у жодному `.scss`/`.css` (guide: style/admin_table.mdc) — додай фікс до app.scss"
+    }
+  ],
+  "wasm-plugin parity — style/admin_table (JS канон vs wasm plugin-lang-js, full-scope міст) > exit 0 — n-admin-table взагалі не використовується → без порушень з обох реалізацій": []
+}

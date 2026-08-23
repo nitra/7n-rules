@@ -2,13 +2,11 @@
  * Parity-тест wasm-плагіна `plugin-lang-js` (задачі N2, Q1 батч 1, Q2
  * батч 2 та Q3 — де-скоуп до byte-exact-парних концернів, спека
  * `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md` §3.5.5 і
- * `docs/specs/2026-08-01-wasm-ast-strategy.md`): ганяє ОДНІ фікстури через
- * чинні JS-детектори
- * (`plugins/lang-js/rules/<rule>/<concern>/main.mjs` — канонічні реалізації,
- * Plugin API v2, НЕ видаляються) і через `runWasmConcern` napi-мосту
- * (`crates/rules-napi` → `crates/plugin-lang-js`), звіряючи, що `violations`
- * ідентичні (reason/message/file/severity біт-у-біт) — для перших семи
- * концернів (задачі N2 + Q1 батч 1), `test/no-console-store-restore`/
+ * `docs/specs/2026-08-01-wasm-ast-strategy.md`): звіряє `violations`
+ * `runWasmConcern` napi-мосту (`crates/rules-napi` → `crates/plugin-lang-js`)
+ * із ЕТАЛОНОМ — знятим виводом JS-детекторів `plugins/lang-js/rules/<rule>/
+ * <concern>/main.mjs` (reason/message/file/severity біт-у-біт) — для перших
+ * семи концернів (задачі N2 + Q1 батч 1), `test/no-console-store-restore`/
  * `test/no-bun-test-import` (задача Q2 батч 2, справжній 1:1-порт),
  * `js/utils_imports`/`test/no-relative-fs-path` (задача Q3) і
  * `js-bun-redis/imports`/`js-mssql/deps`/`js-bun-db/safety` (задача Q4
@@ -16,7 +14,22 @@
  * AST-портами, доккомент секції «Батч 4» у
  * `crates/plugin-lang-js/src/lib.rs`) — усі п'ять AST-концернів byte-exact
  * через ТОЙ САМИЙ движок `oxc_parser`, не наближення. Це доводить конвеєр
- * «wasm-компонент → napi-міст → JS-diagnostics-форма», не замінює JS-канон.
+ * «wasm-компонент → napi-міст → JS-diagnostics-форма».
+ *
+ * ЕТАЛОН, НЕ ЖИВИЙ КАНОН: `plugins/lang-js/rules/**\/main.mjs` — транзитивний
+ * шар, що видаляється разом із портом (мета цього тестового файлу — довести
+ * порт, не тримати JS вічно). Поки він живий, зняти еталон можна прогнавши
+ * суїт з `N_WASM_PARITY_CAPTURE=1`; звичайний прогін JS НЕ викликає — читає
+ * зафіксований раніше вивід із `fixtures/wasm-parity/**\/*.json` (поряд із
+ * цим файлом, [`goldenJs`], доккомент нижче). Відсутній еталон — ПАДІННЯ тесту з явним
+ * проханням перезняти, не мовчазний пропуск: інакше зникнення канону не
+ * дало б жодного сигналу. Той самий прийом застосовано для k8s-parity-гейта
+ * (`N_K8S_PARITY_CAPTURE`, `crates/rules-core/tests/common/mod.rs`) — форма
+ * тут навмисно дзеркальна. Два винятки з цього шару: `runPolicyBoth` (канон
+ * — rego через conftest, `evaluatePolicyConcern`, не `main.mjs`; rego-політики
+ * не видаляються) і фіксерна половина `runDocCommentsFixBoth`
+ * (`fix-doc_comments.mjs` лишається каноном — лише її `violations`-вхід іде
+ * через еталон, доккомент секції «Зріз 4» нижче).
  *
  * Фікстури AST-концернів батчу 4 навмисно покривають місця, де regex брехав
  * би, а AST — ні: імпорти в коментарях/рядкових літералах, дубль-діагностики
@@ -85,68 +98,7 @@ if (!existsSync(WASM_PATH)) {
   )
 }
 
-const TFM_MAIN_MJS_PATH = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'vue', 'tfm-translations', 'main.mjs')
-const GAP_MAIN_MJS_PATH = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'style', 'gap', 'main.mjs')
-const POOL_FORKS_MAIN_MJS_PATH = join(
-  REPO_ROOT,
-  'plugins',
-  'lang-js',
-  'rules',
-  'test',
-  'vitest-config-pool-forks',
-  'main.mjs'
-)
-const NO_PROCESS_CHDIR_MAIN_MJS_PATH = join(
-  REPO_ROOT,
-  'plugins',
-  'lang-js',
-  'rules',
-  'test',
-  'no-process-chdir',
-  'main.mjs'
-)
-const ADMIN_TABLE_MAIN_MJS_PATH = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'style', 'admin_table', 'main.mjs')
-const QUASAR_FIXES_MAIN_MJS_PATH = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'style', 'quasar_fixes', 'main.mjs')
-const LOCATION_MAIN_MJS_PATH = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'test', 'location', 'main.mjs')
-const NO_CONSOLE_STORE_RESTORE_MAIN_MJS_PATH = join(
-  REPO_ROOT,
-  'plugins',
-  'lang-js',
-  'rules',
-  'test',
-  'no-console-store-restore',
-  'main.mjs'
-)
-const NO_BUN_TEST_IMPORT_MAIN_MJS_PATH = join(
-  REPO_ROOT,
-  'plugins',
-  'lang-js',
-  'rules',
-  'test',
-  'no-bun-test-import',
-  'main.mjs'
-)
-const UTILS_IMPORTS_MAIN_MJS_PATH = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'js', 'utils_imports', 'main.mjs')
-const NO_RELATIVE_FS_PATH_MAIN_MJS_PATH = join(
-  REPO_ROOT,
-  'plugins',
-  'lang-js',
-  'rules',
-  'test',
-  'no-relative-fs-path',
-  'main.mjs'
-)
-const REDIS_IMPORTS_MAIN_MJS_PATH = join(
-  REPO_ROOT,
-  'plugins',
-  'lang-js',
-  'rules',
-  'js-bun-redis',
-  'imports',
-  'main.mjs'
-)
-const MSSQL_DEPS_MAIN_MJS_PATH = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'js-mssql', 'deps', 'main.mjs')
-const BUN_DB_SAFETY_MAIN_MJS_PATH = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'js-bun-db', 'safety', 'main.mjs')
+
 const TFM_CONCERN_KEY = 'vue/tfm-translations'
 const GAP_CONCERN_KEY = 'style/gap'
 const POOL_FORKS_CONCERN_KEY = 'test/vitest-config-pool-forks'
@@ -165,12 +117,6 @@ const BUN_DB_SAFETY_CONCERN_KEY = 'js-bun-db/safety'
 // самі ходять диском (`collectInScopeVuePackages`: workspaces + walkDir +
 // `.n-rules.json`), wasm-порт отримує ті самі факти з host-побудованого
 // батча — саме цю еквівалентність і доводять фікстури нижче.
-const STORYBOOK_RULES_DIR = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'test')
-const STORYBOOK_SCOPE_MAIN_MJS_PATH = join(STORYBOOK_RULES_DIR, 'storybook-scope', 'main.mjs')
-const STORYBOOK_HYGIENE_MAIN_MJS_PATH = join(STORYBOOK_RULES_DIR, 'storybook-hygiene', 'main.mjs')
-const STORYBOOK_PAGE_COVERAGE_MAIN_MJS_PATH = join(STORYBOOK_RULES_DIR, 'storybook-page-coverage', 'main.mjs')
-const STORYBOOK_SCAFFOLD_MAIN_MJS_PATH = join(STORYBOOK_RULES_DIR, 'storybook-scaffold', 'main.mjs')
-const STORYBOOK_CI_MAIN_MJS_PATH = join(STORYBOOK_RULES_DIR, 'storybook-ci', 'main.mjs')
 const STORYBOOK_SCOPE_CONCERN_KEY = 'test/storybook-scope'
 const STORYBOOK_HYGIENE_CONCERN_KEY = 'test/storybook-hygiene'
 const STORYBOOK_PAGE_COVERAGE_CONCERN_KEY = 'test/storybook-page-coverage'
@@ -179,7 +125,6 @@ const STORYBOOK_CI_CONCERN_KEY = 'test/storybook-ci'
 // Батч 6 (§3.5.5): `test/storybook-vitest-config` (JS-канон, full-scope) плюс
 // три rego-концерни `*/package_json` — у них НЕМАЄ `main.mjs`, канон
 // виконує conftest через `evaluatePolicyConcern` ([`runPolicyBoth`]).
-const STORYBOOK_VITEST_CONFIG_MAIN_MJS_PATH = join(STORYBOOK_RULES_DIR, 'storybook-vitest-config', 'main.mjs')
 const STORYBOOK_VITEST_CONFIG_CONCERN_KEY = 'test/storybook-vitest-config'
 const BUN_DB_PACKAGE_JSON_CONCERN_KEY = 'js-bun-db/package_json'
 const REDIS_PACKAGE_JSON_CONCERN_KEY = 'js-bun-redis/package_json'
@@ -189,61 +134,23 @@ const MSSQL_PACKAGE_JSON_CONCERN_KEY = 'js-mssql/package_json'
 // AST-концерн `js/dep-policy`. Глоби контрибуцій цих пʼятьох СВІДОМО вужчі за
 // `concern.json.lint.glob` — доккомент секції «Батч 7» у
 // `crates/plugin-lang-js/src/lib.rs`.
-const NPM_MODULE_RULES_DIR = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'npm-module')
-const RULE_META_MAIN_MJS_PATH = join(NPM_MODULE_RULES_DIR, 'rule_meta', 'main.mjs')
-const SKILL_META_MAIN_MJS_PATH = join(NPM_MODULE_RULES_DIR, 'skill_meta', 'main.mjs')
-const HEADER_DOC_POINTER_MAIN_MJS_PATH = join(NPM_MODULE_RULES_DIR, 'header_doc_pointer', 'main.mjs')
-const PACKAGE_STRUCTURE_MAIN_MJS_PATH = join(NPM_MODULE_RULES_DIR, 'package_structure', 'main.mjs')
-const DEP_POLICY_MAIN_MJS_PATH = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'js', 'dep-policy', 'main.mjs')
 // Батч 8: чотири «файлово-структурні» концерни без зовнішнього тула
 // (доккомент секції «Батч 8» у `crates/plugin-lang-js/src/lib.rs`).
-const BUN_LAYOUT_MAIN_MJS_PATH = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'bun', 'layout', 'main.mjs')
-const STYLE_TOOLING_MAIN_MJS_PATH = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'style', 'tooling', 'main.mjs')
-const SANDBOX_AWARE_TEST_MAIN_MJS_PATH = join(
-  REPO_ROOT,
-  'plugins',
-  'lang-js',
-  'rules',
-  'test',
-  'sandbox-aware-test',
-  'main.mjs'
-)
-const VITEST_API_CONVENTIONS_MAIN_MJS_PATH = join(
-  REPO_ROOT,
-  'plugins',
-  'lang-js',
-  'rules',
-  'test',
-  'vitest-api-conventions',
-  'main.mjs'
-)
 // Батч 9: `vue/packages` — останній придатний до порту концерн lang-js
 // (доккомент секції «Батч 9» у `crates/plugin-lang-js/src/lib.rs`).
-const VUE_PACKAGES_MAIN_MJS_PATH = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'vue', 'packages', 'main.mjs')
 const VUE_PACKAGES_CONCERN_KEY = 'vue/packages'
 // Зріз 1 контракту v3.1 (`docs/specs/2026-08-01-plugin-contract-v31-surfaces.md`,
 // §7): `test/stryker_config` — секція «Зріз 1» у `crates/plugin-lang-js/src/lib.rs`.
-const STRYKER_CONFIG_MAIN_MJS_PATH = join(
-  REPO_ROOT,
-  'plugins',
-  'lang-js',
-  'rules',
-  'test',
-  'stryker_config',
-  'main.mjs'
-)
 const STRYKER_CONFIG_CONCERN_KEY = 'test/stryker_config'
 // Зріз 2 контракту v3.1: `js/check` — секція «Зріз 2» у
 // `crates/plugin-lang-js/src/lib.rs` (вшитий канон oxlint + рефакторинг
 // рішення Ґ, через який `knip.json` став спостережуваним порушенням).
-const JS_CHECK_MAIN_MJS_PATH = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'js', 'check', 'main.mjs')
 const JS_CHECK_CONCERN_KEY = 'js/check'
 // Зріз 4 контракту v3.1: `js/doc_comments` — секція «Зріз 4» у
 // `crates/plugin-lang-js/src/lib.rs`. На відміну від решти зрізів, тут у
 // парі беруть участь ДВА JS-модулі: детектор і T0-фіксер (він лишається
 // каноном-fallback-ом, не видаляється як у пілоті `test/no-bun-test-import`).
 const DOC_COMMENTS_DIR = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'js', 'doc_comments')
-const DOC_COMMENTS_MAIN_MJS_PATH = join(DOC_COMMENTS_DIR, 'main.mjs')
 const DOC_COMMENTS_FIX_MJS_PATH = join(DOC_COMMENTS_DIR, 'fix-doc_comments.mjs')
 const DOC_COMMENTS_CONCERN_KEY = 'js/doc_comments'
 const BUN_LAYOUT_CONCERN_KEY = 'bun/layout'
@@ -260,6 +167,166 @@ const RULE_PREDICATES_PATH = join(REPO_ROOT, 'npm', 'scripts', 'lib', 'rule-pred
 
 /** Size-budget компонента (задача Q3, спека `docs/specs/2026-08-01-wasm-ast-strategy.md`, розділ «Рішення» п.2). */
 const WASM_SIZE_BUDGET_BYTES = 2.5 * 1024 * 1024
+
+// ---------------------------------------------------------------------
+// Шар еталонів ([`goldenJs`]): JS-детектори `plugins/lang-js/rules/**/
+// main.mjs` — транзитивний канон, який видаляється разом із портом. Поки
+// він був живий, кожен `run*Both`-хелпер викликав `lint()` напряму; тепер
+// звичайний прогін звіряє wasm ЗІ ЗНЯТИМ раніше виводом канону (JSON під
+// [`GOLDEN_DIR`]), а не з живим `main.mjs`, — сила перевірки та сама
+// (той самий JS-вивід), лише без дочірнього канону на диску. Перезняти
+// еталони можна, повернувши `main.mjs` з історії й прогнавши суїт з
+// `N_WASM_PARITY_CAPTURE=1` (той самий прийом, що `N_K8S_PARITY_CAPTURE`
+// у `crates/rules-core/tests/common/mod.rs`).
+
+/**
+ * Каталог еталонів wasm-parity: один JSON-файл на bucket (`ruleId/
+ * concernId`), значення — мапа «ключ тесту → нормалізований `violations`
+ * JS-канону» ([`goldenJs`]). Один файл на bucket, а не спільний моноліт:
+ * коли переснімається канон ОДНОГО концерну, diff торкається лише його
+ * файлу (`join` сприймає `/` у bucket-і як роздільник шляху, тож файли
+ * самі лягають у піддерева `vue/tfm-translations.json`,
+ * `style/gap.json` — дзеркало `plugins/lang-js/rules/<ruleId>/<concernId>`).
+ */
+const GOLDEN_DIR = join(REPO_ROOT, 'npm', 'scripts', 'lib', 'lint-surface', 'tests', 'fixtures', 'wasm-parity')
+
+/**
+ * Прапорець режиму зняття еталонів — та сама форма, що
+ * `N_K8S_PARITY_CAPTURE` (прецедент цього прийому для k8s-parity-гейта,
+ * `crates/rules-core/tests/common/mod.rs`).
+ */
+const CAPTURE_ENV = 'N_WASM_PARITY_CAPTURE'
+
+/**
+ * Лічильники повторних викликів [`goldenJs`] у межах ОДНОГО `test()`
+ * (цикл по кількох фікстурних файлах у тілі одного тесту): без
+ * лічильника другий виклик з тим самим `currentTestName` затер би еталон
+ * першого. Ключ мапи — сама пара bucket+testName, значення — скільки
+ * разів вона вже зустрілась.
+ */
+const GOLDEN_CALL_COUNTS = new Map()
+
+/** Лінивий кеш прочитаних/записаних bucket-файлів (bucket → мапа ключ→еталон). */
+const GOLDEN_CACHE = new Map()
+
+/**
+ * Абсолютний шлях до JSON-файлу еталонів одного bucket-а.
+ * @param {string} bucket `ruleId/concernId`
+ * @returns {string} шлях у [`GOLDEN_DIR`]
+ */
+function goldenFilePath(bucket) {
+  return join(GOLDEN_DIR, `${bucket}.json`)
+}
+
+/**
+ * Стабільний читабельний ключ одного знятого сценарію: імʼя поточного
+ * тесту (`expect.getState().currentTestName` — так не треба правити
+ * кожен виклик [`goldenJs`] вручну під новий ключ) плюс `#N`-суфікс, якщо
+ * той самий тест звертається до ЦЬОГО bucket-а більше одного разу.
+ * @param {string} bucket `ruleId/concernId`
+ * @returns {string} ключ усередині файлу bucket-а
+ */
+function goldenKey(bucket) {
+  const testName = expect.getState().currentTestName ?? '(поза test())'
+  const countKey = `${bucket} ${testName}`
+  const count = (GOLDEN_CALL_COUNTS.get(countKey) ?? 0) + 1
+  GOLDEN_CALL_COUNTS.set(countKey, count)
+  return count === 1 ? testName : `${testName} #${count}`
+}
+
+/**
+ * Читає (і кешує) мапу еталонів одного bucket-а з диска; відсутній файл —
+ * порожня мапа (перший запис у режимі зняття створить його разом із
+ * батьківськими каталогами).
+ * @param {string} bucket `ruleId/concernId`
+ * @returns {Promise<Record<string, unknown>>} мапа ключ тесту → еталон
+ */
+async function loadGoldenBucket(bucket) {
+  if (GOLDEN_CACHE.has(bucket)) return GOLDEN_CACHE.get(bucket)
+  const path = goldenFilePath(bucket)
+  let data = {}
+  if (existsSync(path)) {
+    const { readFile } = await import('node:fs/promises')
+    data = JSON.parse(await readFile(path, 'utf8'))
+  }
+  GOLDEN_CACHE.set(bucket, data)
+  return data
+}
+
+/**
+ * Плейсхолдер, яким [`goldenJs`] ховає в еталоні шлях ЕФЕМЕРНОГО tmp-каталогу
+ * (`dir` — `withTmpDir` генерує його наново щопрогону, значення відрізняється
+ * між зняттям і звичайним прогоном). Більшість концернів кладуть у
+ * `violation` лише ВІДНОСНІ шляхи (заміна тоді — no-op), але щонайменше один
+ * (`test/storybook-vitest-config`, `data.vitestConfigPath`, доккомент «слот
+ * repo-root@1» біля відповідного тесту) кладе АБСОЛЮТНИЙ шлях, зібраний із
+ * `dir`, — без цієї заміни еталон, знятий на ОДНОМУ tmp-каталозі, ніколи не
+ * збігся б із live-обчисленим wasm-результатом на ІНШОМУ (недетермінізм
+ * самого шляху, не розбіжність порту). Друкований, а не керівний символ —
+ * заради читабельності самого JSON-еталона; зіткнення з реальним вмістом
+ * практично неможливе (це не валідний фрагмент файлової системи).
+ */
+const TMP_DIR_PLACEHOLDER = '<<WASM_PARITY_TMPDIR>>'
+
+/**
+ * Рекурсивно заміняє в JSON-сумісному значенні (violations і подібне) кожне
+ * входження підрядка `from` на `to` — той самий обхід використовує
+ * [`goldenJs`] в обидва боки (dir → плейсхолдер при записі еталона,
+ * плейсхолдер → поточний dir при читанні).
+ * @param {unknown} value довільне JSON-сумісне значення
+ * @param {string} from підрядок, який шукаємо
+ * @param {string} to підрядок, яким заміняємо
+ * @returns {unknown} значення тієї самої форми з заміненими рядками
+ */
+function replaceDirDeep(value, from, to) {
+  if (typeof value === 'string') return value.split(from).join(to)
+  if (Array.isArray(value)) return value.map(item => replaceDirDeep(item, from, to))
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, replaceDirDeep(v, from, to)]))
+  }
+  return value
+}
+
+/**
+ * Шар еталонів wasm-parity: заміняє живий JS-канон
+ * (`plugins/lang-js/rules/**\/main.mjs`) ПІСЛЯ його видалення. У
+ * звичайному режимі `compute` НЕ виконується взагалі — JS не
+ * запускається, результат читається з диска (з підстановкою ПОТОЧНОГО
+ * `dir` замість [`TMP_DIR_PLACEHOLDER`] — [`replaceDirDeep`]); відсутній
+ * еталон — це ПАДІННЯ тесту з проханням перезняти, а не мовчазний пропуск
+ * (сенс гейта саме в тому, щоб зникнення канону не пройшло непомітно). У
+ * режимі зняття (`N_WASM_PARITY_CAPTURE=1`, канон іще на диску)
+ * `compute()` виконує ЖИВИЙ канон на цьому `dir`, і результат одразу
+ * дописується у файл bucket-а (з `dir` заміненим на плейсхолдер) —
+ * фільтрований повторний прогін (`vitest run -t …`) домальовує лише свої
+ * ключі, не затираючи вже зняті.
+ * @param {string} bucket `ruleId/concernId` (він же bucket-файл і вхід у `runWasmConcern`)
+ * @param {string} dir абсолютний шлях tmp-каталогу ЦЬОГО прогону (для підстановки [`TMP_DIR_PLACEHOLDER`])
+ * @param {() => Promise<unknown>} compute живий виклик JS-канону (виконується лише в режимі зняття)
+ * @returns {Promise<unknown>} еталонний (чи щойно знятий) результат, з живим `dir` на місці плейсхолдера
+ */
+async function goldenJs(bucket, dir, compute) {
+  const key = goldenKey(bucket)
+  const data = await loadGoldenBucket(bucket)
+  if (env[CAPTURE_ENV] === '1') {
+    const result = await compute()
+    data[key] = replaceDirDeep(result, dir, TMP_DIR_PLACEHOLDER)
+    const path = goldenFilePath(bucket)
+    const { mkdir } = await import('node:fs/promises')
+    await mkdir(dirname(path), { recursive: true })
+    await writeFile(path, `${JSON.stringify(data, null, 2)}\n`, 'utf8')
+    return result
+  }
+  if (!Object.hasOwn(data, key)) {
+    throw new Error(
+      `wasm-plugin-parity: немає еталона "${key}" у ${goldenFilePath(bucket)}.\n` +
+        'JS-канон видалено разом із портом — перезняти можна лише повернувши main.mjs з історії й прогнавши: ' +
+        'N_WASM_PARITY_CAPTURE=1 npx vitest run npm/scripts/lib/lint-surface/tests/wasm-plugin-parity.test.mjs'
+    )
+  }
+  return replaceDirDeep(data[key], TMP_DIR_PLACEHOLDER, dir)
+}
+// ---------------------------------------------------------------------
 
 /**
  * Виставляє дефолт `severity: 'error'`, якщо ключ відсутній — точне дзеркало
@@ -278,45 +345,66 @@ function withDefaultSeverity(violations) {
 }
 
 /**
+ * Шлях до `main.mjs` канону концерну — обчислюється за конвенцією
+ * `plugins/lang-js/rules/<ruleId>/<concernId>/main.mjs`, а НЕ зберігається
+ * іменованою константою: після видалення JS-детекторів ця функція
+ * викликається лише всередині `compute()` [`goldenJs`] — тобто тільки в
+ * режимі зняття (`N_WASM_PARITY_CAPTURE=1`, коли канон іще на диску).
+ * Звичайний прогін цю гілку не виконує взагалі.
+ * @param {string} ruleId `ctx.ruleId` (він же перший сегмент шляху)
+ * @param {string} concernId `ctx.concernId` (він же другий сегмент шляху)
+ * @returns {string} абсолютний шлях до `main.mjs`
+ */
+function mainMjsPathFor(ruleId, concernId) {
+  return join(REPO_ROOT, 'plugins', 'lang-js', 'rules', ruleId, concernId, 'main.mjs')
+}
+
+/**
  * Ганяє одну `.vue`-фікстуру `vue/tfm-translations` через JS-детектор
- * (канон) і `runWasmConcern` (wasm, per-file dispatch) і повертає обидва
- * `violations`-масиви (після [`withDefaultSeverity`]) для звірки.
+ * (канон, лише в режимі зняття — [`goldenJs`]) і `runWasmConcern` (wasm,
+ * per-file dispatch), повертаючи обидва `violations`-масиви (після
+ * [`withDefaultSeverity`]) для звірки.
  * @param {string} dir абсолютний шлях tmp-каталогу (містить `fileName`)
  * @param {string} fileName ім'я файлу у `dir`
  * @returns {Promise<{ js: unknown[], wasm: unknown[] }>} результати обох реалізацій
  */
 async function runTfmBoth(dir, fileName) {
-  // file:// URL — інакше відносний шлях трактується як bare package specifier (той самий
-  // мотив, що в detect.mjs runConcernDetector); TFM_MAIN_MJS_PATH — фіксований абсолютний
-  // шлях цього файлу (realRepoRoot() + константні сегменти), не вхід ззовні.
-  // eslint-disable-next-line no-unsanitized/method
-  const { lint } = await import(pathToFileURL(TFM_MAIN_MJS_PATH).href)
-  const jsResult = await lint({ cwd: dir, ruleId: 'vue', concernId: 'tfm-translations', files: [fileName] })
+  const js = await goldenJs(TFM_CONCERN_KEY, dir, async () => {
+    // file:// URL — інакше відносний шлях трактується як bare package specifier (той самий
+    // мотив, що в detect.mjs runConcernDetector); шлях зібраний із REPO_ROOT + константних
+    // сегментів (не вхід ззовні). Виконується ЛИШЕ в режимі зняття еталонів.
+    // eslint-disable-next-line no-unsanitized/method
+    const { lint } = await import(pathToFileURL(mainMjsPathFor('vue', 'tfm-translations')).href)
+    const jsResult = await lint({ cwd: dir, ruleId: 'vue', concernId: 'tfm-translations', files: [fileName] })
+    return withDefaultSeverity(jsResult.violations)
+  })
   const wasmResult = loadNative().runWasmConcern(WASM_PATH, TFM_CONCERN_KEY, dir, [fileName])
-  return { js: withDefaultSeverity(jsResult.violations), wasm: withDefaultSeverity(wasmResult.violations) }
+  return { js, wasm: withDefaultSeverity(wasmResult.violations) }
 }
 
 /**
  * Ганяє один full-scope концерн через JS-детектор (канон, ігнорує
- * `ctx.files`, сам ходить `walkDir`/`collectTestFiles` за `cwd`) і
- * `runWasmConcern` з `files: null` (full-scope міст, доккомент модуля) —
- * обидва бачать УСЕ дерево `dir`, не підмножину. Спільний хелпер для
- * `style/gap` і всіх пʼяти full-scope концернів задачі Q1 (доккомент модуля).
- * @param {string} mainMjsPath абсолютний шлях до `main.mjs` JS-канону концерну
- * @param {string} concernKey `ruleId/concernId` (`detect-batch.concern-id` для wasm-виклику)
+ * `ctx.files`, сам ходить `walkDir`/`collectTestFiles` за `cwd` — лише в
+ * режимі зняття, [`goldenJs`]) і `runWasmConcern` з `files: null`
+ * (full-scope міст, доккомент модуля) — обидва бачать УСЕ дерево `dir`,
+ * не підмножину. Спільний хелпер для `style/gap` і всіх пʼяти full-scope
+ * концернів задачі Q1 (доккомент модуля).
+ * @param {string} concernKey `ruleId/concernId` (bucket еталона й вхід у `runWasmConcern`)
  * @param {string} ruleId `ctx.ruleId` для JS-виклику
  * @param {string} concernId `ctx.concernId` для JS-виклику
  * @param {string} dir абсолютний шлях tmp-каталогу з уже записаними фікстурами
  * @returns {Promise<{ js: unknown[], wasm: unknown[] }>} результати обох реалізацій
  */
-async function runFullScopeBoth(mainMjsPath, concernKey, ruleId, concernId, dir) {
-  // file:// URL — абсолютний шлях цього файлу (realRepoRoot() + константні сегменти),
-  // не вхід ззовні (той самий мотив, що [`runTfmBoth`]).
-  // eslint-disable-next-line no-unsanitized/method
-  const { lint } = await import(pathToFileURL(mainMjsPath).href)
-  const jsResult = await lint({ cwd: dir, ruleId, concernId, files: undefined })
+async function runFullScopeBoth(concernKey, ruleId, concernId, dir) {
+  const js = await goldenJs(concernKey, dir, async () => {
+    // file:// URL — абсолютний шлях (той самий мотив, що [`runTfmBoth`]).
+    // eslint-disable-next-line no-unsanitized/method
+    const { lint } = await import(pathToFileURL(mainMjsPathFor(ruleId, concernId)).href)
+    const jsResult = await lint({ cwd: dir, ruleId, concernId, files: undefined })
+    return withDefaultSeverity(jsResult.violations)
+  })
   const wasmResult = loadNative().runWasmConcern(WASM_PATH, concernKey, dir, null)
-  return { js: withDefaultSeverity(jsResult.violations), wasm: withDefaultSeverity(wasmResult.violations) }
+  return { js, wasm: withDefaultSeverity(wasmResult.violations) }
 }
 
 describe('wasm-plugin parity — vue/tfm-translations (JS канон vs wasm plugin-lang-js)', () => {
@@ -384,7 +472,7 @@ function getTr() {
 })
 
 describe('wasm-plugin parity — style/gap (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
-  const runGapBoth = dir => runFullScopeBoth(GAP_MAIN_MJS_PATH, GAP_CONCERN_KEY, 'style', 'gap', dir)
+  const runGapBoth = dir => runFullScopeBoth(GAP_CONCERN_KEY, 'style', 'gap', dir)
 
   test('exit 0 — n-gap-md використано і визначено → без порушень з обох реалізацій', async () => {
     await withTmpDir(async dir => {
@@ -425,8 +513,7 @@ describe('wasm-plugin parity — style/gap (JS канон vs wasm plugin-lang-js
 })
 
 describe('wasm-plugin parity — test/vitest-config-pool-forks (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
-  const runPoolForksBoth = dir =>
-    runFullScopeBoth(POOL_FORKS_MAIN_MJS_PATH, POOL_FORKS_CONCERN_KEY, 'test', 'vitest-config-pool-forks', dir)
+  const runPoolForksBoth = dir => runFullScopeBoth(POOL_FORKS_CONCERN_KEY, 'test', 'vitest-config-pool-forks', dir)
 
   test("успіх: config з pool: 'forks' → без порушень з обох реалізацій", async () => {
     await withTmpDir(async dir => {
@@ -460,8 +547,7 @@ describe('wasm-plugin parity — test/vitest-config-pool-forks (JS канон vs
 })
 
 describe('wasm-plugin parity — test/no-process-chdir (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
-  const runNoProcessChdirBoth = dir =>
-    runFullScopeBoth(NO_PROCESS_CHDIR_MAIN_MJS_PATH, NO_PROCESS_CHDIR_CONCERN_KEY, 'test', 'no-process-chdir', dir)
+  const runNoProcessChdirBoth = dir => runFullScopeBoth(NO_PROCESS_CHDIR_CONCERN_KEY, 'test', 'no-process-chdir', dir)
 
   // Зібрано через `join`, щоб у source не зустрічався точний паттерн виклику
   // (той самий мотив, що `no-process-chdir.test.mjs` — meta-test самого сканера).
@@ -507,8 +593,7 @@ describe('wasm-plugin parity — test/no-process-chdir (JS канон vs wasm pl
 })
 
 describe('wasm-plugin parity — style/admin_table (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
-  const runAdminTableBoth = dir =>
-    runFullScopeBoth(ADMIN_TABLE_MAIN_MJS_PATH, ADMIN_TABLE_CONCERN_KEY, 'style', 'admin_table', dir)
+  const runAdminTableBoth = dir => runFullScopeBoth(ADMIN_TABLE_CONCERN_KEY, 'style', 'admin_table', dir)
 
   test('exit 0 — n-admin-table використано і визначено → без порушень з обох реалізацій', async () => {
     await withTmpDir(async dir => {
@@ -548,8 +633,7 @@ describe('wasm-plugin parity — style/admin_table (JS канон vs wasm plugin
 })
 
 describe('wasm-plugin parity — style/quasar_fixes (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
-  const runQuasarFixesBoth = dir =>
-    runFullScopeBoth(QUASAR_FIXES_MAIN_MJS_PATH, QUASAR_FIXES_CONCERN_KEY, 'style', 'quasar_fixes', dir)
+  const runQuasarFixesBoth = dir => runFullScopeBoth(QUASAR_FIXES_CONCERN_KEY, 'style', 'quasar_fixes', dir)
 
   test('exit 0 — q-scroll-area використано і фікс визначено → без порушень з обох реалізацій', async () => {
     await withTmpDir(async dir => {
@@ -590,7 +674,7 @@ describe('wasm-plugin parity — style/quasar_fixes (JS канон vs wasm plugi
 })
 
 describe('wasm-plugin parity — test/location (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
-  const runLocationBoth = dir => runFullScopeBoth(LOCATION_MAIN_MJS_PATH, LOCATION_CONCERN_KEY, 'test', 'location', dir)
+  const runLocationBoth = dir => runFullScopeBoth(LOCATION_CONCERN_KEY, 'test', 'location', dir)
 
   test('успіх: усі *.test.mjs у tests/ → без порушень з обох реалізацій', async () => {
     await withTmpDir(async dir => {
@@ -631,13 +715,7 @@ describe('wasm-plugin parity — test/location (JS канон vs wasm plugin-lan
 
 describe('wasm-plugin parity — test/no-console-store-restore (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
   const runNoConsoleBoth = dir =>
-    runFullScopeBoth(
-      NO_CONSOLE_STORE_RESTORE_MAIN_MJS_PATH,
-      NO_CONSOLE_STORE_RESTORE_CONCERN_KEY,
-      'test',
-      'no-console-store-restore',
-      dir
-    )
+    runFullScopeBoth(NO_CONSOLE_STORE_RESTORE_CONCERN_KEY, 'test', 'no-console-store-restore', dir)
 
   // Зібрано через join, щоб у source не було дослівного assignment-патерну (той самий мотив,
   // що no-console-store-restore.test.mjs — meta-test самого сканера).
@@ -680,13 +758,7 @@ describe('wasm-plugin parity — test/no-console-store-restore (JS канон vs
 
 describe('wasm-plugin parity — test/no-bun-test-import (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
   const runNoBunTestImportBoth = dir =>
-    runFullScopeBoth(
-      NO_BUN_TEST_IMPORT_MAIN_MJS_PATH,
-      NO_BUN_TEST_IMPORT_CONCERN_KEY,
-      'test',
-      'no-bun-test-import',
-      dir
-    )
+    runFullScopeBoth(NO_BUN_TEST_IMPORT_CONCERN_KEY, 'test', 'no-bun-test-import', dir)
 
   // Джерело bun:test у фікстурах збирається динамічно (той самий мотив, що no-bun-test-import.test.mjs).
   const BUN_TEST = ['bun', 'test'].join(':')
@@ -784,8 +856,7 @@ describe('wasm-plugin parity — test/no-bun-test-import (JS канон vs wasm 
 })
 
 describe('wasm-plugin parity — js/utils_imports (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q3 AST-концерн)', () => {
-  const runUtilsImportsBoth = dir =>
-    runFullScopeBoth(UTILS_IMPORTS_MAIN_MJS_PATH, UTILS_IMPORTS_CONCERN_KEY, 'js', 'utils_imports', dir)
+  const runUtilsImportsBoth = dir => runFullScopeBoth(UTILS_IMPORTS_CONCERN_KEY, 'js', 'utils_imports', dir)
 
   test('без utils-каталогів → без порушень з обох реалізацій', async () => {
     await withTmpDir(async dir => {
@@ -868,13 +939,7 @@ describe('wasm-plugin parity — js/utils_imports (JS канон vs wasm plugin-
 
 describe('wasm-plugin parity — test/no-relative-fs-path (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q3 AST-концерн)', () => {
   const runNoRelativeFsPathBoth = dir =>
-    runFullScopeBoth(
-      NO_RELATIVE_FS_PATH_MAIN_MJS_PATH,
-      NO_RELATIVE_FS_PATH_CONCERN_KEY,
-      'test',
-      'no-relative-fs-path',
-      dir
-    )
+    runFullScopeBoth(NO_RELATIVE_FS_PATH_CONCERN_KEY, 'test', 'no-relative-fs-path', dir)
   const FS_TEST_HEAD = "import { writeFile, copyFile, mkdir } from 'node:fs/promises'\n"
 
   test('успіх: тест з join(dir, …) → без порушень з обох реалізацій', async () => {
@@ -981,8 +1046,7 @@ describe('wasm-plugin parity — test/no-relative-fs-path (JS канон vs wasm
 })
 
 describe('wasm-plugin parity — js-bun-redis/imports (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q4 AST-концерн)', () => {
-  const runRedisImportsBoth = dir =>
-    runFullScopeBoth(REDIS_IMPORTS_MAIN_MJS_PATH, REDIS_IMPORTS_CONCERN_KEY, 'js-bun-redis', 'imports', dir)
+  const runRedisImportsBoth = dir => runFullScopeBoth(REDIS_IMPORTS_CONCERN_KEY, 'js-bun-redis', 'imports', dir)
 
   test('без package.json у корені → без порушень з обох реалізацій', async () => {
     await withTmpDir(async dir => {
@@ -1075,8 +1139,7 @@ describe('wasm-plugin parity — js-bun-redis/imports (JS канон vs wasm plu
 })
 
 describe('wasm-plugin parity — js-mssql/deps (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q4 AST-концерн)', () => {
-  const runMssqlDepsBoth = dir =>
-    runFullScopeBoth(MSSQL_DEPS_MAIN_MJS_PATH, MSSQL_DEPS_CONCERN_KEY, 'js-mssql', 'deps', dir)
+  const runMssqlDepsBoth = dir => runFullScopeBoth(MSSQL_DEPS_CONCERN_KEY, 'js-mssql', 'deps', dir)
 
   test('успіх: без dependencies.mssql джерела не скануються → без порушень з обох реалізацій', async () => {
     await withTmpDir(async dir => {
@@ -1185,8 +1248,7 @@ describe('wasm-plugin parity — js-mssql/deps (JS канон vs wasm plugin-lan
 })
 
 describe('wasm-plugin parity — js-bun-db/safety (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q4 AST-концерн)', () => {
-  const runBunDbSafetyBoth = dir =>
-    runFullScopeBoth(BUN_DB_SAFETY_MAIN_MJS_PATH, BUN_DB_SAFETY_CONCERN_KEY, 'js-bun-db', 'safety', dir)
+  const runBunDbSafetyBoth = dir => runFullScopeBoth(BUN_DB_SAFETY_CONCERN_KEY, 'js-bun-db', 'safety', dir)
 
   test('успіх: singleton new SQL + tagged template → без порушень з обох реалізацій', async () => {
     await withTmpDir(async dir => {
@@ -1405,8 +1467,7 @@ async function writeStorybookLibraryFixture(dir) {
 }
 
 describe('wasm-plugin parity — test/storybook-scope (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
-  const runScopeBoth = dir =>
-    runFullScopeBoth(STORYBOOK_SCOPE_MAIN_MJS_PATH, STORYBOOK_SCOPE_CONCERN_KEY, 'test', 'storybook-scope', dir)
+  const runScopeBoth = dir => runFullScopeBoth(STORYBOOK_SCOPE_CONCERN_KEY, 'test', 'storybook-scope', dir)
 
   test('успіх: storybook.optOut порожній/не заданий → без порушень з обох реалізацій', async () => {
     await withTmpDir(async dir => {
@@ -1452,8 +1513,7 @@ describe('wasm-plugin parity — test/storybook-scope (JS канон vs wasm plu
 })
 
 describe('wasm-plugin parity — test/storybook-hygiene (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
-  const runHygieneBoth = dir =>
-    runFullScopeBoth(STORYBOOK_HYGIENE_MAIN_MJS_PATH, STORYBOOK_HYGIENE_CONCERN_KEY, 'test', 'storybook-hygiene', dir)
+  const runHygieneBoth = dir => runFullScopeBoth(STORYBOOK_HYGIENE_CONCERN_KEY, 'test', 'storybook-hygiene', dir)
 
   test('порушення: undeclared import у .vue (static + subpath-дедуп) → ідентичні violations', async () => {
     await withTmpDir(async dir => {
@@ -1554,13 +1614,7 @@ describe('wasm-plugin parity — test/storybook-hygiene (JS канон vs wasm p
 
 describe('wasm-plugin parity — test/storybook-page-coverage (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
   const runPageCoverageBoth = dir =>
-    runFullScopeBoth(
-      STORYBOOK_PAGE_COVERAGE_MAIN_MJS_PATH,
-      STORYBOOK_PAGE_COVERAGE_CONCERN_KEY,
-      'test',
-      'storybook-page-coverage',
-      dir
-    )
+    runFullScopeBoth(STORYBOOK_PAGE_COVERAGE_CONCERN_KEY, 'test', 'storybook-page-coverage', dir)
 
   /**
    * App-пакет `packages/demo` у скоупі хвилі 2a (`detectApps: true`).
@@ -1611,14 +1665,7 @@ describe('wasm-plugin parity — test/storybook-page-coverage (JS канон vs 
 })
 
 describe('wasm-plugin parity — test/storybook-scaffold (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
-  const runScaffoldBoth = dir =>
-    runFullScopeBoth(
-      STORYBOOK_SCAFFOLD_MAIN_MJS_PATH,
-      STORYBOOK_SCAFFOLD_CONCERN_KEY,
-      'test',
-      'storybook-scaffold',
-      dir
-    )
+  const runScaffoldBoth = dir => runFullScopeBoth(STORYBOOK_SCAFFOLD_CONCERN_KEY, 'test', 'storybook-scaffold', dir)
 
   test('порушення: бібліотека без жодного canon-файлу → ідентичні пʼять violations у тому ж порядку', async () => {
     await withTmpDir(async dir => {
@@ -1725,8 +1772,7 @@ describe('wasm-plugin parity — test/storybook-scaffold (JS канон vs wasm 
 })
 
 describe('wasm-plugin parity — test/storybook-ci (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
-  const runCiBoth = dir =>
-    runFullScopeBoth(STORYBOOK_CI_MAIN_MJS_PATH, STORYBOOK_CI_CONCERN_KEY, 'test', 'storybook-ci', dir)
+  const runCiBoth = dir => runFullScopeBoth(STORYBOOK_CI_CONCERN_KEY, 'test', 'storybook-ci', dir)
 
   test('порушення: бібліотека у скоупі без обох .github-файлів → ідентичні два violations', async () => {
     await withTmpDir(async dir => {
@@ -1791,13 +1837,7 @@ async function writeStorybookAppFixture(dir) {
 
 describe('wasm-plugin parity — test/storybook-vitest-config (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
   const runVitestConfigBoth = dir =>
-    runFullScopeBoth(
-      STORYBOOK_VITEST_CONFIG_MAIN_MJS_PATH,
-      STORYBOOK_VITEST_CONFIG_CONCERN_KEY,
-      'test',
-      'storybook-vitest-config',
-      dir
-    )
+    runFullScopeBoth(STORYBOOK_VITEST_CONFIG_CONCERN_KEY, 'test', 'storybook-vitest-config', dir)
 
   test('порушення: бібліотека у скоупі без vitest.config.* → ідентичне vitest-config-missing (з data.rootDir/type)', async () => {
     await withTmpDir(async dir => {
@@ -2060,8 +2100,7 @@ function byMessage(a, b) {
 }
 
 describe('wasm-plugin parity — npm-module/rule_meta (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
-  const runRuleMetaBoth = dir =>
-    runFullScopeBoth(RULE_META_MAIN_MJS_PATH, RULE_META_CONCERN_KEY, 'npm-module', 'rule_meta', dir)
+  const runRuleMetaBoth = dir => runFullScopeBoth(RULE_META_CONCERN_KEY, 'npm-module', 'rule_meta', dir)
 
   test('успіх: npm/rules/ відсутній → без порушень з обох реалізацій', async () => {
     await withTmpDir(async dir => {
@@ -2216,8 +2255,7 @@ describe('wasm-plugin parity — npm-module/rule_meta (JS канон vs wasm plu
 })
 
 describe('wasm-plugin parity — npm-module/skill_meta (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
-  const runSkillMetaBoth = dir =>
-    runFullScopeBoth(SKILL_META_MAIN_MJS_PATH, SKILL_META_CONCERN_KEY, 'npm-module', 'skill_meta', dir)
+  const runSkillMetaBoth = dir => runFullScopeBoth(SKILL_META_CONCERN_KEY, 'npm-module', 'skill_meta', dir)
 
   test('успіх: npm/skills/ відсутній → без порушень з обох реалізацій', async () => {
     await withTmpDir(async dir => {
@@ -2300,13 +2338,7 @@ describe('wasm-plugin parity — npm-module/skill_meta (JS канон vs wasm pl
 
 describe('wasm-plugin parity — npm-module/header_doc_pointer (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
   const runHeaderDocPointerBoth = dir =>
-    runFullScopeBoth(
-      HEADER_DOC_POINTER_MAIN_MJS_PATH,
-      HEADER_DOC_POINTER_CONCERN_KEY,
-      'npm-module',
-      'header_doc_pointer',
-      dir
-    )
+    runFullScopeBoth(HEADER_DOC_POINTER_CONCERN_KEY, 'npm-module', 'header_doc_pointer', dir)
 
   test('успіх: docs/ немає → наратив у header-JSDoc дозволений обом реалізаціям', async () => {
     await withTmpDir(async dir => {
@@ -2410,13 +2442,7 @@ describe('wasm-plugin parity — npm-module/header_doc_pointer (JS канон vs
 
 describe('wasm-plugin parity — npm-module/package_structure (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
   const runPackageStructureBoth = dir =>
-    runFullScopeBoth(
-      PACKAGE_STRUCTURE_MAIN_MJS_PATH,
-      PACKAGE_STRUCTURE_CONCERN_KEY,
-      'npm-module',
-      'package_structure',
-      dir
-    )
+    runFullScopeBoth(PACKAGE_STRUCTURE_CONCERN_KEY, 'npm-module', 'package_structure', dir)
 
   /**
    * Мінімальний канонічний npm-monorepo (усе на місці) — база, від якої
@@ -2625,8 +2651,7 @@ describe('wasm-plugin parity — npm-module/package_structure (JS канон vs 
 })
 
 describe('wasm-plugin parity — js/dep-policy (JS канон vs wasm plugin-lang-js, full-scope міст, AST-концерн)', () => {
-  const runDepPolicyBoth = dir =>
-    runFullScopeBoth(DEP_POLICY_MAIN_MJS_PATH, DEP_POLICY_CONCERN_KEY, 'js', 'dep-policy', dir)
+  const runDepPolicyBoth = dir => runFullScopeBoth(DEP_POLICY_CONCERN_KEY, 'js', 'dep-policy', dir)
 
   test('успіх: дозволені імпорти → без порушень з обох реалізацій', async () => {
     await withTmpDir(async dir => {
@@ -2729,8 +2754,7 @@ describe('wasm-plugin parity — js/dep-policy (JS канон vs wasm plugin-lan
 // `*.test.{mjs,js}`, дзеркало
 // `plugins/lang-js/rules/test/<concern>/tests/*.test.mjs` там, де вони є.
 describe('wasm-plugin parity — bun/layout (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
-  const runBunLayoutBoth = dir =>
-    runFullScopeBoth(BUN_LAYOUT_MAIN_MJS_PATH, BUN_LAYOUT_CONCERN_KEY, 'bun', 'layout', dir)
+  const runBunLayoutBoth = dir => runFullScopeBoth(BUN_LAYOUT_CONCERN_KEY, 'bun', 'layout', dir)
 
   test('успіх: bun.lock + bunfig.toml + package.json → без порушень з обох реалізацій', async () => {
     await withTmpDir(async dir => {
@@ -2817,8 +2841,7 @@ describe('wasm-plugin parity — bun/layout (JS канон vs wasm plugin-lang-j
 })
 
 describe('wasm-plugin parity — style/tooling (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
-  const runStyleToolingBoth = dir =>
-    runFullScopeBoth(STYLE_TOOLING_MAIN_MJS_PATH, STYLE_TOOLING_CONCERN_KEY, 'style', 'tooling', dir)
+  const runStyleToolingBoth = dir => runFullScopeBoth(STYLE_TOOLING_CONCERN_KEY, 'style', 'tooling', dir)
 
   test('успіх: поле stylelint у package.json + .stylelintignore з dist/ → без порушень', async () => {
     await withTmpDir(async dir => {
@@ -2893,14 +2916,7 @@ describe('wasm-plugin parity — style/tooling (JS канон vs wasm plugin-lan
 })
 
 describe('wasm-plugin parity — test/sandbox-aware-test (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
-  const runSandboxBoth = dir =>
-    runFullScopeBoth(
-      SANDBOX_AWARE_TEST_MAIN_MJS_PATH,
-      SANDBOX_AWARE_TEST_CONCERN_KEY,
-      'test',
-      'sandbox-aware-test',
-      dir
-    )
+  const runSandboxBoth = dir => runFullScopeBoth(SANDBOX_AWARE_TEST_CONCERN_KEY, 'test', 'sandbox-aware-test', dir)
 
   /** Тіло з `import.meta.dirname` і чотирма `'..'`-літералами у вікні 400. */
   const DEEP_NAV_BODY =
@@ -2980,13 +2996,7 @@ describe('wasm-plugin parity — test/sandbox-aware-test (JS канон vs wasm 
 
 describe('wasm-plugin parity — test/vitest-api-conventions (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
   const runVitestApiBoth = dir =>
-    runFullScopeBoth(
-      VITEST_API_CONVENTIONS_MAIN_MJS_PATH,
-      VITEST_API_CONVENTIONS_CONCERN_KEY,
-      'test',
-      'vitest-api-conventions',
-      dir
-    )
+    runFullScopeBoth(VITEST_API_CONVENTIONS_CONCERN_KEY, 'test', 'vitest-api-conventions', dir)
 
   // Сам концерн — ТЕКСТОВИЙ сканер, а цей файл теж `*.test.mjs`, тож
   // літеральний `.toBe(` у фікстурах позначив би власні рядки цього файлу як
@@ -3082,8 +3092,7 @@ describe('wasm-plugin parity — test/vitest-api-conventions (JS канон vs w
 })
 
 describe('wasm-plugin parity — vue/packages (JS канон vs wasm plugin-lang-js, full-scope міст)', () => {
-  const runVuePackagesBoth = dir =>
-    runFullScopeBoth(VUE_PACKAGES_MAIN_MJS_PATH, VUE_PACKAGES_CONCERN_KEY, 'vue', 'packages', dir)
+  const runVuePackagesBoth = dir => runFullScopeBoth(VUE_PACKAGES_CONCERN_KEY, 'vue', 'packages', dir)
 
   /** Кореневий `package.json` Vue-додатка з повним набором vitest-devDeps. */
   const APP_PKG_JSON = JSON.stringify({
@@ -3338,8 +3347,7 @@ describe('wasm-plugin parity — vue/packages (JS канон vs wasm plugin-lang
 })
 
 describe('wasm-plugin parity — test/stryker_config (JS канон vs wasm plugin-lang-js, зріз 1 контракту v3.1)', () => {
-  const runStrykerBoth = dir =>
-    runFullScopeBoth(STRYKER_CONFIG_MAIN_MJS_PATH, STRYKER_CONFIG_CONCERN_KEY, 'test', 'stryker_config', dir)
+  const runStrykerBoth = dir => runFullScopeBoth(STRYKER_CONFIG_CONCERN_KEY, 'test', 'stryker_config', dir)
 
   /**
    * `.n-rules.json` з увімкненим правилом `js` — без нього концерн мовчить (self-gate).
@@ -3570,7 +3578,7 @@ const eslintConfigWith = args =>
   `import { getConfig } from '@nitra/eslint-config'\n\nexport default [\n  {\n    ignores: ['**/auto-imports.d.ts']\n  },\n  ...getConfig(${args})\n]\n`
 
 describe('wasm-plugin parity — js/check (JS канон vs wasm plugin-lang-js, зріз 2 контракту v3.1)', () => {
-  const runJsCheckBoth = dir => runFullScopeBoth(JS_CHECK_MAIN_MJS_PATH, JS_CHECK_CONCERN_KEY, 'js', 'check', dir)
+  const runJsCheckBoth = dir => runFullScopeBoth(JS_CHECK_CONCERN_KEY, 'js', 'check', dir)
 
   /**
    * Канон oxlint із пакета — той самий файл, що вшито в компонент.
@@ -3830,26 +3838,41 @@ describe('wasm-plugin parity — js/check (JS канон vs wasm plugin-lang-js,
 // `crates/plugin-lang-js/src/lib.rs`).
 describe('wasm-plugin parity — js/doc_comments (JS канон vs wasm plugin-lang-js, per-file)', () => {
   /**
-   * Ганяє одну фікстуру `js/doc_comments` через JS-детектор (канон) і
-   * `runWasmConcern` (wasm, per-file dispatch) — той самий мотив, що
-   * [`runTfmBoth`].
+   * Живий виклик JS-канону `js/doc_comments` для заданого файлу — спільний
+   * для [`runDocCommentsBoth`] (детект) і [`runDocCommentsFixBoth`] (T0-фікс,
+   * бере ТІ САМІ violations як вхід фіксера). Виконується лише всередині
+   * `compute()` [`goldenJs`] — тобто тільки в режимі зняття еталонів.
+   * @param {string} dir абсолютний шлях tmp-каталогу
+   * @param {string} fileName posix-relative ім'я файлу у `dir`
+   * @returns {Promise<unknown[]>} сирі (ненормалізовані) violations
+   */
+  async function computeDocCommentsViolations(dir, fileName) {
+    // eslint-disable-next-line no-unsanitized/method
+    const { lint } = await import(pathToFileURL(mainMjsPathFor('js', 'doc_comments')).href)
+    const jsResult = await lint({ cwd: dir, ruleId: 'js', concernId: 'doc_comments', files: [fileName] })
+    return jsResult.violations
+  }
+
+  /**
+   * Ганяє одну фікстуру `js/doc_comments` через JS-детектор (канон, лише в
+   * режимі зняття) і `runWasmConcern` (wasm, per-file dispatch) — той самий
+   * мотив, що [`runTfmBoth`].
    * @param {string} dir абсолютний шлях tmp-каталогу
    * @param {string} fileName posix-relative ім'я файлу у `dir`
    * @returns {Promise<{ js: unknown[], wasm: unknown[] }>} результати обох реалізацій
    */
   async function runDocCommentsBoth(dir, fileName) {
-    // eslint-disable-next-line no-unsanitized/method
-    const { lint } = await import(pathToFileURL(DOC_COMMENTS_MAIN_MJS_PATH).href)
-    const jsResult = await lint({ cwd: dir, ruleId: 'js', concernId: 'doc_comments', files: [fileName] })
+    const violations = await goldenJs(DOC_COMMENTS_CONCERN_KEY, dir, () => computeDocCommentsViolations(dir, fileName))
     const wasmResult = loadNative().runWasmConcern(WASM_PATH, DOC_COMMENTS_CONCERN_KEY, dir, [fileName])
-    return { js: withDefaultSeverity(jsResult.violations), wasm: withDefaultSeverity(wasmResult.violations) }
+    return { js: withDefaultSeverity(violations), wasm: withDefaultSeverity(wasmResult.violations) }
   }
 
   /**
-   * Parity T0-фікса: ті самі violations JS-канону подаються і в JS-патерн
-   * `fix-doc_comments.mjs` (пише на диск), і в `runWasmConcernFix` (віддає
-   * план) — порівнюється ФІНАЛЬНИЙ вміст файлу. Це і є місце, де забута
-   * зворотна конверсія UTF-16 → байти дала б різні тексти.
+   * Parity T0-фікса: ТІ САМІ violations (з еталона — [`goldenJs`]) подаються
+   * і в JS-патерн `fix-doc_comments.mjs` (пише на диск; цей файл ЛИШАЄТЬСЯ
+   * каноном, не видаляється), і в `runWasmConcernFix` (віддає план) —
+   * порівнюється ФІНАЛЬНИЙ вміст файлу. Це і є місце, де забута зворотна
+   * конверсія UTF-16 → байти дала б різні тексти.
    * @param {string} dir абсолютний шлях tmp-каталогу
    * @param {string} fileName posix-relative ім'я файлу у `dir`
    * @returns {Promise<{ js: string, wasm: string, violations: unknown[] }>} вміст після обох фіксів
@@ -3859,9 +3882,7 @@ describe('wasm-plugin parity — js/doc_comments (JS канон vs wasm plugin-l
     const abs = join(dir, fileName)
     const original = await read(abs, 'utf8')
 
-    // eslint-disable-next-line no-unsanitized/method
-    const { lint } = await import(pathToFileURL(DOC_COMMENTS_MAIN_MJS_PATH).href)
-    const { violations } = await lint({ cwd: dir, ruleId: 'js', concernId: 'doc_comments', files: [fileName] })
+    const violations = await goldenJs(DOC_COMMENTS_CONCERN_KEY, dir, () => computeDocCommentsViolations(dir, fileName))
 
     // eslint-disable-next-line no-unsanitized/method
     const { patterns } = await import(pathToFileURL(DOC_COMMENTS_FIX_MJS_PATH).href)
@@ -4085,9 +4106,7 @@ describe('wasm-plugin parity — js/doc_comments (JS канон vs wasm plugin-l
 // каноном (тул не дав вердикту → `LintResult.diagnostics` проти
 // warn-`Diagnostic`), живуть у Rust-тестах хоста, не тут.
 
-const STYLE_LINT_MAIN_MJS_PATH = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'style', 'lint', 'main.mjs')
 const STYLE_LINT_CONCERN_KEY = 'style/lint'
-const JSCPD_MAIN_MJS_PATH = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'js', 'jscpd_duplicates', 'main.mjs')
 const JSCPD_CONCERN_KEY = 'js/jscpd_duplicates'
 
 /**
@@ -4117,15 +4136,18 @@ async function runStyleLintBoth(dir, files, toolBody) {
   await mkdir(binDir, { recursive: true })
   const toolPath = await writeFakeTool(join(binDir, 'stylelint'), toolBody)
 
-  // file:// URL — абсолютний шлях цього файлу (realRepoRoot() + константні сегменти),
-  // не вхід ззовні (той самий мотив, що [`runTfmBoth`]).
-  // eslint-disable-next-line no-unsanitized/method
-  const { lint } = await import(pathToFileURL(STYLE_LINT_MAIN_MJS_PATH).href)
-  const jsResult = await lint({ cwd: dir, ruleId: 'style', concernId: 'lint', files })
+  const js = await goldenJs(STYLE_LINT_CONCERN_KEY, dir, async () => {
+    // file:// URL — абсолютний шлях (той самий мотив, що [`runTfmBoth`]). Виконується
+    // лише в режимі зняття еталонів.
+    // eslint-disable-next-line no-unsanitized/method
+    const { lint } = await import(pathToFileURL(mainMjsPathFor('style', 'lint')).href)
+    const jsResult = await lint({ cwd: dir, ruleId: 'style', concernId: 'lint', files })
+    return withDefaultSeverity(jsResult.violations)
+  })
   const wasmResult = loadNative().runWasmConcern(WASM_PATH, STYLE_LINT_CONCERN_KEY, dir, files ?? null, {
     stylelint: toolPath
   })
-  return { js: withDefaultSeverity(jsResult.violations), wasm: withDefaultSeverity(wasmResult.violations) }
+  return { js, wasm: withDefaultSeverity(wasmResult.violations) }
 }
 
 /**
@@ -4145,21 +4167,24 @@ async function runJscpdBoth(dir, toolBody) {
   await mkdir(binDir, { recursive: true })
   const toolPath = await writeFakeTool(join(binDir, 'bunx'), toolBody)
 
-  // `env` з `node:process` (не `process.env`) — вимога `js-run/runtime`;
-  // мутація тут навмисна й тимчасова: канон резолвить `bunx` саме з PATH
-  // дочірнього процесу, іншої точки ін'єкції в нього немає.
-  const originalPath = env.PATH
-  let jsResult
-  try {
-    env.PATH = `${binDir}${delimiter}${originalPath ?? ''}`
-    // eslint-disable-next-line no-unsanitized/method
-    const { lint } = await import(pathToFileURL(JSCPD_MAIN_MJS_PATH).href)
-    jsResult = await lint({ cwd: dir, ruleId: 'js', concernId: 'jscpd_duplicates', files: undefined })
-  } finally {
-    env.PATH = originalPath
-  }
+  const js = await goldenJs(JSCPD_CONCERN_KEY, dir, async () => {
+    // `env` з `node:process` (не `process.env`) — вимога `js-run/runtime`;
+    // мутація тут навмисна й тимчасова: канон резолвить `bunx` саме з PATH
+    // дочірнього процесу, іншої точки ін'єкції в нього немає. Виконується
+    // лише в режимі зняття еталонів.
+    const originalPath = env.PATH
+    try {
+      env.PATH = `${binDir}${delimiter}${originalPath ?? ''}`
+      // eslint-disable-next-line no-unsanitized/method
+      const { lint } = await import(pathToFileURL(mainMjsPathFor('js', 'jscpd_duplicates')).href)
+      const jsResult = await lint({ cwd: dir, ruleId: 'js', concernId: 'jscpd_duplicates', files: undefined })
+      return withDefaultSeverity(jsResult.violations)
+    } finally {
+      env.PATH = originalPath
+    }
+  })
   const wasmResult = loadNative().runWasmConcern(WASM_PATH, JSCPD_CONCERN_KEY, dir, null, { bunx: toolPath })
-  return { js: withDefaultSeverity(jsResult.violations), wasm: withDefaultSeverity(wasmResult.violations) }
+  return { js, wasm: withDefaultSeverity(wasmResult.violations) }
 }
 
 /**
@@ -4347,7 +4372,6 @@ describe('wasm-plugin parity — js/jscpd_duplicates (JS канон vs wasm plug
 // тест насправді перевіряє. Дефолтний `connDir` (`src/conn`) і сама гілка
 // `src/` покриті окремими тестами наприкінці.
 
-const JS_RUN_RUNTIME_MAIN_MJS_PATH = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'js-run', 'runtime', 'main.mjs')
 const JS_RUN_RUNTIME_CONCERN_KEY = 'js-run/runtime'
 
 /**
@@ -4355,8 +4379,7 @@ const JS_RUN_RUNTIME_CONCERN_KEY = 'js-run/runtime'
  * @param {string} dir абсолютний шлях tmp-каталогу з уже записаними фікстурами
  * @returns {Promise<{ js: unknown[], wasm: unknown[] }>} результати обох реалізацій
  */
-const runJsRunRuntimeBoth = dir =>
-  runFullScopeBoth(JS_RUN_RUNTIME_MAIN_MJS_PATH, JS_RUN_RUNTIME_CONCERN_KEY, 'js-run', 'runtime', dir)
+const runJsRunRuntimeBoth = dir => runFullScopeBoth(JS_RUN_RUNTIME_CONCERN_KEY, 'js-run', 'runtime', dir)
 
 /**
  * Пише кореневий `package.json` з одним workspace-пакетом `api` і сам

@@ -6,12 +6,39 @@
  * самостійно перелічує цільові файли (ctx.files у дельті або tracked css/scss/vue у повному
  * режимі), форматує їх і повертає лише фактично змінені. Запис permanent. Відсутній
  * stylelint → no-op.
+ *
+ * `filterStyleFiles`/`resolveStylelint` — раніше імпортувались з `./main.mjs`, тепер
+ * інлайновані сюди без зміни поведінки: read-only детектор concern-а перенесено в
+ * wasm-гость (`crates/plugin-lang-js/src/lib.rs`, `detect_style_lint`), `main.mjs` видалено,
+ * а T0-фіксер лишається JS (зафіксована прогалина host-мосту, §2.3 реєстру
+ * `docs/plans/2026-08-05-open-questions-register.md`) — і мусить бути самодостатнім.
  */
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { existsSync, readFileSync } from 'node:fs'
+import { join, resolve } from 'node:path'
 
-import { filterStyleFiles, resolveStylelint } from './main.mjs'
+import { resolveCmd } from '@7n/rules/scripts/utils/resolve-cmd.mjs'
 import { spawnAsync } from '@7n/rules/scripts/utils/spawn-async.mjs'
+
+const STYLE_EXT_RE = /\.(?:css|scss|vue)$/u
+
+/**
+ * @param {string[]} files список шляхів
+ * @returns {string[]} лише css/scss/vue
+ */
+export function filterStyleFiles(files) {
+  return files.filter(f => STYLE_EXT_RE.test(f))
+}
+
+/**
+ * Резолвить бінарник stylelint: спершу локальний node_modules/.bin, потім PATH.
+ * @param {string} cwd корінь
+ * @returns {string | null} абсолютний шлях або null
+ */
+export function resolveStylelint(cwd) {
+  const local = join(cwd, 'node_modules', '.bin', 'stylelint')
+  if (existsSync(local)) return local
+  return resolveCmd('stylelint')
+}
 
 /**
  * Вміст файлу або null, якщо не читається.

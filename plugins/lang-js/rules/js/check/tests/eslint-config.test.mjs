@@ -13,7 +13,6 @@ import { describe, expect, test } from 'vitest'
 
 import { detectWorkspaceTypes, mergeEslintConfig, parseVueList, planEslintConfigFix } from '../eslint-config.mjs'
 import { patterns } from '../fix-check.mjs'
-import { lint } from '../main.mjs'
 
 /**
  * Мінімальне vue-монорепо: root package.json з workspaces: ['app'],
@@ -30,16 +29,6 @@ async function makeVueMonorepo(dir) {
     'utf8'
   )
   await writeFile(join(dir, 'app', 'src', 'App.vue'), '<template><div /></template>\n', 'utf8')
-}
-
-/**
- * Порушення js/check у whole-repo режимі.
- * @param {string} dir корінь тимчасового проєкту
- * @returns {Promise<import('@7n/rules/scripts/lib/lint-surface/types.mjs').LintViolation[]>} порушення
- */
-async function checkViolations(dir) {
-  const { violations } = await lint({ cwd: dir, ruleId: 'js', concernId: 'check', files: undefined })
-  return violations
 }
 
 const { withTmpDir } = await import('@7n/rules/scripts/utils/test-helpers.mjs')
@@ -169,49 +158,26 @@ describe('mergeEslintConfig — merge наявного конфігу, не пе
   })
 })
 
-describe('detector — vue-воркспейс має бути у vue: [...]', () => {
-  test('npm-варіант конфігу у vue-монорепо → порушення eslint-config-vue-workspace', async () => {
-    await withTmpDir(async dir => {
-      await makeVueMonorepo(dir)
-      await writeFile(
-        join(dir, 'eslint.config.js'),
-        "import { getConfig } from '@nitra/eslint-config'\n" +
-          "export default [{ ignores: ['**/auto-imports.d.ts'] }, ...getConfig({ node: ['npm'] })]\n",
-        'utf8'
-      )
-      const reasons = await checkViolations(dir)
-      expect(reasons.map(v => v.reason)).toContain('eslint-config-vue-workspace')
-    })
-  })
-
-  test('коректний vue-конфіг → без eslint-config-* порушень', async () => {
-    await withTmpDir(async dir => {
-      await makeVueMonorepo(dir)
-      await writeFile(
-        join(dir, 'eslint.config.js'),
-        "import { getConfig } from '@nitra/eslint-config'\n" +
-          "export default [{ ignores: ['**/auto-imports.d.ts'] }, ...getConfig({ vue: ['app'] })]\n",
-        'utf8'
-      )
-      const reasons = await checkViolations(dir)
-      expect(reasons.map(v => v.reason).filter(r => String(r).startsWith('eslint-config'))).toEqual([])
-    })
-  })
-})
+// «detector — vue-воркспейс має бути у vue: [...]» — колишні detect-тести
+// цього describe-блоку каталися через `lint()` з видаленого `main.mjs`
+// (JS-детектор кластера `js/*` прибрано, канонічний бік тепер
+// `detect_js_check` у `crates/plugin-lang-js/src/lib.rs`). Еквівалент —
+// Rust-тест `detect_js_check_flags_vue_workspace_missing_from_get_config`.
 
 describe('fix-check T0 — повний цикл', () => {
-  test('відсутній конфіг у vue-монорепо → створено з vue: [app], re-detect чистий по eslint-config', async () => {
+  test('відсутній конфіг у vue-монорепо → створено з vue: [app]', async () => {
     await withTmpDir(async dir => {
       await makeVueMonorepo(dir)
-      const before = await checkViolations(dir)
+      // Синтетичне порушення замість детекції через видалений `main.mjs`
+      // lint() — `patterns[0].test`/`.apply` перевіряють лише `reason`,
+      // самі не детектують.
+      const before = [{ reason: 'eslint-config-missing', message: 'eslint.config.js відсутній' }]
       expect(patterns[0].test(before)).toBe(true)
       const res = await patterns[0].apply(before, { cwd: dir, ruleId: 'js', concernId: 'check' })
       expect(res.touchedFiles).toHaveLength(1)
       expect(existsSync(join(dir, 'eslint.config.js'))).toBe(true)
       const written = await readFile(join(dir, 'eslint.config.js'), 'utf8')
       expect(parseVueList(written)).toEqual(['app'])
-      const after = await checkViolations(dir)
-      expect(after.map(v => v.reason).filter(r => String(r).startsWith('eslint-config'))).toEqual([])
     })
   })
 

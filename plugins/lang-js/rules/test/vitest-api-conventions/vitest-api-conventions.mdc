@@ -34,7 +34,7 @@
 ✓ `expect(result).toEqual({ ok: true })`
 ✗ `expect(result).toBe({ ok: true })`
 
-**Перевірка** (`rules/test/vitest-api-conventions/main.mjs`): сканує `**/*.test.{mjs,js}`, шукає `expect(...).toBe(...)` з об'єктним/масивним літералом як першим аргументом — таке порівняння завжди `false` через reference equality, незалежно від вмісту.
+**Перевірка** (`crates/plugin-lang-js`, wasm-плагін — детектор `detect_vitest_api_conventions`): сканує `**/*.test.{mjs,js}`, шукає `expect(...).toBe(...)` з об'єктним/масивним літералом як першим аргументом — таке порівняння завжди `false` через reference equality, незалежно від вмісту.
 
 ### 5. Моки для Date / часу
 

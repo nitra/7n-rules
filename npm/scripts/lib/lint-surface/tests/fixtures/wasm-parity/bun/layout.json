@@ -1,0 +1,57 @@
+{
+  "wasm-plugin parity — bun/layout (JS канон vs wasm plugin-lang-js, full-scope міст) > успіх: bun.lock + bunfig.toml + package.json → без порушень з обох реалізацій": [],
+  "wasm-plugin parity — bun/layout (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: порожній корінь → три однакові violations у тому самому порядку": [
+    {
+      "severity": "error",
+      "reason": "layout",
+      "message": "Відсутній bun.lock — запусти bun i"
+    },
+    {
+      "severity": "error",
+      "reason": "layout",
+      "message": "Відсутній bunfig.toml — створи з [install] linker = \"hoisted\" (bun.mdc)"
+    },
+    {
+      "severity": "error",
+      "reason": "layout",
+      "message": "Відсутній package.json у корені"
+    }
+  ],
+  "wasm-plugin parity — bun/layout (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: усі чотири заборонені lock/конфіг-файли — порядок масиву канону": [
+    {
+      "severity": "error",
+      "reason": "layout",
+      "message": "Знайдено заборонений файл: package-lock.json — видали його"
+    },
+    {
+      "severity": "error",
+      "reason": "layout",
+      "message": "Знайдено заборонений файл: yarn.lock — видали його"
+    },
+    {
+      "severity": "error",
+      "reason": "layout",
+      "message": "Знайдено заборонений файл: pnpm-lock.yaml — видали його"
+    },
+    {
+      "severity": "error",
+      "reason": "layout",
+      "message": "Знайдено заборонений файл: .yarnrc.yml — видали його"
+    }
+  ],
+  "wasm-plugin parity — bun/layout (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: непорожній .yarn/ → однакове violation з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "layout",
+      "message": "Знайдено директорію .yarn — видали її"
+    }
+  ],
+  "wasm-plugin parity — bun/layout (JS канон vs wasm plugin-lang-js, full-scope міст) > край: файл (не каталог) з іменем .yarn теж рахується — глоб контрибуції ширший за concern.json": [
+    {
+      "severity": "error",
+      "reason": "layout",
+      "message": "Знайдено директорію .yarn — видали її"
+    }
+  ],
+  "wasm-plugin parity — bun/layout (JS канон vs wasm plugin-lang-js, full-scope міст) > край: вкладені lock-файли підпакетів корінь не чіпають (existsSync лише cwd)": []
+}

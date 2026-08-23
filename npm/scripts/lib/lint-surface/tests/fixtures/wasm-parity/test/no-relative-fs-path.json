@@ -1,0 +1,27 @@
+{
+  "wasm-plugin parity — test/no-relative-fs-path (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q3 AST-концерн) > успіх: тест з join(dir, …) → без порушень з обох реалізацій": [],
+  "wasm-plugin parity — test/no-relative-fs-path (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q3 AST-концерн) > порушення: writeFile('foo.json', …) → однакове violation з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "no-relative-fs-path",
+      "message": "tests/foo.test.mjs:2: writeFile() — 1-й аргумент 'foo.json' relative; використовуй join(dir, …) (test.mdc, no-relative-fs-path)"
+    }
+  ],
+  "wasm-plugin parity — test/no-relative-fs-path (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q3 AST-концерн) > порушення: fsp.writeFile (MemberExpression) → однакове violation з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "no-relative-fs-path",
+      "message": "tests/foo.test.mjs:2: writeFile() — 1-й аргумент 'foo' relative; використовуй join(dir, …) (test.mdc, no-relative-fs-path)"
+    }
+  ],
+  "wasm-plugin parity — test/no-relative-fs-path (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q3 AST-концерн) > успіх: не-тестові файли не скануються → без порушень з обох реалізацій": [],
+  "wasm-plugin parity — test/no-relative-fs-path (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q3 AST-концерн) > успіх: файл з syntax-error НЕ кидає, тільки пропускає аналіз (обидві реалізації)": [],
+  "wasm-plugin parity — test/no-relative-fs-path (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q3 AST-концерн) > успіх: symlink з відносною ЦІЛЛЮ але абсолютним шляхом лінка → без порушень з обох реалізацій": [],
+  "wasm-plugin parity — test/no-relative-fs-path (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q3 AST-концерн) > порушення: symlink з відносним шляхом ЛІНКА (2-й аргумент) → однакове violation з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "no-relative-fs-path",
+      "message": "tests/foo.test.mjs:2: symlink() — 2-й аргумент 'link.txt' relative; використовуй join(dir, …) (test.mdc, no-relative-fs-path)"
+    }
+  ]
+}

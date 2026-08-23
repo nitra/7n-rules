@@ -1,9 +1,12 @@
 /**
- * Тести concern-а `storybook/ci` (storybook.mdc, ADR Кластер 5 — CI-частина): виявлення
- * відсутнього/неповного composite action `setup-playwright-chromium` і відсутнього/неповного
- * `.github/workflows/lint-storybook.yml`, а також T0-autofix (`fix-ci.mjs`), що відтворює
- * обидва файли з `template/`. Фікстури — динамічні тимчасові дерева (mkdtemp), не статичні
- * файли в репо (щоб авто-fix лінтера цього репозиторію не переписав "погані"/неповні зразки).
+ * Тести T0-autofix-у concern-а `storybook/ci` (storybook.mdc, ADR Кластер 5 — CI-частина):
+ * `fix-storybook-ci.mjs` відтворює канонічний composite action `setup-playwright-chromium`
+ * і `.github/workflows/lint-storybook.yml` з `template/`. Сам детектор (`main.mjs`) видалено —
+ * покриття перенесено в `crates/plugin-lang-js` `#[cfg(test)]` (`detect_storybook_ci_*`),
+ * wasm-порт лишається єдиним каноном lint-поверхні; T0-фікс і надалі — зафіксована прогалина
+ * host-мосту, JS-канон (§2.3 `docs/plans/2026-08-05-open-questions-register.md`). Фікстури —
+ * динамічні тимчасові дерева (mkdtemp), не статичні файли в репо (щоб авто-fix лінтера цього
+ * репозиторію не переписав "погані"/неповні зразки).
  */
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -11,15 +14,15 @@ import { dirname, join } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 
-import { lint, PLAYWRIGHT_ACTION_REL, STORYBOOK_WORKFLOW_REL } from '../main.mjs'
-import {
-  patterns,
-  renderPackageDirsYaml,
-  renderPlaywrightAction,
-  renderStorybookWorkflow
-} from '../fix-storybook-ci.mjs'
+import { patterns, renderPackageDirsYaml, renderStorybookWorkflow } from '../fix-storybook-ci.mjs'
 
 const CONCERN_DIR = join(import.meta.dirname, '..')
+
+/** Repo-relative шлях канонічного composite action (дзеркало видаленого `main.mjs`-експорту). */
+const PLAYWRIGHT_ACTION_REL = '.github/actions/setup-playwright-chromium/action.yml'
+
+/** Repo-relative шлях канонічного workflow (дзеркало видаленого `main.mjs`-експорту). */
+const STORYBOOK_WORKFLOW_REL = '.github/workflows/lint-storybook.yml'
 
 /**
  * @param {string} root абсолютний шлях
@@ -31,92 +34,6 @@ async function writeFileDeep(root, rel, content) {
   await mkdir(dirname(abs), { recursive: true })
   await writeFile(abs, content, 'utf8')
 }
-
-/**
- * Створює мінімальний Vue-пакет-бібліотеку у скоупі (peerDependencies.vue, ≥3 .vue,
- * vite.config.js) — той самий фікстур-набір, що й у scaffold/vitest-config/hygiene тестах.
- * @param {string} root корінь монорепо
- * @param {string} rootDir відносний корінь пакета
- */
-async function writeVueLibraryPkg(root, rootDir) {
-  const pkg = { name: `pkg-${rootDir}`, peerDependencies: { vue: '^3.6.0' } }
-  await writeFileDeep(root, join(rootDir, 'package.json'), JSON.stringify(pkg, null, 2))
-  await writeFileDeep(root, join(rootDir, 'vite.config.js'), 'export default {}\n')
-  for (let i = 0; i < 3; i++) {
-    await writeFileDeep(root, join(rootDir, `src/components/Comp${i}.vue`), '<template><div/></template>\n')
-  }
-}
-
-describe('lint: перевірка storybook/ci', () => {
-  let root
-
-  beforeEach(async () => {
-    root = await mkdtemp(join(tmpdir(), 'storybook-ci-'))
-    await writeFileDeep(root, 'package.json', JSON.stringify({ name: 'root', workspaces: ['packages/*'] }, null, 2))
-  })
-
-  afterEach(async () => {
-    await rm(root, { recursive: true, force: true })
-  })
-
-  test('немає пакетів у скоупі — без порушень', async () => {
-    const result = await lint({ cwd: root, ruleId: 'storybook', concernId: 'storybook/ci' })
-    expect(result.violations).toEqual([])
-  })
-
-  test('пакет у скоупі, без composite action і без workflow — 2 порушення missing', async () => {
-    await writeVueLibraryPkg(root, 'packages/ui')
-    const result = await lint({ cwd: root, ruleId: 'storybook', concernId: 'storybook/ci' })
-    const reasons = result.violations.map(v => v.reason).toSorted()
-    expect(reasons).toEqual(['missing-playwright-action', 'missing-storybook-workflow'])
-    expect(result.violations.find(v => v.reason === 'missing-playwright-action').file).toBe(PLAYWRIGHT_ACTION_REL)
-    expect(result.violations.find(v => v.reason === 'missing-storybook-workflow').file).toBe(STORYBOOK_WORKFLOW_REL)
-  })
-
-  test('composite action без канонічних маркерів — marker-порушення, не missing', async () => {
-    await writeVueLibraryPkg(root, 'packages/ui')
-    await writeFileDeep(root, PLAYWRIGHT_ACTION_REL, 'name: Setup Playwright Chromium\nruns:\n  using: composite\n')
-    const rootDirs = ['packages/ui']
-    await writeFileDeep(
-      root,
-      STORYBOOK_WORKFLOW_REL,
-      await renderStorybookWorkflow(rootDirs, join(CONCERN_DIR, 'template'))
-    )
-
-    const result = await lint({ cwd: root, ruleId: 'storybook', concernId: 'storybook/ci' })
-    const reasons = result.violations.map(v => v.reason)
-    expect(reasons.length).toBeGreaterThan(0)
-    expect(reasons.every(r => r === 'playwright-action-marker-missing')).toBe(true)
-  })
-
-  test('workflow без канонічних маркерів — marker-порушення, не missing', async () => {
-    await writeVueLibraryPkg(root, 'packages/ui')
-    await writeFileDeep(root, PLAYWRIGHT_ACTION_REL, await renderPlaywrightAction(join(CONCERN_DIR, 'template')))
-    await writeFileDeep(
-      root,
-      STORYBOOK_WORKFLOW_REL,
-      'name: Lint Storybook\non: push\njobs:\n  test:\n    runs-on: ubuntu-latest\n'
-    )
-
-    const result = await lint({ cwd: root, ruleId: 'storybook', concernId: 'storybook/ci' })
-    const reasons = result.violations.map(v => v.reason)
-    expect(reasons.length).toBeGreaterThan(0)
-    expect(reasons.every(r => r === 'storybook-workflow-marker-missing')).toBe(true)
-  })
-
-  test('повністю канонічний репо — без порушень', async () => {
-    await writeVueLibraryPkg(root, 'packages/ui')
-    await writeFileDeep(root, PLAYWRIGHT_ACTION_REL, await renderPlaywrightAction(join(CONCERN_DIR, 'template')))
-    await writeFileDeep(
-      root,
-      STORYBOOK_WORKFLOW_REL,
-      await renderStorybookWorkflow(['packages/ui'], join(CONCERN_DIR, 'template'))
-    )
-
-    const result = await lint({ cwd: root, ruleId: 'storybook', concernId: 'storybook/ci' })
-    expect(result.violations).toEqual([])
-  })
-})
 
 describe('renderPackageDirsYaml', () => {
   test('рендерить по одному елементу на рядок з відступом рівня matrix.package', () => {

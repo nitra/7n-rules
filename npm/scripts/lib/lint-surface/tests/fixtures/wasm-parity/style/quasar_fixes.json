@@ -1,0 +1,11 @@
+{
+  "wasm-plugin parity — style/quasar_fixes (JS канон vs wasm plugin-lang-js, full-scope міст) > exit 0 — q-scroll-area використано і фікс визначено → без порушень з обох реалізацій": [],
+  "wasm-plugin parity — style/quasar_fixes (JS канон vs wasm plugin-lang-js, full-scope міст) > exit 1 — q-tooltip використано, але фікс відсутній → однакове violation з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "missing-quasar-fix",
+      "message": "Компонент `q-tooltip` використовується у `.vue`, але фікс `.q-tooltip` відсутній у `.scss`/`.css` (guide: style/quasar_fixes.mdc) — додай фікс до app.scss"
+    }
+  ],
+  "wasm-plugin parity — style/quasar_fixes (JS канон vs wasm plugin-lang-js, full-scope міст) > exit 0 — жоден із компонентів не використовується → без порушень з обох реалізацій": []
+}

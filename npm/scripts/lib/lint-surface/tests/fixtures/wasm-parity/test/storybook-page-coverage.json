@@ -1,0 +1,15 @@
+{
+  "wasm-plugin parity — test/storybook-page-coverage (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: сторінка без *.stories.js поряд → однаковий warn з обох реалізацій": [
+    {
+      "severity": "warn",
+      "reason": "page-missing-story",
+      "message": "[page-coverage] packages/demo/src/pages/task/[id].vue: немає жодної *.stories.js поряд — сторінка app-проєкту без smoke-story (storybook.mdc, хвиля 2a)",
+      "file": "packages/demo/src/pages/task/[id].vue",
+      "data": {
+        "rootDir": "packages/demo"
+      }
+    }
+  ],
+  "wasm-plugin parity — test/storybook-page-coverage (JS канон vs wasm plugin-lang-js, full-scope міст) > успіх: stories з довільним іменем у тій самій теці → без порушень": [],
+  "wasm-plugin parity — test/storybook-page-coverage (JS канон vs wasm plugin-lang-js, full-scope міст) > успіх: без прапорця detectApps app-пакет поза скоупом → без порушень": []
+}

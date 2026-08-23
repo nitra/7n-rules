@@ -1,6 +1,6 @@
 ## Безпечне виконання запитів через Bun SQL
 
-JS/TS-скан: `lib/bun-sql-scan.mjs`, детектори підключено з `safety/main.mjs`.
+JS/TS-скан: AST-сканери `crates/plugin-lang-js/src/lib.rs` (`detect_bun_db_safety` і сусідні `find_*`-функції).
 
 Цільові файли: усі JS/TS джерела репозиторію (крім ігнорованих через cursor-конфіг), де є `import { sql, SQL } from 'bun'`.
 
@@ -102,7 +102,7 @@ ws.connect(url) // n-rules:allow-pg-leftover: WebSocket, не pg
 
 Bun SQL **поки не реалізує PostgreSQL LISTEN/NOTIFY** (асинхронні нотифікації через `pg_notify` / `LISTEN <channel>`). Тому якщо проєкт справді користується LISTEN/NOTIFY, npm-пакет `pg` дозволено тримати в `dependencies` **виключно** для LISTEN/NOTIFY-клієнта. Усі інші запити (SELECT/INSERT/UPDATE/DELETE/migration) — далі через Bun SQL.
 
-Перевірка `pg` зважує цей сигнал автоматично (тому `pg` прибрано з [denylist](../package_json/template/package.json.deny.json) — Rego не бачить JS-коду, тож зважування LISTEN/NOTIFY перенесено у JS-сканер `safety/main.mjs` + `lib/bun-sql-scan.mjs`).
+Перевірка `pg` зважує цей сигнал автоматично (тому `pg` прибрано з [denylist](../package_json/template/package.json.deny.json) — Rego не бачить JS-коду, тож зважування LISTEN/NOTIFY перенесено у Rust-сканер `crates/plugin-lang-js/src/lib.rs`, `detect_bun_db_safety`).
 
 #### Як перевірка визначає, що LISTEN/NOTIFY у проєкті є
 

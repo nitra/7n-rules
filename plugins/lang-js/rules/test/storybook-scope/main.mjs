@@ -3,11 +3,10 @@ import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { createViolationReporter } from '@7n/rules/scripts/lib/lint-surface/violation-reporter.mjs'
 import { loadCursorIgnorePaths } from '@7n/rules/scripts/lib/load-cursor-config.mjs'
 import { walkDir } from '@7n/rules/scripts/utils/walkDir.mjs'
 import { getMonorepoPackageRootDirs } from '@7n/rules/scripts/lib/workspaces.mjs'
-import { isVueComponentLibraryPkg } from '../../vue/packages/main.mjs'
+import { isVueComponentLibraryPkg } from '../../vue/lib/vue-component-library.mjs'
 
 const CONFIG_FILE = '.n-rules.json'
 const LEGACY_CONFIG_FILE = '.n-cursor.json'
@@ -170,35 +169,4 @@ export async function collectInScopeVuePackages(cwd) {
   }
 
   return result
-}
-
-/**
- * Self-check конфігурації: `.n-rules.json` → `storybook.optOut` не має посилатись на
- * неіснуючі workspace-пакети (застаріле налаштування — пакет перейменували/видалили, а
- * opt-out лишився). Сама детекція скоупу (поріг, app-проєкти) — pure-функції вище,
- * покриті тестами напряму; тут лише конфіг-гігієна.
- * @param {import('@7n/rules/scripts/lib/lint-surface/types.mjs').LintContext} ctx контекст лінту
- * @returns {Promise<import('@7n/rules/scripts/lib/lint-surface/types.mjs').LintResult>} результат лінту
- */
-export async function lint(ctx) {
-  const reporter = createViolationReporter(ctx)
-  const cwd = ctx.cwd
-
-  const optOut = await readStorybookOptOut(cwd)
-  if (optOut.length === 0) {
-    reporter.pass('storybook: storybook.optOut порожній або не заданий')
-    return reporter.result()
-  }
-
-  const roots = new Set(await getMonorepoPackageRootDirs(cwd))
-  for (const rootDir of optOut) {
-    if (!roots.has(rootDir)) {
-      reporter.fail(
-        `.n-rules.json storybook.optOut містить '${rootDir}' — такого workspace-пакета немає (застаріле opt-out, storybook.mdc)`,
-        'stale-opt-out'
-      )
-    }
-  }
-
-  return reporter.result()
 }

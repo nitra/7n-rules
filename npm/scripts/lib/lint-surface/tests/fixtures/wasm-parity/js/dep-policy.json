@@ -1,0 +1,48 @@
+{
+  "wasm-plugin parity — js/dep-policy (JS канон vs wasm plugin-lang-js, full-scope міст, AST-концерн) > успіх: дозволені імпорти → без порушень з обох реалізацій": [],
+  "wasm-plugin parity — js/dep-policy (JS канон vs wasm plugin-lang-js, full-scope міст, AST-концерн) > порушення: статичний import ua-parser-js → ідентичне violation з підказкою про bowser": [
+    {
+      "severity": "error",
+      "reason": "dep-policy",
+      "message": "src/ua.mjs: заборонений import 'ua-parser-js' — замінити на bowser (MIT, ~6 KB) — npm i bowser. ua-parser-js v2 змінив ліцензію на AGPL-3.0, несумісну з комерційним використанням (js.mdc dep-policy)"
+    }
+  ],
+  "wasm-plugin parity — js/dep-policy (JS канон vs wasm plugin-lang-js, full-scope міст, AST-концерн) > порушення: require і динамічний import ловляться так само, як статичний": [
+    {
+      "severity": "error",
+      "reason": "dep-policy",
+      "message": "a.cjs: заборонений import '@nitra/as-integrations-fastify' — використовуй @as-integrations/fastify (js.mdc dep-policy)"
+    },
+    {
+      "severity": "error",
+      "reason": "dep-policy",
+      "message": "b.mjs: заборонений import '@nitra/as-integrations-fastify' — використовуй @as-integrations/fastify (js.mdc dep-policy)"
+    }
+  ],
+  "wasm-plugin parity — js/dep-policy (JS канон vs wasm plugin-lang-js, full-scope міст, AST-концерн) > край: згадки в коментарі, рядку й шаблонному літералі — НЕ порушення (тут regex збрехав би)": [],
+  "wasm-plugin parity — js/dep-policy (JS канон vs wasm plugin-lang-js, full-scope міст, AST-концерн) > край: субшлях забороненого пакета дозволений (точна рівність specifier-а)": [],
+  "wasm-plugin parity — js/dep-policy (JS канон vs wasm plugin-lang-js, full-scope міст, AST-концерн) > край: TS-джерело з type-import ловиться так само, як звичайний import": [
+    {
+      "severity": "error",
+      "reason": "dep-policy",
+      "message": "src/ok.ts: заборонений import 'ua-parser-js' — замінити на bowser (MIT, ~6 KB) — npm i bowser. ua-parser-js v2 змінив ліцензію на AGPL-3.0, несумісну з комерційним використанням (js.mdc dep-policy)"
+    },
+    {
+      "severity": "error",
+      "reason": "dep-policy",
+      "message": "src/plain.mts: заборонений import 'ua-parser-js' — замінити на bowser (MIT, ~6 KB) — npm i bowser. ua-parser-js v2 змінив ліцензію на AGPL-3.0, несумісну з комерційним використанням (js.mdc dep-policy)"
+    }
+  ],
+  "wasm-plugin parity — js/dep-policy (JS канон vs wasm plugin-lang-js, full-scope міст, AST-концерн) > край: два порушення в одному файлі — статичне перед walk-знахідкою (двофазний порядок канону)": [
+    {
+      "severity": "error",
+      "reason": "dep-policy",
+      "message": "src/mix.mjs: заборонений import '@nitra/as-integrations-fastify' — використовуй @as-integrations/fastify (js.mdc dep-policy)"
+    },
+    {
+      "severity": "error",
+      "reason": "dep-policy",
+      "message": "src/mix.mjs: заборонений import 'ua-parser-js' — замінити на bowser (MIT, ~6 KB) — npm i bowser. ua-parser-js v2 змінив ліцензію на AGPL-3.0, несумісну з комерційним використанням (js.mdc dep-policy)"
+    }
+  ]
+}

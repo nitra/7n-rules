@@ -1,0 +1,11 @@
+{
+  "wasm-plugin parity — test/vitest-config-pool-forks (JS канон vs wasm plugin-lang-js, full-scope міст) > успіх: config з pool: 'forks' → без порушень з обох реалізацій": [],
+  "wasm-plugin parity — test/vitest-config-pool-forks (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: vitest.config.mjs з pool: 'threads' → однакове violation з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "vitest-config-pool-forks",
+      "message": "vitest.config.mjs має містити pool: 'forks' — defense-in-depth для race у process.cwd() між паралельними test files (test.mdc)"
+    }
+  ],
+  "wasm-plugin parity — test/vitest-config-pool-forks (JS канон vs wasm plugin-lang-js, full-scope міст) > успіх: vitest.config.{mjs,js} відсутній → без порушень з обох реалізацій": []
+}

@@ -39,7 +39,7 @@
 
 ### Ця частина вже перевіряється автоматично
 
-Наявність `src/vite-env.d.ts` з коректним `/// <reference types="vite/client" />` і наявність `jsconfig.json` у корені пакета — вже реалізований JS-концерн `packages` (`npm/rules/vue/packages/main.mjs`, функція `checkViteClientEnvAndEditorConfig`). Цей concern (`vite-env`) не дублює перевірку — лишається docs-only довідкою з еталонним прикладом.
+Наявність `src/vite-env.d.ts` з коректним `/// <reference types="vite/client" />` і наявність `jsconfig.json` у корені пакета — вже реалізований native-концерн `packages` (`crates/plugin-lang-js/src/lib.rs`, функція `check_vite_client_env_and_editor_config`). Цей concern (`vite-env`) не дублює перевірку — лишається docs-only довідкою з еталонним прикладом.
 
 ## Статичні файли — BASE_URL
 

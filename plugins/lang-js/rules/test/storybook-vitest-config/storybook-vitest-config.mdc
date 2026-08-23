@@ -23,7 +23,7 @@ Firefox/webkit свідомо не додаються — ADR і main.mdc хви
 
 ### Що перевіряє й що виправляє концерн
 
-Перевірка (`main.mjs`) — AST-аналіз (`oxc-parser`) наявного vitest-конфіга: знаходить `test`-блок (незалежно від того, чи він огорнутий у `defineConfig`/`mergeConfig`, чи це простий об'єкт), дивиться на `test.projects` і класифікує елементи за `name: 'unit'`/`name: 'storybook'`; для `storybook`-елемента перевіряє маркери `chromium`/`browser`/`provider`-factory/stories-джерело (явний glob або `storybookTest({ configDir })`) текстовим пошуком. Стійка до форматування й порядку полів — не вимагає конкретного стилю запису, лише семантичну присутність маркерів.
+Перевірка (`crates/plugin-lang-js`, wasm-плагін — детектор `detect_storybook_vitest_config`; JS-детектор `main.mjs#lint` видалено разом із рештою кластера `test/*`) — AST-аналіз (`oxc-parser`/`oxc_parser`) наявного vitest-конфіга: знаходить `test`-блок (незалежно від того, чи він огорнутий у `defineConfig`/`mergeConfig`, чи це простий об'єкт), дивиться на `test.projects` і класифікує елементи за `name: 'unit'`/`name: 'storybook'`; для `storybook`-елемента перевіряє маркери `chromium`/`browser`/`provider`-factory/stories-джерело (явний glob або `storybookTest({ configDir })`) текстовим пошуком. Стійка до форматування й порядку полів — не вимагає конкретного стилю запису, лише семантичну присутність маркерів. `main.mjs` лишається — його AST-функції (`findTestObject`, `classifyProjects`, `hasStoriesMarker` тощо) переюзає T0-фікс і `adopt/main.mjs`.
 
 Автофікс (`fix-vitest-config.mjs`, fixability `config`) виправляє й дописує **лише відсутнє**:
 

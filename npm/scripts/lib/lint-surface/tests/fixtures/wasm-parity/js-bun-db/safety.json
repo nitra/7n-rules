@@ -1,0 +1,80 @@
+{
+  "wasm-plugin parity — js-bun-db/safety (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q4 AST-концерн) > успіх: singleton new SQL + tagged template → без порушень з обох реалізацій": [],
+  "wasm-plugin parity — js-bun-db/safety (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q4 AST-концерн) > порушення: new SQL(...) всередині функції → однакове violation з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "safety",
+      "message": "js-bun-db: src/db.ts:3 — не створюй new SQL(...) всередині функцій; тримай singleton на рівні модуля (js-bun-db.mdc): new SQL(process.env.DATABASE_URL)"
+    }
+  ],
+  "wasm-plugin parity — js-bun-db/safety (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q4 AST-концерн) > порушення: sql.unsafe без маркера → однакове violation; з маркером — чисто": [
+    {
+      "severity": "error",
+      "reason": "safety",
+      "message": "js-bun-db: src/bad.ts:2 — sql.unsafe(...) заборонено за замовчуванням; допустимо лише для підстановки назви таблиці/колонки чи dynamic SQL/DDL з code-controlled значенням, інакше переробити на tagged template sql`...${value}...`. Якщо випадок легітимний — додай маркер \"// n-rules:allow-unsafe: <причина>\" на тому ж рядку або рядком вище (js-bun-db.mdc): sql.unsafe('SELECT 1')"
+    }
+  ],
+  "wasm-plugin parity — js-bun-db/safety (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q4 AST-концерн) > порушення: sql.unsafe(інтерпольований template) навіть з маркером → однакове violation": [
+    {
+      "severity": "error",
+      "reason": "safety",
+      "message": "js-bun-db: src/migrate.ts:5 — sql.unsafe(`...${x}...`) з template-літералом і ${...}-інтерполяцією заборонено навіть з n-rules:n-rules:allow-unsafe маркером: шаблонна підстановка identifier'у не екранує (reserved words, спецсимволи), а значення не біндяться. Збери text через @scaleleap/pg-format format('%I', name) для identifiers або позиційні $N для values, потім sql.unsafe(text, [params]). Деталі — секція «Динамічна SQL-структура» в js-bun-db.mdc: sql.unsafe(`CREATE TABLE ${TABLE} (id int)`)"
+    }
+  ],
+  "wasm-plugin parity — js-bun-db/safety (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q4 AST-концерн) > порушення: tagged .join у IN → однакові ЧОТИРИ violations (дубль-обхід tagged, як у JS)": [
+    {
+      "severity": "error",
+      "reason": "safety",
+      "message": "js-bun-db: src/db.ts:3 — заборонено підставляти у SQL динамічні списки через .join(',') у IN (...) / VALUES (...); використовуй sql([...]) (js-bun-db.mdc): `SELECT * FROM users WHERE id IN (${ids.join(',')})`"
+    },
+    {
+      "severity": "error",
+      "reason": "safety",
+      "message": "js-bun-db: src/db.ts:3 — заборонено підставляти у SQL динамічні списки через .join(',') у IN (...) / VALUES (...); використовуй sql([...]) (js-bun-db.mdc): `SELECT * FROM users WHERE id IN (${ids.join(',')})`"
+    },
+    {
+      "severity": "error",
+      "reason": "safety",
+      "message": "js-bun-db: src/db.ts:3 — значення для IN (...) у template literal треба винести в окрему змінну і перевірити на пустоту (throw), не підставляти вираз напряму (js-bun-db.mdc): `SELECT * FROM users WHERE id IN (${ids.join(',')})`"
+    },
+    {
+      "severity": "error",
+      "reason": "safety",
+      "message": "js-bun-db: src/db.ts:3 — значення для IN (...) у template literal треба винести в окрему змінну і перевірити на пустоту (throw), не підставляти вираз напряму (js-bun-db.mdc): `SELECT * FROM users WHERE id IN (${ids.join(',')})`"
+    }
+  ],
+  "wasm-plugin parity — js-bun-db/safety (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q4 AST-концерн) > успіх: guard у тому самому блоці → без порушень з обох реалізацій": [],
+  "wasm-plugin parity — js-bun-db/safety (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q4 AST-концерн) > порушення: guard лише у зовнішньому блоці → однакові violations (найближчий блок, як у JS)": [
+    {
+      "severity": "error",
+      "reason": "safety",
+      "message": "js-bun-db: src/db.ts:5 — перед IN-списком \"ids\" потрібна перевірка на пустоту з throw (наприклад if (!ids.length) throw ...), інакше можливі некоректні запити (js-bun-db.mdc): `SELECT 1 FROM t WHERE id IN (${ids})`"
+    },
+    {
+      "severity": "error",
+      "reason": "safety",
+      "message": "js-bun-db: src/db.ts:5 — перед IN-списком \"ids\" потрібна перевірка на пустоту з throw (наприклад if (!ids.length) throw ...), інакше можливі некоректні запити (js-bun-db.mdc): `SELECT 1 FROM t WHERE id IN (${ids})`"
+    }
+  ],
+  "wasm-plugin parity — js-bun-db/safety (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q4 AST-концерн) > порушення: dependencies.pg без LISTEN/NOTIFY → однакові dep- та import-violations": [
+    {
+      "severity": "error",
+      "reason": "safety",
+      "message": "js-bun-db: package.json: dependencies.pg заборонено — у проекті не знайдено LISTEN / NOTIFY / UNLISTEN (або listener'а .on('notification', ...)). Bun SQL покриває звичайні запити; `pg` дозволений лише як виняток для LISTEN/NOTIFY (js-bun-db.mdc, секція «pg для LISTEN/NOTIFY»)"
+    },
+    {
+      "severity": "error",
+      "reason": "safety",
+      "message": "js-bun-db: src/app.ts:1 — import 'pg' дозволено лише у файлах з LISTEN / NOTIFY / UNLISTEN або .on('notification', ...). Перенеси звичайні запити на Bun SQL (import { sql } from 'bun'), а LISTEN/NOTIFY-логіку лиши в окремому модулі (js-bun-db.mdc): import { Client } from 'pg'"
+    }
+  ],
+  "wasm-plugin parity — js-bun-db/safety (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q4 AST-концерн) > успіх: dependencies.pg виправдано LISTEN/NOTIFY → без порушень з обох реалізацій": [],
+  "wasm-plugin parity — js-bun-db/safety (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q4 AST-концерн) > успіх: sql.unsafe у коментарі та new SQL у рядку → без порушень (AST, не regex)": [],
+  "wasm-plugin parity — js-bun-db/safety (JS канон vs wasm plugin-lang-js, full-scope міст, задача Q4 AST-концерн) > порушення: sql.array(arr) без типу → однакове violation; з типом — чисто": [
+    {
+      "severity": "error",
+      "reason": "safety",
+      "message": "js-bun-db: src/bad.ts:2 — sql.array(arr) без другого аргументу типу — вкажи явний pg-тип: sql.array(arr, 'int8') / sql.array(arr, 'uuid') тощо (js-bun-db.mdc sql-array): sql.array(ids)"
+    }
+  ]
+}

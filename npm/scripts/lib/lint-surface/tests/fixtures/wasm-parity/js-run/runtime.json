@@ -1,0 +1,125 @@
+{
+  "wasm-plugin parity — js-run/runtime (JS канон vs wasm plugin-lang-js, full-scope) > немає workspace-пакетів → жодного порушення з обох реалізацій": [],
+  "wasm-plugin parity — js-run/runtime (JS канон vs wasm plugin-lang-js, full-scope) > frontend-пакет (vite у devDependencies) пропускається цілком": [],
+  "wasm-plugin parity — js-run/runtime (JS канон vs wasm plugin-lang-js, full-scope) > bunyan: статичний імпорт, require і динамічний import — три однакові порушення": [
+    {
+      "severity": "error",
+      "reason": "runtime",
+      "message": "[api] lib/log.mjs:2 — заміни '@nitra/bunyan' на '@nitra/pino': import { createLogger } from '@nitra/bunyan'"
+    },
+    {
+      "severity": "error",
+      "reason": "runtime",
+      "message": "[api] lib/log.mjs:1 — заміни 'bunyan' на '@nitra/pino': require('bunyan')"
+    },
+    {
+      "severity": "error",
+      "reason": "runtime",
+      "message": "[api] lib/log.mjs:3 — заміни 'bunyan' на '@nitra/pino': import('bunyan')"
+    }
+  ],
+  "wasm-plugin parity — js-run/runtime (JS канон vs wasm plugin-lang-js, full-scope) > фабричні імпорти поза conn-каталогом — три однакові порушення": [
+    {
+      "severity": "error",
+      "reason": "runtime",
+      "message": "[api] lib/app.mjs:1 — імпорт { SQL } from 'bun' має бути в 'lib/conn/' і реекспортуватися через '#conn/*': import { SQL } from 'bun'"
+    },
+    {
+      "severity": "error",
+      "reason": "runtime",
+      "message": "[api] lib/app.mjs:2 — імпорт 'mssql' має бути в 'lib/conn/' і реекспортуватися через '#conn/*': import sql from 'mssql'"
+    },
+    {
+      "severity": "error",
+      "reason": "runtime",
+      "message": "[api] lib/app.mjs:3 — імпорт { GraphQLClient } from '@nitra/graphql-request' має бути в 'lib/conn/' і реекспортуватися через '#conn/*': import { GraphQLClient } from '@nitra/graphql-request'"
+    }
+  ],
+  "wasm-plugin parity — js-run/runtime (JS канон vs wasm plugin-lang-js, full-scope) > той самий імпорт УСЕРЕДИНІ conn-каталогу порушенням не є": [],
+  "wasm-plugin parity — js-run/runtime (JS канон vs wasm plugin-lang-js, full-scope) > conn-файл: невалідне ім’я + export default — два однакові порушення": [
+    {
+      "severity": "error",
+      "reason": "runtime",
+      "message": "[api] lib/conn/database.mjs — назва файла в 'lib/conn/' не відповідає канону js-run: 'ql-<id>', 'pg-{read|write}[-<id>]', 'mysql-{read|write}[-<id>]' або 'mssql-{read|write}[-<id>]' (kebab-case, [a-z0-9-])"
+    },
+    {
+      "severity": "error",
+      "reason": "runtime",
+      "message": "[api] lib/conn/database.mjs — 'export default' заборонений у 'lib/conn/'; зроби іменований експорт"
+    }
+  ],
+  "wasm-plugin parity — js-run/runtime (JS канон vs wasm plugin-lang-js, full-scope) > conn-файл: валідне ім’я, але експорт не в camelCase від basename": [
+    {
+      "severity": "error",
+      "reason": "runtime",
+      "message": "[api] lib/conn/pg-write-contract.mjs — очікується іменований експорт 'export const pgWriteContract = …' (camelCase від назви файла); знайдено: db, helper"
+    }
+  ],
+  "wasm-plugin parity — js-run/runtime (JS канон vs wasm plugin-lang-js, full-scope) > conn-файл `index.*` — реекспортний барель, пропускається": [],
+  "wasm-plugin parity — js-run/runtime (JS канон vs wasm plugin-lang-js, full-scope) > check-env: process.env, деструктуризація і env без checkEnv": [
+    {
+      "severity": "error",
+      "reason": "runtime",
+      "message": "[api] lib/env.mjs:2 — process.env.HOST: заміни на env з '@nitra/check-env' (обов'язкова змінна + checkEnv(['HOST'])) або з 'node:process' (опційна)"
+    },
+    {
+      "severity": "error",
+      "reason": "runtime",
+      "message": "[api] lib/env.mjs:2 — process.env.PORT: заміни на env з '@nitra/check-env' (обов'язкова змінна + checkEnv(['PORT'])) або з 'node:process' (опційна)"
+    },
+    {
+      "severity": "error",
+      "reason": "runtime",
+      "message": "[api] lib/env.mjs:3 — process.env.DB_URL: заміни на env з '@nitra/check-env' (обов'язкова змінна + checkEnv(['DB_URL'])) або з 'node:process' (опційна)"
+    },
+    {
+      "severity": "error",
+      "reason": "runtime",
+      "message": "[api] lib/env.mjs:4 — env.QL (з '@nitra/check-env') без checkEnv(['QL']) (або '// n-rules:ignore-next-line checkEnv' попереду)"
+    },
+    {
+      "severity": "error",
+      "reason": "runtime",
+      "message": "[api] lib/env.mjs:4 — env.SECRET (з '@nitra/check-env') без checkEnv(['SECRET']) (або '// n-rules:ignore-next-line checkEnv' попереду)"
+    }
+  ],
+  "wasm-plugin parity — js-run/runtime (JS канон vs wasm plugin-lang-js, full-scope) > check-env: checkEnv([…]) закриває змінну, ignore-маркер глушить process.env": [],
+  "wasm-plugin parity — js-run/runtime (JS канон vs wasm plugin-lang-js, full-scope) > пауза через new Promise + setTimeout — однакове порушення": [
+    {
+      "severity": "error",
+      "reason": "runtime",
+      "message": "[api] lib/sleep.mjs:2 — заміни 'new Promise(r => setTimeout(r, ms))' на 'await setTimeout(ms)' з 'node:timers/promises': new Promise(resolve => setTimeout(resolve, ms))"
+    }
+  ],
+  "wasm-plugin parity — js-run/runtime (JS канон vs wasm plugin-lang-js, full-scope) > Temporal у Bun-рантаймі — однакове порушення на кожне вживання": [
+    {
+      "severity": "error",
+      "reason": "runtime",
+      "message": "[api] lib/time.mjs:1 — Temporal API заборонений у Bun runtime; використовуй Date або інʼєктований timestamp"
+    }
+  ],
+  "wasm-plugin parity — js-run/runtime (JS канон vs wasm plugin-lang-js, full-scope) > `.d.ts` не сканується жодною з шести перевірок": [],
+  "wasm-plugin parity — js-run/runtime (JS канон vs wasm plugin-lang-js, full-scope) > k8s/ без base/configmap.yaml — однакове порушення (гілка, заради якої глоб ширший)": [
+    {
+      "severity": "error",
+      "reason": "runtime",
+      "message": "api/k8s/base/configmap.yaml відсутній — додай з полем OTEL_RESOURCE_ATTRIBUTES (service.name=, service.namespace=), js-run.mdc"
+    }
+  ],
+  "wasm-plugin parity — js-run/runtime (JS канон vs wasm plugin-lang-js, full-scope) > k8s/base/configmap.yaml на місці — чисто; без каталогу k8s/ — теж чисто": [],
+  "wasm-plugin parity — js-run/runtime (JS канон vs wasm plugin-lang-js, full-scope) > файли у conn-каталозі без аліаса \"#conn/*\" — однакове порушення": [
+    {
+      "severity": "error",
+      "reason": "runtime",
+      "message": "[api] є файли у 'src/conn/', але в package.json відсутній аліас \"#conn/*\" — додай \"imports\": { \"#conn/*\": \"./src/conn/*\" } (js-run.mdc conn-aliases)"
+    }
+  ],
+  "wasm-plugin parity — js-run/runtime (JS канон vs wasm plugin-lang-js, full-scope) > є каталог src/, немає jsconfig.json — однакове порушення": [
+    {
+      "severity": "error",
+      "reason": "runtime",
+      "message": "[api] є каталог src/, але немає jsconfig.json — додай канонічний файл з js-run.mdc (NodeNext, include: src/**/*)."
+    }
+  ],
+  "wasm-plugin parity — js-run/runtime (JS канон vs wasm plugin-lang-js, full-scope) > вакуумний conftest: неканонічний jsconfig.json не дає порушень у ЖОДНІЙ з реалізацій": []
+}

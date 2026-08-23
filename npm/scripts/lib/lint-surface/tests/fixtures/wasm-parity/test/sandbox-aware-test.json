@@ -1,0 +1,14 @@
+{
+  "wasm-plugin parity — test/sandbox-aware-test (JS канон vs wasm plugin-lang-js, full-scope міст) > порушення: глибока import.meta-навігація без ізоляції → однакове violation": [
+    {
+      "severity": "error",
+      "reason": "sandbox-aware-test",
+      "message": "tests/deep.test.mjs: import.meta deep navigation (≥4 рівні ..) без ізоляції — оберни у withTmpDir() або захисти test.skipIf(env.STRYKER_MUTATOR_WORKER) (test.mdc, sandbox-aware-test)"
+    }
+  ],
+  "wasm-plugin parity — test/sandbox-aware-test (JS канон vs wasm plugin-lang-js, full-scope міст) > успіх: та сама навігація під withTmpDir() → тиша з обох реалізацій": [],
+  "wasm-plugin parity — test/sandbox-aware-test (JS канон vs wasm plugin-lang-js, full-scope міст) > успіх: захист test.skipIf(process.env.STRYKER_MUTATOR_WORKER) з пробілами": [],
+  "wasm-plugin parity — test/sandbox-aware-test (JS канон vs wasm plugin-lang-js, full-scope міст) > успіх: лише три рівні .. → не «глибока» навігація": [],
+  "wasm-plugin parity — test/sandbox-aware-test (JS канон vs wasm plugin-lang-js, full-scope міст) > край: `..`-літерали далі за 400 символів у вікно не потрапляють": [],
+  "wasm-plugin parity — test/sandbox-aware-test (JS канон vs wasm plugin-lang-js, full-scope міст) > край: не-тестовий файл із тим самим тілом ігнорується обома": []
+}

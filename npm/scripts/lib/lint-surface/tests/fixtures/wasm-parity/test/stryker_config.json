@@ -1,0 +1,141 @@
+{
+  "wasm-plugin parity — test/stryker_config (JS канон vs wasm plugin-lang-js, зріз 1 контракту v3.1) > self-gate: без `.n-rules.json` обидві реалізації мовчать": [],
+  "wasm-plugin parity — test/stryker_config (JS канон vs wasm plugin-lang-js, зріз 1 контракту v3.1) > self-gate: `js` у `disable-rules` — обидві реалізації мовчать": [],
+  "wasm-plugin parity — test/stryker_config (JS канон vs wasm plugin-lang-js, зріз 1 контракту v3.1) > fatal: js увімкнено, але кореневого package.json немає": [
+    {
+      "severity": "error",
+      "reason": "stryker_config",
+      "message": "test: js enabled, але кореневий package.json не знайдено (test.mdc)"
+    }
+  ],
+  "wasm-plugin parity — test/stryker_config (JS канон vs wasm plugin-lang-js, зріз 1 контракту v3.1) > порожній single-package репо: stryker + vitest baseline + .gitignore": [
+    {
+      "severity": "error",
+      "reason": "stryker-config-missing",
+      "message": "stryker.config.mjs відсутній (stryker.config.mjs) — запусти `npx @7n/rules lint test` для canonical baseline (test.mdc)",
+      "file": "stryker.config.mjs"
+    },
+    {
+      "severity": "error",
+      "reason": "stryker-config-missing",
+      "message": "vitest.config.mjs відсутній (vitest.config.mjs) — запусти `npx @7n/rules lint test` для canonical baseline (test.mdc)",
+      "file": "vitest.config.mjs"
+    },
+    {
+      "severity": "error",
+      "reason": "gitignore-missing",
+      "message": ".gitignore: бракує тест-патернів (**/reports/stryker/, **/coverage/) — запусти `npx @7n/rules lint test` (test.mdc)"
+    }
+  ],
+  "wasm-plugin parity — test/stryker_config (JS канон vs wasm plugin-lang-js, зріз 1 контракту v3.1) > legacy `vitest.config.js` не плодить `.mjs`-порушення": [
+    {
+      "severity": "error",
+      "reason": "stryker-config-missing",
+      "message": "stryker.config.mjs відсутній (stryker.config.mjs) — запусти `npx @7n/rules lint test` для canonical baseline (test.mdc)",
+      "file": "stryker.config.mjs"
+    }
+  ],
+  "wasm-plugin parity — test/stryker_config (JS канон vs wasm plugin-lang-js, зріз 1 контракту v3.1) > vue-root: додається baseline vue-macros ignorer-плагіна": [
+    {
+      "severity": "error",
+      "reason": "stryker-config-missing",
+      "message": "stryker.config.mjs відсутній (stryker.config.mjs) — запусти `npx @7n/rules lint test` для canonical baseline (test.mdc)",
+      "file": "stryker.config.mjs"
+    },
+    {
+      "severity": "error",
+      "reason": "stryker-config-missing",
+      "message": "stryker-vue-macros-ignorer.mjs відсутній (stryker-vue-macros-ignorer.mjs) — запусти `npx @7n/rules lint test` для canonical baseline (test.mdc)",
+      "file": "stryker-vue-macros-ignorer.mjs"
+    },
+    {
+      "severity": "error",
+      "reason": "stryker-config-missing",
+      "message": "vitest.config.mjs відсутній (vitest.config.mjs) — запусти `npx @7n/rules lint test` для canonical baseline (test.mdc)",
+      "file": "vitest.config.mjs"
+    }
+  ],
+  "wasm-plugin parity — test/stryker_config (JS канон vs wasm plugin-lang-js, зріз 1 контракту v3.1) > `.vue` лише під `src/dist/` — не vue-root в обох реалізаціях (VUE_GLOB_IGNORE)": [
+    {
+      "severity": "error",
+      "reason": "stryker-config-missing",
+      "message": "stryker.config.mjs відсутній (stryker.config.mjs) — запусти `npx @7n/rules lint test` для canonical baseline (test.mdc)",
+      "file": "stryker.config.mjs"
+    },
+    {
+      "severity": "error",
+      "reason": "stryker-config-missing",
+      "message": "vitest.config.mjs відсутній (vitest.config.mjs) — запусти `npx @7n/rules lint test` для canonical baseline (test.mdc)",
+      "file": "vitest.config.mjs"
+    }
+  ],
+  "wasm-plugin parity — test/stryker_config (JS канон vs wasm plugin-lang-js, зріз 1 контракту v3.1) > vue-root із наявним stryker-конфігом без ignorer-а: augment-порушення": [
+    {
+      "severity": "error",
+      "reason": "stryker-config-missing",
+      "message": "stryker-vue-macros-ignorer.mjs відсутній (stryker-vue-macros-ignorer.mjs) — запусти `npx @7n/rules lint test` для canonical baseline (test.mdc)",
+      "file": "stryker-vue-macros-ignorer.mjs"
+    },
+    {
+      "severity": "error",
+      "reason": "stryker-vue-augment",
+      "message": "vue-macros ignorer не зареєстровано у stryker.config.mjs (stryker.config.mjs) — запусти `npx @7n/rules lint test` (test.mdc)",
+      "file": "stryker.config.mjs"
+    }
+  ],
+  "wasm-plugin parity — test/stryker_config (JS канон vs wasm plugin-lang-js, зріз 1 контракту v3.1) > vue-root із повністю зареєстрованим ignorer-ом: augment — no-op": [],
+  "wasm-plugin parity — test/stryker_config (JS канон vs wasm plugin-lang-js, зріз 1 контракту v3.1) > augment неможливий: non-literal default export": [
+    {
+      "severity": "error",
+      "reason": "stryker-vue-augment-fail",
+      "message": "stryker.config.mjs has non-literal default export (stryker.config.mjs) — augment скіпнуто, додай вручну plugins/ignorers згідно stryker.config.vue.baseline.mjs"
+    }
+  ],
+  "wasm-plugin parity — test/stryker_config (JS канон vs wasm plugin-lang-js, зріз 1 контракту v3.1) > augment неможливий: динамічний `plugins` (spread)": [
+    {
+      "severity": "error",
+      "reason": "stryker-vue-augment-fail",
+      "message": "stryker.config.mjs: plugins/ignorers — динамічний вираз (spread/computed) (stryker.config.mjs) — augment скіпнуто, додай vue-macros ignorer вручну згідно stryker.config.vue.baseline.mjs"
+    }
+  ],
+  "wasm-plugin parity — test/stryker_config (JS канон vs wasm plugin-lang-js, зріз 1 контракту v3.1) > augment неможливий: syntax error — текст повідомлення парсера збігається побайтово": [
+    {
+      "severity": "error",
+      "reason": "stryker-vue-augment-fail",
+      "message": "stryker.config.mjs має syntax error (stryker.config.mjs): Unexpected token — augment скіпнуто"
+    }
+  ],
+  "wasm-plugin parity — test/stryker_config (JS канон vs wasm plugin-lang-js, зріз 1 контракту v3.1) > монорепо: workspaces-глоб розгортається в кілька js-roots": [
+    {
+      "severity": "error",
+      "reason": "stryker-config-missing",
+      "message": "stryker.config.mjs відсутній (packages/app/stryker.config.mjs) — запусти `npx @7n/rules lint test` для canonical baseline (test.mdc)",
+      "file": "packages/app/stryker.config.mjs"
+    },
+    {
+      "severity": "error",
+      "reason": "stryker-config-missing",
+      "message": "vitest.config.mjs відсутній (packages/app/vitest.config.mjs) — запусти `npx @7n/rules lint test` для canonical baseline (test.mdc)",
+      "file": "packages/app/vitest.config.mjs"
+    },
+    {
+      "severity": "error",
+      "reason": "stryker-config-missing",
+      "message": "stryker.config.mjs відсутній (packages/ui/stryker.config.mjs) — запусти `npx @7n/rules lint test` для canonical baseline (test.mdc)",
+      "file": "packages/ui/stryker.config.mjs"
+    },
+    {
+      "severity": "error",
+      "reason": "stryker-config-missing",
+      "message": "vitest.config.mjs відсутній (packages/ui/vitest.config.mjs) — запусти `npx @7n/rules lint test` для canonical baseline (test.mdc)",
+      "file": "packages/ui/vitest.config.mjs"
+    }
+  ],
+  "wasm-plugin parity — test/stryker_config (JS канон vs wasm plugin-lang-js, зріз 1 контракту v3.1) > `.gitignore` містить лише частину патернів — у тексті лишається лише відсутній": [
+    {
+      "severity": "error",
+      "reason": "gitignore-missing",
+      "message": ".gitignore: бракує тест-патернів (**/reports/stryker/) — запусти `npx @7n/rules lint test` (test.mdc)"
+    }
+  ]
+}
