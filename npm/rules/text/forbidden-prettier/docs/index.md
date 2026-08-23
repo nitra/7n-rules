@@ -6,4 +6,3 @@ resource: npm/rules/text/forbidden-prettier/
 
 | Файл                | Тип       |
 | ------------------- | --------- |
-| [main.mjs](main.md) | JS Module |

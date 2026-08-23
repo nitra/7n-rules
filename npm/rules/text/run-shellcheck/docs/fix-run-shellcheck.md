@@ -14,6 +14,8 @@ docgen:
 
 Файл описує T0-autofix для `text/run-shellcheck`: публічна функція `patterns` визначає факт, що `shellcheck` знайшов порушення, без per-violation деталей. Повторний аналіз і цикл `shellcheck -f diff` + `patch` делеговано `runShellcheckText`, тому цей файл лишається read-only і не виконує записів у ФС. Він існує, щоб безпечно під’єднати shellcheck-автовиправлення до механізму T0, fail-safe перехоплювати помилки й повертати порожнє значення замість винятку там, де виправлення недоступне.
 
+`listShellScriptPaths`/`runShellcheckText` і їхні приватні залежності перенесені сюди з видаленого `main.mjs`: read-only detector-бік того самого концерну портовано у native (`crates/rules-core/src/concerns/text_run_shellcheck.rs`), а write-режим (авто-фікс через `shellcheck -f diff` + `patch -p1`) лишився винятково в цьому файлі.
+
 ## Поведінка
 
 1. `patterns` оголошує автономне T0-виправлення для порушень `shellcheck`.

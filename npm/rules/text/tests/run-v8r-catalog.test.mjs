@@ -9,7 +9,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { glob } from 'node:fs/promises'
 
-import { V8R_CATALOG_PATH, runV8rWithGlobs } from '../run-v8r/main.mjs'
+import { V8R_CATALOG_PATH, runV8rWithGlobs } from './v8r-catalog-runner.mjs'
 
 const SCHEMAS_DIR = dirname(V8R_CATALOG_PATH)
 const REMOTE_URL_RE = /^https?:\/\//u
