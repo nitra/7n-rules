@@ -181,7 +181,10 @@ describe('main', () => {
 })
 
 describe('FIRST_PARTY_WASM_PLUGINS', () => {
-  test('декларує lang-js (crates/plugin-lang-js) — сьогоднішній єдиний first-party плагін', () => {
-    expect(FIRST_PARTY_WASM_PLUGINS).toEqual([{ name: 'lang-js', crateDir: 'crates/plugin-lang-js' }])
+  test('декларує lang-js і lang-python — два first-party плагіни', () => {
+    expect(FIRST_PARTY_WASM_PLUGINS).toEqual([
+      { name: 'lang-js', crateDir: 'crates/plugin-lang-js' },
+      { name: 'lang-python', crateDir: 'crates/plugin-lang-python' }
+    ])
   })
 })

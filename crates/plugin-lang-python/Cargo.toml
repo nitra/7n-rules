@@ -1,0 +1,41 @@
+[package]
+name = "plugin-lang-python"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "Apache-2.0"
+description = "wasm-компонент n-rules:plugin@3.1.0 — python/wasm-concerns (3 контрибуції першої хвилі: python/applies, python/tooling, python/doc_comments)"
+
+[lib]
+# `cdylib` — обов'язково: `wasm32-wasip2` виводить готовий Component Model
+# компонент лише з цього crate-type (той самий мотив, що
+# `crates/plugin-lang-js`, доккомент того `Cargo.toml`).
+crate-type = ["cdylib"]
+
+[dependencies]
+# Пін звірено з `crates/plugin-lang-js/Cargo.toml` (той самий мінор, що
+# резолвиться в Cargo.lock кореня) — НЕ розширюй у caret-діапазон без причини.
+wit-bindgen = "0.60"
+# Порт regex-ів `python/doc_comments` (PUBLIC_DEF_RE/DOCSTRING_START_RE/
+# COMMENT_LINE_RE/HEADER_SKIP_RE/FUTURE_IMPORT_RE) і `EXCLUDED_FILE_RE`
+# (`plugins/lang-python/rules/python/doc_comments/main.mjs`) 1:1 — жодного
+# lookaround, прямий перенос у regex-крейт.
+#
+# `default-features = false` + явний список, той самий скорочений набір, що
+# `crates/plugin-lang-js/Cargo.toml` мінус `unicode-case`: "unicode-perl"
+# ОБОВ'ЯЗКОВИЙ (не опційна оптимізація — спроба зібрати без нього дає
+# regex-parse-error `Unicode-aware Perl class not found`, перевірено
+# емпірично, а не здогад із доккомента сусіднього крейта): `\w`/`\s` у
+# `PUBLIC_DEF_RE` компілюються лише за наявності цієї фічі. "unicode-case"
+# НЕ потрібен — жоден з патернів цього крейта не має `(?i)`.
+regex = { version = "1", default-features = false, features = [
+  "std",
+  "perf",
+  "unicode-perl",
+] }
+
+[dev-dependencies]
+# Anti-drift тест `plugin_toml_concern_keys_match_describe` (той самий
+# мотив, що `crates/plugin-lang-js/Cargo.toml`) — парсить `plugin.toml`
+# СПРАВЖНІМ TOML-парсером. Dev-only: у wasm32-wasip2 cdylib не потрапляє.
+toml = "0.8"

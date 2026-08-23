@@ -1,0 +1,54 @@
+# Маніфест wasm-плагіна `python/wasm-concerns` — ДРУГИЙ first-party wasm-гість
+# репозиторію (перший — `crates/plugin-lang-js`, доккомент того `plugin.toml`
+# пояснює саму форму). Перша хвиля порту: три концерни без зовнішніх тулів і
+# без обходу файлової системи гостем (доккомент модуля `src/lib.rs`)
+# — статичний дублікат того, що `describe()` (src/lib.rs) повертає в рантаймі.
+# Поля 1:1 відповідають `rules_contract::manifest::Manifest`
+# (crates/rules-contract/src/manifest.rs, без serde-перейменувань — назви
+# полів тотожні Rust-структурі). Хост читає цей файл лише як довідник для
+# людини й дистрибуційний supplement — джерело правди в рантаймі завжди
+# `describe()` (не парситься назад у `PluginHost`, спека §3.1).
+
+id = "python/wasm-concerns"
+version = "0.1.0"
+world_version = "3.1.0"
+domains = ["lint"]
+# Top-level поля маніфеста — ОБОВʼЯЗКОВО перед першим `[[concerns]]`: після
+# array-of-tables заголовка TOML відніс би їх до останнього елемента масиву,
+# а не до кореня (доккомент `crates/plugin-lang-js/plugin.toml` пояснює той
+# самий клас дрейфу, спійманий anti-drift тестом `plugin_toml_concern_keys_match_describe`).
+ci_artifacts = []
+# Жоден із трьох концернів першої хвилі не спавнить зовнішній тул —
+# `mypy`/`ruff` (наступна хвиля) принесуть перші `tools`-декларації цього
+# плагіна.
+tools = []
+
+[[concerns]]
+key = "python/applies"
+scope = "full"
+glob = ["pyproject.toml"]
+
+[[concerns]]
+key = "python/tooling"
+scope = "full"
+glob = [
+  "pyproject.toml",
+  "uv.lock",
+  "poetry.lock",
+  "poetry.toml",
+  "package.json",
+  ".github/workflows/lint-python.yml",
+]
+
+[[concerns]]
+key = "python/doc_comments"
+scope = "per-file"
+glob = ["**/*.py"]
+
+[capabilities]
+# Хост передає вміст файлів inline у `detect-batch` (host-побудований
+# full-scope batch для `python/applies`/`python/tooling`, per-file batch для
+# `python/doc_comments`) — плагін не читає диск сам (доккомент модуля
+# `src/lib.rs`, розділ «Обхід дерева»).
+fs_read = []
+network = false
