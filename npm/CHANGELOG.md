@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.93.3] - 2026-08-23
+
+### Changed
+
+- fix(text/cspell-fix): зняти подвійну реалізацію main.mjs + native (#462)
+
 ## [1.93.2] - 2026-08-23
 
 ### Changed
