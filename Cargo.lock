@@ -4888,6 +4888,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "plugin-lang-php"
+version = "0.1.0"
+dependencies = [
+ "toml",
+ "wit-bindgen 0.60.0",
+]
+
+[[package]]
 name = "plugin-lang-python"
 version = "0.1.0"
 dependencies = [

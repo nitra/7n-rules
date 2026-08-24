@@ -3,6 +3,7 @@
   "fixability": "config",
   "lint": {
     "scope": "per-file",
-    "glob": ["**/*.php"]
+    "glob": ["**/*.php"],
+    "anchors": ["composer.json"]
   }
 }
