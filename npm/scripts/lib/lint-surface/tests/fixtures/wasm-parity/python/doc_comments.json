@@ -1,0 +1,91 @@
+{
+  "wasm-plugin parity — python/doc_comments (JS канон vs wasm plugin-lang-python, per-file) > файл без публічних def/class — обидві реалізації мовчать": [],
+  "wasm-plugin parity — python/doc_comments (JS канон vs wasm plugin-lang-python, per-file) > module-docstring + def-docstring присутні — без порушень з обох реалізацій": [],
+  "wasm-plugin parity — python/doc_comments (JS канон vs wasm plugin-lang-python, per-file) > відсутні обидва docstring-и — дві однакові діагностики з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "missing-module-docstring",
+      "message": "pkg/mod.py: модуль із публічними def/class без module-docstring. Глобальний сенс: конвеєр doc-files копіює цей docstring ДОСЛІВНО в секцію «Огляд» автоматично згенерованої документації файлу (0 LLM-токенів) — без нього «Огляд» вигадує LLM із самого коду.",
+      "file": "pkg/mod.py",
+      "data": {}
+    },
+    {
+      "severity": "error",
+      "reason": "missing-def-docstring",
+      "message": "pkg/mod.py: def run без docstring. Глобальний сенс: конвеєр doc-files бере цей docstring ДОСЛІВНО в секцію «Публічний API» автоматично згенерованої документації файлу (0 LLM-токенів) — без нього опис вигадує LLM.",
+      "file": "pkg/mod.py",
+      "data": {
+        "name": "run"
+      }
+    }
+  ],
+  "wasm-plugin parity — python/doc_comments (JS канон vs wasm plugin-lang-python, per-file) > T0-придатний блок `#`-коментарів над def — однакова `data.{promotable,fromLine,toLine,headerEnd,name}`": [
+    {
+      "severity": "error",
+      "reason": "missing-def-docstring",
+      "message": "pkg/mod.py: def run без docstring. Глобальний сенс: конвеєр doc-files бере цей docstring ДОСЛІВНО в секцію «Публічний API» автоматично згенерованої документації файлу (0 LLM-токенів) — без нього опис вигадує LLM.",
+      "file": "pkg/mod.py",
+      "data": {
+        "promotable": true,
+        "fromLine": 3,
+        "toLine": 4,
+        "headerEnd": 5,
+        "name": "run"
+      }
+    }
+  ],
+  "wasm-plugin parity — python/doc_comments (JS канон vs wasm plugin-lang-python, per-file) > декоратор між коментарем і def — блок і далі promotable з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "missing-def-docstring",
+      "message": "pkg/mod.py: def run без docstring. Глобальний сенс: конвеєр doc-files бере цей docstring ДОСЛІВНО в секцію «Публічний API» автоматично згенерованої документації файлу (0 LLM-токенів) — без нього опис вигадує LLM.",
+      "file": "pkg/mod.py",
+      "data": {
+        "promotable": true,
+        "fromLine": 3,
+        "toLine": 3,
+        "headerEnd": 5,
+        "name": "run"
+      }
+    }
+  ],
+  "wasm-plugin parity — python/doc_comments (JS канон vs wasm plugin-lang-python, per-file) > без блоку коментарів — `data` містить лише `{ name }` з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "missing-def-docstring",
+      "message": "pkg/mod.py: def run без docstring. Глобальний сенс: конвеєр doc-files бере цей docstring ДОСЛІВНО в секцію «Публічний API» автоматично згенерованої документації файлу (0 LLM-токенів) — без нього опис вигадує LLM.",
+      "file": "pkg/mod.py",
+      "data": {
+        "name": "run"
+      }
+    }
+  ],
+  "wasm-plugin parity — python/doc_comments (JS канон vs wasm plugin-lang-python, per-file) > class без docstring — повідомлення містить \"class <імʼя>\" з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "missing-def-docstring",
+      "message": "pkg/mod.py: class Foo без docstring. Глобальний сенс: конвеєр doc-files бере цей docstring ДОСЛІВНО в секцію «Публічний API» автоматично згенерованої документації файлу (0 LLM-токенів) — без нього опис вигадує LLM.",
+      "file": "pkg/mod.py",
+      "data": {
+        "name": "Foo"
+      }
+    }
+  ],
+  "wasm-plugin parity — python/doc_comments (JS канон vs wasm plugin-lang-python, per-file) > docstring зі string-префіксом (r/f) приймається з обох реалізацій": [],
+  "wasm-plugin parity — python/doc_comments (JS канон vs wasm plugin-lang-python, per-file) > приватний (`_`-префікс) def — файл узагалі поза вимогою з обох реалізацій": [],
+  "wasm-plugin parity — python/doc_comments (JS канон vs wasm plugin-lang-python, per-file) > тестовий файл tests/test_helpers.py — поза вимогою з обох реалізацій": [],
+  "wasm-plugin parity — python/doc_comments (JS канон vs wasm plugin-lang-python, per-file) > тестовий файл pkg/test_foo.py — поза вимогою з обох реалізацій": [],
+  "wasm-plugin parity — python/doc_comments (JS канон vs wasm plugin-lang-python, per-file) > тестовий файл pkg/foo_test.py — поза вимогою з обох реалізацій": [],
+  "wasm-plugin parity — python/doc_comments (JS канон vs wasm plugin-lang-python, per-file) > тестовий файл pkg/conftest.py — поза вимогою з обох реалізацій": [],
+  "wasm-plugin parity — python/doc_comments (JS канон vs wasm plugin-lang-python, per-file) > не-ASCII вміст (кирилиця, емодзі поза BMP) у docstring — приймається однаково з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "missing-def-docstring",
+      "message": "pkg/облік.py: def run без docstring. Глобальний сенс: конвеєр doc-files бере цей docstring ДОСЛІВНО в секцію «Публічний API» автоматично згенерованої документації файлу (0 LLM-токенів) — без нього опис вигадує LLM.",
+      "file": "pkg/облік.py",
+      "data": {
+        "name": "run"
+      }
+    }
+  ]
+}

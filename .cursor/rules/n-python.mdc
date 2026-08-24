@@ -30,7 +30,9 @@ docstring-и, то точніша дока і менше роботи локал
   shebang/ліцензія, не намір).
 - Решта — LLM-ladder за вмістом функції.
 
-Перевірка: `rules/python/doc_comments/main.mjs`.
+Перевірка: детектор `detect_doc_comments` wasm-гостя `crates/plugin-lang-python`
+(концерн `python/doc_comments`). T0-фікс лишається JS —
+`plugins/lang-python/rules/python/doc_comments/fix-doc_comments.mjs`.
 
 ## Rego-gate: перевірка `pyproject.toml`
 
@@ -64,7 +66,8 @@ Rego-пакет: `python.pyproject_toml`
 
 ## Перевірка наявності uv-toolchain і відсутності Poetry
 
-JS-перевірка (`npm/rules/python/tooling/main.mjs`) запускається, якщо в корені репо є `pyproject.toml`. Перевіряє:
+Перевірка (детектор `detect_tooling` wasm-гостя `crates/plugin-lang-python`,
+концерн `python/tooling`) запускається, якщо в корені репо є `pyproject.toml`. Перевіряє:
 
 - `uv.lock` — має існувати (зафіксувати командою `uv lock`);
 - `poetry.lock` / `poetry.toml` — мають **бути відсутніми** (Poetry заборонено);
@@ -73,15 +76,19 @@ JS-перевірка (`npm/rules/python/tooling/main.mjs`) запускаєть
 
 Якщо `pyproject.toml` відсутній — перевірка пропускається з кодом 0 (проєкт не Python).
 
-## lint-python: JS-детектори за concern
+## lint-python: детектори wasm-гостя за concern
 
-Інструменти uv-екосистеми не мають єдиного CLI-обходу репо, тому python-лінт делегується у JS-детектори. Запуск — через **`n-rules lint python`** (CI — `--no-fix`); окремого `package.json`-скрипта немає.
+Інструменти uv-екосистеми не мають єдиного CLI-обходу репо, тому python-лінт делегується у детектори wasm-гостя `crates/plugin-lang-python` (до зняття подвійної реалізації — у JS-детектори `main.mjs`, яких більше немає). Запуск — через **`n-rules lint python`** (CI — `--no-fix`); окремого `package.json`-скрипта немає.
 
 Три концерни (кожен — окремий per-file чи project-wide детектор):
 
-- `npm/rules/python/project/main.mjs` — `uv lock --check` + `uv sync --frozen` + ліцензійний аудит (`pip-licenses`); project-wide, поза delta-планом (лише `n-rules lint --full` або scoped `n-rules lint python`);
-- `npm/rules/python/ruff/main.mjs` (+ `fix-ruff.mjs`) — `ruff check` + `ruff format --check` (детект), `ruff check --fix` + `ruff format` (autofix); per-file;
-- `npm/rules/python/mypy/main.mjs` — `mypy` (лише детект, немає autofix); per-file.
+- `python/project` (`detect_project`) — `uv lock --check` + `uv sync --frozen` + ліцензійний аудит (`pip-licenses`); project-wide, поза delta-планом (лише `n-rules lint --full` або scoped `n-rules lint python`);
+- `python/ruff` (`detect_ruff`, фіксер `fix-ruff.mjs` лишається JS) — `ruff check` + `ruff format --check` (детект), `ruff check --fix` + `ruff format` (autofix); per-file;
+- `python/mypy` (`detect_mypy`) — `mypy` (лише детект, немає autofix); per-file.
+
+`python/ruff` і `python/mypy` гейтяться на кореневому `pyproject.toml`, якого в
+delta-батчі може не бути: він потрапляє туди через `lint.anchors` їхніх
+`concern.json` (якір не тригерить концерн сам по собі).
 
 Якщо `pyproject.toml` у корені відсутній — `tooling`/`project` виходять без порушень (перевіряють лише кореневий файл), але `workspace_root` ловить цей випадок як порушення (`missing-root-workspace`), якщо десь у дереві є вкладений `pyproject.toml` з `[project]` — інакше такі nested-пакети були б невидимі для всього плагіна. Якщо `pyproject.toml` є, але `uv` не знайдено в PATH — це помилка. `ruff`/`mypy`-кроки запускаються лише якщо інструмент доступний у середовищі (інакше крок пропускається з повідомленням).
 

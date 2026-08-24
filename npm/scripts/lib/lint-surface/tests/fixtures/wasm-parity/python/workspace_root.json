@@ -1,0 +1,44 @@
+{
+  "wasm-plugin parity — python/workspace_root (JS канон vs wasm plugin-lang-python, full-scope, власний обхід дерева) > a) кореневий [tool.uv.workspace] покриває всіх members — чисто": [],
+  "wasm-plugin parity — python/workspace_root (JS канон vs wasm plugin-lang-python, full-scope, власний обхід дерева) > b) вкладений package без кореневого workspace взагалі → missing-root-workspace": [
+    {
+      "severity": "error",
+      "reason": "missing-root-workspace",
+      "message": "pyproject.toml відсутній у корені репозиторію, але знайдено 1 package-маніфест(и). створи/підтверди кореневий [tool.uv.workspace] (members) у кореневому pyproject.toml, запусти `uv lock` з кореня для єдиного кореневого uv.lock, видали вкладені uv.lock у не-виключених members — у репозиторії має лишитись один кореневий workspace і один uv.lock (python/workspace_root.mdc)"
+    }
+  ],
+  "wasm-plugin parity — python/workspace_root (JS канон vs wasm plugin-lang-python, full-scope, власний обхід дерева) > c) єдиний кореневий [project] без нащадків — чисто (неявний workspace root)": [],
+  "wasm-plugin parity — python/workspace_root (JS канон vs wasm plugin-lang-python, full-scope, власний обхід дерева) > d) вкладений [tool.uv.workspace] глибше кореня → nested-workspace violation": [
+    {
+      "severity": "error",
+      "reason": "nested-workspace",
+      "message": "nested/pyproject.toml: вкладений [tool.uv.workspace] поза кореневим pyproject.toml — створи/підтверди кореневий [tool.uv.workspace] (members) у кореневому pyproject.toml, запусти `uv lock` з кореня для єдиного кореневого uv.lock, видали вкладені uv.lock у не-виключених members — у репозиторії має лишитись один кореневий workspace і один uv.lock (python/workspace_root.mdc)",
+      "file": "nested/pyproject.toml"
+    },
+    {
+      "severity": "error",
+      "reason": "package-not-workspace-member",
+      "message": "nested/sub/pyproject.toml: package не покритий members кореневого workspace — додай шлях у [tool.uv.workspace].members кореневого pyproject.toml (або відобрази у workspace.exclude — навмисний опт-аут з конфліктними залежностями). створи/підтверди кореневий [tool.uv.workspace] (members) у кореневому pyproject.toml, запусти `uv lock` з кореня для єдиного кореневого uv.lock, видали вкладені uv.lock у не-виключених members — у репозиторії має лишитись один кореневий workspace і один uv.lock (python/workspace_root.mdc)",
+      "file": "nested/sub/pyproject.toml"
+    }
+  ],
+  "wasm-plugin parity — python/workspace_root (JS канон vs wasm plugin-lang-python, full-scope, власний обхід дерева) > e) package не покритий members кореня (і не excluded) → package-not-workspace-member violation": [
+    {
+      "severity": "error",
+      "reason": "package-not-workspace-member",
+      "message": "packages/orphan/pyproject.toml: package не покритий members кореневого workspace — додай шлях у [tool.uv.workspace].members кореневого pyproject.toml (або відобрази у workspace.exclude — навмисний опт-аут з конфліктними залежностями). створи/підтверди кореневий [tool.uv.workspace] (members) у кореневому pyproject.toml, запусти `uv lock` з кореня для єдиного кореневого uv.lock, видали вкладені uv.lock у не-виключених members — у репозиторії має лишитись один кореневий workspace і один uv.lock (python/workspace_root.mdc)",
+      "file": "packages/orphan/pyproject.toml"
+    }
+  ],
+  "wasm-plugin parity — python/workspace_root (JS канон vs wasm plugin-lang-python, full-scope, власний обхід дерева) > f) вкладений uv.lock у не-excluded member → nested-lockfile violation": [
+    {
+      "severity": "error",
+      "reason": "nested-lockfile",
+      "message": "packages/a/uv.lock: вкладений uv.lock поза кореневим workspace — lock лише кореневий (або каталог має бути у workspace.exclude, якщо це навмисний опт-аут). створи/підтверди кореневий [tool.uv.workspace] (members) у кореневому pyproject.toml, запусти `uv lock` з кореня для єдиного кореневого uv.lock, видали вкладені uv.lock у не-виключених members — у репозиторії має лишитись один кореневий workspace і один uv.lock (python/workspace_root.mdc)",
+      "file": "packages/a/uv.lock"
+    }
+  ],
+  "wasm-plugin parity — python/workspace_root (JS канон vs wasm plugin-lang-python, full-scope, власний обхід дерева) > g) вкладений uv.lock у EXCLUDED member — чисто (escape hatch для конфліктних залежностей)": [],
+  "wasm-plugin parity — python/workspace_root (JS канон vs wasm plugin-lang-python, full-scope, власний обхід дерева) > немає жодного pyproject.toml з [project] — концерн не застосовний": [],
+  "wasm-plugin parity — python/workspace_root (JS канон vs wasm plugin-lang-python, full-scope, власний обхід дерева) > .venv/ і node_modules/ пропускаються обходом з обох реалізацій": []
+}

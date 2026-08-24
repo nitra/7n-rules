@@ -1,0 +1,41 @@
+{
+  "wasm-plugin parity — python/project (JS канон vs wasm plugin-lang-python, full-scope, exec-tool) > pyproject.toml відсутній — обидві реалізації мовчать (uv узагалі не спавниться)": [],
+  "wasm-plugin parity — python/project (JS канон vs wasm plugin-lang-python, full-scope, exec-tool) > uv відсутній у PATH — однакове порушення `uv-missing` з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "uv-missing",
+      "message": "lint-python: `uv` не знайдено в PATH (потрібен при наявному pyproject.toml, python.mdc)"
+    }
+  ],
+  "wasm-plugin parity — python/project (JS канон vs wasm plugin-lang-python, full-scope, exec-tool) > `uv lock --check` провалюється — однакове порушення `uv-lock-violation` з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "uv-lock-violation",
+      "message": "lint-python: uv lock --check — помилка (код 1, python.mdc)\nlock stdout\nlock stderr"
+    }
+  ],
+  "wasm-plugin parity — python/project (JS канон vs wasm plugin-lang-python, full-scope, exec-tool) > `uv sync --frozen` провалюється — однакове порушення `uv-sync-violation` з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "uv-sync-violation",
+      "message": "lint-python: uv sync --frozen — помилка (код 1, python.mdc)\nsync stdout\nsync stderr"
+    }
+  ],
+  "wasm-plugin parity — python/project (JS канон vs wasm plugin-lang-python, full-scope, exec-tool) > pip-licenses недоступний у uv-середовищі — fail-open, обидві реалізації мовчать": [],
+  "wasm-plugin parity — python/project (JS канон vs wasm plugin-lang-python, full-scope, exec-tool) > спавн `pip-licenses` (сам скан) провалюється — однакове порушення `pip-licenses-error`": [
+    {
+      "severity": "error",
+      "reason": "pip-licenses-error",
+      "message": "lint-python: pip-licenses — помилка виконання"
+    }
+  ],
+  "wasm-plugin parity — python/project (JS канон vs wasm plugin-lang-python, full-scope, exec-tool) > чистий валідний стан (усі кроки ОК, дозволена ліцензія) — без порушень з обох реалізацій": [],
+  "wasm-plugin parity — python/project (JS канон vs wasm plugin-lang-python, full-scope, exec-tool) > ліцензія поза Blue Oak Bronze+ — однакове порушення `license-violation` з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "license-violation",
+      "message": "lint-python: pip-licenses — 1 пакет(ів) поза Blue Oak Bronze+ (python.mdc)\n  ✗ bad-pkg@2.0.0: GPL-3.0-only"
+    }
+  ],
+  "wasm-plugin parity — python/project (JS канон vs wasm plugin-lang-python, full-scope, exec-tool) > складений SPDX-вираз `MIT OR Apache-2.0` (обидві частини дозволені) — без порушень з обох реалізацій": []
+}

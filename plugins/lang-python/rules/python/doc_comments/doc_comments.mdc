@@ -19,4 +19,6 @@ docstring-и, то точніша дока і менше роботи локал
   shebang/ліцензія, не намір).
 - Решта — LLM-ladder за вмістом функції.
 
-Перевірка: `rules/python/doc_comments/main.mjs`.
+Перевірка: детектор `detect_doc_comments` wasm-гостя `crates/plugin-lang-python`
+(концерн `python/doc_comments`). T0-фікс лишається JS —
+`plugins/lang-python/rules/python/doc_comments/fix-doc_comments.mjs`.

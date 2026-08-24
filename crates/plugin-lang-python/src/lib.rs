@@ -1132,8 +1132,14 @@ fn detect_workspace_root(files: &[SourceFile]) -> Vec<Diagnostic> {
 // `npm/scripts/update-blue-oak.mjs` компонент перезбирається з оновленим
 // списком, а застарілий вшитий snapshot ловить анти-дрейф-тест
 // [`blue_oak_snapshot_parses_and_matches_js_source`]. `blue-oak.mjs` САМ
-// лишається JS (його ще споживає `update-blue-oak.mjs`) — вшито лише ДАНІ,
-// не логіку.
+// лишається JS — вшито лише ДАНІ, не логіку. Після зняття JS-детектора
+// `python/project` (єдиного його імпортера) споживачів усередині монорепо в
+// нього не лишилось, але це ОПУБЛІКОВАНА поверхня
+// `@7n/rules/scripts/lib/blue-oak.mjs`: зовнішній плагін може імпортувати її,
+// тож видалення — окреме breaking-рішення, не побічний ефект цієї хвилі
+// (§2.15 реєстру). Попередня редакція цього доккоментаря називала іншу
+// причину — «його ще споживає `update-blue-oak.mjs`»; це неправда, той скрипт
+// лише ПИШЕ `npm/data/blue-oak.json` і нічого з `blue-oak.mjs` не імпортує.
 //
 // # Мінімальний JSON-парсер — чому не `serde_json`
 //
@@ -2108,6 +2114,37 @@ mod tests {
         assert!(detect_doc_comments(&files).is_empty());
     }
 
+    /// Порт `doc_comments.test.mjs::'_приватні def і class поза вимогою;
+    /// async def ловиться'` — `_internal` (приватний, з-під
+    /// `[A-Za-z]\w*`-предиката) НЕ входить у `defs` і не впливає на
+    /// перелік порушень, а `async def` розпізнається [`DOC_COMMENTS_PUBLIC_DEF_PATTERN`]
+    /// нарівні зі звичайним `def` (група `(?:async\s+)?` перед `(def|class)`)
+    /// — жодного #[test] цю гілку ще не займав.
+    #[test]
+    fn detect_doc_comments_flags_async_def_and_skips_private_def() {
+        let src = "\"\"\"М.\"\"\"\n\ndef _internal():\n    return 1\n\nasync def fetch_data():\n    return 2\n";
+        let files = vec![sf("pkg/mod.py", src)];
+        let diagnostics = detect_doc_comments(&files);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].reason, DOC_COMMENTS_MISSING_DEF_REASON);
+        assert!(diagnostics[0].message.contains("fetch_data"));
+        let data = diagnostics[0].data.as_deref().expect("data є");
+        assert!(data.contains("\"name\":\"fetch_data\""));
+    }
+
+    /// Порт `doc_comments.test.mjs::'shebang/коментарі/from __future__ перед
+    /// module-docstring — ок'` — [`has_module_docstring`] пропускає
+    /// shebang/коментарі/порожні рядки (`header_skip_re`) і
+    /// `from __future__ import ...` (`future_import_re`) ДО пошуку
+    /// module-docstring; жоден наявний тест цей preflight не зачіпає (усі
+    /// інші фікстури починаються з docstring на рядку 0).
+    #[test]
+    fn detect_doc_comments_module_docstring_after_shebang_and_future_import() {
+        let src = "#!/usr/bin/env python\nfrom __future__ import annotations\n\"\"\"Намір.\"\"\"\n\ndef go():\n    \"\"\"X.\"\"\"\n    return 1\n";
+        let files = vec![sf("pkg/mod.py", src)];
+        assert!(detect_doc_comments(&files).is_empty());
+    }
+
     // --- build_manifest ---
 
     #[test]
@@ -2116,11 +2153,10 @@ mod tests {
         assert_eq!(manifest.id, "python/wasm-concerns");
         assert_eq!(manifest.world_version, "3.1.0");
         assert_eq!(manifest.domains, vec![Domain::Lint]);
-        // 5 — доккомент секції «`python/mypy` + `python/ruff`» перед
-        // `build_manifest`: друга хвиля додала ДВА концерни до перших трьох.
-        // NOTE: паралельно ще два агенти цієї ж сесії додають власні
-        // концерни в цей самий `build_manifest` — це число піде далі вгору
-        // при ручному зведенні (доккомент задачі).
+        // Сім — увесь `lang-python`: `applies`/`tooling`/`doc_comments`
+        // (перша хвиля), `mypy`/`ruff` (друга), `workspace_root`/`project`
+        // (третя). Число росте лише разом із `describe()`, і розбіжність
+        // ловить анти-дрейф `plugin_toml_concern_keys_match_describe`.
         assert_eq!(manifest.concerns.len(), 7);
         assert_eq!(manifest.tools, vec![UV_TOOL.to_string()]);
         assert!(manifest.ci_artifacts.is_empty());

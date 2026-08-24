@@ -1,0 +1,45 @@
+{
+  "wasm-plugin parity — python/tooling (JS канон vs wasm plugin-lang-python, full-scope) > не python-проєкт (без pyproject.toml) — обидві реалізації мовчать": [],
+  "wasm-plugin parity — python/tooling (JS канон vs wasm plugin-lang-python, full-scope) > валідний uv-проєкт (PEP 621 + uv.lock + workflow) — без порушень з обох реалізацій": [],
+  "wasm-plugin parity — python/tooling (JS канон vs wasm plugin-lang-python, full-scope) > присутній poetry.lock — однакове порушення з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "tooling",
+      "message": "poetry.lock знайдено — прибери Poetry, мігруй на uv (python.mdc)"
+    }
+  ],
+  "wasm-plugin parity — python/tooling (JS канон vs wasm plugin-lang-python, full-scope) > присутній poetry.toml — однакове порушення з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "tooling",
+      "message": "poetry.toml знайдено — прибери Poetry, мігруй на uv (python.mdc)"
+    }
+  ],
+  "wasm-plugin parity — python/tooling (JS канон vs wasm plugin-lang-python, full-scope) > обидва poetry-артефакти одразу — ДВІ однакові діагностики з обох реалізацій, у тому самому порядку": [
+    {
+      "severity": "error",
+      "reason": "tooling",
+      "message": "poetry.lock знайдено — прибери Poetry, мігруй на uv (python.mdc)"
+    },
+    {
+      "severity": "error",
+      "reason": "tooling",
+      "message": "poetry.toml знайдено — прибери Poetry, мігруй на uv (python.mdc)"
+    }
+  ],
+  "wasm-plugin parity — python/tooling (JS канон vs wasm plugin-lang-python, full-scope) > відсутній uv.lock — однакове порушення з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "tooling",
+      "message": "uv.lock не знайдено — згенеруй `uv lock` (python.mdc, без Poetry)"
+    }
+  ],
+  "wasm-plugin parity — python/tooling (JS канон vs wasm plugin-lang-python, full-scope) > відсутній package.json — однакове порушення з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "tooling",
+      "message": "package.json не знайдено в корені — додай (python.mdc)"
+    }
+  ],
+  "wasm-plugin parity — python/tooling (JS канон vs wasm plugin-lang-python, full-scope) > без workflow lint-python.yml — обидві реалізації мовчать (existence вимагає плагін ci-github)": []
+}
