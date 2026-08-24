@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.14.0] - 2026-08-24
+
+### Removed
+
+- python-концерни (усі сім): видалено JS lint-детектори (main.mjs) і спільний lib/uv-run.mjs — канон тепер wasm-гість crates/plugin-lang-python; T0-фіксери (fix-doc_comments.mjs, fix-ruff.mjs, fix-vscode_extensions.mjs) і rego-концерни лишаються JS. Прибрано осиротілу залежність globby
+
 ## [0.13.0] - 2026-08-23
 
 ### Changed

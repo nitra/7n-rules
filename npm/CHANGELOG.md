@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.95.1] - 2026-08-24
+
+### Changed
+
+- wasm-parity: гейт lang-python звіряється зі знятим еталоном JS-канону (N_WASM_PARITY_CAPTURE), не з живим main.mjs; спільний шар еталонів винесено з lang-js-гейта у wasm-parity-golden.mjs
+
 ## [1.95.0] - 2026-08-23
 
 ### Added
