@@ -50,16 +50,18 @@ composer audit
 
 ## Запуск lint-php
 
-`composer`-інструменти не мають єдиного CLI, який сам обходить репозиторій, тому php-лінт делегується у JS-детектори. Запуск — через **`n-rules lint php`** (CI — `--no-fix`); окремого `package.json`-скрипта немає.
+`composer`-інструменти не мають єдиного CLI, який сам обходить репозиторій, тому php-лінт делегується у детектори wasm-гостя `crates/plugin-lang-php` (до зняття подвійної реалізації — у JS-детектори `main.mjs`, яких більше немає). Запуск — через **`n-rules lint php`** (CI — `--no-fix`); окремого `package.json`-скрипта немає.
 
 Чотири концерни:
 
-- `plugins/lang-php/rules/php/project/main.mjs` — `composer audit` (обовʼязковий) + `mago analyze` (з `--php-version` із `composer.json:require.php`, якщо розпізнано); project-wide, поза delta-планом (лише `n-rules lint --full` або scoped `n-rules lint php`);
-- `plugins/lang-php/rules/php/mago_lint/main.mjs` — `mago lint` (detect-only, без `--fix`); per-file;
-- `plugins/lang-php/rules/php/mago_fmt/main.mjs` — `mago format --dry-run`; per-file;
-- `plugins/lang-php/rules/php/composer_manifest/main.mjs` — канон кореневого `composer.json` (sort-packages, license, require.php) + опційний `composer validate --strict`; full-scope, glob `composer.json`.
+- `php/project` (`detect_project`) — `composer audit` (обовʼязковий) + `mago analyze` (з `--php-version` із `composer.json:require.php`, якщо розпізнано); project-wide, поза delta-планом (лише `n-rules lint --full` або scoped `n-rules lint php`);
+- `php/mago_lint` (`detect_mago_lint`) — `mago lint` (detect-only, без `--fix`); per-file;
+- `php/mago_fmt` (`detect_mago_fmt`) — `mago format --dry-run`; per-file;
+- `php/composer_manifest` (`detect_composer_manifest`) — канон кореневого `composer.json` (sort-packages, license, require.php) + опційний `composer validate --strict`; full-scope, glob `composer.json`.
 
-Якщо `composer.json` у корені відсутній — усі концерни виходять без порушень (проєкт не PHP). Якщо `composer.json` є, але `composer` не знайдено в PATH — це помилка у `php/project` (`composer audit` обовʼязковий); `php/composer_manifest` у такому разі мовчки пропускає лише крок `composer validate`, декларативні перевірки (sort-packages/license/require.php) все одно виконуються. `mago` — ensure-tool-керований: на відміну від колишніх vendor-optional тулів (`php-cs-fixer`/`phpcs`/`phpstan`/`psalm`, що тихо пропускались за відсутності), відсутність `mago` в PATH з вимкненим авто-install (`N_CURSOR_NO_AUTO_INSTALL=1`) — **hard-fail**, той самий патерн, що й `conftest`/`opa`.
+`php/mago_lint` і `php/mago_fmt` гейтяться на кореневому `composer.json`, якого в delta-батчі може не бути: він потрапляє туди через `lint.anchors` їхніх `concern.json` (якір не тригерить концерн сам по собі).
+
+Якщо `composer.json` у корені відсутній — усі концерни виходять без порушень (проєкт не PHP). Якщо `composer.json` є, але `composer` не знайдено в PATH — це помилка у `php/project` (`composer audit` обовʼязковий); `php/composer_manifest` у такому разі мовчки пропускає лише крок `composer validate`, декларативні перевірки (sort-packages/license/require.php) все одно виконуються. `mago` — ensure-tool-керований: на відміну від колишніх vendor-optional тулів (`php-cs-fixer`/`phpcs`/`phpstan`/`psalm`, що тихо пропускались за відсутності), відсутність `mago` в PATH з вимкненим авто-install (`N_CURSOR_NO_AUTO_INSTALL=1`) — **hard-fail**, той самий патерн, що й `conftest`/`opa`. Після переходу на wasm-гість цей канал змінив ФОРМУ, але не наслідок: гість не може завалити плагін (контракт `exec-tool` завжди повертає `ToolResult`), тож нерезольваний `mago` дає звичайне порушення з тим самим `reason`, а не виняток. Покрито host-рівневими тестами `crates/rules-plugin-host/tests/plugin_lang_php.rs`.
 
 ## Вкладені Composer-проєкти (монорепо)
 

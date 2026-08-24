@@ -1,0 +1,17 @@
+{
+  "wasm-plugin parity — php/tooling (JS канон vs wasm plugin-lang-php, full-scope, без exec-tool) > composer.json і package.json є — обидві реалізації мовчать": [],
+  "wasm-plugin parity — php/tooling (JS канон vs wasm plugin-lang-php, full-scope, без exec-tool) > composer.json відсутній — однакове tooling-порушення з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "tooling",
+      "message": "composer.json не знайдено в корені — додай (php.mdc)"
+    }
+  ],
+  "wasm-plugin parity — php/tooling (JS канон vs wasm plugin-lang-php, full-scope, без exec-tool) > package.json відсутній — однакове tooling-порушення з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "tooling",
+      "message": "package.json не знайдено в корені — додай (php.mdc)"
+    }
+  ]
+}

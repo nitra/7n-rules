@@ -1,0 +1,65 @@
+{
+  "wasm-plugin parity — php/composer_manifest (JS канон vs wasm plugin-lang-php, спільний фейковий composer) > composer.json відсутній — обидві реалізації мовчать": [],
+  "wasm-plugin parity — php/composer_manifest (JS канон vs wasm plugin-lang-php, спільний фейковий composer) > невалідний JSON — composer-manifest-invalid-json, composer НЕ спавниться": [
+    {
+      "severity": "error",
+      "reason": "composer-manifest-invalid-json",
+      "message": "lint-php: composer.json — невалідний JSON (Expected double-quoted property name in JSON at position 24 (line 1 column 25)); виправ синтаксис (composer_manifest.mdc)"
+    }
+  ],
+  "wasm-plugin parity — php/composer_manifest (JS канон vs wasm plugin-lang-php, спільний фейковий composer) > канонічний manifest, composer відсутній у PATH — обидві реалізації мовчать (тихий skip validate)": [],
+  "wasm-plugin parity — php/composer_manifest (JS канон vs wasm plugin-lang-php, спільний фейковий composer) > канонічний manifest, composer validate exit 0 — обидві реалізації мовчать": [],
+  "wasm-plugin parity — php/composer_manifest (JS канон vs wasm plugin-lang-php, спільний фейковий composer) > composer validate провалюється — однакове composer-manifest-validate-failed з деталями": [
+    {
+      "severity": "error",
+      "reason": "composer-manifest-validate-failed",
+      "message": "lint-php: composer validate --strict — помилка (код 2, composer_manifest.mdc)\n# composer.json is not valid"
+    }
+  ],
+  "wasm-plugin parity — php/composer_manifest (JS канон vs wasm plugin-lang-php, спільний фейковий composer) > config.sort-packages не true — однакове composer-manifest-sort-packages": [
+    {
+      "severity": "error",
+      "reason": "composer-manifest-sort-packages",
+      "message": "lint-php: composer.json — config.sort-packages не увімкнено; виконай `composer config sort-packages true` (composer_manifest.mdc)"
+    }
+  ],
+  "wasm-plugin parity — php/composer_manifest (JS канон vs wasm plugin-lang-php, спільний фейковий composer) > license відсутній — однакове composer-manifest-license-missing": [
+    {
+      "severity": "error",
+      "reason": "composer-manifest-license-missing",
+      "message": "lint-php: composer.json — поле \"license\" відсутнє або порожнє; додай SPDX-ідентифікатор (наприклад \"MIT\" чи \"proprietary\") (composer_manifest.mdc)"
+    }
+  ],
+  "wasm-plugin parity — php/composer_manifest (JS канон vs wasm plugin-lang-php, спільний фейковий composer) > license — непорожній масив — обидві реалізації мовчать по license": [],
+  "wasm-plugin parity — php/composer_manifest (JS канон vs wasm plugin-lang-php, спільний фейковий composer) > require.php відсутній — однакове composer-manifest-php-constraint-missing": [
+    {
+      "severity": "error",
+      "reason": "composer-manifest-php-constraint-missing",
+      "message": "lint-php: composer.json — \"require.php\" без явного version-constraint; додай, наприклад, `\"php\": \">=8.5\"` у секцію \"require\" (composer_manifest.mdc)"
+    }
+  ],
+  "wasm-plugin parity — php/composer_manifest (JS канон vs wasm plugin-lang-php, спільний фейковий composer) > require.php = \"*\" — той самий composer-manifest-php-constraint-missing": [
+    {
+      "severity": "error",
+      "reason": "composer-manifest-php-constraint-missing",
+      "message": "lint-php: composer.json — \"require.php\" без явного version-constraint; додай, наприклад, `\"php\": \">=8.5\"` у секцію \"require\" (composer_manifest.mdc)"
+    }
+  ],
+  "wasm-plugin parity — php/composer_manifest (JS канон vs wasm plugin-lang-php, спільний фейковий composer) > усі декларативні порушення накопичуються разом — однаковий набір reason-ів з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "composer-manifest-sort-packages",
+      "message": "lint-php: composer.json — config.sort-packages не увімкнено; виконай `composer config sort-packages true` (composer_manifest.mdc)"
+    },
+    {
+      "severity": "error",
+      "reason": "composer-manifest-license-missing",
+      "message": "lint-php: composer.json — поле \"license\" відсутнє або порожнє; додай SPDX-ідентифікатор (наприклад \"MIT\" чи \"proprietary\") (composer_manifest.mdc)"
+    },
+    {
+      "severity": "error",
+      "reason": "composer-manifest-php-constraint-missing",
+      "message": "lint-php: composer.json — \"require.php\" без явного version-constraint; додай, наприклад, `\"php\": \">=8.5\"` у секцію \"require\" (composer_manifest.mdc)"
+    }
+  ]
+}

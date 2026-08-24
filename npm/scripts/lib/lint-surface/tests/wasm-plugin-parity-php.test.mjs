@@ -2,23 +2,24 @@
  * Parity-тест wasm-плагіна `plugin-lang-php` — ЧЕТВЕРТОГО first-party
  * wasm-гостя (перший — `plugin-lang-js`, `wasm-plugin-parity.test.mjs`,
  * другий — `plugin-lang-python`, третій — `plugin-lang-rust`,
- * `wasm-plugin-parity-rust.test.mjs`): ганяє ОДНІ фікстури через ЖИВІ
- * JS-детектори (`plugins/lang-php/rules/php/<concern>/main.mjs` — Plugin API
- * v2, канон НЕ видаляється цією задачею) і через `runWasmConcern`
- * napi-мосту (`crates/rules-napi` → `crates/plugin-lang-php`), звіряючи, що
- * `violations` ідентичні (reason/message/file/severity/data біт-у-біт) —
- * для всіх п'яти концернів однієї хвилі: `php/tooling`,
- * `php/composer_manifest`, `php/project`, `php/mago_fmt`, `php/mago_lint`
- * (доккомент `crates/plugin-lang-php/src/lib.rs`).
+ * `wasm-plugin-parity-rust.test.mjs`): звіряє `runWasmConcern` napi-мосту
+ * (`crates/rules-napi` → `crates/plugin-lang-php`) із ЕТАЛОНОМ — знятим
+ * виводом JS-детекторів `plugins/lang-php/rules/php/<concern>/main.mjs`
+ * (reason/message/file/severity/data біт-у-біт) — для всіх п'яти концернів
+ * однієї хвилі: `php/tooling`, `php/composer_manifest`, `php/project`,
+ * `php/mago_fmt`, `php/mago_lint` (доккомент `crates/plugin-lang-php/src/lib.rs`).
  *
- * НА ВІДМІНУ від golden-форми (`wasm-plugin-parity-python.test.mjs` після
- * конвертації): тут НЕМАЄ golden-шару — JS-канон `lang-php` ще ЖИВИЙ (усі
- * `main.mjs` під `plugins/lang-php/rules/php` нікуди не поділись, це лише
- * одна хвиля порту), тож кожен прогін викликає `lint()` НАПРЯМУ — та сама
- * форма, що `wasm-plugin-parity-rust.test.mjs` МАВ до конвертації свого
- * `lang-rust`-сусіда на golden (`git show
- * df4665602^:npm/scripts/lib/lint-surface/tests/wasm-plugin-parity-rust.test.mjs`).
- * Видалення JS-канону `lang-php` — окрема майбутня задача.
+ * ЕТАЛОН, НЕ ЖИВИЙ КАНОН: `plugins/lang-php/rules/php/*\/main.mjs` —
+ * транзитивний шар Plugin API v2, що видаляється разом із портом (мета цього
+ * тестового файлу — довести порт, не тримати JS вічно), той самий прийом,
+ * що `wasm-plugin-parity-rust.test.mjs` (lang-rust, четверта хвиля цього
+ * самого переходу). Поки він живий, зняти еталон можна прогнавши суїт з
+ * `N_WASM_PARITY_CAPTURE=1`; звичайний прогін JS НЕ викликає — читає
+ * зафіксований раніше вивід із `fixtures/wasm-parity/php/**\/*.json`
+ * ([`goldenJs`], `wasm-parity-golden.mjs` — спільний шар з рештою трьох
+ * wasm-parity-гейтів, доккомент там). Відсутній еталон — ПАДІННЯ тесту з
+ * явним проханням перезняти, повернувши `main.mjs` з історії, не мовчазний
+ * пропуск: інакше зникнення канону не дало б жодного сигналу.
  *
  * # `mago` — pinned/bare тул, спільний фейковий бінарник
  *
@@ -37,7 +38,13 @@
  * резолвиться звичайним PATH-скануванням (`resolveCmd`) — PATH тимчасово
  * звужується до каталогу фейка (чи ПОРОЖНІЙ — канал «composer не знайдено»)
  * і відновлюється у `finally`, той самий мотив, що `runCheckBoth` у
- * `wasm-plugin-parity-rust.test.mjs` для `cargo`.
+ * `wasm-plugin-parity-rust.test.mjs` для `cargo`. Фейковий бінарник (і мок
+ * `ensureToolAsync`) готується БЕЗУМОВНО, поза `goldenJs`: wasm-бік справді
+ * ВИКОНУЄ його через `toolPaths`, тож він мусить існувати і в звичайному
+ * прогоні; підміна PATH і сам виклик `lint()`, навпаки, потрібні ЛИШЕ
+ * JS-канону, тож переїхали ВСЕРЕДИНУ `compute()` [`goldenJs`] — виконуються
+ * лише в режимі зняття (той самий поділ, що `runPythonToolBoth`/
+ * `runCheckBoth` у сусідніх гостей).
  *
  * Сценарій «`mago` взагалі недоступний і `ensureToolAsync` кидає виняток»
  * (`main-hard-fail.test.mjs`, `plugins/lang-php/rules/php/mago_fmt/tests/`)
@@ -62,6 +69,7 @@ import { describe, expect, test, vi } from 'vitest'
 
 import { loadNative } from '../../native.mjs'
 import { realRepoRoot, withTmpDir } from '../../../utils/test-helpers.mjs'
+import { createGoldenJs } from './wasm-parity-golden.mjs'
 
 const ensureToolAsyncMock = vi.fn()
 vi.mock('@7n/rules/scripts/lib/ensure-tool.mjs', () => ({ ensureToolAsync: ensureToolAsyncMock }))
@@ -91,6 +99,19 @@ const MAGO_LINT_CONCERN_KEY = 'php/mago_lint'
 
 /** Size-budget компонента — той самий бюджет, що решта трьох гостей (доккомент модуля). */
 const WASM_SIZE_BUDGET_BYTES = 2.5 * 1024 * 1024
+
+// ---------------------------------------------------------------------
+// Шар еталонів ([`goldenJs`], `wasm-parity-golden.mjs`): JS-детектори
+// `plugins/lang-php/rules/php/*/main.mjs` — транзитивний канон Plugin API
+// v2, який видаляється разом із портом. Механізм (кеш, лічильники,
+// плейсхолдер tmp-шляху, помилка відсутнього еталона) — СПІЛЬНИЙ з рештою
+// трьох wasm-parity-гейтів, винесений у `wasm-parity-golden.mjs`; тут
+// лишається лише `goldenJs`, звʼязаний із ЦИМ файлом як підказкою команди
+// перезняття (доккомент модуля вище).
+const goldenJs = createGoldenJs({
+  captureHintPath: 'npm/scripts/lib/lint-surface/tests/wasm-plugin-parity-php.test.mjs'
+})
+// ---------------------------------------------------------------------
 
 /** Канонічний `composer.json` без порушень (composer недоступний за замовчуванням у декларативних тестах). */
 const CANON_MANIFEST = JSON.stringify({
@@ -171,11 +192,15 @@ async function writeFakeTool(path, body) {
  * @returns {Promise<{ js: unknown[], wasm: unknown[] }>} результати обох реалізацій
  */
 async function runFullScopeBoth(mainMjsPath, concernKey, concernId, dir) {
-  // eslint-disable-next-line no-unsanitized/method
-  const { lint } = await import(pathToFileURL(mainMjsPath).href)
-  const jsResult = await lint({ cwd: dir, ruleId: 'php', concernId, files: undefined })
+  const js = await goldenJs(concernKey, dir, async () => {
+    // Виконується ЛИШЕ в режимі зняття еталонів.
+    // eslint-disable-next-line no-unsanitized/method
+    const { lint } = await import(pathToFileURL(mainMjsPath).href)
+    const jsResult = await lint({ cwd: dir, ruleId: 'php', concernId, files: undefined })
+    return withDefaultSeverity(jsResult.violations)
+  })
   const wasmResult = loadNative().runWasmConcern(WASM_PATH, concernKey, dir, null)
-  return { js: withDefaultSeverity(jsResult.violations), wasm: withDefaultSeverity(wasmResult.violations) }
+  return { js, wasm: withDefaultSeverity(wasmResult.violations) }
 }
 
 /**
@@ -197,17 +222,19 @@ async function runComposerManifestBoth(dir, composerBody) {
     const toolPath = await writeFakeTool(join(binDir, 'composer'), composerBody)
     toolPaths = { composer: toolPath }
   }
-  const originalPath = env.PATH
-  let js
-  try {
-    env.PATH = binDir ? `${binDir}${delimiter}${originalPath ?? ''}` : ''
-    // eslint-disable-next-line no-unsanitized/method
-    const { lint } = await import(pathToFileURL(COMPOSER_MANIFEST_MAIN_MJS_PATH).href)
-    const jsResult = await lint({ cwd: dir, ruleId: 'php', concernId: 'composer_manifest', files: undefined })
-    js = withDefaultSeverity(jsResult.violations)
-  } finally {
-    env.PATH = originalPath
-  }
+  const js = await goldenJs(COMPOSER_MANIFEST_CONCERN_KEY, dir, async () => {
+    const originalPath = env.PATH
+    try {
+      // Виконується ЛИШЕ в режимі зняття еталонів.
+      env.PATH = binDir ? `${binDir}${delimiter}${originalPath ?? ''}` : ''
+      // eslint-disable-next-line no-unsanitized/method
+      const { lint } = await import(pathToFileURL(COMPOSER_MANIFEST_MAIN_MJS_PATH).href)
+      const jsResult = await lint({ cwd: dir, ruleId: 'php', concernId: 'composer_manifest', files: undefined })
+      return withDefaultSeverity(jsResult.violations)
+    } finally {
+      env.PATH = originalPath
+    }
+  })
   const wasmResult = loadNative().runWasmConcern(WASM_PATH, COMPOSER_MANIFEST_CONCERN_KEY, dir, null, toolPaths)
   return { js, wasm: withDefaultSeverity(wasmResult.violations) }
 }
@@ -240,17 +267,19 @@ async function runProjectBoth(dir, composerBody, magoBody) {
     ensureToolAsyncMock.mockResolvedValue(magoPath)
     toolPaths.mago = magoPath
   }
-  const originalPath = env.PATH
-  let js
-  try {
-    env.PATH = binDir ? `${binDir}${delimiter}${originalPath ?? ''}` : ''
-    // eslint-disable-next-line no-unsanitized/method
-    const { lint } = await import(pathToFileURL(PROJECT_MAIN_MJS_PATH).href)
-    const jsResult = await lint({ cwd: dir, ruleId: 'php', concernId: 'project', files: undefined })
-    js = withDefaultSeverity(jsResult.violations)
-  } finally {
-    env.PATH = originalPath
-  }
+  const js = await goldenJs(PROJECT_CONCERN_KEY, dir, async () => {
+    const originalPath = env.PATH
+    try {
+      // Виконується ЛИШЕ в режимі зняття еталонів.
+      env.PATH = binDir ? `${binDir}${delimiter}${originalPath ?? ''}` : ''
+      // eslint-disable-next-line no-unsanitized/method
+      const { lint } = await import(pathToFileURL(PROJECT_MAIN_MJS_PATH).href)
+      const jsResult = await lint({ cwd: dir, ruleId: 'php', concernId: 'project', files: undefined })
+      return withDefaultSeverity(jsResult.violations)
+    } finally {
+      env.PATH = originalPath
+    }
+  })
   const wasmResult = loadNative().runWasmConcern(WASM_PATH, PROJECT_CONCERN_KEY, dir, null, toolPaths)
   return { js, wasm: withDefaultSeverity(wasmResult.violations) }
 }
@@ -284,12 +313,16 @@ async function runMagoPerFileBoth(mainMjsPath, concernKey, concernId, dir, phpFi
     ensureToolAsyncMock.mockResolvedValue(magoPath)
     toolPaths = { mago: magoPath }
   }
-  // eslint-disable-next-line no-unsanitized/method
-  const { lint } = await import(pathToFileURL(mainMjsPath).href)
-  const jsResult = await lint({ cwd: dir, ruleId: 'php', concernId, files: phpFiles })
+  const js = await goldenJs(concernKey, dir, async () => {
+    // Виконується ЛИШЕ в режимі зняття еталонів.
+    // eslint-disable-next-line no-unsanitized/method
+    const { lint } = await import(pathToFileURL(mainMjsPath).href)
+    const jsResult = await lint({ cwd: dir, ruleId: 'php', concernId, files: phpFiles })
+    return withDefaultSeverity(jsResult.violations)
+  })
   const wasmFiles = phpFiles.length > 0 ? [...phpFiles, 'composer.json'] : phpFiles
   const wasmResult = loadNative().runWasmConcern(WASM_PATH, concernKey, dir, wasmFiles, toolPaths)
-  return { js: withDefaultSeverity(jsResult.violations), wasm: withDefaultSeverity(wasmResult.violations) }
+  return { js, wasm: withDefaultSeverity(wasmResult.violations) }
 }
 
 describe('wasm-plugin parity — php/tooling (JS канон vs wasm plugin-lang-php, full-scope, без exec-tool)', () => {
