@@ -1,0 +1,40 @@
+[package]
+name = "plugin-ci-github"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "Apache-2.0"
+description = "wasm-компонент n-rules:plugin@3.1.0 — ci-github/wasm-concerns (1 концерн: rust/toolchain_cache)"
+
+[lib]
+# `cdylib` — обов'язково: `wasm32-wasip2` виводить готовий Component Model
+# компонент лише з цього crate-type (той самий мотив, що
+# `crates/plugin-lang-js`/`crates/plugin-lang-python`/`crates/plugin-lang-rust`/
+# `crates/plugin-lang-php`, доккомент тих Cargo.toml).
+crate-type = ["cdylib"]
+
+[dependencies]
+# Пін звірено з рештою чотирьох гостей (той самий мінор, що резолвиться в
+# Cargo.lock кореня) — НЕ розширюй у caret-діапазон без причини.
+wit-bindgen = "0.60"
+# НАВМИСНО жодної іншої залежності — той самий мотив, що
+# `crates/plugin-lang-php` (найлегший з чотирьох попередніх гостей): ЄДИНИЙ
+# портований концерн (`rust/toolchain_cache`) не потребує YAML-парсера
+# (доккомент модуля `main.mjs`, розділ «текстовий, не YAML-AST аналіз» —
+# навмисне рішення JS-канону, збережене тут) і жоден із чотирьох його
+# регулярних виразів (`TOOLCHAIN_RE`/`CACHE_RE`/`TAURI_ACTION_RE`/
+# `WORKSPACES_KEY_RE`) не потребує lookaround/backreference чи навіть
+# `\w`/`\d` — усі чотири зводяться до пошуку літерального підрядка ПІСЛЯ
+# `uses:` (з опційним пробілом між ними) чи на початку рядка (`workspaces:`),
+# портовано вручну без regex-крейта (`src/lib.rs::line_has_uses_target`/
+# `is_workspaces_key`), той самий мотив, що `extract_php_version` у
+# `crates/plugin-lang-php` (ручний порт замість тягнути regex заради двох
+# простих патернів). Наслідок — найлегший з п'яти first-party wasm-гостей
+# репозиторію (лише `wit-bindgen`), звіт задачі містить виміряний фінальний
+# розмір проти спільного бюджету 2,5 MiB.
+
+[dev-dependencies]
+# Anti-drift тест `plugin_toml_concern_keys_match_describe` (той самий мотив,
+# що решта чотирьох гостей) — парсить `plugin.toml` СПРАВЖНІМ TOML-парсером.
+# Dev-only: у wasm32-wasip2 cdylib не потрапляє.
+toml = "0.8"
