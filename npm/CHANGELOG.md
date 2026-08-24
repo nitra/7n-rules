@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.97.0] - 2026-08-24
+
+### Added
+
+- plugin-lang-rust: решта трьох концернів у нативному порті — rust/check (exec-tool ланцюг cargo fmt/clippy/deny), rust/cargo_mutants_config, rust/wasm_component; шість із шести, JS-канон лишається під parity-гейтом
+
 ## [1.96.0] - 2026-08-24
 
 ### Added
