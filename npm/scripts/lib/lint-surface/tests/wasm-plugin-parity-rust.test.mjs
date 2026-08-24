@@ -54,7 +54,7 @@
  * (букви a–e — той самий підпис сценарію, що коментарі тесту-джерела) і
  * ДОДАТКОВО покривають нез'ясовану в JS-тестах, але явно задокументовану в
  * `main.mjs` властивість: `nested-workspace` і `nested-profile` — НЕЗАЛЕЖНІ
- * перевірки (один манiфест може отримати ОБИДВА порушення одночасно, два
+ * перевірки (один маніфест може отримати ОБИДВА порушення одночасно, два
  * окремі `if`, не `else if`).
  *
  * Останній describe-блок (`size-budget`) — окремо від parity: заміряє
@@ -63,8 +63,9 @@
  * `wasm-plugin-parity.test.mjs`).
  */
 import { existsSync } from 'node:fs'
-import { mkdir, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { chmod, mkdir, writeFile } from 'node:fs/promises'
+import { delimiter, join } from 'node:path'
+import { env } from 'node:process'
 import { pathToFileURL } from 'node:url'
 
 import { describe, expect, test } from 'vitest'
@@ -86,10 +87,16 @@ const RUST_RULES_DIR = join(REPO_ROOT, 'plugins', 'lang-rust', 'rules', 'rust')
 const APPLIES_MAIN_MJS_PATH = join(RUST_RULES_DIR, 'applies', 'main.mjs')
 const DOC_COMMENTS_MAIN_MJS_PATH = join(RUST_RULES_DIR, 'doc_comments', 'main.mjs')
 const WORKSPACE_ROOT_MAIN_MJS_PATH = join(RUST_RULES_DIR, 'workspace_root', 'main.mjs')
+const CHECK_MAIN_MJS_PATH = join(RUST_RULES_DIR, 'check', 'main.mjs')
+const CARGO_MUTANTS_CONFIG_MAIN_MJS_PATH = join(RUST_RULES_DIR, 'cargo_mutants_config', 'main.mjs')
+const WASM_COMPONENT_MAIN_MJS_PATH = join(RUST_RULES_DIR, 'wasm_component', 'main.mjs')
 
 const APPLIES_CONCERN_KEY = 'rust/applies'
 const DOC_COMMENTS_CONCERN_KEY = 'rust/doc_comments'
 const WORKSPACE_ROOT_CONCERN_KEY = 'rust/workspace_root'
+const CHECK_CONCERN_KEY = 'rust/check'
+const CARGO_MUTANTS_CONFIG_CONCERN_KEY = 'rust/cargo_mutants_config'
+const WASM_COMPONENT_CONCERN_KEY = 'rust/wasm_component'
 
 /** Size-budget компонента — той самий бюджет, що `plugin-lang-js`/`plugin-lang-python` (доккомент модуля). */
 const WASM_SIZE_BUDGET_BYTES = 2.5 * 1024 * 1024
@@ -154,6 +161,97 @@ async function runDocCommentsBoth(dir, fileName) {
   const { lint } = await import(pathToFileURL(DOC_COMMENTS_MAIN_MJS_PATH).href)
   const jsResult = await lint({ cwd: dir, ruleId: 'rust', concernId: 'doc_comments', files: [fileName] })
   const wasmResult = loadNative().runWasmConcern(WASM_PATH, DOC_COMMENTS_CONCERN_KEY, dir, [fileName])
+  return { js: withDefaultSeverity(jsResult.violations), wasm: withDefaultSeverity(wasmResult.violations) }
+}
+
+/**
+ * Ганяє `rust/wasm_component` (per-file) через JS-детектор і `runWasmConcern`
+ * з ЯВНИМ списком файлів (той самий мотив, що [`runDocCommentsBoth`]), АЛЕ
+ * `fileNames` — масив (не одне ім'я): `wasm-bindgen`/`wasmtime`-перевірка
+ * workspace-успадкування потребує видимості sibling-маніфестів того самого
+ * батчу (доккомент `crates/plugin-lang-rust/src/lib.rs`, розділ «межа `{
+ * workspace = true }`-успадкування») — на відміну від `doc_comments`, де
+ * кожен файл незалежний.
+ * @param {string} dir абсолютний шлях tmp-каталогу з уже записаними фікстурами
+ * @param {string[]} fileNames posix-relative імена файлів у `dir`
+ * @returns {Promise<{ js: unknown[], wasm: unknown[] }>} результати обох реалізацій
+ */
+async function runWasmComponentBoth(dir, fileNames) {
+  // eslint-disable-next-line no-unsanitized/method
+  const { lint } = await import(pathToFileURL(WASM_COMPONENT_MAIN_MJS_PATH).href)
+  const jsResult = await lint({ cwd: dir, ruleId: 'rust', concernId: 'wasm_component', files: fileNames })
+  const wasmResult = loadNative().runWasmConcern(WASM_PATH, WASM_COMPONENT_CONCERN_KEY, dir, fileNames)
+  return { js: withDefaultSeverity(jsResult.violations), wasm: withDefaultSeverity(wasmResult.violations) }
+}
+
+/**
+ * Пише виконуваний sh-скрипт (фейковий `cargo`) і повертає його шлях — той
+ * самий helper, що `writeFakeUv` у `wasm-plugin-parity-python.test.mjs`.
+ * @param {string} path абсолютний шлях майбутнього бінарника
+ * @param {string} body тіло скрипта разом із shebang
+ * @returns {Promise<string>} той самий `path`
+ */
+async function writeFakeCargo(path, body) {
+  await writeFile(path, body, 'utf8')
+  await chmod(path, 0o755)
+  return path
+}
+
+/**
+ * Ганяє `rust/check` (full-scope, `exec-tool`-ланцюжок) через JS-канон і
+ * wasm-порт на СПІЛЬНОМУ фейковому `cargo` — той самий мотив, що
+ * `runPythonToolBoth` у `wasm-plugin-parity-python.test.mjs`, АЛЕ БЕЗ
+ * golden-шару (цей файл ще ганяє JS-канон НАПРЯМУ, доккомент модуля):
+ * канон резолвить `cargo` з PATH (`resolveCmd('cargo')`), тож PATH тимчасово
+ * звужується до каталогу фейка (чи ПОРОЖНІЙ — канал «cargo не знайдено») й
+ * відновлюється у `finally`; wasm-бік отримує абсолютний шлях фейка (чи
+ * порожню мапу) у `toolPaths` (`{ cargo: toolPath }`).
+ * @param {string} dir абсолютний шлях tmp-каталогу з уже записаними фікстурами
+ * @param {string | null} toolBody тіло фейкового `cargo`; `null` — канал
+ *   «cargo не знайдено» (порожній PATH, порожній `toolPaths`)
+ * @returns {Promise<{ js: unknown[], wasm: unknown[] }>} результати обох реалізацій
+ */
+async function runCheckBoth(dir, toolBody) {
+  let toolPaths = {}
+  let binDir = null
+  if (toolBody !== null) {
+    binDir = join(dir, 'fake-bin')
+    await mkdir(binDir, { recursive: true })
+    const toolPath = await writeFakeCargo(join(binDir, 'cargo'), toolBody)
+    toolPaths = { cargo: toolPath }
+  }
+  const originalPath = env.PATH
+  let js
+  try {
+    env.PATH = binDir ? `${binDir}${delimiter}${originalPath ?? ''}` : ''
+    // eslint-disable-next-line no-unsanitized/method
+    const { lint } = await import(pathToFileURL(CHECK_MAIN_MJS_PATH).href)
+    const jsResult = await lint({ cwd: dir, ruleId: 'rust', concernId: 'check', files: undefined })
+    js = withDefaultSeverity(jsResult.violations)
+  } finally {
+    env.PATH = originalPath
+  }
+  const wasmResult = loadNative().runWasmConcern(WASM_PATH, CHECK_CONCERN_KEY, dir, null, toolPaths)
+  return { js, wasm: withDefaultSeverity(wasmResult.violations) }
+}
+
+/**
+ * Ганяє `rust/cargo_mutants_config` (full-scope, T0) через JS-канон і
+ * wasm-порт. JS-канон має in-detector self-gate `.n-rules.json`
+ * (`readNRulesConfigLite`, доккомент `crates/plugin-lang-rust/src/lib.rs`,
+ * розділ «дві СВІДОМІ поведінкові відмінності», пункт (a)) — wasm-порт цей
+ * гейт НЕ несе (не потрібен: `enabledRuleIds` фільтрує ДО диспатчу), тож
+ * ОБИДВІ реалізації тут звіряються ЛИШЕ ПІСЛЯ гейту: фікстура завжди пише
+ * `.n-rules.json` з `rust` у `rules`, щоб JS-канон не вийшов рано.
+ * @param {string} dir абсолютний шлях tmp-каталогу з уже записаними фікстурами
+ * @returns {Promise<{ js: unknown[], wasm: unknown[] }>} результати обох реалізацій
+ */
+async function runCargoMutantsConfigBoth(dir) {
+  await writeFile(join(dir, '.n-rules.json'), JSON.stringify({ rules: ['rust'] }), 'utf8')
+  // eslint-disable-next-line no-unsanitized/method
+  const { lint } = await import(pathToFileURL(CARGO_MUTANTS_CONFIG_MAIN_MJS_PATH).href)
+  const jsResult = await lint({ cwd: dir, ruleId: 'rust', concernId: 'cargo_mutants_config', files: undefined })
+  const wasmResult = loadNative().runWasmConcern(WASM_PATH, CARGO_MUTANTS_CONFIG_CONCERN_KEY, dir, null)
   return { js: withDefaultSeverity(jsResult.violations), wasm: withDefaultSeverity(wasmResult.violations) }
 }
 
@@ -550,6 +648,269 @@ describe('wasm-plugin parity — rust/workspace_root (JS канон vs wasm plug
       await writeManifest(dir, '.worktrees/main-lint', '[workspace]\nresolver = "2"\nmembers = ["crates/a"]\n')
       await writeManifest(dir, '.worktrees/main-lint/crates/a', '[package]\nname = "a"\nversion = "0.1.0"\n')
       const { js, wasm } = await runWorkspaceRootBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+})
+
+describe('wasm-plugin parity — rust/check (JS канон vs wasm plugin-lang-rust, спільний фейковий cargo)', () => {
+  /** `cargo` не мав би спавнитись узагалі (немає кореневого Cargo.toml). */
+  const CARGO_MUST_NOT_RUN = '#!/bin/sh\nexit 1\n'
+
+  /** Усі кроки exit 0. */
+  const CARGO_ALL_CLEAN =
+    '#!/bin/sh\ncase "$*" in\n' +
+    '  "fmt --all -- --check") exit 0 ;;\n' +
+    '  "clippy --all-targets --all-features -- -D warnings") exit 0 ;;\n' +
+    '  "deny --version") exit 0 ;;\n' +
+    '  "deny check licenses") exit 0 ;;\n' +
+    '  *) exit 1 ;;\n' +
+    'esac\n'
+
+  test('немає кореневого Cargo.toml — обидві реалізації мовчать, cargo не спавниться', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'package.json'), '{}', 'utf8')
+      const { js, wasm } = await runCheckBoth(dir, CARGO_MUST_NOT_RUN)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('cargo не резолвиться в PATH — однакове cargo-missing порушення з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'Cargo.toml'), '[package]\nname = "demo"\n', 'utf8')
+      const { js, wasm } = await runCheckBoth(dir, null)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('cargo-missing')
+      expect(js[0].message).toBe('lint-rust: `cargo` не знайдено в PATH (Rust toolchain через rustup, rust.mdc)')
+    })
+  })
+
+  test('cargo fmt --check провалюється — лише cargo-fmt-violation, clippy/deny НЕ виконуються', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'Cargo.toml'), '[package]\nname = "demo"\n', 'utf8')
+      const argvPath = join(dir, 'argv.txt')
+      const toolBody =
+        '#!/bin/sh\n' +
+        `printf '%s\\n' "$*" >> "${argvPath}"\n` +
+        'case "$*" in\n' +
+        '  "fmt --all -- --check") echo "would reformat main.rs" ; exit 1 ;;\n' +
+        '  *) exit 0 ;;\n' +
+        'esac\n'
+      const { js, wasm } = await runCheckBoth(dir, toolBody)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('cargo-fmt-violation')
+      expect(js[0].message).toBe('lint-rust: cargo fmt --check — помилка (код 1, rust.mdc)\nwould reformat main.rs')
+      // Обидва виклики (JS, тоді wasm) пишуть у той самий argv.txt — лише
+      // ОДИН рядок кожен (fmt), clippy/deny НЕ спавнились.
+      const { readFile } = await import('node:fs/promises')
+      const argv = await readFile(argvPath, 'utf8')
+      const lines = argv.trim().split('\n')
+      expect(lines).toHaveLength(2)
+      expect(lines.every(l => l === 'fmt --all -- --check')).toBe(true)
+    })
+  })
+
+  test('clippy провалюється, deny.toml відсутній — cargo-clippy-violation І deny-config-missing разом', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'Cargo.toml'), '[package]\nname = "demo"\n', 'utf8')
+      const toolBody =
+        '#!/bin/sh\ncase "$*" in\n' +
+        '  "fmt --all -- --check") exit 0 ;;\n' +
+        '  "clippy --all-targets --all-features -- -D warnings") echo "unused variable" ; exit 1 ;;\n' +
+        '  *) exit 0 ;;\n' +
+        'esac\n'
+      const { js, wasm } = await runCheckBoth(dir, toolBody)
+      expect(wasm).toEqual(js)
+      expect(js.map(v => v.reason).toSorted()).toEqual(['cargo-clippy-violation', 'deny-config-missing'])
+    })
+  })
+
+  test('deny --version провалюється (deny не встановлено) — тихий skip, обидві реалізації мовчать', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'Cargo.toml'), '[package]\nname = "demo"\n', 'utf8')
+      await writeFile(join(dir, 'deny.toml'), '', 'utf8')
+      const toolBody =
+        '#!/bin/sh\ncase "$*" in\n' +
+        '  "fmt --all -- --check") exit 0 ;;\n' +
+        '  "clippy --all-targets --all-features -- -D warnings") exit 0 ;;\n' +
+        '  "deny --version") exit 1 ;;\n' +
+        '  *) exit 0 ;;\n' +
+        'esac\n'
+      const { js, wasm } = await runCheckBoth(dir, toolBody)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('cargo deny check licenses провалюється — однакове cargo-deny-violation', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'Cargo.toml'), '[package]\nname = "demo"\n', 'utf8')
+      await writeFile(join(dir, 'deny.toml'), '', 'utf8')
+      const toolBody =
+        '#!/bin/sh\ncase "$*" in\n' +
+        '  "fmt --all -- --check") exit 0 ;;\n' +
+        '  "clippy --all-targets --all-features -- -D warnings") exit 0 ;;\n' +
+        '  "deny --version") exit 0 ;;\n' +
+        '  "deny check licenses") echo "GPL-3.0 not allowed" ; exit 1 ;;\n' +
+        '  *) exit 0 ;;\n' +
+        'esac\n'
+      const { js, wasm } = await runCheckBoth(dir, toolBody)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('cargo-deny-violation')
+      expect(js[0].message).toBe('lint-rust: cargo deny check licenses — помилка (код 1, rust.mdc)\nGPL-3.0 not allowed')
+    })
+  })
+
+  test('усі кроки проходять — обидві реалізації мовчать', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'Cargo.toml'), '[package]\nname = "demo"\n', 'utf8')
+      await writeFile(join(dir, 'deny.toml'), '', 'utf8')
+      const { js, wasm } = await runCheckBoth(dir, CARGO_ALL_CLEAN)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+})
+
+describe('wasm-plugin parity — rust/cargo_mutants_config (JS канон vs wasm plugin-lang-rust, T0, full-scope)', () => {
+  test('немає жодного Cargo.toml — концерн не застосовний з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const { js, wasm } = await runCargoMutantsConfigBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('кореневий .cargo/mutants.toml є — обидві реалізації мовчать', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'Cargo.toml'), '[package]\nname = "demo"\n', 'utf8')
+      await writeFileDeep(dir, '.cargo/mutants.toml', '[[exclude_globs]]\n')
+      const { js, wasm } = await runCargoMutantsConfigBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('кореневий .cargo/mutants.toml відсутній — однакове mutants-config-missing з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'Cargo.toml'), '[package]\nname = "demo"\n', 'utf8')
+      const { js, wasm } = await runCargoMutantsConfigBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('mutants-config-missing')
+      expect(js[0].file).toBe('.cargo/mutants.toml')
+    })
+  })
+
+  test('workspaces-запис у package.json резолвиться (не glob) — Tauri-маніфест пріоритетний з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'Cargo.toml'), '[workspace]\n', 'utf8')
+      await writeFile(join(dir, 'package.json'), JSON.stringify({ workspaces: ['owner'] }), 'utf8')
+      await writeFileDeep(dir, 'owner/src-tauri/Cargo.toml', '[package]\nname = "tauri"\n')
+      await writeFileDeep(dir, 'owner/Cargo.toml', '[package]\nname = "flat"\n')
+      const { js, wasm } = await runCargoMutantsConfigBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(2)
+      expect(js.map(v => v.file).toSorted()).toEqual(['.cargo/mutants.toml', 'owner/src-tauri/.cargo/mutants.toml'])
+    })
+  })
+
+  test('workspaces glob-патерн (packages/*) НЕ розкривається — латентний баг канону відтворено з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'Cargo.toml'), '[workspace]\n', 'utf8')
+      await writeFile(join(dir, 'package.json'), JSON.stringify({ workspaces: ['packages/*'] }), 'utf8')
+      await writeFileDeep(dir, 'packages/a/Cargo.toml', '[package]\nname = "a"\n')
+      const { js, wasm } = await runCargoMutantsConfigBoth(dir)
+      expect(wasm).toEqual(js)
+      // Лише кореневий маніфест резолвиться — `packages/a` НЕ бачиться
+      // (буквальний сегмент `*`, не glob), тож рівно ОДНЕ порушення.
+      expect(js).toHaveLength(1)
+      expect(js[0].file).toBe('.cargo/mutants.toml')
+    })
+  })
+})
+
+describe('wasm-plugin parity — rust/wasm_component (JS канон vs wasm plugin-lang-rust, per-file)', () => {
+  test('без wasm-bindgen/wasmtime — обидві реалізації мовчать', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'Cargo.toml'), '[package]\nname = "a"\n\n[dependencies]\nserde = "1"\n', 'utf8')
+      const { js, wasm } = await runWasmComponentBoth(dir, ['Cargo.toml'])
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('пряма залежність від wasm-bindgen — однакове wasm-bindgen-forbidden з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(
+        join(dir, 'Cargo.toml'),
+        '[package]\nname = "a"\n\n[dependencies]\nwasm-bindgen = "0.2"\n',
+        'utf8'
+      )
+      const { js, wasm } = await runWasmComponentBoth(dir, ['Cargo.toml'])
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('wasm-bindgen-forbidden')
+      expect(js[0].file).toBe('Cargo.toml')
+    })
+  })
+
+  test('wasmtime default-features=false без component-model — однакове wasmtime-missing-component-model', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(
+        join(dir, 'Cargo.toml'),
+        '[package]\nname = "a"\n\n[dependencies]\nwasmtime = { version = "27", default-features = false, features = ["cranelift"] }\n',
+        'utf8'
+      )
+      const { js, wasm } = await runWasmComponentBoth(dir, ['Cargo.toml'])
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('wasmtime-missing-component-model')
+    })
+  })
+
+  test('wasmtime default-features=false З component-model — обидві реалізації мовчать', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(
+        join(dir, 'Cargo.toml'),
+        '[package]\nname = "a"\n\n[dependencies]\nwasmtime = { version = "27", default-features = false, features = ["component-model"] }\n',
+        'utf8'
+      )
+      const { js, wasm } = await runWasmComponentBoth(dir, ['Cargo.toml'])
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('{ workspace = true }-успадкована wasm-bindgen — резолвиться через кореневий manifest у батчі з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(
+        join(dir, 'Cargo.toml'),
+        '[workspace]\nresolver = "2"\nmembers = ["crates/a"]\n\n[workspace.dependencies]\nwasm-bindgen = "0.2"\n',
+        'utf8'
+      )
+      await writeFileDeep(
+        dir,
+        'crates/a/Cargo.toml',
+        '[package]\nname = "a"\n\n[dependencies]\nwasm-bindgen = { workspace = true }\n'
+      )
+      const { js, wasm } = await runWasmComponentBoth(dir, ['Cargo.toml', 'crates/a/Cargo.toml'])
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('wasm-bindgen-forbidden')
+      expect(js[0].file).toBe('crates/a/Cargo.toml')
+    })
+  })
+
+  test('не-.toml файл серед цілей — поза виміром з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'src/main.rs', 'fn main() {}\n')
+      const { js, wasm } = await runWasmComponentBoth(dir, ['src/main.rs'])
       expect(wasm).toEqual(js)
       expect(js).toEqual([])
     })

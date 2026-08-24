@@ -2,8 +2,10 @@
 # репозиторію (перший — `crates/plugin-lang-js`, другий —
 # `crates/plugin-lang-python`, доккомент того `plugin.toml` пояснює саму
 # форму). Перша хвиля порту: три концерни без зовнішніх тулів
-# (`rust/applies`, `rust/doc_comments`, `rust/workspace_root`) — доккомент
-# модуля `src/lib.rs`. Поля 1:1 відповідають `rules_contract::manifest::Manifest`
+# (`rust/applies`, `rust/doc_comments`, `rust/workspace_root`). ДРУГА хвиля
+# додає ОДИН `exec-tool`-концерн (`rust/check`) і два T0-концерни
+# (`rust/cargo_mutants_config`, `rust/wasm_component`) — доккомент модуля
+# `src/lib.rs`. Поля 1:1 відповідають `rules_contract::manifest::Manifest`
 # (crates/rules-contract/src/manifest.rs, без serde-перейменувань — назви
 # полів тотожні Rust-структурі). Хост читає цей файл лише як довідник для
 # людини й дистрибуційний supplement — джерело правди в рантаймі завжди
@@ -18,9 +20,10 @@ domains = ["lint"]
 # а не до кореня (та сама пастка, задокументована в
 # `crates/plugin-lang-python/plugin.toml`).
 ci_artifacts = []
-# Перша хвиля не портує жодного `exec-tool`-концерну (на відміну від
-# `python/mypy`+`python/ruff` другої хвилі python-крейта) — порожній список.
-tools = []
+# `rust/check` — ПІЛОТ `exec-tool` цього крейта (друга хвиля, доккомент
+# `src/lib.rs`), схема `path:` (резолв по PATH, той самий мотив, що
+# `path:uv` `crates/plugin-lang-python/plugin.toml`).
+tools = ["path:cargo"]
 
 [[concerns]]
 key = "rust/applies"
@@ -47,6 +50,32 @@ glob = ["**/*.rs"]
 # перевіряє вкладені `Cargo.lock` (доккомент `src/lib.rs`).
 key = "rust/workspace_root"
 scope = "full"
+glob = ["**/Cargo.toml"]
+
+[[concerns]]
+# `rust/check` — WHOLE-BATCH, ШИРШИЙ за `concern.json`-глоб канону
+# (`**/*.rs`, `Cargo.toml`, `Cargo.lock` — не читаються взагалі, реальний
+# вердикт дає `exec-tool`-ланцюжок `cargo fmt`/`cargo clippy`/`cargo deny`):
+# лише ДВА root-only presence-сигнали (доккомент `src/lib.rs`).
+key = "rust/check"
+scope = "full"
+glob = ["Cargo.toml", "deny.toml"]
+
+[[concerns]]
+# `rust/cargo_mutants_config` — WHOLE-BATCH: `**/Cargo.toml` + `package.json`
+# (`resolve_all_cargo_manifests`, byte-у-byte порт
+# `npm/scripts/utils/resolve-cargo-manifest.mjs`) + `**/.cargo/mutants.toml`
+# (presence-ціль самої перевірки).
+key = "rust/cargo_mutants_config"
+scope = "full"
+glob = ["**/Cargo.toml", "package.json", "**/.cargo/mutants.toml"]
+
+[[concerns]]
+# `rust/wasm_component` — PER-FILE, той самий глоб, що `concern.json`
+# (`**/Cargo.toml`) — власний цільовий файл ЗАВЖДИ у батчі, doccomment
+# `src/lib.rs` пояснює межу `{ workspace = true }`-успадкування.
+key = "rust/wasm_component"
+scope = "per-file"
 glob = ["**/Cargo.toml"]
 
 [capabilities]

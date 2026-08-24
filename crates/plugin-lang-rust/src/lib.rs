@@ -85,6 +85,140 @@
 //!    [`WORKSPACE_ROOT_NESTED_PROFILE_REASON`] перевіряються НЕЗАЛЕЖНО —
 //!    один не-кореневий маніфест може отримати ОБИДВА порушення одночасно
 //!    (`main.mjs::reportNestedTables`, два окремі `if`, не `else if`).
+//!
+//! # ДРУГА ХВИЛЯ: `rust/check`, `rust/cargo_mutants_config`, `rust/wasm_component`
+//!
+//! Три контрибуції першої хвилі не спавнили жодного зовнішнього тула. Ця
+//! хвиля додає ОДНУ `exec-tool`-контрибуцію (`rust/check`, пілот
+//! `exec_tool` цього крейта — той самий host-mediated контур, що
+//! `python/mypy`+`python/ruff`, `crates/plugin-lang-python/src/lib.rs`) і
+//! дві T0-контрибуції (`rust/cargo_mutants_config`, `rust/wasm_component`).
+//!
+//! - `rust/check` (full-scope) — порт `plugins/lang-rust/rules/rust/check/main.mjs`:
+//!   `cargo fmt --check` → `cargo clippy -D warnings` → `cargo deny check
+//!   licenses` (доккомент секції «`rust/check` — ланцюжок НЕ уніформний»
+//!   нижче).
+//! - `rust/cargo_mutants_config` (full-scope) — порт
+//!   `plugins/lang-rust/rules/rust/cargo_mutants_config/main.mjs`:
+//!   presence-перевірка `<cargoDir>/.cargo/mutants.toml` для КОЖНОГО
+//!   резолвленого Cargo-маніфесту. Т0-фіксер лишається JS (доккомент секції
+//!   нижче).
+//! - `rust/wasm_component` (per-file) — порт
+//!   `plugins/lang-rust/rules/rust/wasm_component/main.mjs`: забороняє
+//!   `wasm-bindgen`, вимагає явний `component-model` у `wasmtime` з
+//!   вимкненими дефолтами (доккомент секції нижче).
+//!
+//! # `rust/check` — ланцюжок НЕ уніформний, на відміну від `run_ruff_step`
+//!
+//! `python/ruff`-порт (`run_ruff_step`, `crates/plugin-lang-python/src/lib.rs`)
+//! мав ОДНУ форму: кожен крок або проходить, або одразу повертає готову
+//! діагностику. `rust/check` (`main.mjs`, рядки 44–90) — НЕ такий, кожен
+//! крок має СВОЮ реакцію на провал:
+//! 1. Кореневий `Cargo.toml` відсутній у батчі → рання порожня відповідь
+//!    (Rust-кроки взагалі пропущено).
+//! 2. `cargo` не резолвиться (`exec_tool`'s `status: none` на ПЕРШОМУ
+//!    виклику — `cargo fmt --check`, немає окремого пробного виклику, на
+//!    відміну від `python`-сусіда) → ОДНА діагностика `cargo-missing`,
+//!    RETURN.
+//! 3. `cargo fmt --all -- --check` провалюється → діагностика
+//!    `cargo-fmt-violation`, RETURN (решта кроків НЕ виконуються).
+//! 4. `cargo clippy --all-targets --all-features -- -D warnings`
+//!    провалюється → діагностика `cargo-clippy-violation`, ПРОДОВЖУЄ (не
+//!    return).
+//! 5. `deny.toml` відсутній у батчі → діагностика `deny-config-missing`,
+//!    RETURN.
+//! 6. `cargo deny --version` non-zero → ТИХИЙ skip (fail-open, єдина
+//!    fail-open гілка цього ланцюжка) — `cargo-deny` не встановлено,
+//!    ліцензійну перевірку пропущено БЕЗ діагностики.
+//! 7. `cargo deny check licenses` провалюється → діагностика
+//!    `cargo-deny-violation` (останній крок, нічого далі).
+//!
+//! Помилка тут — не косметична: неправильна форма змінює, ЯКІ порушення
+//! співіснують в одному прогоні (напр. невірний early-return на кроці 4
+//! приховав би `cargo-deny-violation` кожного разу, коли clippy теж
+//! провалюється, хоча канон видає ОБИДВІ діагностики одночасно).
+//!
+//! # `rust/cargo_mutants_config` — дві СВІДОМІ поведінкові відмінності
+//!
+//! (a) **Немає in-detector self-gate `.n-rules.json`.** JS-канон читає
+//!     `readNRulesConfigLite(cwd)` і рано виходить, якщо `rust` не в
+//!     `config.rules`/є в `config.disableRules`. Верифіковано незалежно
+//!     (не здогад): `enabledRuleIds`
+//!     (`npm/scripts/lib/lint-surface/run-detectors.mjs:280`) фільтрує за
+//!     `isRuleEnabled` ДО `buildLintPlan` у ВСІХ трьох режимах виклику, і
+//!     обидва предикати (in-detector і pre-filter) погоджуються НАВІТЬ на
+//!     межовому `!config.exists` — pre-filter повертає `[]`, концерн
+//!     узагалі не диспатчиться. In-detector перевірка існує ЛИШЕ для
+//!     окремого debug-entrypoint-у, якого в гостя немає (WIT-контракт не
+//!     несе такого виклику) — видалення тут не змінює жодної реальної
+//!     поведінки продакшн-виклику, лише прибирає мертвий для гостя код.
+//! (b) **Немає перевірки існування `BASELINE_PATH`.** JS-канон читає
+//!     шаблон `data/cargo_mutants_config/mutants.toml.baseline` ВСЕРЕДИНІ
+//!     власного npm-пакета через `dirname(fileURLToPath(import.meta.url))`
+//!     — шлях, недосяжний для гостя (wasm-компонент не має доступу до
+//!     файлової системи хост-пакета, доккомент `Capabilities` нижче).
+//!     Детектор НІКОЛИ не читає ВМІСТ baseline — лише факт існування;
+//!     вміст споживає ВИКЛЮЧНО T0-фіксер (`fix-cargo_mutants_config.mjs`),
+//!     який лишається JS. Чесна ціна: зламаний npm-пакет (без
+//!     `data/cargo_mutants_config/mutants.toml.baseline`) дає діагностику
+//!     в JS і мовчання в гостя — жодна parity-фікстура це не покриє (не
+//!     забутий крок, задокументована межа).
+//! (c) **`resolveAllCargoManifests` перевтілено з batch-даних, БУКВАЛЬНО.**
+//!     `npm/scripts/utils/resolve-cargo-manifest.mjs:42-60` — НЕ glob:
+//!     бере кореневий `Cargo.toml`, якщо є, тоді читає `workspaces`-масив
+//!     кореневого `package.json` і для кожного запису віддає перевагу
+//!     `<ws>/src-tauri/Cargo.toml` над `<ws>/Cargo.toml` (Tauri-патерн).
+//!     [`resolve_all_cargo_manifests`] — точна калька, включно з
+//!     ЛАТЕНТНИМ багом джерела (доккомент тієї функції): `workspaces`-записи
+//!     використовуються як ЛІТЕРАЛЬНІ сегменти шляху, НІКОЛИ не
+//!     glob-розкриваються — типовий `"workspaces": ["packages/*"]` шукає
+//!     каталог, буквально названий `*`, і нічого не знаходить. Порт ВІДТВОРЮЄ
+//!     цей баг, а не виправляє його — інакше розбіжність поведінки з
+//!     JS-каноном була б РЕАЛЬНОЮ, а не задокументованим байт-у-байт портом.
+//!
+//! # `rust/wasm_component` — межа `{ workspace = true }`-успадкування
+//!
+//! Канон резолвить `{ workspace = true }`-успадковані `wasm-bindgen`/
+//! `wasmtime` через `findAncestorWorkspaceRoot`
+//! (`npm/scripts/utils/cargo-workspace.mjs`) — РЕАЛЬНИЙ обхід диска вгору
+//! від каталогу крейту до кореня репо, незалежно від того, що прийшло в
+//! `ctx.files`. Гість читає ЛИШЕ вже наданий host-батч
+//! ([`wasm_component_resolve_workspace_dependency`]) — жодного
+//! FS-обходу.
+//!
+//! Контрибуція `rust/wasm_component` — per-file, той самий глоб
+//! (`**/Cargo.toml`), що й `concern.json` цього концерну: власний
+//! ЦІЛЬОВИЙ файл (Cargo.toml, що перевіряється на `wasm-bindgen`/
+//! `wasmtime`) завжди в батчі — анкер-розрив тут неможливий В ПРИНЦИПІ.
+//! АЛЕ анкера для АНЦЕСТОРА (де живе `[workspace.dependencies]`) свідомо
+//! НЕМАЄ: єдиний кандидат — корінь (`Cargo.toml`), і додавання його як
+//! `lint.anchors`-запису зіткнулося б із тим, що анкер СПІВПАДАЄ з ЦІЛЬОВИМ
+//! глобом цього ж концерну (на відміну від `python/mypy`, де анкер
+//! `pyproject.toml` НЕ `.py`-файл і природно відфільтровується від
+//! `targets`) — синтетично додана анкер-копія кореневого `Cargo.toml` сама
+//! стала б ЗАЙВОЮ ціллю перевірки, якої в реальному delta-прогоні
+//! JS-канону немає, тобто новий розрив parity замість старого. Свідомо НЕ
+//! додано.
+//!
+//! Наслідок — ЧЕСНО задокументована різниця покриття, не мовчазна
+//! апроксимація: у full-scope прогоні (`lint --full`, ВЕСЬ `**/Cargo.toml`
+//! у батчі — JS-оркестрація сама будує повний список per-file-концерну,
+//! доккомент `crates/rules-napi::run_wasm_concern`) резолв
+//! ІДЕНТИЧНИЙ канону — предок завжди в батчі. У вузькому delta-прогоні,
+//! що зачіпає ЛИШЕ Cargo.toml не-кореневого крейту (корінь НЕ змінювався,
+//! отже НЕ в делта-батчі), [`wasm_component_resolve_workspace_dependency`]
+//! не знайде предка й поверне `None` — ТОЙ САМИЙ канал, що канон уже
+//! свідомо використовує для «предка не знайдено» («навмисно тихо —
+//! уникаємо хибних спрацювань на успадкуванні, яке не вдалось розв'язати»,
+//! коментар `checkWasmBindgen`/`checkWasmtime`). Тобто деградація ЗАВЖДИ
+//! в бік ТИШІ (пропущена діагностика), НІКОЛИ в бік хибного
+//! спрацювання — але це РЕАЛЬНЕ звуження покриття в delta-режимі, якого
+//! в канону (що завжди читає реальний диск) немає. Порт додатково передбачає
+//! єдиний кореневий workspace (те саме обмеження, що вже забезпечує сусідній
+//! концерн [`detect_workspace_root`]) — вкладений (не кореневий) workspace
+//! root, який `cargo-workspace.mjs` як спільна утиліта в принципі підтримує
+//! (Tauri-подібні шари), тут не резолвиться взагалі: лише кореневий
+//! `Cargo.toml` — кандидат в ancestor-пошуку по батчу.
 
 wit_bindgen::generate!({
     path: "../rules-contract/wit",
@@ -103,6 +237,16 @@ const CONCERN_DOC_COMMENTS: &str = "rust/doc_comments";
 /// Ключ контрибуції `rust/workspace_root`.
 const CONCERN_WORKSPACE_ROOT: &str = "rust/workspace_root";
 
+/// Ключ контрибуції `rust/check` — друга хвиля порту (доккомент модуля,
+/// розділ «ДРУГА ХВИЛЯ»).
+const CONCERN_CHECK: &str = "rust/check";
+
+/// Ключ контрибуції `rust/cargo_mutants_config`.
+const CONCERN_CARGO_MUTANTS_CONFIG: &str = "rust/cargo_mutants_config";
+
+/// Ключ контрибуції `rust/wasm_component`.
+const CONCERN_WASM_COMPONENT: &str = "rust/wasm_component";
+
 /// Шукає файл у батчі за точним posix-relative шляхом — batch-відповідник
 /// `existsSync` JS-оригіналу (той самий helper, що
 /// `crates/plugin-lang-python/src/lib.rs::batch_file`, продубльований тут:
@@ -110,8 +254,9 @@ const CONCERN_WORKSPACE_ROOT: &str = "rust/workspace_root";
 /// хвилі не потребує точкового пошуку за шляхом (обидва full-scope концерни
 /// аналізують ВЕСЬ батч), лишений як спільний утиліт-примітив на майбутню
 /// хвилю (`allow(dead_code)` замість видалення — той самий мотив, що
-/// невикористані варіанти `JsonValue` у python-крейті).
-#[allow(dead_code)]
+/// невикористані варіанти `JsonValue` у python-крейті). Друга хвиля вже
+/// споживає цей helper ([`detect_check`], [`resolve_all_cargo_manifests`],
+/// [`detect_cargo_mutants_config`]) — `allow(dead_code)` знято.
 fn batch_file<'a>(files: &'a [SourceFile], path: &str) -> Option<&'a SourceFile> {
     files.iter().find(|f| f.path == path)
 }
@@ -142,8 +287,8 @@ fn json_escape_string(s: &str) -> String {
 /// нічого не репортує, `workspace_root`'s bare-повідомлення теж не мають
 /// `file`, але будуються прямим `Diagnostic`-літералом нижче для ясності
 /// сигнатури; лишено як спільний примітив на майбутнє, той самий мотив, що
-/// [`batch_file`]).
-#[allow(dead_code)]
+/// [`batch_file`]). Друга хвиля вже споживає цей helper ([`detect_check`],
+/// [`detect_cargo_mutants_config`]) — `allow(dead_code)` знято.
 fn plain_violation(reason: &str, message: String) -> Diagnostic {
     Diagnostic {
         reason: reason.to_string(),
@@ -805,6 +950,854 @@ fn detect_workspace_root(files: &[SourceFile]) -> Vec<Diagnostic> {
     diagnostics
 }
 
+// =====================================================================
+// `rust/check` — друга хвиля порту, ПІЛОТ `exec-tool` цього крейта
+// (доккомент модуля, розділ «ДРУГА ХВИЛЯ» і «`rust/check` — ланцюжок НЕ
+// уніформний»).
+// =====================================================================
+
+/// Декларація тула `rust/check` — схема `path:` (та сама, що [`UV_TOOL`]
+/// `crates/plugin-lang-python/src/lib.rs`): резолв по `PATH`, точний
+/// відповідник `resolveCmd('cargo')` JS-оригіналу.
+const CHECK_TOOL: &str = "path:cargo";
+
+/// `reason` «`cargo` не резолвиться» — точний відповідник літерала
+/// `fail(msg, 'cargo-missing')` (`main.mjs`).
+const CHECK_CARGO_MISSING_REASON: &str = "cargo-missing";
+
+/// Повідомлення «`cargo` не знайдено» — точний відповідник рядкового
+/// літерала `main.mjs`.
+const CHECK_CARGO_MISSING_MESSAGE: &str =
+    "lint-rust: `cargo` не знайдено в PATH (Rust toolchain через rustup, rust.mdc)";
+
+/// `reason` провалу `cargo fmt --all -- --check` — точний відповідник
+/// `runCargo(..., 'cargo-fmt-violation')`.
+const CHECK_CARGO_FMT_VIOLATION_REASON: &str = "cargo-fmt-violation";
+
+/// `reason` провалу `cargo clippy --all-targets --all-features -- -D
+/// warnings` — точний відповідник `runCargo(..., 'cargo-clippy-violation')`.
+const CHECK_CARGO_CLIPPY_VIOLATION_REASON: &str = "cargo-clippy-violation";
+
+/// `reason` відсутнього `deny.toml` — точний відповідник `fail(msg,
+/// 'deny-config-missing')`.
+const CHECK_DENY_CONFIG_MISSING_REASON: &str = "deny-config-missing";
+
+/// Повідомлення «немає `deny.toml`» — точний відповідник рядкового
+/// літерала `main.mjs`.
+const CHECK_DENY_CONFIG_MISSING_MESSAGE: &str = "lint-rust: cargo deny — немає deny.toml; запустіть `npx @7n/rules fix rust` локально для генерації (rust.mdc)";
+
+/// `reason` провалу `cargo deny check licenses` — точний відповідник
+/// `runCargo(..., 'cargo-deny-violation')`.
+const CHECK_CARGO_DENY_VIOLATION_REASON: &str = "cargo-deny-violation";
+
+/// Ліміт довжини вставки чужого stdout/stderr у повідомлення — точний
+/// відповідник `.slice(0, 2000)` (`runCargo`, `main.mjs`).
+const CHECK_DETAIL_LIMIT: usize = 2000;
+
+/// Обрізає рядок до `limit` СИМВОЛІВ (не байтів) — той самий helper, що
+/// `crates/plugin-lang-python/src/lib.rs::truncate_chars` (продубльований
+/// тут: крейти не діляться кодом через wasm-межу, доккомент [`batch_file`]).
+fn truncate_chars(text: &str, limit: usize) -> String {
+    match text.char_indices().nth(limit) {
+        Some((index, _)) => text[..index].to_string(),
+        None => text.to_string(),
+    }
+}
+
+/// Формує повідомлення провалу кроку `cargo` — точний хвіст `runCargo`
+/// (`main.mjs`): stdout+stderr, trim, зріз до [`CHECK_DETAIL_LIMIT`], з
+/// провідним `\n` лише якщо непорожньо.
+fn check_step_message(label: &str, code: i32, stdout: &str, stderr: &str) -> String {
+    let combined = format!("{stdout}{stderr}");
+    let out = truncate_chars(combined.trim(), CHECK_DETAIL_LIMIT);
+    let suffix = if out.is_empty() {
+        String::new()
+    } else {
+        format!("\n{out}")
+    };
+    format!("lint-rust: {label} — помилка (код {code}, rust.mdc){suffix}")
+}
+
+/// Спавнить `cargo <args>` через `exec-tool` — спільний нижній рівень усіх
+/// кроків [`detect_check`].
+fn exec_cargo(args: Vec<String>) -> ToolResult {
+    exec_tool(&ToolRequest {
+        tool: CHECK_TOOL.to_string(),
+        args,
+        stdin: None,
+        // `None` — корінь репо, рівно `cwd: undefined` (успадкований
+        // `ctx.cwd`) JS-оригіналу (`spawnAsync(cargo, args, { cwd })`, де
+        // `cwd = ctx.cwd`).
+        cwd: None,
+        env: vec![],
+        scratch_in: vec![],
+        scratch_out: vec![],
+    })
+}
+
+/// Крок `cargo <args>` ПІСЛЯ вже підтвердженого резолву `cargo` (перший
+/// крок — `cargo fmt --check` — пройшов, доккомент [`detect_check`]).
+/// `status: None` тут структурно неможливий (той самий `ToolResolver`, той
+/// самий виклик у межах одного `detect()`), тож трактується як звичайна
+/// відмова з кодом 1 (`unwrap_or(1)`) — той самий підхід, що друга-і-далі
+/// `exec_tool`-виклики `detect_mypy`/`run_ruff_step`
+/// (`crates/plugin-lang-python/src/lib.rs`, коментар «після успішного
+/// preflight будь-яка аномалія другого спавну трактується як ПОРУШЕННЯ, НЕ
+/// як `uv-missing` вдруге»). Повертає `true` — крок пройшов
+/// (`exitCode === 0`).
+fn run_cargo_step(
+    label: &str,
+    args: Vec<String>,
+    reason: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    let result = exec_cargo(args);
+    let code = result.status.unwrap_or(1);
+    if code == 0 {
+        return true;
+    }
+    diagnostics.push(plain_violation(
+        reason,
+        check_step_message(label, code, &result.stdout, &result.stderr),
+    ));
+    false
+}
+
+/// Точний порт `lint()` `rust/check` (`main.mjs`, рядки 44–90) —
+/// НЕ-уніформний ланцюжок, доккомент модуля, розділ «`rust/check` —
+/// ланцюжок НЕ уніформний» (7 гілок, КОЖНА зі своєю реакцією на провал —
+/// НЕ копіюй форму `run_ruff_step`).
+fn detect_check(files: &[SourceFile]) -> Vec<Diagnostic> {
+    // (1) Кореневий Cargo.toml відсутній у батчі → Rust-кроки пропущено.
+    if batch_file(files, "Cargo.toml").is_none() {
+        return Vec::new();
+    }
+
+    let mut diagnostics = Vec::new();
+
+    // (2)+(3) `cargo fmt --all -- --check` — ПЕРШИЙ виклик: `status: None`
+    // ⇒ `cargo` не резолвиться (немає окремого пробного виклику, на
+    // відміну від `python`-сусіда — `resolveCmd('cargo')` JS-оригіналу теж
+    // не спавнить процес, лише шукає бінарник у PATH).
+    let fmt_result = exec_cargo(vec![
+        "fmt".to_string(),
+        "--all".to_string(),
+        "--".to_string(),
+        "--check".to_string(),
+    ]);
+    let Some(fmt_code) = fmt_result.status else {
+        diagnostics.push(plain_violation(
+            CHECK_CARGO_MISSING_REASON,
+            CHECK_CARGO_MISSING_MESSAGE.to_string(),
+        ));
+        return diagnostics;
+    };
+    if fmt_code != 0 {
+        diagnostics.push(plain_violation(
+            CHECK_CARGO_FMT_VIOLATION_REASON,
+            check_step_message(
+                "cargo fmt --check",
+                fmt_code,
+                &fmt_result.stdout,
+                &fmt_result.stderr,
+            ),
+        ));
+        return diagnostics;
+    }
+
+    // (4) `cargo clippy -D warnings` — провал ПРОДОВЖУЄ (не return).
+    run_cargo_step(
+        "cargo clippy -D warnings",
+        vec![
+            "clippy".to_string(),
+            "--all-targets".to_string(),
+            "--all-features".to_string(),
+            "--".to_string(),
+            "-D".to_string(),
+            "warnings".to_string(),
+        ],
+        CHECK_CARGO_CLIPPY_VIOLATION_REASON,
+        &mut diagnostics,
+    );
+
+    // (5) `deny.toml` відсутній у батчі → RETURN.
+    if batch_file(files, "deny.toml").is_none() {
+        diagnostics.push(plain_violation(
+            CHECK_DENY_CONFIG_MISSING_REASON,
+            CHECK_DENY_CONFIG_MISSING_MESSAGE.to_string(),
+        ));
+        return diagnostics;
+    }
+
+    // (6) `cargo deny --version` non-zero → ТИХИЙ skip (єдина fail-open
+    // гілка цього ланцюжка) — `cargo-deny` не встановлено.
+    let deny_version = exec_cargo(vec!["deny".to_string(), "--version".to_string()]);
+    if deny_version.status == Some(0) {
+        // (7) `cargo deny check licenses` — останній крок.
+        run_cargo_step(
+            "cargo deny check licenses",
+            vec![
+                "deny".to_string(),
+                "check".to_string(),
+                "licenses".to_string(),
+            ],
+            CHECK_CARGO_DENY_VIOLATION_REASON,
+            &mut diagnostics,
+        );
+    }
+
+    diagnostics
+}
+
+// =====================================================================
+// `rust/cargo_mutants_config` — друга хвиля порту, доккомент модуля,
+// розділ «`rust/cargo_mutants_config` — дві СВІДОМІ поведінкові
+// відмінності».
+// =====================================================================
+
+/// `reason` відсутнього `<cargoDir>/.cargo/mutants.toml` — точний
+/// відповідник `MUTANTS_CONFIG_MISSING` (`main.mjs`, T0-фіксер матчиться за
+/// цим reason).
+const CARGO_MUTANTS_CONFIG_MISSING_REASON: &str = "mutants-config-missing";
+
+/// Мінімальне (без `serde_json`) представлення JSON-значення для читання
+/// `package.json` — потрібне ЛИШЕ поле `workspaces` (масив рядків) на
+/// верхньому рівні; решта структури лише ПРОПУСКАЄТЬСЯ без семантичного
+/// розбору (`PkgJsonValue::Other` для чисел/bool/null). Той самий скорочений
+/// мотив, що `JsonValue`/`JsonParser` `crates/plugin-lang-python/src/lib.rs`
+/// (`pip-licenses`/Blue Oak), звужений до РІВНО того, що споживає
+/// [`resolve_all_cargo_manifests`].
+enum PkgJsonValue {
+    Str(String),
+    Array(Vec<PkgJsonValue>),
+    Object(Vec<(String, PkgJsonValue)>),
+    /// Число/bool/null — значення НЕ зберігається, лише коректно
+    /// пропускається (позиція парсера рухається на довжину токена).
+    Other,
+}
+
+/// Рекурсивно-спусковий парсер [`PkgJsonValue`] по байтах UTF-8 рядка.
+struct PkgJsonParser<'a> {
+    bytes: &'a [u8],
+    pos: usize,
+}
+
+impl<'a> PkgJsonParser<'a> {
+    fn new(input: &'a str) -> Self {
+        Self {
+            bytes: input.as_bytes(),
+            pos: 0,
+        }
+    }
+
+    fn peek(&self) -> Option<u8> {
+        self.bytes.get(self.pos).copied()
+    }
+
+    fn skip_ws(&mut self) {
+        while matches!(self.peek(), Some(b' ' | b'\t' | b'\n' | b'\r')) {
+            self.pos += 1;
+        }
+    }
+
+    fn parse(mut self) -> Result<PkgJsonValue, ()> {
+        self.skip_ws();
+        self.parse_value()
+    }
+
+    fn parse_value(&mut self) -> Result<PkgJsonValue, ()> {
+        self.skip_ws();
+        match self.peek() {
+            Some(b'"') => self.parse_string().map(PkgJsonValue::Str),
+            Some(b'{') => self.parse_object(),
+            Some(b'[') => self.parse_array(),
+            Some(b't') => self.skip_literal("true"),
+            Some(b'f') => self.skip_literal("false"),
+            Some(b'n') => self.skip_literal("null"),
+            Some(c) if c == b'-' || c.is_ascii_digit() => self.skip_number(),
+            _ => Err(()),
+        }
+    }
+
+    fn skip_literal(&mut self, lit: &str) -> Result<PkgJsonValue, ()> {
+        let end = self.pos + lit.len();
+        if self.bytes.get(self.pos..end) == Some(lit.as_bytes()) {
+            self.pos = end;
+            Ok(PkgJsonValue::Other)
+        } else {
+            Err(())
+        }
+    }
+
+    fn skip_number(&mut self) -> Result<PkgJsonValue, ()> {
+        if self.peek() == Some(b'-') {
+            self.pos += 1;
+        }
+        let mut saw_digit = false;
+        while matches!(self.peek(), Some(c) if c.is_ascii_digit() || matches!(c, b'.' | b'e' | b'E' | b'+' | b'-'))
+        {
+            if self.peek().is_some_and(|c| c.is_ascii_digit()) {
+                saw_digit = true;
+            }
+            self.pos += 1;
+        }
+        if saw_digit {
+            Ok(PkgJsonValue::Other)
+        } else {
+            Err(())
+        }
+    }
+
+    fn parse_string(&mut self) -> Result<String, ()> {
+        // Викликається лише коли `self.peek() == Some(b'"')`.
+        self.pos += 1;
+        let mut out = String::new();
+        loop {
+            match self.peek() {
+                None => return Err(()),
+                Some(b'"') => {
+                    self.pos += 1;
+                    break;
+                }
+                Some(b'\\') => {
+                    self.pos += 1;
+                    match self.peek() {
+                        Some(b'"') => {
+                            out.push('"');
+                            self.pos += 1;
+                        }
+                        Some(b'\\') => {
+                            out.push('\\');
+                            self.pos += 1;
+                        }
+                        Some(b'/') => {
+                            out.push('/');
+                            self.pos += 1;
+                        }
+                        Some(b'n') => {
+                            out.push('\n');
+                            self.pos += 1;
+                        }
+                        Some(b'r') => {
+                            out.push('\r');
+                            self.pos += 1;
+                        }
+                        Some(b't') => {
+                            out.push('\t');
+                            self.pos += 1;
+                        }
+                        Some(b'b') => {
+                            out.push('\u{8}');
+                            self.pos += 1;
+                        }
+                        Some(b'f') => {
+                            out.push('\u{c}');
+                            self.pos += 1;
+                        }
+                        Some(b'u') => {
+                            self.pos += 1;
+                            let slice = self.bytes.get(self.pos..self.pos + 4).ok_or(())?;
+                            let text = std::str::from_utf8(slice).map_err(|_| ())?;
+                            let code = u16::from_str_radix(text, 16).map_err(|_| ())?;
+                            self.pos += 4;
+                            // Best-effort: BMP-only (без сурогатних пар) —
+                            // досить для звичайних ASCII-шляхів `workspaces`
+                            // (доккомент [`PkgJsonValue`]).
+                            out.push(char::from_u32(u32::from(code)).unwrap_or('\u{FFFD}'));
+                        }
+                        _ => return Err(()),
+                    }
+                }
+                Some(_) => {
+                    let rest = std::str::from_utf8(&self.bytes[self.pos..]).map_err(|_| ())?;
+                    let ch = rest.chars().next().ok_or(())?;
+                    out.push(ch);
+                    self.pos += ch.len_utf8();
+                }
+            }
+        }
+        Ok(out)
+    }
+
+    fn parse_array(&mut self) -> Result<PkgJsonValue, ()> {
+        self.pos += 1; // `[`
+        let mut items = Vec::new();
+        self.skip_ws();
+        if self.peek() == Some(b']') {
+            self.pos += 1;
+            return Ok(PkgJsonValue::Array(items));
+        }
+        loop {
+            items.push(self.parse_value()?);
+            self.skip_ws();
+            match self.peek() {
+                Some(b',') => {
+                    self.pos += 1;
+                }
+                Some(b']') => {
+                    self.pos += 1;
+                    break;
+                }
+                _ => return Err(()),
+            }
+        }
+        Ok(PkgJsonValue::Array(items))
+    }
+
+    fn parse_object(&mut self) -> Result<PkgJsonValue, ()> {
+        self.pos += 1; // `{`
+        let mut entries = Vec::new();
+        self.skip_ws();
+        if self.peek() == Some(b'}') {
+            self.pos += 1;
+            return Ok(PkgJsonValue::Object(entries));
+        }
+        loop {
+            self.skip_ws();
+            if self.peek() != Some(b'"') {
+                return Err(());
+            }
+            let key = self.parse_string()?;
+            self.skip_ws();
+            if self.peek() != Some(b':') {
+                return Err(());
+            }
+            self.pos += 1;
+            let value = self.parse_value()?;
+            entries.push((key, value));
+            self.skip_ws();
+            match self.peek() {
+                Some(b',') => {
+                    self.pos += 1;
+                }
+                Some(b'}') => {
+                    self.pos += 1;
+                    break;
+                }
+                _ => return Err(()),
+            }
+        }
+        Ok(PkgJsonValue::Object(entries))
+    }
+}
+
+/// Читає `workspaces` (масив рядків) з верхнього рівня `package.json` —
+/// невалідний JSON чи відсутнє/нетипове поле дає ПОРОЖНІЙ список (той самий
+/// `Array.isArray(rootPkg.workspaces) ? rootPkg.workspaces : []` fail-open
+/// JS-оригіналу).
+fn read_package_json_workspaces(content: &str) -> Vec<String> {
+    let Ok(PkgJsonValue::Object(entries)) = PkgJsonParser::new(content).parse() else {
+        return Vec::new();
+    };
+    let workspaces_value = entries
+        .iter()
+        .find(|(k, _)| k == "workspaces")
+        .map(|(_, v)| v);
+    match workspaces_value {
+        Some(PkgJsonValue::Array(items)) => items
+            .iter()
+            .filter_map(|v| match v {
+                PkgJsonValue::Str(s) => Some(s.clone()),
+                _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// Точний порт `resolveAllCargoManifests`
+/// (`npm/scripts/utils/resolve-cargo-manifest.mjs:42-60`), адаптований під
+/// вже наданий host-batch: кореневий `Cargo.toml`, якщо є, тоді за кожним
+/// записом `workspaces` кореневого `package.json` — `<ws>/src-tauri/Cargo.toml`
+/// пріоритетніше за `<ws>/Cargo.toml`. ЛАТЕНТНИЙ баг джерела ВІДТВОРЮЄТЬСЯ
+/// буквально (доккомент модуля, розділ «`rust/cargo_mutants_config` — дві
+/// СВІДОМІ поведінкові відмінності», пункт (c)): `ws` використовується як
+/// ЛІТЕРАЛЬНИЙ сегмент шляху (`format!("{ws}/...")`), НІКОЛИ не
+/// glob-розкривається — типовий `"workspaces": ["packages/*"]` шукає
+/// каталог, буквально названий `*`, і нічого не знаходить. Це НАВМИСНО НЕ
+/// виправлено: байт-у-байт порт відтворює канон, включно з його вадами.
+fn resolve_all_cargo_manifests(files: &[SourceFile]) -> Vec<String> {
+    let mut manifests = Vec::new();
+    if batch_file(files, "Cargo.toml").is_some() {
+        manifests.push("Cargo.toml".to_string());
+    }
+
+    if let Some(pkg) = batch_file(files, "package.json") {
+        for ws in read_package_json_workspaces(&pkg.content) {
+            let tauri = format!("{ws}/src-tauri/Cargo.toml");
+            if batch_file(files, &tauri).is_some() {
+                manifests.push(tauri);
+                continue;
+            }
+            let flat = format!("{ws}/Cargo.toml");
+            if batch_file(files, &flat).is_some() {
+                manifests.push(flat);
+            }
+        }
+    }
+
+    manifests
+}
+
+/// Точний порт `lint()` `rust/cargo_mutants_config` (`main.mjs`) МІНУС дві
+/// свідомо відкинуті гілки (доккомент модуля, розділ
+/// «`rust/cargo_mutants_config` — дві СВІДОМІ поведінкові відмінності»,
+/// пункти (a)/(b)): БЕЗ self-gate `.n-rules.json`, БЕЗ перевірки
+/// `BASELINE_PATH`. `pass(...)`-гілка канону — no-op (`continue` нижче), той
+/// самий контракт, що решта `pass`-виразів цього крейта.
+fn detect_cargo_mutants_config(files: &[SourceFile]) -> Vec<Diagnostic> {
+    let manifests = resolve_all_cargo_manifests(files);
+    // rust enabled (гейт відкинуто, доккомент модуля), але Cargo.toml ще
+    // немає — silently skip (manifest може з'явитися пізніше), точний порт
+    // `manifests.length === 0` гілки.
+    if manifests.is_empty() {
+        return Vec::new();
+    }
+
+    let mut diagnostics = Vec::new();
+    for manifest_path in &manifests {
+        let cargo_dir = workspace_root_dirname(manifest_path);
+        let target = if cargo_dir.is_empty() {
+            ".cargo/mutants.toml".to_string()
+        } else {
+            format!("{cargo_dir}/.cargo/mutants.toml")
+        };
+
+        if batch_file(files, &target).is_some() {
+            continue;
+        }
+
+        diagnostics.push(workspace_root_file_violation(
+            CARGO_MUTANTS_CONFIG_MISSING_REASON,
+            format!(
+                ".cargo/mutants.toml відсутній ({target}) — запусти `npx @7n/rules lint rust` для генерації canonical baseline (rust.mdc)"
+            ),
+            &target,
+        ));
+    }
+    diagnostics
+}
+
+// =====================================================================
+// `rust/wasm_component` — друга хвиля порту, доккомент модуля, розділ
+// «`rust/wasm_component` — межа `{ workspace = true }`-успадкування».
+// =====================================================================
+
+/// `reason` забороненої залежності від `wasm-bindgen` — точний відповідник
+/// `WASM_BINDGEN_FORBIDDEN` (`main.mjs`).
+const WASM_COMPONENT_WASM_BINDGEN_FORBIDDEN_REASON: &str = "wasm-bindgen-forbidden";
+
+/// `reason` `wasmtime` без `component-model` при вимкнених дефолтах —
+/// точний відповідник `WASMTIME_MISSING_COMPONENT_MODEL`.
+const WASM_COMPONENT_WASMTIME_MISSING_COMPONENT_MODEL_REASON: &str =
+    "wasmtime-missing-component-model";
+
+/// Пояснювальна підказка `wasm-bindgen` — точний відповідник
+/// `WASM_BINDGEN_HINT` (`main.mjs`, конкатенація літералів звужена до
+/// одного рядка).
+const WASM_COMPONENT_WASM_BINDGEN_HINT: &str = "`wasm-bindgen` — це старий режим (браузерний cdylib під wasm32-unknown-unknown, без WASI, без Component Model ABI). Порт на Component Model: `wit-bindgen` + ціль wasm32-wasip2 (rust/wasm_component.mdc).";
+
+/// Пояснювальна підказка `wasmtime` — точний відповідник `WASMTIME_HINT`.
+const WASM_COMPONENT_WASMTIME_HINT: &str = "`component-model` — дефолтна feature `wasmtime`, але цей маніфест вимкнув дефолти (`default-features = false`) і не додав її назад явно у `features`. Без неї хост не зможе вантажити wasm-компоненти (`Component::from_binary`) — лише старі core-модулі (rust/wasm_component.mdc).";
+
+/// Значення одного запису depend-таблиці — коротка форма (`"1.0"`) чи
+/// таблиця (`{ version = "1", workspace = true, ... }`). Точний зріз
+/// `main.mjs`: лише поля, які реально читає [`wasm_component_is_workspace_inherited`]/
+/// [`wasm_component_wasmtime_missing_component_model`] — `workspace`/
+/// `default-features`/`features`; решта полів (`version`/`path`/`optional`/…)
+/// мовчки ігнорується (serde default без `deny_unknown_fields`, той самий
+/// tolerant-парсинг, що решта TOML-структур цього крейта).
+#[derive(serde::Deserialize, Clone, Default)]
+struct WasmComponentDependencyTable {
+    #[serde(default)]
+    workspace: Option<bool>,
+    #[serde(rename = "default-features", default)]
+    default_features: Option<bool>,
+    #[serde(default)]
+    features: Option<Vec<String>>,
+}
+
+/// Один запис depend-таблиці — `#[serde(untagged)]` між короткою формою
+/// (рядок) і таблицею, той самий контракт, що TOML-специфікація сама дає
+/// (`dep = "1.0"` чи `dep = { version = "1.0" }`).
+#[derive(serde::Deserialize, Clone)]
+#[serde(untagged)]
+enum WasmComponentDependency {
+    Table(WasmComponentDependencyTable),
+    // Значення короткої форми (`dep = "1.0"`) ніде НЕ читається (короткий
+    // рядок НІКОЛИ не несе `workspace = true`/`default-features = false`,
+    // обидва прапорці цього концерну), тримається лише щоб serde
+    // untagged-варіант коректно матчив ЦЮ TOML-форму й не падав в `Err`.
+    #[allow(dead_code)]
+    Simple(String),
+}
+
+/// `[dependencies]`/`[build-dependencies]`/`[dev-dependencies]` — ім'я
+/// крейта → запис.
+type WasmComponentDepsTable = HashMap<String, WasmComponentDependency>;
+
+/// `[target.'cfg(...)'.*]` — одна cfg-гілка, той самий зріз
+/// `DEP_TABLE_KEYS`, що кореневий рівень.
+#[derive(serde::Deserialize, Default)]
+struct WasmComponentTargetTable {
+    #[serde(default)]
+    dependencies: Option<WasmComponentDepsTable>,
+    #[serde(rename = "build-dependencies", default)]
+    build_dependencies: Option<WasmComponentDepsTable>,
+    #[serde(rename = "dev-dependencies", default)]
+    dev_dependencies: Option<WasmComponentDepsTable>,
+}
+
+/// `[workspace]` — лише `members`/`exclude` (переперевикористовує ту саму
+/// форму, що [`WorkspaceRootWorkspaceTable`], АЛЕ окрема struct — крейти й
+/// секції цього файлу не діляться типами навмисно, той самий tolerant-парсинг
+/// дух) плюс `[workspace.dependencies]`, потрібний
+/// [`wasm_component_resolve_workspace_dependency`].
+#[derive(serde::Deserialize, Default)]
+struct WasmComponentWorkspaceTable {
+    #[serde(default)]
+    members: Vec<String>,
+    #[serde(default)]
+    exclude: Vec<String>,
+    #[serde(default)]
+    dependencies: Option<WasmComponentDepsTable>,
+}
+
+/// Мінімальний зріз `Cargo.toml`, потрібний `rust/wasm_component`.
+#[derive(serde::Deserialize, Default)]
+struct WasmComponentCargoToml {
+    #[serde(default)]
+    dependencies: Option<WasmComponentDepsTable>,
+    #[serde(rename = "build-dependencies", default)]
+    build_dependencies: Option<WasmComponentDepsTable>,
+    #[serde(rename = "dev-dependencies", default)]
+    dev_dependencies: Option<WasmComponentDepsTable>,
+    #[serde(default)]
+    target: Option<HashMap<String, WasmComponentTargetTable>>,
+    #[serde(default)]
+    workspace: Option<WasmComponentWorkspaceTable>,
+}
+
+/// Точний порт `readCargoManifest` (`cargo-workspace.mjs`) для вже наданого
+/// host-ом вмісту файлу: `None` на невалідний TOML — той самий catch-null
+/// JS-оригіналу.
+fn wasm_component_parse_cargo_toml(content: &str) -> Option<WasmComponentCargoToml> {
+    basic_toml::from_str(content).ok()
+}
+
+/// Точний порт `allDependencyTables` (`main.mjs`): кореневі
+/// depend-таблиці + такі самі під кожним `[target.'cfg(...)'.*]`.
+fn wasm_component_all_dependency_tables(
+    parsed: &WasmComponentCargoToml,
+) -> Vec<&WasmComponentDepsTable> {
+    let mut tables = Vec::new();
+    if let Some(t) = &parsed.dependencies {
+        tables.push(t);
+    }
+    if let Some(t) = &parsed.build_dependencies {
+        tables.push(t);
+    }
+    if let Some(t) = &parsed.dev_dependencies {
+        tables.push(t);
+    }
+    if let Some(target) = &parsed.target {
+        for cfg in target.values() {
+            if let Some(t) = &cfg.dependencies {
+                tables.push(t);
+            }
+            if let Some(t) = &cfg.build_dependencies {
+                tables.push(t);
+            }
+            if let Some(t) = &cfg.dev_dependencies {
+                tables.push(t);
+            }
+        }
+    }
+    tables
+}
+
+/// Точний порт `findDependency` (`main.mjs`): значення запису `name` з
+/// будь-якої depend-таблиці маніфесту, чи `None`.
+fn wasm_component_find_dependency<'a>(
+    parsed: &'a WasmComponentCargoToml,
+    name: &str,
+) -> Option<&'a WasmComponentDependency> {
+    wasm_component_all_dependency_tables(parsed)
+        .into_iter()
+        .find_map(|t| t.get(name))
+}
+
+/// Точний порт `isWorkspaceInherited` (`main.mjs`).
+fn wasm_component_is_workspace_inherited(value: &WasmComponentDependency) -> bool {
+    matches!(value, WasmComponentDependency::Table(t) if t.workspace == Some(true))
+}
+
+/// Чи покриває `[workspace].members` (мінус `.exclude`) `crate_dir` —
+/// точний порт `isWorkspaceMemberDir` (`cargo-workspace.mjs`), адаптований
+/// під `known_dirs` уже наявних у батчі маніфестів
+/// ([`workspace_root_resolve_member_dirs`], перевикористаний із секції
+/// `rust/workspace_root` — та сама функція, без дублювання). `crate_dir`
+/// ЗАВЖДИ у `known_dirs` (він — dirname маніфесту, що обробляється), тож
+/// перевірка коректна навіть коли batch не несе ІНШИХ sibling-крейтів
+/// (доккомент модуля, розділ «межа `{ workspace = true }`-успадкування»).
+fn wasm_component_is_workspace_member(
+    known_dirs: &[&str],
+    crate_dir: &str,
+    members: &[String],
+    excludes: &[String],
+) -> bool {
+    let member_dirs = workspace_root_resolve_member_dirs(known_dirs, members);
+    if !member_dirs.contains(crate_dir) {
+        return false;
+    }
+    if excludes.is_empty() {
+        return true;
+    }
+    let exclude_dirs = workspace_root_resolve_member_dirs(known_dirs, excludes);
+    !exclude_dirs.contains(crate_dir)
+}
+
+/// Точний функціональний порт `resolveWorkspaceDependency`
+/// (`main.mjs`) — З РЕАЛЬНОГО диска на вже наданий per-file batch
+/// (доккомент модуля, розділ «межа `{ workspace = true }`-успадкування»):
+/// йде від `dirname(crate_dir)` вгору по предках, шукаючи найближчий
+/// Cargo.toml З `[workspace]`, чиї `members`/`exclude` покривають
+/// `crate_dir`. `None` — предок НЕ знайдено в батчі (за конструкцією
+/// `ConcernContribution`, доккомент модуля) чи запису `name` там нема —
+/// той самий «навмисно тихо» fail-open, що JS-оригінал.
+fn wasm_component_resolve_workspace_dependency(
+    files: &[SourceFile],
+    crate_dir: &str,
+    name: &str,
+) -> Option<WasmComponentDependency> {
+    let known_dirs: Vec<&str> = files
+        .iter()
+        .filter(|f| f.path == "Cargo.toml" || f.path.ends_with("/Cargo.toml"))
+        .map(|f| workspace_root_dirname(&f.path))
+        .collect();
+
+    let mut dir = workspace_root_dirname(crate_dir).to_string();
+    loop {
+        let manifest_path = if dir.is_empty() {
+            "Cargo.toml".to_string()
+        } else {
+            format!("{dir}/Cargo.toml")
+        };
+        if let Some(file) = files.iter().find(|f| f.path == manifest_path) {
+            if let Some(parsed) = wasm_component_parse_cargo_toml(&file.content) {
+                if let Some(workspace) = parsed.workspace {
+                    if wasm_component_is_workspace_member(
+                        &known_dirs,
+                        crate_dir,
+                        &workspace.members,
+                        &workspace.exclude,
+                    ) {
+                        return workspace
+                            .dependencies
+                            .and_then(|deps| deps.get(name).cloned());
+                    }
+                }
+            }
+        }
+        if dir.is_empty() {
+            return None;
+        }
+        dir = workspace_root_dirname(&dir).to_string();
+    }
+}
+
+/// Точний порт `checkWasmBindgen` (`main.mjs`).
+fn wasm_component_check_wasm_bindgen(
+    diagnostics: &mut Vec<Diagnostic>,
+    parsed: &WasmComponentCargoToml,
+    rel: &str,
+    crate_dir: &str,
+    files: &[SourceFile],
+) {
+    let Some(value) = wasm_component_find_dependency(parsed, "wasm-bindgen") else {
+        return;
+    };
+    if wasm_component_is_workspace_inherited(value)
+        && wasm_component_resolve_workspace_dependency(files, crate_dir, "wasm-bindgen").is_none()
+    {
+        return;
+    }
+    diagnostics.push(workspace_root_file_violation(
+        WASM_COMPONENT_WASM_BINDGEN_FORBIDDEN_REASON,
+        format!(
+            "{rel}: залежність від `wasm-bindgen` заборонена — старий режим wasm. {WASM_COMPONENT_WASM_BINDGEN_HINT}"
+        ),
+        rel,
+    ));
+}
+
+/// Точний порт `wasmtimeMissingComponentModel` (`main.mjs`).
+fn wasm_component_wasmtime_missing_component_model(value: &WasmComponentDependency) -> bool {
+    match value {
+        WasmComponentDependency::Table(t) => {
+            if t.default_features != Some(false) {
+                return false;
+            }
+            !t.features
+                .as_ref()
+                .is_some_and(|features| features.iter().any(|f| f == "component-model"))
+        }
+        WasmComponentDependency::Simple(_) => false,
+    }
+}
+
+/// Точний порт `checkWasmtime` (`main.mjs`).
+fn wasm_component_check_wasmtime(
+    diagnostics: &mut Vec<Diagnostic>,
+    parsed: &WasmComponentCargoToml,
+    rel: &str,
+    crate_dir: &str,
+    files: &[SourceFile],
+) {
+    let Some(mut value) = wasm_component_find_dependency(parsed, "wasmtime").cloned() else {
+        return;
+    };
+    if wasm_component_is_workspace_inherited(&value) {
+        let Some(resolved) =
+            wasm_component_resolve_workspace_dependency(files, crate_dir, "wasmtime")
+        else {
+            return;
+        };
+        value = resolved;
+    }
+    if !wasm_component_wasmtime_missing_component_model(&value) {
+        return;
+    }
+    diagnostics.push(workspace_root_file_violation(
+        WASM_COMPONENT_WASMTIME_MISSING_COMPONENT_MODEL_REASON,
+        format!(
+            "{rel}: `wasmtime` без `component-model` у features. {WASM_COMPONENT_WASMTIME_HINT}"
+        ),
+        rel,
+    ));
+}
+
+/// Точний порт `lint()` `rust/wasm_component` (`main.mjs`) — PER-FILE, весь
+/// переданий батч ОДНИМ викликом (НЕ по одному файлу за раз, як
+/// `detect_doc_comments`): [`wasm_component_resolve_workspace_dependency`]
+/// потребує видимості sibling-манiфестів того самого батчу (доккомент
+/// [`Guest::detect`]).
+fn detect_wasm_component(files: &[SourceFile]) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+    for file in files {
+        if !file.path.ends_with("Cargo.toml") {
+            continue;
+        }
+        let Some(parsed) = wasm_component_parse_cargo_toml(&file.content) else {
+            continue;
+        };
+        let crate_dir = workspace_root_dirname(&file.path);
+        wasm_component_check_wasm_bindgen(&mut diagnostics, &parsed, &file.path, crate_dir, files);
+        wasm_component_check_wasmtime(&mut diagnostics, &parsed, &file.path, crate_dir, files);
+    }
+    diagnostics
+}
+
 /// Чиста (без host-імпортів `log`/`report-progress`) конструктор
 /// маніфеста — винесений з [`Guest::describe`] окремо, щоб host-таргет
 /// unit-тести могли звірити форму маніфеста без реального wasmtime-хоста
@@ -831,6 +1824,38 @@ fn build_manifest() -> Manifest {
                 scope: ConcernScope::Full,
                 glob: vec!["**/Cargo.toml".to_string()],
             },
+            // `rust/check` — WHOLE-BATCH, ШИРШИЙ за `concern.json`-глоб
+            // канону (`**/*.rs`, `Cargo.toml`, `Cargo.lock`, не читаються
+            // взагалі — реальний вердикт дає `exec-tool`-ланцюжок): лише
+            // ДВА root-only presence-сигнали (`Cargo.toml` — Rust-проєкт чи
+            // ні, `deny.toml` — чи спавнити `cargo deny`), доккомент модуля,
+            // розділ «ДРУГА ХВИЛЯ».
+            ConcernContribution {
+                key: CONCERN_CHECK.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec!["Cargo.toml".to_string(), "deny.toml".to_string()],
+            },
+            // `rust/cargo_mutants_config` — WHOLE-BATCH: `**/Cargo.toml` +
+            // `package.json` ([`resolve_all_cargo_manifests`]) +
+            // `**/.cargo/mutants.toml` (presence-ціль самої перевірки).
+            ConcernContribution {
+                key: CONCERN_CARGO_MUTANTS_CONFIG.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec![
+                    "**/Cargo.toml".to_string(),
+                    "package.json".to_string(),
+                    "**/.cargo/mutants.toml".to_string(),
+                ],
+            },
+            // `rust/wasm_component` — PER-FILE, той самий глоб, що
+            // `concern.json` (`**/Cargo.toml`) — власний цільовий файл
+            // ЗАВЖДИ у батчі (доккомент модуля, розділ «межа `{ workspace =
+            // true }`-успадкування»).
+            ConcernContribution {
+                key: CONCERN_WASM_COMPONENT.to_string(),
+                scope: ConcernScope::PerFile,
+                glob: vec!["**/Cargo.toml".to_string()],
+            },
         ],
         ci_artifacts: vec![],
         // Вміст файлів хост передає inline (per-file чи host-побудований
@@ -840,8 +1865,9 @@ fn build_manifest() -> Manifest {
             fs_read: vec![],
             network: false,
         },
-        // Перша хвиля не портує жодного `exec-tool`-концерну.
-        tools: vec![],
+        // `rust/check` — ПІЛОТ `exec-tool` цього крейта (доккомент модуля,
+        // розділ «ДРУГА ХВИЛЯ»), одна декларація [`CHECK_TOOL`].
+        tools: vec![CHECK_TOOL.to_string()],
     }
 }
 
@@ -875,6 +1901,23 @@ impl Guest for LangRust {
             CONCERN_WORKSPACE_ROOT => {
                 report_progress(total, total);
                 detect_workspace_root(&batch.files)
+            }
+            CONCERN_CHECK => {
+                report_progress(total, total);
+                detect_check(&batch.files)
+            }
+            CONCERN_CARGO_MUTANTS_CONFIG => {
+                report_progress(total, total);
+                detect_cargo_mutants_config(&batch.files)
+            }
+            // PerFile, АЛЕ весь переданий batch ОДНИМ викликом, не по
+            // одному файлу за раз — [`detect_wasm_component`] потребує
+            // видимості sibling-манiфестів того самого батчу (той самий
+            // мотив, що `CONCERN_MYPY`/`CONCERN_RUFF` у
+            // `crates/plugin-lang-python/src/lib.rs`).
+            CONCERN_WASM_COMPONENT => {
+                report_progress(total, total);
+                detect_wasm_component(&batch.files)
             }
             _ => Vec::new(),
         };
@@ -1311,6 +2354,279 @@ mod tests {
             .any(|v| v.reason == "missing-root-workspace"));
     }
 
+    // --- rust/check ---
+    // Лише гілка ДО будь-якого `exec_tool`-виклику тестована на host-таргеті
+    // (той самий мотив, що `prepare_python_run_skips_*`
+    // `crates/plugin-lang-python/src/lib.rs`: `exec_tool` — host-імпорт,
+    // абортує поза реальним wasmtime-хостом). Решта ланцюжка — лише
+    // parity-тест (`wasm-plugin-parity-rust.test.mjs`, спільний фейковий
+    // `cargo`).
+
+    #[test]
+    fn detect_check_skips_when_no_root_cargo_toml_in_batch() {
+        let files = vec![sf("package.json", "{}")];
+        assert!(detect_check(&files).is_empty());
+    }
+
+    // --- rust/cargo_mutants_config ---
+
+    #[test]
+    fn resolve_all_cargo_manifests_root_only_no_package_json() {
+        let files = vec![sf("Cargo.toml", "[package]\nname = \"a\"\n")];
+        assert_eq!(
+            resolve_all_cargo_manifests(&files),
+            vec!["Cargo.toml".to_string()]
+        );
+    }
+
+    #[test]
+    fn resolve_all_cargo_manifests_empty_batch_is_empty() {
+        let files = vec![sf("README.md", "hi")];
+        assert!(resolve_all_cargo_manifests(&files).is_empty());
+    }
+
+    #[test]
+    fn resolve_all_cargo_manifests_prefers_tauri_manifest_over_flat() {
+        let files = vec![
+            sf("Cargo.toml", "[workspace]\n"),
+            sf("package.json", "{\"workspaces\":[\"owner\"]}"),
+            sf(
+                "owner/src-tauri/Cargo.toml",
+                "[package]\nname = \"tauri\"\n",
+            ),
+            sf("owner/Cargo.toml", "[package]\nname = \"flat\"\n"),
+        ];
+        let manifests = resolve_all_cargo_manifests(&files);
+        assert_eq!(
+            manifests,
+            vec![
+                "Cargo.toml".to_string(),
+                "owner/src-tauri/Cargo.toml".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn resolve_all_cargo_manifests_falls_back_to_flat_manifest_without_tauri() {
+        let files = vec![
+            sf("Cargo.toml", "[workspace]\n"),
+            sf("package.json", "{\"workspaces\":[\"owner\"]}"),
+            sf("owner/Cargo.toml", "[package]\nname = \"flat\"\n"),
+        ];
+        let manifests = resolve_all_cargo_manifests(&files);
+        assert_eq!(
+            manifests,
+            vec!["Cargo.toml".to_string(), "owner/Cargo.toml".to_string()]
+        );
+    }
+
+    #[test]
+    fn resolve_all_cargo_manifests_reproduces_js_glob_pattern_bug_literally() {
+        // Доккомент [`resolve_all_cargo_manifests`]: `"workspaces":
+        // ["packages/*"]` — літеральний сегмент, НЕ glob. Навіть коли
+        // `packages/a/Cargo.toml` реально є в батчі, канон (і цей порт) його
+        // НЕ знаходить, бо шукає буквально каталог `*`. Навмисне відтворення
+        // бага джерела, не забутий крок.
+        let files = vec![
+            sf("Cargo.toml", "[workspace]\n"),
+            sf("package.json", "{\"workspaces\":[\"packages/*\"]}"),
+            sf("packages/a/Cargo.toml", "[package]\nname = \"a\"\n"),
+        ];
+        let manifests = resolve_all_cargo_manifests(&files);
+        assert_eq!(manifests, vec!["Cargo.toml".to_string()]);
+    }
+
+    #[test]
+    fn detect_cargo_mutants_config_no_manifests_is_not_applicable() {
+        let files = vec![sf("README.md", "hi")];
+        assert!(detect_cargo_mutants_config(&files).is_empty());
+    }
+
+    #[test]
+    fn detect_cargo_mutants_config_root_baseline_present_is_clean() {
+        let files = vec![
+            sf("Cargo.toml", "[package]\nname = \"a\"\n"),
+            sf(".cargo/mutants.toml", "[[exclude_globs]]\n"),
+        ];
+        assert!(detect_cargo_mutants_config(&files).is_empty());
+    }
+
+    #[test]
+    fn detect_cargo_mutants_config_root_baseline_missing_flags_root_target() {
+        let files = vec![sf("Cargo.toml", "[package]\nname = \"a\"\n")];
+        let violations = detect_cargo_mutants_config(&files);
+        assert_eq!(violations.len(), 1);
+        assert_eq!(violations[0].reason, CARGO_MUTANTS_CONFIG_MISSING_REASON);
+        assert_eq!(violations[0].file.as_deref(), Some(".cargo/mutants.toml"));
+        assert!(violations[0].message.contains(".cargo/mutants.toml"));
+    }
+
+    #[test]
+    fn detect_cargo_mutants_config_checks_each_resolved_manifest_independently() {
+        let files = vec![
+            sf("Cargo.toml", "[workspace]\n"),
+            sf("package.json", "{\"workspaces\":[\"owner\"]}"),
+            sf("owner/Cargo.toml", "[package]\nname = \"owner\"\n"),
+            sf("owner/.cargo/mutants.toml", "[[exclude_globs]]\n"),
+        ];
+        // Кореневий baseline відсутній, `owner/.cargo/mutants.toml` — є.
+        let violations = detect_cargo_mutants_config(&files);
+        assert_eq!(violations.len(), 1);
+        assert_eq!(violations[0].file.as_deref(), Some(".cargo/mutants.toml"));
+    }
+
+    // --- rust/wasm_component ---
+
+    #[test]
+    fn detect_wasm_component_no_wasm_bindgen_or_wasmtime_is_clean() {
+        let files = vec![sf(
+            "Cargo.toml",
+            "[package]\nname = \"a\"\n\n[dependencies]\nserde = \"1\"\n",
+        )];
+        assert!(detect_wasm_component(&files).is_empty());
+    }
+
+    #[test]
+    fn detect_wasm_component_direct_wasm_bindgen_dependency_is_forbidden() {
+        let files = vec![sf(
+            "Cargo.toml",
+            "[package]\nname = \"a\"\n\n[dependencies]\nwasm-bindgen = \"0.2\"\n",
+        )];
+        let violations = detect_wasm_component(&files);
+        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            violations[0].reason,
+            WASM_COMPONENT_WASM_BINDGEN_FORBIDDEN_REASON
+        );
+        assert_eq!(violations[0].file.as_deref(), Some("Cargo.toml"));
+    }
+
+    #[test]
+    fn detect_wasm_component_wasm_bindgen_in_dev_dependencies_is_forbidden_too() {
+        let files = vec![sf(
+            "Cargo.toml",
+            "[package]\nname = \"a\"\n\n[dev-dependencies]\nwasm-bindgen = \"0.2\"\n",
+        )];
+        let violations = detect_wasm_component(&files);
+        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            violations[0].reason,
+            WASM_COMPONENT_WASM_BINDGEN_FORBIDDEN_REASON
+        );
+    }
+
+    #[test]
+    fn detect_wasm_component_wasm_bindgen_under_target_cfg_is_forbidden() {
+        let files = vec![sf(
+            "Cargo.toml",
+            "[package]\nname = \"a\"\n\n[target.'cfg(target_arch = \"wasm32\")'.dependencies]\nwasm-bindgen = \"0.2\"\n",
+        )];
+        let violations = detect_wasm_component(&files);
+        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            violations[0].reason,
+            WASM_COMPONENT_WASM_BINDGEN_FORBIDDEN_REASON
+        );
+    }
+
+    #[test]
+    fn detect_wasm_component_wasmtime_default_features_true_is_clean() {
+        let files = vec![sf(
+            "Cargo.toml",
+            "[package]\nname = \"a\"\n\n[dependencies]\nwasmtime = \"27\"\n",
+        )];
+        assert!(detect_wasm_component(&files).is_empty());
+    }
+
+    #[test]
+    fn detect_wasm_component_wasmtime_no_default_features_without_component_model_is_flagged() {
+        let files = vec![sf(
+            "Cargo.toml",
+            "[package]\nname = \"a\"\n\n[dependencies]\nwasmtime = { version = \"27\", default-features = false, features = [\"cranelift\"] }\n",
+        )];
+        let violations = detect_wasm_component(&files);
+        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            violations[0].reason,
+            WASM_COMPONENT_WASMTIME_MISSING_COMPONENT_MODEL_REASON
+        );
+    }
+
+    #[test]
+    fn detect_wasm_component_wasmtime_no_default_features_with_component_model_is_clean() {
+        let files = vec![sf(
+            "Cargo.toml",
+            "[package]\nname = \"a\"\n\n[dependencies]\nwasmtime = { version = \"27\", default-features = false, features = [\"component-model\"] }\n",
+        )];
+        assert!(detect_wasm_component(&files).is_empty());
+    }
+
+    #[test]
+    fn detect_wasm_component_workspace_inherited_resolved_via_ancestor_in_batch_is_forbidden() {
+        let files = vec![
+            sf(
+                "Cargo.toml",
+                "[workspace]\nresolver = \"2\"\nmembers = [\"crates/a\"]\n\n[workspace.dependencies]\nwasm-bindgen = \"0.2\"\n",
+            ),
+            sf(
+                "crates/a/Cargo.toml",
+                "[package]\nname = \"a\"\n\n[dependencies]\nwasm-bindgen = { workspace = true }\n",
+            ),
+        ];
+        let violations = detect_wasm_component(&files);
+        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            violations[0].reason,
+            WASM_COMPONENT_WASM_BINDGEN_FORBIDDEN_REASON
+        );
+        assert_eq!(violations[0].file.as_deref(), Some("crates/a/Cargo.toml"));
+    }
+
+    #[test]
+    fn detect_wasm_component_workspace_inherited_unresolved_ancestor_missing_from_batch_is_silent()
+    {
+        // Доккомент модуля, розділ «межа `{ workspace = true }`-успадкування»:
+        // делта БЕЗ кореневого Cargo.toml у батчі — навмисно тихий fail-open,
+        // не хибне спрацювання.
+        let files = vec![sf(
+            "crates/a/Cargo.toml",
+            "[package]\nname = \"a\"\n\n[dependencies]\nwasm-bindgen = { workspace = true }\n",
+        )];
+        assert!(detect_wasm_component(&files).is_empty());
+    }
+
+    #[test]
+    fn detect_wasm_component_workspace_inherited_wasmtime_component_model_from_root() {
+        let files = vec![
+            sf(
+                "Cargo.toml",
+                "[workspace]\nresolver = \"2\"\nmembers = [\"crates/a\"]\n\n[workspace.dependencies]\nwasmtime = { version = \"27\", default-features = false, features = [\"cranelift\"] }\n",
+            ),
+            sf(
+                "crates/a/Cargo.toml",
+                "[package]\nname = \"a\"\n\n[dependencies]\nwasmtime = { workspace = true }\n",
+            ),
+        ];
+        let violations = detect_wasm_component(&files);
+        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            violations[0].reason,
+            WASM_COMPONENT_WASMTIME_MISSING_COMPONENT_MODEL_REASON
+        );
+    }
+
+    #[test]
+    fn detect_wasm_component_non_cargo_toml_files_are_ignored() {
+        let files = vec![sf("src/main.rs", "wasm-bindgen = true\n")];
+        assert!(detect_wasm_component(&files).is_empty());
+    }
+
+    #[test]
+    fn detect_wasm_component_unparseable_toml_is_skipped_not_panicking() {
+        let files = vec![sf("Cargo.toml", "this is not = [valid toml")];
+        assert!(detect_wasm_component(&files).is_empty());
+    }
+
     // --- маніфест ---
 
     #[test]
@@ -1319,9 +2635,43 @@ mod tests {
         assert_eq!(manifest.id, "rust/wasm-concerns");
         assert_eq!(manifest.world_version, "3.1.0");
         assert_eq!(manifest.domains, vec![Domain::Lint]);
-        assert_eq!(manifest.concerns.len(), 3);
-        assert!(manifest.tools.is_empty());
+        assert_eq!(manifest.concerns.len(), 6);
+        assert_eq!(manifest.tools, vec![CHECK_TOOL.to_string()]);
         assert!(manifest.ci_artifacts.is_empty());
+
+        let check = manifest
+            .concerns
+            .iter()
+            .find(|c| c.key == CONCERN_CHECK)
+            .expect("rust/check contribution має бути в маніфесті");
+        assert_eq!(check.scope, ConcernScope::Full);
+        assert_eq!(
+            check.glob,
+            vec!["Cargo.toml".to_string(), "deny.toml".to_string()]
+        );
+
+        let cargo_mutants_config = manifest
+            .concerns
+            .iter()
+            .find(|c| c.key == CONCERN_CARGO_MUTANTS_CONFIG)
+            .expect("rust/cargo_mutants_config contribution має бути в маніфесті");
+        assert_eq!(cargo_mutants_config.scope, ConcernScope::Full);
+        assert_eq!(
+            cargo_mutants_config.glob,
+            vec![
+                "**/Cargo.toml".to_string(),
+                "package.json".to_string(),
+                "**/.cargo/mutants.toml".to_string()
+            ]
+        );
+
+        let wasm_component = manifest
+            .concerns
+            .iter()
+            .find(|c| c.key == CONCERN_WASM_COMPONENT)
+            .expect("rust/wasm_component contribution має бути в маніфесті");
+        assert_eq!(wasm_component.scope, ConcernScope::PerFile);
+        assert_eq!(wasm_component.glob, vec!["**/Cargo.toml".to_string()]);
 
         let applies = manifest
             .concerns
