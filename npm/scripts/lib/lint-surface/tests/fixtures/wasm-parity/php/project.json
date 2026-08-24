@@ -1,0 +1,27 @@
+{
+  "wasm-plugin parity — php/project (JS канон vs wasm plugin-lang-php, composer audit → mago analyze) > composer.json відсутній — обидві реалізації мовчать, жоден тул не спавниться": [],
+  "wasm-plugin parity — php/project (JS канон vs wasm plugin-lang-php, composer audit → mago analyze) > composer не резолвиться в PATH — однакове composer-missing з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "composer-missing",
+      "message": "lint-php: `composer` не знайдено в PATH (потрібен при наявному composer.json, php.mdc)"
+    }
+  ],
+  "wasm-plugin parity — php/project (JS канон vs wasm plugin-lang-php, composer audit → mago analyze) > composer audit провалюється — однакове composer-audit-violation, mago НЕ викликається": [
+    {
+      "severity": "error",
+      "reason": "composer-audit-violation",
+      "message": "lint-php: composer audit — помилка (код 1, php.mdc)\nvulnerable package found"
+    }
+  ],
+  "wasm-plugin parity — php/project (JS канон vs wasm plugin-lang-php, composer audit → mago analyze) > composer audit OK, немає require.php — mago analyze БЕЗ --php-version, обидві реалізації мовчать": [],
+  "wasm-plugin parity — php/project (JS канон vs wasm plugin-lang-php, composer audit → mago analyze) > composer audit OK, require.php = \">=8.2\" — mago analyze З --php-version 8.2, обидві реалізації мовчать": [],
+  "wasm-plugin parity — php/project (JS канон vs wasm plugin-lang-php, composer audit → mago analyze) > composer.json — битий JSON — mago analyze БЕЗ --php-version (тихий fallback), обидві реалізації мовчать": [],
+  "wasm-plugin parity — php/project (JS канон vs wasm plugin-lang-php, composer audit → mago analyze) > mago analyze провалюється — однакове mago-analyze з виводом з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "mago-analyze",
+      "message": "lint-php: mago analyze — помилка (код 1, php.mdc)\nerror[undefined-method]: Call to undefined method."
+    }
+  ]
+}

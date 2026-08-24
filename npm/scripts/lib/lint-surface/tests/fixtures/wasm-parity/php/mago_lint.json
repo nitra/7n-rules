@@ -1,0 +1,12 @@
+{
+  "wasm-plugin parity — php/mago_lint (JS канон vs wasm plugin-lang-php, per-file, спільний фейковий mago) > composer.json відсутній — обидві реалізації мовчать, mago не резолвиться/не спавниться": [],
+  "wasm-plugin parity — php/mago_lint (JS канон vs wasm plugin-lang-php, per-file, спільний фейковий mago) > composer.json є, ctx.files без .php — обидві реалізації мовчать, mago не спавниться": [],
+  "wasm-plugin parity — php/mago_lint (JS канон vs wasm plugin-lang-php, per-file, спільний фейковий mago) > happy-path: mago exit 0 — обидві реалізації мовчать": [],
+  "wasm-plugin parity — php/mago_lint (JS канон vs wasm plugin-lang-php, per-file, спільний фейковий mago) > mago провалюється (exit 1) — однакове порушення з виводом з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "mago-lint",
+      "message": "lint-php: mago lint — знайдено порушення (код 1, mago_lint.mdc)\nINFO Found 1 file(s) with issues."
+    }
+  ]
+}

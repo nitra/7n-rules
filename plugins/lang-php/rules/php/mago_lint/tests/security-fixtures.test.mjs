@@ -25,6 +25,14 @@
  *
  * Реальний mago не мокається — `describe.skipIf(!hasMago)` пропускає файл, якщо бінарник
  * не резолвиться в PATH (патерн `k8s/hasura_configmap`/`hasConftest`).
+ *
+ * Файл ПЕРЕЖИВ зняття JS-канону: він фіксує поведінку зовнішнього тула, а не
+ * нашу логіку, тож єдиною зміною став виконавець — `runWasmConcern` замість
+ * `lint()` з видаленого `main.mjs`. Тримати цю таблицю саме тут, у JS-суїті,
+ * а не в Rust — свідомо: `plugin_lang_js.rs` прямо декларує, що host-рівневі
+ * golden-тести НЕ залежать від реальних бінарників (пілот `bun/licensee`
+ * ганяє фейковий `bun`), і переносити сюди мережево-залежний прогін означало б
+ * зламати цю конвенцію.
  */
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -32,12 +40,21 @@ import { fileURLToPath } from 'node:url'
 
 import { describe, expect, test } from 'vitest'
 
+import { loadNative } from '@7n/rules/scripts/lib/native.mjs'
 import { resolveCmd } from '@7n/rules/scripts/utils/resolve-cmd.mjs'
-import { withTmpDir } from '@7n/rules/scripts/utils/test-helpers.mjs'
+import { realRepoRoot, withTmpDir } from '@7n/rules/scripts/utils/test-helpers.mjs'
 
-import { lint } from '../main.mjs'
+const magoPath = resolveCmd('mago')
+const hasMago = Boolean(magoPath)
 
-const hasMago = Boolean(resolveCmd('mago'))
+/**
+ * Канон концерну `php/mago_lint` — детектор wasm-гостя, не JS: `main.mjs`
+ * знято разом із подвійною реалізацією. Файл лишився БЕЗ змін по суті —
+ * він документує покриття РЕАЛЬНОГО `mago` закріпленого піна, а не логіку
+ * нашого детектора (та вкладається в «exit≠0 → порушення» і повністю
+ * покрита юніт-тестами гостя). Змінилось лише те, ЧИМ виконується прогін.
+ */
+const WASM_PATH = join(realRepoRoot(), 'target', 'wasm32-wasip2', 'release', 'plugin_lang_php.wasm')
 
 const FIXTURES_DIR = join(fileURLToPath(import.meta.url), '..', 'fixtures', 'security')
 
@@ -53,7 +70,14 @@ async function lintSecurityFixture(fixtureName) {
   await withTmpDir(async dir => {
     await writeFile(join(dir, 'composer.json'), '{}', 'utf8')
     await writeFile(join(dir, fixtureName), content, 'utf8')
-    result = await lint({ cwd: dir, ruleId: 'php', concernId: 'mago_lint', files: [fixtureName] })
+    // `composer.json` у списку — те саме, що в продакшені робить planner за
+    // `lint.anchors` концерну (`plan_concern_for_delta`): гість диска не має,
+    // і без якоря його gate `batch_file(files, "composer.json")` не спрацює.
+    // Прямий `runWasmConcern` planner-а обходить, тож якір дописуємо вручну —
+    // так само, як parity-гейт (`runMagoPerFileBoth`).
+    result = loadNative().runWasmConcern(WASM_PATH, 'php/mago_lint', dir, [fixtureName, 'composer.json'], {
+      mago: magoPath
+    })
   })
   return result
 }
