@@ -122,7 +122,18 @@ const DOC_COMMENTS_EXCLUDED_PATTERN: &str =
 
 /// Top-level публічний `def`/`class` (колонка 0, ім'я без `_`-префікса).
 /// Точний порт `PUBLIC_DEF_RE` (`main.mjs`).
-const DOC_COMMENTS_PUBLIC_DEF_PATTERN: &str = r"^(?:async\s+)?(def|class)\s+([A-Za-z]\w*)";
+///
+/// Хвіст імені — ЯВНИЙ ASCII-клас, не `\w`. JS-`\w` (ECMA-262) завжди
+/// `[A-Za-z0-9_]`, тоді як `\w` крейта `regex` — Unicode-aware навіть із
+/// самим лише `unicode-perl`. Перший символ прикритий ASCII-класом
+/// `[A-Za-z]`, тож множина порушень збігається, АЛЕ на імені зі змішаним
+/// хвостом (`def aоблік`) JS захоплював би `a`, а Unicode-`\w` — `aоблік`:
+/// тиха розбіжність `data.name` і тексту повідомлення. Знайдено при порті
+/// `rust/doc_comments` (у якого `KIND_NAME_RE` не мав ASCII-якоря взагалі,
+/// тож там розходилась уже сама множина) і виміряно на живому гості —
+/// [`tests::detect_doc_comments_name_tail_is_ascii_only_like_js`].
+const DOC_COMMENTS_PUBLIC_DEF_PATTERN: &str =
+    r"^(?:async\s+)?(def|class)\s+([A-Za-z][0-9A-Za-z_]*)";
 
 /// Docstring: перший непорожній рядок тіла — потрійні лапки, опційно з
 /// string-префіксами. Точний порт `DOCSTRING_START_RE` (`main.mjs`).
@@ -2112,6 +2123,34 @@ mod tests {
             "r\"\"\"Модуль.\"\"\"\n\n\ndef run():\n    f\"\"\"Опис {1}.\"\"\"\n    return 1\n";
         let files = vec![sf("pkg/mod.py", src)];
         assert!(detect_doc_comments(&files).is_empty());
+    }
+
+    /// Хвіст імені — ASCII-only, як JS-`\w` (ECMA-262), а не Unicode-`\w`
+    /// крейта `regex`: на `def aоблік` JS-канон захоплював саме `a`
+    /// (доккомент [`DOC_COMMENTS_PUBLIC_DEF_PATTERN`]). Перевіряє `data.name`,
+    /// бо множина порушень тут збігається в обох семантиках — розходився лише
+    /// текст. Другий випадок (`def облік`) фіксує, що ім'я, яке ПОЧИНАЄТЬСЯ
+    /// не з ASCII, не розпізнається як pub-елемент узагалі — і ніколи не
+    /// розпізнавалось.
+    #[test]
+    fn detect_doc_comments_name_tail_is_ascii_only_like_js() {
+        let files = vec![sf(
+            "pkg/mod.py",
+            "\"\"\"М.\"\"\"\n\n\ndef aоблік():\n    return 1\n",
+        )];
+        let diagnostics = detect_doc_comments(&files);
+        assert_eq!(diagnostics.len(), 1);
+        let data = diagnostics[0].data.as_deref().expect("data є");
+        assert!(
+            data.contains("\"name\":\"a\""),
+            "очікували ім'я \"a\", отримали {data}"
+        );
+
+        let cyrillic_head = vec![sf(
+            "pkg/b.py",
+            "\"\"\"М.\"\"\"\n\n\ndef облік():\n    return 1\n",
+        )];
+        assert!(detect_doc_comments(&cyrillic_head).is_empty());
     }
 
     /// Порт `doc_comments.test.mjs::'_приватні def і class поза вимогою;
