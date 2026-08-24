@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.96.0] - 2026-08-24
+
+### Added
+
+- plugin-lang-rust: третій first-party wasm-гість — концерни rust/applies, rust/doc_comments, rust/workspace_root у нативному порті (JS-канон лишається, parity-гейт звіряє біт-у-біт)
+
+### Fixed
+
+- plugin-lang-python: імʼя у python/doc_comments обрізається по ASCII, як JS-\w (ECMA-262) — Unicode-\w крейта regex захоплював кириличний хвіст (def aоблік → «aоблік» замість «a»)
+
 ## [1.95.1] - 2026-08-24
 
 ### Changed
