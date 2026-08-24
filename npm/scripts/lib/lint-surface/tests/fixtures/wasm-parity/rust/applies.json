@@ -1,0 +1,4 @@
+{
+  "wasm-plugin parity — rust/applies (JS канон vs wasm plugin-lang-rust, full-scope, чистий context-pass) > Cargo.toml є — обидві реалізації мовчать (context-pass, не перевірка)": [],
+  "wasm-plugin parity — rust/applies (JS канон vs wasm plugin-lang-rust, full-scope, чистий context-pass) > Cargo.toml відсутній — теж обидві реалізації мовчать (JS-канон узагалі не читає ctx)": []
+}

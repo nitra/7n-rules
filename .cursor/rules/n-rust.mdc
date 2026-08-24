@@ -28,7 +28,7 @@ version: '1.6'
 
 ## Лінт Rust: rustfmt + clippy + cargo-deny
 
-**rustfmt** ([rust-lang/rustfmt](https://github.com/rust-lang/rustfmt)) — форматер; **clippy** ([rust-lang/rust-clippy](https://github.com/rust-lang/rust-clippy)) — лінтер; **cargo-deny** — перевірка ліцензій залежностей. Запуск — через **`n-rules lint rust`** (detector `npm/rules/rust/check/main.mjs`, autofix `npm/rules/rust/check/fix-check.mjs`):
+**rustfmt** ([rust-lang/rustfmt](https://github.com/rust-lang/rustfmt)) — форматер; **clippy** ([rust-lang/rust-clippy](https://github.com/rust-lang/rust-clippy)) — лінтер; **cargo-deny** — перевірка ліцензій залежностей. Запуск — через **`n-rules lint rust`** (детектор `detect_check` wasm-гостя `crates/plugin-lang-rust`, концерн `rust/check`; autofix `fix-check.mjs` лишається JS):
 
 - **read-only (детект, CI):** `cargo fmt --all -- --check` → `cargo clippy --all-targets --all-features -- -D warnings` → (за наявності `deny.toml` і встановленого `cargo-deny`) `cargo deny check licenses`.
 - **`fix` (локально):** `cargo fmt --all` (реальне форматування) і, якщо `deny.toml` відсутній та `cargo-deny` встановлено, `cargo deny init` для генерації канонічного файлу.
@@ -62,7 +62,8 @@ version: '1.6'
   `//`-блок файлу → `//!` — текст автора зберігається дослівно.
 - Елементи зовсім без коментаря — дописує LLM-ladder.
 
-Перевірка: `rules/rust/doc_comments/main.mjs`.
+Перевірка: детектор `detect_doc_comments` wasm-гостя `crates/plugin-lang-rust`
+(концерн `rust/doc_comments`). T0-фікс лишається JS — `fix-doc_comments.mjs`.
 
 ## Rego-gate: `cargo`, `rustfmt`, `clippy` заборонені у `package.json`
 
@@ -110,8 +111,9 @@ Rego-пакет: `rust.vscode_extensions`
 пакує cdylib-артефакт у компонент). Дискримінатор — саме залежність від
 `wasm-bindgen`.
 
-Перевірка — read-only, T0 (без spawn `cargo`, самим парсингом `Cargo.toml`
-через `smol-toml`): `rules/rust/wasm_component/main.mjs`. Авто-фіксу немає —
+Перевірка — read-only, T0 (без spawn `cargo`, самим парсингом `Cargo.toml`):
+детектор `detect_wasm_component` wasm-гостя `crates/plugin-lang-rust`
+(концерн `rust/wasm_component`). Авто-фіксу немає —
 заміна `wasm-bindgen` на `wit-bindgen` чи дописування `component-model` у
 `features` змінює публічний API крейта, тож рішення лишається за автором.
 

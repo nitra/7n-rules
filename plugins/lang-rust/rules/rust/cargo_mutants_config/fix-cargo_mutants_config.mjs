@@ -15,7 +15,19 @@ import { fileURLToPath } from 'node:url'
 
 import { resolveAllCargoManifests } from '@7n/rules/scripts/utils/resolve-cargo-manifest.mjs'
 
-import { MUTANTS_CONFIG_MISSING } from './main.mjs'
+/**
+ * Стабільний reason, за яким T0 матчить порушення. Був експортом
+ * `main.mjs` — переїхав СЮДИ, коли JS-детектор зняли: канон детекту тепер
+ * `detect_cargo_mutants_config` wasm-гостя `crates/plugin-lang-rust`, і
+ * фіксер лишився єдиним JS-споживачем цього рядка.
+ *
+ * Значення мусить збігатися з `CARGO_MUTANTS_CONFIG_MISSING_REASON` гостя
+ * БАЙТ-У-БАЙТ — інакше `test()` нижче не побачить порушень, які гість
+ * реально видає, і фікс тихо перестане спрацьовувати. Звірку тримає
+ * parity-гейт (`wasm-plugin-parity-rust.test.mjs`) через фікстуру, що
+ * подає вивід гостя саме в цей фіксер.
+ */
+const MUTANTS_CONFIG_MISSING = 'mutants-config-missing'
 
 const BASELINE_PATH = join(
   dirname(fileURLToPath(import.meta.url)),

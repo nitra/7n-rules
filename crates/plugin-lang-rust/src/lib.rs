@@ -2701,6 +2701,76 @@ mod tests {
         assert!(!manifest.capabilities.network);
     }
 
+    /// Anti-drift ignore-списку: [`WORKSPACE_ROOT_IGNORED_DIR_NAMES`] проти
+    /// `globMatches.ignoreDirs` декларативного гейта правила
+    /// (`plugins/lang-rust/rules/rust/main.json`) — той самий прийом
+    /// `include_str!`-на-те-саме-джерело, що `BLUE_OAK_SNAPSHOT_JSON`
+    /// у `crates/plugin-lang-python`.
+    ///
+    /// Навіщо саме тепер. До зняття JS-детекторів копій списку було дві —
+    /// гейт у `main.json` і `RUST_WALK_IGNORED_DIR_NAMES`
+    /// (`rules/rust/lib/ignored-dirs.mjs`), — і їхню тотожність стеріг
+    /// `rules/rust/tests/applies.test.mjs`. Порт додав ТРЕТЮ копію (ця
+    /// константа), яку не стеріг ніхто: доккомент лише посилався на
+    /// JS-джерело. Розбіжність тиха й дорога — `detect_workspace_root`
+    /// почав би бачити каталоги, які гейт правила виключає (прецедент:
+    /// два stale worktree давали 12 хибних `nested-workspace`, PR #179).
+    /// Через гейт список пінується транзитивно: гість ⇄ `main.json` тут,
+    /// `main.json` ⇄ JS-константа — в `applies.test.mjs`.
+    #[test]
+    fn ignored_dir_names_match_declarative_rule_gate() {
+        const RULE_MAIN_JSON: &str =
+            include_str!("../../../plugins/lang-rust/rules/rust/main.json");
+        let Ok(PkgJsonValue::Object(root)) = PkgJsonParser::new(RULE_MAIN_JSON).parse() else {
+            panic!("main.json правила rust — валідний JSON-обʼєкт");
+        };
+        let applies = root
+            .iter()
+            .find(|(k, _)| k == "applies")
+            .map(|(_, v)| v)
+            .expect("main.json має ключ applies");
+        let PkgJsonValue::Object(applies) = applies else {
+            panic!("applies — обʼєкт");
+        };
+        let glob_matches = applies
+            .iter()
+            .find(|(k, _)| k == "globMatches")
+            .map(|(_, v)| v)
+            .expect("applies має globMatches");
+        let PkgJsonValue::Object(glob_matches) = glob_matches else {
+            panic!("globMatches — обʼєкт");
+        };
+        let ignore_dirs = glob_matches
+            .iter()
+            .find(|(k, _)| k == "ignoreDirs")
+            .map(|(_, v)| v)
+            .expect("globMatches має ignoreDirs");
+        let PkgJsonValue::Array(items) = ignore_dirs else {
+            panic!("ignoreDirs — масив");
+        };
+        let gate: Vec<&str> = items
+            .iter()
+            .map(|v| match v {
+                PkgJsonValue::Str(s) => s.as_str(),
+                _ => panic!("ignoreDirs містить лише рядки"),
+            })
+            .collect();
+
+        // Порівняння як МНОЖИН: порядок у двох джерелах семантично не
+        // значущий (обидва боки роблять membership-перевірку сегмента).
+        let mut gate_sorted = gate.clone();
+        gate_sorted.sort_unstable();
+        let mut guest_sorted = WORKSPACE_ROOT_IGNORED_DIR_NAMES.to_vec();
+        guest_sorted.sort_unstable();
+        assert_eq!(
+            guest_sorted, gate_sorted,
+            "ignore-список гостя розійшовся з гейтом правила (main.json)"
+        );
+        // Негативний контроль: тест не мав би сенсу на порожньому списку.
+        assert!(gate.contains(&"target"));
+        assert!(gate.contains(&".worktrees"));
+    }
+
     /// `plugin.toml` — статичний дублікат `describe()` (той самий anti-drift
     /// мотив, що `crates/plugin-lang-js`/`crates/plugin-lang-python`).
     #[test]

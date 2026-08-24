@@ -2,24 +2,26 @@
  * Parity-тест wasm-плагіна `plugin-lang-rust` — ТРЕТЬОГО first-party
  * wasm-гостя (перший — `plugin-lang-js`, `wasm-plugin-parity.test.mjs`,
  * другий — `plugin-lang-python`, `wasm-plugin-parity-python.test.mjs`):
- * ганяє ОДНІ фікстури через ЖИВІ JS-детектори
- * (`plugins/lang-rust/rules/rust/<concern>/main.mjs` — Plugin API v2, канон
- * НЕ видаляється цією задачею) і через `runWasmConcern` napi-мосту
- * (`crates/rules-napi` → `crates/plugin-lang-rust`), звіряючи, що
- * `violations` ідентичні (reason/message/file/severity/data біт-у-біт) —
- * для трьох контрибуцій першої хвилі: `rust/applies`, `rust/doc_comments`,
- * `rust/workspace_root` (доккомент `crates/plugin-lang-rust/src/lib.rs`).
+ * звіряє `runWasmConcern` napi-мосту (`crates/rules-napi` →
+ * `crates/plugin-lang-rust`) із ЕТАЛОНОМ — знятим виводом JS-детекторів
+ * `plugins/lang-rust/rules/rust/<concern>/main.mjs` (reason/message/file/
+ * severity/data біт-у-біт) — для шести контрибуцій:
+ * `rust/applies`, `rust/doc_comments`, `rust/workspace_root`, `rust/check`,
+ * `rust/cargo_mutants_config`, `rust/wasm_component`
+ * (доккомент `crates/plugin-lang-rust/src/lib.rs`).
  *
- * НА ВІДМІНУ від `wasm-plugin-parity.test.mjs` (lang-js) і чинної форми
- * `wasm-plugin-parity-python.test.mjs` (уже конвертованої на
- * golden-фікстури, `createGoldenJs`/`wasm-parity-golden.mjs`): тут НЕМАЄ
- * golden-шару — JS-канон lang-rust ще ЖИВИЙ (усі `main.mjs` під
- * `plugins/lang-rust/rules/rust` нікуди не поділись, це лише перша хвиля
- * порту), тож кожен прогін викликає `lint()` НАПРЯМУ — та сама проста форма,
- * що `wasm-plugin-parity-python.test.mjs` мав ДО конвертації (`git show
- * 04fe23af7^:npm/scripts/lib/lint-surface/tests/wasm-plugin-parity-python.test.mjs`).
- * Видалення JS-канону lang-rust — окрема майбутня задача, і саме тоді цей
- * файл, ймовірно, теж перейде на golden-еталони (`createGoldenJs`).
+ * ЕТАЛОН, НЕ ЖИВИЙ КАНОН: `plugins/lang-rust/rules/rust/*\/main.mjs` —
+ * транзитивний шар Plugin API v2, що видаляється разом із портом (мета
+ * цього тестового файлу — довести порт, не тримати JS вічно), той самий
+ * прийом, що `wasm-plugin-parity-python.test.mjs` (lang-python, задача
+ * #475). Поки він живий, зняти еталон можна прогнавши суїт з
+ * `N_WASM_PARITY_CAPTURE=1`; звичайний прогін JS НЕ викликає — читає
+ * зафіксований раніше вивід із `fixtures/wasm-parity/rust/**\/*.json`
+ * ([`goldenJs`], `wasm-parity-golden.mjs` — спільний шар з
+ * `wasm-plugin-parity.test.mjs`/`wasm-plugin-parity-python.test.mjs`,
+ * доккомент там). Відсутній еталон — ПАДІННЯ тесту з явним проханням
+ * перезняти, повернувши `main.mjs` з історії, не мовчазний пропуск: інакше
+ * зникнення канону не дало б жодного сигналу.
  *
  * `rust/applies` — full-scope (`concern.json.lint.scope: "full"`), той самий
  * full-scope-мостовий виклик, що lang-js/lang-python-концерни
@@ -72,6 +74,7 @@ import { describe, expect, test } from 'vitest'
 
 import { loadNative } from '../../native.mjs'
 import { realRepoRoot, withTmpDir } from '../../../utils/test-helpers.mjs'
+import { createGoldenJs } from './wasm-parity-golden.mjs'
 
 const REPO_ROOT = realRepoRoot()
 const WASM_PATH = join(REPO_ROOT, 'target', 'wasm32-wasip2', 'release', 'plugin_lang_rust.wasm')
@@ -100,6 +103,20 @@ const WASM_COMPONENT_CONCERN_KEY = 'rust/wasm_component'
 
 /** Size-budget компонента — той самий бюджет, що `plugin-lang-js`/`plugin-lang-python` (доккомент модуля). */
 const WASM_SIZE_BUDGET_BYTES = 2.5 * 1024 * 1024
+
+// ---------------------------------------------------------------------
+// Шар еталонів ([`goldenJs`], `wasm-parity-golden.mjs`): JS-детектори
+// `plugins/lang-rust/rules/rust/*/main.mjs` — транзитивний канон Plugin
+// API v2, який видаляється разом із портом. Механізм (кеш, лічильники,
+// плейсхолдер tmp-шляху, помилка відсутнього еталона) — СПІЛЬНИЙ з
+// `wasm-plugin-parity.test.mjs`/`wasm-plugin-parity-python.test.mjs`,
+// винесений у `wasm-parity-golden.mjs`; тут лишається лише `goldenJs`,
+// звʼязаний із ЦИМ файлом як підказкою команди перезняття (доккомент
+// модуля вище).
+const goldenJs = createGoldenJs({
+  captureHintPath: 'npm/scripts/lib/lint-surface/tests/wasm-plugin-parity-rust.test.mjs'
+})
+// ---------------------------------------------------------------------
 
 /**
  * Виставляє дефолт `severity: 'error'`, якщо ключ відсутній — той самий
@@ -139,13 +156,17 @@ async function writeFileDeep(dir, rel, content) {
  * @returns {Promise<{ js: unknown[], wasm: unknown[] }>} результати обох реалізацій
  */
 async function runFullScopeBoth(mainMjsPath, concernKey, concernId, dir) {
-  // file:// URL — абсолютний шлях цього файлу (realRepoRoot() + константні
-  // сегменти), не вхід ззовні (той самий мотив, що lang-js/lang-python-хелпери).
-  // eslint-disable-next-line no-unsanitized/method
-  const { lint } = await import(pathToFileURL(mainMjsPath).href)
-  const jsResult = await lint({ cwd: dir, ruleId: 'rust', concernId, files: undefined })
+  const js = await goldenJs(concernKey, dir, async () => {
+    // file:// URL — абсолютний шлях цього файлу (realRepoRoot() + константні
+    // сегменти), не вхід ззовні (той самий мотив, що lang-js/lang-python-хелпери).
+    // Виконується ЛИШЕ в режимі зняття еталонів.
+    // eslint-disable-next-line no-unsanitized/method
+    const { lint } = await import(pathToFileURL(mainMjsPath).href)
+    const jsResult = await lint({ cwd: dir, ruleId: 'rust', concernId, files: undefined })
+    return withDefaultSeverity(jsResult.violations)
+  })
   const wasmResult = loadNative().runWasmConcern(WASM_PATH, concernKey, dir, null)
-  return { js: withDefaultSeverity(jsResult.violations), wasm: withDefaultSeverity(wasmResult.violations) }
+  return { js, wasm: withDefaultSeverity(wasmResult.violations) }
 }
 
 /**
@@ -157,11 +178,15 @@ async function runFullScopeBoth(mainMjsPath, concernKey, concernId, dir) {
  * @returns {Promise<{ js: unknown[], wasm: unknown[] }>} результати обох реалізацій
  */
 async function runDocCommentsBoth(dir, fileName) {
-  // eslint-disable-next-line no-unsanitized/method
-  const { lint } = await import(pathToFileURL(DOC_COMMENTS_MAIN_MJS_PATH).href)
-  const jsResult = await lint({ cwd: dir, ruleId: 'rust', concernId: 'doc_comments', files: [fileName] })
+  const js = await goldenJs(DOC_COMMENTS_CONCERN_KEY, dir, async () => {
+    // Виконується ЛИШЕ в режимі зняття еталонів.
+    // eslint-disable-next-line no-unsanitized/method
+    const { lint } = await import(pathToFileURL(DOC_COMMENTS_MAIN_MJS_PATH).href)
+    const jsResult = await lint({ cwd: dir, ruleId: 'rust', concernId: 'doc_comments', files: [fileName] })
+    return withDefaultSeverity(jsResult.violations)
+  })
   const wasmResult = loadNative().runWasmConcern(WASM_PATH, DOC_COMMENTS_CONCERN_KEY, dir, [fileName])
-  return { js: withDefaultSeverity(jsResult.violations), wasm: withDefaultSeverity(wasmResult.violations) }
+  return { js, wasm: withDefaultSeverity(wasmResult.violations) }
 }
 
 /**
@@ -177,11 +202,15 @@ async function runDocCommentsBoth(dir, fileName) {
  * @returns {Promise<{ js: unknown[], wasm: unknown[] }>} результати обох реалізацій
  */
 async function runWasmComponentBoth(dir, fileNames) {
-  // eslint-disable-next-line no-unsanitized/method
-  const { lint } = await import(pathToFileURL(WASM_COMPONENT_MAIN_MJS_PATH).href)
-  const jsResult = await lint({ cwd: dir, ruleId: 'rust', concernId: 'wasm_component', files: fileNames })
+  const js = await goldenJs(WASM_COMPONENT_CONCERN_KEY, dir, async () => {
+    // Виконується ЛИШЕ в режимі зняття еталонів.
+    // eslint-disable-next-line no-unsanitized/method
+    const { lint } = await import(pathToFileURL(WASM_COMPONENT_MAIN_MJS_PATH).href)
+    const jsResult = await lint({ cwd: dir, ruleId: 'rust', concernId: 'wasm_component', files: fileNames })
+    return withDefaultSeverity(jsResult.violations)
+  })
   const wasmResult = loadNative().runWasmConcern(WASM_PATH, WASM_COMPONENT_CONCERN_KEY, dir, fileNames)
-  return { js: withDefaultSeverity(jsResult.violations), wasm: withDefaultSeverity(wasmResult.violations) }
+  return { js, wasm: withDefaultSeverity(wasmResult.violations) }
 }
 
 /**
@@ -212,6 +241,12 @@ async function writeFakeCargo(path, body) {
  * @returns {Promise<{ js: unknown[], wasm: unknown[] }>} результати обох реалізацій
  */
 async function runCheckBoth(dir, toolBody) {
+  // Фейковий `cargo` пишеться на диск БЕЗУМОВНО (не лише в режимі зняття) —
+  // wasm-бік справді ВИКОНУЄ цей бінарник через `toolPaths` (нижче), тож він
+  // мусить існувати і в звичайному прогоні. `env.PATH`, навпаки, потрібен
+  // ЛИШЕ JS-канону (`resolveCmd` читає PATH), тож підміна PATH переїхала
+  // всередину `compute()` [`goldenJs`] — там, де й сам виклик `lint()` (той
+  // самий мотив, що `runPythonToolBoth` у `wasm-plugin-parity-python.test.mjs`).
   let toolPaths = {}
   let binDir = null
   if (toolBody !== null) {
@@ -220,17 +255,19 @@ async function runCheckBoth(dir, toolBody) {
     const toolPath = await writeFakeCargo(join(binDir, 'cargo'), toolBody)
     toolPaths = { cargo: toolPath }
   }
-  const originalPath = env.PATH
-  let js
-  try {
-    env.PATH = binDir ? `${binDir}${delimiter}${originalPath ?? ''}` : ''
-    // eslint-disable-next-line no-unsanitized/method
-    const { lint } = await import(pathToFileURL(CHECK_MAIN_MJS_PATH).href)
-    const jsResult = await lint({ cwd: dir, ruleId: 'rust', concernId: 'check', files: undefined })
-    js = withDefaultSeverity(jsResult.violations)
-  } finally {
-    env.PATH = originalPath
-  }
+  const js = await goldenJs(CHECK_CONCERN_KEY, dir, async () => {
+    const originalPath = env.PATH
+    try {
+      // Виконується ЛИШЕ в режимі зняття еталонів.
+      env.PATH = binDir ? `${binDir}${delimiter}${originalPath ?? ''}` : ''
+      // eslint-disable-next-line no-unsanitized/method
+      const { lint } = await import(pathToFileURL(CHECK_MAIN_MJS_PATH).href)
+      const jsResult = await lint({ cwd: dir, ruleId: 'rust', concernId: 'check', files: undefined })
+      return withDefaultSeverity(jsResult.violations)
+    } finally {
+      env.PATH = originalPath
+    }
+  })
   const wasmResult = loadNative().runWasmConcern(WASM_PATH, CHECK_CONCERN_KEY, dir, null, toolPaths)
   return { js, wasm: withDefaultSeverity(wasmResult.violations) }
 }
@@ -248,11 +285,15 @@ async function runCheckBoth(dir, toolBody) {
  */
 async function runCargoMutantsConfigBoth(dir) {
   await writeFile(join(dir, '.n-rules.json'), JSON.stringify({ rules: ['rust'] }), 'utf8')
-  // eslint-disable-next-line no-unsanitized/method
-  const { lint } = await import(pathToFileURL(CARGO_MUTANTS_CONFIG_MAIN_MJS_PATH).href)
-  const jsResult = await lint({ cwd: dir, ruleId: 'rust', concernId: 'cargo_mutants_config', files: undefined })
+  const js = await goldenJs(CARGO_MUTANTS_CONFIG_CONCERN_KEY, dir, async () => {
+    // Виконується ЛИШЕ в режимі зняття еталонів.
+    // eslint-disable-next-line no-unsanitized/method
+    const { lint } = await import(pathToFileURL(CARGO_MUTANTS_CONFIG_MAIN_MJS_PATH).href)
+    const jsResult = await lint({ cwd: dir, ruleId: 'rust', concernId: 'cargo_mutants_config', files: undefined })
+    return withDefaultSeverity(jsResult.violations)
+  })
   const wasmResult = loadNative().runWasmConcern(WASM_PATH, CARGO_MUTANTS_CONFIG_CONCERN_KEY, dir, null)
-  return { js: withDefaultSeverity(jsResult.violations), wasm: withDefaultSeverity(wasmResult.violations) }
+  return { js, wasm: withDefaultSeverity(wasmResult.violations) }
 }
 
 describe('wasm-plugin parity — rust/applies (JS канон vs wasm plugin-lang-rust, full-scope, чистий context-pass)', () => {
@@ -704,12 +745,15 @@ describe('wasm-plugin parity — rust/check (JS канон vs wasm plugin-lang-r
       expect(js).toHaveLength(1)
       expect(js[0].reason).toBe('cargo-fmt-violation')
       expect(js[0].message).toBe('lint-rust: cargo fmt --check — помилка (код 1, rust.mdc)\nwould reformat main.rs')
-      // Обидва виклики (JS, тоді wasm) пишуть у той самий argv.txt — лише
-      // ОДИН рядок кожен (fmt), clippy/deny НЕ спавнились.
+      // Обидва виклики (JS у режимі зняття, тоді wasm) пишуть у той самий
+      // argv.txt — у звичайному прогоні JS-канон узагалі не виконується
+      // (goldenJs читає еталон з диска), тож рядків може бути 1 (лише wasm)
+      // чи 2 (зняття); перевірка — НЕ на кількість рядків, а на те, що
+      // КОЖЕН записаний рядок — це fmt, а не clippy/deny (вони НЕ спавнились).
       const { readFile } = await import('node:fs/promises')
       const argv = await readFile(argvPath, 'utf8')
       const lines = argv.trim().split('\n')
-      expect(lines).toHaveLength(2)
+      expect(lines.length).toBeGreaterThan(0)
       expect(lines.every(l => l === 'fmt --all -- --check')).toBe(true)
     })
   })
@@ -913,6 +957,66 @@ describe('wasm-plugin parity — rust/wasm_component (JS канон vs wasm plug
       const { js, wasm } = await runWasmComponentBoth(dir, ['src/main.rs'])
       expect(wasm).toEqual(js)
       expect(js).toEqual([])
+    })
+  })
+})
+
+// --- Замикання T0-циклів: гість → JS-фіксер → гість --------------------
+//
+// Не parity (порівнювати нема з чим): `Guest::fix` для обох цих концернів
+// свідомо віддає порожній план, фіксери лишаються JS. Але після зняття
+// JS-ДЕТЕКТОРІВ фіксери вперше живуть окремо від реалізації, що породжує
+// їхній вхід. Раніше петлю замикали власні тести концернів
+// (`checkFileDocComments(after)` / `runCheckIn` перед `applyT0`) — разом із
+// детекторами вони б зникли.
+//
+// Особливо важливо для `cargo_mutants_config`: його `test()` матчить
+// порушення за РЯДКОМ `mutants-config-missing`, який після зняття канону
+// живе окремою константою у фіксері й окремою — у гості. Розходження цих
+// двох рядків не зламало б жодного юніт-тесту, а фікс просто тихо
+// перестав би спрацьовувати. Саме це й ловить сценарій нижче.
+describe('rust/doc_comments + rust/cargo_mutants_config — T0-цикл: детект гостем → JS-фіксер → детект гостем чистий', () => {
+  test('doc_comments: обидва //-блоки підвищено, повторний детект мовчить', async () => {
+    await withTmpDir(async dir => {
+      const rel = 'src/a.rs'
+      await writeFileDeep(dir, rel, ['// намір файлу', '', '// робить X', 'pub fn go() {}', ''].join('\n'))
+
+      const before = withDefaultSeverity(
+        loadNative().runWasmConcern(WASM_PATH, DOC_COMMENTS_CONCERN_KEY, dir, [rel]).violations
+      )
+      expect(before).toHaveLength(2)
+      expect(before.every(v => v.data?.promotable)).toBe(true)
+
+      // eslint-disable-next-line no-unsanitized/method
+      const { patterns } = await import(pathToFileURL(join(RUST_RULES_DIR, 'doc_comments', 'fix-doc_comments.mjs')).href)
+      expect(patterns[0].test(before)).toBe(true)
+      await patterns[0].apply(before, { cwd: dir, recordWrite: () => {} })
+
+      const again = loadNative().runWasmConcern(WASM_PATH, DOC_COMMENTS_CONCERN_KEY, dir, [rel])
+      expect(again.violations).toEqual([])
+    })
+  })
+
+  test('cargo_mutants_config: baseline створено, повторний детект мовчить (пінує рядок reason)', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'Cargo.toml'), '[package]\nname = "x"\nversion = "0.1.0"\n', 'utf8')
+
+      const before = withDefaultSeverity(
+        loadNative().runWasmConcern(WASM_PATH, CARGO_MUTANTS_CONFIG_CONCERN_KEY, dir, null).violations
+      )
+      expect(before).toHaveLength(1)
+
+      // eslint-disable-next-line no-unsanitized/method
+      const { patterns } = await import(
+        pathToFileURL(join(RUST_RULES_DIR, 'cargo_mutants_config', 'fix-cargo_mutants_config.mjs')).href
+      )
+      // Саме ця перевірка розсипалась би при розходженні рядка `reason`
+      // між гостем і фіксером — юніт-тести обох боків лишились би зелені.
+      expect(patterns[0].test(before)).toBe(true)
+      await patterns[0].apply(before, { cwd: dir, recordWrite: () => {} })
+
+      const again = loadNative().runWasmConcern(WASM_PATH, CARGO_MUTANTS_CONFIG_CONCERN_KEY, dir, null)
+      expect(again.violations).toEqual([])
     })
   })
 })

@@ -1,0 +1,67 @@
+{
+  "wasm-plugin parity — rust/workspace_root (JS канон vs wasm plugin-lang-rust, full-scope, власний обхід дерева) > a) кореневий [workspace] покриває всіх members — чисто": [],
+  "wasm-plugin parity — rust/workspace_root (JS канон vs wasm plugin-lang-rust, full-scope, власний обхід дерева) > a2) glob members (crates/*) покриває всіх — чисто": [],
+  "wasm-plugin parity — rust/workspace_root (JS канон vs wasm plugin-lang-rust, full-scope, власний обхід дерева) > b) вкладений [workspace] глибше кореня → nested-workspace violation з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "nested-workspace",
+      "message": "nested/Cargo.toml: вкладений [workspace] поза кореневим Cargo.toml — створи/підтверди кореневий [workspace] (resolver = \"2\", members) у кореневому Cargo.toml, перенеси [profile.*] у корінь, видали вкладені [workspace] і їхні Cargo.lock — у репозиторії має лишитись один кореневий workspace і один Cargo.lock (rust/workspace_root.mdc)",
+      "file": "nested/Cargo.toml"
+    },
+    {
+      "severity": "error",
+      "reason": "package-not-workspace-member",
+      "message": "nested/sub/Cargo.toml: package не покритий members кореневого workspace — додай шлях у [workspace].members кореневого Cargo.toml (або відобрази у workspace.exclude). створи/підтверди кореневий [workspace] (resolver = \"2\", members) у кореневому Cargo.toml, перенеси [profile.*] у корінь, видали вкладені [workspace] і їхні Cargo.lock — у репозиторії має лишитись один кореневий workspace і один Cargo.lock (rust/workspace_root.mdc)",
+      "file": "nested/sub/Cargo.toml"
+    }
+  ],
+  "wasm-plugin parity — rust/workspace_root (JS канон vs wasm plugin-lang-rust, full-scope, власний обхід дерева) > c) єдиний кореневий [package] без нащадків — чисто (неявний workspace root)": [],
+  "wasm-plugin parity — rust/workspace_root (JS канон vs wasm plugin-lang-rust, full-scope, власний обхід дерева) > d) [profile.*] у не-кореневому маніфесті → nested-profile violation з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "nested-profile",
+      "message": "crates/a/Cargo.toml: [profile.*] поза кореневим Cargo.toml — Cargo мовчки ігнорує чи видає попередження на profile-секції у не-кореневих маніфестах. створи/підтверди кореневий [workspace] (resolver = \"2\", members) у кореневому Cargo.toml, перенеси [profile.*] у корінь, видали вкладені [workspace] і їхні Cargo.lock — у репозиторії має лишитись один кореневий workspace і один Cargo.lock (rust/workspace_root.mdc)",
+      "file": "crates/a/Cargo.toml"
+    }
+  ],
+  "wasm-plugin parity — rust/workspace_root (JS канон vs wasm plugin-lang-rust, full-scope, власний обхід дерева) > nested-workspace і nested-profile в ОДНОМУ маніфесті — обидва звітуються незалежно з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "nested-workspace",
+      "message": "nested/Cargo.toml: вкладений [workspace] поза кореневим Cargo.toml — створи/підтверди кореневий [workspace] (resolver = \"2\", members) у кореневому Cargo.toml, перенеси [profile.*] у корінь, видали вкладені [workspace] і їхні Cargo.lock — у репозиторії має лишитись один кореневий workspace і один Cargo.lock (rust/workspace_root.mdc)",
+      "file": "nested/Cargo.toml"
+    },
+    {
+      "severity": "error",
+      "reason": "nested-profile",
+      "message": "nested/Cargo.toml: [profile.*] поза кореневим Cargo.toml — Cargo мовчки ігнорує чи видає попередження на profile-секції у не-кореневих маніфестах. створи/підтверди кореневий [workspace] (resolver = \"2\", members) у кореневому Cargo.toml, перенеси [profile.*] у корінь, видали вкладені [workspace] і їхні Cargo.lock — у репозиторії має лишитись один кореневий workspace і один Cargo.lock (rust/workspace_root.mdc)",
+      "file": "nested/Cargo.toml"
+    }
+  ],
+  "wasm-plugin parity — rust/workspace_root (JS канон vs wasm plugin-lang-rust, full-scope, власний обхід дерева) > e) package не покритий members кореня → package-not-workspace-member violation з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "package-not-workspace-member",
+      "message": "crates/orphan/Cargo.toml: package не покритий members кореневого workspace — додай шлях у [workspace].members кореневого Cargo.toml (або відобрази у workspace.exclude). створи/підтверди кореневий [workspace] (resolver = \"2\", members) у кореневому Cargo.toml, перенеси [profile.*] у корінь, видали вкладені [workspace] і їхні Cargo.lock — у репозиторії має лишитись один кореневий workspace і один Cargo.lock (rust/workspace_root.mdc)",
+      "file": "crates/orphan/Cargo.toml"
+    }
+  ],
+  "wasm-plugin parity — rust/workspace_root (JS канон vs wasm plugin-lang-rust, full-scope, власний обхід дерева) > workspace.exclude виключає package з вимоги members — чисто з обох реалізацій": [],
+  "wasm-plugin parity — rust/workspace_root (JS канон vs wasm plugin-lang-rust, full-scope, власний обхід дерева) > немає жодного Cargo.toml з [package] — концерн не застосовний з обох реалізацій": [],
+  "wasm-plugin parity — rust/workspace_root (JS канон vs wasm plugin-lang-rust, full-scope, власний обхід дерева) > кореневий Cargo.toml відсутній, але є package-и → missing-root-workspace з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "missing-root-workspace",
+      "message": "Cargo.toml відсутній у корені репозиторію, але знайдено 1 package-маніфест(и). створи/підтверди кореневий [workspace] (resolver = \"2\", members) у кореневому Cargo.toml, перенеси [profile.*] у корінь, видали вкладені [workspace] і їхні Cargo.lock — у репозиторії має лишитись один кореневий workspace і один Cargo.lock (rust/workspace_root.mdc)"
+    }
+  ],
+  "wasm-plugin parity — rust/workspace_root (JS канон vs wasm plugin-lang-rust, full-scope, власний обхід дерева) > кореневий [package] без [workspace] + є інший package → missing-root-workspace з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "missing-root-workspace",
+      "message": "Кореневий Cargo.toml не є workspace root (немає [workspace]), а в репозиторії 2 package-маніфест(и). створи/підтверди кореневий [workspace] (resolver = \"2\", members) у кореневому Cargo.toml, перенеси [profile.*] у корінь, видали вкладені [workspace] і їхні Cargo.lock — у репозиторії має лишитись один кореневий workspace і один Cargo.lock (rust/workspace_root.mdc)"
+    }
+  ],
+  "wasm-plugin parity — rust/workspace_root (JS канон vs wasm plugin-lang-rust, full-scope, власний обхід дерева) > target/ і node_modules/ пропускаються обходом з обох реалізацій": [],
+  "wasm-plugin parity — rust/workspace_root (JS канон vs wasm plugin-lang-rust, full-scope, власний обхід дерева) > .worktrees/ (auto-created сесійний checkout) пропускається обходом з обох реалізацій": []
+}
