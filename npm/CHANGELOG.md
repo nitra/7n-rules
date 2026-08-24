@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.98.0] - 2026-08-24
+
+### Added
+
+- plugin-lang-php: четвертий first-party wasm-гість — усі п'ять php-концернів (tooling, composer_manifest, project, mago_fmt, mago_lint) у нативному порті; перший гість, що декларує pinned-тул (mago через ensure-tool контур). JS-канон лишається під parity-гейтом
+
 ## [1.97.1] - 2026-08-24
 
 ### Changed
