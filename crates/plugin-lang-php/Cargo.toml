@@ -1,0 +1,50 @@
+[package]
+name = "plugin-lang-php"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "Apache-2.0"
+description = "wasm-компонент n-rules:plugin@3.1.0 — php/wasm-concerns (5 концернів: php/tooling, php/composer_manifest, php/project, php/mago_fmt, php/mago_lint)"
+
+[lib]
+# `cdylib` — обов'язково: `wasm32-wasip2` виводить готовий Component Model
+# компонент лише з цього crate-type (той самий мотив, що
+# `crates/plugin-lang-js`/`crates/plugin-lang-python`/`crates/plugin-lang-rust`,
+# доккомент тих Cargo.toml).
+crate-type = ["cdylib"]
+
+[dependencies]
+# Пін звірено з рештою трьох гостей (той самий мінор, що резолвиться в
+# Cargo.lock кореня) — НЕ розширюй у caret-діапазон без причини.
+wit-bindgen = "0.60"
+# НАВМИСНО жодної іншої залежності — на відміну від
+# `crates/plugin-lang-python`/`crates/plugin-lang-rust` (обидва тягнуть
+# `regex`+`basic-toml`+`serde` для TOML-маніфестів і lookaround-порту), цей
+# гість не потребує жодного з трьох:
+# - жоден патерн п'яти портованих концернів не lookaround/backreference —
+#   єдиний нетривіальний патерн канону, `PHP_VERSION_RE = /(\d{1,4})\.(\d{1,4})/`
+#   (`php/project`), ПЕРШИЙ-матч без якоря — портований вручну без regex-крейта
+#   (`extract_php_version` нижче), той самий мотив, що `PLAIN_COMMENT_RE`
+#   у `crates/plugin-lang-rust` (lookahead) і `\w`-фікс у сусідніх гостях
+#   (тут узагалі нема `\w`/`\s` — JS `\d` без прапорця `u` теж ASCII-only,
+#   `is_ascii_digit()` — точний відповідник, доккомент `extract_php_version`);
+# - жоден з п'яти концернів не читає TOML (усі маніфести цієї мови —
+#   `composer.json`, JSON, не `Cargo.toml`/`pyproject.toml`) — `basic-toml`
+#   не потрібен;
+# - JSON-парсинг `composer.json` — свій мінімальний рекурсивний парсер
+#   (`JsonValue`/`JsonParser` нижче), той самий мотив і та сама форма, що
+#   `crates/plugin-lang-python/src/lib.rs::JsonValue` (Blue Oak snapshot +
+#   pip-licenses spdx-json): жодне з двох вживань (генерик-доступ за ключем
+#   у `composer_manifest`, одне поле `require.php` у `project`) не виправдовує
+#   вагу `serde_json` у size-бюджет гостя.
+# Наслідок — НАЙЛЕГШИЙ з чотирьох first-party wasm-гостей репозиторію (лише
+# `wit-bindgen`), звіт задачі містить виміряний фінальний розмір проти
+# спільного бюджету 2,5 MiB.
+
+[dev-dependencies]
+# Anti-drift тест `plugin_toml_concern_keys_match_describe` (той самий мотив,
+# що решта трьох гостей) — парсить `plugin.toml` СПРАВЖНІМ TOML-парсером
+# (сам `plugin.toml` — TOML-довідник для людини, незалежно від того, що
+# концерни цього гостя не читають TOML-файли репозиторію-консюмера).
+# Dev-only: у wasm32-wasip2 cdylib не потрапляє.
+toml = "0.8"

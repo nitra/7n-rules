@@ -1,0 +1,76 @@
+# Маніфест wasm-плагіна `php/wasm-concerns` — ЧЕТВЕРТИЙ first-party
+# wasm-гість репозиторію (перший — `crates/plugin-lang-js`, другий —
+# `crates/plugin-lang-python`, третій — `crates/plugin-lang-rust`; доккомент
+# того першого `plugin.toml` пояснює саму форму), створений за тим самим
+# флоу скіла `npm/skills/wasm-plugin/`. ОДНА хвиля порту: усі п'ять концернів
+# `php/*` без `php/applies` (у php немає окремого applies-концерна — реальний
+# гейт застосовності декларативний, `plugins/lang-php/rules/php/main.json`,
+# доккомент `src/lib.rs`). Поля 1:1 відповідають
+# `rules_contract::manifest::Manifest` (crates/rules-contract/src/manifest.rs,
+# без serde-перейменувань — назви полів тотожні Rust-структурі). Хост читає
+# цей файл лише як довідник для людини й дистрибуційний supplement — джерело
+# правди в рантаймі завжди `describe()` (не парситься назад у `PluginHost`,
+# спека §3.1).
+
+id = "php/wasm-concerns"
+version = "0.1.0"
+world_version = "3.1.0"
+domains = ["lint"]
+# Top-level поля маніфеста — ОБОВʼЯЗКОВО перед першим `[[concerns]]`: після
+# array-of-tables заголовка TOML відніс би їх до останнього елемента масиву,
+# а не до кореня (та сама пастка, задокументована в `plugin.toml` решти трьох
+# гостей).
+ci_artifacts = []
+# `path:composer` — резолв по PATH (`resolveCmd('composer')` JS-канону,
+# `composer_manifest`/`project`); `mago` БЕЗ схеми — pinned/managed
+# github-release тул (`ensureToolAsync('mago')` JS-канону, вже в реєстрі
+# `npm/scripts/lib/ensure-tool.mjs::TOOLS`), ПЕРШИЙ споживач цієї схеми серед
+# first-party wasm-гостей (доккомент `src/lib.rs`, розділ «`mago` — pinned,
+# не `path:`»).
+tools = ["path:composer", "mago"]
+
+[[concerns]]
+key = "php/tooling"
+scope = "full"
+glob = ["composer.json", "package.json", ".github/workflows/lint-php.yml"]
+
+[[concerns]]
+key = "php/composer_manifest"
+scope = "full"
+glob = ["composer.json"]
+
+[[concerns]]
+# `concern.json` цього концерну не декларує `lint.glob` узагалі (`scope:
+# "full"` без глобу) — реальний вердикт дає `exec-tool`-ланцюжок
+# (`composer audit` → `mago analyze`), а не читання диска. Глоб контрибуції
+# звужений до ОДНОГО presence-сигналу (`composer.json` — чи це PHP-проєкт),
+# той самий свідомий вибір, що `python/project`
+# (`crates/plugin-lang-python/plugin.toml`) і `bun/licensee`
+# (`crates/plugin-lang-js/plugin.toml`).
+key = "php/project"
+scope = "full"
+glob = ["composer.json"]
+
+[[concerns]]
+# `composer.json` до per-file delta-batch-у приносить `lint.anchors`
+# відповідного `concern.json` (JS-планувальник, `plan_concern_for_delta`), НЕ
+# цей glob — доккомент `src/lib.rs`, розділ «anchors». `concern.json` цього
+# концерну модифіковано цією ж задачею, щоб декларувати
+# `"anchors": ["composer.json"]` — той самий крок, що зробила хвиля
+# `python/mypy`+`python/ruff` для `pyproject.toml`.
+key = "php/mago_fmt"
+scope = "per-file"
+glob = ["**/*.php"]
+
+[[concerns]]
+key = "php/mago_lint"
+scope = "per-file"
+glob = ["**/*.php"]
+
+[capabilities]
+# Хост передає вміст файлів inline у `detect-batch` (host-побудований
+# full-scope batch для `php/tooling`/`php/composer_manifest`/`php/project`,
+# per-file batch для `php/mago_fmt`/`php/mago_lint`) — плагін не читає диск
+# сам (той самий мотив, що решта трьох гостей).
+fs_read = []
+network = false

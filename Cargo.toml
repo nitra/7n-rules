@@ -13,6 +13,7 @@ members = [
   "crates/plugin-lang-js",
   "crates/plugin-lang-python",
   "crates/plugin-lang-rust",
+  "crates/plugin-lang-php",
 ]
 # `crates/test-plugin-guest` — guest-фікстура contract-test-kit
 # `crates/rules-plugin-host` (задача I2, спека

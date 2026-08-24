@@ -5,6 +5,7 @@
  * лише кореневий `composer.json`/`package.json` (свідоме обмеження — деталі в `tooling.mdc`).
  */
 import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 
 import { createViolationReporter } from '@7n/rules/scripts/lib/lint-surface/violation-reporter.mjs'
 
@@ -17,13 +18,20 @@ export function lint(ctx) {
   const reporter = createViolationReporter(ctx)
   const { pass, fail } = reporter
 
-  if (existsSync('composer.json')) {
+  // `join(ctx.cwd, …)`, а НЕ голий відносний шлях: до порту в wasm-гість тут
+  // стояв `existsSync('composer.json')`, тобто перевірка йшла від
+  // `process.cwd()` замість `ctx.cwd`. У продакшені збігалось (оркестрація
+  // завжди стартує з кореня лінтованого репо), тож дефект був невидимий —
+  // і концерн не мав власних тестів. Виявлено при звірці з портом: гість
+  // фізично не має `process.cwd()` і бачить лише host-побудований batch за
+  // `ctx.cwd`, тож розбіжність спливла як неможливість відтворити канон.
+  if (existsSync(join(ctx.cwd, 'composer.json'))) {
     pass('composer.json існує')
   } else {
     fail('composer.json не знайдено в корені — додай (php.mdc)')
   }
 
-  if (existsSync('package.json')) {
+  if (existsSync(join(ctx.cwd, 'package.json'))) {
     pass('package.json є')
   } else {
     fail('package.json не знайдено в корені — додай (php.mdc)')
