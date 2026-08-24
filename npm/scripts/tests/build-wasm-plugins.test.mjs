@@ -181,12 +181,13 @@ describe('main', () => {
 })
 
 describe('FIRST_PARTY_WASM_PLUGINS', () => {
-  test('декларує lang-js, lang-python, lang-rust і lang-php — чотири first-party плагіни', () => {
+  test('декларує lang-js, lang-python, lang-rust, lang-php і ci-github — п\'ять first-party плагінів', () => {
     expect(FIRST_PARTY_WASM_PLUGINS).toEqual([
       { name: 'lang-js', crateDir: 'crates/plugin-lang-js' },
       { name: 'lang-python', crateDir: 'crates/plugin-lang-python' },
       { name: 'lang-rust', crateDir: 'crates/plugin-lang-rust' },
-      { name: 'lang-php', crateDir: 'crates/plugin-lang-php' }
+      { name: 'lang-php', crateDir: 'crates/plugin-lang-php' },
+      { name: 'ci-github', crateDir: 'crates/plugin-ci-github' }
     ])
   })
 })

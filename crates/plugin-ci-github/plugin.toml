@@ -1,0 +1,63 @@
+# Маніфест wasm-плагіна `ci-github/wasm-concerns` — П'ЯТИЙ first-party
+# wasm-гість репозиторію (перший — `crates/plugin-lang-js`, другий —
+# `crates/plugin-lang-python`, третій — `crates/plugin-lang-rust`, четвертий —
+# `crates/plugin-lang-php`, доккомент того `plugin.toml` пояснює саму форму),
+# створений за тим самим флоу скіла `npm/skills/wasm-plugin/`. ПЕРШИЙ
+# НЕ-lang first-party гість: плагін-джерело — `@7n/rules-ci-github`
+# (`plugins/ci-github/`), не `lang-*`. `id` тут — короткий package-суфікс
+# (`ci-github`, той самий мотив, що `plugin-lang-js`'s `id =
+# "lang-js/wasm-concerns"`, доккомент того `plugin.toml`: плагін НЕ
+# відповідає 1:1 одному rule-namespace — `plugins/ci-github/rules/` уже несе
+# `rust/`, `ga/`, `docker/`, `k8s/`, `npm-module/`, `security/`, `style/`,
+# `text/`, `abie/`, `ci_artifact/`, і майбутні хвилі додаватимуть контрибуції
+# з інших namespace-ів у ЦЕЙ САМИЙ крейт, не в `rust/wasm-concerns`).
+#
+# ОДНА хвиля порту: рівно ОДИН концерн, `rust/toolchain_cache`
+# (`plugins/ci-github/rules/rust/toolchain_cache/main.mjs`) — `ga/workflows`
+# і `ci_artifact/consume` СВІДОМО поза обсягом цієї хвилі (окремі,
+# ще-не-вирішені хвилі). Поля 1:1 відповідають
+# `rules_contract::manifest::Manifest` (crates/rules-contract/src/manifest.rs,
+# без serde-перейменувань — назви полів тотожні Rust-структурі). Хост читає
+# цей файл лише як довідник для людини й дистрибуційний supplement — джерело
+# правди в рантаймі завжди `describe()` (не парситься назад у `PluginHost`,
+# спека §3.1).
+
+id = "ci-github/wasm-concerns"
+version = "0.1.0"
+world_version = "3.1.0"
+domains = ["lint"]
+# Top-level поля маніфеста — ОБОВʼЯЗКОВО перед першим `[[concerns]]`: після
+# array-of-tables заголовка TOML відніс би їх до останнього елемента масиву,
+# а не до кореня (та сама пастка, задокументована в `plugin.toml` решти
+# чотирьох гостей).
+ci_artifacts = []
+# Жодного зовнішнього тула — `rust/toolchain_cache` суто текстовий
+# regex+indentation аналіз workflow-файлів і presence-перевірки
+# `Cargo.toml`/`src-tauri/Cargo.toml`, без жодного `exec-tool`.
+tools = []
+
+[[concerns]]
+# `concern.json` цього концерну декларує `lint.scope: "full"` БЕЗ
+# `lint.anchors` (per-file делта тут не застосовна — детектор аналізує
+# КОЖЕН workflow-файл цілком, крос-job) — glob контрибуції тут ширший за
+# `concern.json.lint.glob` (лише `.github/workflows/*.{yml,yaml}`): host
+# full-scope батч будується РІВНО з цього поля (доккомент `src/lib.rs`), і
+# детектору так само потрібні `Cargo.toml`/`src-tauri/Cargo.toml` для
+# `tauriWorkspaceDir` (`main.mjs`) — той самий свідомий вибір розширення
+# glob-у понад `concern.json`, що `php/tooling`
+# (`crates/plugin-lang-php/plugin.toml`).
+key = "rust/toolchain_cache"
+scope = "full"
+glob = [
+  ".github/workflows/*.yml",
+  ".github/workflows/*.yaml",
+  "Cargo.toml",
+  "src-tauri/Cargo.toml"
+]
+
+[capabilities]
+# Хост передає вміст файлів inline у `detect-batch` (host-побудований
+# full-scope batch за `glob` вище) — плагін не читає диск сам (той самий
+# мотив, що решта чотирьох гостей).
+fs_read = []
+network = false
