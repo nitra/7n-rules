@@ -12,18 +12,22 @@
 # `text/`, `abie/`, `ci_artifact/`, і майбутні хвилі додаватимуть контрибуції
 # з інших namespace-ів у ЦЕЙ САМИЙ крейт, не в `rust/wasm-concerns`).
 #
-# ОДНА хвиля порту: рівно ОДИН концерн, `rust/toolchain_cache`
-# (`plugins/ci-github/rules/rust/toolchain_cache/main.mjs`) — `ga/workflows`
-# і `ci_artifact/consume` СВІДОМО поза обсягом цієї хвилі (окремі,
-# ще-не-вирішені хвилі). Поля 1:1 відповідають
-# `rules_contract::manifest::Manifest` (crates/rules-contract/src/manifest.rs,
-# без serde-перейменувань — назви полів тотожні Rust-структурі). Хост читає
-# цей файл лише як довідник для людини й дистрибуційний supplement — джерело
-# правди в рантаймі завжди `describe()` (не парситься назад у `PluginHost`,
-# спека §3.1).
+# ДРУГА хвиля порту (перша — `rust/toolchain_cache`, лишається незмінною):
+# `ga/workflows` (`plugins/ci-github/rules/ga/workflows/main.mjs`) — найбільший
+# один концерн усієї міграції (п'ять зовнішніх tool-інтеграцій + 851 рядок
+# Rego, доккомент `src/lib.rs`). `ci_artifact/consume` і решта `ga/*`
+# sub-concern-ів (`clean_ga_workflows`/`clean_merged_branch`/`lint_ga`/
+# `git_ai`/`workflow_common` МАЮТЬ ВЛАСНІ `.rego`-пакети, але то не окремі
+# `ruleId/concernId` контрибуції JS-канону — вони вшиті РІВНО в `ga/workflows`
+# як внутрішні rego-namespace-и, доккомент `src/lib.rs`) лишаються поза
+# обсягом. Поля 1:1 відповідають `rules_contract::manifest::Manifest`
+# (crates/rules-contract/src/manifest.rs, без serde-перейменувань — назви
+# полів тотожні Rust-структурі). Хост читає цей файл лише як довідник для
+# людини й дистрибуційний supplement — джерело правди в рантаймі завжди
+# `describe()` (не парситься назад у `PluginHost`, спека §3.1).
 
 id = "ci-github/wasm-concerns"
-version = "0.1.0"
+version = "0.2.0"
 world_version = "3.1.0"
 domains = ["lint"]
 # Top-level поля маніфеста — ОБОВʼЯЗКОВО перед першим `[[concerns]]`: після
@@ -31,10 +35,26 @@ domains = ["lint"]
 # а не до кореня (та сама пастка, задокументована в `plugin.toml` решти
 # чотирьох гостей).
 ci_artifacts = []
-# Жодного зовнішнього тула — `rust/toolchain_cache` суто текстовий
-# regex+indentation аналіз workflow-файлів і presence-перевірки
-# `Cargo.toml`/`src-tauri/Cargo.toml`, без жодного `exec-tool`.
-tools = []
+# Чотири зовнішні тули, задекларовані РІВНО тим самим `manifest.tools`, що
+# ЄДИНИЙ tool-consuming концерн цього крейта (`ga/workflows`) реально
+# кличе через `exec-tool` — `rust/toolchain_cache` (перша хвиля) і далі не
+# використовує жодного (`tools = []` було до цієї хвилі). Схема резолву на
+# кожен — доккомент `src/lib.rs`, розділ «Чотири зовнішні тули»:
+#   - `path:git` — `git ls-files` (`main.mjs:65`), системний тул, який
+#     ensure-tool контур не керує (той самий мотив, що `path:cargo`/`path:uv`
+#     у попередніх гостей).
+#   - `npm:github-actionlint` — канон спавнить `bunx github-actionlint`
+#     (`main.mjs:401`); порт резолвить БІН напряму через npm: схему
+#     (`node_modules/.bin/github-actionlint`, фолбек PATH) — той самий бін,
+#     що `bunx` зрештою запустив би, без bunx-обгортки (задокументована
+#     недослівність — звіт задачі).
+#   - `path:uvx` — канон спавнить `uvx zizmor …` (`main.mjs:404`), окремий
+#     бінарник від `uv` (той самий мотив, що `path:bunx` окремо від
+#     `path:bun` у `plugin-lang-js`).
+#   - `shellcheck` — bare/managed схема (ensure-tool контур), той самий
+#     мотив, що `mago` у `plugin-lang-php`: канон керує ним через
+#     `ensureTool('shellcheck')`, не через голий `resolveCmd`.
+tools = ["path:git", "npm:github-actionlint", "path:uvx", "shellcheck"]
 
 [[concerns]]
 # `concern.json` цього концерну декларує `lint.scope: "full"` БЕЗ
@@ -55,9 +75,31 @@ glob = [
   "src-tauri/Cargo.toml"
 ]
 
+[[concerns]]
+# `ga/workflows` — full-scope, БЕЗ `lint.anchors` (`concern.json` не має
+# жодного, і per-file делта тут не застосовна: `lint()` канону читає ВЕСЬ
+# каталог `.github/workflows/` разом, крос-файл — `workflow_common`-rego
+# батчить усі `.yml` одразу, `checkGaWorkflowFiles` рахує required-set
+# по ВСІХ файлах). `glob` тут НАБАГАТО ширший за `concern.json.lint.glob`
+# (лише `.github/workflows/**`) — доккомент `src/lib.rs`, розділ «Glob
+# контрибуції понад concern.json»: покриває все, що `lint()` читає з диска.
+key = "ga/workflows"
+scope = "full"
+glob = [
+  ".github/workflows/*",
+  ".github/actions/setup-bun-deps/action.yml",
+  ".mega-linter.yml",
+  ".megalinter.yaml",
+  ".mega-linter.yaml"
+]
+
 [capabilities]
 # Хост передає вміст файлів inline у `detect-batch` (host-побудований
 # full-scope batch за `glob` вище) — плагін не читає диск сам (той самий
-# мотив, що решта чотирьох гостей).
+# мотив, що решта чотирьох гостей). `git ls-files`/actionlint/zizmor/
+# shellcheck отримують РЕАЛЬНИЙ доступ до диска не через WASI fs_read, а
+# через `exec-tool` (спавнений процес виконується з правами хоста, ПОЗА
+# wasm-пісочницею, доккомент `wit/world.wit::tool-result` — trust boundary
+# тула, не пісочниці).
 fs_read = []
 network = false

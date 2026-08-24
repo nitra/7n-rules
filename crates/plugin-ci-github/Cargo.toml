@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 license = "Apache-2.0"
-description = "wasm-компонент n-rules:plugin@3.1.0 — ci-github/wasm-concerns (1 концерн: rust/toolchain_cache)"
+description = "wasm-компонент n-rules:plugin@3.1.0 — ci-github/wasm-concerns (2 концерни: rust/toolchain_cache, ga/workflows)"
 
 [lib]
 # `cdylib` — обов'язково: `wasm32-wasip2` виводить готовий Component Model
@@ -17,6 +17,42 @@ crate-type = ["cdylib"]
 # Пін звірено з рештою чотирьох гостей (той самий мінор, що резолвиться в
 # Cargo.lock кореня) — НЕ розширюй у caret-діапазон без причини.
 wit-bindgen = "0.60"
+# `ga/workflows` (друга хвиля порту `plugins/ci-github/rules/ga/workflows/main.mjs`)
+# запускає 851 рядок Rego IN-PROCESS через regorus (Microsoft, MIT AND
+# Apache-2.0 AND BSD-3-Clause, github.com/microsoft/regorus) — жодного
+# `conftest`-субпроцесу. Виміряно на цьому крейті (release, wasm32-wasip2,
+# з per-package profile-блоком кореневого `Cargo.toml` застосованим в обох
+# замірах): `regorus` з default-features — 6 223 519 байт компонента;
+# ЦЯ тримована конфігурація (лише `regex`+`std`) — 2 578 673. `std` тягне за
+# собою `parking_lot`/`rand` (feature-unification `rand/std`,
+# `dep:parking_lot` у власному `std`-фіті regorus) — не наш вибір, вимога
+# самого `Engine` (interior-mutability кешів компіляції).
+regorus = { version = "0.11", default-features = false, features = ["regex", "std"] }
+# regorus пінує `regex` із `default-features = false` — Perl-скорочення
+# (`\d \s \w \b`) не компілюються всередині policy (regorus не вмикає
+# `unicode-perl` сам). Явна сиблінг-залежність тут — Cargo feature-unifies
+# її в ОДНУ копію з тим самим semver-діапазоном, що вже тягне regorus, тож
+# нового окремого крейта в графі НЕ зʼявляється, лише інший feature-набір
+# тієї самої версії. Виміряно: увімкнення дефолтних фітів на самому
+# sibling-записі (`regex = "1"`, без явного `unicode-perl`) дає БАЙТ-У-БАЙТ
+# той самий розмір компонента, що з явним `features = ["unicode-perl"]` —
+# `unicode-perl` вже входить у дефолтний набір `regex`-крейта, явний прапор
+# лишається як задокументований намір (fragile-proof на випадок майбутньої
+# зміни дефолтів regex-крейта), не як джерело додаткового розміру. Без
+# sibling-запису взагалі `workflow_common.rego:43`-подібний depcheck-патерн
+# (`\b`-межа слова — ASSERTION без character-class еквівалента) не
+# скомпілювався б: rewrite інструкції "уникнути `\b`" в самому Rego НЕ
+# розглядався як заміна — `\b` там не character-class, а assertion, тож
+# рерайт был би неповним.
+# YAML — `saphyr` (YAML 1.2, а не Go-yaml 1.1, яким читає `conftest`;
+# найменший виміряний, активно підтримуваний, НЕ deprecated). regorus має
+# власний `yaml`-фіт, але той на опублікованому 0.11.0 тягне
+# `serde_yaml v0.9.34+deprecated` — свідомо уникнено. Плагін парсить
+# workflow-YAML САМ (вхідний `input` для кожного Rego-виклику) і
+# конвертує AST у JSON-текст ([`yaml_to_json`], `src/lib.rs`) — жодного
+# YAML-крейта в regorus-фітах, лише тут.
+regex = { version = "1", features = ["unicode-perl"] }
+saphyr = "0.0"
 # НАВМИСНО жодної іншої залежності — той самий мотив, що
 # `crates/plugin-lang-php` (найлегший з чотирьох попередніх гостей): ЄДИНИЙ
 # портований концерн (`rust/toolchain_cache`) не потребує YAML-парсера
@@ -29,9 +65,12 @@ wit-bindgen = "0.60"
 # портовано вручну без regex-крейта (`src/lib.rs::line_has_uses_target`/
 # `is_workspaces_key`), той самий мотив, що `extract_php_version` у
 # `crates/plugin-lang-php` (ручний порт замість тягнути regex заради двох
-# простих патернів). Наслідок — найлегший з п'яти first-party wasm-гостей
-# репозиторію (лише `wit-bindgen`), звіт задачі містить виміряний фінальний
-# розмір проти спільного бюджету 2,5 MiB.
+# простих патернів). `rust/toolchain_cache` (перша хвиля) лишається
+# найлегшим ОКРЕМИМ концерном цього крейта; `ga/workflows` (друга хвиля,
+# цей блок) додає regorus/regex/saphyr — розмір збірки НАБАГАТО більший,
+# звіт задачі містить виміряний фінальний розмір і причину, чому бюджет
+# 2,5 MiB для цього крейта більше не є hard-гейтом (рішення власника, не
+# самовільне прощення).
 
 [dev-dependencies]
 # Anti-drift тест `plugin_toml_concern_keys_match_describe` (той самий мотив,

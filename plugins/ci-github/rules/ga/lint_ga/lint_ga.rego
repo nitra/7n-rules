@@ -72,7 +72,7 @@ expected_run_blob := concat("\n", [r |
 
 deny contains msg if {
 	input.name != expected_name
-	msg := sprintf("lint-ga.yml: name має бути %q (ga.mdc)", [expected_name])
+	msg := sprintf("lint-ga.yml: name має бути \"%v\" (ga.mdc)", [expected_name])
 }
 
 deny contains msg if {

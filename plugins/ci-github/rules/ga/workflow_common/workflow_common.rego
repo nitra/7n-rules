@@ -70,7 +70,7 @@ setup_bun_no_checkout_template := concat(" ", [
 ])
 
 min_uses_version_template := concat(" ", [
-	"jobs.%s.steps[%d]: %s має бути >= v%s (зараз %q) —",
+	"jobs.%s.steps[%d]: %s має бути >= v%s (зараз \"%v\") —",
 	"онови ref у uses: (ga.mdc)",
 ])
 
