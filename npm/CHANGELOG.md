@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.98.1] - 2026-08-24
+
+### Changed
+
+- wasm-parity: гейт lang-php звіряється зі знятим еталоном JS-канону (N_WASM_PARITY_CAPTURE), не з живим main.mjs; додано host-тести plugin_lang_php.rs на канал «mago нерезольваний → звичайне порушення, не крах»
+
 ## [1.98.0] - 2026-08-24
 
 ### Added

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.0] - 2026-08-24
+
+### Removed
+
+- php-концерни (усі пʼять): видалено JS lint-детектори (main.mjs) і спільний lib/mago-per-file-detector.mjs — канон тепер wasm-гість crates/plugin-lang-php; rego-концерн vscode_extensions і його фіксер лишаються JS. Security-фікстури mago_lint збережені — переведені на прогін через гість
+
 ## [0.3.1] - 2026-08-24
 
 ### Fixed
