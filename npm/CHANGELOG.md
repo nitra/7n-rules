@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.99.0] - 2026-08-24
+
+### Added
+
+- plugin-ci-github: пʼятий first-party wasm-гість (перший не-lang) — концерн rust/toolchain_cache у нативному порті, 97 КБ без жодної залежності понад wit-bindgen. JS-канон лишається під parity-гейтом
+
 ## [1.98.1] - 2026-08-24
 
 ### Changed
