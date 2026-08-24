@@ -1,0 +1,27 @@
+{
+  "wasm-plugin parity — python/ruff (JS канон vs wasm plugin-lang-python, спільний фейковий uv) > немає pyproject.toml — обидві реалізації мовчать, uv не спавниться": [],
+  "wasm-plugin parity — python/ruff (JS канон vs wasm plugin-lang-python, спільний фейковий uv) > uv не резолвиться в PATH — однакове uv-missing порушення з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "uv-missing",
+      "message": "lint-python: `uv` не знайдено в PATH (потрібен при наявному pyproject.toml, python.mdc)"
+    }
+  ],
+  "wasm-plugin parity — python/ruff (JS канон vs wasm plugin-lang-python, спільний фейковий uv) > ruff недоступний у uv-середовищі (--version провалюється) — обидві реалізації мовчать (fail-open)": [],
+  "wasm-plugin parity — python/ruff (JS канон vs wasm plugin-lang-python, спільний фейковий uv) > ruff check + format --check обидва exit 0 — без порушень з обох реалізацій": [],
+  "wasm-plugin parity — python/ruff (JS канон vs wasm plugin-lang-python, спільний фейковий uv) > ruff check провалюється — лише ruff-check-violation, format --check НЕ виконується": [
+    {
+      "severity": "error",
+      "reason": "ruff-check-violation",
+      "message": "lint-python: ruff check — помилка (код 1, python.mdc)\nF401 unused import"
+    }
+  ],
+  "wasm-plugin parity — python/ruff (JS канон vs wasm plugin-lang-python, спільний фейковий uv) > ruff check ОК, format --check провалюється — однакове ruff-format-violation": [
+    {
+      "severity": "error",
+      "reason": "ruff-format-violation",
+      "message": "lint-python: ruff format --check — помилка (код 1, python.mdc)\nWould reformat mod.py"
+    }
+  ],
+  "wasm-plugin parity — python/ruff (JS канон vs wasm plugin-lang-python, спільний фейковий uv) > delta зі зміненим лише одним .py файлом — тула отримує ЛИШЕ його, не увесь репозиторій": []
+}

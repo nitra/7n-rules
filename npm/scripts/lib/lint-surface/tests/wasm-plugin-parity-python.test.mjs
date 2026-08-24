@@ -1,32 +1,34 @@
 /**
  * Parity-тест wasm-плагіна `plugin-lang-python` — ДРУГОГО first-party
  * wasm-гостя (перший — `plugin-lang-js`, `wasm-plugin-parity.test.mjs`):
- * ганяє ОДНІ фікстури через ЖИВІ JS-детектори
- * (`plugins/lang-python/rules/python/<concern>/main.mjs` — Plugin API v2,
- * канон НЕ видаляється цією задачею) і через `runWasmConcern` napi-мосту
- * (`crates/rules-napi` → `crates/plugin-lang-python`), звіряючи, що
- * `violations` ідентичні (reason/message/file/severity/data біт-у-біт) — для
- * трьох контрибуцій першої хвилі: `python/applies`, `python/tooling`,
- * `python/doc_comments` (доккомент `crates/plugin-lang-python/src/lib.rs`).
+ * звіряє `runWasmConcern` napi-мосту (`crates/rules-napi` →
+ * `crates/plugin-lang-python`) із ЕТАЛОНОМ — знятим виводом JS-детекторів
+ * `plugins/lang-python/rules/python/<concern>/main.mjs` (reason/message/
+ * file/severity/data біт-у-біт) — для семи контрибуцій:
+ * `python/applies`, `python/tooling`, `python/doc_comments`,
+ * `python/mypy`, `python/ruff`, `python/workspace_root`, `python/project`
+ * (доккомент `crates/plugin-lang-python/src/lib.rs`).
  *
- * НА ВІДМІНУ від `wasm-plugin-parity.test.mjs` (lang-js): тут НЕМАЄ
- * golden-фікстур/`N_WASM_PARITY_CAPTURE` — JS-канон lang-python ще ЖИВИЙ
- * (усі `main.mjs` під `plugins/lang-python/rules/python` нікуди не
- * поділись, це лише перша хвиля порту), тож кожен прогін викликає `lint()`
- * НАПРЯМУ,
- * як `wasm-plugin-parity.test.mjs` робив ДО рефакторингу лінивого
- * зняття еталонів (`git show 55a4d0715~1:.../wasm-plugin-parity.test.mjs`
- * — той самий, простіший шар без golden-кешу). Видалення JS-канону
- * lang-python — окрема майбутня задача (доккомент завдання), і саме тоді
- * цей файл, ймовірно, теж перейде на golden-еталони.
+ * ЕТАЛОН, НЕ ЖИВИЙ КАНОН: `plugins/lang-python/rules/python/*\/main.mjs` —
+ * транзитивний шар Plugin API v2, що видаляється разом із портом (мета
+ * цього тестового файлу — довести порт, не тримати JS вічно), той самий
+ * прийом, що `wasm-plugin-parity.test.mjs` (lang-js, задача #471,
+ * `git show 55a4d0715`). Поки він живий, зняти еталон можна прогнавши суїт
+ * з `N_WASM_PARITY_CAPTURE=1`; звичайний прогін JS НЕ викликає — читає
+ * зафіксований раніше вивід із `fixtures/wasm-parity/python/**\/*.json`
+ * ([`goldenJs`], `wasm-parity-golden.mjs` — спільний шар з
+ * `wasm-plugin-parity.test.mjs`, доккомент там). Відсутній еталон — ПАДІННЯ
+ * тесту з явним проханням перезняти, повернувши `main.mjs` з історії, не
+ * мовчазний пропуск: інакше зникнення канону не дало б жодного сигналу.
  *
- * `python/applies` і `python/tooling` — full-scope
+ * `python/applies`, `python/tooling`, `python/workspace_root` — full-scope
  * (`concern.json.lint.scope: "full"`), той самий full-scope-мостовий виклик,
  * що lang-js-концерни ([`runFullScopeBoth`]): виклик БЕЗ `files` (`undefined`
  * на JS-боці, `null` на wasm-боці) на обох боках — JS-оригінал ігнорує
  * `ctx.files`, а `runWasmConcern` будує batch сам через
  * `ConcernContribution::glob` (host, `crates/rules-napi::run_wasm_concern`).
  * Фікстури дзеркалять `plugins/lang-python/rules/python/tooling/tests/tooling.test.mjs`
+ * і `plugins/lang-python/rules/python/workspace_root/tests/workspace_root.test.mjs`
  * (`python/applies` власних тестів не має — чистий context-pass, доккомент
  * `main.mjs`).
  *
@@ -44,13 +46,20 @@
  * немає, лише parity-детекту. Фікстури дзеркалять
  * `plugins/lang-python/rules/python/doc_comments/tests/doc_comments.test.mjs`.
  *
+ * `python/mypy`/`python/ruff` ([`runPythonToolBoth`]) і `python/project`
+ * ([`runProjectBoth`]) ганяють ОБИДВІ реалізації на СПІЛЬНОМУ фейковому `uv`
+ * (доккомент секцій нижче) — фейковий бінарник пишеться на диск БЕЗУМОВНО
+ * (wasm-бік справді його виконує через `toolPaths`), а от `env.PATH`,
+ * потрібен ЛИШЕ JS-канону (`resolveCmd`), тож підміна PATH відбувається
+ * ВСЕРЕДИНІ `compute()` [`goldenJs`] — виконується лише в режимі зняття.
+ *
  * Останній describe-блок (`size-budget`) — окремо від parity: заміряє
  * реальний `plugin_lang_python.wasm` проти того самого бюджету 2,5 MiB, що
  * `plugin-lang-js` (`WASM_SIZE_BUDGET_BYTES`, доккомент нижче й
  * `wasm-plugin-parity.test.mjs`).
  */
 import { existsSync } from 'node:fs'
-import { chmod, mkdir, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { delimiter, dirname, join } from 'node:path'
 import { env } from 'node:process'
 import { pathToFileURL } from 'node:url'
@@ -59,6 +68,7 @@ import { describe, expect, test } from 'vitest'
 
 import { loadNative } from '../../native.mjs'
 import { realRepoRoot, withTmpDir } from '../../../utils/test-helpers.mjs'
+import { createGoldenJs } from './wasm-parity-golden.mjs'
 
 const REPO_ROOT = realRepoRoot()
 const WASM_PATH = join(REPO_ROOT, 'target', 'wasm32-wasip2', 'release', 'plugin_lang_python.wasm')
@@ -74,6 +84,7 @@ const PYTHON_RULES_DIR = join(REPO_ROOT, 'plugins', 'lang-python', 'rules', 'pyt
 const APPLIES_MAIN_MJS_PATH = join(PYTHON_RULES_DIR, 'applies', 'main.mjs')
 const TOOLING_MAIN_MJS_PATH = join(PYTHON_RULES_DIR, 'tooling', 'main.mjs')
 const DOC_COMMENTS_MAIN_MJS_PATH = join(PYTHON_RULES_DIR, 'doc_comments', 'main.mjs')
+const DOC_COMMENTS_FIX_MJS_PATH = join(PYTHON_RULES_DIR, 'doc_comments', 'fix-doc_comments.mjs')
 const WORKSPACE_ROOT_MAIN_MJS_PATH = join(PYTHON_RULES_DIR, 'workspace_root', 'main.mjs')
 const PROJECT_MAIN_MJS_PATH = join(PYTHON_RULES_DIR, 'project', 'main.mjs')
 const MYPY_MAIN_MJS_PATH = join(PYTHON_RULES_DIR, 'mypy', 'main.mjs')
@@ -89,6 +100,19 @@ const RUFF_CONCERN_KEY = 'python/ruff'
 
 /** Size-budget компонента — той самий бюджет, що `plugin-lang-js` (доккомент модуля). */
 const WASM_SIZE_BUDGET_BYTES = 2.5 * 1024 * 1024
+
+// ---------------------------------------------------------------------
+// Шар еталонів ([`goldenJs`], `wasm-parity-golden.mjs`): JS-детектори
+// `plugins/lang-python/rules/python/*/main.mjs` — транзитивний канон Plugin
+// API v2, який видаляється разом із портом. Механізм (кеш, лічильники,
+// плейсхолдер tmp-шляху, помилка відсутнього еталона) — СПІЛЬНИЙ з
+// `wasm-plugin-parity.test.mjs` (lang-js), винесений у
+// `wasm-parity-golden.mjs`; тут лишається лише `goldenJs`, звʼязаний із ЦИМ
+// файлом як підказкою команди перезняття (доккомент модуля вище).
+const goldenJs = createGoldenJs({
+  captureHintPath: 'npm/scripts/lib/lint-surface/tests/wasm-plugin-parity-python.test.mjs'
+})
+// ---------------------------------------------------------------------
 
 /**
  * Виставляє дефолт `severity: 'error'`, якщо ключ відсутній — той самий
@@ -128,13 +152,17 @@ async function writeFileDeep(dir, rel, content) {
  * @returns {Promise<{ js: unknown[], wasm: unknown[] }>} результати обох реалізацій
  */
 async function runFullScopeBoth(mainMjsPath, concernKey, concernId, dir) {
-  // file:// URL — абсолютний шлях цього файлу (realRepoRoot() + константні
-  // сегменти), не вхід ззовні (той самий мотив, що lang-js-хелпери).
-  // eslint-disable-next-line no-unsanitized/method
-  const { lint } = await import(pathToFileURL(mainMjsPath).href)
-  const jsResult = await lint({ cwd: dir, ruleId: 'python', concernId, files: undefined })
+  const js = await goldenJs(concernKey, dir, async () => {
+    // file:// URL — абсолютний шлях цього файлу (realRepoRoot() + константні
+    // сегменти), не вхід ззовні (той самий мотив, що lang-js-хелпери).
+    // Виконується ЛИШЕ в режимі зняття еталонів.
+    // eslint-disable-next-line no-unsanitized/method
+    const { lint } = await import(pathToFileURL(mainMjsPath).href)
+    const jsResult = await lint({ cwd: dir, ruleId: 'python', concernId, files: undefined })
+    return withDefaultSeverity(jsResult.violations)
+  })
   const wasmResult = loadNative().runWasmConcern(WASM_PATH, concernKey, dir, null)
-  return { js: withDefaultSeverity(jsResult.violations), wasm: withDefaultSeverity(wasmResult.violations) }
+  return { js, wasm: withDefaultSeverity(wasmResult.violations) }
 }
 
 /**
@@ -146,11 +174,15 @@ async function runFullScopeBoth(mainMjsPath, concernKey, concernId, dir) {
  * @returns {Promise<{ js: unknown[], wasm: unknown[] }>} результати обох реалізацій
  */
 async function runDocCommentsBoth(dir, fileName) {
-  // eslint-disable-next-line no-unsanitized/method
-  const { lint } = await import(pathToFileURL(DOC_COMMENTS_MAIN_MJS_PATH).href)
-  const jsResult = await lint({ cwd: dir, ruleId: 'python', concernId: 'doc_comments', files: [fileName] })
+  const js = await goldenJs(DOC_COMMENTS_CONCERN_KEY, dir, async () => {
+    // Виконується ЛИШЕ в режимі зняття еталонів.
+    // eslint-disable-next-line no-unsanitized/method
+    const { lint } = await import(pathToFileURL(DOC_COMMENTS_MAIN_MJS_PATH).href)
+    const jsResult = await lint({ cwd: dir, ruleId: 'python', concernId: 'doc_comments', files: [fileName] })
+    return withDefaultSeverity(jsResult.violations)
+  })
   const wasmResult = loadNative().runWasmConcern(WASM_PATH, DOC_COMMENTS_CONCERN_KEY, dir, [fileName])
-  return { js: withDefaultSeverity(jsResult.violations), wasm: withDefaultSeverity(wasmResult.violations) }
+  return { js, wasm: withDefaultSeverity(wasmResult.violations) }
 }
 
 describe('wasm-plugin parity — python/applies (JS канон vs wasm plugin-lang-python, full-scope, чистий context-pass)', () => {
@@ -407,6 +439,57 @@ describe('wasm-plugin parity — python/doc_comments (JS канон vs wasm plug
   })
 })
 
+// --- python/doc_comments: замикання T0-циклу ---------------------------
+//
+// Не parity (порівнювати нема з чим): `Guest::fix` гостя для цього концерну
+// свідомо віддає порожній план, T0-фіксер лишається JS
+// (`fix-doc_comments.mjs`). Але після зняття JS-ДЕТЕКТОРА фіксер уперше
+// живе окремо від реалізації, що породжує його вхід: у продакшені
+// `violations` йому дає wasm-гість. Раніше цю петлю замикав
+// `doc_comments.test.mjs` (`checkFileDocComments(after)` після `apply`) —
+// разом із детектором вона б зникла, а це саме та властивість, що ловить
+// фіксер, який пише текст, на який детектор далі скаржиться.
+//
+// Тому петля переїхала СЮДИ, де вже є гість: детект гостем → JS-фіксер →
+// повторний детект гостем має бути порожній. Юніти самого фіксера
+// (`buildDocstring`, форма виводу) лишились у
+// `plugins/lang-python/rules/python/doc_comments/tests/fix-doc_comments.test.mjs`.
+describe('python/doc_comments — T0-цикл: детект гостем → JS-фіксер → детект гостем чистий', () => {
+  const tq = '"'.repeat(3)
+
+  test('#-блок над def промотується в docstring, і повторний детект мовчить', async () => {
+    await withTmpDir(async dir => {
+      const rel = 'pkg/mod.py'
+      await writeFileDeep(dir, rel, [`${tq}Модуль.${tq}`, '', '# робить X', 'def go():', '    return 1', ''].join('\n'))
+
+      const before = withDefaultSeverity(
+        loadNative().runWasmConcern(WASM_PATH, DOC_COMMENTS_CONCERN_KEY, dir, [rel]).violations
+      )
+      expect(before).toHaveLength(1)
+      expect(before[0].data?.promotable).toBe(true)
+
+      // eslint-disable-next-line no-unsanitized/method
+      const { patterns } = await import(pathToFileURL(DOC_COMMENTS_FIX_MJS_PATH).href)
+      expect(patterns[0].test(before)).toBe(true)
+      const writes = []
+      await patterns[0].apply(before, {
+        cwd: dir,
+        recordWrite: path => {
+          writes.push(path)
+        }
+      })
+      expect(writes).toHaveLength(1)
+
+      const after = await readFile(join(dir, rel), 'utf8')
+      expect(after).toContain(`    ${tq}робить X${tq}`)
+      expect(after).not.toContain('# робить X')
+
+      const again = loadNative().runWasmConcern(WASM_PATH, DOC_COMMENTS_CONCERN_KEY, dir, [rel])
+      expect(again.violations).toEqual([])
+    })
+  })
+})
+
 // --- python/mypy + python/ruff (друга хвиля, доккомент секції
 // «`python/mypy` + `python/ruff`» перед `build_manifest` у
 // `crates/plugin-lang-python/src/lib.rs`) -------------------------------
@@ -473,33 +556,41 @@ async function writeFakeUv(path, body) {
  * @returns {Promise<{ js: unknown[], wasm: unknown[] }>} результати обох реалізацій
  */
 async function runPythonToolBoth(mainMjsPath, concernKey, concernId, dir, pyFiles, toolBody) {
-  const originalPath = env.PATH
+  // Фейковий `uv` пишеться на диск БЕЗУМОВНО (не лише в режимі зняття) —
+  // wasm-бік справді ВИКОНУЄ цей бінарник через `toolPaths` (нижче), тож він
+  // мусить існувати і в звичайному прогоні. `env.PATH`, навпаки, потрібен
+  // ЛИШЕ JS-канону (`resolveCmd` читає PATH), тож підміна PATH переїхала
+  // всередину `compute()` [`goldenJs`] — там, де й сам виклик `lint()`.
   let toolPaths = {}
-  try {
-    if (toolBody === null) {
-      // Канал «uv не знайдено»: PATH БЕЗ фейкового `uv`, `toolPaths`
-      // порожній — `ToolResolver` (`crates/rules-plugin-host`) не знає
-      // `uv`, `exec_tool` повертає `status: none`.
-      env.PATH = ''
-    } else {
-      const binDir = join(dir, 'fake-bin')
-      await mkdir(binDir, { recursive: true })
-      const toolPath = await writeFakeUv(join(binDir, 'uv'), toolBody)
-      env.PATH = `${binDir}${delimiter}${originalPath ?? ''}`
-      toolPaths = { uv: toolPath }
-    }
-    // eslint-disable-next-line no-unsanitized/method
-    const { lint } = await import(pathToFileURL(mainMjsPath).href)
-    const jsResult = await lint({ cwd: dir, ruleId: 'python', concernId, files: pyFiles })
-    // Якір `pyproject.toml` додається ЛИШЕ до непорожнього збігу — той
-    // самий гейт, що `plan_concern_for_delta` (`if files.is_empty() {
-    // None } else { … append anchors … }`, доккомент секції вище).
-    const wasmFiles = pyFiles.length > 0 ? [...pyFiles, 'pyproject.toml'] : pyFiles
-    const wasmResult = loadNative().runWasmConcern(WASM_PATH, concernKey, dir, wasmFiles, toolPaths)
-    return { js: withDefaultSeverity(jsResult.violations), wasm: withDefaultSeverity(wasmResult.violations) }
-  } finally {
-    env.PATH = originalPath
+  let binDir = null
+  if (toolBody !== null) {
+    binDir = join(dir, 'fake-bin')
+    await mkdir(binDir, { recursive: true })
+    const toolPath = await writeFakeUv(join(binDir, 'uv'), toolBody)
+    toolPaths = { uv: toolPath }
   }
+  const js = await goldenJs(concernKey, dir, async () => {
+    const originalPath = env.PATH
+    try {
+      // Канал «uv не знайдено» (`binDir === null`): PATH БЕЗ фейкового
+      // `uv` — `ToolResolver` (`crates/rules-plugin-host`) не знає `uv`,
+      // `exec_tool` повертає `status: none`. Виконується ЛИШЕ в режимі
+      // зняття еталонів.
+      env.PATH = binDir ? `${binDir}${delimiter}${originalPath ?? ''}` : ''
+      // eslint-disable-next-line no-unsanitized/method
+      const { lint } = await import(pathToFileURL(mainMjsPath).href)
+      const jsResult = await lint({ cwd: dir, ruleId: 'python', concernId, files: pyFiles })
+      return withDefaultSeverity(jsResult.violations)
+    } finally {
+      env.PATH = originalPath
+    }
+  })
+  // Якір `pyproject.toml` додається ЛИШЕ до непорожнього збігу — той самий
+  // гейт, що `plan_concern_for_delta` (`if files.is_empty() { None } else {
+  // … append anchors … }`, доккомент секції вище).
+  const wasmFiles = pyFiles.length > 0 ? [...pyFiles, 'pyproject.toml'] : pyFiles
+  const wasmResult = loadNative().runWasmConcern(WASM_PATH, concernKey, dir, wasmFiles, toolPaths)
+  return { js, wasm: withDefaultSeverity(wasmResult.violations) }
 }
 
 describe('wasm-plugin parity — python/mypy (JS канон vs wasm plugin-lang-python, спільний фейковий uv)', () => {
@@ -942,21 +1033,28 @@ async function withUvOnPath(uvPath, fn) {
 }
 
 /**
- * Ганяє `python/project` через ЖИВИЙ JS-канон (бачить фейковий `uv` через
- * підмінений `PATH`, [`withUvOnPath`]) і `runWasmConcern` з `toolPaths: {
- * uv: uvPath }` (`crates/rules-napi::run_wasm_concern`/`build_tool_resolver`)
- * — обидва боки резолвлять РІВНО той самий скрипт. `uvPath: null` — жоден
- * бік не резолвить `uv` взагалі (сценарій «інструмента немає»).
+ * Ганяє `python/project` через JS-канон (у режимі зняття — бачить фейковий
+ * `uv` через підмінений `PATH`, [`withUvOnPath`], усередині `compute()`
+ * [`goldenJs`]) і `runWasmConcern` з `toolPaths: { uv: uvPath }`
+ * (`crates/rules-napi::run_wasm_concern`/`build_tool_resolver`) — обидва
+ * боки резолвлять РІВНО той самий скрипт (файл на диску пише виклик-сайт
+ * БЕЗУМОВНО, `writeFakeTool`, — wasm-бік його справді виконує). `uvPath:
+ * null` — жоден бік не резолвить `uv` взагалі (сценарій «інструмента
+ * немає»).
  * @param {string} dir абсолютний шлях tmp-каталогу з фікстурами
  * @param {string | null} uvPath шлях фейкового `uv` чи `null`
  * @returns {Promise<{ js: unknown[], wasm: unknown[] }>} результати обох реалізацій
  */
 async function runProjectBoth(dir, uvPath) {
-  // eslint-disable-next-line no-unsanitized/method
-  const { lint } = await import(pathToFileURL(PROJECT_MAIN_MJS_PATH).href)
-  const jsResult = await withUvOnPath(uvPath, () =>
-    lint({ cwd: dir, ruleId: 'python', concernId: 'project', files: undefined })
-  )
+  const js = await goldenJs(PROJECT_CONCERN_KEY, dir, async () => {
+    // Виконується ЛИШЕ в режимі зняття еталонів.
+    // eslint-disable-next-line no-unsanitized/method
+    const { lint } = await import(pathToFileURL(PROJECT_MAIN_MJS_PATH).href)
+    const jsResult = await withUvOnPath(uvPath, () =>
+      lint({ cwd: dir, ruleId: 'python', concernId: 'project', files: undefined })
+    )
+    return withDefaultSeverity(jsResult.violations)
+  })
   const wasmResult = loadNative().runWasmConcern(
     WASM_PATH,
     PROJECT_CONCERN_KEY,
@@ -964,7 +1062,7 @@ async function runProjectBoth(dir, uvPath) {
     null,
     uvPath ? { uv: uvPath } : {}
   )
-  return { js: withDefaultSeverity(jsResult.violations), wasm: withDefaultSeverity(wasmResult.violations) }
+  return { js, wasm: withDefaultSeverity(wasmResult.violations) }
 }
 
 describe('wasm-plugin parity — python/project (JS канон vs wasm plugin-lang-python, full-scope, exec-tool)', () => {

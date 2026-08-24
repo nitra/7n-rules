@@ -1,0 +1,4 @@
+{
+  "wasm-plugin parity — python/applies (JS канон vs wasm plugin-lang-python, full-scope, чистий context-pass) > pyproject.toml є — обидві реалізації мовчать (context-pass, не перевірка)": [],
+  "wasm-plugin parity — python/applies (JS канон vs wasm plugin-lang-python, full-scope, чистий context-pass) > pyproject.toml відсутній — теж обидві реалізації мовчать (JS-канон узагалі не читає ctx)": []
+}
