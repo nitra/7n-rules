@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.17.0] - 2026-08-24
+
+### Removed
+
+- rust-концерни (усі шість): видалено JS lint-детектори (main.mjs) — канон тепер wasm-гість crates/plugin-lang-rust; T0-фіксери, rego-концерни, lib/ignored-dirs.mjs і тести декларативного гейта лишаються JS
+
 ## [0.16.1] - 2026-08-05
 
 ### Fixed

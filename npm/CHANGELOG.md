@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.97.1] - 2026-08-24
+
+### Changed
+
+- wasm-parity: гейт lang-rust звіряється зі знятим еталоном JS-канону (N_WASM_PARITY_CAPTURE), не з живим main.mjs; додано замикання T0-циклів (гість → JS-фіксер → гість) для doc_comments і cargo_mutants_config
+
 ## [1.97.0] - 2026-08-24
 
 ### Added
