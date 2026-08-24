@@ -1,0 +1,58 @@
+# Маніфест wasm-плагіна `rust/wasm-concerns` — ТРЕТІЙ first-party wasm-гість
+# репозиторію (перший — `crates/plugin-lang-js`, другий —
+# `crates/plugin-lang-python`, доккомент того `plugin.toml` пояснює саму
+# форму). Перша хвиля порту: три концерни без зовнішніх тулів
+# (`rust/applies`, `rust/doc_comments`, `rust/workspace_root`) — доккомент
+# модуля `src/lib.rs`. Поля 1:1 відповідають `rules_contract::manifest::Manifest`
+# (crates/rules-contract/src/manifest.rs, без serde-перейменувань — назви
+# полів тотожні Rust-структурі). Хост читає цей файл лише як довідник для
+# людини й дистрибуційний supplement — джерело правди в рантаймі завжди
+# `describe()` (не парситься назад у `PluginHost`, спека §3.1).
+
+id = "rust/wasm-concerns"
+version = "0.1.0"
+world_version = "3.1.0"
+domains = ["lint"]
+# Top-level поля маніфеста — ОБОВʼЯЗКОВО перед першим `[[concerns]]`: після
+# array-of-tables заголовка TOML відніс би їх до останнього елемента масиву,
+# а не до кореня (та сама пастка, задокументована в
+# `crates/plugin-lang-python/plugin.toml`).
+ci_artifacts = []
+# Перша хвиля не портує жодного `exec-tool`-концерну (на відміну від
+# `python/mypy`+`python/ruff` другої хвилі python-крейта) — порожній список.
+tools = []
+
+[[concerns]]
+key = "rust/applies"
+scope = "full"
+# `**/Cargo.toml` — точний відповідник `concern.json` цього концерну
+# (`plugins/lang-rust/rules/rust/applies/concern.json`), ШИРШИЙ за
+# кореневий-лише `pyproject.toml` python-сусіда: реальний гейт застосовності
+# лежить декларативно в `rust/main.json:applies` (`globMatches`), цей
+# концерн — чистий context-pass (доккомент `src/lib.rs`).
+glob = ["**/Cargo.toml"]
+
+[[concerns]]
+key = "rust/doc_comments"
+scope = "per-file"
+glob = ["**/*.rs"]
+
+[[concerns]]
+# Друга (і поки остання) full-scope контрибуція цього крейта — єдиний
+# концерн, що бачить УСЕ дерево репозиторію (host-batch за цим глобом +
+# власний `RUST_WORKSPACE_ROOT_IGNORED_DIR_NAMES`-фільтр гостя,
+# `crates/plugin-lang-rust/src/lib.rs::detect_workspace_root`). На відміну
+# від `python/workspace_root` глоб НЕ несе lockfile-патерн: JS-канон
+# (`plugins/lang-rust/rules/rust/workspace_root/main.mjs`) взагалі не
+# перевіряє вкладені `Cargo.lock` (доккомент `src/lib.rs`).
+key = "rust/workspace_root"
+scope = "full"
+glob = ["**/Cargo.toml"]
+
+[capabilities]
+# Хост передає вміст файлів inline у `detect-batch` (host-побудований
+# full-scope batch для `rust/applies`/`rust/workspace_root`, per-file batch
+# для `rust/doc_comments`) — плагін не читає диск сам (доккомент модуля
+# `src/lib.rs`, розділ «Обхід дерева»).
+fs_read = []
+network = false

@@ -45,15 +45,17 @@ export const WASM_PLUGINS_DIR = join(NPM_ROOT, 'wasm-plugins')
 
 /**
  * First-party wasm-плагіни, вбудовані піни для яких CLI шипить у пакеті
- * (рішення Н) — `lang-js` (задача N2, `crates/plugin-lang-js`) і `lang-python`
- * (перша хвиля порту `plugins/lang-python`, `crates/plugin-lang-python`).
+ * (рішення Н) — `lang-js` (задача N2, `crates/plugin-lang-js`), `lang-python`
+ * (перша хвиля порту `plugins/lang-python`, `crates/plugin-lang-python`) і
+ * `lang-rust` (перша хвиля порту `plugins/lang-rust`, `crates/plugin-lang-rust`).
  * Новий first-party плагін додається одним рядком тут; той самий реєстр
  * читає й CI-крок (той самий скрипт, `node npm/scripts/build-wasm-plugins.mjs`).
  * @type {Array<{ name: string, crateDir: string }>}
  */
 export const FIRST_PARTY_WASM_PLUGINS = [
   { name: 'lang-js', crateDir: 'crates/plugin-lang-js' },
-  { name: 'lang-python', crateDir: 'crates/plugin-lang-python' }
+  { name: 'lang-python', crateDir: 'crates/plugin-lang-python' },
+  { name: 'lang-rust', crateDir: 'crates/plugin-lang-rust' }
 ]
 
 /** Ціль Component Model, під яку зібрані first-party плагіни (доккомент `build.sh`). */

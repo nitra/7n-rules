@@ -1,0 +1,62 @@
+[package]
+name = "plugin-lang-rust"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "Apache-2.0"
+description = "wasm-компонент n-rules:plugin@3.1.0 — rust/wasm-concerns (3 контрибуції першої хвилі: rust/applies, rust/doc_comments, rust/workspace_root)"
+
+[lib]
+# `cdylib` — обов'язково: `wasm32-wasip2` виводить готовий Component Model
+# компонент лише з цього crate-type (той самий мотив, що
+# `crates/plugin-lang-js`/`crates/plugin-lang-python`, доккомент тих Cargo.toml).
+crate-type = ["cdylib"]
+
+[dependencies]
+# Пін звірено з `crates/plugin-lang-js/Cargo.toml`/`crates/plugin-lang-python/Cargo.toml`
+# (той самий мінор, що резолвиться в Cargo.lock кореня) — НЕ розширюй у
+# caret-діапазон без причини.
+wit-bindgen = "0.60"
+# Порт regex-ів `rust/doc_comments` (EXCLUDED_FILE_RE/EXTERN_PREFIX_RE/
+# KIND_NAME_RE, `plugins/lang-rust/rules/rust/doc_comments/main.mjs`) — жодного
+# з них НЕ потребує lookaround/backreference (єдиний lookahead-патерн канону,
+# `PLAIN_COMMENT_RE` з негативним lookahead `(?![/!])`, порт БЕЗ regex-крейта —
+# ручна перевірка символу після `//`, доккомент `is_plain_comment_line` у
+# `src/lib.rs`, той самий мотив, що п.4 `npm/skills/wasm-plugin/SKILL.md`).
+#
+# `default-features = false` + явний список, той самий скорочений набір, що
+# `crates/plugin-lang-python/Cargo.toml`: "unicode-perl" ОБОВ'ЯЗКОВИЙ (не
+# опційна оптимізація — без нього `\w`/`\s` у `KIND_NAME_RE`/`EXTERN_PREFIX_RE`
+# не компілюються, `Syntax`-помилка `Unicode-aware Perl class not found`,
+# перевірено емпірично тим самим probe-методом, що в сусідньому крейті).
+# "unicode-case" НЕ потрібен — жоден з патернів цього крейта не має `(?i)`.
+regex = { version = "1", default-features = false, features = [
+  "std",
+  "perf",
+  "unicode-perl",
+] }
+# `rust/workspace_root` парсить `Cargo.toml` (наявність `[package]`,
+# `[workspace].members`/`.exclude`, `[profile]`) — та сама пара
+# `basic-toml`+`serde` (typed struct, `#[serde(default)]`), що
+# `crates/plugin-lang-python/Cargo.toml` вибрав для `pyproject.toml` після
+# емпіричного вимірювання (release wasm32-wasip2): `basic-toml` ~183 KiB
+# проти ~286 KiB у `toml` (той самий `toml_edit`→`winnow`+`indexmap` тягар,
+# якого тут не треба — лише читання кількох полів, без style-preserving
+# запису назад). Той самий крейт, той самий probe-результат — вимірювати
+# повторно для ідентичного typed-struct виклику нема сенсу; фінальний розмір
+# ЦЬОГО гостя (три конкурентні контрибуції разом) заміряний окремо
+# (доккомент модуля `src/lib.rs`, звіт задачі).
+basic-toml = "0.1"
+# `serde` з `derive` — типізовані struct-и `WorkspaceRootCargoToml`/
+# `WorkspaceRootWorkspaceTable` (`src/lib.rs`) замість generic `Value`/`Table`.
+# `derive`-macro не потрапляє в сам `.wasm` (proc-macro виконується під час
+# компіляції host-у) — вартість лише рантайм-крейт `serde`, вже врахована в
+# probe-вимірі python-крейта вище.
+serde = { version = "1", default-features = false, features = ["derive"] }
+
+[dev-dependencies]
+# Anti-drift тест `plugin_toml_concern_keys_match_describe` (той самий мотив,
+# що `crates/plugin-lang-js/Cargo.toml`/`crates/plugin-lang-python/Cargo.toml`)
+# — парсить `plugin.toml` СПРАВЖНІМ TOML-парсером. Dev-only: у wasm32-wasip2
+# cdylib не потрапляє.
+toml = "0.8"

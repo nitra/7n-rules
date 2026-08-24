@@ -12,6 +12,7 @@ members = [
   "crates/test-plugin-guest",
   "crates/plugin-lang-js",
   "crates/plugin-lang-python",
+  "crates/plugin-lang-rust",
 ]
 # `crates/test-plugin-guest` — guest-фікстура contract-test-kit
 # `crates/rules-plugin-host` (задача I2, спека
@@ -32,6 +33,13 @@ members = [
 # наступна хвиля (`mypy`/`ruff`/`project`/`workspace_root`) і видалення JS
 # ідуть окремими задачами. Той самий workspace-мотив нижче стосується й
 # цього крейта.
+# `crates/plugin-lang-rust` — ТРЕТІЙ first-party wasm-плагін, перша хвиля:
+# три концерни без зовнішніх тулів (`rust/applies`, `rust/doc_comments`,
+# `rust/workspace_root`), порт чинних `plugins/lang-rust/rules/rust/
+# {applies,doc_comments,workspace_root}/main.mjs` 1:1 (доккомент
+# `crates/plugin-lang-rust/src/lib.rs`). JS-канон лишається живим — видалення
+# JS іде окремою задачею. Той самий workspace-мотив нижче стосується й цього
+# крейта.
 #
 # Свідомо ЗВИЧАЙНИЙ `members`-запис, не `workspace.exclude` + власний
 # `[workspace]` у крейті (як типово роблять для wasm-guest-фікстур в інших
