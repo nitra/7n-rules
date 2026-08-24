@@ -1,0 +1,38 @@
+{
+  "wasm-plugin parity — rust/check (JS канон vs wasm plugin-lang-rust, спільний фейковий cargo) > немає кореневого Cargo.toml — обидві реалізації мовчать, cargo не спавниться": [],
+  "wasm-plugin parity — rust/check (JS канон vs wasm plugin-lang-rust, спільний фейковий cargo) > cargo не резолвиться в PATH — однакове cargo-missing порушення з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "cargo-missing",
+      "message": "lint-rust: `cargo` не знайдено в PATH (Rust toolchain через rustup, rust.mdc)"
+    }
+  ],
+  "wasm-plugin parity — rust/check (JS канон vs wasm plugin-lang-rust, спільний фейковий cargo) > cargo fmt --check провалюється — лише cargo-fmt-violation, clippy/deny НЕ виконуються": [
+    {
+      "severity": "error",
+      "reason": "cargo-fmt-violation",
+      "message": "lint-rust: cargo fmt --check — помилка (код 1, rust.mdc)\nwould reformat main.rs"
+    }
+  ],
+  "wasm-plugin parity — rust/check (JS канон vs wasm plugin-lang-rust, спільний фейковий cargo) > clippy провалюється, deny.toml відсутній — cargo-clippy-violation І deny-config-missing разом": [
+    {
+      "severity": "error",
+      "reason": "cargo-clippy-violation",
+      "message": "lint-rust: cargo clippy -D warnings — помилка (код 1, rust.mdc)\nunused variable"
+    },
+    {
+      "severity": "error",
+      "reason": "deny-config-missing",
+      "message": "lint-rust: cargo deny — немає deny.toml; запустіть `npx @7n/rules fix rust` локально для генерації (rust.mdc)"
+    }
+  ],
+  "wasm-plugin parity — rust/check (JS канон vs wasm plugin-lang-rust, спільний фейковий cargo) > deny --version провалюється (deny не встановлено) — тихий skip, обидві реалізації мовчать": [],
+  "wasm-plugin parity — rust/check (JS канон vs wasm plugin-lang-rust, спільний фейковий cargo) > cargo deny check licenses провалюється — однакове cargo-deny-violation": [
+    {
+      "severity": "error",
+      "reason": "cargo-deny-violation",
+      "message": "lint-rust: cargo deny check licenses — помилка (код 1, rust.mdc)\nGPL-3.0 not allowed"
+    }
+  ],
+  "wasm-plugin parity — rust/check (JS канон vs wasm plugin-lang-rust, спільний фейковий cargo) > усі кроки проходять — обидві реалізації мовчать": []
+}

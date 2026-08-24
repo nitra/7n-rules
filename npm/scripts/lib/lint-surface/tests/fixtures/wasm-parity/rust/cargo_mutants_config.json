@@ -1,0 +1,34 @@
+{
+  "wasm-plugin parity — rust/cargo_mutants_config (JS канон vs wasm plugin-lang-rust, T0, full-scope) > немає жодного Cargo.toml — концерн не застосовний з обох реалізацій": [],
+  "wasm-plugin parity — rust/cargo_mutants_config (JS канон vs wasm plugin-lang-rust, T0, full-scope) > кореневий .cargo/mutants.toml є — обидві реалізації мовчать": [],
+  "wasm-plugin parity — rust/cargo_mutants_config (JS канон vs wasm plugin-lang-rust, T0, full-scope) > кореневий .cargo/mutants.toml відсутній — однакове mutants-config-missing з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "mutants-config-missing",
+      "message": ".cargo/mutants.toml відсутній (.cargo/mutants.toml) — запусти `npx @7n/rules lint rust` для генерації canonical baseline (rust.mdc)",
+      "file": ".cargo/mutants.toml"
+    }
+  ],
+  "wasm-plugin parity — rust/cargo_mutants_config (JS канон vs wasm plugin-lang-rust, T0, full-scope) > workspaces-запис у package.json резолвиться (не glob) — Tauri-маніфест пріоритетний з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "mutants-config-missing",
+      "message": ".cargo/mutants.toml відсутній (.cargo/mutants.toml) — запусти `npx @7n/rules lint rust` для генерації canonical baseline (rust.mdc)",
+      "file": ".cargo/mutants.toml"
+    },
+    {
+      "severity": "error",
+      "reason": "mutants-config-missing",
+      "message": ".cargo/mutants.toml відсутній (owner/src-tauri/.cargo/mutants.toml) — запусти `npx @7n/rules lint rust` для генерації canonical baseline (rust.mdc)",
+      "file": "owner/src-tauri/.cargo/mutants.toml"
+    }
+  ],
+  "wasm-plugin parity — rust/cargo_mutants_config (JS канон vs wasm plugin-lang-rust, T0, full-scope) > workspaces glob-патерн (packages/*) НЕ розкривається — латентний баг канону відтворено з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "mutants-config-missing",
+      "message": ".cargo/mutants.toml відсутній (.cargo/mutants.toml) — запусти `npx @7n/rules lint rust` для генерації canonical baseline (rust.mdc)",
+      "file": ".cargo/mutants.toml"
+    }
+  ]
+}

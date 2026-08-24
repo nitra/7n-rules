@@ -21,7 +21,8 @@
 пакує cdylib-артефакт у компонент). Дискримінатор — саме залежність від
 `wasm-bindgen`.
 
-Перевірка — read-only, T0 (без spawn `cargo`, самим парсингом `Cargo.toml`
-через `smol-toml`): `rules/rust/wasm_component/main.mjs`. Авто-фіксу немає —
+Перевірка — read-only, T0 (без spawn `cargo`, самим парсингом `Cargo.toml`):
+детектор `detect_wasm_component` wasm-гостя `crates/plugin-lang-rust`
+(концерн `rust/wasm_component`). Авто-фіксу немає —
 заміна `wasm-bindgen` на `wit-bindgen` чи дописування `component-model` у
 `features` змінює публічний API крейта, тож рішення лишається за автором.

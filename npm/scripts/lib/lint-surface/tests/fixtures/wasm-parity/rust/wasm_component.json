@@ -1,0 +1,29 @@
+{
+  "wasm-plugin parity — rust/wasm_component (JS канон vs wasm plugin-lang-rust, per-file) > без wasm-bindgen/wasmtime — обидві реалізації мовчать": [],
+  "wasm-plugin parity — rust/wasm_component (JS канон vs wasm plugin-lang-rust, per-file) > пряма залежність від wasm-bindgen — однакове wasm-bindgen-forbidden з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "wasm-bindgen-forbidden",
+      "message": "Cargo.toml: залежність від `wasm-bindgen` заборонена — старий режим wasm. `wasm-bindgen` — це старий режим (браузерний cdylib під wasm32-unknown-unknown, без WASI, без Component Model ABI). Порт на Component Model: `wit-bindgen` + ціль wasm32-wasip2 (rust/wasm_component.mdc).",
+      "file": "Cargo.toml"
+    }
+  ],
+  "wasm-plugin parity — rust/wasm_component (JS канон vs wasm plugin-lang-rust, per-file) > wasmtime default-features=false без component-model — однакове wasmtime-missing-component-model": [
+    {
+      "severity": "error",
+      "reason": "wasmtime-missing-component-model",
+      "message": "Cargo.toml: `wasmtime` без `component-model` у features. `component-model` — дефолтна feature `wasmtime`, але цей маніфест вимкнув дефолти (`default-features = false`) і не додав її назад явно у `features`. Без неї хост не зможе вантажити wasm-компоненти (`Component::from_binary`) — лише старі core-модулі (rust/wasm_component.mdc).",
+      "file": "Cargo.toml"
+    }
+  ],
+  "wasm-plugin parity — rust/wasm_component (JS канон vs wasm plugin-lang-rust, per-file) > wasmtime default-features=false З component-model — обидві реалізації мовчать": [],
+  "wasm-plugin parity — rust/wasm_component (JS канон vs wasm plugin-lang-rust, per-file) > { workspace = true }-успадкована wasm-bindgen — резолвиться через кореневий manifest у батчі з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "wasm-bindgen-forbidden",
+      "message": "crates/a/Cargo.toml: залежність від `wasm-bindgen` заборонена — старий режим wasm. `wasm-bindgen` — це старий режим (браузерний cdylib під wasm32-unknown-unknown, без WASI, без Component Model ABI). Порт на Component Model: `wit-bindgen` + ціль wasm32-wasip2 (rust/wasm_component.mdc).",
+      "file": "crates/a/Cargo.toml"
+    }
+  ],
+  "wasm-plugin parity — rust/wasm_component (JS канон vs wasm plugin-lang-rust, per-file) > не-.toml файл серед цілей — поза виміром з обох реалізацій": []
+}

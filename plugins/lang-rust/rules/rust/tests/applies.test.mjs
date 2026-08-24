@@ -2,6 +2,11 @@
  * Тести rule-level гейта правила `rust`. Гейт декларативний
  * (`rust/main.json:applies`), тож тест обчислює САМЕ ТОЙ предикат, який
  * лежить у пакеті, — а не окрему тестову копію.
+ *
+ * Файл ПЕРЕЖИВ зняття JS-детекторів: він ніколи не тестував детектор
+ * `applies/main.mjs` (той був чистим context-pass — його єдиний тест пішов
+ * разом із ним у wasm-гість). Усе решта тут — про декларативний гейт і про
+ * anti-drift ignore-списку, і жодного стосунку до порту не має.
  */
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -12,7 +17,6 @@ import { describe, expect, test } from 'vitest'
 
 import { evaluateAppliesNode, readRuleApplies } from '@7n/rules/scripts/lib/rule-applies.mjs'
 
-import { lint } from '../applies/main.mjs'
 import { RUST_WALK_IGNORED_DIR_NAMES } from '../lib/ignored-dirs.mjs'
 
 const RULE_DIR = fileURLToPath(new URL('../', import.meta.url))
@@ -99,13 +103,5 @@ describe('rust applies', () => {
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
-  })
-})
-
-describe('rust check', () => {
-  test('lint() завжди чистий (лише context-pass)', async () => {
-    const ctx = { cwd: process.cwd(), ruleId: 'rust', concernId: 'applies', files: undefined }
-    const result = await lint(ctx)
-    expect(result.violations).toEqual([])
   })
 })

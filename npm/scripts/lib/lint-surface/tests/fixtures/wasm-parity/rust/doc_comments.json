@@ -1,0 +1,144 @@
+{
+  "wasm-plugin parity — rust/doc_comments (JS канон vs wasm plugin-lang-rust, per-file) > файл без pub-елементів — обидві реалізації мовчать": [],
+  "wasm-plugin parity — rust/doc_comments (JS канон vs wasm plugin-lang-rust, per-file) > //!-header + /// над pub — без порушень з обох реалізацій": [],
+  "wasm-plugin parity — rust/doc_comments (JS канон vs wasm plugin-lang-rust, per-file) > без header і без /// — дві однакові діагностики з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "missing-file-header",
+      "message": "src/a.rs: файл із pub-елементами без провідного //!-коментаря. Глобальний сенс: конвеєр doc-files копіює цей коментар ДОСЛІВНО в секцію «Огляд» автоматично згенерованої документації файлу (0 LLM-токенів) — без нього «Огляд» вигадує LLM із самого коду.",
+      "file": "src/a.rs",
+      "data": {
+        "header": true
+      }
+    },
+    {
+      "severity": "error",
+      "reason": "missing-pub-doc",
+      "message": "src/a.rs: pub fn go без ///-опису. Глобальний сенс: конвеєр doc-files бере цей опис ДОСЛІВНО в секцію «Публічний API» автоматично згенерованої документації файлу (0 LLM-токенів) — без нього опис вигадує LLM.",
+      "file": "src/a.rs",
+      "data": {
+        "name": "go"
+      }
+    }
+  ],
+  "wasm-plugin parity — rust/doc_comments (JS канон vs wasm plugin-lang-rust, per-file) > //-блок над pub-елементом (атрибут між ними пропускається) — однакова promotable data": [
+    {
+      "severity": "error",
+      "reason": "missing-pub-doc",
+      "message": "src/a.rs: pub struct S без ///-опису. Глобальний сенс: конвеєр doc-files бере цей опис ДОСЛІВНО в секцію «Публічний API» автоматично згенерованої документації файлу (0 LLM-токенів) — без нього опис вигадує LLM.",
+      "file": "src/a.rs",
+      "data": {
+        "promotable": true,
+        "fromLine": 2,
+        "toLine": 2,
+        "name": "S"
+      }
+    }
+  ],
+  "wasm-plugin parity — rust/doc_comments (JS канон vs wasm plugin-lang-rust, per-file) > провідний //-блок — однакова promotable header data з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "missing-file-header",
+      "message": "src/a.rs: файл із pub-елементами без провідного //!-коментаря. Глобальний сенс: конвеєр doc-files копіює цей коментар ДОСЛІВНО в секцію «Огляд» автоматично згенерованої документації файлу (0 LLM-токенів) — без нього «Огляд» вигадує LLM із самого коду.",
+      "file": "src/a.rs",
+      "data": {
+        "promotable": true,
+        "fromLine": 0,
+        "toLine": 0,
+        "header": true
+      }
+    }
+  ],
+  "wasm-plugin parity — rust/doc_comments (JS канон vs wasm plugin-lang-rust, per-file) > pub-елементи після #[cfg(test)] не скануються з обох реалізацій": [],
+  "wasm-plugin parity — rust/doc_comments (JS канон vs wasm plugin-lang-rust, per-file) > pub const NAME — kind const; pub const fn — kind fn, з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "missing-pub-doc",
+      "message": "src/a.rs: pub const MAX без ///-опису. Глобальний сенс: конвеєр doc-files бере цей опис ДОСЛІВНО в секцію «Публічний API» автоматично згенерованої документації файлу (0 LLM-токенів) — без нього опис вигадує LLM.",
+      "file": "src/a.rs",
+      "data": {
+        "name": "MAX"
+      }
+    },
+    {
+      "severity": "error",
+      "reason": "missing-pub-doc",
+      "message": "src/a.rs: pub fn calc без ///-опису. Глобальний сенс: конвеєр doc-files бере цей опис ДОСЛІВНО в секцію «Публічний API» автоматично згенерованої документації файлу (0 LLM-токенів) — без нього опис вигадує LLM.",
+      "file": "src/a.rs",
+      "data": {
+        "name": "calc"
+      }
+    }
+  ],
+  "wasm-plugin parity — rust/doc_comments (JS канон vs wasm plugin-lang-rust, per-file) > тестовий файл tests/helpers.rs — поза вимогою з обох реалізацій": [],
+  "wasm-plugin parity — rust/doc_comments (JS канон vs wasm plugin-lang-rust, per-file) > тестовий файл src/a_test.rs — поза вимогою з обох реалізацій": [],
+  "wasm-plugin parity — rust/doc_comments (JS канон vs wasm plugin-lang-rust, per-file) > тестовий файл src/a_tests.rs — поза вимогою з обох реалізацій": [],
+  "wasm-plugin parity — rust/doc_comments (JS канон vs wasm plugin-lang-rust, per-file) > не-.rs файл — поза вимогою з обох реалізацій": [],
+  "wasm-plugin parity — rust/doc_comments (JS канон vs wasm plugin-lang-rust, per-file) > /// безпосередньо над елементом — уже doc, не promotable, з обох реалізацій": [],
+  "wasm-plugin parity — rust/doc_comments (JS канон vs wasm plugin-lang-rust, per-file) > без блоку коментарів — data містить лише {name} з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "missing-pub-doc",
+      "message": "src/a.rs: pub fn go без ///-опису. Глобальний сенс: конвеєр doc-files бере цей опис ДОСЛІВНО в секцію «Публічний API» автоматично згенерованої документації файлу (0 LLM-токенів) — без нього опис вигадує LLM.",
+      "file": "src/a.rs",
+      "data": {
+        "name": "go"
+      }
+    }
+  ],
+  "wasm-plugin parity — rust/doc_comments (JS канон vs wasm plugin-lang-rust, per-file) > struct без docstring — повідомлення містить \"pub struct <імʼя>\" з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "missing-pub-doc",
+      "message": "src/a.rs: pub struct Foo без ///-опису. Глобальний сенс: конвеєр doc-files бере цей опис ДОСЛІВНО в секцію «Публічний API» автоматично згенерованої документації файлу (0 LLM-токенів) — без нього опис вигадує LLM.",
+      "file": "src/a.rs",
+      "data": {
+        "name": "Foo"
+      }
+    }
+  ],
+  "wasm-plugin parity — rust/doc_comments (JS канон vs wasm plugin-lang-rust, per-file) > \"////\" (чотири слеші) — уже doc (DOC_LINE_RE), НЕ promotable-plain — з обох реалізацій": [],
+  "wasm-plugin parity — rust/doc_comments (JS канон vs wasm plugin-lang-rust, per-file) > кириличне імʼя (pub fn облік) — JS \\w ASCII-only, рядок узагалі не pub-елемент, з обох реалізацій": [],
+  "wasm-plugin parity — rust/doc_comments (JS канон vs wasm plugin-lang-rust, per-file) > змішаний хвіст імені (pub fn aоблік) — імʼя обрізається по ASCII однаково з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "missing-pub-doc",
+      "message": "src/a.rs: pub fn a без ///-опису. Глобальний сенс: конвеєр doc-files бере цей опис ДОСЛІВНО в секцію «Публічний API» автоматично згенерованої документації файлу (0 LLM-токенів) — без нього опис вигадує LLM.",
+      "file": "src/a.rs",
+      "data": {
+        "name": "a"
+      }
+    }
+  ],
+  "wasm-plugin parity — rust/doc_comments (JS канон vs wasm plugin-lang-rust, per-file) > pub unsafe extern \"C\" fn + pub async fn — модифікатори зрізані ітеративно однаково": [
+    {
+      "severity": "error",
+      "reason": "missing-pub-doc",
+      "message": "src/a.rs: pub fn foo без ///-опису. Глобальний сенс: конвеєр doc-files бере цей опис ДОСЛІВНО в секцію «Публічний API» автоматично згенерованої документації файлу (0 LLM-токенів) — без нього опис вигадує LLM.",
+      "file": "src/a.rs",
+      "data": {
+        "name": "foo"
+      }
+    },
+    {
+      "severity": "error",
+      "reason": "missing-pub-doc",
+      "message": "src/a.rs: pub fn bar без ///-опису. Глобальний сенс: конвеєр doc-files бере цей опис ДОСЛІВНО в секцію «Публічний API» автоматично згенерованої документації файлу (0 LLM-токенів) — без нього опис вигадує LLM.",
+      "file": "src/a.rs",
+      "data": {
+        "name": "bar"
+      }
+    }
+  ],
+  "wasm-plugin parity — rust/doc_comments (JS канон vs wasm plugin-lang-rust, per-file) > не-ASCII вміст (кирилиця, емодзі поза BMP) у коментарі — приймається однаково з обох реалізацій": [
+    {
+      "severity": "error",
+      "reason": "missing-pub-doc",
+      "message": "pkg/облік.rs: pub fn go без ///-опису. Глобальний сенс: конвеєр doc-files бере цей опис ДОСЛІВНО в секцію «Публічний API» автоматично згенерованої документації файлу (0 LLM-токенів) — без нього опис вигадує LLM.",
+      "file": "pkg/облік.rs",
+      "data": {
+        "name": "go"
+      }
+    }
+  ]
+}
