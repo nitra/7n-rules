@@ -181,6 +181,11 @@ Host поважає `.gitignore`, JS-канон кличе `globby` з `gitignor
 поле `ignore` з `.n-rules.json`. Для `style/lint` це стало видимим на практиці:
 `.stylelintignore` застосує сам `stylelint`, а `ignore` з конфігу — ні.
 
+**Закрито для `.n-rules.json:ignore` (§2.25).** Частина цього пункту, що
+стосувалась поля `ignore`, виправлена: `build_full_scope_files` тепер читає
+конфіг сама. `.gitignore`-асиметрія абзацом вище — окрема, досі відкрита вісь
+(навмисно прийнята як є).
+
 ### 2.5. Глоб контрибуції `vue/packages` — найширший у плагіні
 
 **Звідки:** #366. **Стан:** прийнято як є.
@@ -3576,6 +3581,94 @@ allowlist інструментів (без `delete`, без shell), write-guard 
 **Побічний вимір, який варто знати:** кількість правок за прогін — показник
 метушні, а не старанності. Прозова підказка давала 8–9 записів і жодного
 закриття; точна — 2–3 записи і два закриття з трьох.
+
+### 2.24. Міграція детекторів у гостей ЗАВЕРШЕНА — і як не почати шосту хвилю по бібліотеках
+
+**Стан:** подвійної реалізації не лишилось у жодному портованому концерні.
+Пʼять гостей (`plugin-lang-js`, `plugin-lang-python`, `plugin-lang-rust`,
+`plugin-lang-php`, `plugin-ci-github`), пʼять хвиль зняття JS-канону
+(#471, #476, #479, #481, #484).
+
+**Пастка, у яку ця задача мало не впала і яку варто знати наступному.**
+`find -name main.mjs` під `rules/**` дає 23 файли, і з імені файлу здається,
+що це 23 недопортованих детектори. Насправді `export lint` мають ШІСТЬ. Решта
+17 — helper-модулі без детектора (`js/tooling`, `js/lint-findings`,
+`test/storybook-*`, `test/stryker_config`, увесь кластер
+`npm/rules/doc-files/docgen-*`). Логіка частини з них УЖЕ в гості: напр.
+`verifyOxlintRcAgainstCanonical` (`js/tooling/main.mjs:145-182`) портовано в
+`crates/plugin-lang-js/src/lib.rs` як частина `js/check`, а сам `main.mjs`
+живий лише як бібліотека для JS-споживача. **Критерій «чи це кандидат» — не
+наявність `main.mjs`, а наявність `export lint` у ньому.**
+
+**Шість, що лишаються, і чому кожен — не «складно», а структурно неможливо:**
+
+| концерн | клас |
+|---|---|
+| `js/knip` | programmatic API JS-пакета в процесі — у wasm-гості немає JS-рантайму |
+| `js/eslint` | те саме: `import { ESLint } from 'eslint'`. Половина концерну (`oxlint` через `bunx`) має форму `exec-tool`, але друга половина — ні |
+| `ci_artifact/consume`, `consume_azure` | slot-broker: `collectCiArtifactContributions` ходить по `node_modules` за маніфестами плагінів — у пісочницю не переїде |
+| `test/coverage` | той самий slot-broker клас (`resolveSlotGraph`) плюс оркестрація Stryker |
+| `doc-files/check` | LLM-оркестрація doc-files-поверхні |
+
+**Чому `ci_artifact/consume` не варто портувати навіть через host-context
+слот** (розглядалось окремо, рішення — НІ). Порт зняв би 84 рядки
+`main.mjs`, але `diagnoseArtifact`/`diffDeepSubset` НЕ стали б мертвими: їх
+тримають живими `fix-consume.mjs` (фіксер лишається JS), дзеркальна
+реалізація `plugins/ci-azure/slots/ci-artifact-consumer.mjs` і крос-плагінний
+parity-тест `plugins/lang-js/slots/tests/ci-artifact-parity.test.mjs`, що
+звіряє github проти azure. Тобто порт СТВОРИВ би подвійну реалізацію рівно
+тієї семантики, заради зняття якої існує вся серія — плюс новий napi-параметр
+і новий WIT-слот. Шар збору лишається JS у будь-якому разі.
+
+**Що з цього справді лишилось зробити — не порт, а дефект:** §2.25.
+
+### 2.25. `build_full_scope_files` не читала `.n-rules.json:ignore` — виправлено
+
+**Звідки:** §2.4 «Ширше» (#403), задокументовано трьома дзеркальними
+абзацами в `crates/plugin-lang-js/src/lib.rs` (доккоменти
+`test/no-process-chdir`, `js/utils_imports`, і по одному в секціях батчів
+6/7/8/js-run). **Стан:** виправлено.
+
+`build_full_scope_files` (`crates/rules-napi/src/lib.rs`) будувала full-scope
+batch для ВСІХ пʼятьох wasm-гостей викликом `walk_dir(cwd, &[])` — порожній
+`extra_ignore_globs`, тобто без консюмер-специфічного `ignore` з
+`.n-rules.json`/legacy `.n-cursor.json`. JS-канон (`loadCursorIgnorePaths` →
+`walkDir` з `ignorePaths`, `npm/scripts/lib/lint-surface/path-scope.mjs`) цей
+конфіг завжди читав. Наслідок: файл, який консюмер явно виключив
+(`npm/schemas/vendor` у цьому репо, наприклад), усе одно потрапляв у batch
+кожного full-scope wasm-концерну.
+
+Фікс — той самий будівельний блок, що вже несуть native full-scope концерни
+(`env_dns`, `docker_lint`, `k8s_common`, `text_run_v8r`; доккомент
+`crates/rules-core/src/concerns/cursor_ignore.rs`, секція «Відхилення від
+Р5»): `build_full_scope_files` тепер сама читає `.n-rules.json` через
+[`rules_core::concerns::cursor_ignore::load_cursor_ignore_paths`] і нормалізує
+результат у `extra_ignore_globs` через
+[`rules_core::concerns::cursor_ignore::to_relative_ignore_globs`] ПЕРЕД
+викликом `walk_dir` — той самий порядок операцій, що JS-бік. Модуль
+`cursor_ignore` став `pub` (був `pub(crate)`): єдиний зовнішній консюмер —
+цей napi-binding в іншому крейті. Host-рівневі тести —
+`crates/rules-napi/src/lib.rs`, inline `#[cfg(test)] mod tests` біля
+`build_full_scope_files`.
+
+**Що НЕ входить у цей фікс (свідомо, окремі осі):**
+
+- `crates/rules-fix/src/lib.rs:71` (`resolve_per_file_scope`) — та сама
+  вада, інший виклик: petля `fix` резолвить per-file-глоб концерну через
+  `walk_dir(cwd, &[])`, коли викликач не передав явний список файлів. Не
+  торкнуто — окрема задача.
+- `js/utils_imports`'s `getMonorepoPackageRootDirs` (обмеження пошуку
+  `utils/`-каталогів межами workspace-пакетів) — інша вісь розбіжності
+  full-scope мосту, `.n-rules.json` тут ні до чого.
+- `.gitignore`-асиметрія (§2.4, перший абзац) — навмисно прийнята, не
+  зачеплена.
+- `sample_secret`/`hasura_migrations`/`k8s_manifests_kubescape` (native
+  concerns, `walk_dir(dir, &[])` на кількох call-сайтах) — перевірено проти
+  JS-канону: усі три місця точно повторюють оригінальний `main.mjs`, який
+  сам ніколи не читав `.n-rules.json` на цих call-сайтах (або читає його
+  рівнем вище, як `k8s_common::find_k8s_roots`). Не дефект порту, зміни не
+  потрібні.
+
 
 ---
 

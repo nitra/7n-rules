@@ -110,8 +110,7 @@
 //! «Full-scope / whole-batch концерн» — шаблон демонстрував лише per-file
 //! форму, це прогалина, яку задача N2 виявила й закрила.
 //!
-//! # `test/no-process-chdir` — гість-фільтр поверх host-глобу (розбіжність
-//! full-scope мосту, задача Q1)
+//! # `test/no-process-chdir` — гість-фільтр поверх host-глобу
 //!
 //! JS-оригінал (`collectTestFiles`, `npm/scripts/lib/collect-test-files.mjs`)
 //! фільтрує `*.test.{mjs,js}` через `walkDir(cwd, onFile, ignorePaths)`, де
@@ -119,16 +118,14 @@
 //! `.n-rules.json` `ignore` (напр. `npm/schemas/vendor` цього репозиторію),
 //! ПОНАД дефолтний `.gitignore`/`.git`/`node_modules`/worktrees-набір
 //! (`ALWAYS_IGNORE`, `npm/scripts/utils/walkDir.mjs`). Host-бік full-scope
-//! мосту (`crates/rules-napi::build_full_scope_files`) цей додатковий
-//! `.n-rules.json`-ignore НЕ читає — той самий `rules_core::scan::walk_dir`
-//! двигун, але без консюмер-специфічного `ignore`-списку (та сама
-//! обмеженість, що вже мовчки прийнята для `style/gap`/`style/admin_table`/
-//! `style/quasar_fixes`, які теж ходять `walkDir(cwd, …)` БЕЗ
-//! `ignorePaths` — цей момент не новий для Q1, лише вперше явно
-//! задокументований тут). Виправлення — зміна `build_full_scope_files`, щоб
-//! вона теж читала `.n-rules.json`, — інфраструктурна робота понад
-//! napi-міст, що торкається УСІХ full-scope wasm-концернів одразу, не лише
-//! `plugin-lang-js`; поза обсягом задачі Q1 батч 1. Замість цього:
+//! мосту (`crates/rules-napi::build_full_scope_files`) цей самий
+//! `.n-rules.json`-ignore тепер теж читає (доккомент
+//! `crates/rules-core/src/concerns/cursor_ignore.rs`, реєстр §2.25) — раніше
+//! задокументована розбіжність закрита; `style/gap`/`style/admin_table`/
+//! `style/quasar_fixes` лишаються окремим випадком: їхні JS-оригінали самі
+//! ходять `walkDir(cwd, …)` БЕЗ `ignorePaths` (ignore там не застосовувався
+//! й у JS-каноні, тож паритет тут не змінився). Крім консультації з
+//! конфігом:
 //!
 //! 1. `ConcernContribution.glob` для `test/no-process-chdir` — той самий
 //!    `["**/*.test.mjs", "**/*.test.js"]`, що й `concern.json.lint.glob`
@@ -139,12 +136,6 @@
 //!    `!file.path.ends_with(".vue")`) — захист, якщо колись `detect` цього
 //!    концерну викличуть з файлами поза глобом (напр. per-file dispatch
 //!    напряму, не лише full-scope міст).
-//!
-//! Реальної розбіжності в тестових фікстурах (parity-тест, golden-тести) це
-//! не дає: жоден `*.test.{mjs,js}` цього репозиторію не лежить під
-//! `npm/schemas/vendor` сьогодні — розбіжність лишається задокументованою,
-//! не покритою regression-тестом (не існує детермінованого способу довести
-//! відсутність майбутнього файлу).
 //!
 //! # `js/utils_imports`/`test/no-relative-fs-path` — AST-концерни через
 //! `oxc_parser` (задача Q3, `docs/specs/2026-08-01-wasm-ast-strategy.md`)
@@ -170,16 +161,20 @@
 //! - сегменти МІЖ `utils` і файлом не повинні бути `tests`/`__fixtures__`/
 //!   [`UTILS_SKIP_DIR_NAMES`] (дзеркало inner-walk `collectUtilsSources`).
 //!
-//! **Розбіжність full-scope мосту (задокументовано, не виправлено — той
-//! самий мотив, що `test/no-process-chdir` вище):** JS-оригінал додатково
-//! фільтрує через `loadCursorIgnorePaths` (`.n-rules.json` `ignore`) і
-//! `getMonorepoPackageRootDirs` (обмежує пошук `utils/`-каталогів межами
-//! workspace-пакетів) — `crates/rules-napi::build_full_scope_files` жодного
-//! з двох не відтворює. Єдиний JS-тест, що покладається саме на
-//! `.n-rules.json` ignore (`utils_imports.test.mjs`, «у .n-rules.json ignore
-//! → ігнорується»), СВІДОМО не дзеркалиться в
-//! `wasm-plugin-parity.test.mjs` з цієї самої причини (wasm-бік дав би інший
-//! результат — не помилка порту, а відома межа full-scope мосту).
+//! **Розбіжність full-scope мосту (частково закрита, реєстр §2.25):**
+//! JS-оригінал додатково фільтрує через `loadCursorIgnorePaths`
+//! (`.n-rules.json` `ignore`) і `getMonorepoPackageRootDirs` (обмежує пошук
+//! `utils/`-каталогів межами workspace-пакетів). `crates/rules-napi::build_full_scope_files`
+//! тепер відтворює перше (сама читає `.n-rules.json` перед `walk_dir`), але
+//! ДРУГЕ й досі не відтворює — host не знає про межі workspace-пакетів,
+//! тож пошук `utils/`-каталогів лишається whole-repo. Єдиний JS-тест, що
+//! покладався саме на `.n-rules.json` ignore (`utils_imports.test.mjs`, «у
+//! .n-rules.json ignore → ігнорується»), і досі СВІДОМО не мав дзеркала в
+//! `wasm-plugin-parity.test.mjs` до цього фіксу — чи додавати дзеркало
+//! тепер, коли причина skip-у для ignore-частини знята, лишається окремим
+//! рішенням (`getMonorepoPackageRootDirs`-частина розбіжності нікуди не
+//! ділась, тож параметри конкретної фікстури тесту треба перевірити перед
+//! розкриттям).
 //!
 //! `test/no-relative-fs-path` — теж WHOLE-BATCH, `ConcernContribution.glob`
 //! = `["**/*.test.mjs", "**/*.test.js"]` (`isTestFile`-фільтр JS-оригіналу
@@ -6298,9 +6293,10 @@ fn detect_mssql_package_json(files: &[SourceFile]) -> Vec<Diagnostic> {
 //    «Батч 5»). Стосується `.github/workflows/` без жодного workflow і
 //    каталогу правила взагалі без прямих файлів.
 // 3. **`.cursorignore`**: `js/dep-policy` і `package_structure` JS-канону
-//    звужують `walkDir` через `loadCursorIgnorePaths`, host-збірка батчу —
-//    ні (`build_full_scope_files` кличе `walk_dir(cwd, &[])`). Успадкована
-//    розбіжність усіх full-scope портів починаючи з батчу 4, не нова.
+//    звужують `walkDir` через `loadCursorIgnorePaths`, host-збірка батчу
+//    тепер теж (`build_full_scope_files` читає `.n-rules.json` перед
+//    `walk_dir` — реєстр §2.25). Раніше задокументована розбіжність усіх
+//    full-scope портів закрита.
 // 4. **Сортування рядків**: JS `Array.prototype.sort` — по UTF-16 code
 //    units, `BTreeSet<String>` — байтово (UTF-8). Для ASCII-шляхів (усе,
 //    що реально лежить у `npm/`) порядок тотожний.
@@ -7393,8 +7389,8 @@ fn detect_dep_policy(files: &[SourceFile]) -> Vec<Diagnostic> {
 //    той самий skip-not-crash дух).
 // 3. **`.cursorignore`**: JS-канон `test/sandbox-aware-test` і
 //    `test/vitest-api-conventions` звужує `walkDir` через
-//    `loadCursorIgnorePaths`, host-збірка батчу — ні. Успадкована
-//    розбіжність усіх full-scope портів з батчу 4.
+//    `loadCursorIgnorePaths`, host-збірка батчу — тепер теж (реєстр §2.25).
+//    Раніше задокументована розбіжність усіх full-scope портів закрита.
 // 4. **Вікно 400 «символів»** ([`has_deep_meta_navigation`]): JS
 //    `body.slice(i, i + 400)` рахує UTF-16 code units, Rust-порт —
 //    БАЙТИ (з корекцією до char boundary, аби не панікувати). На ASCII
@@ -7847,9 +7843,10 @@ fn detect_vitest_api_conventions(files: &[SourceFile]) -> Vec<Diagnostic> {
 // # Задокументовані розбіжності
 //
 // 1. **`.cursorignore` / `.n-rules.json` `ignore`**: JS-канон звужує
-//    `walkDir` через `loadCursorIgnorePaths(cwd)`, host-збірка батчу — ні
-//    (`build_full_scope_files` кличе `walk_dir(cwd, &[])`). Успадкована
-//    розбіжність усіх full-scope портів починаючи з батчу 4.
+//    `walkDir` через `loadCursorIgnorePaths(cwd)`, host-збірка батчу — тепер
+//    теж (`build_full_scope_files` читає `.n-rules.json` перед `walk_dir` —
+//    реєстр §2.25). Раніше задокументована розбіжність усіх full-scope
+//    портів закрита.
 // 2. **Невалідний JSON**: `collectVueRoots` і `checkVueVolarRecommendation`
 //    JS-канону роблять `JSON.parse` БЕЗ `try/catch` — виняток валить весь
 //    концерн (exit 2); порт через [`parse_json_tolerant`] трактує битий файл
@@ -11353,12 +11350,12 @@ fn detect_jscpd_duplicates() -> Vec<Diagnostic> {
 //    трактує маніфест, що не парситься, як «полів немає»
 //    ([`parse_json_tolerant`], та сама мікро-розбіжність, що в решті
 //    batch-портів цього модуля).
-// 4. **`.cursorignore` / `.n-rules.json` `ignore` не звужують батч** —
-//    успадкована розбіжність УСІХ full-scope портів (реєстр, п. 5 блоку
-//    «свідомо відкладене» #403): канон передає `loadCursorIgnorePaths(cwd)`
-//    у `walkDir`, хост будує батч без цього фільтра. Двигун обходу той
-//    самий (`rules_core::scan::walk_dir`), тож `.gitignore`/`node_modules`
-//    поводяться однаково.
+// 4. **`.cursorignore` / `.n-rules.json` `ignore` звужують батч** — раніше
+//    задокументована розбіжність УСІХ full-scope портів (реєстр §2.25,
+//    successor #403) закрита: канон передає `loadCursorIgnorePaths(cwd)` у
+//    `walkDir`, хост тепер теж читає `.n-rules.json` перед побудовою батчу.
+//    Двигун обходу той самий (`rules_core::scan::walk_dir`), тож
+//    `.gitignore`/`node_modules` поводяться однаково.
 // 5. **T0-фікс лишається JS.** `fix-runtime.mjs` — текстовий патч
 //    `package.json#imports`, не `FixPlan` із повного вмісту файлу; порт
 //    fix-контуру цього концерну — не цей зріз.
