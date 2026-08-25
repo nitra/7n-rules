@@ -1,11 +1,21 @@
 //! Native-порт `hasura/migrations` (`npm/rules/hasura/migrations/main.mjs`,
 //! 53 рядки) — у `hasura/migrations/` директорія міграції має містити лише
 //! `up.sql`, `down.sql` заборонений (`hasura.mdc`).
+//!
+//! # Обхід дерева — свідомо `walk_dir_raw`, БЕЗ consumer-ignore
+//!
+//! [`crate::scan::walk_dir_raw`] викликається з порожнім `extra_ignore_globs`
+//! — не недогляд: JS-оригінал (`main.mjs`) теж кличе `walkDir(migrationsDir)`
+//! без `ignorePaths`, тобто НЕ консультується з `.n-rules.json:ignore`
+//! (перевірено `git show <sha>~1` до вилучення JS). Один із чотирьох
+//! «1:1-портів», відкрите питання — чи варто почати фільтрувати тепер, коли
+//! канон — Rust (`docs/plans/2026-08-05-open-questions-register.md`, реєстр
+//! §2.27).
 
 use std::path::Path;
 
 use crate::diagnostics::{Severity, Violation};
-use crate::scan::walk_dir;
+use crate::scan::walk_dir_raw;
 
 /// Відносний шлях до директорії міграцій від кореня проєкту — порт
 /// `MIGRATIONS_REL` (`main.mjs:9`).
@@ -26,7 +36,7 @@ pub fn hasura_migrations(cwd: &Path) -> Vec<Violation> {
         return Vec::new();
     }
 
-    let files = walk_dir(&migrations_dir, &[]);
+    let files = walk_dir_raw(&migrations_dir, &[]);
     let mut violations = Vec::new();
     for rel_to_migrations in &files {
         let basename = rel_to_migrations

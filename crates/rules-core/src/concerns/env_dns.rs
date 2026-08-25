@@ -9,18 +9,18 @@
 //! (`main.mjs:19`) ДО виклику `walkDir` — цей порт читає той самий
 //! `.n-rules.json`/`.n-cursor.json` сам через
 //! [`crate::concerns::cursor_ignore`] (док-комент цього модуля пояснює
-//! відхилення від Р5), нормалізує їх у relative-posix-`/**`-глоби
-//! (`cursor_ignore::to_relative_ignore_globs`, дзеркало inline-нормалізації
-//! `walkDir.mjs:60-67`) і передає у [`crate::scan::walk_dir`].
+//! відхилення від Р5) і передає завантажені `ignore_paths` у
+//! [`crate::concerns::cursor_ignore::walk_with_ignore_paths`] (нормалізація в
+//! relative-posix-`/**`-глоби — дзеркало inline-нормалізації
+//! `walkDir.mjs:60-67` — і сам обхід за одним викликом).
 
 use std::path::Path;
 use std::sync::LazyLock;
 
 use regex::Regex;
 
-use crate::concerns::cursor_ignore::{load_cursor_ignore_paths, to_relative_ignore_globs};
+use crate::concerns::cursor_ignore::{load_cursor_ignore_paths, walk_with_ignore_paths};
 use crate::diagnostics::{Severity, Violation};
-use crate::scan::walk_dir;
 
 /// Basename abie env-файлу (опційна провідна крапка) — порт
 /// `ABIE_ENV_FILE_BASENAME_RE` (`env-dns.mjs:13`, `/^\.?(dev|ua)\.env$/u`),
@@ -97,8 +97,7 @@ pub fn validate_abie_env_internal_urls(content: &str, env_name: &str) -> Vec<Str
 /// парність з `localeCompare` для ASCII-імен, що й у `sample_secret`, доп.
 /// коментар там) — точний порт `collectAbieEnvFiles` (`env-dns.mjs:68-81`).
 fn collect_abie_env_files(root: &Path, ignore_paths: &[String]) -> Vec<String> {
-    let extra_globs = to_relative_ignore_globs(root, ignore_paths);
-    walk_dir(root, &extra_globs)
+    walk_with_ignore_paths(root, ignore_paths)
         .into_iter()
         .filter(|rel| {
             let basename = rel.split('/').next_back().unwrap_or(rel.as_str());

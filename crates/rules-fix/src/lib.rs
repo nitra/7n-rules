@@ -57,18 +57,16 @@ pub use error::FixConcernError;
 /// немає файлів під цей concern, і детектор має отримати саме порожній
 /// список, а не «скоуп невідомий».
 ///
-/// Перед обходом хост сам читає consumer-репо конфіг
-/// ([`rules_core::concerns::cursor_ignore::load_cursor_ignore_paths`]) і
-/// нормалізує його в `extra_ignore_globs`
-/// ([`rules_core::concerns::cursor_ignore::to_relative_ignore_globs`]) — той
-/// самий порядок операцій, що `loadCursorIgnorePaths` → обхід дерева →
-/// фільтр глобами у JS-каноні цього ж резолву
+/// Перед обходом хост сам читає consumer-репо конфіг —
+/// [`rules_core::concerns::cursor_ignore::walk_repo`] (корінь конфігу == корінь
+/// обходу тут завжди `cwd`) — той самий порядок операцій, що `loadCursorIgnorePaths`
+/// → обхід дерева → фільтр глобами у JS-каноні цього ж резолву
 /// (`npm/scripts/lib/resolve-target-files.mjs:96-99`), і що вже роблять
 /// native full-scope концерни та napi-міст `build_full_scope_files`
 /// (доккомент `cursor_ignore.rs`, секція «Відхилення від Р5»). До фіксу тут
-/// стояв жорсткий `&[]` — і це гірший випадок того самого класу, ніж уже
-/// виправлений `build_full_scope_files`: там зайвий файл лише ЧИТАВСЯ
-/// детектором, а тут він потрапляє у скоуп петлі `fix`, тобто в межу
+/// стояв жорсткий `walk_dir(cwd, &[])` — і це гірший випадок того самого
+/// класу, ніж уже виправлений `build_full_scope_files`: там зайвий файл лише
+/// ЧИТАВСЯ детектором, а тут він потрапляє у скоуп петлі `fix`, тобто в межу
 /// РЕДАГУВАННЯ — автофікс отримував право писати у теку, яку споживач явно
 /// виключив у `.n-rules.json`.
 fn resolve_per_file_scope(
@@ -83,10 +81,7 @@ fn resolve_per_file_scope(
     if lint.scope != rules_core::concern_meta::LintScope::PerFile || lint.glob.is_empty() {
         return None;
     }
-    let ignore_paths = rules_core::concerns::cursor_ignore::load_cursor_ignore_paths(cwd);
-    let extra_ignore_globs =
-        rules_core::concerns::cursor_ignore::to_relative_ignore_globs(cwd, &ignore_paths);
-    let all = rules_core::scan::walk_dir(cwd, &extra_ignore_globs);
+    let all = rules_core::concerns::cursor_ignore::walk_repo(cwd);
     Some(rules_core::lint_plan::match_lint_globs(&lint.glob, &all))
 }
 

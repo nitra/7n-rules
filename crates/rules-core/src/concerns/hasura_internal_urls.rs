@@ -20,9 +20,8 @@ use std::sync::LazyLock;
 use regex::Regex;
 
 use crate::concerns::abie_yaml::parse_all_documents;
-use crate::concerns::cursor_ignore::{load_cursor_ignore_paths, to_relative_ignore_globs};
+use crate::concerns::cursor_ignore::{load_cursor_ignore_paths, walk_with_ignore_paths};
 use crate::diagnostics::{Severity, Violation};
-use crate::scan::walk_dir;
 
 const NITRA_REPOSITORY_URL_MARKER: &str = "https://github.com/nitra/";
 const ABIE_REPOSITORY_URL_MARKER: &str = "https://github.com/abinbevefes/";
@@ -184,8 +183,7 @@ pub(crate) fn compute_expected_endpoint_segments(root: &Path) -> ExpectedSegment
 /// повторне сортування не потрібне (той самий підхід, що й
 /// `env_dns::collect_abie_env_files`).
 fn collect_env_files(root: &Path, ignore_paths: &[String]) -> Vec<String> {
-    let extra_globs = to_relative_ignore_globs(root, ignore_paths);
-    walk_dir(root, &extra_globs)
+    walk_with_ignore_paths(root, ignore_paths)
         .into_iter()
         .filter(|rel| is_env_file(rel))
         .collect()

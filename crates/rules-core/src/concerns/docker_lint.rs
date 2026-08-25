@@ -66,9 +66,8 @@ use std::sync::LazyLock;
 
 use regex::Regex;
 
-use crate::concerns::cursor_ignore::{load_cursor_ignore_paths, to_relative_ignore_globs};
+use crate::concerns::cursor_ignore::{load_cursor_ignore_paths, walk_with_ignore_paths};
 use crate::diagnostics::{ConcernReport, Severity, Violation};
-use crate::scan::walk_dir;
 use crate::RulesError;
 
 use super::docker_lint_hadolint::{lint_dockerfile_with_hadolint, posix_rel};
@@ -147,22 +146,22 @@ fn posix_basename(rel: &str) -> &str {
 
 /// Збирає абсолютні шляхи до Dockerfile/Containerfile від кореня `root` —
 /// точний семантичний порт `findDockerfilePaths` (`main.mjs:46-57`).
-/// Двигун обходу — [`crate::scan::walk_dir`] (те саме native-ядро, яке
+/// Двигун обходу — [`walk_with_ignore_paths`] (те саме native-ядро, яке
 /// JS-`walkDir.mjs` уже викликає під капотом, доккомент
 /// `crate::scan` модуля) — тож поведінка .gitignore/`ignorePaths`
 /// ідентична, порт лише додає фільтр [`is_dockerfile_name`] і абсолютизує
 /// шлях.
 fn find_dockerfile_paths(root: &Path, ignore_paths: &[String]) -> Vec<PathBuf> {
-    let extra_globs = to_relative_ignore_globs(root, ignore_paths);
-    let mut files: Vec<PathBuf> = walk_dir(root, &extra_globs)
+    let mut files: Vec<PathBuf> = walk_with_ignore_paths(root, ignore_paths)
         .into_iter()
         .filter(|rel| is_dockerfile_name(posix_basename(rel)))
         .map(|rel| root.join(rel))
         .collect();
-    // `walk_dir` уже повертає байтово-лексикографічно відсортований список
-    // (`scan.rs`), і `root.join(..)` зі спільним префіксом порядок не
-    // ламає — повторне сортування було б no-op; лишаємо `sort()` явно як
-    // документацію інваріанта, а не тому, що він щось змінює.
+    // `walk_with_ignore_paths` уже повертає байтово-лексикографічно
+    // відсортований список (`scan.rs`), і `root.join(..)` зі спільним
+    // префіксом порядок не ламає — повторне сортування було б no-op;
+    // лишаємо `sort()` явно як документацію інваріанта, а не тому, що він
+    // щось змінює.
     files.sort();
     files
 }

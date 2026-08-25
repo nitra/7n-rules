@@ -19,12 +19,13 @@
 //! що вже усталений у цьому репо для non-trivial T0-фіксерів (на відміну
 //! від тривіальних, як `hasura/migrations`, де досить `violation.file`).
 //!
-//! # `walkDir` → [`crate::scan::walk_dir`]
+//! # `walkDir` → [`crate::concerns::cursor_ignore::walk_with_ignore_paths`]
 //!
 //! JS-версія використовувала `scripts/utils/walkDir.mjs` (callback-стиль,
-//! той самий алгоритм, що вже портований у фазі 4а як [`crate::scan::walk_dir`]
-//! — Vec-стиль). Тут — [`crate::scan::walk_dir`] напряму, без окремого
-//! callback-шару.
+//! той самий алгоритм, що вже портований у фазі 4а як [`crate::scan::walk_dir_raw`]
+//! — Vec-стиль). Тут — [`crate::concerns::cursor_ignore::walk_with_ignore_paths`]
+//! (той самий `ignore_paths`, завантажений один раз, обходить кілька
+//! package-коренів), без окремого callback-шару.
 //!
 //! # Лукбехайнд у `VUE_RASTER_STATIC_SRC_RE` — регекс без lookbehind + ручний фільтр
 //!
@@ -51,10 +52,9 @@ use std::sync::LazyLock;
 
 use regex::Regex;
 
-use crate::concerns::cursor_ignore::{load_cursor_ignore_paths, to_relative_ignore_globs};
+use crate::concerns::cursor_ignore::{load_cursor_ignore_paths, walk_with_ignore_paths};
 use crate::concerns::workspaces::get_monorepo_package_root_dirs;
 use crate::diagnostics::{Severity, Violation};
-use crate::scan::walk_dir;
 
 /// Стабільний reason: raster-посилання має `.avif`-двійник на диску, але
 /// сам `.vue`/`.html` ще посилається на raster — точний порт
@@ -284,8 +284,7 @@ fn collect_target_vue_html_files(
     other_roots_abs: &[PathBuf],
     ignore_paths: &[String],
 ) -> Vec<PathBuf> {
-    let extra_globs = to_relative_ignore_globs(abs_root, ignore_paths);
-    walk_dir(abs_root, &extra_globs)
+    walk_with_ignore_paths(abs_root, ignore_paths)
         .into_iter()
         .filter_map(|rel| {
             if !(rel.ends_with(".vue") || rel.ends_with(".html")) {
@@ -468,8 +467,7 @@ fn collect_orphan_avifs(
     ignore_paths: &[String],
     cwd: &Path,
 ) -> Vec<PathBuf> {
-    let extra_globs = to_relative_ignore_globs(cwd, ignore_paths);
-    walk_dir(cwd, &extra_globs)
+    walk_with_ignore_paths(cwd, ignore_paths)
         .into_iter()
         .filter_map(|rel| {
             if !rel.ends_with(".avif") {

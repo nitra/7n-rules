@@ -144,14 +144,24 @@ pub fn is_worktree_checkout_path(rel_path: String) -> bool {
 }
 
 /// Рекурсивний filesystem scan — тонкий binding над
-/// [`rules_core::scan::walk_dir`] (D1 фази 4а
+/// [`rules_core::scan::walk_dir_raw`] (D1 фази 4а
 /// `docs/specs/2026-07-30-rules-v2-rust-core-migration.md`), точний
 /// семантичний порт `walkDir` (`npm/scripts/utils/walkDir.mjs`).
 ///
+/// Свідомо `_raw`: `extra_ignore_globs` приходять УЖЕ нормалізованими з
+/// JS-боку (`npm/scripts/utils/walkDir.mjs:58-79` сам читає
+/// `.n-rules.json`/`.n-cursor.json` і нормалізує шляхи в глоби до виклику цього
+/// binding-а) — нормалізація лишається на боці JS-фасаду (D2 фази 4а), бо
+/// завʼязана на `process.cwd()`, якого немає в native. Це не той самий клас
+/// точки виклику, що `build_full_scope_files` нижче (там native САМ читає
+/// `.n-rules.json`, бо `run_wasm_concern` не має де прокинути `ignorePaths`,
+/// доккомент `cursor_ignore.rs`) — тут виклик приходить ЗІ СТОРОНИ JS, яка
+/// вже прочитала конфіг сама, тож повторне читання тут було б і зайвим, і
+/// неможливим без `process.cwd()`-контексту.
+///
 /// - `dir` — корінь обходу.
 /// - `extra_ignore_globs` — уже нормалізовані ignore-глоби (relative-posix
-///   від `dir`, із суфіксом `/**`); нормалізація лишається на боці
-///   JS-фасаду (D2 фази 4а), бо завʼязана на `process.cwd()`.
+///   від `dir`, із суфіксом `/**`).
 ///
 /// Повертає relative-posix шляхи файлів, відсортовані байтово-лексикографічно
 /// (детермінізм — doc-комент `rules_core::scan`, секція «Порядок»). Будь-яка
@@ -160,7 +170,7 @@ pub fn is_worktree_checkout_path(rel_path: String) -> bool {
 /// контракт, що й `collect_changed_files`).
 #[napi]
 pub fn walk_dir(dir: String, extra_ignore_globs: Vec<String>) -> Vec<String> {
-    rules_core::scan::walk_dir(&PathBuf::from(dir), &extra_ignore_globs)
+    rules_core::scan::walk_dir_raw(&PathBuf::from(dir), &extra_ignore_globs)
 }
 
 /// Ключі native-портованих concern-ів (`ruleId/concernId`) — тонкий binding
@@ -563,8 +573,10 @@ fn read_source_files(cwd: &Path, files: Vec<String>) -> Vec<SourceFile> {
 /// передав `files` (`None` — JS-оркестрація не має дельти для whole-repo
 /// концерну, `run-detectors.mjs::buildFullPlan`/`planConcernForDelta`
 /// лишають `files: undefined` саме для `scope: 'full'`), хост будує список
-/// сам: [`rules_core::scan::walk_dir`] (той самий двигун, що
-/// [`walk_dir`]-napi нижче) → фільтр [`globset`] за glob-ами задекларованої
+/// сам: [`rules_core::concerns::cursor_ignore::walk_repo`] (той самий
+/// [`rules_core::scan::walk_dir_raw`]-двигун, що й `walk_dir`-napi вище, але
+/// з consumer-ignore, прочитаним із `.n-rules.json`) → фільтр [`globset`] за
+/// glob-ами задекларованої
 /// contribution → читання вмісту ([`read_source_files`]). Невалідний
 /// glob-патерн у контрибуції — тихо пропускається (`GlobSetBuilder::add`
 /// повертає `Err`, ігнорується): контрибуцію будує сам плагін, а не
@@ -572,17 +584,16 @@ fn read_source_files(cwd: &Path, files: Vec<String>) -> Vec<SourceFile> {
 /// enforcement-точка.
 ///
 /// `cwd` — той самий walk-корінь, з якого читається `.n-rules.json`: перед
-/// обходом хост сам читає consumer-репо конфіг
-/// ([`rules_core::concerns::cursor_ignore::load_cursor_ignore_paths`]) і
-/// нормалізує його в `extra_ignore_globs`
-/// ([`rules_core::concerns::cursor_ignore::to_relative_ignore_globs`]) — той
-/// самий порядок операцій, що `loadCursorIgnorePaths` → inline-нормалізація
-/// → `walkDir` на JS-боці (`npm/scripts/utils/walkDir.mjs:58-79`) і що вже
-/// роблять native full-scope концерни (`k8s_common.rs`, `env_dns.rs` тощо,
-/// доккомент `cursor_ignore.rs`, секція «Відхилення від Р5»). До фіксу тут
-/// був жорсткий `&[]` — consumer-специфічний ignore ігнорувався для УСІХ
-/// full-scope wasm-концернів (задокументовано як відкладений дефект у
-/// `plugin-lang-js/src/lib.rs`, доккомент біля `run_wasm_concern`-порту).
+/// обходом хост сам читає consumer-репо конфіг —
+/// [`rules_core::concerns::cursor_ignore::walk_repo`] (корінь конфігу == корінь
+/// обходу) — той самий порядок операцій, що `loadCursorIgnorePaths` →
+/// inline-нормалізація → `walkDir` на JS-боці (`npm/scripts/utils/walkDir.mjs:58-79`)
+/// і що вже роблять native full-scope концерни (`k8s_common.rs`, `env_dns.rs`
+/// тощо, доккомент `cursor_ignore.rs`, секція «Відхилення від Р5»). До фіксу
+/// тут був жорсткий `walk_dir(cwd, &[])` — consumer-специфічний ignore
+/// ігнорувався для УСІХ full-scope wasm-концернів (задокументовано як
+/// відкладений дефект у `plugin-lang-js/src/lib.rs`, доккомент біля
+/// `run_wasm_concern`-порту).
 fn build_full_scope_files(cwd: &Path, glob_patterns: &[String]) -> Vec<SourceFile> {
     let mut builder = globset::GlobSetBuilder::new();
     for pattern in glob_patterns {
@@ -593,10 +604,7 @@ fn build_full_scope_files(cwd: &Path, glob_patterns: &[String]) -> Vec<SourceFil
     let Ok(set) = builder.build() else {
         return Vec::new();
     };
-    let ignore_paths = rules_core::concerns::cursor_ignore::load_cursor_ignore_paths(cwd);
-    let extra_ignore_globs =
-        rules_core::concerns::cursor_ignore::to_relative_ignore_globs(cwd, &ignore_paths);
-    let matched: Vec<String> = rules_core::scan::walk_dir(cwd, &extra_ignore_globs)
+    let matched: Vec<String> = rules_core::concerns::cursor_ignore::walk_repo(cwd)
         .into_iter()
         .filter(|f| set.is_match(f))
         .collect();

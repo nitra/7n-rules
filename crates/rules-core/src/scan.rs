@@ -2,6 +2,42 @@
 //! `npm/scripts/utils/walkDir.mjs:48-76` (D1 фази 4а спеки
 //! `docs/specs/2026-07-30-rules-v2-rust-core-migration.md`).
 //!
+//! # `_raw` — навмисно у назві
+//!
+//! [`walk_dir_raw`] — **примітив**: він НЕ читає `.n-rules.json`/`.n-cursor.json`
+//! consumer-репо сам, лише приймає вже нормалізовані `extra_ignore_globs`.
+//! Виклик з порожнім `&[]` МОВЧКИ пропускає consumer-ignore — до задачі
+//! рефакторингу «уніфікація поверхні обходу дерева»
+//! (`docs/plans/2026-08-05-open-questions-register.md`, реєстр §2.27) це двічі
+//! ставало точковим багом (§2.25 `build_full_scope_files`, §2.26
+//! `resolve_per_file_scope`): виклик `walk_dir(cwd, &[])` виглядав як норма,
+//! бо примітив і «свідомо без ignore» мали ОДНАКОВУ назву. Суфікс `_raw`
+//! робить відмову від consumer-ignore видимим рішенням, а не недоглядом.
+//!
+//! Для типового виклику (concern читає `.n-rules.json` і обходить дерево)
+//! замість прямого [`walk_dir_raw`] використовуй один з обгорток
+//! [`crate::concerns::cursor_ignore`] (доккомент модуля пояснює, коли який):
+//! - [`crate::concerns::cursor_ignore::walk_repo`] — корінь конфігу == корінь
+//!   обходу (найтиповіший випадок);
+//! - [`crate::concerns::cursor_ignore::walk_under_repo`] — корені РІЗНІ
+//!   (конфіг читається з `repo_root`, обхід іде по `walk_root`);
+//! - [`crate::concerns::cursor_ignore::walk_with_ignore_paths`] — `ignore_paths`
+//!   уже завантажені вище по стеку (типово — читання один раз і повторне
+//!   використання для кількох обходів у межах одного concern-а, як-от
+//!   `k8s_common`/`abie_k8s_tree`/`nginx_default_tpl_template`) і обходу
+//!   лишається тільки нормалізація й прохід дерева.
+//!
+//! [`walk_dir_raw`] лишається законним прямим вибором для трьох випадків:
+//! напівфабрикат, чий викликач сам вирішує, звідки брати `extra_ignore_globs`
+//! (наприклад, `rename_yaml`, чи `rules-cli`, у якого власний, архітектурно
+//! окремий читач конфігу — доккомент `crates/rules-cli/src/cursor_ignore.rs`);
+//! napi-binding, що свідомо віддає нормалізацію на бік JS-фасаду (доккомент
+//! `crates/rules-napi/src/lib.rs::walk_dir`); і «1:1-порти» — обхід
+//! ПІДДЕРЕВА, що вже пройшло фільтрацію на рівні вибору коренів (kubescape,
+//! доккомент `k8s_manifests_kubescape.rs`), чи concern, чий JS-оригінал сам
+//! не консультувався з consumer-ignore (`sample_secret`, `hasura_migrations`
+//! — реєстр §2.27, розділ «Відкрите питання»).
+//!
 //! # Двигун
 //!
 //! JS-версія використовує `globby('**/*', { cwd, gitignore: true, dot: true,
@@ -47,7 +83,7 @@
 //!   `ignore` слідує симлінкам на директорії (з вбудованим захистом від
 //!   циклів) і трактує симлінк-файл як звичайний файл під його власним
 //!   шляхом; зламаний симлінк дає `stat`-помилку з `io::ErrorKind::NotFound`
-//!   на конкретному entry — [`walk_dir`] трактує САМЕ цей вид помилки як
+//!   на конкретному entry — [`walk_dir_raw`] трактує САМЕ цей вид помилки як
 //!   «пропустити entry», а не «обнулити весь результат» (нюанс fail-safe
 //!   політики — детальніше секція «Fail-safe» нижче).
 //! - Ignore-глоби (`ALWAYS_IGNORE` + `extra_ignore_globs`) — через
@@ -66,7 +102,7 @@
 //! `EACCES` на `scandir`) відкидає **весь** результат: жива фікстура це
 //! підтвердила — `globby` на дереві з недоступною піддиректорією кидає
 //! `EACCES`, `walkDir` ловить і повертає `[]`, навіть якщо частину файлів
-//! технічно вже можна було б зібрати. [`walk_dir`] відтворює це буквально для
+//! технічно вже можна було б зібрати. [`walk_dir_raw`] відтворює це буквально для
 //! відповідного класу помилок обходу (`ignore::Error` без `io::ErrorKind::
 //! NotFound`) → порожній `Vec`.
 //!
@@ -74,7 +110,7 @@
 //! конкретному entry з `io::ErrorKind::NotFound` (типовий випадок — зламаний
 //! симлінк, ціль якого не існує) інша жива фікстура підтвердила навпаки —
 //! `globby` мовчки пропускає таку ціль і резолвиться з рештою дерева. Тому
-//! [`walk_dir`] розрізняє: `NotFound` на entry → `continue` (пропустити
+//! [`walk_dir_raw`] розрізняє: `NotFound` на entry → `continue` (пропустити
 //! entry, обхід триває); будь-яка інша помилка (`EACCES`, `ELOOP` на
 //! symlink-циклі тощо) → `Vec::new()` (fail-safe, як описано вище).
 //! Неіснуючий/не-каталоговий `dir` — окрема рання перевірка перед стартом
@@ -84,7 +120,7 @@
 //!
 //! globby (fast-glob) не гарантує детермінований порядок виводу — контракту
 //! на порядок немає ні в JS-тестах (усюди `toSorted()`), ні в globby-доці.
-//! [`walk_dir`] сортує результат байтово-лексикографічно (`Vec<String>::sort`)
+//! [`walk_dir_raw`] сортує результат байтово-лексикографічно (`Vec<String>::sort`)
 //! — детермінізм отримуємо явно, а не мімікруємо недетермінований порядок
 //! ходу директорій.
 
@@ -135,7 +171,7 @@ fn to_posix_rel(rel: &Path) -> String {
 ///   обходу з `io::ErrorKind`, відмінним від `NotFound`, → порожній `Vec`.
 ///   `NotFound`-помилка на конкретному entry (типово — зламаний симлінк) не
 ///   фатальна: entry пропускається, обхід і збір решти файлів тривають.
-pub fn walk_dir(dir: &Path, extra_ignore_globs: &[String]) -> Vec<String> {
+pub fn walk_dir_raw(dir: &Path, extra_ignore_globs: &[String]) -> Vec<String> {
     // Рання перевірка дає той самий контракт, що й JS: globby на неіснуючому
     // чи не-каталоговому `cwd` кидає, `catch` ловить, результат — [].
     match std::fs::metadata(dir) {
@@ -218,7 +254,7 @@ mod tests {
 
     use tempfile::TempDir;
 
-    use super::walk_dir;
+    use super::walk_dir_raw;
 
     fn write_file(dir: &Path, rel: &str, content: &str) {
         let path = dir.join(rel);
@@ -236,7 +272,7 @@ mod tests {
         write_file(dir, "a.txt", "a");
         write_file(dir, "src/nested/c.txt", "c");
 
-        let files = walk_dir(dir, &[]);
+        let files = walk_dir_raw(dir, &[]);
         assert_eq!(files, vec!["a.txt", "b.txt", "src/nested/c.txt"]);
     }
 
@@ -248,7 +284,7 @@ mod tests {
         write_file(dir, ".hidden.txt", "x");
         write_file(dir, ".config/settings.json", "{}");
 
-        let files = walk_dir(dir, &[]);
+        let files = walk_dir_raw(dir, &[]);
         assert_eq!(
             files,
             vec![".config/settings.json", ".hidden.txt", "root.txt"]
@@ -267,7 +303,7 @@ mod tests {
         write_file(dir, ".claude/settings.json", "{}");
         write_file(dir, "pkg/.worktrees/nested/bad.js", "x");
 
-        let files = walk_dir(dir, &[]);
+        let files = walk_dir_raw(dir, &[]);
         assert_eq!(files, vec![".claude/settings.json", "root.txt"]);
     }
 
@@ -282,7 +318,7 @@ mod tests {
         write_file(dir, "sub/.git/objects/d.txt", "x");
         write_file(dir, "root.txt", "x");
 
-        let files = walk_dir(dir, &[]);
+        let files = walk_dir_raw(dir, &[]);
         assert_eq!(
             files,
             vec![
@@ -302,7 +338,7 @@ mod tests {
         write_file(dir, "sub/keep.txt", "x");
         write_file(dir, "root.txt", "x");
 
-        let files = walk_dir(dir, &[]);
+        let files = walk_dir_raw(dir, &[]);
         assert_eq!(files, vec!["root.txt", "sub/.gitignore", "sub/keep.txt"]);
     }
 
@@ -316,7 +352,7 @@ mod tests {
         write_file(dir, "dist/bad.txt", "x");
         write_file(dir, "root.txt", "x");
 
-        let files = walk_dir(dir, &[]);
+        let files = walk_dir_raw(dir, &[]);
         assert_eq!(files, vec![".gitignore", "root.txt"]);
     }
 
@@ -330,7 +366,7 @@ mod tests {
         write_file(root, "sub/x.log", "x");
         write_file(root, "sub/keep.txt", "x");
 
-        let files = walk_dir(&root.join("sub"), &[]);
+        let files = walk_dir_raw(&root.join("sub"), &[]);
         assert_eq!(files, vec!["keep.txt", "x.log"]);
     }
 
@@ -342,7 +378,7 @@ mod tests {
         write_file(dir, "vendor/chart/values.yaml", "x");
         write_file(dir, "vendor/chart/templates/deploy.yaml", "x");
 
-        let files = walk_dir(dir, &["vendor/chart/**".to_string()]);
+        let files = walk_dir_raw(dir, &["vendor/chart/**".to_string()]);
         assert_eq!(files, vec!["keep.txt"]);
     }
 
@@ -350,7 +386,7 @@ mod tests {
     fn nonexistent_dir_is_empty() {
         let tmp = TempDir::new().unwrap();
         let ghost = tmp.path().join("nope");
-        assert_eq!(walk_dir(&ghost, &[]), Vec::<String>::new());
+        assert_eq!(walk_dir_raw(&ghost, &[]), Vec::<String>::new());
     }
 
     #[test]
@@ -358,7 +394,7 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let file = tmp.path().join("a.txt");
         write_file(tmp.path(), "a.txt", "x");
-        assert_eq!(walk_dir(&file, &[]), Vec::<String>::new());
+        assert_eq!(walk_dir_raw(&file, &[]), Vec::<String>::new());
     }
 
     #[test]
@@ -368,7 +404,7 @@ mod tests {
         write_file(dir, "real.txt", "x");
         symlink(dir.join("real.txt"), dir.join("link.txt")).unwrap();
 
-        let files = walk_dir(dir, &[]);
+        let files = walk_dir_raw(dir, &[]);
         assert_eq!(files, vec!["link.txt", "real.txt"]);
     }
 
@@ -379,7 +415,7 @@ mod tests {
         write_file(dir, "realdir/inner.txt", "y");
         symlink(dir.join("realdir"), dir.join("link-to-dir")).unwrap();
 
-        let files = walk_dir(dir, &[]);
+        let files = walk_dir_raw(dir, &[]);
         assert_eq!(files, vec!["link-to-dir/inner.txt", "realdir/inner.txt"]);
     }
 
@@ -404,7 +440,7 @@ mod tests {
         // фолсу.
         let permission_check_effective = fs::read_dir(&locked).is_err();
 
-        let files = walk_dir(dir, &[]);
+        let files = walk_dir_raw(dir, &[]);
 
         // Повертаємо права, інакше `TempDir::drop` не зможе прибрати
         // `locked/secret.txt`.
@@ -426,7 +462,7 @@ mod tests {
         write_file(dir, "root.txt", "x");
         symlink(dir.join("nonexistent.txt"), dir.join("broken-link.txt")).unwrap();
 
-        let files = walk_dir(dir, &[]);
+        let files = walk_dir_raw(dir, &[]);
         assert_eq!(files, vec!["root.txt"]);
     }
 }

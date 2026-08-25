@@ -68,7 +68,7 @@ use crate::concerns::cursor_ignore::load_cursor_ignore_paths;
 use crate::concerns::k8s_common::find_k8s_roots;
 use crate::concerns::k8s_manifests_rego::rel_posix_raw;
 use crate::diagnostics::{Severity, Violation};
-use crate::scan::walk_dir;
+use crate::scan::walk_dir_raw;
 use crate::tool_registry::install_hint_for;
 use crate::tool_resolve::resolve_provisioned_tool;
 use crate::RulesError;
@@ -129,9 +129,17 @@ fn parse_first_yaml_doc(path: &Path) -> Option<Value> {
 /// ASCII-каталоги репозиторію, тож ICU-порядок і байтовий тут збігаються
 /// (на відміну від [`super::k8s_common::find_k8s_roots`], де в грі імена
 /// файлів).
+///
+/// `walk_dir_raw(dir, &[])` тут ПРАВИЛЬНО без consumer-ignore: `dir` — уже
+/// ОДИН з k8s-коренів, відібраних [`super::k8s_common::find_k8s_roots`],
+/// яка сама фільтрує consumer-ignore на рівні ВИБОРУ коренів
+/// (`kubescape_violations` нижче читає `.n-rules.json` один раз і передає
+/// `ignore_paths` саме туди). Повторна фільтрація тут була б no-op над уже
+/// відфільтрованим піддеревом — інший з чотирьох «1:1-портів» задачі
+/// уніфікації обходу (доккомент `crate::scan`, реєстр §2.27).
 pub(crate) fn find_kustomization_dirs(dir: &Path) -> Vec<PathBuf> {
     let mut result: BTreeSet<String> = BTreeSet::new();
-    for rel in walk_dir(dir, &[]) {
+    for rel in walk_dir_raw(dir, &[]) {
         if !rel.ends_with(KUSTOMIZATION_FILE) {
             continue;
         }
@@ -206,9 +214,13 @@ pub(crate) fn auto_job_cronjob_probe_exceptions(yaml_text: &str) -> Vec<Value> {
 
 /// Конкатенований вміст усіх `*.yaml`/`*.yml` під каталогом — порт
 /// `readAllYamlTextUnderDir` (`main.mjs:6740-6751`).
+///
+/// `walk_dir_raw(dir, &[])` — той самий випадок, що [`find_kustomization_dirs`]
+/// вище: `dir` уже пройшов фільтрацію consumer-ignore на рівні вибору
+/// k8s-коренів.
 fn read_all_yaml_text_under_dir(dir: &Path) -> String {
     let mut parts = Vec::new();
-    for rel in walk_dir(dir, &[]) {
+    for rel in walk_dir_raw(dir, &[]) {
         let lower = rel.to_ascii_lowercase();
         if !(lower.ends_with(".yaml") || lower.ends_with(".yml")) {
             continue;

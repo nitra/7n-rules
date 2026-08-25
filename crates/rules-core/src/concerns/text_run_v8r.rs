@@ -120,10 +120,9 @@ use std::sync::LazyLock;
 
 use regex::Regex;
 
-use crate::concerns::cursor_ignore::{load_cursor_ignore_paths, to_relative_ignore_globs};
+use crate::concerns::cursor_ignore::walk_repo;
 use crate::diagnostics::{ConcernDiagnostic, ConcernReport, Severity, Violation};
 use crate::rules_package::{missing_package_root_hint, package_root};
-use crate::scan::walk_dir;
 use crate::tool_resolve::resolve_cmd;
 use crate::RulesError;
 
@@ -462,9 +461,7 @@ fn run_v8r_with_files(
 /// `findV8rFiles` (`main.mjs:357-368`) — full-scope збір `V8R_EXT_RE`-файлів
 /// із повагою до `.gitignore` та `.n-rules.json:ignore`.
 fn find_v8r_files(root: &Path) -> Vec<String> {
-    let ignore_paths = load_cursor_ignore_paths(root);
-    let extra_globs = to_relative_ignore_globs(root, &ignore_paths);
-    walk_dir(root, &extra_globs)
+    walk_repo(root)
         .into_iter()
         .filter(|rel| is_v8r_target(rel))
         .collect()

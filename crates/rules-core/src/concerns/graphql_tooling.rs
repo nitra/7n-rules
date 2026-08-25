@@ -80,11 +80,10 @@ use std::sync::LazyLock;
 
 use regex::Regex;
 
-use crate::concerns::cursor_ignore::{load_cursor_ignore_paths, to_relative_ignore_globs};
+use crate::concerns::cursor_ignore::walk_repo;
 use crate::conftest::run_conftest_batch;
 use crate::diagnostics::{Severity, Violation};
 use crate::rules_package::{missing_package_root_hint, rules_root};
-use crate::scan::walk_dir;
 use crate::RulesError;
 
 /// Очікуваний файл GraphQL Config у корені (graphql.mdc) — `GRAPHQL_RC_FILENAME`
@@ -175,9 +174,7 @@ fn source_file_has_gql_tagged_template(content: &str, rel: &str) -> bool {
 /// відповідність, що [`super::env_dns::env_dns`] — доккомент модуля,
 /// секція «Reuse-межа»).
 fn collect_scan_candidates(root: &Path) -> Vec<String> {
-    let ignore_paths = load_cursor_ignore_paths(root);
-    let extra_globs = to_relative_ignore_globs(root, &ignore_paths);
-    walk_dir(root, &extra_globs)
+    walk_repo(root)
         .into_iter()
         .filter(|rel| !should_skip_file_for_gql_scan(rel) && is_gql_scan_source_file(rel))
         .collect()

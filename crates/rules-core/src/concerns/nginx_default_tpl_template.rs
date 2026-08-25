@@ -6,7 +6,7 @@
 //! # Reuse-межа
 //!
 //! - `loadCursorIgnorePaths` + `walkDir` (`main.mjs:517`, і кожен приватний
-//!   `find*`) → [`crate::concerns::cursor_ignore`] + [`crate::scan::walk_dir`] —
+//!   `find*`) → [`crate::concerns::cursor_ignore::walk_with_ignore_paths`] —
 //!   той самий двоетапний виклик, що вже прийнятий у [`super::graphql_tooling`]
 //!   / [`super::env_dns`] (full-scope native concern сам читає repo-локальний
 //!   конфіг, бо `run_concern` не має per-concern знань).
@@ -76,7 +76,7 @@
 //!     повідомлення (не [`RulesError`], не мовчазний пропуск).
 //! - [`check_dockerfiles`] (`main.mjs:386-405`):
 //!   - `findDockerfilePaths` (`:387`) — без `try/catch`, але
-//!     [`crate::scan::walk_dir`] сам fail-safe (повертає `[]` на помилку
+//!     [`crate::scan::walk_dir_raw`] сам fail-safe (повертає `[]` на помилку
 //!     обходу) — той самий контракт, що й `walkDir.mjs`, тож у native теж
 //!     немає звідси реального `Err`;
 //!   - `Promise.all(dockerPaths.map(readFile))` (`:394`) — **без**
@@ -116,11 +116,10 @@ use std::sync::LazyLock;
 
 use regex::Regex;
 
-use crate::concerns::cursor_ignore::{load_cursor_ignore_paths, to_relative_ignore_globs};
+use crate::concerns::cursor_ignore::{load_cursor_ignore_paths, walk_with_ignore_paths};
 use crate::conftest::run_conftest_batch;
 use crate::diagnostics::{Severity, Violation};
 use crate::rules_package::{missing_package_root_hint, rules_root};
-use crate::scan::walk_dir;
 use crate::RulesError;
 
 use super::docker_lint_hadolint::posix_rel;
@@ -204,15 +203,14 @@ fn is_dockerfile_name(name: &str) -> bool {
 
 /// Точний порт `findDockerfilePaths` (`main.mjs:50-61`).
 fn find_dockerfile_paths(root: &Path, ignore_paths: &[String]) -> Vec<PathBuf> {
-    let extra_globs = to_relative_ignore_globs(root, ignore_paths);
-    let mut files: Vec<PathBuf> = walk_dir(root, &extra_globs)
+    let mut files: Vec<PathBuf> = walk_with_ignore_paths(root, ignore_paths)
         .into_iter()
         .filter(|rel| is_dockerfile_name(posix_basename(rel)))
         .map(|rel| root.join(rel))
         .collect();
-    // `walk_dir` вже повертає відсортований список — `sort()` тут no-op,
-    // лишений як документація інваріанта (той самий прийом, що в
-    // `super::docker_lint::find_dockerfile_paths`).
+    // `walk_with_ignore_paths` вже повертає відсортований список —
+    // `sort()` тут no-op, лишений як документація інваріанта (той самий
+    // прийом, що в `super::docker_lint::find_dockerfile_paths`).
     files.sort();
     files
 }
@@ -220,8 +218,7 @@ fn find_dockerfile_paths(root: &Path, ignore_paths: &[String]) -> Vec<PathBuf> {
 /// Точний порт `findDefaultConfTemplatePaths` (`main.mjs:71-85`): будь-який
 /// сегмент шляху `fixtures` виключає файл з результату.
 fn find_default_conf_template_paths(root: &Path, ignore_paths: &[String]) -> Vec<PathBuf> {
-    let extra_globs = to_relative_ignore_globs(root, ignore_paths);
-    let mut files: Vec<PathBuf> = walk_dir(root, &extra_globs)
+    let mut files: Vec<PathBuf> = walk_with_ignore_paths(root, ignore_paths)
         .into_iter()
         .filter(|rel| {
             posix_basename(rel) == "default.conf.template"
@@ -497,8 +494,7 @@ fn detect_default_tpl_conf_files(
     ignore_paths: &[String],
     violations: &mut Vec<Violation>,
 ) {
-    let extra_globs = to_relative_ignore_globs(root, ignore_paths);
-    let old_paths: Vec<PathBuf> = walk_dir(root, &extra_globs)
+    let old_paths: Vec<PathBuf> = walk_with_ignore_paths(root, ignore_paths)
         .into_iter()
         .filter(|rel| posix_basename(rel) == "default.tpl.conf")
         .map(|rel| root.join(rel))
