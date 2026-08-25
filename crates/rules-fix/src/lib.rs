@@ -56,6 +56,21 @@ pub use error::FixConcernError;
 /// або глоб порожній). Порожній `Some(vec![])` теж значущий: у дереві просто
 /// немає файлів під цей concern, і детектор має отримати саме порожній
 /// список, а не «скоуп невідомий».
+///
+/// Перед обходом хост сам читає consumer-репо конфіг
+/// ([`rules_core::concerns::cursor_ignore::load_cursor_ignore_paths`]) і
+/// нормалізує його в `extra_ignore_globs`
+/// ([`rules_core::concerns::cursor_ignore::to_relative_ignore_globs`]) — той
+/// самий порядок операцій, що `loadCursorIgnorePaths` → обхід дерева →
+/// фільтр глобами у JS-каноні цього ж резолву
+/// (`npm/scripts/lib/resolve-target-files.mjs:96-99`), і що вже роблять
+/// native full-scope концерни та napi-міст `build_full_scope_files`
+/// (доккомент `cursor_ignore.rs`, секція «Відхилення від Р5»). До фіксу тут
+/// стояв жорсткий `&[]` — і це гірший випадок того самого класу, ніж уже
+/// виправлений `build_full_scope_files`: там зайвий файл лише ЧИТАВСЯ
+/// детектором, а тут він потрапляє у скоуп петлі `fix`, тобто в межу
+/// РЕДАГУВАННЯ — автофікс отримував право писати у теку, яку споживач явно
+/// виключив у `.n-rules.json`.
 fn resolve_per_file_scope(
     meta: &rules_core::concern_meta::ConcernMeta,
     cwd: &Path,
@@ -68,7 +83,10 @@ fn resolve_per_file_scope(
     if lint.scope != rules_core::concern_meta::LintScope::PerFile || lint.glob.is_empty() {
         return None;
     }
-    let all = rules_core::scan::walk_dir(cwd, &[]);
+    let ignore_paths = rules_core::concerns::cursor_ignore::load_cursor_ignore_paths(cwd);
+    let extra_ignore_globs =
+        rules_core::concerns::cursor_ignore::to_relative_ignore_globs(cwd, &ignore_paths);
+    let all = rules_core::scan::walk_dir(cwd, &extra_ignore_globs);
     Some(rules_core::lint_plan::match_lint_globs(&lint.glob, &all))
 }
 
@@ -288,5 +306,109 @@ mod tests {
             anchors: Vec::new(),
         }));
         assert!(resolve_per_file_scope(&meta, dir.path(), None).is_none());
+    }
+
+    // --- `resolve_per_file_scope`: консультується з `.n-rules.json:ignore` ---
+    //
+    // Той самий клас дефекту, що вже виправлений для `build_full_scope_files`
+    // (`crates/rules-napi/src/lib.rs`), але у ШЛЯХУ АВТОФІКСУ, і тому гірший:
+    // там зайвий файл лише ЧИТАВСЯ детектором, тут він потрапляє в межу
+    // редагування петлі `fix` — тобто в кандидати на ЗАПИС. До фіксу обхід
+    // ішов `walk_dir(cwd, &[])` — з порожнім consumer-ignore, тоді як
+    // JS-канон (`npm/scripts/lib/resolve-target-files.mjs:96`) завжди кличе
+    // `loadCursorIgnorePaths(root)` перед обходом. Отже — регресія порту
+    // проти власного JS-канону, не успадкована властивість.
+
+    /// Дерево-фікстура для per-file резолву: `keep.yaml` у корені +
+    /// `vendor/skip.yaml` під директорією-кандидатом на ignore. Повертає
+    /// `TempDir`, щоб фікстура не звільнилась до кінця тесту.
+    fn fixture_tree_with_vendor_dir() -> tempfile::TempDir {
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::write(dir.path().join("keep.yaml"), "kind: Keep\n").expect("keep.yaml");
+        std::fs::create_dir_all(dir.path().join("vendor")).expect("vendor/");
+        std::fs::write(dir.path().join("vendor/skip.yaml"), "kind: Skip\n")
+            .expect("vendor/skip.yaml");
+        dir
+    }
+
+    /// Per-file concern із глобом на всі `*.yaml` — резолв бачить обидва
+    /// файли фікстури, тож різницю робить САМЕ consumer-ignore.
+    fn per_file_yaml_meta() -> ConcernMeta {
+        meta_with(Some(LintSurface {
+            scope: LintScope::PerFile,
+            glob: vec!["**/*.yaml".to_string()],
+            anchors: Vec::new(),
+        }))
+    }
+
+    /// Резолвлений скоуп НЕ містить файлів із директорії, названої в
+    /// `.n-rules.json:ignore` — головний регрес-кейс фіксу: інакше петля
+    /// `fix` отримала б право писати у явно виключену споживачем теку.
+    #[test]
+    fn per_file_scope_excludes_dir_from_n_rules_json_ignore() {
+        let dir = fixture_tree_with_vendor_dir();
+        std::fs::write(dir.path().join(".n-rules.json"), r#"{"ignore":["vendor"]}"#)
+            .expect(".n-rules.json");
+
+        let resolved = resolve_per_file_scope(&per_file_yaml_meta(), dir.path(), None)
+            .expect("скоуп резолвиться");
+
+        assert_eq!(resolved, vec!["keep.yaml".to_string()]);
+    }
+
+    /// Без конфігу (`.n-rules.json` відсутній) поведінка не змінилась —
+    /// обидва файли лишаються у скоупі, як і до фіксу.
+    #[test]
+    fn per_file_scope_without_config_matches_everything() {
+        let dir = fixture_tree_with_vendor_dir();
+
+        let resolved = resolve_per_file_scope(&per_file_yaml_meta(), dir.path(), None)
+            .expect("скоуп резолвиться");
+
+        assert_eq!(
+            resolved,
+            vec!["keep.yaml".to_string(), "vendor/skip.yaml".to_string()]
+        );
+    }
+
+    /// Побитий JSON у `.n-rules.json` — tolerant-парсинг
+    /// ([`rules_core::concerns::cursor_ignore::load_cursor_ignore_paths`]
+    /// повертає порожній список), не крах: той самий результат, що й без
+    /// конфігу взагалі.
+    #[test]
+    fn per_file_scope_survives_broken_json_config() {
+        let dir = fixture_tree_with_vendor_dir();
+        std::fs::write(dir.path().join(".n-rules.json"), "{ not: json").expect(".n-rules.json");
+
+        let resolved = resolve_per_file_scope(&per_file_yaml_meta(), dir.path(), None)
+            .expect("скоуп резолвиться");
+
+        assert_eq!(
+            resolved,
+            vec!["keep.yaml".to_string(), "vendor/skip.yaml".to_string()]
+        );
+    }
+
+    /// Ignore-шлях поза `cwd` не ламає обхід — `to_relative_ignore_globs`
+    /// відкидає його (rel починався б з `..`), `walk_dir` отримує порожній
+    /// `extra_ignore_globs` і повертає звичайний повний список.
+    #[test]
+    fn per_file_scope_ignore_path_outside_cwd_does_not_break_walk() {
+        let dir = fixture_tree_with_vendor_dir();
+        let outside = tempfile::tempdir().expect("outside tempdir");
+        std::fs::write(
+            dir.path().join(".n-rules.json"),
+            serde_json::json!({ "ignore": [outside.path().join("elsewhere").to_string_lossy()] })
+                .to_string(),
+        )
+        .expect(".n-rules.json");
+
+        let resolved = resolve_per_file_scope(&per_file_yaml_meta(), dir.path(), None)
+            .expect("скоуп резолвиться");
+
+        assert_eq!(
+            resolved,
+            vec!["keep.yaml".to_string(), "vendor/skip.yaml".to_string()]
+        );
     }
 }
