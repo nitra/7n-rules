@@ -1190,6 +1190,111 @@ registry **9**.
 **Далі:** заміри `regorus` під `wasm32-wasip2`, потім `ga/workflows`;
 паралельно — дизайн слота `ci-artifacts@1`.
 
+### 2.23. Транзитивний період `ci-github` закрито — `rust/toolchain_cache` і `ga/workflows`
+
+**Стан:** JS-канон обох портованих концернів (`rust/toolchain_cache/main.mjs`,
+`ga/workflows/main.mjs`) видалено. Фіксери (`fix-toolchain_cache.mjs`,
+`fix-workflows.mjs`) лишаються JS-каноном — `Guest::fix` обох концернів
+свідомо віддає порожній план.
+
+**Еталони:** новий bucket-префікс `ci-github/` (не `ruleId/concernId` за
+замовчуванням, як у php/rust-гейтів) — `rust/toolchain_cache` і `ga/workflows`
+обидва починаються на `rust/`/`ga/`, тож інакше лягли б у ту саму теку, що й
+концерни `plugin-lang-rust`. Два bucket-файли,
+`fixtures/wasm-parity/ci-github/{toolchain_cache,workflows}.json`. Доказ дією:
+обидва `main.mjs` видалено з диска НАЗАВЖДИ (не тимчасове перейменування) —
+гейт **24/24** зелений на дереві, де жодного з них немає взагалі; сильніший
+доказ, ніж перейменування вбік.
+
+**Пастка живого фіксера — рівно та, що позначив бриф, і рівно там.**
+`fix-toolchain_cache.mjs` імпортував `scanToolchainSteps` (~110 з 181 рядка
+`main.mjs`) — цілий текстовий сканувальний рушій (`TOOLCHAIN_RE`/`CACHE_RE`/
+`TAURI_ACTION_RE`/`WORKSPACES_KEY_RE`/`indentOf`/`dashColFor`/
+`scanJobForCache`/`cacheStepHasWorkspaces`), не саму константу. Переїхав
+СЮДИ цілком; `tauriWorkspaceDir` і `lint()` — ні, детектор-only, фіксер їх не
+торкався (перевірено grep-ом). `ga/workflows`'s `fix-workflows.mjs`, навпаки,
+НЕ мав цієї пастки взагалі — жодного імпорту з `main.mjs`, лише
+`applyToFiles`; тест-файл (`fix-workflows.test.mjs`) уже будував `violations`
+літерально, пережив без жодної правки.
+
+**Анти-дрейф-перевірка виконана і справді ловить дрейф, не лише
+задекларована.** Новий T0 round-trip-тест
+(`tests/fix-toolchain_cache.test.mjs`) ганяє РЕАЛЬНИЙ
+`loadNative().runWasmConcern(…, 'rust/toolchain_cache', …)` на робочому
+workflow-файлі й згодовує отримані `violations` фіксеру напряму — не
+вигадані літерали. Перевірено дією: тимчасова зміна `MISSING_RUST_CACHE` на
+сторонній рядок валила тест (фіксер переставав розпізнавати `data.kind`
+гостя) — АСЕРЦІЯ ЧЕРВОНІЛА, повернуто, знову зелено. Зроблено двічі за
+сесію (перша спроба обірвалась API-помилкою на кроці 7; повторна перевірка
+незалежно підтвердила той самий результат).
+
+**Сюрприз, якого не було в брифі: третій живий консюмер видаленого
+`main.mjs`.** Окрім двох тестових файлів, названих брифом
+(`toolchain_cache.test.mjs`, `workflows.test.mjs`), знайдено ще два місця
+статичним `import`:
+`plugins/ci-github/rules/ga/tests/main.test.mjs` (точковий тест на
+throw-preflight `ensureTool('shellcheck')` — детекторний канал, помер разом
+із `main.mjs`, файл видалено) і `npm/tests/integration-repo-checks.test.mjs`
+(єдиний `describe.skip`-блок, але статичний ESM-імпорт зі скасованого шляху
+все одно валив би `vitest run` на етапі колекції; переведено на
+`runWasmConcern` тим самим патерном, що вже мали сусідні `mkWasm`-концерни
+lang-js у цьому ж файлі).
+
+**Канал «shellcheck відсутній» змінив ФОРМУ, не наслідок — той самий
+патерн, що `mago` в хвилі #481.** JS-канон ніс ДВІ незалежні перевірки:
+ранній `ensureTool('shellcheck')`-preflight (міг кинути виняток) і пізніший
+`checkShellcheckInstalled` (звичайне порушення). Гість несе лише другий —
+`check_shellcheck_installed` завжди пише `Diagnostic`, ніколи не падає
+(контракт `exec-tool` структурно повертає `ToolResult`, не виняток).
+Задокументовано в `workflows.mdc`. Перевірено предметно, не здогадом:
+`run_wasm_concern` (`crates/rules-napi/src/lib.rs`) повертає РІВНО одне поле
+— `{ "violations": diagnostics }`; окремого ширшого `diagnostics`-поля, яке
+parity-гейт міг би недобирати, немає — `opts.shellcheck: 'absent'`-сценарій
+порівнює весь доступний вихід, не звужену проєкцію.
+
+**Дві фактичні помилки в первинному чернетковому `.mdc`-абзаці, спіймані
+рев'ю до фіксації.** Написав `npm/policy/ga/*` (шлях не існує — rego живе в
+`plugins/ci-github/rules/ga/<name>/<name>.rego`) і «п'ять per-workflow»
+(насправді ЧОТИРИ — `clean_ga_workflows`/`clean_merged_branch`/`lint_ga`/
+`git_ai` — плюс окрема спільна `workflow_common`; `service_deploy_workflow`/
+`vscode_extensions`/`vscode_settings`/`zizmor_yml`/`lint_repo_yml` у гість не
+вшиті). Перевірено читанням `crates/plugin-ci-github/src/lib.rs:471-492` і
+`ls plugins/ci-github/rules/ga/`, обидва виправлено.
+
+**Assert-по-кількості спільного side-effect файлу — не знайдено.**
+Пройдено grep-ом по всіх трьох дотичних тестових файлах (новий
+`fix-toolchain_cache.test.mjs`, незміненому `fix-workflows.test.mjs`,
+parity-гейті) і по видалених `toolchain_cache.test.mjs`/`main.test.mjs`
+(git-історія) — жодного `argv.txt`-подібного рахунку викликів. Клас бага з
+§2.18/§2.20 тут не відтворився.
+
+`.mdc` (обидва) оновлено: `main.mjs`-посилання замінено на назви детекторів
+гостя (`detect_toolchain_cache`/`detect_workflows`), додано розділ
+«Rego лишається буквальним джерелом правди» (regorus in-process, анти-дрейф
+`embedded_rego_policies_namespace_matches_rust_side_constant`) і «Канал
+"shellcheck відсутній" змінив ФОРМУ» у `workflows.mdc`. Дзеркала
+`.cursor/rules/n-ga.mdc`/`n-rust.mdc` регенеровано штатним
+`syncManagedRuleFiles` (той самий виклик, що робить bare `npx @7n/rules`,
+звужений до двох rule-id — без мережевого upgrade/bun-install/skills, які
+несе повний `runSync()`); список дрейфу `mirror-parity.test.mjs` — ті самі
+пʼять попередніх записів (`changelog`/`js`/`js-run`/`test`/`vue`), без нових.
+
+Тести: `wasm-plugin-parity-ci-github.test.mjs` **24/24**, JS-суїт **4105
+passed** (4 файли/7 тестів falling — підтверджено grep-ом і `git stash`-
+порівнянням як preexisting drift, не наслідок цієї задачі:
+`known-plugin-ranges`×4, `mirror-parity` (той самий baseline-список),
+`check-mjs-contract` (23 vs 22 core rule-id — лічильник ядра, не плагінів),
+одна flaky timeout-проба в `wasm-plugin-parity-php.test.mjs`), суїт плагіна
+`ci-github` **40/40** (7 файлів), `cargo test --workspace` **2362 passed, 0
+failed** (66 test-result блоків, той самий підсумок, що §2.22 — Rust-бік цією
+задачею не торкнутий), `conftest verify` **55/55** по пʼятьох
+policy-теках `ga/{clean_ga_workflows,clean_merged_branch,lint_ga,git_ai,
+workflow_common}` без змін.
+
+**Далі:** `ci_artifact/consume` лишається останнім непортованим концерном
+плагіна (дизайн слота `ci-artifacts@1`, §2.21); `js/eslint`/`js/knip` —
+вічний JS (§2.2).
+
 ### 2.22. `ga/workflows` — Rego виконується В ГОСТІ через `regorus`
 
 **Стан:** найважчий концерн міграції (446 рядків, пʼять інтеграцій зовнішніх

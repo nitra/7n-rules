@@ -1,0 +1,63 @@
+{
+  "wasm-plugin parity — rust/toolchain_cache (JS канон vs wasm plugin-ci-github, без exec-tool) > .github/workflows відсутній — обидві реалізації мовчать": [],
+  "wasm-plugin parity — rust/toolchain_cache (JS канон vs wasm plugin-ci-github, без exec-tool) > job з dtolnay/rust-toolchain без Swatinem/rust-cache — однакове missing-rust-cache": [
+    {
+      "severity": "error",
+      "reason": "missing-rust-cache",
+      "message": ".github/workflows/release.yml: job зі `dtolnay/rust-toolchain@stable` потребує `Swatinem/rust-cache@v2` одразу після (rust.mdc)",
+      "file": ".github/workflows/release.yml",
+      "data": {
+        "kind": "missing-rust-cache"
+      }
+    }
+  ],
+  "wasm-plugin parity — rust/toolchain_cache (JS канон vs wasm plugin-ci-github, без exec-tool) > job з Swatinem/rust-cache одразу після — обидві реалізації мовчать": [],
+  "wasm-plugin parity — rust/toolchain_cache (JS канон vs wasm plugin-ci-github, без exec-tool) > .yaml розширення теж опрацьовується — однакове missing-rust-cache": [
+    {
+      "severity": "error",
+      "reason": "missing-rust-cache",
+      "message": ".github/workflows/release.yaml: job зі `dtolnay/rust-toolchain@stable` потребує `Swatinem/rust-cache@v2` одразу після (rust.mdc)",
+      "file": ".github/workflows/release.yaml",
+      "data": {
+        "kind": "missing-rust-cache"
+      }
+    }
+  ],
+  "wasm-plugin parity — rust/toolchain_cache (JS канон vs wasm plugin-ci-github, без exec-tool) > другий job у тому самому файлі не впливає на перший (job-межа через indentation)": [
+    {
+      "severity": "error",
+      "reason": "missing-rust-cache",
+      "message": ".github/workflows/ci.yml: job зі `dtolnay/rust-toolchain@stable` потребує `Swatinem/rust-cache@v2` одразу після (rust.mdc)",
+      "file": ".github/workflows/ci.yml",
+      "data": {
+        "kind": "missing-rust-cache"
+      }
+    }
+  ],
+  "wasm-plugin parity — rust/toolchain_cache (JS канон vs wasm plugin-ci-github, без exec-tool) > toolchain-крок — останній рядок файла (кінець jobs:, без trailing newline) — однакове missing-rust-cache": [
+    {
+      "severity": "error",
+      "reason": "missing-rust-cache",
+      "message": ".github/workflows/release.yml: job зі `dtolnay/rust-toolchain@stable` потребує `Swatinem/rust-cache@v2` одразу після (rust.mdc)",
+      "file": ".github/workflows/release.yml",
+      "data": {
+        "kind": "missing-rust-cache"
+      }
+    }
+  ],
+  "wasm-plugin parity — rust/toolchain_cache (JS канон vs wasm plugin-ci-github, без exec-tool) > порожній рядок між toolchain- і cache-кроком не ламає скан — обидві реалізації мовчать": [],
+  "wasm-plugin parity — rust/toolchain_cache (JS канон vs wasm plugin-ci-github, без exec-tool) > Tauri-job без root Cargo.toml, з src-tauri/Cargo.toml — однакове missing-rust-cache-workspaces": [
+    {
+      "severity": "error",
+      "reason": "missing-rust-cache-workspaces",
+      "message": ".github/workflows/release.yml: Swatinem/rust-cache@v2 у Tauri-job-і потребує `with.workspaces: src-tauri` (rust.mdc)",
+      "file": ".github/workflows/release.yml",
+      "data": {
+        "kind": "missing-rust-cache-workspaces",
+        "workspaceDir": "src-tauri"
+      }
+    }
+  ],
+  "wasm-plugin parity — rust/toolchain_cache (JS канон vs wasm plugin-ci-github, без exec-tool) > Tauri-job, cache-крок уже має with.workspaces — обидві реалізації мовчать": [],
+  "wasm-plugin parity — rust/toolchain_cache (JS канон vs wasm plugin-ci-github, без exec-tool) > Tauri-job, root Cargo.toml присутній (не Tauri-layout) — workspaces-перевірка пропускається": []
+}

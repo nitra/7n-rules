@@ -2,12 +2,34 @@
  * Parity-тест wasm-плагіна `plugin-ci-github` — П'ЯТОГО first-party
  * wasm-гостя (перший — `plugin-lang-js`, `wasm-plugin-parity.test.mjs`,
  * другий — `plugin-lang-python`, третій — `plugin-lang-rust`, четвертий —
- * `plugin-lang-php`, `wasm-plugin-parity-php.test.mjs`): ганяє ОДНІ фікстури
- * через ЖИВІ JS-детектори (Plugin API v2, канон НЕ видаляється цією задачею)
- * і через `runWasmConcern` napi-мосту (`crates/rules-napi` →
- * `crates/plugin-ci-github`), звіряючи, що `violations` ідентичні
- * (reason/message/file/severity/data біт-у-біт) — той самий non-golden
- * режим, що `wasm-plugin-parity-php.test.mjs`.
+ * `plugin-lang-php`, `wasm-plugin-parity-php.test.mjs`): звіряє
+ * `runWasmConcern` napi-мосту (`crates/rules-napi` → `crates/plugin-ci-github`)
+ * із ЕТАЛОНОМ — знятим виводом JS-детекторів
+ * `plugins/ci-github/rules/{rust/toolchain_cache,ga/workflows}/main.mjs`
+ * (reason/message/file/severity/data біт-у-біт) — для обох концернів однієї
+ * хвилі.
+ *
+ * ЕТАЛОН, НЕ ЖИВИЙ КАНОН: обидва `main.mjs` — транзитивний шар Plugin API v2,
+ * що видаляється разом із портом (мета цього тестового файлу — довести порт,
+ * не тримати JS вічно), той самий прийом, що `wasm-plugin-parity-php.test.mjs`
+ * (lang-php, четверта хвиля цього самого переходу) і
+ * `wasm-plugin-parity-rust.test.mjs` (lang-rust, третя хвиля). Поки він живий,
+ * зняти еталон можна прогнавши суїт з `N_WASM_PARITY_CAPTURE=1`; звичайний
+ * прогін JS НЕ викликає — читає зафіксований раніше вивід із
+ * `fixtures/wasm-parity/ci-github/*.json` ([`goldenJs`], `wasm-parity-golden.mjs`
+ * — спільний шар з рештою wasm-parity-гейтів, доккомент там). Відсутній
+ * еталон — ПАДІННЯ тесту з явним проханням перезняти, повернувши `main.mjs`
+ * з історії, не мовчазний пропуск: інакше зникнення канону не дало б жодного
+ * сигналу.
+ *
+ * Bucket-и еталонів — `ci-github/toolchain_cache` і `ci-github/workflows`
+ * (ВЛАСНИЙ префікс `ci-github/`, не `ruleId/concernId` за замовчуванням, як у
+ * php/rust-гейтів): `rust/toolchain_cache`-концерн ЦЬОГО плагіна і
+ * `rust/*`-концерни `plugin-lang-rust` інакше лягли б в один і той самий
+ * підкаталог `fixtures/wasm-parity/rust/` — різні файли (колізії імені
+ * файлу не було б), але спільна тека двох НЕЗАЛЕЖНИХ гостей затерла б межу
+ * власності. Свій підкаталог `ci-github/` — та сама модель, що дала кожному
+ * попередньому гостю власний префікс (`js/`, `python/`, `rust/`, `php/`).
  *
  * ДВІ хвилі порту, ДВА `describe`-блоки нижче:
  * - `rust/toolchain_cache` (перша хвиля) — full-scope, БЕЗ жодного
@@ -56,6 +78,7 @@ import { describe, expect, test, vi } from 'vitest'
 import { loadNative } from '../../native.mjs'
 import { realRepoRoot, withBinRemovedFromPath, withTmpDir } from '../../../utils/test-helpers.mjs'
 import { resolveCmd } from '../../../utils/resolve-cmd.mjs'
+import { createGoldenJs } from './wasm-parity-golden.mjs'
 
 // `ga/workflows`'s `lint()` викликає СИНХРОННИЙ `ensureTool('shellcheck')`/
 // `ensureTool('conftest')` (Plugin API v2 preflight, `main.mjs:398-399`) БЕЗУМОВНО на
@@ -93,6 +116,24 @@ const WORKFLOWS_CONCERN_KEY = 'ga/workflows'
 /** Size-budget компонента — той самий бюджет, що решта чотирьох гостей (доккомент модуля). */
 const WASM_SIZE_BUDGET_BYTES = 2.5 * 1024 * 1024
 
+// ---------------------------------------------------------------------
+// Шар еталонів ([`goldenJs`], `wasm-parity-golden.mjs`): JS-детектори
+// `plugins/ci-github/rules/{rust/toolchain_cache,ga/workflows}/main.mjs` —
+// транзитивний канон Plugin API v2, що видаляється разом із портом.
+// Механізм (кеш, лічильники, плейсхолдер tmp-шляху, помилка відсутнього
+// еталона) — СПІЛЬНИЙ з рештою wasm-parity-гейтів, винесений у
+// `wasm-parity-golden.mjs`; тут лишається лише `goldenJs`, звʼязаний із
+// ЦИМ файлом як підказкою команди перезняття, і власні bucket-и (доккомент
+// модуля, розділ «Bucket-и еталонів»).
+const goldenJs = createGoldenJs({
+  captureHintPath: 'npm/scripts/lib/lint-surface/tests/wasm-plugin-parity-ci-github.test.mjs'
+})
+/** Bucket еталонів `rust/toolchain_cache` — `ci-github/`-префікс, не `ruleId/concernId` (доккомент модуля). */
+const TOOLCHAIN_CACHE_GOLDEN_BUCKET = 'ci-github/toolchain_cache'
+/** Bucket еталонів `ga/workflows` — той самий `ci-github/`-префікс. */
+const WORKFLOWS_GOLDEN_BUCKET = 'ci-github/workflows'
+// ---------------------------------------------------------------------
+
 /**
  * Виставляє дефолт `severity: 'error'`, якщо ключ відсутній — той самий
  * normalize-крок, що в решти чотирьох parity-файлів: raw JS `lint()` опускає
@@ -118,19 +159,23 @@ async function writeWorkflow(dir, name, content) {
 }
 
 /**
- * Ганяє `rust/toolchain_cache` (full-scope, БЕЗ `exec-tool`) через JS-канон
- * і `runWasmConcern` з `files: null` (host сам будує batch за
+ * Ганяє `rust/toolchain_cache` (full-scope, БЕЗ `exec-tool`) через еталон
+ * ([`goldenJs`]) і `runWasmConcern` з `files: null` (host сам будує batch за
  * `ConcernContribution::glob` — `.github/workflows/*.{yml,yaml}` +
  * `Cargo.toml`/`src-tauri/Cargo.toml`, доккомент `plugin.toml`).
  * @param {string} dir абсолютний шлях tmp-каталогу з уже записаними фікстурами
  * @returns {Promise<{ js: unknown[], wasm: unknown[] }>} результати обох реалізацій
  */
 async function runToolchainCacheBoth(dir) {
-  // eslint-disable-next-line no-unsanitized/method
-  const { lint } = await import(pathToFileURL(MAIN_MJS_PATH).href)
-  const jsResult = await lint({ cwd: dir, ruleId: 'rust', concernId: 'toolchain_cache' })
+  const js = await goldenJs(TOOLCHAIN_CACHE_GOLDEN_BUCKET, dir, async () => {
+    // Виконується ЛИШЕ в режимі зняття еталонів.
+    // eslint-disable-next-line no-unsanitized/method
+    const { lint } = await import(pathToFileURL(MAIN_MJS_PATH).href)
+    const jsResult = await lint({ cwd: dir, ruleId: 'rust', concernId: 'toolchain_cache' })
+    return withDefaultSeverity(jsResult.violations)
+  })
   const wasmResult = loadNative().runWasmConcern(WASM_PATH, CONCERN_KEY, dir, null)
-  return { js: withDefaultSeverity(jsResult.violations), wasm: withDefaultSeverity(wasmResult.violations) }
+  return { js, wasm: withDefaultSeverity(wasmResult.violations) }
 }
 
 const NO_CACHE_YML = `name: Release
@@ -557,14 +602,21 @@ async function makePoisonedBunxUvxDir() {
 }
 
 /**
- * Ганяє `ga/workflows` (full-scope) через JS-канон і wasm-порт на СПІЛЬНОМУ
- * стані: `git` — реальний системний бінарник (детерміновано, доккомент
- * модуля), `actionlint`/`zizmor` — детерміновано skip через poison-стаби
- * (`makePoisonedBunxUvxDir`), `shellcheck` — залежно від `opts.shellcheck`:
- * `'stub'` (дефолт) — СПІЛЬНИЙ фейковий стаб, і PATH-бік (JS), і
- * `toolPaths`-бік (wasm) отримують ТОЙ САМИЙ файл; `'absent'` — реальний
- * shellcheck вирізається з PATH (`withBinRemovedFromPath`), `toolPaths` без
- * ключа `shellcheck` — обидві реалізації бачать "тула немає".
+ * Ганяє `ga/workflows` (full-scope) через еталон ([`goldenJs`]) і wasm-порт
+ * на СПІЛЬНОМУ стані: `git` — реальний системний бінарник (детерміновано,
+ * доккомент модуля), `actionlint`/`zizmor` — детерміновано skip через
+ * poison-стаби (`makePoisonedBunxUvxDir`), `shellcheck` — залежно від
+ * `opts.shellcheck`: `'stub'` (дефолт) — СПІЛЬНИЙ фейковий стаб, і PATH-бік
+ * (JS), і `toolPaths`-бік (wasm) отримують ТОЙ САМИЙ файл; `'absent'` —
+ * реальний shellcheck вирізається з PATH (`withBinRemovedFromPath`),
+ * `toolPaths` без ключа `shellcheck` — обидві реалізації бачать "тула немає".
+ *
+ * Фейкові `bunx`/`uvx`/`shellcheck` пишуться на диск БЕЗУМОВНО (не лише в
+ * режимі зняття) — wasm-бік справді ВИКОНУЄ їх через `toolPaths` (`shellcheck`)
+ * і PATH (host-бік `exec-tool` для `git`), тож вони мусять існувати і в
+ * звичайному прогоні. Підміна `env.PATH` і сам виклик `lint()`, навпаки,
+ * потрібні ЛИШЕ JS-канону — переїхали ВСЕРЕДИНУ `compute()` [`goldenJs`]
+ * (той самий поділ, що `runCheckBoth` у `wasm-plugin-parity-rust.test.mjs`).
  * @param {string} dir абсолютний шлях tmp-каталогу з уже записаними фікстурами
  * @param {{ shellcheck?: 'stub' | 'absent' }} [opts] режим shellcheck-стану
  * @returns {Promise<{ js: unknown[], wasm: unknown[] }>} результати обох реалізацій
@@ -585,40 +637,42 @@ async function runWorkflowsBoth(dir, opts = {}) {
     toolPaths.shellcheck = join(stubDir, 'shellcheck')
   }
 
-  // `withBinRemovedFromPath` не пропагує повернене значення `fn()`
-  // (`test-helpers.mjs`) — результат кладемо в замикання.
-  let jsViolations
-  const runJsLint = async () => {
-    const originalPath = env.PATH
-    try {
-      env.PATH = stubDir
-        ? `${stubDir}${delimiter}${poisonDir}${delimiter}${originalPath ?? ''}`
-        : `${poisonDir}${delimiter}${originalPath ?? ''}`
-      // eslint-disable-next-line no-unsanitized/method
-      const { lint } = await import(pathToFileURL(WORKFLOWS_MAIN_MJS_PATH).href)
-      const jsResult = await lint({ cwd: dir, ruleId: 'ga', concernId: 'workflows', files: undefined })
-      jsViolations = normalizeWorkflowsViolations(jsResult.violations, dir)
-    } finally {
-      if (originalPath === undefined) delete env.PATH
-      else env.PATH = originalPath
-    }
-  }
-
-  // `toolPaths.shellcheck` (`stubDir`) мусить лишатись на диску, поки wasm-виклик
-  // не завершиться — cleanup ОБОВʼЯЗКОВО ПІСЛЯ обох реалізацій (перша версія
-  // прибирала `stubDir` одразу після JS-виклику, ДО `runWasmConcern`: wasm-бік
-  // `exec-tool("shellcheck", …)` тоді спавнив уже видалений файл і хибно давав
-  // `status: none` — той самий стаб файл спільний для обох, доккомент нижче).
   try {
-    if (shellcheckMode === 'absent') {
-      await withBinRemovedFromPath('shellcheck', runJsLint)
-    } else {
-      await runJsLint()
-    }
+    const js = await goldenJs(WORKFLOWS_GOLDEN_BUCKET, dir, async () => {
+      // Виконується ЛИШЕ в режимі зняття еталонів.
+      const runJsLint = async () => {
+        const originalPath = env.PATH
+        try {
+          env.PATH = stubDir
+            ? `${stubDir}${delimiter}${poisonDir}${delimiter}${originalPath ?? ''}`
+            : `${poisonDir}${delimiter}${originalPath ?? ''}`
+          // eslint-disable-next-line no-unsanitized/method
+          const { lint } = await import(pathToFileURL(WORKFLOWS_MAIN_MJS_PATH).href)
+          const jsResult = await lint({ cwd: dir, ruleId: 'ga', concernId: 'workflows', files: undefined })
+          return normalizeWorkflowsViolations(jsResult.violations, dir)
+        } finally {
+          if (originalPath === undefined) delete env.PATH
+          else env.PATH = originalPath
+        }
+      }
+      if (shellcheckMode !== 'absent') return runJsLint()
+      // `withBinRemovedFromPath` не пропагує повернене значення `fn()`
+      // (`test-helpers.mjs`) — результат кладемо в замикання.
+      let jsViolations
+      await withBinRemovedFromPath('shellcheck', async () => {
+        jsViolations = await runJsLint()
+      })
+      return jsViolations
+    })
 
+    // `toolPaths.shellcheck` (`stubDir`) мусить лишатись на диску, поки wasm-виклик
+    // не завершиться — cleanup ОБОВʼЯЗКОВО ПІСЛЯ обох реалізацій (перша версія
+    // прибирала `stubDir` одразу після JS-виклику, ДО `runWasmConcern`: wasm-бік
+    // `exec-tool("shellcheck", …)` тоді спавнив уже видалений файл і хибно давав
+    // `status: none` — той самий стаб файл спільний для обох, доккомент нижче).
     const wasmResult = loadNative().runWasmConcern(WASM_PATH, WORKFLOWS_CONCERN_KEY, dir, null, toolPaths)
     const wasmViolations = normalizeWorkflowsViolations(wasmResult.violations)
-    return { js: jsViolations, wasm: wasmViolations }
+    return { js, wasm: wasmViolations }
   } finally {
     const { rm } = await import('node:fs/promises')
     await rm(poisonDir, { recursive: true, force: true })

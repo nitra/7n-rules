@@ -161,7 +161,7 @@ T0-детектор (без spawn `cargo`) — читає лише FS + TOML (`s
 
 ## Rust-cache після rust-toolchain — у будь-якому workflow
 
-Concern: `rust/toolchain_cache` (JS-detector, `main.mjs` — не rego)
+Concern: `rust/toolchain_cache` (`detect_toolchain_cache`, wasm-гість `crates/plugin-ci-github` — не rego; JS-детектора (`main.mjs`) більше немає, подвійну реалізацію знято)
 
 Цільові файли: `.github/workflows/*.yml`, `.github/workflows/*.yaml` (кожен файл окремо)
 

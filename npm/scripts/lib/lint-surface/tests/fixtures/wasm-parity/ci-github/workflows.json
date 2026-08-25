@@ -1,0 +1,166 @@
+{
+  "wasm-plugin parity — ga/workflows (JS канон vs wasm plugin-ci-github, regorus + exec-tool) > канонічний проєкт (4 workflow + setup-bun-deps + git-репо) — обидві реалізації мовчать": [],
+  "wasm-plugin parity — ga/workflows (JS канон vs wasm plugin-ci-github, regorus + exec-tool) > .github/workflows відсутній — однакова \"Директорія … не існує\"": [
+    {
+      "severity": "error",
+      "reason": "workflows",
+      "message": "Директорія .github/workflows не існує"
+    }
+  ],
+  "wasm-plugin parity — ga/workflows (JS канон vs wasm plugin-ci-github, regorus + exec-tool) > лише stray.yaml у .github/workflows — однакові подвійна .yaml-violation + 4 required-workflow": [
+    {
+      "severity": "error",
+      "reason": "workflows",
+      "message": "Відсутній .github/actions/setup-bun-deps/action.yml — запустіть npx @7n/rules або скопіюйте з пакету (ga.mdc: composite setup-bun-deps)"
+    },
+    {
+      "severity": "error",
+      "reason": "workflows",
+      "message": "Workflow з розширенням .yaml: .github/workflows/stray.yaml — перейменуй на .yml"
+    },
+    {
+      "severity": "error",
+      "reason": "workflows",
+      "message": "Workflow має бути з розширенням .yml: .github/workflows/stray.yaml (ga.mdc)"
+    },
+    {
+      "severity": "error",
+      "reason": "workflows",
+      "message": "Відсутній .github/workflows/clean-ga-workflows.yml"
+    },
+    {
+      "severity": "error",
+      "reason": "workflows",
+      "message": "Відсутній .github/workflows/clean-merged-branch.yml"
+    },
+    {
+      "severity": "error",
+      "reason": "workflows",
+      "message": "Відсутній .github/workflows/lint-ga.yml"
+    },
+    {
+      "severity": "error",
+      "reason": "workflows",
+      "message": "Відсутній .github/workflows/git-ai.yml"
+    }
+  ],
+  "wasm-plugin parity — ga/workflows (JS канон vs wasm plugin-ci-github, regorus + exec-tool) > MegaLinter конфіг у корені репо — однакова MegaLinter-violation поверх канону": [
+    {
+      "severity": "error",
+      "reason": "workflows",
+      "message": "Файл .mega-linter.yml — видали конфіг MegaLinter (ga.mdc: MegaLinter)"
+    }
+  ],
+  "wasm-plugin parity — ga/workflows (JS канон vs wasm plugin-ci-github, regorus + exec-tool) > MegaLinter action у workflow — однакова MegaLinter-violation поверх канону": [
+    {
+      "severity": "error",
+      "reason": "workflows",
+      "message": "MegaLinter у workflow .github/workflows/megalint.yml — видали інтеграцію (ga.mdc: MegaLinter)"
+    }
+  ],
+  "wasm-plugin parity — ga/workflows (JS канон vs wasm plugin-ci-github, regorus + exec-tool) > apply-k8s.yml без paths trigger — однакова apply-workflow-violation поверх канону": [
+    {
+      "severity": "error",
+      "reason": "workflows",
+      "message": "apply-k8s.yml не містить paths: **/k8s/**/*.yaml"
+    }
+  ],
+  "wasm-plugin parity — ga/workflows (JS канон vs wasm plugin-ci-github, regorus + exec-tool) > SHA-піновані uses (zizmor ref-pin) замість тегів — обидві реалізації мовчать": [],
+  "wasm-plugin parity — ga/workflows (JS канон vs wasm plugin-ci-github, regorus + exec-tool) > відсутній setup-bun-deps/action.yml — однакова violation поверх канону": [
+    {
+      "severity": "error",
+      "reason": "workflows",
+      "message": "Відсутній .github/actions/setup-bun-deps/action.yml — запустіть npx @7n/rules або скопіюйте з пакету (ga.mdc: composite setup-bun-deps)"
+    }
+  ],
+  "wasm-plugin parity — ga/workflows (JS канон vs wasm plugin-ci-github, regorus + exec-tool) > actions/checkout БЕЗ persist-credentials: false — однакова checkout-persist-credentials (workflow_common rego)": [
+    {
+      "severity": "error",
+      "reason": "checkout-persist-credentials",
+      "message": ".github/workflows/other.yml: jobs.build: actions/checkout@v6 потребує `with: persist-credentials: false` (ga.mdc)",
+      "file": ".github/workflows/other.yml",
+      "data": {
+        "kind": "checkout-persist-credentials"
+      }
+    },
+    {
+      "severity": "error",
+      "reason": "workflows",
+      "message": "Відсутній .github/actions/setup-bun-deps/action.yml — запустіть npx @7n/rules або скопіюйте з пакету (ga.mdc: composite setup-bun-deps)"
+    },
+    {
+      "severity": "error",
+      "reason": "workflows",
+      "message": "Відсутній .github/workflows/clean-ga-workflows.yml"
+    },
+    {
+      "severity": "error",
+      "reason": "workflows",
+      "message": "Відсутній .github/workflows/clean-merged-branch.yml"
+    },
+    {
+      "severity": "error",
+      "reason": "workflows",
+      "message": "Відсутній .github/workflows/lint-ga.yml"
+    },
+    {
+      "severity": "error",
+      "reason": "workflows",
+      "message": "Відсутній .github/workflows/git-ai.yml"
+    }
+  ],
+  "wasm-plugin parity — ga/workflows (JS канон vs wasm plugin-ci-github, regorus + exec-tool) > bare `n-rules …` (без bunx) у run: — однакова bare-n-rules violation поверх канону": [
+    {
+      "severity": "error",
+      "reason": "bare-n-rules",
+      "message": ".github/workflows/lint-ga.yml: `n-rules …` (рядок 34) має бути `bunx n-rules …` — n-rules не на PATH у CI (ga.mdc)",
+      "file": ".github/workflows/lint-ga.yml",
+      "data": {
+        "kind": "bare-n-rules"
+      }
+    }
+  ],
+  "wasm-plugin parity — ga/workflows (JS канон vs wasm plugin-ci-github, regorus + exec-tool) > shellcheck-стаб (СПІЛЬНИЙ фейковий бінарник, дефолтний режим) — обидві реалізації мовчать по shellcheck": [],
+  "wasm-plugin parity — ga/workflows (JS канон vs wasm plugin-ci-github, regorus + exec-tool) > shellcheck відсутній (вирізаний з PATH) — однакова shellcheck-violation поверх канону": [
+    {
+      "severity": "error",
+      "reason": "workflows",
+      "message": "Відсутній .github/actions/setup-bun-deps/action.yml — запустіть npx @7n/rules або скопіюйте з пакету (ga.mdc: composite setup-bun-deps)"
+    },
+    {
+      "severity": "error",
+      "reason": "workflows",
+      "message": "Workflow з розширенням .yaml: .github/workflows/placeholder.yaml — перейменуй на .yml"
+    },
+    {
+      "severity": "error",
+      "reason": "workflows",
+      "message": "Workflow має бути з розширенням .yml: .github/workflows/placeholder.yaml (ga.mdc)"
+    },
+    {
+      "severity": "error",
+      "reason": "workflows",
+      "message": "Відсутній .github/workflows/clean-ga-workflows.yml"
+    },
+    {
+      "severity": "error",
+      "reason": "workflows",
+      "message": "Відсутній .github/workflows/clean-merged-branch.yml"
+    },
+    {
+      "severity": "error",
+      "reason": "workflows",
+      "message": "Відсутній .github/workflows/lint-ga.yml"
+    },
+    {
+      "severity": "error",
+      "reason": "workflows",
+      "message": "Відсутній .github/workflows/git-ai.yml"
+    },
+    {
+      "severity": "error",
+      "reason": "workflows",
+      "message": "shellcheck не знайдено в PATH — actionlint без нього мовчки пропускає shell-перевірки в run: блоках, тому локальний `bun lint-ga` буде зелений, а CI на ubuntu-latest (де shellcheck передвстановлений) падатиме. Встанови: macOS — `brew install shellcheck`; Debian/Ubuntu — `sudo apt-get install -y shellcheck`; Arch — `sudo pacman -S shellcheck` (ga.mdc)"
+    }
+  ]
+}

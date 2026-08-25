@@ -10,17 +10,14 @@ import { existsSync } from 'node:fs'
 
 import { runConcernDetector } from '../scripts/lib/lint-surface/detect.mjs'
 import { loadNative } from '../scripts/lib/native.mjs'
-// Плагінні правила — пакетними specifier-ами, не `../../plugins/…`: sandbox-копія
-// Stryker містить лише npm/, відносний шлях там не резолвиться.
-import { lint as _ga } from '@7n/rules-ci-github/rules/ga/workflows/main.mjs'
 import { realRepoRoot, withShellcheckStubInPath } from '../scripts/utils/test-helpers.mjs'
+import { resolveCmd } from '../scripts/utils/resolve-cmd.mjs'
 
 // Адаптери під unified lint surface: detector → 0 (чисто) / 1 (є violations).
 const mk = (fn, ruleId, concernId) => async cwd => {
   const result = await fn({ cwd, ruleId, concernId })
   return result.violations.length === 0 ? 0 : 1
 }
-const checkGa = mk(_ga, 'ga', 'workflows')
 const checkK8s = mk(ctx => runConcernDetector(null, ctx), 'k8s', 'manifests')
 
 const TEST_DIR =
@@ -82,6 +79,30 @@ const checkBun = mkWasm('bun/layout')
 const checkJsLint = mkWasm('js/check')
 const checkJsRun = mkWasm('js-run/runtime')
 const checkNpmModule = mkWasm('npm-module/package_structure')
+
+// `ga/workflows` — так само wasm-портований концерн, але ІНШОГО гостя
+// (`crates/plugin-ci-github`, не `plugin-lang-js`) і з `exec-tool`-ланцюжком
+// (`git`/`shellcheck` — доккомент `wasm-plugin-parity-ci-github.test.mjs`),
+// тож не `mkWasm` (той жорстко зашитий на `plugin_lang_js.wasm` і не передає
+// `toolPaths`). `actionlint`/`zizmor` тут НЕ підмінюються — реальний
+// dev-checkout їх має в PATH (`toolPaths` без ключів → host сам резолвить
+// `bunx`/`uvx` з PATH, той самий канал, що продакшн `n-rules lint`).
+const WASM_CI_GITHUB_PATH = join(realRepoRoot(), 'target', 'wasm32-wasip2', 'release', 'plugin_ci_github.wasm')
+const checkGa = async cwd => {
+  if (!existsSync(WASM_CI_GITHUB_PATH)) {
+    throw new Error(
+      `integration-repo-checks.test.mjs: wasm-компонент plugin-ci-github не зібраний: ${WASM_CI_GITHUB_PATH} відсутній.\n` +
+        'Зберіть його командою: bash crates/plugin-ci-github/build.sh'
+    )
+  }
+  const toolPaths = {}
+  const git = resolveCmd('git')
+  if (git) toolPaths.git = git
+  const shellcheck = resolveCmd('shellcheck')
+  if (shellcheck) toolPaths.shellcheck = shellcheck
+  const result = loadNative().runWasmConcern(WASM_CI_GITHUB_PATH, 'ga/workflows', cwd, null, toolPaths)
+  return result.violations.length === 0 ? 0 : 1
+}
 
 /**
  * @param {string} cwd корінь репозиторію
