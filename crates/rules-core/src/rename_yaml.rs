@@ -14,10 +14,15 @@
 //! Суфікс матчиться регістронезалежно (`/\.yml$/iu` у JS), сам сегмент —
 //! регістрозалежно (`split('/').includes('k8s')`).
 //!
-//! Обхід — [`crate::scan::walk_dir`] (той самий рушій, що й у JS-боці, який
-//! кличе його через napi): `.gitignore` поважається, `ALWAYS_IGNORE` теж;
-//! додаткові ignore-глоби приходять від викликача вже нормалізованими
-//! (конфіг-читання `.n-rules.json` — поза ядром, як і для `walk_dir`).
+//! Обхід — [`crate::scan::walk_dir_raw`] (той самий рушій, що й у JS-боці,
+//! який кличе його через napi): `.gitignore` поважається, `ALWAYS_IGNORE`
+//! теж; додаткові ignore-глоби приходять від викликача вже нормалізованими
+//! (конфіг-читання `.n-rules.json` — поза ядром, як і для `walk_dir_raw`).
+//! Свідомо `_raw`: єдиний продакшн-викликач (`rules-cli/src/rename_yaml_cmd.rs`)
+//! сам читає `.n-rules.json` через СВІЙ, архітектурно окремий
+//! `rules-cli::cursor_ignore` (доккомент цього модуля пояснює чому — Р5
+//! виняток) — тож `extra_ignore_globs` тут ЗАВЖДИ вже коректно нормалізовані,
+//! не порожній `&[]`-обхід за недоглядом.
 //!
 //! Порядок операцій — спершу всі `k8s`, тоді всі `.github`, усередині групи
 //! за `localeCompare` ([`crate::locale`]); дзеркало компаратора
@@ -32,7 +37,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::locale::locale_compare;
-use crate::scan::walk_dir;
+use crate::scan::walk_dir_raw;
 
 /// Яке з двох правил дало операцію (визначає порядок у виводі).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -100,7 +105,7 @@ fn replace_extension(rel: &str, new_ext: &str) -> String {
 /// `collectRenameOps`): обхід → фільтр за правилами → сортування.
 pub fn collect_rename_ops(root: &Path, extra_ignore_globs: &[String]) -> Vec<RenameOp> {
     let mut ops: Vec<RenameOp> = Vec::new();
-    for rel in walk_dir(root, extra_ignore_globs) {
+    for rel in walk_dir_raw(root, extra_ignore_globs) {
         // Порядок гілок — як у JS: k8s перевіряється першим і його `return`
         // не дає тому самому файлу потрапити в `.github`-гілку.
         let (kind, rel_to) = if matches_k8s_yml(&rel) {

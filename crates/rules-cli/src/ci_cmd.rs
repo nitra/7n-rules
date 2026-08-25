@@ -377,11 +377,23 @@ fn collect_path_scoped_changed_files(
 
 /// Порт `collectPathScopedFiles`: усі файли піддерева `--path`, posix-шляхи
 /// від кореня прогону.
+///
+/// Корінь конфігу (`args.cwd`, корінь репо) і корінь обходу (`target`,
+/// піддерево `--path`) РІЗНІ — типовий кандидат на
+/// [`rules_core::concerns::cursor_ignore::walk_under_repo`]. Тут, однак,
+/// свідомо лишається прямий [`rules_core::scan::walk_dir_raw`] із глобами від
+/// [`cursor_ignore::ignore_globs_for`]: `rules-cli` тримає власний, архітектурно
+/// окремий читач `.n-rules.json` ([`cursor_ignore`], доккомент модуля,
+/// «виняток із Р5») — та сама `ignore_paths(&args.cwd)` тут-таки живить і
+/// prefix-фільтр `collect_path_scoped_changed_files` вище, не лише цей обхід,
+/// тож заміна на `walk_under_repo` (яка читає конфіг через `rules-core`'s
+/// `cursor_ignore` наново) означала б ДВА незалежні читачі того самого файлу
+/// в одному запуску команди — не бага, але й не спрощення.
 fn collect_path_scoped_files(args: &Args, path_arg: &str) -> Result<Vec<String>, String> {
     let target = resolve_and_assert_path_dir(args, path_arg)?;
     let globs = cursor_ignore::ignore_globs_for(&target, &cursor_ignore::ignore_paths(&args.cwd));
     let rel_dir = paths::relative_posix(&args.cwd, &target);
-    let mut files: Vec<String> = rules_core::scan::walk_dir(&target, &globs)
+    let mut files: Vec<String> = rules_core::scan::walk_dir_raw(&target, &globs)
         .into_iter()
         .map(|rel| {
             if rel_dir.is_empty() {

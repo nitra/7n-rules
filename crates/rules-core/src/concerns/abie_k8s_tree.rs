@@ -8,7 +8,7 @@
 //! (7000+ рядків, увесь k8s-концерн) — порт сюди стосується **лише** цієї
 //! однієї pure-функції (`main.mjs:229-235`, разом із `PATH_SPLIT_RE =
 //! /[/\\]/u`, `main.mjs:186`), не решти файлу. Тут вона спрощена до одного
-//! рядка: [`crate::scan::walk_dir`] уже повертає POSIX-relative шляхи (`/`-
+//! рядка: [`crate::scan::walk_dir_raw`] уже повертає POSIX-relative шляхи (`/`-
 //! роздільник, без `\\`), тож не потрібен ні сам виклик `relative(root,
 //! filePath)`, ні заміна `\\` на `/` — обидва вже властивість вхідних даних.
 //!
@@ -30,8 +30,7 @@ use std::sync::LazyLock;
 use regex::Regex;
 
 use super::abie_yaml::{is_deployment_doc, read_and_parse_yaml_docs, rel_posix_or_self};
-use super::cursor_ignore::to_relative_ignore_globs;
-use crate::scan::walk_dir;
+use super::cursor_ignore::walk_with_ignore_paths;
 
 /// Розширення yaml/yml — точний порт `YAML_EXTENSION_RE` (`k8s-tree.mjs:15`).
 static YAML_EXTENSION_RE: LazyLock<Regex> =
@@ -53,8 +52,7 @@ fn path_has_k8s_segment(rel_posix: &str) -> bool {
 /// свідомо пропускається (належить `ga.mdc`) — точний порт `findK8sYamlFiles`
 /// (`k8s-tree.mjs:39-61`), без module-level кешу (doc-комент модуля).
 pub(crate) fn find_k8s_yaml_files(root: &Path, ignore_paths: &[String]) -> Vec<PathBuf> {
-    let extra_globs = to_relative_ignore_globs(root, ignore_paths);
-    walk_dir(root, &extra_globs)
+    walk_with_ignore_paths(root, ignore_paths)
         .into_iter()
         .filter(|rel| !rel.starts_with(".github/"))
         .filter(|rel| path_has_k8s_segment(rel))

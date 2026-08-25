@@ -19,9 +19,9 @@
 //! # Обхід дерева
 //!
 //! JS-версії ходять через `walkDir` (`npm/scripts/utils/walkDir.mjs`), який
-//! сам уже делегує в native [`crate::scan::walk_dir`] — тобто набір
+//! сам уже делегує в native [`crate::scan::walk_dir_raw`] — тобто набір
 //! кандидатів той самий, різниця лише в тому, що JS отримує абсолютні
-//! шляхи, а [`crate::scan::walk_dir`] — posix-relative. Тут кандидати
+//! шляхи, а [`crate::scan::walk_dir_raw`] — posix-relative. Тут кандидати
 //! фільтруються в relative-формі, а назовні (у спавн зовнішніх тулів)
 //! віддаються абсолютні — як у JS.
 //!
@@ -33,9 +33,8 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::concerns::cursor_ignore::to_relative_ignore_globs;
+use crate::concerns::cursor_ignore::walk_with_ignore_paths;
 use crate::locale::locale_compare;
-use crate::scan::walk_dir;
 
 /// Максимальна глибина підйому до `k8s`-предка — той самий бюджет ітерацій
 /// (`for (let i = 0; i < 64; i++)`), що в `k8sRootFromFile` (`main.mjs:6768`).
@@ -46,7 +45,7 @@ const K8S_ROOT_LOOKUP_MAX_DEPTH: usize = 64;
 ///
 /// JS-версія приймає `root` і сама relativize-ує: без цього випадав
 /// false-positive, коли корінь репо сам містить компонент `k8s`
-/// (`/Users/…/abie/k8s/`). Тут вхід — результат [`crate::scan::walk_dir`],
+/// (`/Users/…/abie/k8s/`). Тут вхід — результат [`crate::scan::walk_dir_raw`],
 /// тобто вже posix-relative від кореня, тож relativize зайвий; порожній шлях
 /// (сам корінь) — `false`, як і в JS.
 fn path_has_k8s_segment(rel_posix: &str) -> bool {
@@ -87,8 +86,7 @@ fn k8s_root_from_file(abs_file: &Path) -> Option<PathBuf> {
 /// `.github/` виключається явно (JS-версії роблять це першим рядком
 /// колбека) — там канон `.yml` і належить він правилу `ga.mdc`.
 fn walk_k8s_candidates(root: &Path, ignore_paths: &[String]) -> Vec<String> {
-    let extra_globs = to_relative_ignore_globs(root, ignore_paths);
-    walk_dir(root, &extra_globs)
+    walk_with_ignore_paths(root, ignore_paths)
         .into_iter()
         .filter(|rel| !rel.starts_with(".github/"))
         .filter(|rel| path_has_k8s_segment(rel))

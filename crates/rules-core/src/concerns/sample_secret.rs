@@ -3,11 +3,21 @@
 //! (`*.example`, `*.sample`, `*.dist`, `*.template`, `fixtures/**`) не мають
 //! містити bare-`secret` як значення (`security.mdc`).
 //!
-//! # Обхід дерева
+//! # Обхід дерева — свідомо `walk_dir_raw`, БЕЗ consumer-ignore
 //!
-//! Використовує [`crate::scan::walk_dir`] (наш native scan, той самий
-//! `ignore`-двигун, що й `walkDir.mjs` через N-API) — без дублювання
-//! ignore-логіки. `walk_dir` уже повертає результат відсортованим
+//! Використовує [`crate::scan::walk_dir_raw`] напряму, з порожнім
+//! `extra_ignore_globs` (наш native scan, той самий `ignore`-двигун, що й
+//! `walkDir.mjs` через N-API) — без дублювання ignore-логіки. Це не
+//! недогляд: JS-оригінал (`main.mjs`) теж кличе `walkDir(cwd, onFile)` без
+//! третього аргументу `ignorePaths`, тобто НЕ консультується з
+//! `.n-rules.json:ignore` — перевірено `git show <sha>~1` відповідного
+//! `main.mjs` до вилучення. Один із чотирьох «1:1-портів», для яких «парність
+//! із неіснуючою (вилученою) JS-реалізацією» — аргумент, що слабшає з часом;
+//! чи варто почати фільтрувати тепер, коли канон — Rust, лишається відкритим
+//! питанням (`docs/plans/2026-08-05-open-questions-register.md`, реєстр
+//! §2.27).
+//!
+//! `walk_dir_raw` уже повертає результат відсортованим
 //! байтово-лексикографічно; JS-версія сортує **лише** відфільтровані
 //! приклад-файли через `localeCompare` (`main.mjs:52`). Фільтрація байтово
 //! відсортованого списку зберігає відносний порядок підмножини — для
@@ -33,7 +43,7 @@ use regex::Regex;
 use std::sync::LazyLock;
 
 use crate::diagnostics::{Severity, Violation};
-use crate::scan::walk_dir;
+use crate::scan::walk_dir_raw;
 
 /// Суфікс basename'а прикладного файлу (`config.example`, `.env.dist`) —
 /// порт `EXAMPLE_SUFFIX_RE` (`main.mjs:9`, `/\.(?:example|sample|template|dist)$/iu`).
@@ -78,7 +88,7 @@ fn is_example_file(rel_posix: &str) -> bool {
 /// Перевіряє відповідність проєкту правилам `security.mdc` (sample-secret) —
 /// точний порт `lint(ctx)` (`main.mjs:41-80`).
 pub fn sample_secret(cwd: &Path) -> Vec<Violation> {
-    let files = walk_dir(cwd, &[]);
+    let files = walk_dir_raw(cwd, &[]);
     let examples: Vec<&String> = files.iter().filter(|rel| is_example_file(rel)).collect();
 
     let mut violations = Vec::new();
