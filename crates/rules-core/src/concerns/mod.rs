@@ -47,7 +47,7 @@ mod changelog_consistency_version;
 mod changelog_consistency_workspace;
 mod changelog_presence;
 mod cspell_fix;
-pub(crate) mod cursor_ignore;
+pub mod cursor_ignore;
 /// Оркестратор native-концерну `docker/lint` — точний порядок кроків
 /// `lint(ctx)` поверх портованих шарів.
 mod docker_lint;

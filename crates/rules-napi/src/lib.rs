@@ -570,6 +570,19 @@ fn read_source_files(cwd: &Path, files: Vec<String>) -> Vec<SourceFile> {
 /// повертає `Err`, ігнорується): контрибуцію будує сам плагін, а не
 /// недовірений вхід ззовні, тож tolerant-парсинг тут — про запас, не
 /// enforcement-точка.
+///
+/// `cwd` — той самий walk-корінь, з якого читається `.n-rules.json`: перед
+/// обходом хост сам читає consumer-репо конфіг
+/// ([`rules_core::concerns::cursor_ignore::load_cursor_ignore_paths`]) і
+/// нормалізує його в `extra_ignore_globs`
+/// ([`rules_core::concerns::cursor_ignore::to_relative_ignore_globs`]) — той
+/// самий порядок операцій, що `loadCursorIgnorePaths` → inline-нормалізація
+/// → `walkDir` на JS-боці (`npm/scripts/utils/walkDir.mjs:58-79`) і що вже
+/// роблять native full-scope концерни (`k8s_common.rs`, `env_dns.rs` тощо,
+/// доккомент `cursor_ignore.rs`, секція «Відхилення від Р5»). До фіксу тут
+/// був жорсткий `&[]` — consumer-специфічний ignore ігнорувався для УСІХ
+/// full-scope wasm-концернів (задокументовано як відкладений дефект у
+/// `plugin-lang-js/src/lib.rs`, доккомент біля `run_wasm_concern`-порту).
 fn build_full_scope_files(cwd: &Path, glob_patterns: &[String]) -> Vec<SourceFile> {
     let mut builder = globset::GlobSetBuilder::new();
     for pattern in glob_patterns {
@@ -580,7 +593,10 @@ fn build_full_scope_files(cwd: &Path, glob_patterns: &[String]) -> Vec<SourceFil
     let Ok(set) = builder.build() else {
         return Vec::new();
     };
-    let matched: Vec<String> = rules_core::scan::walk_dir(cwd, &[])
+    let ignore_paths = rules_core::concerns::cursor_ignore::load_cursor_ignore_paths(cwd);
+    let extra_ignore_globs =
+        rules_core::concerns::cursor_ignore::to_relative_ignore_globs(cwd, &ignore_paths);
+    let matched: Vec<String> = rules_core::scan::walk_dir(cwd, &extra_ignore_globs)
         .into_iter()
         .filter(|f| set.is_match(f))
         .collect();
@@ -770,5 +786,89 @@ mod tests {
         let dir = tempfile::tempdir().expect("tmp dir");
         let files = read_source_files(dir.path(), vec!["missing.py".to_string()]);
         assert!(files.is_empty());
+    }
+
+    // --- build_full_scope_files: консультується з `.n-rules.json:ignore` --
+    //
+    // Регрес задокументованого дефекту (`plugin-lang-js/src/lib.rs`,
+    // доккомент біля `run_wasm_concern`-порту): до фіксу `build_full_scope_files`
+    // передавала `&[]` у `walk_dir` замість `extra_ignore_globs`, зібраних із
+    // consumer-репо `.n-rules.json` — файли з явно виключеної консюмером
+    // директорії все одно потрапляли у full-scope batch УСІХ wasm-концернів.
+
+    /// Дерево-фікстура: `keep.txt` у корені + `vendor/skip.txt` під
+    /// директорією-кандидатом на ignore. Повертає `TempDir`, щоб фікстура
+    /// не звільнилась до кінця тесту.
+    fn fixture_tree_with_vendor_dir() -> tempfile::TempDir {
+        let dir = tempfile::tempdir().expect("tmp dir");
+        std::fs::write(dir.path().join("keep.txt"), "keep").expect("keep.txt");
+        std::fs::create_dir_all(dir.path().join("vendor")).expect("vendor/");
+        std::fs::write(dir.path().join("vendor/skip.txt"), "skip").expect("vendor/skip.txt");
+        dir
+    }
+
+    /// Відносні шляхи (`SourceFile::path`), відсортовані для стабільного
+    /// порівняння в асертах.
+    fn sorted_paths(files: &[SourceFile]) -> Vec<&str> {
+        let mut paths: Vec<&str> = files.iter().map(|f| f.path.as_str()).collect();
+        paths.sort_unstable();
+        paths
+    }
+
+    /// full-scope батч НЕ містить файлів із директорії, названої в
+    /// `.n-rules.json:ignore` — головний регрес-кейс фіксу.
+    #[test]
+    fn build_full_scope_files_excludes_dir_from_n_rules_json_ignore() {
+        let dir = fixture_tree_with_vendor_dir();
+        std::fs::write(dir.path().join(".n-rules.json"), r#"{"ignore":["vendor"]}"#)
+            .expect(".n-rules.json");
+
+        let files = build_full_scope_files(dir.path(), &["**/*.txt".to_string()]);
+
+        assert_eq!(sorted_paths(&files), vec!["keep.txt"]);
+    }
+
+    /// Без конфігу (`.n-rules.json` відсутній) поведінка не змінилась —
+    /// регресія проти дофіксового `&[]`: обидва файли потрапляють у batch.
+    #[test]
+    fn build_full_scope_files_without_config_matches_everything() {
+        let dir = fixture_tree_with_vendor_dir();
+
+        let files = build_full_scope_files(dir.path(), &["**/*.txt".to_string()]);
+
+        assert_eq!(sorted_paths(&files), vec!["keep.txt", "vendor/skip.txt"]);
+    }
+
+    /// Побитий JSON у `.n-rules.json` — tolerant-парсинг
+    /// ([`rules_core::concerns::cursor_ignore::load_cursor_ignore_paths`]
+    /// повертає порожній список), не крах: той самий результат, що й без
+    /// конфігу взагалі.
+    #[test]
+    fn build_full_scope_files_survives_broken_json_config() {
+        let dir = fixture_tree_with_vendor_dir();
+        std::fs::write(dir.path().join(".n-rules.json"), "{ not: json").expect(".n-rules.json");
+
+        let files = build_full_scope_files(dir.path(), &["**/*.txt".to_string()]);
+
+        assert_eq!(sorted_paths(&files), vec!["keep.txt", "vendor/skip.txt"]);
+    }
+
+    /// Ignore-шлях поза `cwd` не ламає обхід — `to_relative_ignore_globs`
+    /// відкидає його (rel починався б з `..`), `walk_dir` отримує порожній
+    /// `extra_ignore_globs` і повертає звичайний повний список.
+    #[test]
+    fn build_full_scope_files_ignore_path_outside_cwd_does_not_break_walk() {
+        let dir = fixture_tree_with_vendor_dir();
+        let outside = tempfile::tempdir().expect("outside tmp dir");
+        std::fs::write(
+            dir.path().join(".n-rules.json"),
+            serde_json::json!({ "ignore": [outside.path().join("elsewhere").to_string_lossy()] })
+                .to_string(),
+        )
+        .expect(".n-rules.json");
+
+        let files = build_full_scope_files(dir.path(), &["**/*.txt".to_string()]);
+
+        assert_eq!(sorted_paths(&files), vec!["keep.txt", "vendor/skip.txt"]);
     }
 }

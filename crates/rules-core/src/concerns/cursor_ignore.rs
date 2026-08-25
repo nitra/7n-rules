@@ -18,6 +18,15 @@
 //! repo-локальний конфіг сам, так само як він сам вирішує, що сканувати.
 //! Семантика читання — точний порт (усі гілки нижче), лише точка виклику
 //! змістилась із JS-оркестратора всередину native concern-а.
+//!
+//! Той самий аргумент застосовний до `build_full_scope_files`
+//! (`crates/rules-napi/src/lib.rs`) — host-функції, яка будує full-scope
+//! batch файлів для wasm-концернів (`run_wasm_concern` із `files: None`).
+//! Сигнатура `run_wasm_concern(wasm_path, key, cwd, files, tool_paths)` так
+//! само не має місця прокинути `ignorePaths` без розширення napi-мосту заради
+//! одного шару, тож napi-хост читає `.n-rules.json` сам — звідси модуль
+//! `pub`, а не `pub(crate)`: єдиний зовнішній споживач за межами
+//! `rules-core` — саме цей napi-binding.
 
 use std::path::{Path, PathBuf};
 
