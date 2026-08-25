@@ -11,8 +11,14 @@
  * тож саме тут доводиться, що зв'язка «native-гейт → native-conftest → rego»
  * дає ті самі violations, що давав JS.
  *
- * Без `conftest` у PATH прогін пропускається — та сама умова, що була в
- * JS-тестах.
+ * Гейт прогону — `ensureToolAsync('conftest')` (той самий шлях, яким CI
+ * (`test.yml`, коментар про `GITHUB_TOKEN`) добуває тули для vitest: PATH →
+ * керований кеш → авто-install через GitHub Releases), а НЕ голий скан PATH.
+ * Native-концерн нижче резолвить conftest через `tool_resolve.rs::resolve_provisioned_tool`
+ * (PATH → той самий керований кеш `~/.cache/@7n/rules/bin`) — тож тул,
+ * щойно добутий тут через `ensureToolAsync`, native-бік бачить навіть без
+ * PATH. Лише коли добути справді нема звідки (авто-install відключено чи
+ * впав) — прогін пропускається.
  *
  * `N_RULES_PACKAGE_ROOT` виставляється явно: cwd фікстур — tmp-каталог поза
  * репо, тож каскад `rules_package::package_root` (node_modules/@7n/rules → npm/
@@ -25,10 +31,13 @@ import { fileURLToPath } from 'node:url'
 import { env } from 'node:process'
 
 import { runConcernDetector } from '../../../scripts/lib/lint-surface/detect.mjs'
-import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
+import { ensureToolAsync } from '../../../scripts/lib/ensure-tool.mjs'
 import { withTmpDir } from '../../../scripts/utils/test-helpers.mjs'
 
-const hasConftest = Boolean(resolveCmd('conftest'))
+const hasConftest = await ensureToolAsync('conftest').then(
+  () => true,
+  () => false
+)
 
 /** Цей файл: npm/rules/k8s/tests/… → корінь пакета `npm/` (4 dirname угору). */
 const PACKAGE_ROOT = dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url)))))

@@ -7,7 +7,12 @@
  * репортинг env-копій без крос-файлової дедуплікації.
  *
  * Фікстури logback.xml збираються динамічно у tmp-каталогах (не в репо).
- * Без `conftest` у PATH прогін пропускається (як у policy-test-step).
+ *
+ * Гейт прогону — `ensureToolAsync('conftest')` (той самий шлях, яким `evaluatePolicyConcern`
+ * → `runConftestBatch` уже добуває conftest усередині; тут лише дублюємо перевірку ДО
+ * `describe`, щоб зібрати той самий сигнал синхронно для `skipIf`), а не голий скан PATH —
+ * так гейт узгоджений з реальною доступністю тула в CI (`test.yml`: `GITHUB_TOKEN` +
+ * авто-install з GitHub Releases), а не лише з тим, що вже стоїть у PATH runner-а.
  */
 import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
@@ -15,7 +20,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { evaluatePolicyConcern } from '../../../../scripts/lib/lint-surface/policy-lint-adapter.mjs'
-import { resolveCmd } from '../../../../scripts/utils/resolve-cmd.mjs'
+import { ensureToolAsync } from '../../../../scripts/lib/ensure-tool.mjs'
 import { ensureDir, withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
 /** Абсолютний шлях теки концерну (тека з `concern.json` і rego). */
@@ -32,7 +37,10 @@ const REQUIRED_FQCN = [
   'com.dremio.sabot.exec.FragmentExecutors'
 ]
 
-const hasConftest = Boolean(resolveCmd('conftest'))
+const hasConftest = await ensureToolAsync('conftest').then(
+  () => true,
+  () => false
+)
 
 /**
  * Рендерить мінімальний logback.xml із заданими <logger>-рядками.

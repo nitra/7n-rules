@@ -3980,6 +3980,128 @@ per-workflow `eval_deny_rule` (`if let Ok(messages) = … { … }` без `else`
 робить його безпечним для мовчазної зміни поведінки. Задача явно вимагала
 «якщо порядок міняється — не роби і доповідай», тож `check_ga_workflow_files`
 лишився без змін.
+### 2.31. Оживи вічно-пропущені набори — чотири групи `describe.skip`/`skipIf`, три реальні знахідки на живому дереві
+
+**Звідки:** §6.2 («Три `skipped` тести», #379, «не зʼясовано») і пряма
+знахідка власника: єдиний workflow, що ганяє vitest (`.github/workflows/
+test.yml`), передає `GITHUB_TOKEN` у крок `Full vitest run` саме для того,
+щоб тести могли добувати `conftest`/`opa`/`oxfmt` через `ensureToolAsync`
+(коментар кроку), а частина наборів гейтилась на голий `resolveCmd(...)` —
+скан лише PATH, без кешу й авто-install — тож скіпалась завжди, незалежно
+від того, що тул насправді добувний. **Стан:** усі чотири групи реанімовано.
+
+**Група A — гейт неправильний, тул добувний.** `npm/rules/k8s/tests/
+hasura-native-parity.test.mjs` і `npm/rules/k8s/dremio_logging/tests/
+dremio-logging.test.mjs`: `hasConftest = Boolean(resolveCmd('conftest'))` →
+`await ensureToolAsync('conftest').then(() => true, () => false)`. Native-
+концерн (`k8s_hasura_configmap.rs`/`k8s_hasura_httproute.rs`) резолвить
+conftest через `tool_resolve.rs::resolve_provisioned_tool` (PATH → керований
+кеш `~/.cache/@7n/rules/bin`) — той самий кеш, куди `ensureToolAsync`
+встановлює тул при авто-install, тож Rust-бік бачить щойно добутий JS-ом
+бінарник навіть без PATH. **12 тестів тепер реально виконуються** (8 hasura +
+4 dremio_logging), локально зелені (`conftest` уже в PATH машини — гейт
+пропускає обидва describe-блоки без затримки).
+
+**Група B — той самий клас, інший тул.** `plugins/lang-php/rules/php/
+mago_lint/tests/security-fixtures.test.mjs`: `mago` — managed
+GitHub-release тул (`carthage-software/mago` у `tools.json`), той самий
+канал, що `conftest`. Гейт переведено ідентично (`resolveCmd` →
+`ensureToolAsync`). Побічна знахідка: сам тест диспатчить через РЕАЛЬНИЙ
+`target/wasm32-wasip2/release/plugin_lang_php.wasm`, якого `test.yml` НІКОЛИ
+не збирав (лише `plugin-lang-js`) — без окремого кроку build.sh тест і далі
+падав би, просто з іншої причини (wasm відсутній, а не mago). Додано крок
+`Build plugin-lang-php wasm component`. **4 тести реально виконуються.**
+
+**Група C — гейт на артефакт, що генерується лише в релізі.**
+`wasm-plugin-e2e.test.mjs`, `wasm-fix-e2e.test.mjs`,
+`npm/scripts/lib/tests/wasm-builtin-pins.test.mjs` гейтяться на
+`existsSync(npm/wasm-plugins/builtin-pins.json)` — артефакт, який генерує
+лише повний `node npm/scripts/build-wasm-plugins.mjs` (усі пʼять
+first-party плагінів, `npm-publish.yml`), а `test.yml` цей скрипт ніколи не
+викликав. Повний 5-плагінний прогін сюди свідомо НЕ переїхав — усі три
+файли звіряють лише запис `"lang-js"` (assertion на `style/admin_table`/
+`js/utils_imports`, lang-js-специфічні), тож рішення: замінити крок «build
+plugin-lang-js» на виклик `build-wasm-plugins.mjs::main()`, звужений
+фільтром до одного `lang-js` (`FIRST_PARTY_WASM_PLUGINS.filter(p => p.name
+=== 'lang-js')` — API вже підтримував довільний підсписок, жодної зміни
+контракту функції не знадобилось). Раніше — голий `bash build.sh`; тепер той
+самий build.sh викликається ЗСЕРЕДИНИ `buildAndStage`, плюс копія в
+`npm/wasm-plugins/` і `builtin-pins.json` — заміряно локально: **0 секунд
+додаткової вартості** понад те, що build.sh й так коштував (SHA256 малого
+файла + запис JSON — мілісекунди). **17 тестів реально виконуються** (4
+wasm-fix-e2e + 8 wasm-plugin-e2e + 5 wasm-builtin-pins).
+
+**Знахідка групи C, а не тест-баг.** `wasm-builtin-pins.test.mjs` після
+реанімації одразу впав: `EXPECTED_LANG_JS_CONCERNS` (захардкоджений список
+для звірки з рантайм-маніфестом) мав 28 записів, реальний `plugin.toml`
+`plugin-lang-js` — 40. Дванадцять концернів (`bun/layout`, `bun/licensee`,
+`js-run/runtime`, `js/check`, `js/doc_comments`, `js/jscpd_duplicates`,
+`style/lint`, `style/tooling`, `test/sandbox-aware-test`,
+`test/stryker_config`, `test/vitest-api-conventions`, `vue/packages` —
+батчі 8/9 і зрізи 1–7 контракту v3.1) додавались у `plugin.toml` роками
+PR-ів, а список-дзеркало жодного разу не перевірявся (файл завжди
+скіпався — саме той механізм, що ця задача лагодить). Список оновлено до
+живого стану `plugin.toml`; розсинхрон — борг тесту, не дефект продакшн-коду
+(`plugin.toml` — джерело правди).
+
+**Група D — безумовний `describe.skip`.**
+`npm/tests/integration-repo-checks.test.mjs:119` — `describe.skip('...
+(re-enable після Phase 6 repo-conformance cleanup)')`. «Phase 6» тут —
+комміт f79750f93 (2026-06-30, міграція ~800 concern-тестів на
+`lint(ctx)→{violations}`), не фази спеки `rules-v2-rust-core-migration`;
+окремого коміту «repo-conformance cleanup» в історії немає, а всі 10
+check-функцій нижче вже давно диспатчать через `runConcernDetector`/
+`runWasmConcern` — причина skip-у застаріла. Замінено на звичайний
+`describe` (внутрішній `if (env.STRYKER_MUTATOR_WORKER) return` лишився —
+чинна умова, не застаріла).
+
+**Побічний блокер, знайдений при увімкненні.** `checkGa` (концерн
+`ga/workflows`) чекає `target/wasm32-wasip2/release/plugin_ci_github.wasm`,
+якого `test.yml` теж ніколи не збирав. Це виявилось НЕ лише блокером §2.31 —
+`gh run list --workflow=test.yml --branch=main` показав **5 останніх
+прогонів FAIL**: `wasm-plugin-parity-ci-github.test.mjs` (окремий, поза цим
+реєстром файл) hard-fail-ить на import (throw без `existsSync`-гейту,
+"0 test" у звіті) з тієї самої причини. Додано крок `Build plugin-ci-github
+wasm component` — лагодить обидва розриви одним кроком. Вартість: 7.23с у
+теплому rust-cache (виміряно локально: спільні залежності з двома build.sh
+вище вже скомпільовані), крейт тягне лише `wit-bindgen` + Rego-рушій
+in-process (жоден `conftest`-субпроцес, `ga/workflows` рего виконується в
+самому госте).
+
+**Що зачервоніло після увімкнення групи D — і чому це успіх, не провал.**
+Тест раніше — 10 послідовних `expect(...).toBe(0)`; перший fail обривав
+решту, ховаючи дві третини проблем. Переписано на збір усіх 10 результатів
++ один `expect(failed).toEqual([])`, щоб репортер завжди показував повну
+картину. На живому дереві репозиторію (стан на момент цієї задачі) впадають
+**три** з десяти:
+
+- `checkGraphql` (`graphql/tooling`) — уже відомий фейл, що існував ще до
+  цієї зміни (перелік задачі); не чіпався.
+- `checkK8s` (`k8s/manifests`) — kubescape знаходить реальні ризики в
+  k8s-маніфестах репо; плюс `plugins/ci-github/rules/k8s/lint_k8s_yml/
+  template/lint-k8s.yml.snippet.yml` має розширення `.yml` замість `.yaml`
+  (`k8s.mdc`) — нова знахідка.
+- `checkJsRun` (`js-run/runtime`) — три тестові файли
+  (`npm/rules/graphql/tooling/tests/tooling.test.mjs`,
+  `npm/tests/check-empty-trees.test.mjs`,
+  `npm/tests/check-rule-fixtures.test.mjs`) читають
+  `process.env.N_RULES_PACKAGE_ROOT` напряму замість `@nitra/check-env`
+  (`js-run.mdc`) — нова знахідка.
+
+Жодну з трьох НЕ полагоджено в цій задачі — задача була «увімкни й
+сигналізуй», не «полагодь увесь репозиторій». `expect(failed).toEqual([])`
+свідомо лишається червоним, доки ці три реальні дефекти не полагодять
+окремою роботою; підганяти тест під зелень чи повертати skip — саме той
+клас маскування, який ця задача виводить на світло.
+
+**Вартість змін у `test.yml` (сумарно).** Три нові кроки build.sh
+(`plugin-lang-php`, `plugin-ci-github`) + заміна кроку `plugin-lang-js` на
+звужений `build-wasm-plugins.mjs`. Виміряно локально в теплому кеші (спільні
+залежності build.sh між кроками): lang-js (кросс-compile з нуля, немає
+`rust-cache` локально) — 36.54с; lang-php і ci-github вже з теплими
+залежностями — 0.62с і 7.23с відповідно. У свіжому CI-кеші (перший прогін
+після цієї зміни) очікується сумарно на 30-60с довше за поточний `Full
+vitest run`; на прогрітому `Swatinem/rust-cache` — секунди.
 
 
 **Пункт 3 — зроблено (знайдено окремим аудитом «зелено, бо не перевірено»).**
