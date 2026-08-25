@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.100.5] - 2026-08-25
+
+### Changed
+
+- Уніфіковано поверхню обходу дерева: `rules_core::scan::walk_dir` перейменовано на `walk_dir_raw` (примітив без consumer-ignore), додано обгортки `cursor_ignore::walk_repo`/`walk_under_repo`/`walk_with_ignore_paths` — рефакторинг без зміни поведінки, закриває клас дефекту з §2.25/§2.26 (незворотні консюмер-ignore на `walk_dir(cwd, &[])`)
+
 ## [1.100.4] - 2026-08-25
 
 ### Fixed
