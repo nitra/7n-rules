@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.4.0] - 2026-08-25
+
+### Removed
+
+- rust/toolchain_cache і ga/workflows: видалено JS lint-детектори (main.mjs) — канон тепер wasm-гість crates/plugin-ci-github (detect_toolchain_cache, detect_workflows). Фіксери (fix-toolchain_cache.mjs, fix-workflows.mjs) лишаються JS; сканувальний рушій toolchain_cache перенесено у фіксер. .mdc обох концернів оновлено: посилання на main.mjs замінено на назви детекторів гостя, ga/workflows додатково фіксує regorus in-process замість зовнішнього conftest
+
 ## [2.3.2] - 2026-08-25
 
 ### Fixed

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.100.1] - 2026-08-25
+
+### Changed
+
+- wasm-parity: гейт ci-github (rust/toolchain_cache, ga/workflows) звіряється зі знятим еталоном JS-канону (N_WASM_PARITY_CAPTURE), не з живим main.mjs; parity-заглушку в npm/tests/integration-repo-checks.test.mjs переведено на runWasmConcern
+
 ## [1.100.0] - 2026-08-25
 
 ### Added
