@@ -163,18 +163,48 @@
 //!     `data/cargo_mutants_config/mutants.toml.baseline`) дає діагностику
 //!     в JS і мовчання в гостя — жодна parity-фікстура це не покриє (не
 //!     забутий крок, задокументована межа).
-//! (c) **`resolveAllCargoManifests` перевтілено з batch-даних, БУКВАЛЬНО.**
-//!     `npm/scripts/utils/resolve-cargo-manifest.mjs:42-60` — НЕ glob:
-//!     бере кореневий `Cargo.toml`, якщо є, тоді читає `workspaces`-масив
-//!     кореневого `package.json` і для кожного запису віддає перевагу
-//!     `<ws>/src-tauri/Cargo.toml` над `<ws>/Cargo.toml` (Tauri-патерн).
-//!     [`resolve_all_cargo_manifests`] — точна калька, включно з
-//!     ЛАТЕНТНИМ багом джерела (доккомент тієї функції): `workspaces`-записи
-//!     використовуються як ЛІТЕРАЛЬНІ сегменти шляху, НІКОЛИ не
-//!     glob-розкриваються — типовий `"workspaces": ["packages/*"]` шукає
-//!     каталог, буквально названий `*`, і нічого не знаходить. Порт ВІДТВОРЮЄ
-//!     цей баг, а не виправляє його — інакше розбіжність поведінки з
-//!     JS-каноном була б РЕАЛЬНОЮ, а не задокументованим байт-у-байт портом.
+//! (c) **`resolveAllCargoManifests` — `workspaces`-записи ТЕПЕР
+//!     glob-розкриваються, латентний баг джерела ВИПРАВЛЕНО.** Раніше
+//!     [`resolve_all_cargo_manifests`] буквально відтворювала баг
+//!     `resolveAllCargoManifests` (`npm/scripts/utils/resolve-cargo-manifest.mjs:42-60`,
+//!     деталь ДЕТЕКТОРА `rust/cargo_mutants_config` `main.mjs`, вже
+//!     ВИДАЛЕНОГО разом із цією хвилею порту): `workspaces`-запис
+//!     використовувався як ЛІТЕРАЛЬНИЙ сегмент шляху, тож типовий
+//!     `"workspaces": ["packages/*"]` шукав каталог, буквально названий
+//!     `*`, і НІЧОГО не знаходив — концерн тихо не перевіряв жоден пакет із
+//!     найпоширенішої npm/bun-конвенції монорепо. Єдиним обґрунтуванням
+//!     цієї консервації була байт-у-байт парність із JS-ДЕТЕКТОРОМ; після
+//!     видалення `main.mjs` цей аргумент зник — «парність із неіснуючою
+//!     реалізацією» не аргумент. [`expand_workspace_entry_dirs`] тепер
+//!     розкриває `*`(в межах сегмента)/`**`(крізь сегменти)-glob проти вже
+//!     наданого host-батчу (той самий «жодного FS-обходу» принцип, що решта
+//!     крейта, і той самий стиль regex-компіляції, що
+//!     [`workspace_root_pattern_regex`] для `members`/`exclude` — БЕЗ нового
+//!     крейта: `globset` (`crates/rules-napi`, host-бік) роздув би
+//!     wasm-бюджет, а вже підключений `regex` цього крейта — досить). ЛІТЕРАЛЬНІ
+//!     (без `*`) записи йдуть коротким шляхом БЕЗ regex-компайлу — той самий
+//!     код-шлях, що й раніше (регресія неможлива). Tauri-перевага
+//!     (`<dir>/src-tauri/Cargo.toml` над `<dir>/Cargo.toml`) застосовується
+//!     до КОЖНОГО розкритого каталогу окремо, а не до патерна. Розкриття
+//!     явно сортується (`sort_unstable`+`dedup`) — обхід батчу не гарантує
+//!     стабільного порядку, а порядок маніфестів впливає на порядок
+//!     діагностик.
+//!
+//!     Симетрія з T0-фіксером: `npm/scripts/utils/resolve-cargo-manifest.mjs`
+//!     (детектор `main.mjs` видалено, але сам файл ЖИВИЙ — його
+//!     `resolveAllCargoManifests`/`resolveCargoManifest` досі споживає T0-фіксер
+//!     `fix-cargo_mutants_config.mjs`) отримав ТОЙ САМИЙ фікс ОКРЕМО, тим самим
+//!     PR: `expandWorkspaceEntryDirs` там — дзеркало [`expand_workspace_entry_dirs`]
+//!     тут, інше джерело кандидатів (`scanGlob` по реальному диску, а не
+//!     host-батч), той самий результат для того самого дерева файлів.
+//!     Без цього другого фікса детектор (гість) знаходив би
+//!     `packages/a/.cargo/mutants.toml` як відсутній, а фіксер — ні (досі
+//!     шукав би буквальний каталог `*`), тобто видавав би діагностику, яку
+//!     `npx @7n/rules lint rust` не міг би закрити. Перевірено дією:
+//!     `wasm-plugin-parity-rust.test.mjs`, T0-цикл `cargo_mutants_config:
+//!     glob-workspaces (packages/*) — фіксер створює baseline у РОЗКРИТОМУ
+//!     каталозі` — гість детектує, JS-фіксер застосовує, повторний детект
+//!     гостя чистий.
 //!
 //! # `rust/wasm_component` — межа `{ workspace = true }`-успадкування
 //!
@@ -1405,17 +1435,79 @@ fn read_package_json_workspaces(content: &str) -> Vec<String> {
     }
 }
 
-/// Точний порт `resolveAllCargoManifests`
+/// Компілює `workspaces`-запис `package.json` (з `*`, у межах ОДНОГО
+/// сегмента шляху, чи `**`, крізь довільну кількість сегментів) у
+/// прив'язаний regex — той самий стиль, що [`workspace_root_pattern_regex`]
+/// для `members`/`exclude`-патернів `[workspace]` (`Cargo.toml`), розширений
+/// підтримкою `**`: npm/bun-конвенція іноді використовує `"workspaces":
+/// ["**"]` («усі каталоги, будь-яка глибина»), на відміну від Cargo
+/// `members`, де `**` не трапляється. Викликається ЛИШЕ коли `pattern`
+/// містить `*` — [`expand_workspace_entry_dirs`] коротким шляхом обходить
+/// цей виклик для літеральних записів. Символи поза `*` екрануються по
+/// одному, той самий скорочений набір метасимволів, що
+/// [`workspace_root_pattern_regex`].
+fn workspace_entry_pattern_regex(pattern: &str) -> Option<regex::Regex> {
+    let mut source = String::from("^");
+    let mut chars = pattern.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch == '*' {
+            if chars.peek() == Some(&'*') {
+                chars.next();
+                source.push_str(".*");
+            } else {
+                source.push_str("[^/]*");
+            }
+        } else if "\\.+()|[]{}^$?".contains(ch) {
+            source.push('\\');
+            source.push(ch);
+        } else {
+            source.push(ch);
+        }
+    }
+    source.push('$');
+    regex::Regex::new(&source).ok()
+}
+
+/// Розкриває ОДИН glob-`workspaces`-запис (`ws.contains('*')` — виклик
+/// [`resolve_all_cargo_manifests`] бере короткий шлях для літеральних
+/// записів і сюди взагалі не заходить, доккомент виклику) у відсортований
+/// (без дублікатів) список конкретних каталогів. Джерело кандидатів — САМ
+/// host-batch (уже повний `**/Cargo.toml` для full-scope контрибуції,
+/// доккомент [`build_manifest`]), а не файлова система: гість НІКОЛИ не
+/// обходить диск сам (доккомент модуля, розділ «Обхід дерева»). Для
+/// кожного файлу батчу, що закінчується на `Cargo.toml`, каталог-кандидат —
+/// усе до `/Cargo.toml` чи `/src-tauri/Cargo.toml` (Tauri-варіант
+/// перевіряється ПЕРШИМ: `strip_suffix` шукає ТОЧНИЙ суфікс, тож
+/// `src-tauri/Cargo.toml`-шлях не сплутати з рештою `Cargo.toml`-суфіксом).
+fn expand_workspace_entry_dirs<'a>(files: &'a [SourceFile], ws: &str) -> Vec<&'a str> {
+    let Some(re) = workspace_entry_pattern_regex(ws) else {
+        return Vec::new();
+    };
+    let mut dirs: Vec<&'a str> = files
+        .iter()
+        .filter_map(|f| {
+            let dir = f
+                .path
+                .strip_suffix("/src-tauri/Cargo.toml")
+                .or_else(|| f.path.strip_suffix("/Cargo.toml"))?;
+            (!dir.is_empty() && re.is_match(dir)).then_some(dir)
+        })
+        .collect();
+    dirs.sort_unstable();
+    dirs.dedup();
+    dirs
+}
+
+/// Порт `resolveAllCargoManifests`
 /// (`npm/scripts/utils/resolve-cargo-manifest.mjs:42-60`), адаптований під
 /// вже наданий host-batch: кореневий `Cargo.toml`, якщо є, тоді за кожним
-/// записом `workspaces` кореневого `package.json` — `<ws>/src-tauri/Cargo.toml`
-/// пріоритетніше за `<ws>/Cargo.toml`. ЛАТЕНТНИЙ баг джерела ВІДТВОРЮЄТЬСЯ
-/// буквально (доккомент модуля, розділ «`rust/cargo_mutants_config` — дві
-/// СВІДОМІ поведінкові відмінності», пункт (c)): `ws` використовується як
-/// ЛІТЕРАЛЬНИЙ сегмент шляху (`format!("{ws}/...")`), НІКОЛИ не
-/// glob-розкривається — типовий `"workspaces": ["packages/*"]` шукає
-/// каталог, буквально названий `*`, і нічого не знаходить. Це НАВМИСНО НЕ
-/// виправлено: байт-у-байт порт відтворює канон, включно з його вадами.
+/// (можливо glob-) записом `workspaces` кореневого `package.json` — для
+/// КОЖНОГО розкритого каталогу `<dir>/src-tauri/Cargo.toml` пріоритетніше
+/// за `<dir>/Cargo.toml` (Tauri-патерн). ЛАТЕНТНИЙ баг джерела (`ws` як
+/// ЛІТЕРАЛЬНИЙ сегмент шляху, glob НІКОЛИ не розкривався) ВИПРАВЛЕНО —
+/// доккомент модуля, розділ «`rust/cargo_mutants_config` — дві СВІДОМІ
+/// поведінкові відмінності», пункт (c), пояснює чому парність із JS-багом
+/// перестала бути аргументом.
 fn resolve_all_cargo_manifests(files: &[SourceFile]) -> Vec<String> {
     let mut manifests = Vec::new();
     if batch_file(files, "Cargo.toml").is_some() {
@@ -1424,14 +1516,21 @@ fn resolve_all_cargo_manifests(files: &[SourceFile]) -> Vec<String> {
 
     if let Some(pkg) = batch_file(files, "package.json") {
         for ws in read_package_json_workspaces(&pkg.content) {
-            let tauri = format!("{ws}/src-tauri/Cargo.toml");
-            if batch_file(files, &tauri).is_some() {
-                manifests.push(tauri);
-                continue;
-            }
-            let flat = format!("{ws}/Cargo.toml");
-            if batch_file(files, &flat).is_some() {
-                manifests.push(flat);
+            let dirs = if ws.contains('*') {
+                expand_workspace_entry_dirs(files, &ws)
+            } else {
+                vec![ws.as_str()]
+            };
+            for dir in dirs {
+                let tauri = format!("{dir}/src-tauri/Cargo.toml");
+                if batch_file(files, &tauri).is_some() {
+                    manifests.push(tauri);
+                    continue;
+                }
+                let flat = format!("{dir}/Cargo.toml");
+                if batch_file(files, &flat).is_some() {
+                    manifests.push(flat);
+                }
             }
         }
     }
@@ -2408,6 +2507,9 @@ mod tests {
 
     #[test]
     fn resolve_all_cargo_manifests_falls_back_to_flat_manifest_without_tauri() {
+        // РЕГРЕСІЯ: літеральний (без `*`) запис — короткий шлях
+        // [`expand_workspace_entry_dirs`] взагалі не викликається (доккомент
+        // [`resolve_all_cargo_manifests`]), той самий код-шлях, що ДО фіксу.
         let files = vec![
             sf("Cargo.toml", "[workspace]\n"),
             sf("package.json", "{\"workspaces\":[\"owner\"]}"),
@@ -2421,16 +2523,60 @@ mod tests {
     }
 
     #[test]
-    fn resolve_all_cargo_manifests_reproduces_js_glob_pattern_bug_literally() {
-        // Доккомент [`resolve_all_cargo_manifests`]: `"workspaces":
-        // ["packages/*"]` — літеральний сегмент, НЕ glob. Навіть коли
-        // `packages/a/Cargo.toml` реально є в батчі, канон (і цей порт) його
-        // НЕ знаходить, бо шукає буквально каталог `*`. Навмисне відтворення
-        // бага джерела, не забутий крок.
+    fn resolve_all_cargo_manifests_expands_glob_workspaces_entry() {
+        // Баг ВИПРАВЛЕНО (доккомент модуля, розділ «дві СВІДОМІ поведінкові
+        // відмінності», пункт (c)): `"workspaces": ["packages/*"]` тепер
+        // РОЗКРИВАЄТЬСЯ проти host-батчу — `packages/a` і `packages/b`
+        // обидва знайдені, відсортовано.
         let files = vec![
             sf("Cargo.toml", "[workspace]\n"),
             sf("package.json", "{\"workspaces\":[\"packages/*\"]}"),
+            sf("packages/b/Cargo.toml", "[package]\nname = \"b\"\n"),
             sf("packages/a/Cargo.toml", "[package]\nname = \"a\"\n"),
+        ];
+        let manifests = resolve_all_cargo_manifests(&files);
+        assert_eq!(
+            manifests,
+            vec![
+                "Cargo.toml".to_string(),
+                "packages/a/Cargo.toml".to_string(),
+                "packages/b/Cargo.toml".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn resolve_all_cargo_manifests_glob_entry_applies_tauri_preference_per_dir() {
+        // Tauri-перевага застосовується до КОЖНОГО розкритого каталогу
+        // окремо, не до патерна: `packages/a` має src-tauri-варіант,
+        // `packages/b` — лише плаский.
+        let files = vec![
+            sf("package.json", "{\"workspaces\":[\"packages/*\"]}"),
+            sf(
+                "packages/a/src-tauri/Cargo.toml",
+                "[package]\nname = \"a-tauri\"\n",
+            ),
+            sf("packages/a/Cargo.toml", "[package]\nname = \"a-flat\"\n"),
+            sf("packages/b/Cargo.toml", "[package]\nname = \"b-flat\"\n"),
+        ];
+        let manifests = resolve_all_cargo_manifests(&files);
+        assert_eq!(
+            manifests,
+            vec![
+                "packages/a/src-tauri/Cargo.toml".to_string(),
+                "packages/b/Cargo.toml".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn resolve_all_cargo_manifests_glob_entry_with_no_matching_dirs_is_empty_contribution() {
+        // Glob, що нічого не матчить у батчі — коректний порожній результат
+        // (не `*`-як-літерал, не помилка).
+        let files = vec![
+            sf("Cargo.toml", "[workspace]\n"),
+            sf("package.json", "{\"workspaces\":[\"packages/*\"]}"),
+            sf("apps/a/Cargo.toml", "[package]\nname = \"a\"\n"),
         ];
         let manifests = resolve_all_cargo_manifests(&files);
         assert_eq!(manifests, vec!["Cargo.toml".to_string()]);

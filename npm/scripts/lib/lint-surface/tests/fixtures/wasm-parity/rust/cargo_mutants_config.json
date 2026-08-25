@@ -22,13 +22,5 @@
       "message": ".cargo/mutants.toml відсутній (owner/src-tauri/.cargo/mutants.toml) — запусти `npx @7n/rules lint rust` для генерації canonical baseline (rust.mdc)",
       "file": "owner/src-tauri/.cargo/mutants.toml"
     }
-  ],
-  "wasm-plugin parity — rust/cargo_mutants_config (JS канон vs wasm plugin-lang-rust, T0, full-scope) > workspaces glob-патерн (packages/*) НЕ розкривається — латентний баг канону відтворено з обох реалізацій": [
-    {
-      "severity": "error",
-      "reason": "mutants-config-missing",
-      "message": ".cargo/mutants.toml відсутній (.cargo/mutants.toml) — запусти `npx @7n/rules lint rust` для генерації canonical baseline (rust.mdc)",
-      "file": ".cargo/mutants.toml"
-    }
   ]
 }

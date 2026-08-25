@@ -864,17 +864,38 @@ describe('wasm-plugin parity — rust/cargo_mutants_config (JS канон vs was
     })
   })
 
-  test('workspaces glob-патерн (packages/*) НЕ розкривається — латентний баг канону відтворено з обох реалізацій', async () => {
+  test('workspaces glob-патерн (packages/*) РОЗКРИВАЄТЬСЯ — §2.28 виправив латентний баг канону', async () => {
+    // РАНІШЕ (до §2.28, `docs/plans/2026-08-05-open-questions-register.md`)
+    // цей сценарій закріплював латентний баг golden-канону: JS-детектор
+    // (`rust/cargo_mutants_config/main.mjs`, ще живий на момент зняття
+    // еталона) трактував `workspaces`-запис як ЛІТЕРАЛЬНИЙ сегмент шляху —
+    // `packages/*` шукав каталог, буквально названий `*`, і нічого не
+    // знаходив; wasm-порт відтворював той самий баг байт-у-байт. §2.28
+    // виправив ОБИДВІ реалізації, що споживають цю семантику:
+    // [`resolve_all_cargo_manifests`] гостя (`crates/plugin-lang-rust/src/lib.rs`)
+    // і `resolveAllCargoManifests` (`npm/scripts/utils/resolve-cargo-manifest.mjs`,
+    // споживач — T0-фіксер `fix-cargo_mutants_config.mjs`) — детектор і
+    // фіксер мають бачити ОДНАКОВИЙ набір маніфестів, інакше фіксер не
+    // зміг би закрити діагностику, яку видає детектор (T0-цикл нижче
+    // доводить це дією, не лише детектором окремо).
+    //
+    // Порівнювати з JS-каноном тут більше нема з чим: `main.mjs` видалено
+    // разом із транзитивним періодом `lang-rust`, а знятий раніше
+    // golden-еталон буквально закріплював баг — переснімати нема сенсу
+    // (і нема як: `N_WASM_PARITY_CAPTURE=1` впав би на відсутньому
+    // імпорті). Тому тут — пряме твердження ОЧІКУВАНОЇ поведінки гостя,
+    // БЕЗ `goldenJs`/`runCargoMutantsConfigBoth` (той самий прийом, що
+    // T0-цикл нижче: «не parity, порівнювати нема з чим»).
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'Cargo.toml'), '[workspace]\n', 'utf8')
       await writeFile(join(dir, 'package.json'), JSON.stringify({ workspaces: ['packages/*'] }), 'utf8')
       await writeFileDeep(dir, 'packages/a/Cargo.toml', '[package]\nname = "a"\n')
-      const { js, wasm } = await runCargoMutantsConfigBoth(dir)
-      expect(wasm).toEqual(js)
-      // Лише кореневий маніфест резолвиться — `packages/a` НЕ бачиться
-      // (буквальний сегмент `*`, не glob), тож рівно ОДНЕ порушення.
-      expect(js).toHaveLength(1)
-      expect(js[0].file).toBe('.cargo/mutants.toml')
+      const wasm = withDefaultSeverity(
+        loadNative().runWasmConcern(WASM_PATH, CARGO_MUTANTS_CONFIG_CONCERN_KEY, dir, null).violations
+      )
+      // Кореневий манiфест І `packages/a` (розкритий glob) — ДВІ діагностики.
+      expect(wasm).toHaveLength(2)
+      expect(wasm.map(v => v.file).toSorted()).toEqual(['.cargo/mutants.toml', 'packages/a/.cargo/mutants.toml'])
     })
   })
 })
@@ -1012,6 +1033,38 @@ describe('rust/doc_comments + rust/cargo_mutants_config — T0-цикл: дет�
       )
       // Саме ця перевірка розсипалась би при розходженні рядка `reason`
       // між гостем і фіксером — юніт-тести обох боків лишились би зелені.
+      expect(patterns[0].test(before)).toBe(true)
+      await patterns[0].apply(before, { cwd: dir, recordWrite: () => {} })
+
+      const again = loadNative().runWasmConcern(WASM_PATH, CARGO_MUTANTS_CONFIG_CONCERN_KEY, dir, null)
+      expect(again.violations).toEqual([])
+    })
+  })
+
+  test('cargo_mutants_config: glob-workspaces (packages/*) — фіксер створює baseline у РОЗКРИТОМУ каталозі (§2.28)', async () => {
+    // Найпряміший доказ, що детектор (wasm-гість) і фіксер (JS,
+    // `resolveAllCargoManifests` з `resolve-cargo-manifest.mjs`) досі
+    // синхронні ПІСЛЯ §2.28: якби фіксер усе ще трактував `packages/*` як
+    // літеральний сегмент (стара поведінка), `resolveAllCargoManifests(cwd)`
+    // у `fix-cargo_mutants_config.mjs::apply` не знайшла б
+    // `packages/a/Cargo.toml`, baseline у `packages/a/.cargo/mutants.toml`
+    // не створився б, і повторний детект (`again` нижче) лишив би ту
+    // діагностику — тест впав би саме на цьому кроці, не на першому.
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'Cargo.toml'), '[workspace]\n', 'utf8')
+      await writeFile(join(dir, 'package.json'), JSON.stringify({ workspaces: ['packages/*'] }), 'utf8')
+      await writeFileDeep(dir, 'packages/a/Cargo.toml', '[package]\nname = "a"\nversion = "0.1.0"\n')
+
+      const before = withDefaultSeverity(
+        loadNative().runWasmConcern(WASM_PATH, CARGO_MUTANTS_CONFIG_CONCERN_KEY, dir, null).violations
+      )
+      expect(before).toHaveLength(2)
+      expect(before.map(v => v.file).toSorted()).toEqual(['.cargo/mutants.toml', 'packages/a/.cargo/mutants.toml'])
+
+      // eslint-disable-next-line no-unsanitized/method
+      const { patterns } = await import(
+        pathToFileURL(join(RUST_RULES_DIR, 'cargo_mutants_config', 'fix-cargo_mutants_config.mjs')).href
+      )
       expect(patterns[0].test(before)).toBe(true)
       await patterns[0].apply(before, { cwd: dir, recordWrite: () => {} })
 
