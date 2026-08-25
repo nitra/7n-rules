@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.100.3] - 2026-08-25
+
+### Fixed
+
+- `build_full_scope_files` (napi-хост full-scope wasm-концернів) тепер читає `.n-rules.json`/`.n-cursor.json` `ignore` перед обходом дерева — консюмер-специфічні виключення (напр. `npm/schemas/vendor`) більше не потрапляють у batch full-scope wasm-концернів усіх пʼятьох гостей
+
 ## [1.100.2] - 2026-08-25
 
 ### Fixed
