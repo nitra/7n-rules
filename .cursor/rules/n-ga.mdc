@@ -502,6 +502,42 @@ Rego-пакет: `ga.workflow_common`
 
 Детальна документація поведінки — у [ga-workflow_common](../../js/workflow_common.mdc).
 
+Concern: `ga/workflows` (`detect_workflows`, wasm-гість `crates/plugin-ci-github` — JS-детектора (`main.mjs`) більше немає, подвійну реалізацію знято).
+
+## Rego лишається буквальним джерелом правди
+
+ЧОТИРИ per-workflow rego-політики — `clean_ga_workflows`, `clean_merged_branch`,
+`lint_ga`, `git_ai` — плюс спільна `workflow_common` (кожна лежить поряд, у
+`plugins/ci-github/rules/ga/<name>/<name>.rego`, той самий файл, що читає й
+документує своя концерн-тека) виконуються **IN-PROCESS через
+[regorus](https://github.com/microsoft/regorus)** усередині гостя —
+`include_str!`-вшиті напряму з файлової системи (`crates/plugin-ci-github/src/lib.rs`),
+не переказані на Rust. Решта `.rego`-концернів під `plugins/ci-github/rules/ga/`
+(`service_deploy_workflow`, `vscode_extensions`, `vscode_settings`, `zizmor_yml`)
+у гість НЕ вшиті — поза обсягом цього порту.
+
+Раніше вшиту п'ятірку виконував зовнішній `conftest`, викликаний JS-детектором
+(`main.mjs`, якого більше немає); тепер субпроцес `conftest` не спавниться
+взагалі — `regorus::Engine` компілює й обчислює `data.<namespace>.deny` прямо в
+пам'яті гостя. Анти-дрейф-тест
+(`embedded_rego_policies_namespace_matches_rust_side_constant`,
+`crates/plugin-ci-github/src/lib.rs`) звіряє, що Rust-side namespace-константи
+й досі збігаються з `package`-декларацією вшитого `.rego` — розходження ловить
+compile/eval-помилку, не мовчазний no-op.
+
+## Канал «shellcheck відсутній» змінив ФОРМУ, не наслідок
+
+JS-канон (`main.mjs`, якого більше немає) мав ДВІ незалежні перевірки
+`shellcheck`: ранній `ensureTool('shellcheck')`-preflight (Plugin API v2, міг
+кинути виняток і завалити весь `lint()`, якщо auto-install вимкнено) і пізніший
+`checkShellcheckInstalled` (звичайне порушення з підказкою про встановлення).
+Гість несе лише ДРУГИЙ канал: `check_shellcheck_installed`
+(`crates/plugin-ci-github/src/lib.rs`) за відсутнього тула пише `Diagnostic`
+(той самий WIT-запис, що й будь-яке порушення), ніколи не падає — контракт `exec-tool` структурно повертає `ToolResult`, не виняток.
+Той самий патерн, що описала хвиля #481 для `mago` в
+`plugins/lang-php/rules/php/tooling/tooling.mdc`: канал не втрачено, він
+змінив форму (throw → діагностика).
+
 ## Структура workflow-файлів та обов'язкові workflows
 
 У `.github/workflows/` лише **`.yml`** (не `.yaml`). Обов'язкові файли:
