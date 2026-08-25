@@ -6,11 +6,82 @@
 //! ПЕРШИЙ НЕ-lang first-party гість — плагін-джерело `@7n/rules-ci-github`
 //! (`plugins/ci-github/`), доккомент `plugin.toml` пояснює вибір `id`.
 //!
-//! ОДНА хвиля порту: рівно ОДИН концерн, `rust/toolchain_cache`, порт
+//! ПЕРША хвиля: рівно ОДИН концерн, `rust/toolchain_cache`, порт
 //! `plugins/ci-github/rules/rust/toolchain_cache/main.mjs` (181 рядок) —
-//! [`detect_toolchain_cache`]. `ga/workflows` і `ci_artifact/consume`
-//! СВІДОМО поза обсягом цієї хвилі (окремі, ще-не-вирішені хвилі — не
-//! чіпай їх у цьому крейті без нової задачі).
+//! [`detect_toolchain_cache`].
+//!
+//! ДРУГА хвиля (цей блок): `ga/workflows`, порт
+//! `plugins/ci-github/rules/ga/workflows/main.mjs` (446 рядків) —
+//! [`detect_workflows`]. Найбільший один концерн усієї міграції: пʼять
+//! зовнішніх tool-інтеграцій (`git`/`github-actionlint`/`uvx zizmor`/
+//! `shellcheck`-проба, доккомент розділу «Чотири зовнішні тули» нижче) плюс
+//! 851 рядок Rego (пʼять `.rego`-пакетів у `plugins/ci-github/rules/ga/`),
+//! який виконується IN-PROCESS через [`regorus`] (Microsoft, MIT AND
+//! Apache-2.0 AND BSD-3-Clause) — жодного `conftest`-субпроцесу (доккомент
+//! розділу «Regorus замість conftest» нижче). `ci_artifact/consume` і решта
+//! `ga/*`-каталогів із власними `.rego` (вони НЕ окремі `ruleId/concernId`
+//! контрибуції — вшиті сюди як внутрішні rego-namespace-и) лишаються поза
+//! обсягом.
+//!
+//! # Regorus замість conftest
+//!
+//! П'ять policy-файлів (`clean_ga_workflows`/`clean_merged_branch`/
+//! `lint_ga`/`git_ai`/`workflow_common`) вшиті `include_str!` НАПРЯМУ з
+//! `plugins/ci-github/rules/ga/<name>/<name>.rego` — джерело правди
+//! лишається Rego, не Rust-парафраз (той самий мотив, що `BLUE_OAK_SNAPSHOT_JSON`
+//! у `crates/plugin-lang-python`/`RULE_MAIN_JSON` у `crates/plugin-lang-rust`).
+//! Rego вже підготовлений parser-агностично (окрема підготовча задача на цій
+//! гілці, ДО цього порту): пʼять `%q`→`\"%v\"` (regorus відкидає `%q` як
+//! HARD RUNTIME ERROR, не тихий деградейшн — байт-у-байт доведено під
+//! conftest, що обидва дають ідентичний рядок) і три
+//! `gha_on := object.get(input, "on", object.get(input, "true", {}))`
+//! (conftest парсить YAML 1.1, де голий `on:` стає булевим ключем `"true"`;
+//! будь-який YAML 1.2-парсер — і наш [`saphyr`], і `yaml` npm-пакет канону —
+//! дає рядок `"on"`). Це друге застереження в порту фактично MOOT: наш
+//! `input` парситься ЗАВЖДИ через [`saphyr`] (YAML 1.2), тож гілка
+//! `object.get(input, "true", {})` структурно недосяжна тут (на відміну від
+//! `conftest`, де це реальний рантайм-канал) —лишена в Rego як є, бо
+//! джерело спільне з живим JS-каноном (conftest і далі читає YAML 1.1 у 55
+//! `conftest verify`-тестах).
+//!
+//! regorus дає РІВНО один `input` на `Engine` за раз — батчинг `conftest`
+//! (один спавн на весь список файлів) замінено явним Rust-циклом
+//! `set_input` + `eval_rule` per file, ім'я файлу трекається Rust-боку (не
+//! в самому Rego). Мапінг на 5 окремих `Engine` дзеркалить 5 окремих
+//! спавнів conftest канону (`GA_PER_WORKFLOW_REGO_TARGETS` + один батч-виклик
+//! `workflow_common`, `main.mjs:301-377`) — порядок `data`-merge лишається
+//! однозначним: кожен `Engine` бачить РІВНО один policy + один data-документ.
+//!
+//! # `--data` template merge → `Value::from_json_str` + `add_data_json`
+//!
+//! Кожен з чотирьох per-workflow policy-пакетів очікує канон через
+//! `data.template.snippet.*` (доккомент кожного `.rego`) — конон будує це
+//! з `template/<workflow>.yml.snippet.yml` через `loadTemplate()`
+//! (`npm/scripts/lib/template.mjs`) і передає `conftest --data <tmpfile>`
+//! із вмістом `{"template": {"snippet": <parsed YAML>}}`. Порт відтворює
+//! РІВНО ту саму JSON-форму: пʼять шаблонних файлів (чотири `.yml.snippet.yml`
+//! та один `uses-min-versions.snippet.json` для `workflow_common`) вшиті
+//! `include_str!` (той самий мотив, що самі `.rego`), розпарсені ОДИН раз
+//! через [`saphyr`] (JSON — валідний YAML 1.2, тож той самий парсер працює
+//! для обох розширень без окремого JSON-крейта), обгорнуті в
+//! `{"template":{"snippet": …}}` і подані через `Engine::add_data_json`
+//! ([`build_rego_templates`]).
+//!
+//! # Чотири зовнішні тули
+//!
+//! `manifest.tools` (доккомент `plugin.toml`) — `path:git` (`git ls-files`,
+//! `main.mjs:65`), `npm:github-actionlint` (канон спавнить
+//! `bunx github-actionlint`, `main.mjs:401` — порт резолвить бін напряму
+//! через npm:-схему, той самий бінарник, недослівна відмінність — звіт
+//! задачі), `path:uvx` (канон спавнить `uvx zizmor …`, `main.mjs:404`),
+//! `shellcheck` (bare/managed-схема — канон керує через
+//! `ensureTool('shellcheck')`, `main.mjs:398`, не голий `resolveCmd`).
+//! `conftest`-декларація канону (`ensureTool('conftest')`, `main.mjs:399`)
+//! СВІДОМО відсутня в порту — regorus замінює субпроцес.
+//!
+//! # `ci_artifact/consume` і решта `ga/*` — поза обсягом
+//!
+//! Не чіпай їх у цьому крейті без нової задачі.
 //!
 //! # Текстовий, не YAML-AST аналіз — навмисне рішення канону, збережене тут
 //!
@@ -354,6 +425,982 @@ fn detect_toolchain_cache(files: &[SourceFile]) -> Vec<Diagnostic> {
     diagnostics
 }
 
+// =====================================================================
+// `ga/workflows` — друга хвиля порту (доккомент модуля).
+// =====================================================================
+
+/// Ключ контрибуції `ga/workflows` — точний відповідник `ruleId: 'ga',
+/// concernId: 'workflows'` JS-виклику (`main.test.mjs`/`workflows.test.mjs`).
+const CONCERN_WORKFLOWS: &str = "ga/workflows";
+
+/// Дефолтний `reason` — точний відповідник `ctx.concernId` JS-канону:
+/// `createViolationReporter(ctx)` (`violation-reporter.mjs`) даб `reason =
+/// ctx?.concernId ?? 'violation'`, коли `fail(msg)` викликається БЕЗ опцій
+/// (більшість перевірок цього концерну).
+const DEFAULT_REASON: &str = "workflows";
+
+/// Обовʼязкові workflow-файли (ga.mdc) — точний відповідник
+/// `REQUIRED_WORKFLOWS` (`main.mjs`).
+const REQUIRED_WORKFLOWS: [&str; 4] = [
+    "clean-ga-workflows.yml",
+    "clean-merged-branch.yml",
+    "lint-ga.yml",
+    "git-ai.yml",
+];
+
+/// Типові конфіги MegaLinter у корені репо — точний відповідник
+/// `MEGALINTER_CONFIG_NAMES` (`main.mjs`).
+const MEGALINTER_CONFIG_NAMES: [&str; 3] =
+    [".mega-linter.yml", ".megalinter.yaml", ".mega-linter.yaml"];
+
+/// Canonical language config paths, які policy language-workflow-ів
+/// вимагають наперед — точний відповідник `OPTIONAL_CANONICAL_PATH_GLOBS`
+/// (`main.mjs`).
+const OPTIONAL_CANONICAL_PATH_GLOBS: [&str; 4] = [
+    "pyproject.toml",
+    "uv.lock",
+    "**/rustfmt.toml",
+    "**/clippy.toml",
+];
+
+// --- Rego-політики, вшиті `include_str!` з ТИХ САМИХ файлів, що читає
+// живий JS-канон (доккомент модуля, розділ «Regorus замість conftest»):
+// джерело правди лишається `.rego`, не Rust-парафраз.
+
+const CLEAN_GA_WORKFLOWS_REGO: &str =
+    include_str!("../../../plugins/ci-github/rules/ga/clean_ga_workflows/clean_ga_workflows.rego");
+const CLEAN_GA_WORKFLOWS_SNIPPET_YML: &str = include_str!(
+    "../../../plugins/ci-github/rules/ga/clean_ga_workflows/template/clean-ga-workflows.yml.snippet.yml"
+);
+
+const CLEAN_MERGED_BRANCH_REGO: &str = include_str!(
+    "../../../plugins/ci-github/rules/ga/clean_merged_branch/clean_merged_branch.rego"
+);
+const CLEAN_MERGED_BRANCH_SNIPPET_YML: &str = include_str!(
+    "../../../plugins/ci-github/rules/ga/clean_merged_branch/template/clean-merged-branch.yml.snippet.yml"
+);
+
+const LINT_GA_REGO: &str = include_str!("../../../plugins/ci-github/rules/ga/lint_ga/lint_ga.rego");
+const LINT_GA_SNIPPET_YML: &str =
+    include_str!("../../../plugins/ci-github/rules/ga/lint_ga/template/lint-ga.yml.snippet.yml");
+
+const GIT_AI_REGO: &str = include_str!("../../../plugins/ci-github/rules/ga/git_ai/git_ai.rego");
+const GIT_AI_SNIPPET_YML: &str =
+    include_str!("../../../plugins/ci-github/rules/ga/git_ai/template/git-ai.yml.snippet.yml");
+
+const WORKFLOW_COMMON_REGO: &str =
+    include_str!("../../../plugins/ci-github/rules/ga/workflow_common/workflow_common.rego");
+const USES_MIN_VERSIONS_SNIPPET_JSON: &str = include_str!(
+    "../../../plugins/ci-github/rules/ga/workflow_common/template/uses-min-versions.snippet.json"
+);
+
+/// Мінімальне self-describing dynamic-значення YAML/JSON-документа — спільне
+/// представлення і для конвертації в JSON-текст regorus `input`/`data`
+/// ([`json_to_string`]), і для JS-паритетної логіки цього концерну
+/// (`checkApplyWorkflow`/`verifyWorkflowEventPathsGlobsExist`), яка в каноні
+/// індексує вже розпарсений YAML-обʼєкт (`yaml` npm-пакет). Один AST замість
+/// двох (текст + типізований доступ) — [`saphyr`] дає власний `YamlOwned`,
+/// цей enum лише звужує його до JSON-сумісної підмножини.
+#[derive(Debug, Clone, PartialEq)]
+enum Json {
+    Null,
+    Bool(bool),
+    Int(i64),
+    Float(f64),
+    Str(String),
+    Array(Vec<Json>),
+    /// Порядок вставки збережено (як і `saphyr`'s `MappingOwned` —
+    /// `LinkedHashMap`) — не для коректності Rego (обʼєкти незалежні від
+    /// порядку ключів), а для детермінованого JSON-тексту.
+    Object(Vec<(String, Json)>),
+}
+
+impl Json {
+    /// Доступ до поля обʼєкта за ключем — точний відповідник `getObjKey`
+    /// (`main.mjs`): `None`, якщо `self` не обʼєкт чи ключа немає.
+    fn get(&self, key: &str) -> Option<&Json> {
+        match self {
+            Json::Object(entries) => entries.iter().find(|(k, _)| k == key).map(|(_, v)| v),
+            _ => None,
+        }
+    }
+
+    fn as_str(&self) -> Option<&str> {
+        match self {
+            Json::Str(s) => Some(s.as_str()),
+            _ => None,
+        }
+    }
+
+    fn as_array(&self) -> Option<&[Json]> {
+        match self {
+            Json::Array(items) => Some(items.as_slice()),
+            _ => None,
+        }
+    }
+}
+
+/// Конвертує вже розпарсений `saphyr`-AST у [`Json`] — рекурсивний спуск по
+/// `Mapping`/`Sequence`/`Value`(скаляр). `Representation`/`Tagged`/`Alias`/
+/// `BadValue` не очікувані в GH Actions workflow YAML після `early_parse`
+/// (дефолт `saphyr`-лоадера — скаляри вже розв'язані у `Value`) —
+/// трактуються як `Json::Null` (skip-not-crash, той самий дух, що решта
+/// контракту).
+fn yaml_owned_to_json(node: &saphyr::YamlOwned) -> Json {
+    use saphyr::YamlOwned;
+    match node {
+        YamlOwned::Value(scalar) => scalar_owned_to_json(scalar),
+        YamlOwned::Sequence(items) => Json::Array(items.iter().map(yaml_owned_to_json).collect()),
+        YamlOwned::Mapping(map) => Json::Object(
+            map.iter()
+                .map(|(k, v)| (yaml_key_to_string(k), yaml_owned_to_json(v)))
+                .collect(),
+        ),
+        _ => Json::Null,
+    }
+}
+
+fn scalar_owned_to_json(scalar: &saphyr::ScalarOwned) -> Json {
+    use saphyr::ScalarOwned;
+    match scalar {
+        ScalarOwned::Null => Json::Null,
+        ScalarOwned::Boolean(b) => Json::Bool(*b),
+        ScalarOwned::Integer(i) => Json::Int(*i),
+        ScalarOwned::FloatingPoint(f) => Json::Float(f.into_inner()),
+        ScalarOwned::String(s) => Json::Str(s.clone()),
+    }
+}
+
+/// Ключ мапи як рядок — GH Actions workflow YAML завжди має рядкові ключі;
+/// нестроковий ключ (не очікуваний у цьому домені) деградує у `Debug`-текст
+/// замість паніки.
+fn yaml_key_to_string(key: &saphyr::YamlOwned) -> String {
+    key.as_str()
+        .map(str::to_string)
+        .unwrap_or_else(|| format!("{key:?}"))
+}
+
+/// Точний відповідник `parseWorkflowYaml` (`gha-workflow.mjs`): парсить
+/// цілий YAML-документ і повертає `Some` лише коли корінь — обʼєкт (мапа);
+/// парс-помилка чи не-обʼєктний корінь (скаляр/масив) — `None`, той самий
+/// подвійний fallback, що JS `try { parse(content) } catch { null }` +
+/// `typeof root === 'object'`.
+fn parse_yaml_document(content: &str) -> Option<Json> {
+    use saphyr::{LoadableYamlNode, YamlOwned};
+    let docs = YamlOwned::load_from_str(content).ok()?;
+    let doc = docs.into_iter().next()?;
+    match yaml_owned_to_json(&doc) {
+        json @ Json::Object(_) => Some(json),
+        _ => None,
+    }
+}
+
+/// Обхідний шлях regorus 0.11.0-специфічного бага в evaluator-і (підтверджено
+/// мінімальним репро поза цим крейтом): shorthand-форма multi-value rule
+/// head `s contains arr[_].field` дає `Err("not an object")`, коли ХОЧА Б
+/// ОДИН елемент масиву не має поля `field` (undefined mid-iteration) —
+/// LONGHAND-форма (`s contains v if { some x in arr; v := x.field }`) з ТИМ
+/// САМИМ входом працює коректно. РІВНО ОДИН рядок серед пʼяти вшитих
+/// `.rego`-джерел використовує саме цю крихку форму:
+/// `lint_ga.rego:17: job_uses_set contains job.steps[_].uses` (кроки БЕЗ
+/// `uses:`, напр. чисті `run:`-кроки, тригерять баг). Rego-текст НЕ можна
+/// правити (спільне джерело з живим JS-каноном, 55 `conftest verify`-тестів
+/// його стережуть) — обхід тут, на боці Rust, ПЕРЕД `set_input`: кожен
+/// `jobs.*.steps[]`-елемент отримує явний `"uses": ""`, якщо ключа не було.
+/// Застосовано УНІВЕРСАЛЬНО (усі пʼять namespace-ів, доккомент
+/// [`run_all_ga_rego`]), а не лише для `ga.lint_ga` — нейтрально для решти
+/// чотирьох: кожне звернення до `step.uses` там або індексує КОНКРЕТНИЙ,
+/// заздалегідь відомий крок (`step0.uses`), або йде через
+/// `object.get(step, "uses", "")`, який дає ТОЙ САМИЙ результат для «ключа
+/// немає» і «ключ є, значення `""`» — перевірено grep-ом по всіх пʼяти
+/// файлах на відсутність `not …\.uses`-подібних existence-перевірок, які
+/// відрізняли б «відсутній» від «порожній рядок».
+fn ensure_step_uses_key_present(root: &Json) -> Json {
+    let Json::Object(top) = root else {
+        return root.clone();
+    };
+    Json::Object(
+        top.iter()
+            .map(|(k, v)| {
+                if k == "jobs" {
+                    (k.clone(), normalize_jobs_steps(v))
+                } else {
+                    (k.clone(), v.clone())
+                }
+            })
+            .collect(),
+    )
+}
+
+fn normalize_jobs_steps(jobs: &Json) -> Json {
+    let Json::Object(entries) = jobs else {
+        return jobs.clone();
+    };
+    Json::Object(
+        entries
+            .iter()
+            .map(|(job_id, job)| (job_id.clone(), normalize_job_steps(job)))
+            .collect(),
+    )
+}
+
+fn normalize_job_steps(job: &Json) -> Json {
+    let Json::Object(entries) = job else {
+        return job.clone();
+    };
+    Json::Object(
+        entries
+            .iter()
+            .map(|(k, v)| {
+                if k == "steps" {
+                    (k.clone(), normalize_steps_array(v))
+                } else {
+                    (k.clone(), v.clone())
+                }
+            })
+            .collect(),
+    )
+}
+
+fn normalize_steps_array(steps: &Json) -> Json {
+    let Json::Array(items) = steps else {
+        return steps.clone();
+    };
+    Json::Array(items.iter().map(normalize_step_uses).collect())
+}
+
+fn normalize_step_uses(step: &Json) -> Json {
+    let Json::Object(fields) = step else {
+        return step.clone();
+    };
+    if fields.iter().any(|(k, _)| k == "uses") {
+        return step.clone();
+    }
+    let mut new_fields = fields.clone();
+    new_fields.push(("uses".to_string(), Json::Str(String::new())));
+    Json::Object(new_fields)
+}
+
+/// Escape рядка для вбудовування в JSON — той самий helper, що
+/// [`json_escape_string`] вище (`rust/toolchain_cache`), перевикористаний
+/// тут для JSON-серіалізації [`Json`].
+fn write_json(value: &Json, out: &mut String) {
+    match value {
+        Json::Null => out.push_str("null"),
+        Json::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
+        Json::Int(i) => out.push_str(&i.to_string()),
+        Json::Float(f) => {
+            if f.is_finite() {
+                out.push_str(&f.to_string());
+            } else {
+                // JSON не має NaN/Infinity — GH Actions workflow YAML ніколи
+                // не містить такого скаляра; захисний фолбек, не досяжний
+                // на практиці.
+                out.push('0');
+            }
+        }
+        Json::Str(s) => out.push_str(&json_escape_string(s)),
+        Json::Array(items) => {
+            out.push('[');
+            for (i, item) in items.iter().enumerate() {
+                if i > 0 {
+                    out.push(',');
+                }
+                write_json(item, out);
+            }
+            out.push(']');
+        }
+        Json::Object(entries) => {
+            out.push('{');
+            for (i, (k, v)) in entries.iter().enumerate() {
+                if i > 0 {
+                    out.push(',');
+                }
+                out.push_str(&json_escape_string(k));
+                out.push(':');
+                write_json(v, out);
+            }
+            out.push('}');
+        }
+    }
+}
+
+fn json_to_string(value: &Json) -> String {
+    let mut out = String::new();
+    write_json(value, &mut out);
+    out
+}
+
+/// Парсить довільний вшитий шаблонний текст (YAML чи JSON — JSON є валідним
+/// YAML 1.2, тож той самий [`saphyr`]-парсер обслуговує обидва розширення
+/// без окремого JSON-крейта) у [`Json`]. Панікує на помилці — вшиті
+/// template-файли є ЧАСТИНОЮ крейта (не user-вхід): парс-помилка тут
+/// означала б зламаний `include_str!`-асет, структурний баг порту, не
+/// runtime-умову, яку варто деградувати.
+fn parse_embedded_template(source_name: &str, content: &str) -> Json {
+    use saphyr::{LoadableYamlNode, YamlOwned};
+    let docs = YamlOwned::load_from_str(content)
+        .unwrap_or_else(|e| panic!("вшитий template {source_name} — валідний YAML/JSON: {e}"));
+    let doc = docs
+        .into_iter()
+        .next()
+        .unwrap_or_else(|| panic!("вшитий template {source_name} — непорожній"));
+    yaml_owned_to_json(&doc)
+}
+
+/// Обгортає розпарсений шаблонний снапшот у `{"template":{"snippet": …}}` —
+/// точна JSON-форма, яку канон пише у `--data <tmpfile>` через
+/// `runConftestBatch` (`{ template: templateData }`, `templateData.snippet`
+/// = розпарсений `.snippet.yml`/`.snippet.json`, доккомент модуля).
+fn wrap_template_data(snippet: Json) -> String {
+    json_to_string(&Json::Object(vec![(
+        "template".to_string(),
+        Json::Object(vec![("snippet".to_string(), snippet)]),
+    )]))
+}
+
+/// Пʼять `--data`-документів, розпарсені й обгорнуті ОДИН раз (не на кожен
+/// workflow-файл) — [`run_all_ga_rego`] викликає це на вході, а не всередині
+/// циклу.
+struct RegoTemplates {
+    clean_ga_workflows: String,
+    clean_merged_branch: String,
+    lint_ga: String,
+    git_ai: String,
+    workflow_common: String,
+}
+
+fn build_rego_templates() -> RegoTemplates {
+    RegoTemplates {
+        clean_ga_workflows: wrap_template_data(parse_embedded_template(
+            "clean-ga-workflows.yml.snippet.yml",
+            CLEAN_GA_WORKFLOWS_SNIPPET_YML,
+        )),
+        clean_merged_branch: wrap_template_data(parse_embedded_template(
+            "clean-merged-branch.yml.snippet.yml",
+            CLEAN_MERGED_BRANCH_SNIPPET_YML,
+        )),
+        lint_ga: wrap_template_data(parse_embedded_template(
+            "lint-ga.yml.snippet.yml",
+            LINT_GA_SNIPPET_YML,
+        )),
+        git_ai: wrap_template_data(parse_embedded_template(
+            "git-ai.yml.snippet.yml",
+            GIT_AI_SNIPPET_YML,
+        )),
+        workflow_common: wrap_template_data(parse_embedded_template(
+            "uses-min-versions.snippet.json",
+            USES_MIN_VERSIONS_SNIPPET_JSON,
+        )),
+    }
+}
+
+/// Витягує рядкові елементи з результату `eval_rule("data.<ns>.deny")` —
+/// `deny contains msg if {...}` компілюється в regorus `Value::Set`
+/// (`BTreeSet<Value>`, природно відсортований — той самий порядок, що OPA
+/// маршалить set у JSON, node conftest на боці канону читає). `Array`
+/// толерується про запас (той самий дух, що решта контракту), інші
+/// варіанти (Undefined тощо) дають порожній результат.
+fn extract_string_set(value: &regorus::Value) -> Vec<String> {
+    match value {
+        regorus::Value::Set(set) => set.iter().filter_map(value_as_owned_string).collect(),
+        regorus::Value::Array(arr) => arr.iter().filter_map(value_as_owned_string).collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn value_as_owned_string(value: &regorus::Value) -> Option<String> {
+    match value {
+        regorus::Value::String(s) => Some(s.to_string()),
+        _ => None,
+    }
+}
+
+/// Один regorus-виклик: новий [`regorus::Engine`], один `add_policy`,
+/// опційний `add_data_json` (шаблон-канон), один `set_input_json` +
+/// `eval_rule("data.<namespace>.deny")` — точний відповідник ОДНОГО спавну
+/// `conftest test <file> -p <policyDir> --namespace <namespace> [--data …]`
+/// (`runConftestBatch`) для ОДНОГО файла. Помилка (побитий policy-текст чи
+/// вхідний JSON) — структурна помилка порту, не user-facing діагностика:
+/// живий rego верифікований 55 `conftest verify`-тестами, тож продакшн-шлях
+/// сюди не потрапляє; викликається лише для чотирьох per-workflow таргетів,
+/// НЕ для `workflow_common` (там один `Engine` на весь батч файлів,
+/// [`build_workflow_common_engine`] — доккомент модуля, розділ «regorus дає
+/// РІВНО один `input`»).
+fn eval_deny_rule(
+    rego_source: &str,
+    namespace: &str,
+    data_json: &str,
+    input_json: &str,
+) -> Result<Vec<String>, String> {
+    let mut engine = regorus::Engine::new();
+    engine
+        .add_policy(format!("{namespace}.rego"), rego_source.to_string())
+        .map_err(|e| e.to_string())?;
+    engine.add_data_json(data_json).map_err(|e| e.to_string())?;
+    engine
+        .set_input_json(input_json)
+        .map_err(|e| e.to_string())?;
+    let result = engine
+        .eval_rule(format!("data.{namespace}.deny"))
+        .map_err(|e| e.to_string())?;
+    Ok(extract_string_set(&result))
+}
+
+/// Один `Engine` для `ga.workflow_common`, підготовлений ОДИН раз (policy +
+/// data), потім `set_input`+`eval_rule` у циклі по файлах
+/// ([`run_all_ga_rego`]) — точний відповідник ОДНОГО батч-спавну
+/// `conftest test <files...> --namespace ga.workflow_common --data …`
+/// канону, перекладений у явний Rust-цикл (доккомент модуля).
+fn build_workflow_common_engine(data_json: &str) -> Result<regorus::Engine, String> {
+    let mut engine = regorus::Engine::new();
+    engine
+        .add_policy(
+            "workflow_common.rego".to_string(),
+            WORKFLOW_COMMON_REGO.to_string(),
+        )
+        .map_err(|e| e.to_string())?;
+    engine.add_data_json(data_json).map_err(|e| e.to_string())?;
+    Ok(engine)
+}
+
+/// Патерн rego-violation про відсутній `persist-credentials` — точний
+/// відповідник `CHECKOUT_PERSIST_RE = /persist-credentials/u` (`main.mjs`):
+/// простий substring-тест (регекс без метасимволів), regex-крейт тут зайвий.
+const CHECKOUT_PERSIST_NEEDLE: &str = "persist-credentials";
+
+/// Structured fix-hint для rego-violation про `actions/checkout` без
+/// `persist-credentials: false` — точний відповідник `checkoutPersistHint`
+/// (`main.mjs`). Повертає `(reason, file, data)` чи `None`.
+fn checkout_persist_hint(
+    file: &str,
+    message: &str,
+) -> Option<(&'static str, String, &'static str)> {
+    if message.contains(CHECKOUT_PERSIST_NEEDLE) {
+        Some((
+            "checkout-persist-credentials",
+            file.to_string(),
+            "{\"kind\":\"checkout-persist-credentials\"}",
+        ))
+    } else {
+        None
+    }
+}
+
+/// Пуш rego-violation у формі, яку `main.mjs` дає ОБИДВОМ вузлам
+/// (`runAllGaRego`, per-workflow ЦИКЛ і `workflow_common`): `message =
+/// "<prefix>: <rego msg>"`, `reason`/`file`/`data` — з [`checkout_persist_hint`]
+/// (`prefix` — той самий рядок, що і message-префікс, і `file`-параметр
+/// хінта: для per-workflow це `target.workflow`, для `workflow_common` —
+/// `v.filename`/`relative(cwd, v.filename)`, які в порту завжди РІВНІ
+/// `SourceFile.path` — доккомент модуля).
+fn push_rego_violation(diagnostics: &mut Vec<Diagnostic>, prefix: &str, rego_message: &str) {
+    let message = format!("{prefix}: {rego_message}");
+    let (reason, file, data) = match checkout_persist_hint(prefix, rego_message) {
+        Some((reason, file, data)) => (reason.to_string(), Some(file), Some(data.to_string())),
+        None => (DEFAULT_REASON.to_string(), None, None),
+    };
+    diagnostics.push(Diagnostic {
+        reason,
+        message,
+        file,
+        severity: Severity::Error,
+        data,
+    });
+}
+
+/// Fail-діагностика з дефолтним `reason` (`DEFAULT_REASON`) і без `file`/
+/// `data` — точний відповідник `fail(msg)` БЕЗ опцій (`violation-reporter.mjs`).
+fn simple_fail(message: String) -> Diagnostic {
+    Diagnostic {
+        reason: DEFAULT_REASON.to_string(),
+        message,
+        file: None,
+        severity: Severity::Error,
+        data: None,
+    }
+}
+
+/// Чи `path` — прямий (не вкладений) запис `.github/workflows/` — точний
+/// відповідник елементів `readdir(wfDir)` (`main.mjs`): нерекурсивний
+/// listing директорії. Host-батч будується за glob `.github/workflows/*`
+/// (`plugin.toml`), який структурно не матчить вкладені шляхи, але фільтр
+/// тут — захист понад це (той самий мотив, що `is_workflow_path` у
+/// `rust/toolchain_cache`).
+fn is_workflow_dir_entry(path: &str) -> bool {
+    match path.strip_prefix(".github/workflows/") {
+        Some(rest) => !rest.is_empty() && !rest.contains('/'),
+        None => false,
+    }
+}
+
+/// Базове імʼя файлу в `.github/workflows/` — панікує лише якщо викликано
+/// не на `is_workflow_dir_entry`-відфільтрованому шляху (внутрішній
+/// інваріант порту).
+fn workflow_basename(path: &str) -> &str {
+    path.strip_prefix(".github/workflows/").unwrap_or(path)
+}
+
+/// Чи варто перевіряти glob з `on.*.paths` на наявність збігів у
+/// репозиторії — точний відповідник `shouldValidateWorkflowPathsGlob`
+/// (`main.mjs`).
+fn should_validate_workflow_paths_glob(p: &str) -> bool {
+    if p.starts_with('!') {
+        return false;
+    }
+    if OPTIONAL_CANONICAL_PATH_GLOBS.contains(&p) {
+        return false;
+    }
+    !p.contains("*.")
+}
+
+/// Точний відповідник `gitHasAnyTrackedFileMatchingGlob` (`main.mjs`):
+/// `git ls-files -z -- :(glob)<p>` через `exec-tool` (`path:git`,
+/// `plugin.toml`). Порожній рядок — `false`; негативний патерн (`!…`) —
+/// `true` без спавну (той самий захисний branch, що канон — практично
+/// недосяжний тут, бо виклик відбувається лише після
+/// [`should_validate_workflow_paths_glob`], яка вже відфільтрувала `!…`,
+/// але порт зберігає ту саму двошарову форму, що JS).
+fn git_has_any_tracked_file_matching_glob(pattern: &str) -> bool {
+    let p = pattern.trim();
+    if p.is_empty() {
+        return false;
+    }
+    if p.starts_with('!') {
+        return true;
+    }
+    let result = exec_tool(&ToolRequest {
+        tool: "path:git".to_string(),
+        args: vec![
+            "ls-files".to_string(),
+            "-z".to_string(),
+            "--".to_string(),
+            format!(":(glob){p}"),
+        ],
+        stdin: None,
+        cwd: None,
+        env: vec![],
+        scratch_in: vec![],
+        scratch_out: vec![],
+    });
+    matches!(result.status, Some(0)) && !result.stdout.is_empty()
+}
+
+/// Точний відповідник `verifyOnePathsGlob` (`main.mjs`).
+fn verify_one_paths_glob(
+    diagnostics: &mut Vec<Diagnostic>,
+    rel_path: &str,
+    event_name: &str,
+    raw: &str,
+) {
+    let p = raw.trim();
+    if p.is_empty() {
+        return;
+    }
+    if !should_validate_workflow_paths_glob(p) {
+        return;
+    }
+    if git_has_any_tracked_file_matching_glob(p) {
+        return;
+    }
+    diagnostics.push(Diagnostic {
+        reason: "unmatched-paths-glob".to_string(),
+        message: format!(
+            "{rel_path}: on.{event_name}.paths glob не матчитсья ні на один файл: {}",
+            json_escape_string(p)
+        ),
+        file: Some(rel_path.to_string()),
+        severity: Severity::Error,
+        data: Some(format!(
+            "{{\"kind\":\"unmatched-paths-glob\",\"event\":{},\"glob\":{}}}",
+            json_escape_string(event_name),
+            json_escape_string(p)
+        )),
+    });
+}
+
+/// Точний відповідник `verifyWorkflowEventPathsGlobsExist` (`main.mjs`).
+/// На відміну від Rego-боку ([`build_rego_templates`]-споживачів), `on`
+/// тут читається БЕЗ `"true"`-фолбеку: `root` — [`Json`] з [`parse_yaml_document`]
+/// (наш власний [`saphyr`]-парсер, YAML 1.2 завжди), не conftest-параметр
+/// (Go-yaml, YAML 1.1) — фолбек-гілка структурно недосяжна (доккомент модуля).
+fn verify_workflow_event_paths_globs_exist(
+    diagnostics: &mut Vec<Diagnostic>,
+    rel_path: &str,
+    root: &Json,
+) {
+    let Some(on) = root.get("on") else {
+        return;
+    };
+    if !matches!(on, Json::Object(_)) {
+        return;
+    }
+    for event_name in ["push", "pull_request"] {
+        let Some(paths) = on
+            .get(event_name)
+            .and_then(|ev| ev.get("paths"))
+            .and_then(Json::as_array)
+        else {
+            continue;
+        };
+        for raw in paths {
+            let Some(s) = raw.as_str() else {
+                continue;
+            };
+            verify_one_paths_glob(diagnostics, rel_path, event_name, s);
+        }
+    }
+}
+
+/// Точний відповідник `RUN_INLINE_NCURSOR_RE`/`BARE_LINE_NCURSOR_RE`/
+/// `WRAPPED_NCURSOR_RE` + `verifyNoBareNCursor` (`main.mjs`).
+fn verify_no_bare_n_cursor(diagnostics: &mut Vec<Diagnostic>, rel_path: &str, content: &str) {
+    let run_inline = regex::Regex::new(r"^\s*(?:-\s*)?run:\s*n-(?:cursor|rules)\s")
+        .expect("RUN_INLINE_NCURSOR_RE валідний");
+    let bare_line =
+        regex::Regex::new(r"^\s+n-(?:cursor|rules)\s").expect("BARE_LINE_NCURSOR_RE валідний");
+    let wrapped = regex::Regex::new(r"\b(?:bunx|npx)\s+n-(?:cursor|rules)")
+        .expect("WRAPPED_NCURSOR_RE валідний");
+    for (i, line) in content.split('\n').enumerate() {
+        if wrapped.is_match(line) {
+            continue;
+        }
+        if !run_inline.is_match(line) && !bare_line.is_match(line) {
+            continue;
+        }
+        diagnostics.push(Diagnostic {
+            reason: "bare-n-rules".to_string(),
+            message: format!(
+                "{rel_path}: `n-rules …` (рядок {}) має бути `bunx n-rules …` — n-rules не на PATH у CI (ga.mdc)",
+                i + 1
+            ),
+            file: Some(rel_path.to_string()),
+            severity: Severity::Error,
+            data: Some("{\"kind\":\"bare-n-rules\"}".to_string()),
+        });
+    }
+}
+
+/// Точний відповідник `checkGaWorkflowFiles` (`main.mjs`) — УВАГА:
+/// `.yaml`-файл дає ДВІ окремі violation (specific rename-message з першого
+/// циклу + generic "має бути .yml" з другого, бо `.yaml` не закінчується на
+/// `.yml`) — канон буквально так, порт НЕ згортає в одну.
+fn check_ga_workflow_files(diagnostics: &mut Vec<Diagnostic>, filenames: &[String]) {
+    for f in filenames.iter().filter(|f| f.ends_with(".yaml")) {
+        diagnostics.push(simple_fail(format!(
+            "Workflow з розширенням .yaml: .github/workflows/{f} — перейменуй на .yml"
+        )));
+    }
+    for f in filenames.iter().filter(|f| !f.ends_with(".yml")) {
+        diagnostics.push(simple_fail(format!(
+            "Workflow має бути з розширенням .yml: .github/workflows/{f} (ga.mdc)"
+        )));
+    }
+    for req in REQUIRED_WORKFLOWS {
+        if !filenames.iter().any(|f| f == req) {
+            diagnostics.push(simple_fail(format!("Відсутній .github/workflows/{req}")));
+        }
+    }
+}
+
+/// Точний відповідник `eventPathsIncludeExact` (`gha-workflow.mjs`), над
+/// [`Json`] замість JS-обʼєкта.
+fn event_paths_include_exact(root: &Json, event: &str, exact: &str) -> bool {
+    root.get("on")
+        .and_then(|on| on.get(event))
+        .and_then(|ev| ev.get("paths"))
+        .and_then(Json::as_array)
+        .is_some_and(|paths| paths.iter().any(|p| p.as_str() == Some(exact)))
+}
+
+/// Точний відповідник `checkApplyWorkflow` (`main.mjs`).
+fn check_apply_workflow(
+    diagnostics: &mut Vec<Diagnostic>,
+    files: &[SourceFile],
+    filename: &str,
+    expected_path: &str,
+) {
+    let path = format!(".github/workflows/{filename}");
+    let Some(file) = files.iter().find(|f| f.path == path) else {
+        return;
+    };
+    let ok = match parse_yaml_document(&file.content) {
+        Some(root) => event_paths_include_exact(&root, "push", expected_path),
+        None => file.content.contains(expected_path),
+    };
+    if !ok {
+        diagnostics.push(simple_fail(format!(
+            "{filename} не містить paths: {expected_path}"
+        )));
+    }
+}
+
+/// Точний відповідник `MEGALINTER_USE_PATTERNS` + `checkMegalinter`
+/// (`main.mjs`) — case-insensitive substring (обидва патерни канону не
+/// мають regex-метасимволів понад буквальний `/`, тож lowercase-contains —
+/// той самий контракт, що `/…/i`).
+fn check_megalinter(
+    diagnostics: &mut Vec<Diagnostic>,
+    yml_workflows: &[&SourceFile],
+    files: &[SourceFile],
+) {
+    for f in yml_workflows {
+        let lower = f.content.to_lowercase();
+        if lower.contains("oxsecurity/megalinter-action") || lower.contains("megalinter/megalinter")
+        {
+            let name = workflow_basename(&f.path);
+            diagnostics.push(simple_fail(format!(
+                "MegaLinter у workflow .github/workflows/{name} — видали інтеграцію (ga.mdc: MegaLinter)"
+            )));
+        }
+    }
+    for name in MEGALINTER_CONFIG_NAMES {
+        if files.iter().any(|f| f.path == name) {
+            diagnostics.push(simple_fail(format!(
+                "Файл {name} — видали конфіг MegaLinter (ga.mdc: MegaLinter)"
+            )));
+        }
+    }
+}
+
+/// Точний відповідник `checkShellcheckInstalled` (`main.mjs`) — структурна
+/// відмінність (звіт задачі): канон лише ПЕРЕВІРЯЄ присутність
+/// (`resolveCmd`, без спавну), порт СПАВНИТЬ `shellcheck --version` через
+/// `exec-tool` (WIT-контракт не дає «перевір presence без запуску»-примітиву
+/// — той самий підхід, що `status: None`-проба в `rust/check`-подібних
+/// концернів попередніх гостей). Спостережувана поведінка (є/немає
+/// shellcheck у PATH) — та сама.
+fn check_shellcheck_installed(diagnostics: &mut Vec<Diagnostic>) {
+    let result = exec_tool(&ToolRequest {
+        tool: "shellcheck".to_string(),
+        args: vec!["--version".to_string()],
+        stdin: None,
+        cwd: None,
+        env: vec![],
+        scratch_in: vec![],
+        scratch_out: vec![],
+    });
+    if result.status.is_some() {
+        return;
+    }
+    diagnostics.push(simple_fail(
+        [
+            "shellcheck не знайдено в PATH — actionlint без нього мовчки пропускає shell-перевірки в run: блоках,",
+            "тому локальний `bun lint-ga` буде зелений, а CI на ubuntu-latest (де shellcheck передвстановлений) падатиме.",
+            "Встанови: macOS — `brew install shellcheck`; Debian/Ubuntu — `sudo apt-get install -y shellcheck`;",
+            "Arch — `sudo pacman -S shellcheck` (ga.mdc)",
+        ]
+        .join(" "),
+    ));
+}
+
+/// Точний відповідник кроку `actionlint` у `lint()` (`main.mjs:401-402`):
+/// `bunx github-actionlint` → `npm:github-actionlint` напряму (доккомент
+/// модуля, розділ «Чотири зовнішні тули»). `status: None` (тул не
+/// зарезолвлено) трактується як skip — той самий контракт, що code `127`
+/// канону (`resolveCmd` не знайшов `bunx`).
+fn run_actionlint(diagnostics: &mut Vec<Diagnostic>) {
+    let result = exec_tool(&ToolRequest {
+        tool: "npm:github-actionlint".to_string(),
+        args: vec![],
+        stdin: None,
+        cwd: None,
+        env: vec![],
+        scratch_in: vec![],
+        scratch_out: vec![],
+    });
+    if let Some(code) = result.status {
+        if code != 0 && code != 127 {
+            diagnostics.push(Diagnostic {
+                reason: "actionlint".to_string(),
+                message: "actionlint знайшов порушення (ga.mdc)".to_string(),
+                file: None,
+                severity: Severity::Error,
+                data: None,
+            });
+        }
+    }
+}
+
+/// Точний відповідник кроку `zizmor` (`main.mjs:403-406`) — з ОДНІЄЮ
+/// структурною відмінністю (звіт задачі): канон гейтить сам ВИКЛИК на
+/// `resolveCmd('uv')` (presence-проба ОКРЕМОГО бінарника `uv`, не `uvx`);
+/// WIT-контракт не дає presence-проби без спавну, тож порт завжди намагається
+/// `exec-tool("path:uvx", …)` — `status: None` (тул не зарезолвлено чи не
+/// зміг стартувати) дає ТОЙ САМИЙ спостережуваний результат (жодної
+/// zizmor-діагностики), лише без раннього skip до спавну.
+fn run_zizmor(diagnostics: &mut Vec<Diagnostic>) {
+    let result = exec_tool(&ToolRequest {
+        tool: "path:uvx".to_string(),
+        args: vec![
+            "zizmor".to_string(),
+            "--offline".to_string(),
+            "--collect=workflows".to_string(),
+            ".".to_string(),
+        ],
+        stdin: None,
+        cwd: None,
+        env: vec![],
+        scratch_in: vec![],
+        scratch_out: vec![],
+    });
+    if let Some(code) = result.status {
+        if code != 0 && code != 127 {
+            diagnostics.push(Diagnostic {
+                reason: "zizmor".to_string(),
+                message: "zizmor знайшов ризики у workflow (ga.mdc)".to_string(),
+                file: None,
+                severity: Severity::Error,
+                data: None,
+            });
+        }
+    }
+}
+
+/// Точний відповідник `runAllGaRego` (`main.mjs`) — доккомент модуля,
+/// розділи «regorus замість conftest» і «`--data` template merge».
+fn run_all_ga_rego(
+    diagnostics: &mut Vec<Diagnostic>,
+    wf_files: &[&SourceFile],
+    yml_workflows: &[&SourceFile],
+) {
+    let templates = build_rego_templates();
+
+    let targets: [(&str, &str, &str, &str); 4] = [
+        (
+            ".github/workflows/clean-ga-workflows.yml",
+            "ga.clean_ga_workflows",
+            CLEAN_GA_WORKFLOWS_REGO,
+            templates.clean_ga_workflows.as_str(),
+        ),
+        (
+            ".github/workflows/clean-merged-branch.yml",
+            "ga.clean_merged_branch",
+            CLEAN_MERGED_BRANCH_REGO,
+            templates.clean_merged_branch.as_str(),
+        ),
+        (
+            ".github/workflows/lint-ga.yml",
+            "ga.lint_ga",
+            LINT_GA_REGO,
+            templates.lint_ga.as_str(),
+        ),
+        (
+            ".github/workflows/git-ai.yml",
+            "ga.git_ai",
+            GIT_AI_REGO,
+            templates.git_ai.as_str(),
+        ),
+    ];
+
+    for (workflow_path, namespace, rego_source, data_json) in targets {
+        let Some(file) = wf_files.iter().find(|f| f.path == workflow_path) else {
+            continue;
+        };
+        let Some(root) = parse_yaml_document(&file.content) else {
+            continue;
+        };
+        let input_json = json_to_string(&ensure_step_uses_key_present(&root));
+        if let Ok(messages) = eval_deny_rule(rego_source, namespace, data_json, &input_json) {
+            for msg in messages {
+                push_rego_violation(diagnostics, workflow_path, &msg);
+            }
+        }
+    }
+
+    if yml_workflows.is_empty() {
+        return;
+    }
+    let Ok(mut engine) = build_workflow_common_engine(&templates.workflow_common) else {
+        return;
+    };
+    for file in yml_workflows {
+        let Some(root) = parse_yaml_document(&file.content) else {
+            continue;
+        };
+        let input_json = json_to_string(&ensure_step_uses_key_present(&root));
+        if engine.set_input_json(&input_json).is_err() {
+            continue;
+        }
+        let Ok(result) = engine.eval_rule("data.ga.workflow_common.deny".to_string()) else {
+            continue;
+        };
+        for msg in extract_string_set(&result) {
+            push_rego_violation(diagnostics, &file.path, &msg);
+        }
+    }
+}
+
+/// Точний порт `lint()` `ga/workflows` (`main.mjs:392-446`) — доккомент
+/// модуля. Єдина структурна межа (не байт-у-байт): [`is_workflow_dir_entry`]
+/// на батчі, без прямого `existsSync(wfDir)` — host-батч без жодного
+/// `.github/workflows/*`-файла НЕВІДРІЗНИМИЙ від "директорії не існує" (обидва
+/// дають порожній список збігів по glob-у). Git не трекає порожні директорії,
+/// тож "директорія існує, але порожня" СТРУКТУРНО недосяжна для будь-якого
+/// реального репозиторію, який пройшов `git add`/checkout — розбіжність
+/// неспостережувана на практиці (звіт задачі).
+fn detect_workflows(files: &[SourceFile]) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+
+    run_actionlint(&mut diagnostics);
+    run_zizmor(&mut diagnostics);
+
+    let wf_files: Vec<&SourceFile> = files
+        .iter()
+        .filter(|f| is_workflow_dir_entry(&f.path))
+        .collect();
+    if wf_files.is_empty() {
+        diagnostics.push(simple_fail(
+            "Директорія .github/workflows не існує".to_string(),
+        ));
+        return diagnostics;
+    }
+
+    let yml_workflows: Vec<&SourceFile> = wf_files
+        .iter()
+        .copied()
+        .filter(|f| f.path.ends_with(".yml"))
+        .collect();
+
+    run_all_ga_rego(&mut diagnostics, &wf_files, &yml_workflows);
+
+    if !files
+        .iter()
+        .any(|f| f.path == ".github/actions/setup-bun-deps/action.yml")
+    {
+        diagnostics.push(simple_fail(
+            "Відсутній .github/actions/setup-bun-deps/action.yml — запустіть npx @7n/rules або скопіюйте з пакету (ga.mdc: composite setup-bun-deps)".to_string(),
+        ));
+    }
+
+    let filenames: Vec<String> = wf_files
+        .iter()
+        .map(|f| workflow_basename(&f.path).to_string())
+        .collect();
+    check_ga_workflow_files(&mut diagnostics, &filenames);
+
+    check_apply_workflow(&mut diagnostics, files, "apply-k8s.yml", "**/k8s/**/*.yaml");
+    check_apply_workflow(
+        &mut diagnostics,
+        files,
+        "apply-nats-consumer.yml",
+        "**/consumer.yaml",
+    );
+
+    check_megalinter(&mut diagnostics, &yml_workflows, files);
+
+    for f in &yml_workflows {
+        if let Some(root) = parse_yaml_document(&f.content) {
+            verify_workflow_event_paths_globs_exist(&mut diagnostics, &f.path, &root);
+        }
+        verify_no_bare_n_cursor(&mut diagnostics, &f.path, &f.content);
+    }
+
+    check_shellcheck_installed(&mut diagnostics);
+
+    diagnostics
+}
+
 /// Чиста (без host-імпортів `log`/`report-progress`) конструктор
 /// маніфеста — винесений з [`Guest::describe`] окремо, щоб host-таргет
 /// unit-тести могли звірити форму маніфеста без реального wasmtime-хоста
@@ -361,33 +1408,54 @@ fn detect_toolchain_cache(files: &[SourceFile]) -> Vec<Diagnostic> {
 fn build_manifest() -> Manifest {
     Manifest {
         id: "ci-github/wasm-concerns".to_string(),
-        version: "0.1.0".to_string(),
+        version: "0.2.0".to_string(),
         world_version: "3.1.0".to_string(),
         domains: vec![Domain::Lint],
-        concerns: vec![ConcernContribution {
-            key: CONCERN_TOOLCHAIN_CACHE.to_string(),
-            scope: ConcernScope::Full,
-            glob: vec![
-                ".github/workflows/*.yml".to_string(),
-                ".github/workflows/*.yaml".to_string(),
-                "Cargo.toml".to_string(),
-                "src-tauri/Cargo.toml".to_string(),
-            ],
-        }],
+        concerns: vec![
+            ConcernContribution {
+                key: CONCERN_TOOLCHAIN_CACHE.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec![
+                    ".github/workflows/*.yml".to_string(),
+                    ".github/workflows/*.yaml".to_string(),
+                    "Cargo.toml".to_string(),
+                    "src-tauri/Cargo.toml".to_string(),
+                ],
+            },
+            ConcernContribution {
+                key: CONCERN_WORKFLOWS.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec![
+                    ".github/workflows/*".to_string(),
+                    ".github/actions/setup-bun-deps/action.yml".to_string(),
+                    ".mega-linter.yml".to_string(),
+                    ".megalinter.yaml".to_string(),
+                    ".mega-linter.yaml".to_string(),
+                ],
+            },
+        ],
         ci_artifacts: vec![],
         // Вміст файлів хост передає inline (host-побудований full-scope
         // batch) — плагін не читає диск сам (той самий мотив, що решта
-        // чотирьох гостей).
+        // чотирьох гостей). `git`/`github-actionlint`/`uvx`/`shellcheck`
+        // отримують доступ до реального диска через `exec-tool`
+        // (спавнений процес, ПОЗА пісочницею — доккомент `plugin.toml`), не
+        // через WASI `fs_read`.
         capabilities: Capabilities {
             fs_read: vec![],
             network: false,
         },
-        tools: vec![],
+        tools: vec![
+            "path:git".to_string(),
+            "npm:github-actionlint".to_string(),
+            "path:uvx".to_string(),
+            "shellcheck".to_string(),
+        ],
     }
 }
 
 /// Guest-реалізація `n-rules:plugin@3.1.0` для `ci-github/wasm-concerns` —
-/// один концерн однієї хвилі (доккомент модуля).
+/// два концерни, дві хвилі (доккомент модуля).
 struct CiGithub;
 
 impl Guest for CiGithub {
@@ -402,6 +1470,10 @@ impl Guest for CiGithub {
             CONCERN_TOOLCHAIN_CACHE => {
                 report_progress(total, total);
                 detect_toolchain_cache(&batch.files)
+            }
+            CONCERN_WORKFLOWS => {
+                report_progress(total, total);
+                detect_workflows(&batch.files)
             }
             _ => Vec::new(),
         };
@@ -675,13 +1747,37 @@ mod tests {
     // --- маніфест: anti-drift `plugin.toml` ---
 
     #[test]
-    fn build_manifest_declares_single_full_scope_concern() {
+    fn build_manifest_declares_two_full_scope_concerns() {
         let manifest = build_manifest();
         assert_eq!(manifest.id, "ci-github/wasm-concerns");
-        assert_eq!(manifest.concerns.len(), 1);
+        assert_eq!(manifest.concerns.len(), 2);
         assert_eq!(manifest.concerns[0].key, CONCERN_TOOLCHAIN_CACHE);
         assert_eq!(manifest.concerns[0].scope, ConcernScope::Full);
-        assert!(manifest.tools.is_empty());
+        let workflows = manifest
+            .concerns
+            .iter()
+            .find(|c| c.key == CONCERN_WORKFLOWS)
+            .expect("ga/workflows contribution має бути в маніфесті");
+        assert_eq!(workflows.scope, ConcernScope::Full);
+        assert_eq!(
+            workflows.glob,
+            vec![
+                ".github/workflows/*".to_string(),
+                ".github/actions/setup-bun-deps/action.yml".to_string(),
+                ".mega-linter.yml".to_string(),
+                ".megalinter.yaml".to_string(),
+                ".mega-linter.yaml".to_string(),
+            ]
+        );
+        assert_eq!(
+            manifest.tools,
+            vec![
+                "path:git".to_string(),
+                "npm:github-actionlint".to_string(),
+                "path:uvx".to_string(),
+                "shellcheck".to_string(),
+            ]
+        );
     }
 
     #[test]
@@ -718,5 +1814,476 @@ mod tests {
             runtime.tools.iter().map(String::as_str).collect::<Vec<_>>(),
             "plugin.toml розійшовся з describe() по tools"
         );
+    }
+
+    // =====================================================================
+    // `ga/workflows` — host-таргет unit-тести. `check_shellcheck_installed`/
+    // `run_actionlint`/`run_zizmor`/`git_has_any_tracked_file_matching_glob`/
+    // `verify_one_paths_glob`/`verify_workflow_event_paths_globs_exist`/
+    // `detect_workflows` (ціла функція) НЕ тестуються тут напряму — усі
+    // кличуть `exec_tool` (host-import, `wit_bindgen::generate!`), який на
+    // host-таргеті ПАНІКУЄ (перевірено емпірично: non-unwinding abort,
+    // `wit_import19`) — той самий структурний бар'єр, що документують
+    // `crates/plugin-lang-rust`/`crates/plugin-lang-php` для `rust/check`-
+    // подібних концернів. Ці гілки покриває ЛИШЕ
+    // `wasm-plugin-parity-ci-github.test.mjs` (реальний wasmtime-хост).
+    //
+    // `run_all_ga_rego`/`eval_deny_rule` — НАВПАКИ, без жодного host-імпорту
+    // (regorus виконується цілком у Rust) — найризикованіша частина порту
+    // (YAML→JSON конвертація + Rego-виконання) тому ПОВНІСТЮ покрита тут.
+    // =====================================================================
+
+    fn sfw(path: &str, content: &str) -> SourceFile {
+        SourceFile {
+            path: path.to_string(),
+            content: content.to_string(),
+        }
+    }
+
+    // --- Json / YAML→JSON конвертація ---
+
+    #[test]
+    fn parse_yaml_document_scalar_root_is_none() {
+        assert_eq!(parse_yaml_document("just a string\n"), None);
+        assert_eq!(parse_yaml_document("- 1\n- 2\n"), None);
+    }
+
+    #[test]
+    fn parse_yaml_document_invalid_syntax_is_none() {
+        assert_eq!(parse_yaml_document("name: [unterminated\n"), None);
+    }
+
+    #[test]
+    fn parse_yaml_document_on_key_stays_string_yaml_12() {
+        // YAML 1.2 (saphyr) — на відміну від Go-yaml conftest (YAML 1.1) —
+        // НІКОЛИ не читає голий `on:` як булевий ключ. Той самий парсер, що
+        // й `yaml` npm-пакет канону.
+        let root = parse_yaml_document("on:\n  push: {}\n").expect("валідний YAML-обʼєкт");
+        assert!(root.get("on").is_some());
+        assert!(root.get("true").is_none());
+    }
+
+    #[test]
+    fn parse_yaml_document_nested_mapping_and_sequence() {
+        let root = parse_yaml_document(
+            "name: CI\njobs:\n  build:\n    steps:\n      - uses: actions/checkout@v6\n      - run: echo hi\n",
+        )
+        .expect("валідний YAML-обʼєкт");
+        assert_eq!(root.get("name").and_then(Json::as_str), Some("CI"));
+        let steps = root
+            .get("jobs")
+            .and_then(|j| j.get("build"))
+            .and_then(|b| b.get("steps"))
+            .and_then(Json::as_array);
+        let steps = steps.expect("steps — масив");
+        assert_eq!(steps.len(), 2);
+        assert_eq!(
+            steps[0].get("uses").and_then(Json::as_str),
+            Some("actions/checkout@v6")
+        );
+    }
+
+    #[test]
+    fn json_to_string_escapes_and_types_correctly() {
+        let value = Json::Object(vec![
+            ("s".to_string(), Json::Str("a\"b\n".to_string())),
+            ("n".to_string(), Json::Int(-5)),
+            ("f".to_string(), Json::Float(1.5)),
+            ("b".to_string(), Json::Bool(true)),
+            ("nil".to_string(), Json::Null),
+            (
+                "arr".to_string(),
+                Json::Array(vec![Json::Int(1), Json::Int(2)]),
+            ),
+        ]);
+        let text = json_to_string(&value);
+        assert!(text.contains("\"s\":\"a\\\"b\\n\""));
+        assert!(text.contains("\"n\":-5"));
+        assert!(text.contains("\"f\":1.5"));
+        assert!(text.contains("\"b\":true"));
+        assert!(text.contains("\"nil\":null"));
+        assert!(text.contains("\"arr\":[1,2]"));
+    }
+
+    // --- should_validate_workflow_paths_glob ---
+
+    #[test]
+    fn should_validate_workflow_paths_glob_rejects_negation() {
+        assert!(!should_validate_workflow_paths_glob("!node_modules/**"));
+    }
+
+    #[test]
+    fn should_validate_workflow_paths_glob_rejects_optional_canonical_configs() {
+        assert!(!should_validate_workflow_paths_glob("pyproject.toml"));
+        assert!(!should_validate_workflow_paths_glob("**/rustfmt.toml"));
+    }
+
+    #[test]
+    fn should_validate_workflow_paths_glob_rejects_extension_filters() {
+        assert!(!should_validate_workflow_paths_glob("*.vue"));
+        assert!(!should_validate_workflow_paths_glob("**/*.php"));
+    }
+
+    #[test]
+    fn should_validate_workflow_paths_glob_accepts_plain_dir_glob() {
+        assert!(should_validate_workflow_paths_glob("some-dir/**"));
+        assert!(should_validate_workflow_paths_glob(".github/workflows/**"));
+    }
+
+    // --- checkout_persist_hint ---
+
+    #[test]
+    fn checkout_persist_hint_matches_persist_credentials_message() {
+        let hint = checkout_persist_hint(
+            ".github/workflows/foo.yml",
+            "jobs.build: actions/checkout@v6 потребує `with: persist-credentials: false` (ga.mdc)",
+        );
+        let (reason, file, data) = hint.expect("має матчитись");
+        assert_eq!(reason, "checkout-persist-credentials");
+        assert_eq!(file, ".github/workflows/foo.yml");
+        assert_eq!(data, "{\"kind\":\"checkout-persist-credentials\"}");
+    }
+
+    #[test]
+    fn checkout_persist_hint_no_match_for_unrelated_message() {
+        assert!(
+            checkout_persist_hint(".github/workflows/foo.yml", "name має бути \"X\" (ga.mdc)")
+                .is_none()
+        );
+    }
+
+    // --- check_ga_workflow_files ---
+
+    #[test]
+    fn check_ga_workflow_files_all_required_present_no_violations() {
+        let mut d = Vec::new();
+        let filenames: Vec<String> = REQUIRED_WORKFLOWS.iter().map(|s| s.to_string()).collect();
+        check_ga_workflow_files(&mut d, &filenames);
+        assert!(d.is_empty());
+    }
+
+    #[test]
+    fn check_ga_workflow_files_missing_required_reports_one_each() {
+        let mut d = Vec::new();
+        check_ga_workflow_files(&mut d, &[]);
+        assert_eq!(d.len(), REQUIRED_WORKFLOWS.len());
+        assert!(d.iter().all(|v| v.reason == DEFAULT_REASON));
+        assert!(d[0].message.contains("clean-ga-workflows.yml"));
+    }
+
+    #[test]
+    fn check_ga_workflow_files_yaml_extension_gives_two_violations() {
+        // Канон буквально дає ДВІ violation на один `.yaml`-файл (доккомент
+        // `check_ga_workflow_files`) — порт НЕ згортає в одну.
+        let mut d = Vec::new();
+        let filenames = vec!["stray.yaml".to_string()];
+        check_ga_workflow_files(&mut d, &filenames);
+        let stray: Vec<&Diagnostic> = d
+            .iter()
+            .filter(|v| v.message.contains("stray.yaml"))
+            .collect();
+        assert_eq!(stray.len(), 2);
+        assert!(stray[0].message.contains("перейменуй на .yml"));
+        assert!(stray[1].message.contains("має бути з розширенням .yml"));
+    }
+
+    // --- check_apply_workflow ---
+
+    #[test]
+    fn check_apply_workflow_absent_file_is_noop() {
+        let mut d = Vec::new();
+        check_apply_workflow(&mut d, &[], "apply-k8s.yml", "**/k8s/**/*.yaml");
+        assert!(d.is_empty());
+    }
+
+    #[test]
+    fn check_apply_workflow_correct_paths_trigger_is_clean() {
+        let mut d = Vec::new();
+        let files = vec![sfw(
+            ".github/workflows/apply-k8s.yml",
+            "on:\n  push:\n    paths:\n      - '**/k8s/**/*.yaml'\njobs:\n  apply:\n    steps: []\n",
+        )];
+        check_apply_workflow(&mut d, &files, "apply-k8s.yml", "**/k8s/**/*.yaml");
+        assert!(d.is_empty());
+    }
+
+    #[test]
+    fn check_apply_workflow_missing_paths_trigger_reports_violation() {
+        let mut d = Vec::new();
+        let files = vec![sfw(
+            ".github/workflows/apply-k8s.yml",
+            "on:\n  push:\n    branches: [main]\njobs:\n  apply:\n    steps: []\n",
+        )];
+        check_apply_workflow(&mut d, &files, "apply-k8s.yml", "**/k8s/**/*.yaml");
+        assert_eq!(d.len(), 1);
+        assert!(d[0].message.contains("apply-k8s.yml не містить paths"));
+    }
+
+    #[test]
+    fn check_apply_workflow_malformed_yaml_falls_back_to_raw_content_substring() {
+        let mut d = Vec::new();
+        // Некоректний YAML (tab у ключі) — `parse_yaml_document` дає `None`,
+        // порт мусить впасти на `content.contains(expected_path)`, точний
+        // відповідник `content.includes(expectedPath)` канону.
+        let files = vec![sfw(
+            ".github/workflows/apply-k8s.yml",
+            "not: [valid\nraw text with **/k8s/**/*.yaml inside",
+        )];
+        check_apply_workflow(&mut d, &files, "apply-k8s.yml", "**/k8s/**/*.yaml");
+        assert!(d.is_empty());
+    }
+
+    // --- check_megalinter ---
+
+    #[test]
+    fn check_megalinter_detects_use_pattern_case_insensitively() {
+        let mut d = Vec::new();
+        let wf = sfw(
+            ".github/workflows/megalint.yml",
+            "jobs:\n  lint:\n    steps:\n      - uses: OxSecurity/MegaLinter-Action@v8\n",
+        );
+        check_megalinter(&mut d, &[&wf], &[]);
+        assert_eq!(d.len(), 1);
+        assert!(d[0].message.contains("megalint.yml"));
+    }
+
+    #[test]
+    fn check_megalinter_detects_root_config_file() {
+        let mut d = Vec::new();
+        let files = vec![sfw(".mega-linter.yml", "MEGALINTER_CONFIG:\n")];
+        check_megalinter(&mut d, &[], &files);
+        assert_eq!(d.len(), 1);
+        assert!(d[0].message.contains(".mega-linter.yml"));
+    }
+
+    #[test]
+    fn check_megalinter_clean_project_has_no_violations() {
+        let mut d = Vec::new();
+        let wf = sfw(
+            ".github/workflows/lint.yml",
+            "jobs:\n  lint:\n    steps:\n      - run: echo ok\n",
+        );
+        check_megalinter(&mut d, &[&wf], &[]);
+        assert!(d.is_empty());
+    }
+
+    // --- verify_no_bare_n_cursor ---
+
+    #[test]
+    fn verify_no_bare_n_cursor_flags_bare_run_step() {
+        let mut d = Vec::new();
+        verify_no_bare_n_cursor(
+            &mut d,
+            ".github/workflows/lint-ga.yml",
+            "steps:\n  - run: n-rules lint ga\n",
+        );
+        assert_eq!(d.len(), 1);
+        assert_eq!(d[0].reason, "bare-n-rules");
+        assert!(d[0].message.contains("рядок 2"));
+    }
+
+    #[test]
+    fn verify_no_bare_n_cursor_ignores_bunx_wrapped_invocation() {
+        let mut d = Vec::new();
+        verify_no_bare_n_cursor(
+            &mut d,
+            ".github/workflows/lint-ga.yml",
+            "steps:\n  - run: bunx n-rules lint ga\n",
+        );
+        assert!(d.is_empty());
+    }
+
+    #[test]
+    fn verify_no_bare_n_cursor_flags_bare_line_without_run_prefix() {
+        let mut d = Vec::new();
+        verify_no_bare_n_cursor(
+            &mut d,
+            ".github/workflows/lint-ga.yml",
+            "run: |\n  n-rules lint ga --no-fix\n",
+        );
+        assert_eq!(d.len(), 1);
+    }
+
+    // --- is_workflow_dir_entry / workflow_basename ---
+
+    #[test]
+    fn is_workflow_dir_entry_rejects_nested_and_unrelated_paths() {
+        assert!(is_workflow_dir_entry(".github/workflows/lint.yml"));
+        assert!(!is_workflow_dir_entry(".github/workflows/nested/lint.yml"));
+        assert!(!is_workflow_dir_entry(
+            ".github/actions/setup-bun-deps/action.yml"
+        ));
+        assert!(!is_workflow_dir_entry(".mega-linter.yml"));
+    }
+
+    #[test]
+    fn workflow_basename_strips_prefix() {
+        assert_eq!(workflow_basename(".github/workflows/lint.yml"), "lint.yml");
+    }
+
+    // --- anti-drift: namespace Rust-константи ↔ `package` вшитого .rego ---
+
+    /// Той самий прийом, що `ignored_dir_names_match_declarative_rule_gate`
+    /// у `crates/plugin-lang-rust` — тут перевіряє не список значень, а що
+    /// `data.<namespace>.deny` ВЗАГАЛІ обчислюється (не помилка компіляції/
+    /// eval) на кожному з пʼяти вшитих `.rego` — намespace-рядок,
+    /// захардкоджений у [`run_all_ga_rego`]/[`build_workflow_common_engine`],
+    /// має РЕАЛЬНО збігатися з `package ga.<name>` усередині вшитого файлу
+    /// (не окрема Rust-копія, яка могла б розійтися).
+    #[test]
+    fn embedded_rego_policies_namespace_matches_rust_side_constant() {
+        let cases: [(&str, &str); 5] = [
+            (CLEAN_GA_WORKFLOWS_REGO, "ga.clean_ga_workflows"),
+            (CLEAN_MERGED_BRANCH_REGO, "ga.clean_merged_branch"),
+            (LINT_GA_REGO, "ga.lint_ga"),
+            (GIT_AI_REGO, "ga.git_ai"),
+            (WORKFLOW_COMMON_REGO, "ga.workflow_common"),
+        ];
+        for (rego_source, namespace) in cases {
+            let mut engine = regorus::Engine::new();
+            engine
+                .add_policy(format!("{namespace}.rego"), rego_source.to_string())
+                .unwrap_or_else(|e| panic!("{namespace}: policy має компілюватись: {e}"));
+            engine.set_input(regorus::Value::new_object());
+            let result = engine.eval_rule(format!("data.{namespace}.deny")).unwrap_or_else(|e| {
+                panic!(
+                    "{namespace}: eval_rule(deny) провалився — Rust-side namespace-константа розійшлась \
+                     з `package`, вшитим у .rego: {e}"
+                )
+            });
+            assert!(
+                matches!(result, regorus::Value::Set(_) | regorus::Value::Array(_)),
+                "{namespace}: `deny` має бути set/array, отримано {result:?}"
+            );
+        }
+    }
+
+    // --- run_all_ga_rego: канонічні фікстури (template-и, доккомент модуля) ---
+
+    #[test]
+    fn run_all_ga_rego_canonical_clean_ga_workflows_is_clean() {
+        let wf = sfw(
+            ".github/workflows/clean-ga-workflows.yml",
+            CLEAN_GA_WORKFLOWS_SNIPPET_YML,
+        );
+        let mut d = Vec::new();
+        run_all_ga_rego(&mut d, &[&wf], &[&wf]);
+        assert!(
+            d.is_empty(),
+            "канонічний clean-ga-workflows.yml має бути чистим: {d:?}"
+        );
+    }
+
+    #[test]
+    fn run_all_ga_rego_canonical_clean_merged_branch_is_clean() {
+        let wf = sfw(
+            ".github/workflows/clean-merged-branch.yml",
+            CLEAN_MERGED_BRANCH_SNIPPET_YML,
+        );
+        let mut d = Vec::new();
+        run_all_ga_rego(&mut d, &[&wf], &[&wf]);
+        assert!(
+            d.is_empty(),
+            "канонічний clean-merged-branch.yml має бути чистим: {d:?}"
+        );
+    }
+
+    #[test]
+    fn run_all_ga_rego_canonical_lint_ga_is_clean() {
+        let wf = sfw(".github/workflows/lint-ga.yml", LINT_GA_SNIPPET_YML);
+        let mut d = Vec::new();
+        run_all_ga_rego(&mut d, &[&wf], &[&wf]);
+        assert!(
+            d.is_empty(),
+            "канонічний lint-ga.yml має бути чистим: {d:?}"
+        );
+    }
+
+    #[test]
+    fn run_all_ga_rego_canonical_git_ai_is_clean() {
+        let wf = sfw(".github/workflows/git-ai.yml", GIT_AI_SNIPPET_YML);
+        let mut d = Vec::new();
+        run_all_ga_rego(&mut d, &[&wf], &[&wf]);
+        assert!(d.is_empty(), "канонічний git-ai.yml має бути чистим: {d:?}");
+    }
+
+    #[test]
+    fn run_all_ga_rego_wrong_name_reports_double_prefixed_message() {
+        let mutated = CLEAN_GA_WORKFLOWS_SNIPPET_YML.replacen(
+            "name: Clean action for removing completed workflow runs",
+            "name: Wrong Name",
+            1,
+        );
+        let wf = sfw(".github/workflows/clean-ga-workflows.yml", &mutated);
+        let mut d = Vec::new();
+        run_all_ga_rego(&mut d, &[&wf], &[&wf]);
+        assert_eq!(d.len(), 1);
+        // Подвійний префікс — доккомент `push_rego_violation`: канон буквально
+        // так (`${target.workflow}: ${v.message}`, а `v.message` вже сам
+        // починається з `clean-ga-workflows.yml:`).
+        assert_eq!(
+            d[0].message,
+            "clean-ga-workflows.yml: name має бути \"Clean action for removing completed workflow runs\" (ga.mdc)"
+                .replacen("clean-ga-workflows.yml:", ".github/workflows/clean-ga-workflows.yml: clean-ga-workflows.yml:", 1)
+        );
+        assert_eq!(d[0].reason, DEFAULT_REASON);
+        assert!(d[0].file.is_none());
+        assert!(d[0].data.is_none());
+    }
+
+    #[test]
+    fn run_all_ga_rego_missing_workflow_file_is_skipped() {
+        // Жоден з чотирьох per-workflow таргетів не матчить — `run_all_ga_rego`
+        // не падає, просто нічого не évalu (`continue`, доккомент `runAllGaRego`).
+        let mut d = Vec::new();
+        run_all_ga_rego(&mut d, &[], &[]);
+        assert!(d.is_empty());
+    }
+
+    #[test]
+    fn run_all_ga_rego_workflow_common_flags_checkout_without_persist_credentials() {
+        let wf = sfw(
+            ".github/workflows/other.yml",
+            "name: Sample\non:\n  push:\n    branches: [main]\nconcurrency:\n  group: ${{ github.ref }}-${{ github.workflow }}\n  cancel-in-progress: true\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v6\n",
+        );
+        let mut d = Vec::new();
+        // Шлях НЕ збігається з жодним з 4 per-workflow таргетів — лише
+        // `workflow_common` бачить цей файл (доккомент тесту).
+        run_all_ga_rego(&mut d, &[&wf], &[&wf]);
+        assert_eq!(d.len(), 1);
+        assert_eq!(d[0].reason, "checkout-persist-credentials");
+        assert_eq!(d[0].file.as_deref(), Some(".github/workflows/other.yml"));
+        assert_eq!(
+            d[0].data.as_deref(),
+            Some("{\"kind\":\"checkout-persist-credentials\"}")
+        );
+        assert!(d[0].message.contains("persist-credentials"));
+        assert!(d[0]
+            .message
+            .starts_with(".github/workflows/other.yml: jobs.build:"));
+    }
+
+    #[test]
+    fn run_all_ga_rego_workflow_common_missing_concurrency_reports_violation() {
+        let wf = sfw(
+            ".github/workflows/other.yml",
+            "name: Sample\non:\n  push:\n    branches: [main]\njobs:\n  build:\n    steps: []\n",
+        );
+        let mut d = Vec::new();
+        run_all_ga_rego(&mut d, &[&wf], &[&wf]);
+        assert_eq!(d.len(), 1);
+        assert_eq!(d[0].reason, DEFAULT_REASON);
+        assert!(d[0].message.contains("відсутня секція concurrency"));
+    }
+
+    #[test]
+    fn run_all_ga_rego_empty_yml_workflows_skips_workflow_common() {
+        // `wf_files` непорожній (per-workflow петля все одно щось перебирає),
+        // але `yml_workflows` порожній — `workflow_common`-блок виходить
+        // раннім `return` (доккомент `runAllGaRego`), не панікує.
+        let non_yml = sfw(".github/workflows/readme.txt", "not a workflow");
+        let mut d = Vec::new();
+        run_all_ga_rego(&mut d, &[&non_yml], &[]);
+        assert!(d.is_empty());
     }
 }

@@ -9,10 +9,12 @@ package ga.clean_ga_workflows
 import rego.v1
 
 # ── Аліаси на input ────────────────────────────────────────────────────────
-# GHA YAML quirk: ключ `on:` — YAML 1.1 boolean `true`, у conftest серіалізується
-# як рядковий ключ "true". Template (через --data JSON) має ключ "on".
-
-gha_on := input["true"]
+# Читання події workflow-а НЕ залежить від версії YAML-парсера. `on:` у YAML 1.1
+# — булеве `true` (conftest серіалізує його рядковим ключем "true"), у YAML 1.2 —
+# звичайний рядок "on". Обидві форми читаються тут; без цього зміна парсера
+# зробила б УСІ правила цього пакета тихо непрацездатними — не падінням, а
+# порожнім результатом назавжди. Template (через --data JSON) має ключ "on".
+gha_on := object.get(input, "on", object.get(input, "true", {}))
 
 step0 := input.jobs.cleanup_old_workflows.steps[0]
 
@@ -31,7 +33,7 @@ expected_runs_on := data.template.snippet.jobs.cleanup_old_workflows["runs-on"]
 
 deny contains msg if {
 	input.name != expected_name
-	msg := sprintf("clean-ga-workflows.yml: name має бути %q (ga.mdc)", [expected_name])
+	msg := sprintf("clean-ga-workflows.yml: name має бути \"%v\" (ga.mdc)", [expected_name])
 }
 
 deny contains msg if {

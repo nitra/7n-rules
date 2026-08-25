@@ -106,3 +106,18 @@ members = [
 opt-level = "z"
 codegen-units = 1
 strip = true
+
+# Per-package size-оптимізація `plugin-ci-github` (друга хвиля порту,
+# `ga/workflows`: regorus + regex(unicode-perl) + saphyr, доккоментар
+# `crates/plugin-ci-github/Cargo.toml`) — той самий per-package механізм і
+# той самий підмножина важелів, що `plugin-lang-js` вище (Cargo не дозволяє
+# per-package `lto`, доккомент того блоку). Бюджет 2 621 440 байт БІЛЬШЕ НЕ
+# є hard-гейтом для цього конкретного гостя (рішення власника: перевищення
+# прийнятне, майбутній спліт крейта на окремі wasm-плагіни — окреме pack­aging-
+# рішення, не привід кривити порт зараз) — блок лишається застосованим, бо
+# він дешевий і без даунсайду, а виміряний розмір і далі звітується для
+# майбутнього рішення про спліт.
+[profile.release.package."plugin-ci-github"]
+opt-level = "z"
+codegen-units = 1
+strip = true

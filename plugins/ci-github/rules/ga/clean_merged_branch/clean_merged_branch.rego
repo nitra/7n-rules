@@ -7,8 +7,12 @@ package ga.clean_merged_branch
 import rego.v1
 
 # ── Аліаси ─────────────────────────────────────────────────────────────────
-
-gha_on := input["true"]
+# Читання події workflow-а НЕ залежить від версії YAML-парсера. `on:` у YAML 1.1
+# — булеве `true` (conftest серіалізує його рядковим ключем "true"), у YAML 1.2 —
+# звичайний рядок "on". Обидві форми читаються тут; без цього зміна парсера
+# зробила б УСІ правила цього пакета тихо непрацездатними — не падінням, а
+# порожнім результатом назавжди. Template (через --data JSON) має ключ "on".
+gha_on := object.get(input, "on", object.get(input, "true", {}))
 
 steps := input.jobs.cleanup_old_branches.steps
 
@@ -30,7 +34,7 @@ expected_perms := data.template.snippet.jobs.cleanup_old_branches.permissions
 
 deny contains msg if {
 	input.name != expected_name
-	msg := sprintf("clean-merged-branch.yml: name має бути %q (ga.mdc)", [expected_name])
+	msg := sprintf("clean-merged-branch.yml: name має бути \"%v\" (ga.mdc)", [expected_name])
 }
 
 deny contains msg if {
