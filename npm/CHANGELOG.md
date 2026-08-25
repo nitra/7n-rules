@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.100.0] - 2026-08-25
+
+### Added
+
+- plugin-ci-github: концерн ga/workflows у нативному порті — 851 рядок Rego виконується IN-PROCESS через regorus (Microsoft), без субпроцесу conftest; плюс git ls-files, actionlint, zizmor і проба shellcheck через exec-tool. JS-канон лишається під parity-гейтом
+
 ## [1.99.0] - 2026-08-24
 
 ### Added
