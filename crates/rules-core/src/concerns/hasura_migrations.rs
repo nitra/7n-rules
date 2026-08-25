@@ -2,20 +2,34 @@
 //! 53 рядки) — у `hasura/migrations/` директорія міграції має містити лише
 //! `up.sql`, `down.sql` заборонений (`hasura.mdc`).
 //!
-//! # Обхід дерева — свідомо `walk_dir_raw`, БЕЗ consumer-ignore
+//! # Обхід дерева — `walk_under_repo`, З consumer-ignore (реєстр §2.27/§2.30)
 //!
-//! [`crate::scan::walk_dir_raw`] викликається з порожнім `extra_ignore_globs`
-//! — не недогляд: JS-оригінал (`main.mjs`) теж кличе `walkDir(migrationsDir)`
-//! без `ignorePaths`, тобто НЕ консультується з `.n-rules.json:ignore`
-//! (перевірено `git show <sha>~1` до вилучення JS). Один із чотирьох
-//! «1:1-портів», відкрите питання — чи варто почати фільтрувати тепер, коли
-//! канон — Rust (`docs/plans/2026-08-05-open-questions-register.md`, реєстр
-//! §2.27).
+//! Використовує [`crate::concerns::cursor_ignore::walk_under_repo`]: конфіг
+//! (`.n-rules.json`) лежить у корені проєкту (`cwd`), а обхід іде по
+//! ОКРЕМОМУ піддереву (`hasura/migrations/`) — точний випадок, для якого
+//! існує `walk_under_repo`, а не `walk_repo`.
+//!
+//! **Поведінкова зміна щодо JS-оригіналу**: `main.mjs` кликав
+//! `walkDir(migrationsDir)` без `ignorePaths`, тобто НЕ консультувався з
+//! `.n-rules.json:ignore` (перевірено `git show <sha>~1` до вилучення JS).
+//! Це був один із чотирьох «1:1-портів» задачі §2.27 (реєстр:
+//! `docs/plans/2026-08-05-open-questions-register.md`). §2.30 його закриває
+//! на «почати фільтрувати» — не з практичної потреби (поверхня вузька за
+//! конструкцією: одна конкретна тека, малоймовірно, що хтось додає
+//! `hasura/migrations/**` в ignore окремо від repo-wide правил), а з
+//! КОНСИСТЕНТНОСТІ: після §2.27 усі 13 інших full-scope concern-ів у цьому
+//! крейті вже консультуються з `.n-rules.json:ignore` через одну з трьох
+//! обгорток `cursor_ignore`; лишати саме цей call-сайт винятком без жодної
+//! практичної причини (лише «JS теж так робив» — аргумент, що сам реєстр
+//! §2.27 визнає таким, що слабшає з часом, бо канон тепер Rust) —гірше, ніж
+//! просто уніфікувати. Наслідок: `down.sql` у ВИКЛЮЧЕНІЙ директорії міграції
+//! більше НЕ дає violation — див. `ignored_migration_subdir_is_excluded`
+//! нижче й запис у change-файлі.
 
 use std::path::Path;
 
+use crate::concerns::cursor_ignore::walk_under_repo;
 use crate::diagnostics::{Severity, Violation};
-use crate::scan::walk_dir_raw;
 
 /// Відносний шлях до директорії міграцій від кореня проєкту — порт
 /// `MIGRATIONS_REL` (`main.mjs:9`).
@@ -36,7 +50,7 @@ pub fn hasura_migrations(cwd: &Path) -> Vec<Violation> {
         return Vec::new();
     }
 
-    let files = walk_dir_raw(&migrations_dir, &[]);
+    let files = walk_under_repo(cwd, &migrations_dir);
     let mut violations = Vec::new();
     for rel_to_migrations in &files {
         let basename = rel_to_migrations
@@ -167,5 +181,34 @@ mod tests {
         write(&tmp, "hasura/migrations/default/1_foo/up.sql", "-- up\n");
         write(&tmp, "some/other/dir/down.sql", "-- irrelevant\n");
         assert!(hasura_migrations(tmp.path()).is_empty());
+    }
+
+    /// Поведінкова зміна (реєстр §2.27/§2.30): `.n-rules.json:ignore` у
+    /// КОРЕНІ проєкту виключає піддерево під `hasura/migrations/` — `down.sql`
+    /// у виключеній директорії міграції більше НЕ дає violation.
+    #[test]
+    fn ignored_migration_subdir_is_excluded() {
+        let tmp = TempDir::new().unwrap();
+        write(
+            &tmp,
+            ".n-rules.json",
+            r#"{"ignore":["hasura/migrations/legacy"]}"#,
+        );
+        write(
+            &tmp,
+            "hasura/migrations/legacy/1000_old/down.sql",
+            "-- down\n",
+        );
+        write(
+            &tmp,
+            "hasura/migrations/default/1000_add_foo/down.sql",
+            "-- down\n",
+        );
+        let violations = hasura_migrations(tmp.path());
+        assert_eq!(violations.len(), 1);
+        assert_eq!(
+            violations[0].file.as_deref(),
+            Some("hasura/migrations/default/1000_add_foo/down.sql")
+        );
     }
 }

@@ -3,21 +3,26 @@
 //! (`*.example`, `*.sample`, `*.dist`, `*.template`, `fixtures/**`) не мають
 //! містити bare-`secret` як значення (`security.mdc`).
 //!
-//! # Обхід дерева — свідомо `walk_dir_raw`, БЕЗ consumer-ignore
+//! # Обхід дерева — `walk_repo`, З consumer-ignore (реєстр §2.27/§2.30)
 //!
-//! Використовує [`crate::scan::walk_dir_raw`] напряму, з порожнім
-//! `extra_ignore_globs` (наш native scan, той самий `ignore`-двигун, що й
-//! `walkDir.mjs` через N-API) — без дублювання ignore-логіки. Це не
-//! недогляд: JS-оригінал (`main.mjs`) теж кличе `walkDir(cwd, onFile)` без
-//! третього аргументу `ignorePaths`, тобто НЕ консультується з
-//! `.n-rules.json:ignore` — перевірено `git show <sha>~1` відповідного
-//! `main.mjs` до вилучення. Один із чотирьох «1:1-портів», для яких «парність
-//! із неіснуючою (вилученою) JS-реалізацією» — аргумент, що слабшає з часом;
-//! чи варто почати фільтрувати тепер, коли канон — Rust, лишається відкритим
-//! питанням (`docs/plans/2026-08-05-open-questions-register.md`, реєстр
-//! §2.27).
+//! Використовує [`crate::concerns::cursor_ignore::walk_repo`] — full-scope
+//! скан УСЬОГО `cwd` консультується з `.n-rules.json:ignore` споживача.
+//! **Поведінкова зміна щодо JS-оригіналу**: `main.mjs` кликав
+//! `walkDir(cwd, onFile)` без третього аргументу `ignorePaths`, тобто НЕ
+//! читав `.n-rules.json:ignore` (перевірено `git show <sha>~1` до вилучення
+//! JS). Це був один із чотирьох «1:1-портів» задачі §2.27 (реєстр:
+//! `docs/plans/2026-08-05-open-questions-register.md`), для яких «парність із
+//! неіснуючою (вилученою) JS-реалізацією» визнано аргументом, що слабшає з
+//! часом. §2.30 його закриває: тут — НАЙСИЛЬНІШИЙ кандидат на початок
+//! фільтрації (full-scope скан усього дерева; споживач, що виключив теку
+//! через `.n-rules.json` — напр. вендор-код чи згенеровані фікстури, — цілком
+//! очікує, що лінт туди не зазирає взагалі). Наслідок: приклад-файли з
+//! bare-`secret` у виключеній тепер теці більше НЕ дають violation — див.
+//! `ignored_subtree_is_excluded_from_full_scope_scan` нижче й запис у
+//! change-файлі.
 //!
-//! `walk_dir_raw` уже повертає результат відсортованим
+//! `walk_repo` (через [`crate::scan::walk_dir_raw`] всередині) уже повертає
+//! результат відсортованим
 //! байтово-лексикографічно; JS-версія сортує **лише** відфільтровані
 //! приклад-файли через `localeCompare` (`main.mjs:52`). Фільтрація байтово
 //! відсортованого списку зберігає відносний порядок підмножини — для
@@ -42,8 +47,8 @@ use std::path::Path;
 use regex::Regex;
 use std::sync::LazyLock;
 
+use crate::concerns::cursor_ignore::walk_repo;
 use crate::diagnostics::{Severity, Violation};
-use crate::scan::walk_dir_raw;
 
 /// Суфікс basename'а прикладного файлу (`config.example`, `.env.dist`) —
 /// порт `EXAMPLE_SUFFIX_RE` (`main.mjs:9`, `/\.(?:example|sample|template|dist)$/iu`).
@@ -88,7 +93,7 @@ fn is_example_file(rel_posix: &str) -> bool {
 /// Перевіряє відповідність проєкту правилам `security.mdc` (sample-secret) —
 /// точний порт `lint(ctx)` (`main.mjs:41-80`).
 pub fn sample_secret(cwd: &Path) -> Vec<Violation> {
-    let files = walk_dir_raw(cwd, &[]);
+    let files = walk_repo(cwd);
     let examples: Vec<&String> = files.iter().filter(|rel| is_example_file(rel)).collect();
 
     let mut violations = Vec::new();
@@ -225,6 +230,18 @@ mod tests {
     fn non_example_env_file_is_not_scanned() {
         let tmp = TempDir::new().unwrap();
         write(&tmp, ".env", "DB_PASSWORD=secret\n");
+        assert!(sample_secret(tmp.path()).is_empty());
+    }
+
+    /// Поведінкова зміна (реєстр §2.27/§2.30): `.n-rules.json:ignore`
+    /// виключає піддерево з full-scope скану — файл із bare-`secret` під
+    /// виключеною текою НЕ дає violation, навіть якщо сам файл матчить
+    /// `isExampleFile`.
+    #[test]
+    fn ignored_subtree_is_excluded_from_full_scope_scan() {
+        let tmp = TempDir::new().unwrap();
+        write(&tmp, ".n-rules.json", r#"{"ignore":["vendor"]}"#);
+        write(&tmp, "vendor/.env.example", "DB_PASSWORD=secret\n");
         assert!(sample_secret(tmp.path()).is_empty());
     }
 
