@@ -2,16 +2,47 @@
  * Інтеграційні тести: check-* проти кореня репозиторію nitra/cursor (без правил, що тут навмисно не застосовані).
  */
 import { describe, expect, test } from 'vitest'
+import { createHash } from 'node:crypto'
+import { copyFile, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { env } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 import { existsSync } from 'node:fs'
 
+import { ensureToolAsync } from '../scripts/lib/ensure-tool.mjs'
 import { runConcernDetector } from '../scripts/lib/lint-surface/detect.mjs'
 import { loadNative } from '../scripts/lib/native.mjs'
-import { realRepoRoot, withShellcheckStubInPath } from '../scripts/utils/test-helpers.mjs'
+import { resetWasmConcernMapForTests, resolveWasmConcernMap } from '../scripts/lib/lint-surface/wasm-plugins.mjs'
+import { realRepoRoot, withShellcheckStubInPath, withTmpDir, writeJson } from '../scripts/utils/test-helpers.mjs'
 import { resolveCmd } from '../scripts/utils/resolve-cmd.mjs'
+
+// РЕАЛЬНИЙ shellcheck із PATH, зняте на момент ІМПОРТУ цього модуля — до того,
+// як тіло тесту нижче обгорне себе в `withShellcheckStubInPath` (фейковий
+// «завжди exit 0» стаб, що підмінює shellcheck у PATH ЛИШЕ для того, щоб
+// `checkGa` міг ганяти конкретно СВІЙ старий шлях `git`/`shellcheck` на машинах
+// без реального shellcheck). Побічний ефект стаба на `checkGa` тепер, коли
+// `toolPaths` резолвиться повним `resolveWasmConcernMap` (продакшн-шлях,
+// доккомент нижче): `actionlint` сам шеллаутить у `shellcheck` для SC-перевірок
+// `run:`-кроків — підсунутий стабом фейк повертає порожній вивід замість
+// JSON-звіту, і `actionlint` репортує це як власне порушення (несправжнє —
+// на РЕАЛЬНОМУ shellcheck той самий workflow-набір чистий, перевірено вручну).
+// `REAL_SHELLCHECK_PATH` дає `checkGa` змогу лишатись на РЕАЛЬНОМУ бінарнику
+// (той самий канал, що продакшн `n-rules lint` на dev-машині з установленим
+// shellcheck), не займаючи спільний хелпер `withShellcheckStubInPath` — його
+// чіпати тут не варто, ним користуються й інші тести цього файлу.
+const REAL_SHELLCHECK_PATH = resolveCmd('shellcheck')
+
+// РЕАЛЬНИЙ `PATH`, теж знятий до стаба (доккомент `REAL_SHELLCHECK_PATH` вище)
+// — потрібен ДРУГИЙ раз, окремо від `toolPaths.shellcheck`: `actionlint`
+// (`npm:github-actionlint`) сам, ЯК ПІДПРОЦЕС, шукає `shellcheck` у СВОЄМУ
+// успадкованому `PATH` для SC-перевірок `run:`-кроків — це НЕ наш `exec-tool`
+// диспетчер (`toolPaths` на це не впливає), тож підсунутий стабом фейк-бінар
+// (завжди `exit 0`, без JSON-виводу) actionlint читає як зламаний shellcheck
+// і сам репортує це як `actionlint`-порушення (перевірено: та сама команда з
+// РЕАЛЬНИМ `PATH` — 0 violations). `env.PATH` навколо `runWasmConcern` нижче
+// ставиться на `REAL_PATH` і повертається назад одразу після виклику.
+const REAL_PATH = env.PATH
 
 // Адаптери під unified lint surface: detector → 0 (чисто) / 1 (є violations).
 const mk = (fn, ruleId, concernId) => async cwd => {
@@ -27,8 +58,10 @@ const REPO_ROOT = join(TEST_DIR, '..', '..')
 // `k8s/manifests` — native-концерн без `main.mjs`: диспетчер, не прямий
 // імпорт. Детектор шукає rego-політики й сніпети у КОРЕНІ ПАКЕТА, якого в
 // тимчасовому дереві немає — звідси явний override, задокументований саме під
-// цей випадок (`rules_package.rs`).
-process.env.N_RULES_PACKAGE_ROOT ??= join(REPO_ROOT, 'npm')
+// цей випадок (`rules_package.rs`). Опційна змінна (fallback за замовчуванням)
+// — `env` з `node:process`, не прямий `process.env` (js-run.mdc): мандатний
+// `checkEnv`/`@nitra/check-env` тут зайвий, бо значення завжди має дефолт.
+env.N_RULES_PACKAGE_ROOT ??= join(REPO_ROOT, 'npm')
 
 // firebase_hosting, env_dns (F1 фази 5 батчу 2), hc_pairing/ua_node_selector/
 // ua_http_route (H1 фази 5 батчу 4, YAML-кластер частина 1), text/formatting
@@ -81,12 +114,36 @@ const checkJsRun = mkWasm('js-run/runtime')
 const checkNpmModule = mkWasm('npm-module/package_structure')
 
 // `ga/workflows` — так само wasm-портований концерн, але ІНШОГО гостя
-// (`crates/plugin-ci-github`, не `plugin-lang-js`) і з `exec-tool`-ланцюжком
-// (`git`/`shellcheck` — доккомент `wasm-plugin-parity-ci-github.test.mjs`),
-// тож не `mkWasm` (той жорстко зашитий на `plugin_lang_js.wasm` і не передає
-// `toolPaths`). `actionlint`/`zizmor` тут НЕ підмінюються — реальний
-// dev-checkout їх має в PATH (`toolPaths` без ключів → host сам резолвить
-// `bunx`/`uvx` з PATH, той самий канал, що продакшн `n-rules lint`).
+// (`crates/plugin-ci-github`, не `plugin-lang-js`) і з `exec-tool`-ланцюжком —
+// ЧОТИРИ задекларовані тули (`plugin.toml`: `tools = ["path:git",
+// "npm:github-actionlint", "path:uvx", "shellcheck"]`), не два. `ToolResolver`
+// (`crates/rules-plugin-host/src/tool_resolver.rs`) резолвить ВИКЛЮЧНО з явної
+// мапи `toolPaths` — жодного фолбеку на PATH усередині wasmtime-хоста немає
+// (`exec-tool` нічого не добуває). Раніше тут вручну збирався `toolPaths` лише
+// з `git`+`shellcheck` — `actionlint`/`zizmor` (`npm:github-actionlint`/
+// `path:uvx`) лишались поза мапою й падали на `*-unavailable` (§2.29), хоча
+// обидва тули в системі Є (`node_modules/.bin/github-actionlint`, `uvx` у PATH).
+//
+// Продакшн-шлях резолву — `resolveWasmConcernMap` (`wasm-plugins.mjs`): та сама
+// `ensureDeclaredTools` (схеми `path:`/`npm:`/pinned), що й справжній
+// `n-rules lint`. Пряме `resolveWasmConcernMap(REPO_ROOT)` тут не спрацювало б
+// «з коробки» — чистий dev-checkout не має ні `npm/wasm-plugins/builtin-pins.json`
+// (build-артефакт релізу, генерує `build-wasm-plugins.mjs`), ні секції
+// `wasmPlugins` у кореневому `.n-rules.json` (додавати її туди — змінювати
+// диспатч РЕАЛЬНОГО `n-rules lint`, поза обсягом цього тесту), тож
+// `resolveWasmConcernMap(REPO_ROOT)` без допомоги повернув би ПОРОЖНЮ мапу.
+// Замість дублювання `ensureDeclaredTools`/`parseToolRef` тут — тимчасовий
+// builtin-пін (`{cwd: REPO_ROOT, builtinPinsDir: <tmp>}`), що вказує на вже
+// зібраний `WASM_CI_GITHUB_PATH`: builtin-схема (`resolveBuiltinEntryPath`) не
+// залежить від `CI`-env (на відміну від dev-`path:`-піна консюмера), а
+// `cwd: REPO_ROOT` (не tmp-каталог) лишає `npm:`-резолв (`node_modules/.bin`)
+// коректним. Одна СПРАВЖНЯ функція продакшн-резолву, лише вхідні дані — dev-петля.
+//
+// Модульний кеш `resolveWasmConcernMap` — ОДИН на процес незалежно від `cwd`
+// (`detect.mjs` кличе його для кожного `check*` вище через `runConcernDetector`),
+// тож `resetWasmConcernMapForTests()` і до, і після: без «до» лишок кешу
+// попереднього check-у сховав би наш tmp-пін; без «після» наш ci-github-пін
+// протік би в резолв решти check-ів нижче (`checkGraphql`/`checkText`/…).
 const WASM_CI_GITHUB_PATH = join(realRepoRoot(), 'target', 'wasm32-wasip2', 'release', 'plugin_ci_github.wasm')
 const checkGa = async cwd => {
   if (!existsSync(WASM_CI_GITHUB_PATH)) {
@@ -95,12 +152,45 @@ const checkGa = async cwd => {
         'Зберіть його командою: bash crates/plugin-ci-github/build.sh'
     )
   }
-  const toolPaths = {}
-  const git = resolveCmd('git')
-  if (git) toolPaths.git = git
-  const shellcheck = resolveCmd('shellcheck')
-  if (shellcheck) toolPaths.shellcheck = shellcheck
-  const result = loadNative().runWasmConcern(WASM_CI_GITHUB_PATH, 'ga/workflows', cwd, null, toolPaths)
+  let toolPaths
+  resetWasmConcernMapForTests()
+  try {
+    await withTmpDir(async pinsDir => {
+      const destFile = 'plugin_ci_github.wasm'
+      await copyFile(WASM_CI_GITHUB_PATH, join(pinsDir, destFile))
+      const sha256 = createHash('sha256').update(await readFile(join(pinsDir, destFile))).digest('hex')
+      await writeJson(join(pinsDir, 'builtin-pins.json'), { 'ci-github': { file: destFile, sha256 } })
+      const concernMap = await resolveWasmConcernMap(realRepoRoot(), {
+        builtinPinsDir: pinsDir,
+        // `shellcheck` — pinned-схема (без префікса в `plugin.toml`), тож
+        // резолв іде через `ensureToolFn`, не `resolveCmdFn` (той — лише для
+        // `path:`/`npm:`). REAL_SHELLCHECK_PATH обходить стаб
+        // `withShellcheckStubInPath`, що обгортає тіло тесту нижче (доккомент
+        // константи вище); фолбек на реальний `ensureToolAsync` — якщо
+        // машина взагалі без shellcheck, поведінка та сама, що без цього override.
+        ensureToolFn: async toolId =>
+          toolId === 'shellcheck' && REAL_SHELLCHECK_PATH ? REAL_SHELLCHECK_PATH : ensureToolAsync(toolId)
+      })
+      const entry = concernMap.get('ga/workflows')
+      if (!entry) {
+        throw new Error(
+          'integration-repo-checks.test.mjs: resolveWasmConcernMap не резолвив ga/workflows з тимчасового builtin-піна ' +
+            `(${WASM_CI_GITHUB_PATH}) — перевір wasm-компонент/sha256.`
+        )
+      }
+      toolPaths = entry.toolPaths
+    })
+  } finally {
+    resetWasmConcernMapForTests()
+  }
+  const stubbedPath = env.PATH
+  env.PATH = REAL_PATH
+  let result
+  try {
+    result = loadNative().runWasmConcern(WASM_CI_GITHUB_PATH, 'ga/workflows', cwd, null, toolPaths)
+  } finally {
+    env.PATH = stubbedPath
+  }
   return result.violations.length === 0 ? 0 : 1
 }
 
@@ -168,18 +258,25 @@ describe('check-* на реальному репозиторії (§2.31: re-ena
       const failed = Object.entries(results)
         .filter(([, code]) => code !== 0)
         .map(([name]) => name)
-      // §2.31 (стан на момент реанімації, живе дерево репозиторію — не дефект
-      // ЦЬОГО тесту): `checkGraphql` — відомий фейл, що існував ще до цієї зміни (`graphql/tooling`
-      // з переліку задачі, ще до цієї ревізії); `checkK8s` — реальні kubescape-
-      // ризики в k8s-маніфестах репо плюс `.yml`-розширення в
-      // `plugins/ci-github/rules/k8s/lint_k8s_yml/template/lint-k8s.yml.snippet.yml`
-      // (мало бути `.yaml`, k8s.mdc); `checkJsRun` — три тестові файли
-      // (`npm/rules/graphql/tooling/tests/tooling.test.mjs`,
-      // `npm/tests/check-empty-trees.test.mjs`, `npm/tests/check-rule-fixtures.test.mjs`)
-      // читають `process.env.N_RULES_PACKAGE_ROOT` напряму замість
-      // `@nitra/check-env` (js-run.mdc). Задача цього тесту — сигналізувати
-      // про такий стан яскраво, не приховувати його: `expect([]).toEqual(...)`
-      // нижче МАЄ падати, доки ці три знахідки не полагоджені окремою роботою.
+      // §2.31/§2.32 (реєстр відкритих питань): на момент реанімації (§2.31)
+      // тут падали чотири з десяти — `checkGa` виявився прогалиною тестового
+      // харнеса (`toolPaths` збирався вручну лише з `git`+`shellcheck`,
+      // хоча `plugin.toml` декларує чотири тули — доккомент `checkGa` вище),
+      // решта три — реальні невідповідності репозиторію (§2.32, полагоджено):
+      // `checkGraphql` — репо мало `gql\`…\`` у тестових фікстурах детектора
+      // (сам фікстур-скан і є другим живим споживачем `gql`-паттерна) без
+      // `.graphqlrc.yml`/`graphql.vscode-graphql` (додано); `checkK8s` —
+      // `npm/rules/k8s/network_policy/template/*.snippet.yaml` (NetworkPolicy
+      // `spec:`-фрагменти без `apiVersion`/`kind`, kubescape не міг їх
+      // розпарсити як ресурс) і `plugins/ci-github/rules/k8s/lint_k8s_yml/
+      // template/lint-k8s.yml.snippet.yml` (GHA workflow-шаблон, а не k8s-
+      // маніфест — сегмент шляху `k8s` false-positive-ив manifest-скан) —
+      // обидва не реальний k8s-контент цього репо, виключені через
+      // `.n-rules.json` `ignore` (той самий канал, що вже несе
+      // `.claude/worktrees`/`npm/schemas/vendor`); `checkJsRun` — чотири
+      // тестові файли (три з переліку задачі §2.32 плюс сам цей файл, рядок
+      // з `N_RULES_PACKAGE_ROOT` вище) читали `process.env.X` напряму замість
+      // `env` з `node:process` (js-run.mdc, опційна змінна) — виправлено.
       expect(failed).toEqual([])
     })
   }, 120000)

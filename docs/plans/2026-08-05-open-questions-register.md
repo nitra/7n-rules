@@ -4207,6 +4207,114 @@ warnings` і `cargo fmt --check` чисті.
 
 ---
 
+### 2.32. §2.31 закрито: `checkGa` — прогалина харнеса, `checkGraphql`/`checkK8s`/`checkJsRun` — реальні знахідки
+
+**Звідки:** §2.31, «стан на момент реанімації» — на живому дереві падали
+чотири з десяти `check*` в `npm/tests/integration-repo-checks.test.mjs`.
+**Стан:** усі десять зелені; жодне правило не змінено.
+
+**`checkGa` — не дефект репо, а вада тестового харнеса.** `toolPaths` тест
+збирав вручну (лише `git`+`shellcheck`), тоді як `plugin.toml`
+`plugin-ci-github` декларує ЧОТИРИ тули (`path:git`, `npm:github-actionlint`,
+`path:uvx`, `shellcheck`) — `actionlint`/`zizmor` лишались поза мапою й
+падали на `*-unavailable` (§2.29), хоча обидва тули в системі Є. Фікс —
+`resolveWasmConcernMap` (`wasm-plugins.mjs`, той самий резолв, що продакшн
+`n-rules lint`) замість ручного списку: тимчасовий builtin-пін
+(`{cwd: REPO_ROOT, builtinPinsDir: <tmp з копією WASM_CI_GITHUB_PATH>}`) —
+чистий dev-checkout не має ні `npm/wasm-plugins/builtin-pins.json`, ні
+секції `wasmPlugins` у кореневому `.n-rules.json` (додавати її туди означало
+б міняти диспатч РЕАЛЬНОГО `n-rules lint`, поза обсягом тесту).
+
+**Побічна знахідка під час фіксу.** Тіло тесту обгорнуте в
+`withShellcheckStubInPath` (фейковий «завжди exit 0» стаб у `PATH`, для
+машин без реального shellcheck) — щойно `actionlint` реально запрацював,
+з'ясувалось, що ВІН САМ як підпроцес шукає `shellcheck` у своєму
+успадкованому `PATH` (не через наш `exec-tool`-диспетчер, `toolPaths` на це
+не впливає), знаходить фейк-стаб і репортує зламаний SC-вивід як власне
+`actionlint`-порушення (несправжнє — з РЕАЛЬНИМ `PATH` той самий workflow-набір
+чистий, перевірено вручну обома шляхами). Фікс — `env.PATH` навколо самого
+виклику `runWasmConcern` тимчасово повертається на знятий до стаба
+`REAL_PATH`; спільний хелпер `withShellcheckStubInPath` не займали, ним
+користуються й інші тести файлу.
+
+**`checkGraphql` — репо не мало власного `.graphqlrc.yml`.** Умова
+`graphql/tooling` (`crates/rules-core/src/concerns/graphql_tooling.rs`) —
+синтаксична: будь-який `gql\`…\`` десь у дереві вимагає `.graphqlrc.yml` в
+корені й `graphql.vscode-graphql` у `.vscode/extensions.json`. У цьому репо
+gql-тег зустрічається лише в тестових фікстурах самого детектора
+(`graphql-gql-scan.mjs` і його тести) — реального GraphQL-клієнта в
+`7n-rules` нема, але умова правила про це не питає. Додано `.graphqlrc.yml`
+(мінімальний, generic — немає реального consumer-схема-пакета, на який
+можна було б послатись) і запис у `.vscode/extensions.json`.
+
+**`checkK8s` — дві незалежні знахідки, обидві виявились «не k8s-контент», а
+не «k8s-контент з ризиками».**
+
+1. `npm/rules/k8s/network_policy/template/{deployment,stateful-set}.snippet.yaml`
+   — це `spec:`-ФРАГМЕНТИ (без `apiVersion`/`kind`/`metadata`) для
+   fix-шаблонування NetworkPolicy в консюмер-репо, не самостійні маніфести.
+   Перевірено дією: `kubescape scan` на них падає з
+   `Error: no scannable Kubernetes resources found` /
+   `failed to render Kustomize resources` (kubescape намагається
+   kustomize-рендерити каталог) — генерична `non-zero, не 0/127` гілка
+   `kubescape_violations` (`k8s_manifests_kubescape.rs:625-634`) мапить БУДЬ-ЯКИЙ
+   такий код на повідомлення «kubescape знайшов ризики», хоча тут це вхідна
+   помилка kubescape, не security-вердикт.
+2. `plugins/ci-github/rules/k8s/lint_k8s_yml/template/lint-k8s.yml.snippet.yml`
+   — це канон GitHub Actions workflow-у (`.github/workflows/lint-k8s.yml`),
+   не Kubernetes-маніфест; `.yml` тут ПРАВИЛЬНИЙ (конвенція GHA, той самий
+   naming-патерн, що сусідні `template/*.yml.snippet.yml` в тому ж плагіні).
+   Сегмент шляху `k8s` (`plugins/ci-github/rules/k8s/`, групування за
+   консюмер-фічею) — єдина причина, чому `path_has_k8s_segment`
+   (`k8s_common.rs`) взагалі підбирає цей файл під manifest-скан.
+
+Обидва — не «k8s-маніфести цього репо», а контент, що лише формально
+збігається з глобом за сегментом шляху. Фікс — та сама, вже перевірена §2.30
+точка: `.n-rules.json` `ignore` (`kubescape_violations`/`find_k8s_yaml_files`
+обидва фільтрують ЧЕРЕЗ `find_k8s_roots`/`walk_k8s_candidates`
+ДО того, як кандидати йдуть далі, §2.30 це вже підтвердило дією). Додано два
+записи: `npm/rules/k8s/network_policy/template`,
+`plugins/ci-github/rules/k8s/lint_k8s_yml/template`. Перевірено: другий
+запис НЕ впливає на `plugins/ci-github/rules/ga/tests/
+workflow-templates-actionlint.test.mjs` (гейт actionlint на всі
+`template/*.yml.snippet.yml`) — той тест кличе `walkDir(root, cb)` БЕЗ
+`ignorePaths`-аргументу (дефолт `[]`), тобто `.n-rules.json:ignore` не
+читає взагалі.
+
+**`checkJsRun` — три файли з переліку задачі + один додатковий.**
+`npm/rules/graphql/tooling/tests/tooling.test.mjs`,
+`npm/tests/check-empty-trees.test.mjs`, `npm/tests/check-rule-fixtures.test.mjs`
+(усі три з §2.31) і `npm/tests/integration-repo-checks.test.mjs` (сам цей
+файл, рядок з `N_RULES_PACKAGE_ROOT` — у переліку §2.31 не згаданий, але той
+самий детектор ловить і його) читали `process.env.N_RULES_PACKAGE_ROOT`
+напряму. Усі чотири — опційна змінна з fallback-дефолтом (`??=`), тож канон
+(js-run.mdc) — `import { env } from 'node:process'`, не мандатний
+`@nitra/check-env`/`checkEnv()` (той — лише для обов'язкових змінних).
+
+**Перевірено дією.** `npx vitest run npm/tests/integration-repo-checks.test.mjs`
+— зелено (усі 10). Повний JS-суїт: 224 файли/3124 тести пройшли, 2 файли
+впали — `tests/check-mjs-contract.test.mjs` («22 правила ядра», отримано 23)
+і `scripts/lib/tests/mirror-parity.test.mjs` (дрейф `changelog`/`js`/
+`js-run`/`test`/`vue`) — ОБИДВА підтверджено `git stash`-ізольованим
+прогоном як преекзистуючі, не викликані цією задачею; лишені без змін
+(поза обсягом §2.32, самостійна знахідка для окремої задачі). Rust не
+чіпався — `cargo test --workspace` не запускався.
+
+**Поведінкові зміни для користувача:**
+
+- `ga/workflows`: `n-rules lint ga` на dev-машині БЕЗ `wasmPlugins`-піна в
+  `.n-rules.json` (тобто поза цим тестом) не зачіпається — зміна лише в
+  тестовому харнесі, продакшн-диспатч `ga/workflows` не займали.
+- `k8s/manifests`: `network_policy/template/` і
+  `plugins/ci-github/rules/k8s/lint_k8s_yml/template/` більше не потрапляють
+  у full-scope скан ЖОДНОГО правила, що читає `.n-rules.json:ignore` (не
+  лише `k8s`) — той самий канал, що вже несе `.claude/worktrees`/
+  `npm/schemas/vendor`.
+- Корінь репозиторію тепер має `.graphqlrc.yml` і
+  `graphql.vscode-graphql` у `.vscode/extensions.json` — раніше були відсутні.
+
+---
+
 ## Як користуватись
 
 Дійшовши кінця плану міграції, пройти реєстр згори вниз: розділи 1 і 6 — це
