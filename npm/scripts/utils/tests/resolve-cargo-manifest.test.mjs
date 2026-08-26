@@ -1,6 +1,16 @@
 /**
- * Тести `resolveCargoManifest`: знаходить Cargo.toml у cwd, у workspace-flat
- * або у Tauri-патерні (`<workspace>/src-tauri/`). Повертає null без manifest.
+ * Тести `resolveCargoManifest`/`resolveAllCargoManifests`: знаходять
+ * Cargo.toml у cwd, у workspace-flat або у Tauri-патерні
+ * (`<workspace>/src-tauri/`). Повертають null/[] без manifest.
+ *
+ * Glob-кейси (`describe` нижче) дзеркалять Rust-тести
+ * `resolve_all_cargo_manifests_expands_glob_workspaces_entry` /
+ * `..._glob_entry_applies_tauri_preference_per_dir` /
+ * `..._glob_entry_with_no_matching_dirs_is_empty_contribution`
+ * (`crates/plugin-lang-rust/src/lib.rs`) — §2.28 реєстру відкладених питань:
+ * `workspaces`-записи з `*`/`**` тепер розгортаються тут ТАК САМО, як у
+ * Rust-гості, інакше детектор (гість) і фіксер (ця утиліта) розійшлися б у
+ * тому, які маніфести існують.
  */
 import { describe, expect, test } from 'vitest'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
@@ -69,6 +79,17 @@ describe('resolveCargoManifest', () => {
     expect(await resolveCargoManifest(dir)).toBe(null)
     rmSync(dir, { recursive: true, force: true })
   })
+
+  test('workspaces glob-патерн (packages/*) розкривається — знаходить перший за відсортованим порядком', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'resolve-cargo-glob-'))
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ workspaces: ['packages/*'] }))
+    mkdirSync(join(dir, 'packages', 'b'), { recursive: true })
+    writeFileSync(join(dir, 'packages', 'b', 'Cargo.toml'), '[package]\nname="b"\nversion="0.1.0"\n')
+    mkdirSync(join(dir, 'packages', 'a'), { recursive: true })
+    writeFileSync(join(dir, 'packages', 'a', 'Cargo.toml'), '[package]\nname="a"\nversion="0.1.0"\n')
+    expect(await resolveCargoManifest(dir)).toBe(join(dir, 'packages', 'a', 'Cargo.toml'))
+    rmSync(dir, { recursive: true, force: true })
+  })
 })
 
 describe('resolveAllCargoManifests', () => {
@@ -110,6 +131,60 @@ describe('resolveAllCargoManifests', () => {
   test('ні root, ні workspaces без Cargo.toml — []', async () => {
     const dir = makeProj({ rootPkg: { workspaces: ['app'] } })
     expect(await resolveAllCargoManifests(dir)).toEqual([])
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  // --- glob-розкриття `workspaces` (§2.28) — дзеркало Rust-тестів
+  // `resolve_all_cargo_manifests_*` (`crates/plugin-lang-rust/src/lib.rs`) ---
+
+  test('workspaces glob-патерн (packages/*) розкривається — обидва пакети знайдені, відсортовано', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'resolve-cargo-glob-'))
+    writeFileSync(join(dir, 'Cargo.toml'), '[workspace]\n')
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ workspaces: ['packages/*'] }))
+    mkdirSync(join(dir, 'packages', 'b'), { recursive: true })
+    writeFileSync(join(dir, 'packages', 'b', 'Cargo.toml'), '[package]\nname="b"\nversion="0.1.0"\n')
+    mkdirSync(join(dir, 'packages', 'a'), { recursive: true })
+    writeFileSync(join(dir, 'packages', 'a', 'Cargo.toml'), '[package]\nname="a"\nversion="0.1.0"\n')
+    expect(await resolveAllCargoManifests(dir)).toEqual([
+      join(dir, 'Cargo.toml'),
+      join(dir, 'packages', 'a', 'Cargo.toml'),
+      join(dir, 'packages', 'b', 'Cargo.toml')
+    ])
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  test('glob-запис — Tauri-перевага застосовується до КОЖНОГО розкритого каталогу окремо', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'resolve-cargo-glob-tauri-'))
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ workspaces: ['packages/*'] }))
+    mkdirSync(join(dir, 'packages', 'a', 'src-tauri'), { recursive: true })
+    writeFileSync(join(dir, 'packages', 'a', 'src-tauri', 'Cargo.toml'), '[package]\nname="a-tauri"\nversion="0.1.0"\n')
+    writeFileSync(join(dir, 'packages', 'a', 'Cargo.toml'), '[package]\nname="a-flat"\nversion="0.1.0"\n')
+    mkdirSync(join(dir, 'packages', 'b'), { recursive: true })
+    writeFileSync(join(dir, 'packages', 'b', 'Cargo.toml'), '[package]\nname="b-flat"\nversion="0.1.0"\n')
+    expect(await resolveAllCargoManifests(dir)).toEqual([
+      join(dir, 'packages', 'a', 'src-tauri', 'Cargo.toml'),
+      join(dir, 'packages', 'b', 'Cargo.toml')
+    ])
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  test('glob-запис без жодного збігу — коректний порожній внесок (не помилка)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'resolve-cargo-glob-empty-'))
+    writeFileSync(join(dir, 'Cargo.toml'), '[workspace]\n')
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ workspaces: ['packages/*'] }))
+    mkdirSync(join(dir, 'apps', 'a'), { recursive: true })
+    writeFileSync(join(dir, 'apps', 'a', 'Cargo.toml'), '[package]\nname="a"\nversion="0.1.0"\n')
+    expect(await resolveAllCargoManifests(dir)).toEqual([join(dir, 'Cargo.toml')])
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  test('РЕГРЕСІЯ: літеральний (без *) workspaces-запис поводиться так само, як до фіксу', async () => {
+    // Той самий фікстур-шейп, що вже покритий `workspace із обома Tauri і
+    // flat` вище — тут лише явний якір, що коротка (літеральна) гілка
+    // `expandWorkspaceEntryDirs` повертає `[ws]` без жодного `scanGlob`,
+    // тобто НЕ зачіпає найпоширеніший (поіменований) workspace-кейс.
+    const dir = makeProj({ rootPkg: { workspaces: ['app'] }, workspaceFlat: true })
+    expect(await resolveAllCargoManifests(dir)).toEqual([join(dir, 'app', 'Cargo.toml')])
     rmSync(dir, { recursive: true, force: true })
   })
 })
