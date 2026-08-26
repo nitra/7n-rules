@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.4.1] - 2026-08-26
+
+### Fixed
+
+- docker.lint_docker_yml: додано фолбек object.get(input, "on", …) для YAML 1.2 (regorus/saphyr) на випадок міграції з conftest — без нього push_paths_set стає порожнім і deny спрацьовує на кожному валідному workflow
+
 ## [2.4.0] - 2026-08-25
 
 ### Removed
