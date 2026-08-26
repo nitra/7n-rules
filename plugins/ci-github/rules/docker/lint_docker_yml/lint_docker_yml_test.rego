@@ -79,3 +79,33 @@ test_data_template_drives_required_path if {
 	some msg in lint_docker_yml.deny with input as valid_wf with data.template as drifted
 	contains(msg, "Containerfile")
 }
+
+# Той самий канонічний workflow, але з рядковим ключем `"on"` — форма, яку
+# видає YAML 1.2 (saphyr, in-process regorus-шлях crates/plugin-ci-github),
+# на відміну від `"true"` у conftest (YAML 1.1). Фолбек має трактувати обидві
+# форми однаково.
+valid_wf_on_key := {
+	"name": "Lint Docker",
+	"on": {"push": {
+		"branches": ["dev", "main"],
+		"paths": ["**/Dockerfile", "**/*.Dockerfile", "**/*.dockerfile"],
+	}},
+	"jobs": {"lint-docker": {"steps": [
+		{"uses": "actions/checkout@v6"},
+		{"name": "Install hadolint", "run": hadolint_install_run},
+		{"uses": "./.github/actions/setup-bun-deps"},
+		{"name": "Lint Docker", "run": "n-rules lint docker --no-fix"},
+	]}},
+}
+
+test_allow_canonical_on_key if {
+	count(lint_docker_yml.deny) == 0 with input as valid_wf_on_key with data.template as template_data
+}
+
+test_deny_missing_path_dockerfile_on_key if {
+	wf := json.patch(
+		valid_wf_on_key,
+		[{"op": "replace", "path": "/on/push/paths", "value": ["**/*.Dockerfile", "**/*.dockerfile"]}],
+	)
+	count(lint_docker_yml.deny) > 0 with input as wf with data.template as template_data
+}
