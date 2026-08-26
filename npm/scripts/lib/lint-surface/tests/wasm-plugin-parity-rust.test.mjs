@@ -618,9 +618,9 @@ describe('wasm-plugin parity — rust/workspace_root (JS канон vs wasm plug
       await writeManifest(dir, 'crates/orphan', '[package]\nname = "orphan"\nversion = "0.1.0"\n')
       const { js, wasm } = await runWorkspaceRootBoth(dir)
       expect(wasm).toEqual(js)
-      expect(
-        js.some(v => v.reason === 'package-not-workspace-member' && v.file === 'crates/orphan/Cargo.toml')
-      ).toBe(true)
+      expect(js.some(v => v.reason === 'package-not-workspace-member' && v.file === 'crates/orphan/Cargo.toml')).toBe(
+        true
+      )
     })
   })
 
@@ -773,7 +773,24 @@ describe('wasm-plugin parity — rust/check (JS канон vs wasm plugin-lang-r
     })
   })
 
-  test('deny --version провалюється (deny не встановлено) — тихий skip, обидві реалізації мовчать', async () => {
+  test('deny --version провалюється (deny не встановлено) — §2.33: видима діагностика cargo-deny-unavailable, не тиша', async () => {
+    // РАНІШЕ (до §2.33, docs/plans/2026-08-05-open-questions-register.md)
+    // цей сценарій закріплював мовчазний fail-open golden-канону: крок 6
+    // `main.mjs` (`if status === 0 { … }` без `else`) мовчки пропускав
+    // ліцензійну перевірку `cargo deny`, коли `cargo-deny` не встановлено.
+    // §2.33 визнав це найгіршим режимом відмови лінтера — код виходу не
+    // відрізняє «свідомо не встановлено» від «встановлено, але зламано»,
+    // тож канал обрав ГУЧНІШИЙ варіант і сигналить однаково в обох
+    // випадках ([`cargo_deny_unavailable_diagnostic`],
+    // `crates/plugin-lang-rust/src/lib.rs`).
+    //
+    // Порівнювати з JS-каноном тут більше нема з чим: `main.mjs` видалено
+    // разом із транзитивним періодом lang-rust, а знятий раніше golden-
+    // еталон буквально закріплював мовчання — переснімати нема сенсу (і
+    // нема як: `N_WASM_PARITY_CAPTURE=1` впав би на відсутньому імпорті).
+    // Тому тут — пряме твердження ОЧІКУВАНОЇ поведінки гостя, БЕЗ
+    // `goldenJs`/`runCheckBoth` (той самий прийом, що §2.28 — `git show
+    // 362d6b59c`).
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'Cargo.toml'), '[package]\nname = "demo"\n', 'utf8')
       await writeFile(join(dir, 'deny.toml'), '', 'utf8')
@@ -784,9 +801,17 @@ describe('wasm-plugin parity — rust/check (JS канон vs wasm plugin-lang-r
         '  "deny --version") exit 1 ;;\n' +
         '  *) exit 0 ;;\n' +
         'esac\n'
-      const { js, wasm } = await runCheckBoth(dir, toolBody)
-      expect(wasm).toEqual(js)
-      expect(js).toEqual([])
+      const binDir = join(dir, 'fake-bin')
+      await mkdir(binDir, { recursive: true })
+      const cargoPath = await writeFakeCargo(join(binDir, 'cargo'), toolBody)
+      const wasm = withDefaultSeverity(
+        loadNative().runWasmConcern(WASM_PATH, CHECK_CONCERN_KEY, dir, null, { cargo: cargoPath }).violations
+      )
+      expect(wasm).toHaveLength(1)
+      expect(wasm[0].reason).toBe('cargo-deny-unavailable')
+      expect(wasm[0].severity).toBe('error')
+      expect(wasm[0].message).toContain('cargo-deny')
+      expect(wasm[0].message).toContain('ПРОПУЩЕНО')
     })
   })
 
@@ -806,7 +831,9 @@ describe('wasm-plugin parity — rust/check (JS канон vs wasm plugin-lang-r
       expect(wasm).toEqual(js)
       expect(js).toHaveLength(1)
       expect(js[0].reason).toBe('cargo-deny-violation')
-      expect(js[0].message).toBe('lint-rust: cargo deny check licenses — помилка (код 1, rust.mdc)\nGPL-3.0 not allowed')
+      expect(js[0].message).toBe(
+        'lint-rust: cargo deny check licenses — помилка (код 1, rust.mdc)\nGPL-3.0 not allowed'
+      )
     })
   })
 
@@ -1009,7 +1036,9 @@ describe('rust/doc_comments + rust/cargo_mutants_config — T0-цикл: дет�
       expect(before.every(v => v.data?.promotable)).toBe(true)
 
       // eslint-disable-next-line no-unsanitized/method
-      const { patterns } = await import(pathToFileURL(join(RUST_RULES_DIR, 'doc_comments', 'fix-doc_comments.mjs')).href)
+      const { patterns } = await import(
+        pathToFileURL(join(RUST_RULES_DIR, 'doc_comments', 'fix-doc_comments.mjs')).href
+      )
       expect(patterns[0].test(before)).toBe(true)
       await patterns[0].apply(before, { cwd: dir, recordWrite: () => {} })
 

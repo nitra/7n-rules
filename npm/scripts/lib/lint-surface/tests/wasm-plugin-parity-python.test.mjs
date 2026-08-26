@@ -620,13 +620,39 @@ describe('wasm-plugin parity — python/mypy (JS канон vs wasm plugin-lang-
     })
   })
 
-  test('mypy недоступний у uv-середовищі (--version провалюється) — обидві реалізації мовчать (fail-open)', async () => {
+  test('mypy недоступний у uv-середовищі (--version провалюється) — §2.33: видима діагностика mypy-unavailable, не тиша', async () => {
+    // РАНІШЕ (до §2.33, docs/plans/2026-08-05-open-questions-register.md)
+    // цей сценарій закріплював мовчазний fail-open golden-канону:
+    // `uvToolAvailable(uv, tool)` JS-оригіналу (`uv-run.mjs::preparePythonRun`)
+    // на `false` повертав `null` БЕЗ виклику `fail()` — детектор мовчав,
+    // гейт лишався зеленим без виконаної перевірки. §2.33 визнав це
+    // найгіршим режимом відмови лінтера й зробив цю гілку гучною
+    // ([`PythonRunPrep::ToolUnavailable`] → новий чистий диспетчер
+    // `python_run_targets`, `crates/plugin-lang-python/src/lib.rs`).
+    //
+    // Порівнювати з JS-каноном тут більше нема з чим: `main.mjs` видалено
+    // разом із транзитивним періодом lang-python, а знятий раніше golden-
+    // еталон буквально закріплював мовчання — переснімати нема сенсу (і
+    // нема як: `N_WASM_PARITY_CAPTURE=1` впав би на відсутньому імпорті).
+    // Тому тут — пряме твердження ОЧІКУВАНОЇ поведінки гостя, БЕЗ
+    // `goldenJs`/`runMypyBoth` (той самий прийом, що §2.28 — `git show
+    // 362d6b59c`).
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'pyproject.toml'), '[project]\nname = "demo"\n', 'utf8')
       await writeFileDeep(dir, PY_FIXTURE_PATH, PY_FIXTURE_CONTENT)
-      const { js, wasm } = await runMypyBoth(dir, [PY_FIXTURE_PATH], UV_TOOL_UNAVAILABLE)
-      expect(wasm).toEqual(js)
-      expect(js).toEqual([])
+      const binDir = join(dir, 'fake-bin')
+      await mkdir(binDir, { recursive: true })
+      const uvPath = await writeFakeUv(join(binDir, 'uv'), UV_TOOL_UNAVAILABLE)
+      const wasm = withDefaultSeverity(
+        loadNative().runWasmConcern(WASM_PATH, MYPY_CONCERN_KEY, dir, [PY_FIXTURE_PATH, 'pyproject.toml'], {
+          uv: uvPath
+        }).violations
+      )
+      expect(wasm).toHaveLength(1)
+      expect(wasm[0].reason).toBe('mypy-unavailable')
+      expect(wasm[0].severity).toBe('error')
+      expect(wasm[0].message).toContain('mypy')
+      expect(wasm[0].message).toContain('ПРОПУЩЕНО')
     })
   })
 
@@ -719,13 +745,26 @@ describe('wasm-plugin parity — python/ruff (JS канон vs wasm plugin-lang-
     })
   })
 
-  test('ruff недоступний у uv-середовищі (--version провалюється) — обидві реалізації мовчать (fail-open)', async () => {
+  test('ruff недоступний у uv-середовищі (--version провалюється) — §2.33: видима діагностика ruff-unavailable, не тиша', async () => {
+    // Той самий фікс каналу, що mypy вище (§2.33, спільний preflight
+    // `python_run_targets`) — доккомент того тесту пояснює історію
+    // (мовчазний golden-еталон → чому переснімати нема сенсу й нема як).
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'pyproject.toml'), '[project]\nname = "demo"\n', 'utf8')
       await writeFileDeep(dir, PY_FIXTURE_PATH, PY_FIXTURE_CONTENT)
-      const { js, wasm } = await runRuffBoth(dir, [PY_FIXTURE_PATH], UV_TOOL_UNAVAILABLE)
-      expect(wasm).toEqual(js)
-      expect(js).toEqual([])
+      const binDir = join(dir, 'fake-bin')
+      await mkdir(binDir, { recursive: true })
+      const uvPath = await writeFakeUv(join(binDir, 'uv'), UV_TOOL_UNAVAILABLE)
+      const wasm = withDefaultSeverity(
+        loadNative().runWasmConcern(WASM_PATH, RUFF_CONCERN_KEY, dir, [PY_FIXTURE_PATH, 'pyproject.toml'], {
+          uv: uvPath
+        }).violations
+      )
+      expect(wasm).toHaveLength(1)
+      expect(wasm[0].reason).toBe('ruff-unavailable')
+      expect(wasm[0].severity).toBe('error')
+      expect(wasm[0].message).toContain('ruff')
+      expect(wasm[0].message).toContain('ПРОПУЩЕНО')
     })
   })
 
@@ -1118,13 +1157,33 @@ describe('wasm-plugin parity — python/project (JS канон vs wasm plugin-la
     })
   })
 
-  test('pip-licenses недоступний у uv-середовищі — fail-open, обидві реалізації мовчать', async () => {
+  test('pip-licenses недоступний у uv-середовищі — §2.33: видима діагностика pip-licenses-unavailable, не тиша', async () => {
+    // РАНІШЕ (до §2.33) цей сценарій закріплював мовчазний fail-open
+    // golden-канону: `uvToolAvailable(...) → return true` `checkPipLicenses`
+    // (`main.mjs`) обходив availability-крок БЕЗ виклику `fail()` —
+    // ліцензійну перевірку мовчки пропускало, гейт лишався зеленим.
+    // Доккомент цього каналу (`crates/plugin-lang-python/src/lib.rs`,
+    // `detect_project`) сам називав цю гілку «ЄДИНИМ по-справжньому
+    // беззвучним fail-open цього концерну» — §2.33 показав, що це
+    // твердження було НЕТОЧНИМ (є ще `extract_packages`-канал, не покритий
+    // жодним існуючим parity-сценарієм). Тепер обидві гілки гучні
+    // ([`pip_licenses_availability_diagnostic`]).
+    //
+    // Порівнювати з JS-каноном тут більше нема з чим — той самий мотив, що
+    // тести mypy/ruff вище (`main.mjs` видалено, переснімати нема сенсу й
+    // нема як). Пряме твердження ОЧІКУВАНОЇ поведінки гостя, БЕЗ
+    // `goldenJs`/`runProjectBoth`.
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'pyproject.toml'), '[project]\nname = "demo"\n', 'utf8')
       const uvPath = await writeFakeTool(dir, fakeUvScript({ version: 'exit 1' }))
-      const { js, wasm } = await runProjectBoth(dir, uvPath)
-      expect(wasm).toEqual(js)
-      expect(js).toEqual([])
+      const wasm = withDefaultSeverity(
+        loadNative().runWasmConcern(WASM_PATH, PROJECT_CONCERN_KEY, dir, null, { uv: uvPath }).violations
+      )
+      expect(wasm).toHaveLength(1)
+      expect(wasm[0].reason).toBe('pip-licenses-unavailable')
+      expect(wasm[0].severity).toBe('error')
+      expect(wasm[0].message).toContain('pip-licenses')
+      expect(wasm[0].message).toContain('ПРОПУЩЕНО')
     })
   })
 

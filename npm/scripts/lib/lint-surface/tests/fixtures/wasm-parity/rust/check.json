@@ -26,7 +26,6 @@
       "message": "lint-rust: cargo deny — немає deny.toml; запустіть `npx @7n/rules fix rust` локально для генерації (rust.mdc)"
     }
   ],
-  "wasm-plugin parity — rust/check (JS канон vs wasm plugin-lang-rust, спільний фейковий cargo) > deny --version провалюється (deny не встановлено) — тихий skip, обидві реалізації мовчать": [],
   "wasm-plugin parity — rust/check (JS канон vs wasm plugin-lang-rust, спільний фейковий cargo) > cargo deny check licenses провалюється — однакове cargo-deny-violation": [
     {
       "severity": "error",
