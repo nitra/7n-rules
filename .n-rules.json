@@ -25,9 +25,7 @@
   ],
   "ignore": [
     ".claude/worktrees",
-    "npm/schemas/vendor",
-    "npm/rules/k8s/network_policy/template",
-    "plugins/ci-github/rules/k8s/lint_k8s_yml/template"
+    "npm/schemas/vendor"
   ],
   "disable-rules": [
     "docker",
