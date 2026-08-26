@@ -573,6 +573,28 @@ fn detect_no_process_chdir_flags_forbidden_call() {
     assert!(diagnostics[0].data.is_some());
 }
 
+/// Регресія 2026-08-26 наскрізь через реальний wasm-компонент: доккоментар,
+/// що ЦИТУЄ саме це правило (`process.chdir(dir)` разом із дужкою), не є
+/// порушенням — детект дивиться на AST, не на рядки. До фіксу порядковий
+/// regex падав на `wasm-plugin-parity-php.test.mjs:181`, тобто на будь-якому
+/// брудному дереві репозиторію, включно з `origin/main`.
+#[test]
+fn detect_no_process_chdir_passes_on_doc_comment_citation() {
+    let path = require_fixture();
+    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+
+    let batch = DetectBatch {
+        concern_id: CONCERN_NO_PROCESS_CHDIR.to_string(),
+        files: vec![SourceFile {
+            path: "tests/foo.test.mjs".to_string(),
+            content: "/**\n * Перша спроба обходила її `process.chdir(dir)` на час JS-виклику.\n */\ntest(\"ok\", () => {})\n".to_string(),
+        }],
+    };
+
+    let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
+    assert!(diagnostics.is_empty());
+}
+
 /// Той самий сценарій, що й JS-тест «успіх: тест без забороненого виклику
 /// → exit 0».
 #[test]

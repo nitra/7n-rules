@@ -254,7 +254,7 @@ Recursive globs ловлять файли всередині `tests/` так с�
 - Усі child-процеси — `execFile(bin, args, { cwd: dir })`, `spawnSync(bin, args, { cwd: dir })`.
 - Concern-функції правил — `await check(dir)`, `await applies(dir)`, `await fix(dir)`; усі production функції приймають перший параметр `cwd = process.cwd()` (default зберігає CLI-сумісність).
 
-**Перевірка** (`rules/test/js/no-process-chdir.mjs`): сканує `**/*.test.{js,mjs}` і падає з ❌ на будь-яке вживання `process.chdir(`.
+**Перевірка** (концерн `test/no-process-chdir`, wasm-плагін `plugin-lang-js`): сканує `**/*.test.{js,mjs}` і падає з ❌ на **виклик** `process.chdir(…)` — включно з `process['chdir'](…)` та `process?.chdir(…)`. Детект іде по **AST** (`oxc_parser`), тому згадка виклику в коментарі, JSDoc або рядковому/шаблонному літералі (фікстура, що записує такий тест) порушенням **не** є — раніше порядковий regex падав і на цитаті цього самого правила в доккоментарі. Синтаксично зламаний файл не пропускається мовчки: для нього лишається старий regex-скан.
 
 **Кожен виклик `execFile`/`execFileSync`/`spawn`/`spawnSync`** у `*.test.{js,mjs}` приймає або **явний `{ cwd: dir }`** (де `dir` — змінна, не `process.cwd()`), або працює з **абсолютними шляхами** до бінарників/fixture-файлів. Це гарантує, що мутаційний test-flow у `pool: 'forks'` не страждає від implicit-`process.cwd()`-stride між тестами в одному воркері.
 
