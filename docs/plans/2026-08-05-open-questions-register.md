@@ -4417,6 +4417,111 @@ workflow-templates-actionlint.test.mjs` (гейт actionlint на всі
 
 ---
 
+### 2.34. `k8s/manifests` (native): фікс двох класів хибних спрацювань замість локального `.n-rules.json` ignore з §2.32
+
+**Звідки:** §2.32 закрило `checkK8s` через `.n-rules.json:ignore`
+(`npm/rules/k8s/network_policy/template`,
+`plugins/ci-github/rules/k8s/lint_k8s_yml/template`) — явно локальний обхід:
+детектор поводився б так само в кожному консюмер-репо зі схожою
+розкладкою, і там ignore ніхто не додасть. Ця задача прибирає обхід
+детектор-фіксом у `crates/rules-core/src/concerns/k8s_common.rs`.
+
+**Клас 1 — YAML-фрагменти без `apiVersion`/`kind`.**
+`npm/rules/k8s/network_policy/template/*.snippet.yaml` — голі
+`spec:`-фрагменти для fix-шаблонування консюмер-репо, не самостійні
+маніфести. `kubescape scan` на них падає з «no scannable resources», а
+generic-гілка `kubescape_violations` (`k8s_manifests_kubescape.rs`) мапить
+БУДЬ-ЯКИЙ ненульовий код на «kubescape знайшов ризики» — вхідну помилку
+тула видає за вердикт. Фікс — `find_k8s_roots` (`k8s_common.rs`) фільтрує
+кандидатів через новий `file_looks_like_k8s_resource`: файл має мати
+`apiVersion` **або** `kind` у ХОЧ ОДНОМУ YAML-документі (per-document,
+`---`-роздільник ушановано — багатодокументний файл сканується, щойно хоч
+один документ валідний). Без цього поля каталог більше не стає
+kubescape-таргетом.
+
+**Клас 2 — GitHub Actions workflow під шляхом із сегментом `k8s`.**
+`plugins/ci-github/rules/k8s/lint_k8s_yml/template/lint-k8s.yml.snippet.yml`
+— канон GHA workflow (`name:`+`on:`+`jobs:`), `.yml` тут ПРАВИЛЬНЕ
+розширення. Сегмент шляху `k8s` (групування за консюмер-фічею плагіна) —
+єдина причина, чому `path_has_k8s_segment` узагалі підбирає файл під
+manifest-скан; далі `find_k8s_yaml_files` віддає його в per-file цикл
+`checkK8sYamlFile` (`k8s_manifests_per_file.rs`), де ПЕРШЕ, що
+перевіряється, — розширення `.yml` → хибне «перейменуй на .yaml» (без
+читання вмісту). Фікс — новий `looks_like_gha_workflow` у
+`walk_k8s_candidates` (спільний прохід дерева обох функцій): надійна
+структурна ознака `on:`+`jobs:` на верхньому рівні (та сама, що
+запропонована задачею; гілка «під `.github/workflows/`» зайва — `.github/`
+там і так уже виключений окремим рядком).
+
+**Дві окремі евристики, не одна — перевірено дією.** Гіпотеза «клас 1
+закриває і клас 2 безкоштовно» (GHA workflow теж не має `apiVersion`/
+`kind`) НЕ підтвердилась: перша спроба — застосувати
+`file_looks_like_k8s_resource` і до `find_k8s_yaml_files` теж — ламала
+заморожену parity-фікстуру `no-kind.yaml`
+(`crates/rules-core/tests/k8s_manifests_slice2_parity.rs`,
+`wrong_schema_urls_match`): файл із modeline `# yaml-language-server:
+$schema=…`, але без `apiVersion`/`kind` — це СПРАВЖНЄ порушення («не
+знайдено apiVersion/kind у першому документі»), яке канон навмисно
+репортить (користувач явно попросив $schema-перевірку), а не мовчки
+пропускає. Ширший фільтр на рівні `find_k8s_yaml_files` прибрав би цю
+перевірку для будь-якого файла без обох полів — послаблення справжньої
+перевірки, заборонене задачею. Тому: `file_looks_like_k8s_resource` лишився
+ЛИШЕ в `find_k8s_roots` (де `no-kind.yaml`-кейс не існує — parity-гейти
+його не використовують), а клас 2 закрито окремою, вужчою, суто
+структурною ознакою (`on:`+`jobs:`), яка apiVersion/kind не чіпає взагалі
+і тому не могла зачепити ту саму фікстуру.
+
+**Тести з перевіркою дією (`crates/rules-core/src/concerns/k8s_common.rs`,
+16 тестів, було 8).** Кожен клас — тест, що ЧЕРВОНІЄ на дофіксовому коді
+(перевірено вручну: тимчасово повернутий старий код + нові тести →
+`network_policy_snippet_fragment_does_not_establish_a_root`,
+`gha_workflow_yml_under_k8s_path_segment_is_excluded_from_yaml_files`,
+`multi_document_file_does_not_establish_a_root_when_no_document_is_a_resource`
+падали; позитивні контролі (`real_manifest_with_yml_extension_still_enters_yaml_files`,
+`real_manifest_still_establishes_a_root`,
+`multi_document_file_establishes_a_root_when_any_document_is_a_resource`) —
+уже тоді зелені, підтверджуючи, що фільтр нічого не послабив). Після
+фіксу — усі 16 зелені.
+
+**Обидва `.n-rules.json`-записи з §2.32 прибрано.** `npx vitest run
+npm/tests/integration-repo-checks.test.mjs` лишається зеленим (усі 10
+`check*`) — перевірено і в зворотний бік: тимчасове повернення
+дофіксового `k8s_common.rs` (з прибраними ignore-записами й перезібраним
+`rules-napi`) валить саме `checkK8s` з тим самим `AssertionError`, що й до
+фіксу, — доказ, що зелений результат дає саме код-фікс, а не залишковий
+ignore чи стара збірка napi.
+
+**Перевірено дією.** `cargo test --workspace` (2409 тестів, 0 провалів,
+включно з раніше зібраними `wasm32-wasip2`-фікстурами
+`test-plugin-guest`/`plugin-ci-github`/`plugin-lang-{js,php,python,rust}`),
+`cargo clippy --workspace --all-targets -- -D warnings` і `cargo fmt
+--check` — чисті. Повний JS-суїт (`npx vitest run`): 319 файлів/4110
+тестів пройшли, 5 упали — `mirror-parity.test.mjs` (2, дрейф плагінів і
+`.cursor/rules/n-*.mdc`), `docgen-scan.test.mjs` (2, `isSourceFile` для
+lang-плагінів), `applies.test.mjs` (`npm-module`, 1) — усі підтверджено
+`git stash`-ізольованим прогоном як преекзистуючі, не викликані цією
+задачею; лишені без змін.
+
+**Сюрпризи.**
+
+- Доккомент `k8s_manifests.rs` («концерн ще не в `NATIVE_CONCERNS`») —
+  застарілий: `"k8s/manifests"` уже в реєстрі (`concerns/mod.rs:221`) і
+  саме тому `checkK8s` в інтеграційному тесті реально проганяє native-код,
+  а не JS-канон (`npm/rules/k8s/manifests/main.mjs`, якого вже й немає на
+  диску — лишився тільки `concern.json`).
+- `find_k8s_roots` і `find_k8s_yaml_files` (обидві в `k8s_common.rs`) —
+  спільний шар для `k8s/manifests`, `k8s/kubeconform`,
+  `k8s/hasura_configmap`, `k8s/hasura_httproute` і трьох `abie_*`-концернів
+  (останні — через ОКРЕМУ однойменну функцію в `abie_k8s_tree.rs`, не
+  плутати). Перший чорновий варіант фільтра (вимога `apiVersion` І `kind`
+  ОБОХ, застосована до `find_k8s_yaml_files`) ламав ~10 тестів у
+  `k8s_manifests_cross_file.rs`/`k8s_hasura_configmap.rs`/
+  `k8s_kubeconform.rs`, чиї фікстури традиційно мають лише `kind:` —
+  фінальний критерій («хоч ОДНЕ з двох полів», лише в `find_k8s_roots`) від
+  цього дефекту вільний.
+
+---
+
 ## Як користуватись
 
 Дійшовши кінця плану міграції, пройти реєстр згори вниз: розділи 1 і 6 — це
