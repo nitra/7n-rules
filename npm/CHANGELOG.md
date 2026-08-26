@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.100.13] - 2026-08-26
+
+### Fixed
+
+- detect.mjs: помилка «немає main.mjs» тепер підказує про відсутній npm/wasm-plugins/builtin-pins.json, коли причина невідома
+
 ## [1.100.12] - 2026-08-26
 
 ### Fixed
