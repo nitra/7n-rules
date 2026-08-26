@@ -40,10 +40,13 @@ all_run_text := concat("\n", [run_text |
 	run_text := step_run_to_text(step)
 ])
 
-# conftest парсить YAML 1.1, тож канонічний `on:` без лапок стає булевим ключем
-# `true` (як у `ga.lint_ga`). Тому читаємо через `input["true"]`.
+# conftest (YAML 1.1) серіалізує канонічний `on:` без лапок у булевий ключ
+# `true`; regorus/saphyr (YAML 1.2, in-process шлях crates/plugin-ci-github)
+# лишає рядковий ключ `"on"`. Фолбек — як у `ga.lint_ga` та сусідніх пакетів.
+gha_on := object.get(input, "on", object.get(input, "true", {}))
+
 push_paths_set := {p |
-	some p in object.get(object.get(object.get(input, "true", {}), "push", {}), "paths", [])
+	some p in object.get(object.get(gha_on, "push", {}), "paths", [])
 }
 
 # ── deny: on.push.paths subset-of ──────────────────────────────────────

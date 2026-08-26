@@ -4519,6 +4519,63 @@ lang-плагінів), `applies.test.mjs` (`npm-module`, 1) — усі підт
   `k8s_kubeconform.rs`, чиї фікстури традиційно мають лише `kind:` —
   фінальний критерій («хоч ОДНЕ з двох полів», лише в `find_k8s_roots`) від
   цього дефекту вільний.
+### 2.35. `docker.lint_docker_yml` — четвертий пакет без `on`/`true`-фолбеку, пропущений у §2.22
+
+**Звідки:** §2.22 (PR #483, `08c4c93f3`) додав фолбек
+`gha_on := object.get(input, "on", object.get(input, "true", {}))` до трьох
+пакетів (`ga.clean_ga_workflows`, `ga.clean_merged_branch`, `ga.git_ai`) —
+`ga.lint_ga` уже мав його раніше, з коментарем саме про заміну парсера.
+`docker.lint_docker_yml` (`plugins/ci-github/rules/docker/lint_docker_yml/
+lint_docker_yml.rego`) лишився без фолбеку — читав подію ЛИШЕ через
+`input["true"]`, з коментарем «conftest парсить YAML 1.1, тож `on:` стає
+`true`». Зараз коректно (пакет виконується через `conftest`, YAML 1.1), але
+`crates/plugin-ci-github` виконує rego in-process через `regorus`, а YAML —
+через `saphyr` (YAML 1.2, де `on:` лишається рядковим ключем `"on"`). Коли
+docker-пакет мігрує на той самий шлях, `input["true"]` мовчки перестане
+збігатись.
+
+**Наслідок ІНШИЙ, ніж у прецеденті §2.22 — перевірено читанням правил
+пакета.** У `ga`-пакетах порожній `gha_on` робив ПРАВИЛА мовчазними
+(silent-pass — нічого не деналось, бо перевірка читає `gha_on.push.branches`
+тощо й просто нічого не знаходить проти чого деналось). У
+`docker.lint_docker_yml` — навпаки, **always-fail**: `expected_paths`
+(літерали, які МАЮТЬ бути присутні) читається з `data.template.snippet.on`,
+не з `input`, а `deny`-правило перевіряє `not required in push_paths_set`
+для КОЖНОГО `required` з `expected_paths`. Якщо `push_paths_set` порожній
+(бо `input["true"]` не знайшов ключа `"on"`), умова `not required in {}`
+істинна для кожного `required` — `deny` спрацьовує на кожному валідному
+workflow, не лише на дефектному. Гіпотеза задачі підтвердилась дією
+(п. нижче).
+
+**Фікс — ідентична форма фолбеку**, за зразком сусідів (`ga.clean_ga_workflows`,
+`ga.clean_merged_branch`, `ga.git_ai`, `ga.lint_ga`, `text.lint_text`):
+
+```rego
+gha_on := object.get(input, "on", object.get(input, "true", {}))
+```
+
+`ga.service_deploy_workflow` — не той самий дефект: там уже є ще ширший
+захист, `object.union_n` по трьох формах (`"on"`, `true` boolean, `"true"`
+рядок) — лишений без змін.
+
+**Пройдено рештою `.rego` у `plugins/**` і `npm/rules/**`** (`grep -rl '"true"'`)
+— інших пакетів без фолбеку не знайдено. Два хіти поза GHA-контекстом
+(`npm/rules/k8s/hasura_configmap`, `npm/rules/abie/base_deployment_preem`)
+читають `"true"` як рядкове значення boolean-конфіга (case-insensitive
+truthy-перевірка), не як ключ `on:` — не той самий клас дефекту.
+
+**Перевірено дією:**
+
+- `conftest verify -p plugins/ci-github/rules/docker/lint_docker_yml/` —
+  до фіксу: 6 тестів, 6 passed; після фіксу (з двома новими тестами на
+  `"on"`-форму входу): 8 тестів, 8 passed.
+- Новий тест `test_allow_canonical_on_key` (workflow з ключем `"on"`,
+  YAML-1.2-форма) перевірено ЧЕРВОНИМ без фолбеку — тимчасовий
+  `git stash` лише на `.rego`-файлі (без тестового) відтворив старий код;
+  `conftest verify` на цьому стані впав: `FAIL … test_allow_canonical_on_key`,
+  `8 tests, 7 passed, 1 failure` — саме тест на очікуваний нуль `deny` для
+  валідного `"on"`-входу, підтверджуючи always-fail-гіпотезу; `git stash pop`
+  повернув фікс, суїт знову 8/8.
 
 ---
 
