@@ -47,6 +47,21 @@ const hasBuild = existsSync(PINS_PATH)
  * (`test/storybook-{scope,hygiene,page-coverage,scaffold,ci}` — full-scope
  * порт спільної scope-детекції в batch-простір, доккомент секції «Батч 5»
  * там само).
+ *
+ * §2.31 (реєстр відкритих питань, ревізія «оживи вічно-пропущені набори»)
+ * звірила цей список із живим `wasmPluginManifest()` ВПЕРШЕ відколи
+ * `test.yml` реально генерує `builtin-pins.json` (до цього весь describe-блок
+ * мовчки пропускався на кожному PR, доккомент файлу) — і знайшла 12
+ * контрибуцій батч 8, батч 9 і зрізів 1–7 контракту v3.1, додані в
+ * `plugin.toml` вже ПІСЛЯ батчу 7, про які цей список жодного разу не
+ * дізнавався: батч 8
+ * (`bun/layout`, `style/tooling`, `test/sandbox-aware-test`,
+ * `test/vitest-api-conventions`) і батч 9 (`vue/packages`, доккомент
+ * `plugin.toml`: «канон бачив УВЕСЬ репозиторій»), далі зрізи контракту v3.1
+ * (`test/stryker_config`, `js/check`, `js/doc_comments`, `bun/licensee`,
+ * `style/lint`, `js/jscpd_duplicates`, `js-run/runtime` — доккоменти кожного
+ * зрізу поряд із записом у `plugin.toml`). Розсинхрон не production-дефект:
+ * `plugin.toml` — джерело правди, список нижче просто наздогнав його.
  * @type {string[]}
  */
 const EXPECTED_LANG_JS_CONCERNS = [
@@ -79,7 +94,22 @@ const EXPECTED_LANG_JS_CONCERNS = [
   'npm-module/skill_meta',
   'npm-module/header_doc_pointer',
   'npm-module/package_structure',
-  'js/dep-policy'
+  'js/dep-policy',
+  // Батч 8 (§2.31, доккомент `plugin.toml` поряд із записами)
+  'bun/layout',
+  'style/tooling',
+  'test/sandbox-aware-test',
+  'test/vitest-api-conventions',
+  // Батч 9 (§2.31): concern.json без глоба — канон бачив увесь репозиторій
+  'vue/packages',
+  // Зрізи 1–7 контракту v3.1 (§2.31, доккомент кожного зрізу в `plugin.toml`)
+  'test/stryker_config',
+  'js/check',
+  'js/doc_comments',
+  'bun/licensee',
+  'style/lint',
+  'js/jscpd_duplicates',
+  'js-run/runtime'
 ]
 
 /** Валідний sha256-hex — той самий канон, що `SHA256_HEX_RE` у `wasm-plugins.mjs` (module-scope, без пере-компіляції на кожен виклик). */

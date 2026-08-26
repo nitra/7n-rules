@@ -23,12 +23,18 @@
  * `composer.json` через мережевий fallback і конфліктує на «schema … already exists»,
  * той самий інваріант, що вже тримають `composer_manifest`-тести (`withTmpDir`, не fixture-файл).
  *
- * Реальний mago не мокається — `describe.skipIf(!hasMago)` пропускає файл, якщо бінарник
- * не резолвиться в PATH (патерн `k8s/hasura_configmap`/`hasConftest`).
+ * Реальний mago не мокається — `describe.skipIf(!hasMago)` пропускає файл, якщо
+ * `ensureToolAsync('mago')` не зміг добути бінарник (PATH → керований кеш →
+ * авто-install з GitHub Releases, `carthage-software/mago` у `tools.json` —
+ * той самий канал, що `conftest`; §2.31 реєстру відкритих питань). Голий
+ * `resolveCmd('mago')` (скан лише PATH) був неправильним гейтом набору: на CI
+ * (`test.yml`, `GITHUB_TOKEN` для `ensureToolAsync`) mago добувний, навіть
+ * якщо його немає в PATH runner-а заздалегідь — патерн `k8s/hasura_configmap`
+ * (`hasConftest`, той самий перехід).
  *
  * Файл ПЕРЕЖИВ зняття JS-канону: він фіксує поведінку зовнішнього тула, а не
  * нашу логіку, тож єдиною зміною став виконавець — `runWasmConcern` замість
- * `lint()` з видаленого `main.mjs`. Тримати цю таблицю саме тут, у JS-суїті,
+ * `lint()` з видаленого `main.mjs`. Тримати цю таблицю саме тут, у JS-тестах,
  * а не в Rust — свідомо: `plugin_lang_js.rs` прямо декларує, що host-рівневі
  * golden-тести НЕ залежать від реальних бінарників (пілот `bun/licensee`
  * ганяє фейковий `bun`), і переносити сюди мережево-залежний прогін означало б
@@ -41,10 +47,10 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, test } from 'vitest'
 
 import { loadNative } from '@7n/rules/scripts/lib/native.mjs'
-import { resolveCmd } from '@7n/rules/scripts/utils/resolve-cmd.mjs'
+import { ensureToolAsync } from '@7n/rules/scripts/lib/ensure-tool.mjs'
 import { realRepoRoot, withTmpDir } from '@7n/rules/scripts/utils/test-helpers.mjs'
 
-const magoPath = resolveCmd('mago')
+const magoPath = await ensureToolAsync('mago').catch(() => null)
 const hasMago = Boolean(magoPath)
 
 /**

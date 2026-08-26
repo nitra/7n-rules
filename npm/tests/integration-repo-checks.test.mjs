@@ -116,7 +116,19 @@ async function checkAbie(cwd) {
   return code
 }
 
-describe.skip('check-* на реальному репозиторії (re-enable після Phase 6 repo-conformance cleanup)', () => {
+// §2.31 (реєстр відкритих питань, ревізія «оживи вічно-пропущені набори»): цей блок був
+// БЕЗУМОВНИМ `describe.skip` із коментарем «re-enable після Phase 6
+// repo-conformance cleanup» — «Phase 6» тут посилається на комміт f79750f93
+// («unified lint surface: Phase 6 — migrate test suite to lint(ctx)»,
+// 2026-06-30), не на фази спеки `rules-v2-rust-core-migration`. Той коміт
+// мігрував ~800 concern-тестів на контракт `lint(ctx)→{violations}` і
+// відклав ЦЕЙ файл «до repo-conformance cleanup» — окремого коміту з такою
+// назвою в історії репозиторію НЕМАЄ, а всі 10 check-функцій нижче вже давно
+// диспатчаться через `runConcernDetector`/`runWasmConcern` (той самий
+// контракт, що мігрував f79750f93) — сама причина skip-у застаріла. Внутрішній
+// `if (env.STRYKER_MUTATOR_WORKER) return` (доккомент нижче) лишається —
+// це чинна, а не застаріла умова.
+describe('check-* на реальному репозиторії (§2.31: re-enable, Phase 6 repo-conformance cleanup — застаріла причина)', () => {
   // 10 послідовних checks з subprocess-викликами (shellcheck-стаб, k8s/ga/text валідатори
   // через conftest/opa/regal) на macOS вкладаються у ~5-7с — дефолтний 5000ms-timeout bun-test'у
   // не вистачає. Збільшуємо до 120с: у стані з великим git-diff (напр. відновлені файли після
@@ -132,17 +144,43 @@ describe.skip('check-* на реальному репозиторії (re-enable
     // Під Stryker (`STRYKER_MUTATOR_WORKER`) — no-op: REPO_ROOT резолвиться у sandbox-копію
     // (див. коментар вище), тож інтеграційний прогон проти живого дерева тут пропускаємо.
     if (env.STRYKER_MUTATOR_WORKER) return
+    // §2.31: раніше — 10 незалежних `expect(...).toBe(0)` поспіль. Перший-таки
+    // fail (`checkGraphql`, доккомент нижче) обривав `expect` одразу й ховав
+    // решту: `checkK8s`/`checkJsRun` фактично теж червоні на живому дереві
+    // (перевірено окремим прогоном без early-abort), але жодного разу не
+    // зʼявлялись у звіті — сама структура тесту приховувала дві третини
+    // проблем позаду першої. Збираємо всі 10 результатів і фейлимо ОДНИМ
+    // `expect` зі списком імен, що впали — так репортер завжди показує
+    // ПОВНУ картину, не лише перший збіг.
     await withShellcheckStubInPath(async () => {
-      expect(await checkAbie(REPO_ROOT)).toBe(0)
-      expect(await checkBun(REPO_ROOT)).toBe(0)
-      expect(await checkGa(REPO_ROOT)).toBe(0)
-      expect(await checkGraphql(REPO_ROOT)).toBe(0)
-      expect(await checkJsLint(REPO_ROOT)).toBe(0)
-      expect(await checkText(REPO_ROOT)).toBe(0)
-      expect(await checkNpmModule(REPO_ROOT)).toBe(0)
-      expect(await checkDocker(REPO_ROOT)).toBe(0)
-      expect(await checkK8s(REPO_ROOT)).toBe(0)
-      expect(await checkJsRun(REPO_ROOT)).toBe(0)
+      const results = {
+        checkAbie: await checkAbie(REPO_ROOT),
+        checkBun: await checkBun(REPO_ROOT),
+        checkGa: await checkGa(REPO_ROOT),
+        checkGraphql: await checkGraphql(REPO_ROOT),
+        checkJsLint: await checkJsLint(REPO_ROOT),
+        checkText: await checkText(REPO_ROOT),
+        checkNpmModule: await checkNpmModule(REPO_ROOT),
+        checkDocker: await checkDocker(REPO_ROOT),
+        checkK8s: await checkK8s(REPO_ROOT),
+        checkJsRun: await checkJsRun(REPO_ROOT)
+      }
+      const failed = Object.entries(results)
+        .filter(([, code]) => code !== 0)
+        .map(([name]) => name)
+      // §2.31 (стан на момент реанімації, живе дерево репозиторію — не дефект
+      // ЦЬОГО тесту): `checkGraphql` — відомий фейл, що існував ще до цієї зміни (`graphql/tooling`
+      // з переліку задачі, ще до цієї ревізії); `checkK8s` — реальні kubescape-
+      // ризики в k8s-маніфестах репо плюс `.yml`-розширення в
+      // `plugins/ci-github/rules/k8s/lint_k8s_yml/template/lint-k8s.yml.snippet.yml`
+      // (мало бути `.yaml`, k8s.mdc); `checkJsRun` — три тестові файли
+      // (`npm/rules/graphql/tooling/tests/tooling.test.mjs`,
+      // `npm/tests/check-empty-trees.test.mjs`, `npm/tests/check-rule-fixtures.test.mjs`)
+      // читають `process.env.N_RULES_PACKAGE_ROOT` напряму замість
+      // `@nitra/check-env` (js-run.mdc). Задача цього тесту — сигналізувати
+      // про такий стан яскраво, не приховувати його: `expect([]).toEqual(...)`
+      // нижче МАЄ падати, доки ці три знахідки не полагоджені окремою роботою.
+      expect(failed).toEqual([])
     })
   }, 120000)
 })
