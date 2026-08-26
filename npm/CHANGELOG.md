@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.100.10] - 2026-08-26
+
+### Fixed
+
+- Реєстр §2.31/§2.32 (`docs/plans/2026-08-05-open-questions-register.md`): `npm/tests/integration-repo-checks.test.mjs` тепер узгоджений з живим деревом на всіх десяти `check*`. `checkGa` резолвив `toolPaths` вручну (лише `git`+`shellcheck`, попри чотири задекларованих тули `plugin-ci-github`) — замінено на продакшн-шлях `resolveWasmConcernMap`, той самий, що справжній `n-rules lint`. Три тестові файли (`npm/rules/graphql/tooling/tests/tooling.test.mjs`, `npm/tests/check-empty-trees.test.mjs`, `npm/tests/check-rule-fixtures.test.mjs`) плюс сам інтеграційний тест читали `process.env.N_RULES_PACKAGE_ROOT` напряму замість `env` з `node:process` (js-run.mdc) — виправлено. Немає зміни поведінки опублікованого пакета: усі торкнуті файли — внутрішні тести пакета `@7n/rules`.
+- lang-python/lang-rust (plugin-lang-python, plugin-lang-rust): мовчазний fail-open замінено видимою діагностикою у чотирьох каналах — `python/mypy`+`python/ruff` (тул недоступний у uv-середовищі → `mypy-unavailable`/`ruff-unavailable`), `python/project` (availability `pip-licenses` → `pip-licenses-unavailable`; вивід `pip-licenses` не парситься попри успішний спавн → `pip-licenses-parse-error`, знайдено понад перелік вихідного аудиту) і `rust/check` (`cargo deny --version` non-zero → `cargo-deny-unavailable`). Раніше всі чотири канали давали зелений лінт без виконаної перевірки
+- fix(tests): «22 правила ядра» рахує теки з main.mdc, а осиротілі теки в npm/rules/ падають окремим гардом
+
 ## [1.100.9] - 2026-08-26
 
 ### Changed
