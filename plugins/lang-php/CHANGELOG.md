@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.1] - 2026-08-26
+
+### Fixed
+
+- Реанімовано чотири групи безумовно-пропущених vitest-наборів (§2.31): k8s/hasura_*, k8s/dremio_logging та php/mago_lint тепер гейтяться на ensureToolAsync (PATH → кеш → GitHub Releases) замість голого PATH-скану, тож реально виконуються в CI; test.yml збирає plugin-lang-js/-php/-ci-github wasm-компоненти й генерує npm/wasm-plugins/builtin-pins.json для lang-js, що також оживило wasm-plugin-e2e/wasm-fix-e2e/wasm-builtin-pins і поправило застарілий список концернів lang-js. integration-repo-checks.test.mjs більше не мовчить безумовним describe.skip — набір реально впав на трьох живих проблемах репозиторію (graphql/tooling, k8s/manifests, js-run/runtime), кожна тепер видима в одному зведеному expect замість прихованою за early-abort.
+
 ## [0.4.0] - 2026-08-24
 
 ### Removed
