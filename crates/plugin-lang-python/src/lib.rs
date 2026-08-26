@@ -536,18 +536,25 @@ fn detect_doc_comments(files: &[SourceFile]) -> Vec<Diagnostic> {
 // зникає разом із нею: per-file delta дає `mypy`/`ruff` РІВНО змінені
 // `.py`-файли (плюс якір), той самий контракт, що JS-канон.
 //
-// # Канал «тула немає» — ДВІ різні гілки, не одна (визначено функціонально)
+// # Канал «тула немає» — ДВІ різні гілки, ОБИДВІ гучні (§2.33)
 //
-// `preparePythonRun` має ДВІ окремі точки відмови з ПРОТИЛЕЖНОЮ
-// реакцією:
+// `preparePythonRun` (JS-канон) мав ДВІ окремі точки відмови з
+// ПРОТИЛЕЖНОЮ реакцією:
 // 1. `resolveCmd('uv')` повертає `null` → `fail('… \`uv\` не знайдено …',
-//    'uv-missing')` — ЄДИНА гілка preflight, що видає violation.
+//    'uv-missing')` — гілка preflight, що видає violation.
 // 2. `uvToolAvailable(uv, tool)` повертає `false` (тул не встановлений як
 //    dev-залежність у uv-середовищі) → `return null` БЕЗ виклику `fail` —
 //    тиша, fail-open, коментар JS-оригіналу: `// tool недоступний у
 //    uv-середовищі → пропущено`.
-// [`PythonRunPrep::UvMissing`]/[`PythonRunPrep::ToolUnavailable`] — точна
-// структурна калька цих двох гілок; `exec_tool`'s `status: none` (тул не
+//
+// §2.33 (реєстр `docs/plans/2026-08-05-open-questions-register.md`) робить
+// гілку 2 ТЕЖ гучною — [`python_run_targets`] перетворює
+// [`PythonRunPrep::ToolUnavailable`] на видиму діагностику
+// (`{tool}-unavailable`, `Severity::Error`) замість мовчазного
+// `Vec::new()`: без цього `lint --full` без dev-залежності `mypy`/`ruff`
+// у venv лишався зеленим, хоча перевірку не виконано взагалі — той самий
+// мотив, що `ga/workflows` (§2.29, `git show 4e749f8b4`). Свідома
+// розбіжність із JS-каноном, не забутий крок. `exec_tool`'s `status: none` (тул не
 // резолвлений host-`ToolResolver`-ом — `path:uv` відсутній у PATH) мапиться
 // на гілку 1, ненульовий exit-код probe-виклику (`uv run --frozen <tool>
 // --version`) — на гілку 2. Той самий розподіл `status: none`, що вже
@@ -585,6 +592,18 @@ const RUFF_CHECK_VIOLATION_REASON: &str = "ruff-check-violation";
 /// виклик з `args: ['format', '--check', ...targets]`).
 const RUFF_FORMAT_VIOLATION_REASON: &str = "ruff-format-violation";
 
+/// `reason` видимої діагностики «`mypy` недоступний у uv-середовищі» —
+/// НЕМАЄ канонічного JS-відповідника (§2.33, доккомент
+/// [`PythonRunPrep::ToolUnavailable`]): до фіксу ця гілка була мовчазною,
+/// новий `reason` навмисно НЕ дублює [`MYPY_VIOLATION_REASON`], щоб
+/// «інструмента немає» і «інструмент знайшов порушення» лишались
+/// фільтровано різними подіями.
+const MYPY_TOOL_UNAVAILABLE_REASON: &str = "mypy-unavailable";
+
+/// `reason` видимої діагностики «`ruff` недоступний у uv-середовищі» —
+/// той самий мотив, що [`MYPY_TOOL_UNAVAILABLE_REASON`].
+const RUFF_TOOL_UNAVAILABLE_REASON: &str = "ruff-unavailable";
+
 /// Ліміт довжини вставки чужого stdout/stderr у повідомлення — точний
 /// відповідник `.slice(0, 2000)` обох `main.mjs` (`mypy`, `ruff`).
 const PY_TOOL_DETAIL_LIMIT: usize = 2000;
@@ -610,10 +629,18 @@ enum PythonRunPrep {
     /// `.py`-файлу (`targets.length === 0` JS-оригіналу) — рання тиша, без
     /// `fail()`.
     Skip,
-    /// `uv` не резолвиться — ЄДИНА гілка, що дає violation.
+    /// `uv` не резолвиться — violation.
     UvMissing,
-    /// `tool` (`mypy`/`ruff`) недоступний у uv-середовищі — тиша
-    /// (fail-open), НЕ violation.
+    /// `tool` (`mypy`/`ruff`) недоступний у uv-середовищі (`uv run --frozen
+    /// <tool> --version` повертає ненульовий код). ДО §2.33 — тиша
+    /// (fail-open), НЕ violation, точний порт `return null` JS-оригіналу.
+    /// ПІСЛЯ §2.33 — ТЕЖ violation: мовчазний fail-open лінтера є
+    /// найгіршим режимом відмови (зелено, бо перевірку не виконано), тож
+    /// «tool недоступний у uv-середовищі → пропущено» тепер видима
+    /// діагностика через [`python_run_targets`], НЕ мовчазний `return
+    /// Vec::new()`. Свідома розбіжність із JS-каноном (реєстр
+    /// `docs/plans/2026-08-05-open-questions-register.md`, §2.33) — той
+    /// самий мотив, що `ga/workflows` (§2.29, `git show 4e749f8b4`).
     ToolUnavailable,
     /// Preflight пройдено — конкретні `.py`-цілі для `uv run --frozen
     /// <tool>`.
@@ -673,18 +700,62 @@ fn prepare_python_run(files: &[SourceFile], tool: &str) -> PythonRunPrep {
     PythonRunPrep::Ready { targets }
 }
 
-/// Точний порт `lint()` `python/mypy`
-/// (`plugins/lang-python/rules/python/mypy/main.mjs`).
-fn detect_mypy(files: &[SourceFile]) -> Vec<Diagnostic> {
-    let targets = match prepare_python_run(files, "mypy") {
-        PythonRunPrep::Skip | PythonRunPrep::ToolUnavailable => return Vec::new(),
-        PythonRunPrep::UvMissing => {
-            return vec![plain_violation(
-                UV_MISSING_REASON,
-                UV_MISSING_MESSAGE.to_string(),
-            )];
+/// Видима діагностика «`tool` недоступний у uv-середовищі» (§2.33,
+/// доккомент [`PythonRunPrep::ToolUnavailable`]) — дієва форма за взірцем
+/// `push_tool_unavailable` (`crates/plugin-ci-github/src/lib.rs`, §2.29):
+/// називає тул, пояснює наслідок (перевірку ПРОПУЩЕНО, не пройдено), дає
+/// команду виправлення. `reason` передає викликач ([`MYPY_TOOL_UNAVAILABLE_REASON`]/
+/// [`RUFF_TOOL_UNAVAILABLE_REASON`]) — окремий на кожен інструмент, щоб
+/// канали лишались відрізненими у виводі й фільтрованими в тестах.
+fn python_tool_unavailable_diagnostic(tool: &str, reason: &str) -> Diagnostic {
+    plain_violation(
+        reason,
+        format!(
+            "lint-python: {tool} недоступний у uv-середовищі (`uv run --frozen {tool} --version` \
+             провалюється) — перевірку {tool} ПРОПУЩЕНО, а не пройдено. Додай {tool} у \
+             dev-залежності (`uv add --dev {tool}`) і зафіксуй uv.lock, або перевір `uv sync \
+             --frozen` вручну (python.mdc)"
+        ),
+    )
+}
+
+/// Чиста диспетчеризація результату [`prepare_python_run`] у або цілі для
+/// спавну тула (`Ok`), або готові діагностики виходу (`Err`) — винесена з
+/// [`detect_mypy`]/[`detect_ruff`] окремо, щоб канал `ToolUnavailable`
+/// (§2.33) можна було юніт-тестувати БЕЗ `exec_tool` (той абортує поза
+/// реальним wasmtime-хостом, доккомент `mod tests`): тест конструює
+/// `PythonRunPrep::ToolUnavailable` напряму, минаючи сам `prepare_python_run`.
+/// `tool`/`reason` — той самий інструмент і `reason`, що передані
+/// викликачем у [`python_tool_unavailable_diagnostic`].
+fn python_run_targets(
+    prep: PythonRunPrep,
+    tool: &str,
+    reason: &str,
+) -> Result<Vec<String>, Vec<Diagnostic>> {
+    match prep {
+        PythonRunPrep::Skip => Err(Vec::new()),
+        PythonRunPrep::UvMissing => Err(vec![plain_violation(
+            UV_MISSING_REASON,
+            UV_MISSING_MESSAGE.to_string(),
+        )]),
+        PythonRunPrep::ToolUnavailable => {
+            Err(vec![python_tool_unavailable_diagnostic(tool, reason)])
         }
-        PythonRunPrep::Ready { targets } => targets,
+        PythonRunPrep::Ready { targets } => Ok(targets),
+    }
+}
+
+/// Точний порт `lint()` `python/mypy`
+/// (`plugins/lang-python/rules/python/mypy/main.mjs`), АЛЕ канал
+/// `ToolUnavailable` тепер гучний (§2.33, доккомент [`python_run_targets`]).
+fn detect_mypy(files: &[SourceFile]) -> Vec<Diagnostic> {
+    let targets = match python_run_targets(
+        prepare_python_run(files, "mypy"),
+        "mypy",
+        MYPY_TOOL_UNAVAILABLE_REASON,
+    ) {
+        Err(diagnostics) => return diagnostics,
+        Ok(targets) => targets,
     };
 
     let mut args = vec![
@@ -764,17 +835,16 @@ fn run_ruff_step(label: &str, args_suffix: Vec<String>, reason: &str) -> Result<
 /// Точний порт `lint()` `python/ruff`
 /// (`plugins/lang-python/rules/python/ruff/main.mjs`): `ruff check`, потім
 /// (лише якщо перший крок пройшов) `ruff format --check` — рання відповідь
-/// на першому провальному кроці.
+/// на першому провальному кроці. Канал `ToolUnavailable` тепер гучний
+/// (§2.33, доккомент [`python_run_targets`]).
 fn detect_ruff(files: &[SourceFile]) -> Vec<Diagnostic> {
-    let targets = match prepare_python_run(files, "ruff") {
-        PythonRunPrep::Skip | PythonRunPrep::ToolUnavailable => return Vec::new(),
-        PythonRunPrep::UvMissing => {
-            return vec![plain_violation(
-                UV_MISSING_REASON,
-                UV_MISSING_MESSAGE.to_string(),
-            )];
-        }
-        PythonRunPrep::Ready { targets } => targets,
+    let targets = match python_run_targets(
+        prepare_python_run(files, "ruff"),
+        "ruff",
+        RUFF_TOOL_UNAVAILABLE_REASON,
+    ) {
+        Err(diagnostics) => return diagnostics,
+        Ok(targets) => targets,
     };
 
     let mut check_args = vec!["check".to_string()];
@@ -986,7 +1056,7 @@ fn detect_workspace_root(files: &[SourceFile]) -> Vec<Diagnostic> {
 
     let mut diagnostics = Vec::new();
 
-    // reportNestedWorkspaces: будь-який НЕ кореневий манiфест із
+    // reportNestedWorkspaces: будь-який НЕ кореневий маніфест із
     // `[tool.uv.workspace]` — завжди порушення.
     for file in &manifest_files {
         let path = file.path.as_str();
@@ -1115,9 +1185,13 @@ fn detect_workspace_root(files: &[SourceFile]) -> Vec<Diagnostic> {
 // --frozen pip-licenses --from=mixed --format=spdx-json` (сам скан).
 // Короткий цикл зупинки дзеркалить JS-канон: перші два кроки на неуспіху
 // повертають РАННЄ порушення й нічого далі не спавнять (точний порт `return
-// reporter.result()` після кожного `runTool`), третій — тихо (без
-// діагностики) пропускає решту при неуспіху (доккомент [`detect_project`],
-// розділ «Fail-open гілка»).
+// reporter.result()` після кожного `runTool`); третій ДО §2.33 мовчки
+// пропускав решту при неуспіху (JS-канон: `uvToolAvailable(...) → return
+// true`) — ПІСЛЯ §2.33 теж дає видиму діагностику
+// ([`PROJECT_PIP_LICENSES_UNAVAILABLE_REASON`], доккомент
+// [`detect_project`], розділ «Fail-open гілка»): той самий мотив, що
+// `ToolUnavailable` `python/mypy`+`python/ruff`
+// (доккомент [`PythonRunPrep::ToolUnavailable`]).
 //
 // # Канал «інструмента немає» — РЕАЛЬНЕ порушення, не fail-open
 //
@@ -1187,6 +1261,29 @@ const PROJECT_UV_SYNC_VIOLATION_REASON: &str = "uv-sync-violation";
 /// `reason` провалу самого спавну `pip-licenses` (НЕ ліцензійне порушення) —
 /// точний відповідник `fail(..., 'pip-licenses-error')`.
 const PROJECT_PIP_LICENSES_ERROR_REASON: &str = "pip-licenses-error";
+
+/// `reason` видимої діагностики «`pip-licenses` недоступний у
+/// uv-середовищі» — НЕМАЄ канонічного JS-відповідника (§2.33, доккомент
+/// секції «Fail-open гілка» вище): до фіксу availability-крок
+/// (`uv run --frozen pip-licenses --version`) мовчав на неуспіху, тепер дає
+/// цю діагностику замість `Vec::new()`. Навмисно ІНШИЙ `reason`, ніж
+/// [`PROJECT_PIP_LICENSES_ERROR_REASON`] (провал СПАВНУ самого скану,
+/// availability вже пройдено) — дві різні події лишаються фільтровано
+/// відрізненими.
+const PROJECT_PIP_LICENSES_UNAVAILABLE_REASON: &str = "pip-licenses-unavailable";
+
+/// `reason` видимої діагностики «`pip-licenses` завершився успішно (код
+/// 0), але вивід не розпарсився як очікуваний spdx-json» — НЕМАЄ
+/// канонічного JS-відповідника: `checkPipLicenses` (`main.mjs`) читає
+/// `doc?.packages ?? []` через optional chaining й МОВЧКИ трактує будь-яку
+/// невідповідність формату як «нуль пакетів», тож жодне порушення ліцензії
+/// не спливає — той самий найгірший режим відмови лінтера (зелено, бо
+/// нічого не перевірено), що §2.33 закриває для `mypy`/`ruff`/availability
+/// (доккомент [`extract_packages`]). Знайдено ПОНАД перелік аудиту задачі
+/// §2.33: доккомент availability-каналу (нижче, розділ «Fail-open гілка»)
+/// сам називав себе «ЄДИНИМ по-справжньому беззвучним fail-open цього
+/// концерну» — це виявилось неточним, цей канал теж був беззвучним.
+const PROJECT_PIP_LICENSES_PARSE_ERROR_REASON: &str = "pip-licenses-parse-error";
 
 /// `reason` ліцензійного порушення — точний відповідник `fail(...,
 /// 'license-violation')`.
@@ -1547,25 +1644,38 @@ fn is_spdx_allowed(expression: &str, allowed: &HashSet<String>) -> bool {
 /// Один запис `pip-licenses --format=spdx-json` — дзеркало JS-доступу
 /// `pkg.name`/`pkg.versionInfo`/`pkg.licenseDeclared ?? pkg.licenseConcluded`
 /// (`checkPipLicenses`, `main.mjs`).
+#[derive(Debug, PartialEq)]
 struct LicenseInfo {
     name: String,
     version: String,
     license: String,
 }
 
-/// Точний порт зчитування `doc?.packages ?? []` (`checkPipLicenses`):
-/// невалідний JSON чи відсутнє/нетипове поле `packages` — ПОРОЖНІЙ список
-/// (не помилка) — той самий optional-chaining fail-open, що JS-канон, БЕЗ
-/// жодної діагностики (відрізняється від [`PROJECT_PIP_LICENSES_ERROR_REASON`],
-/// який ловить провал самого СПАВНУ, не парсингу його виводу).
-fn extract_packages(stdout: &str) -> Vec<LicenseInfo> {
+/// ДО §2.33 — точний порт зчитування `doc?.packages ?? []`
+/// (`checkPipLicenses`): невалідний JSON чи відсутнє/нетипове поле
+/// `packages` трактувались як ПОРОЖНІЙ список (не помилка) — той самий
+/// optional-chaining fail-open, що JS-канон, БЕЗ жодної діагностики.
+/// ПІСЛЯ §2.33 — `Err(stage)` замість мовчазного `Vec::new()`: `pip-licenses`
+/// тут уже завершився з кодом 0 (доккомент [`detect_project`], виклик ПІСЛЯ
+/// `scan_result.status != Some(0)`), тож будь-яка невідповідність очікуваному
+/// spdx-json — не «нема пакетів», а ознака зламаного/зміненого формату
+/// виводу (регресія `pip-licenses`, апгрейд його версії) — і мовчазне
+/// «нуль порушень» тут маскувало б реальну license-перевірку, що НЕ
+/// відбулась (доккомент [`PROJECT_PIP_LICENSES_PARSE_ERROR_REASON`]).
+/// `stage` — `"invalid-json"` (документ не парситься) чи
+/// `"missing-packages-field"` (парситься, але без масиву `packages`);
+/// ЛЕГІТИМНО порожній масив (`{"packages":[]}`) лишається `Ok(vec![])`, НЕ
+/// помилкою — реальний проєкт без сторонніх залежностей не повинен ловити
+/// цю діагностику. Відрізняється від [`PROJECT_PIP_LICENSES_ERROR_REASON`],
+/// який ловить провал самого СПАВНУ, не парсингу його виводу.
+fn extract_packages(stdout: &str) -> Result<Vec<LicenseInfo>, &'static str> {
     let Ok(doc) = parse_json(stdout) else {
-        return Vec::new();
+        return Err("invalid-json");
     };
     let Some(packages) = doc.get("packages").and_then(JsonValue::as_array) else {
-        return Vec::new();
+        return Err("missing-packages-field");
     };
-    packages
+    Ok(packages
         .iter()
         .map(|pkg| LicenseInfo {
             name: pkg
@@ -1585,7 +1695,7 @@ fn extract_packages(stdout: &str) -> Vec<LicenseInfo> {
                 .unwrap_or("NOASSERTION")
                 .to_string(),
         })
-        .collect()
+        .collect())
 }
 
 /// Точний порт повідомлення `runTool` (`main.mjs`): `lint-python: ${label} —
@@ -1610,6 +1720,44 @@ fn project_uv_missing_diagnostic() -> Diagnostic {
         PROJECT_UV_MISSING_REASON,
         "lint-python: `uv` не знайдено в PATH (потрібен при наявному pyproject.toml, python.mdc)"
             .to_string(),
+    )
+}
+
+/// Чиста перевірка результату availability-кроку `uv run --frozen
+/// pip-licenses --version` (§2.33, доккомент [`detect_project`], розділ
+/// «Fail-open гілка»): `status != Some(0)` — тул недоступний у
+/// uv-середовищі, `Some(diagnostic)`; `status == Some(0)` — доступний,
+/// `None`. Винесена окремо (не inline у [`detect_project`]), щоб канал
+/// можна було юніт-тестувати БЕЗ `exec_tool` — той сам `status: Option<i32>`
+/// конструюється тестом напряму.
+fn pip_licenses_availability_diagnostic(status: Option<i32>) -> Option<Diagnostic> {
+    if status == Some(0) {
+        return None;
+    }
+    Some(plain_violation(
+        PROJECT_PIP_LICENSES_UNAVAILABLE_REASON,
+        "lint-python: pip-licenses недоступний у uv-середовищі (`uv run --frozen pip-licenses \
+         --version` провалюється) — ліцензійну перевірку ПРОПУЩЕНО, а не пройдено. Додай \
+         pip-licenses у dev-залежності (`uv add --dev pip-licenses`) і зафіксуй uv.lock, або \
+         перевір встановлення вручну (python.mdc)"
+            .to_string(),
+    ))
+}
+
+/// Діагностика «`pip-licenses` завершився успішно, але вивід не
+/// розпарсився» — §2.33, доккомент [`PROJECT_PIP_LICENSES_PARSE_ERROR_REASON`]/
+/// [`extract_packages`]. `stage` — `"invalid-json"`/`"missing-packages-field"`,
+/// той самий, що повертає [`extract_packages`].
+fn pip_licenses_parse_error_diagnostic(stage: &str) -> Diagnostic {
+    plain_violation(
+        PROJECT_PIP_LICENSES_PARSE_ERROR_REASON,
+        format!(
+            "lint-python: pip-licenses завершився успішно (код 0), але вивід не розпарсився як \
+             очікуваний spdx-json ({stage}) — ліцензійну перевірку НЕ виконано, хоча спавн \
+             пройшов. Найімовірніше — зміна формату виводу в новішій версії pip-licenses; \
+             запусти `uv run --frozen pip-licenses --from=mixed --format=spdx-json` вручну й \
+             перевір вивід (python.mdc)"
+        ),
     )
 }
 
@@ -1675,12 +1823,14 @@ fn detect_project(files: &[SourceFile]) -> Vec<Diagnostic> {
         )];
     }
 
-    // `pip-licenses` доступність — FAIL-OPEN (доккомент секції, розділ
-    // «`exec-tool`…»): будь-який неуспіх тут ЗАВЕРШУЄ детектор МОВЧКИ, точний
-    // порт `uvToolAvailable(...) → return true` (`checkPipLicenses`,
-    // `main.mjs`) — немає ні `resolveCmd`-подібного жорсткого каналу (як
-    // перші два кроки), ні окремого warn-каналу (як `bun/licensee`): це
-    // ЄДИНИЙ по-справжньому беззвучний fail-open цього концерну.
+    // `pip-licenses` доступність — ДО §2.33 FAIL-OPEN (доккомент секції,
+    // розділ «`exec-tool`…»): будь-який неуспіх тут ЗАВЕРШУВАВ детектор
+    // МОВЧКИ, точний порт `uvToolAvailable(...) → return true`
+    // (`checkPipLicenses`, `main.mjs`) — не було ні `resolveCmd`-подібного
+    // жорсткого каналу (як перші два кроки), ні окремого warn-каналу (як
+    // `bun/licensee`). ПІСЛЯ §2.33 [`pip_licenses_availability_diagnostic`]
+    // перетворює неуспіх на видиму діагностику
+    // ([`PROJECT_PIP_LICENSES_UNAVAILABLE_REASON`]) замість `Vec::new()`.
     let availability = exec_tool(&ToolRequest {
         tool: PROJECT_TOOL.to_string(),
         args: vec![
@@ -1702,8 +1852,8 @@ fn detect_project(files: &[SourceFile]) -> Vec<Diagnostic> {
         scratch_in: vec![],
         scratch_out: vec![],
     });
-    if availability.status != Some(0) {
-        return Vec::new();
+    if let Some(diagnostic) = pip_licenses_availability_diagnostic(availability.status) {
+        return vec![diagnostic];
     }
 
     let scan_result = exec_tool(&ToolRequest {
@@ -1729,7 +1879,10 @@ fn detect_project(files: &[SourceFile]) -> Vec<Diagnostic> {
     }
 
     let allowed = get_bronze_and_above();
-    let packages = extract_packages(&scan_result.stdout);
+    let packages = match extract_packages(&scan_result.stdout) {
+        Ok(packages) => packages,
+        Err(stage) => return vec![pip_licenses_parse_error_diagnostic(stage)],
+    };
     let violating: Vec<&LicenseInfo> = packages
         .iter()
         .filter(|pkg| !is_spdx_allowed(&pkg.license, &allowed))
@@ -2301,6 +2454,124 @@ mod tests {
         ));
     }
 
+    // --- §2.33: `PythonRunPrep::ToolUnavailable` тепер гучний ---
+    //
+    // `python_run_targets` — ЧИСТА функція (без `exec_tool`), тож
+    // `PythonRunPrep`-варіанти конструюються тестом напряму, минаючи
+    // `prepare_python_run` (той сам кличе `exec_tool`, доккомент вище).
+
+    #[test]
+    fn python_run_targets_skip_is_still_silent() {
+        // `Skip` — рання тиша ДО preflight (нема ні `pyproject.toml`, ні
+        // `.py`-файлів у батчі) — НЕ той самий канал, що `ToolUnavailable`,
+        // і §2.33 його не чіпає.
+        let Err(diagnostics) =
+            python_run_targets(PythonRunPrep::Skip, "mypy", MYPY_TOOL_UNAVAILABLE_REASON)
+        else {
+            panic!("Skip мав дати Err");
+        };
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn python_run_targets_uv_missing_gives_uv_missing_diagnostic() {
+        let Err(diagnostics) = python_run_targets(
+            PythonRunPrep::UvMissing,
+            "ruff",
+            RUFF_TOOL_UNAVAILABLE_REASON,
+        ) else {
+            panic!("UvMissing мав дати Err");
+        };
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].reason, UV_MISSING_REASON);
+    }
+
+    #[test]
+    fn python_run_targets_ready_returns_ok_targets() {
+        let targets = vec!["pkg/mod.py".to_string()];
+        let result = python_run_targets(
+            PythonRunPrep::Ready {
+                targets: targets.clone(),
+            },
+            "mypy",
+            MYPY_TOOL_UNAVAILABLE_REASON,
+        );
+        let Ok(ok_targets) = result else {
+            panic!("Ready мав дати Ok");
+        };
+        assert_eq!(ok_targets, targets);
+    }
+
+    #[test]
+    fn python_run_targets_tool_unavailable_now_reports_visible_diagnostic_for_mypy() {
+        let Err(diagnostics) = python_run_targets(
+            PythonRunPrep::ToolUnavailable,
+            "mypy",
+            MYPY_TOOL_UNAVAILABLE_REASON,
+        ) else {
+            panic!("ToolUnavailable мав дати Err після §2.33");
+        };
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].reason, MYPY_TOOL_UNAVAILABLE_REASON);
+        assert_eq!(diagnostics[0].severity, Severity::Error);
+        assert!(diagnostics[0].message.contains("mypy"));
+        assert!(diagnostics[0].message.contains("ПРОПУЩЕНО"));
+    }
+
+    #[test]
+    fn python_run_targets_tool_unavailable_now_reports_visible_diagnostic_for_ruff() {
+        let Err(diagnostics) = python_run_targets(
+            PythonRunPrep::ToolUnavailable,
+            "ruff",
+            RUFF_TOOL_UNAVAILABLE_REASON,
+        ) else {
+            panic!("ToolUnavailable мав дати Err після §2.33");
+        };
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].reason, RUFF_TOOL_UNAVAILABLE_REASON);
+    }
+
+    #[test]
+    fn python_run_targets_tool_unavailable_action_check_old_code_was_silent() {
+        // §2.33, перевірка дією: ДО фіксу `detect_mypy`/`detect_ruff` мали
+        // `PythonRunPrep::Skip | PythonRunPrep::ToolUnavailable => return
+        // Vec::new()` — ОДНА гілка на ДВА структурно різних випадки. Пряме
+        // відтворення старої форми на ТОМУ САМОМУ вході (`ToolUnavailable`)
+        // доводить твердження задачі: стара гілка мовчить, нова —
+        // РІВНО одна діагностика.
+        let prep = PythonRunPrep::ToolUnavailable;
+
+        // СТАРА форма (буквальне відтворення коду до §2.33):
+        let old_style: Vec<Diagnostic> = match prep {
+            PythonRunPrep::Skip | PythonRunPrep::ToolUnavailable => Vec::new(),
+            PythonRunPrep::UvMissing => vec![plain_violation(
+                UV_MISSING_REASON,
+                UV_MISSING_MESSAGE.to_string(),
+            )],
+            PythonRunPrep::Ready { .. } => Vec::new(),
+        };
+        assert!(
+            old_style.is_empty(),
+            "стара гілка мовчки ковтає ToolUnavailable — саме це й є fail-open баг"
+        );
+
+        // НОВА форма — актуальна функція, що тепер стоїть у
+        // `detect_mypy`/`detect_ruff`.
+        let new_result = python_run_targets(
+            PythonRunPrep::ToolUnavailable,
+            "mypy",
+            MYPY_TOOL_UNAVAILABLE_REASON,
+        );
+        let Err(new_diagnostics) = new_result else {
+            panic!("нова форма мала дати Err");
+        };
+        assert_eq!(
+            new_diagnostics.len(),
+            1,
+            "ToolUnavailable має дати РІВНО одну видиму діагностику, не тишу"
+        );
+    }
+
     #[test]
     fn build_manifest_declares_mypy_and_ruff_as_per_file_with_uv_tool() {
         let manifest = build_manifest();
@@ -2484,7 +2755,7 @@ mod tests {
     #[test]
     fn detect_workspace_root_unparseable_root_toml_is_treated_as_missing_root() {
         // Точна калька `readPyprojectManifest`'s catch-null: файл ІСНУЄ в
-        // батчі, але невалідний TOML — root-манiфест трактується як
+        // батчі, але невалідний TOML — root-маніфест трактується як
         // відсутній (`parsedByPath.get(rootManifestPath) ?? null`).
         let files = vec![
             sf("pyproject.toml", "not valid toml [[[\n"),
@@ -2602,7 +2873,7 @@ mod tests {
             {"name":"pkg-b","licenseConcluded":"Apache-2.0"},
             {"name":"pkg-c"}
         ]}"#;
-        let packages = extract_packages(stdout);
+        let packages = extract_packages(stdout).expect("валідний JSON з полем packages — Ok");
         assert_eq!(packages.len(), 3);
         assert_eq!(packages[0].name, "pkg-a");
         assert_eq!(packages[0].version, "1.0.0");
@@ -2616,11 +2887,72 @@ mod tests {
     }
 
     #[test]
-    fn extract_packages_on_malformed_json_returns_empty_not_error() {
-        // Точний порт `doc?.packages ?? []` (`checkPipLicenses`, `main.mjs`)
-        // після невдалого `JSON.parse` — fail-open без діагностики.
-        assert!(extract_packages("не json").is_empty());
-        assert!(extract_packages(r#"{"no_packages_key":true}"#).is_empty());
+    fn extract_packages_legitimately_empty_array_is_ok_not_error() {
+        // `{"packages":[]}` — валідний spdx-json РЕАЛЬНОГО проєкту без
+        // сторонніх залежностей: НЕ помилка парсингу, `Ok(vec![])`, щоб
+        // §2.33-фікс не перетворював легітимно чистий стан на хибну
+        // діагностику.
+        assert_eq!(extract_packages(r#"{"packages":[]}"#), Ok(Vec::new()));
+    }
+
+    #[test]
+    fn extract_packages_on_malformed_json_now_reports_stage_not_silent_empty() {
+        // §2.33: ДО фіксу `extract_packages` повертав `Vec<LicenseInfo>` і
+        // трактував і невалідний JSON, і відсутнє поле `packages` як
+        // ПОРОЖНІЙ список (`doc?.packages ?? []`, точний порт
+        // `checkPipLicenses`, `main.mjs`) — беззвучний fail-open,
+        // задокументований раніше як "не помилка". Перевірка дією: стара
+        // форма (`extract_packages(...).is_empty()`) не відрізняє «нуль
+        // пакетів легітимно» від «вивід не розпарсився» — обидва дають
+        // `true`. Нова форма повертає `Result`, і для ЦИХ ДВОХ вхідних
+        // рядків результат — `Err`, НЕ `Ok(vec![])`.
+        assert_eq!(extract_packages("не json"), Err("invalid-json"));
+        assert_eq!(
+            extract_packages(r#"{"no_packages_key":true}"#),
+            Err("missing-packages-field")
+        );
+    }
+
+    #[test]
+    fn pip_licenses_availability_diagnostic_action_check_old_code_was_silent() {
+        // §2.33, перевірка дією: ДО фіксу `detect_project` мав
+        // `if availability.status != Some(0) { return Vec::new(); }` —
+        // мовчазний fail-open. Пряме відтворення СТАРОЇ форми на тому
+        // самому вході доводить твердження задачі: стара гілка
+        // ковтала будь-який неуспіх мовчки, нова — РІВНО одну діагностику.
+        let status = Some(1);
+
+        // СТАРА форма (буквальне відтворення коду до §2.33): `if
+        // availability.status != Some(0) { return Vec::new(); }` — на цьому
+        // вході (`status != Some(0)`) стара гілка спрацьовує й повертає
+        // порожній вектор, без жодної діагностики.
+        let old_style: Vec<Diagnostic> = Vec::new();
+        assert!(
+            old_style.is_empty(),
+            "стара гілка мовчки ковтає недоступний pip-licenses — саме це й є fail-open баг"
+        );
+
+        // НОВА форма — актуальна функція, що тепер стоїть у `detect_project`.
+        let new_diagnostic = pip_licenses_availability_diagnostic(status);
+        assert!(new_diagnostic.is_some());
+        assert_eq!(
+            new_diagnostic.unwrap().reason,
+            PROJECT_PIP_LICENSES_UNAVAILABLE_REASON
+        );
+    }
+
+    #[test]
+    fn pip_licenses_availability_diagnostic_none_when_status_zero() {
+        assert!(pip_licenses_availability_diagnostic(Some(0)).is_none());
+    }
+
+    #[test]
+    fn pip_licenses_availability_diagnostic_none_status_is_unavailable_too() {
+        // `status: None` (probe взагалі не дав exit-коду) теж має вважатись
+        // недоступністю, не окремою мовчазною гілкою.
+        let diagnostic = pip_licenses_availability_diagnostic(None);
+        assert!(diagnostic.is_some());
+        assert_eq!(diagnostic.unwrap().severity, Severity::Error);
     }
 
     #[test]

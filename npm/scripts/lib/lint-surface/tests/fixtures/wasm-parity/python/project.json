@@ -21,7 +21,6 @@
       "message": "lint-python: uv sync --frozen — помилка (код 1, python.mdc)\nsync stdout\nsync stderr"
     }
   ],
-  "wasm-plugin parity — python/project (JS канон vs wasm plugin-lang-python, full-scope, exec-tool) > pip-licenses недоступний у uv-середовищі — fail-open, обидві реалізації мовчать": [],
   "wasm-plugin parity — python/project (JS канон vs wasm plugin-lang-python, full-scope, exec-tool) > спавн `pip-licenses` (сам скан) провалюється — однакове порушення `pip-licenses-error`": [
     {
       "severity": "error",

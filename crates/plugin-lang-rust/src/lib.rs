@@ -127,9 +127,19 @@
 //!    return).
 //! 5. `deny.toml` відсутній у батчі → діагностика `deny-config-missing`,
 //!    RETURN.
-//! 6. `cargo deny --version` non-zero → ТИХИЙ skip (fail-open, єдина
-//!    fail-open гілка цього ланцюжка) — `cargo-deny` не встановлено,
-//!    ліцензійну перевірку пропущено БЕЗ діагностики.
+//! 6. `cargo deny --version` non-zero — ДО §2.33 ТИХИЙ skip (fail-open,
+//!    єдина fail-open гілка цього ланцюжка) — `cargo-deny` не встановлено,
+//!    ліцензійну перевірку пропущено БЕЗ діагностики. ПІСЛЯ §2.33
+//!    ([`cargo_deny_unavailable_diagnostic`]) — видима діагностика
+//!    `cargo-deny-unavailable`, RETURN: `cargo-deny` — опційний тул
+//!    (`n-rust.mdc`), але «опційний» ≠ «мовчазно не перевірено» — якщо
+//!    перевірка не виконалась, користувач має це бачити (задача §2.33).
+//!    Код виходу НЕ відрізняє «`cargo-deny` свідомо не встановлено» від
+//!    «встановлено, але зламано» (обидва дають ненульовий/`None` статус
+//!    без надійної ознаки в тексті помилки, залежної від cargo-версії/
+//!    локалі) — тож канал вибирає ГУЧНІШИЙ варіант і сигналить в ОБОХ
+//!    випадках однаково, ЗАМІСТЬ спроби роздвоїти на «інсталюй» і «полагодь»
+//!    за крихким текстовим патерном.
 //! 7. `cargo deny check licenses` провалюється → діагностика
 //!    `cargo-deny-violation` (останній крок, нічого далі).
 //!
@@ -839,7 +849,7 @@ fn workspace_root_file_violation(reason: &str, message: String, file: &str) -> D
 
 /// Звітує про вкладені `[workspace]`/`[profile.*]` у не-кореневих
 /// маніфестах — точний порт `reportNestedTables` (`main.mjs`): ОБИДВІ
-/// перевірки незалежні (один манiфест може отримати обидва порушення, два
+/// перевірки незалежні (один маніфест може отримати обидва порушення, два
 /// окремі `if`, не `else if` — доккомент модуля).
 fn workspace_root_report_nested_tables<'a>(
     manifest_files: &[&'a SourceFile],
@@ -1020,6 +1030,14 @@ const CHECK_DENY_CONFIG_MISSING_MESSAGE: &str = "lint-rust: cargo deny — не�
 /// `runCargo(..., 'cargo-deny-violation')`.
 const CHECK_CARGO_DENY_VIOLATION_REASON: &str = "cargo-deny-violation";
 
+/// `reason` видимої діагностики «`cargo deny` недоступний» — НЕМАЄ
+/// канонічного JS-відповідника (§2.33, доккомент модуля, розділ
+/// «`rust/check` — ланцюжок НЕ уніформний», крок 6): до фіксу ця гілка була
+/// мовчазною, `reason` навмисно ІНШИЙ, ніж
+/// [`CHECK_CARGO_DENY_VIOLATION_REASON`] (той ловить провал ЛІЦЕНЗІЙНОЇ
+/// перевірки при доступному тулі, цей — недоступність самого тула).
+const CHECK_CARGO_DENY_UNAVAILABLE_REASON: &str = "cargo-deny-unavailable";
+
 /// Ліміт довжини вставки чужого stdout/stderr у повідомлення — точний
 /// відповідник `.slice(0, 2000)` (`runCargo`, `main.mjs`).
 const CHECK_DETAIL_LIMIT: usize = 2000;
@@ -1093,6 +1111,29 @@ fn run_cargo_step(
     false
 }
 
+/// Чиста перевірка результату `cargo deny --version` (§2.33, доккомент
+/// модуля, розділ «`rust/check` — ланцюжок НЕ уніформний», крок 6):
+/// `status != Some(0)` — `cargo-deny` недоступний (не встановлено ЧИ
+/// зламаний — код виходу не відрізняє ці два випадки надійно, доккомент
+/// модуля), `Some(diagnostic)`; `status == Some(0)` — доступний, `None`.
+/// Винесена окремо (не inline у [`detect_check`]), щоб канал можна було
+/// юніт-тестувати БЕЗ `exec_tool` — той сам `status: Option<i32>`
+/// конструюється тестом напряму (той самий прийом, що
+/// `crates/plugin-lang-python/src/lib.rs::pip_licenses_availability_diagnostic`).
+fn cargo_deny_unavailable_diagnostic(status: Option<i32>) -> Option<Diagnostic> {
+    if status == Some(0) {
+        return None;
+    }
+    Some(plain_violation(
+        CHECK_CARGO_DENY_UNAVAILABLE_REASON,
+        "lint-rust: cargo deny — `cargo deny --version` провалюється, ліцензійну перевірку \
+         ПРОПУЩЕНО, а не пройдено. Найімовірніше — `cargo-deny` не встановлено (встанови: \
+         `cargo install cargo-deny --locked`); якщо він уже встановлений, перевір `cargo deny \
+         --version` вручну — можливо, встановлення зламане (rust.mdc)"
+            .to_string(),
+    ))
+}
+
 /// Точний порт `lint()` `rust/check` (`main.mjs`, рядки 44–90) —
 /// НЕ-уніформний ланцюжок, доккомент модуля, розділ «`rust/check` —
 /// ланцюжок НЕ уніформний» (7 гілок, КОЖНА зі своєю реакцією на провал —
@@ -1159,22 +1200,27 @@ fn detect_check(files: &[SourceFile]) -> Vec<Diagnostic> {
         return diagnostics;
     }
 
-    // (6) `cargo deny --version` non-zero → ТИХИЙ skip (єдина fail-open
-    // гілка цього ланцюжка) — `cargo-deny` не встановлено.
+    // (6) `cargo deny --version` non-zero → §2.33: видима діагностика
+    // ЗАМІСТЬ тихого skip-у (доккомент модуля, розділ «`rust/check` —
+    // ланцюжок НЕ уніформний», крок 6), RETURN — без доступного тула крок
+    // 7 не має що виконувати.
     let deny_version = exec_cargo(vec!["deny".to_string(), "--version".to_string()]);
-    if deny_version.status == Some(0) {
-        // (7) `cargo deny check licenses` — останній крок.
-        run_cargo_step(
-            "cargo deny check licenses",
-            vec![
-                "deny".to_string(),
-                "check".to_string(),
-                "licenses".to_string(),
-            ],
-            CHECK_CARGO_DENY_VIOLATION_REASON,
-            &mut diagnostics,
-        );
+    if let Some(diagnostic) = cargo_deny_unavailable_diagnostic(deny_version.status) {
+        diagnostics.push(diagnostic);
+        return diagnostics;
     }
+
+    // (7) `cargo deny check licenses` — останній крок.
+    run_cargo_step(
+        "cargo deny check licenses",
+        vec![
+            "deny".to_string(),
+            "check".to_string(),
+            "licenses".to_string(),
+        ],
+        CHECK_CARGO_DENY_VIOLATION_REASON,
+        &mut diagnostics,
+    );
 
     diagnostics
 }
@@ -1879,7 +1925,7 @@ fn wasm_component_check_wasmtime(
 /// Точний порт `lint()` `rust/wasm_component` (`main.mjs`) — PER-FILE, весь
 /// переданий батч ОДНИМ викликом (НЕ по одному файлу за раз, як
 /// `detect_doc_comments`): [`wasm_component_resolve_workspace_dependency`]
-/// потребує видимості sibling-манiфестів того самого батчу (доккомент
+/// потребує видимості sibling-маніфестів того самого батчу (доккомент
 /// [`Guest::detect`]).
 fn detect_wasm_component(files: &[SourceFile]) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
@@ -2011,7 +2057,7 @@ impl Guest for LangRust {
             }
             // PerFile, АЛЕ весь переданий batch ОДНИМ викликом, не по
             // одному файлу за раз — [`detect_wasm_component`] потребує
-            // видимості sibling-манiфестів того самого батчу (той самий
+            // видимості sibling-маніфестів того самого батчу (той самий
             // мотив, що `CONCERN_MYPY`/`CONCERN_RUFF` у
             // `crates/plugin-lang-python/src/lib.rs`).
             CONCERN_WASM_COMPONENT => {
@@ -2322,7 +2368,7 @@ mod tests {
 
     #[test]
     fn detect_workspace_root_nested_workspace_and_nested_profile_both_reported_independently() {
-        // Один не-кореневий манiфест з ОБОМА порушеннями одночасно —
+        // Один не-кореневий маніфест з ОБОМА порушеннями одночасно —
         // доккомент [`workspace_root_report_nested_tables`]: два незалежні
         // `if`, не `else if`.
         let files = vec![
@@ -2457,14 +2503,74 @@ mod tests {
     // Лише гілка ДО будь-якого `exec_tool`-виклику тестована на host-таргеті
     // (той самий мотив, що `prepare_python_run_skips_*`
     // `crates/plugin-lang-python/src/lib.rs`: `exec_tool` — host-імпорт,
-    // абортує поза реальним wasmtime-хостом). Решта ланцюжка — лише
-    // parity-тест (`wasm-plugin-parity-rust.test.mjs`, спільний фейковий
-    // `cargo`).
+    // абортує поза реальним wasmtime-хостом), ПЛЮС `cargo_deny_unavailable_diagnostic`
+    // — ЧИСТА функція (§2.33), тестована окремо від `detect_check`/`exec_cargo`.
+    // Решта ланцюжка — лише parity-тест (`wasm-plugin-parity-rust.test.mjs`,
+    // спільний фейковий `cargo`).
 
     #[test]
     fn detect_check_skips_when_no_root_cargo_toml_in_batch() {
         let files = vec![sf("package.json", "{}")];
         assert!(detect_check(&files).is_empty());
+    }
+
+    // --- §2.33: `cargo deny --version` non-zero тепер гучний ---
+
+    #[test]
+    fn cargo_deny_unavailable_diagnostic_none_when_status_zero() {
+        assert!(cargo_deny_unavailable_diagnostic(Some(0)).is_none());
+    }
+
+    #[test]
+    fn cargo_deny_unavailable_diagnostic_visible_on_nonzero_status() {
+        let Some(diagnostic) = cargo_deny_unavailable_diagnostic(Some(1)) else {
+            panic!("ненульовий статус мав дати Some(diagnostic) після §2.33");
+        };
+        assert_eq!(diagnostic.reason, CHECK_CARGO_DENY_UNAVAILABLE_REASON);
+        assert_eq!(diagnostic.severity, Severity::Error);
+        assert!(diagnostic.message.contains("cargo-deny"));
+        assert!(diagnostic.message.contains("ПРОПУЩЕНО"));
+    }
+
+    #[test]
+    fn cargo_deny_unavailable_diagnostic_visible_on_none_status_too() {
+        // `status: None` (probe взагалі не дав exit-коду) — теж
+        // недоступність, не окрема мовчазна гілка (той самий підхід, що
+        // `pip_licenses_availability_diagnostic`
+        // `crates/plugin-lang-python/src/lib.rs`).
+        assert!(cargo_deny_unavailable_diagnostic(None).is_some());
+    }
+
+    #[test]
+    fn cargo_deny_unavailable_diagnostic_action_check_old_code_was_silent() {
+        // §2.33, перевірка дією: ДО фіксу `detect_check` мав
+        // `if deny_version.status == Some(0) { … }` БЕЗ `else` — крок 6
+        // мовчки пропускав ліцензійну перевірку. Пряме відтворення старої
+        // форми на тому самому вході доводить твердження задачі: стара
+        // гілка мовчить, нова — РІВНО одна діагностика.
+        let status = Some(1);
+
+        // СТАРА форма (буквальне відтворення коду до §2.33): діагностика
+        // додається лише у гілці `status == Some(0)`, інакше — нічого.
+        let mut old_style: Vec<Diagnostic> = Vec::new();
+        if status == Some(0) {
+            old_style.push(plain_violation(
+                CHECK_CARGO_DENY_VIOLATION_REASON,
+                String::new(),
+            ));
+        }
+        assert!(
+            old_style.is_empty(),
+            "стара гілка мовчки ковтає недоступний cargo-deny — саме це й є fail-open баг"
+        );
+
+        // НОВА форма — актуальна функція, що тепер стоїть у `detect_check`.
+        let new_diagnostic = cargo_deny_unavailable_diagnostic(status);
+        assert!(new_diagnostic.is_some());
+        assert_eq!(
+            new_diagnostic.unwrap().reason,
+            CHECK_CARGO_DENY_UNAVAILABLE_REASON
+        );
     }
 
     // --- rust/cargo_mutants_config ---

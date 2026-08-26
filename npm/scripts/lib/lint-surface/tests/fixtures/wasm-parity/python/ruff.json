@@ -7,7 +7,6 @@
       "message": "lint-python: `uv` не знайдено в PATH (потрібен при наявному pyproject.toml, python.mdc)"
     }
   ],
-  "wasm-plugin parity — python/ruff (JS канон vs wasm plugin-lang-python, спільний фейковий uv) > ruff недоступний у uv-середовищі (--version провалюється) — обидві реалізації мовчать (fail-open)": [],
   "wasm-plugin parity — python/ruff (JS канон vs wasm plugin-lang-python, спільний фейковий uv) > ruff check + format --check обидва exit 0 — без порушень з обох реалізацій": [],
   "wasm-plugin parity — python/ruff (JS канон vs wasm plugin-lang-python, спільний фейковий uv) > ruff check провалюється — лише ruff-check-violation, format --check НЕ виконується": [
     {

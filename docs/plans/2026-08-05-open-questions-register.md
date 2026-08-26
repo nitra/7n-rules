@@ -4205,6 +4205,108 @@ warnings` і `cargo fmt --check` чисті.
   підтека (чи щось вище) у `.n-rules.json:ignore`, БІЛЬШЕ НЕ дає violation
   (раніше — давав).
 
+### 2.33. `lang-python`/`lang-rust`: видима діагностика замість мовчазного fail-open на зовнішніх тулах
+
+**Звідки:** аудит технічного боргу, той самий мотив, що `ga/workflows`
+(§2.29, `git show 4e749f8b4`): «репозиторій без ХХХ сьогодні лінтиться
+зелено, а після зміни впаде — це бажана ситуація», мовчазний fail-open
+лінтера — найгірший режим відмови (зелено, бо нічого не перевірено).
+`Severity::Error`, не `Warn`.
+
+**Закриті канали (усі — `Severity::Error`, окремий `reason` на кожен):**
+
+1. `crates/plugin-lang-python/src/lib.rs`, `PythonRunPrep::ToolUnavailable`
+   (спільний preflight `python/mypy`+`python/ruff`, `prepare_python_run`):
+   `uv run --frozen <tool> --version` non-zero мовчав (`return Vec::new()`
+   в `detect_mypy`/`detect_ruff`). Новий чистий диспетчер
+   `python_run_targets` перетворює цю гілку на `mypy-unavailable`/
+   `ruff-unavailable` (окремий `reason` на інструмент).
+2. `crates/plugin-lang-python/src/lib.rs`, `detect_project` —
+   availability-крок `uv run --frozen pip-licenses --version`: доккомент
+   сам називав цю гілку «ЄДИНИМ по-справжньому беззвучним fail-open цього
+   концерну» — твердження виявилось НЕТОЧНИМ (пункт 3). `reason:
+   pip-licenses-unavailable`.
+3. **Знайдено ПОНАД перелік аудиту.** `crates/plugin-lang-python/src/lib.rs`,
+   `extract_packages` — коли `pip-licenses` завершується УСПІШНО (код 0),
+   але вивід не парситься як очікуваний spdx-json (невалідний JSON чи
+   відсутнє/нетипове поле `packages`), стара форма трактувала це як «нуль
+   пакетів» (`doc?.packages ?? []`, точний порт JS-optional-chaining) —
+   тобто license-перевірка мовчки НЕ виконувалась, а гейт лишався зеленим.
+   Функція тепер повертає `Result<Vec<LicenseInfo>, &'static str>`
+   (`Err("invalid-json")`/`Err("missing-packages-field")`); ЛЕГІТИМНО
+   порожній масив (`{"packages":[]}`) лишається `Ok(vec![])`, НЕ помилкою.
+   `reason: pip-licenses-parse-error`.
+4. `crates/plugin-lang-rust/src/lib.rs`, `detect_check` крок 6 —
+   `cargo deny --version` non-zero мовчав (`if status == Some(0) { … }` без
+   `else`). Код виходу НЕ відрізняє «`cargo-deny` свідомо не встановлено» від
+   «встановлено, але зламано» — канал обрав ГУЧНІШИЙ варіант і сигналить
+   однаково в обох випадках, а не намагається роздвоїти за крихким текстовим
+   патерном стдерр. `reason: cargo-deny-unavailable`.
+
+Інших `exec_tool`-повʼязаних мовчазних гілок у жодному з двох файлів не
+знайдено (перевірено виклик-за-викликом: python — 7 сайтів `exec_tool`,
+rust — 3 сайти `exec_cargo`; решта вже були гучними ДО цієї задачі).
+`.toml`-парсинг/regex-компіляція власних конфігів репозиторію
+(`workspace_root_parse_pyproject`, `wasm_component_parse_cargo_toml`,
+`workspace_root_pattern_regex` в обох крейтах) — окрема категорія
+(«малформований ВЛАСНИЙ файл користувача», не «зовнішній тул»), точний порт
+catch-null JS-канону, свідомо НЕ чіпалась.
+
+**Перевірка дією.** Кожен канал має unit-тест, що конструює «зламаний» вхід
+напряму (той самий прийом, що `eval_deny_rule`/§2.29 — `exec_tool`
+абортує поза реальним wasmtime-хостом, тож живий шлях не тестований на
+host-таргеті): `python_run_targets_tool_unavailable_*`,
+`pip_licenses_availability_diagnostic_*`,
+`extract_packages_on_malformed_json_now_reports_stage_not_silent_empty`,
+`cargo_deny_unavailable_diagnostic_*`. Для кожного каналу СТАРУ форму
+відтворено буквально (пряме перезбирання коду на бекапі `lib.rs` без фіксу)
+й прогнано ТІ САМІ тести: усі 4 канали (5 тестів) червоніли на старому коді
+(`assertion failed`/`left: 0, right: 1`/`left: Ok([]), right:
+Err("invalid-json")`), відновлений фікс — знову зелений. Контрольний тест
+`*_none_when_status_zero`/`*_status_zero_stays_silent` лишався зеленим на
+обох версіях (доказ, що фікс не чіпає щасливий шлях).
+
+**Розмір гостя.** Python: 1 337 404 → 1 345 506 байт (+8 102, бюджет
+2 621 440, 51,32%). Rust: 1 393 080 → 1 393 980 байт (+900, 53,17%). Обидва
+далеко в межах бюджету.
+
+**Тести:** `plugin-lang-python` 62/62 (+12 нових), `plugin-lang-rust` 61/61
+(+4 нових), `cargo test --workspace` 2402 passed + 1 ignored (усі wasm-
+фікстури крейтів workspace зібрані заздалегідь через відповідні
+`build.sh`), `cargo clippy --workspace --all-targets -- -D warnings` і
+`cargo fmt --check` чисті.
+
+**Parity-гейти впали ПЕРЕДБАЧУВАНО — 4 сценарії, еталони НЕ перезняті.**
+`wasm-plugin-parity-python.test.mjs` (3) і `wasm-plugin-parity-rust.test.mjs`
+(1): golden-фікстури (`fixtures/wasm-parity/{python,rust}/*.json`) знімались
+із мовчазної форми JS-канону (`[]`), тепер wasm-бік віддає РІВНО одну
+діагностику — `expected [ {…} ] to deeply equal []`. Переznяти неможливо:
+`main.mjs` обох мов видалено (§2.15/аналогічний перехід для rust), а
+`N_WASM_PARITY_CAPTURE=1` падає на імпорті. Перелік і що кожен фіксує:
+
+- `python/mypy.json` → `mypy недоступний у uv-середовищі (--version
+  провалюється) — обидві реалізації мовчать (fail-open)` — фіксує СТАРУ
+  мовчазну поведінку каналу 1 (mypy-гілка).
+- `python/ruff.json` → `ruff недоступний у uv-середовищі (--version
+  провалюється) — обидві реалізації мовчать (fail-open)` — те саме для
+  ruff-гілки каналу 1.
+- `python/project.json` → `pip-licenses недоступний у uv-середовищі —
+  fail-open, обидві реалізації мовчать` — фіксує СТАРУ мовчазну поведінку
+  каналу 2. (Канал 3 — `extract_packages`-парсинг — жодним існуючим
+  parity-сценарієм не покритий: нової фікстури не зачіпає.)
+- `rust/check.json` → `deny --version провалюється (deny не встановлено) —
+  тихий skip, обидві реалізації мовчать` — фіксує СТАРУ мовчазну поведінку
+  каналу 4.
+
+Прецедент переписування (не перезняття) — `git show 362d6b59c` (§2.27-цикл,
+glob-баг `cargo_mutants_config`): еталон, що закріплював баг, ПЕРЕПИСАНО
+вручну, а не перезнято, з поясненням у самому тесті. Рішення, чи
+переписувати ці 4 записи так само (замінивши очікуваний `[]` на очікувану
+`Error`-діагностику з відповідним `reason`, і оновивши підпис сценарію
+`… обидві реалізації мовчать (fail-open)` → `… обидві реалізації дають
+видиму діагностику`) — ЗА ВЛАСНИКОМ задачі; сама задача НЕ чіпала ні
+golden-JSON, ні `.test.mjs`.
+
 ---
 
 ## Як користуватись

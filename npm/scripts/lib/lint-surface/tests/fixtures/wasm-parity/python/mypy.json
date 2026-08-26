@@ -7,7 +7,6 @@
       "message": "lint-python: `uv` не знайдено в PATH (потрібен при наявному pyproject.toml, python.mdc)"
     }
   ],
-  "wasm-plugin parity — python/mypy (JS канон vs wasm plugin-lang-python, спільний фейковий uv) > mypy недоступний у uv-середовищі (--version провалюється) — обидві реалізації мовчать (fail-open)": [],
   "wasm-plugin parity — python/mypy (JS канон vs wasm plugin-lang-python, спільний фейковий uv) > mypy exit 0 — без порушень з обох реалізацій": [],
   "wasm-plugin parity — python/mypy (JS канон vs wasm plugin-lang-python, спільний фейковий uv) > mypy exit 1 з виводом — однакове mypy-violation, включно з чужим виводом у тексті": [
     {
