@@ -47,7 +47,7 @@ Rego-пакети — запускаються `npx @7n/rules lint js` або `c
 
 ## `for...in` заборонено — рефакторити на `for...of`
 
-Конструкція `for (const k in obj)` обходить успадковані ключі прототипу, тому майже завжди тягне `Object.hasOwn(obj, k)`-guard. Заборонена у `@nitra/eslint-config` через `no-restricted-syntax` для `ForInStatement` (з версії **3.8.0**). У каноні oxlint (`guard-for-in: "deny"` у [oxlint-canonical.json](../tooling/data/tooling/oxlint-canonical.json)) лишається `guard-for-in` як часткова страховка (oxlint не підтримує `no-restricted-syntax`) — `checkOxlintRc` у `check/main.mjs` звіряє `.oxlintrc.json` проєкту з цим каноном.
+Конструкція `for (const k in obj)` обходить успадковані ключі прототипу, тому майже завжди тягне `Object.hasOwn(obj, k)`-guard. Заборонена у `@nitra/eslint-config` через `no-restricted-syntax` для `ForInStatement` (з версії **3.8.0**). У каноні oxlint (`guard-for-in: "deny"` у [oxlint-canonical.json](../tooling/data/tooling/oxlint-canonical.json)) лишається `guard-for-in` як часткова страховка (oxlint не підтримує `no-restricted-syntax`) — `check_oxlintrc`/`detect_js_check` у `crates/plugin-lang-js/src/lib.rs` звіряє `.oxlintrc.json` проєкту з цим каноном.
 
 Замість цього обходь масив напряму, а об'єкт — через `Object.entries` / `Object.keys` / `Object.values`. У такому коді guard за `Object.hasOwn` стає непотрібним і має зникнути разом із `for...in`.
 
@@ -134,7 +134,7 @@ import fastifyApollo, { fastifyApolloDrainPlugin } from '@as-integrations/fastif
 Заглушки на кшталт «опис.» не рахуються документацією ніде в конвеєрі — пиши
 змістовно або лиши LLM-ladder-у.
 
-Перевірка: `rules/js/doc_comments/main.mjs`.
+Перевірка (детект): `crates/plugin-lang-js/src/lib.rs` (`detect_doc_comments`); T0-фікс лишається в JS — `rules/js/doc_comments/fix-doc_comments.mjs`.
 
 ## Розширення нових файлів — `.mjs` / `.cjs`, не `.js`
 

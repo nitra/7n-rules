@@ -51,7 +51,7 @@ Merge-коміт (готовий, з другим предком, або `MERGE_
 
 Канонічне pre-commit wiring (крок `npm-changelog` у `hk.pkl`, autofix через `N_RULES_CHANGELOG_AUTOFIX=1`) — деталь `npm-module.mdc`, тут не дублюється.
 
-Перевірка програмна (`changelog/consistency/main.mjs`, delta-гейт присутності — `changelog/presence/main.mjs`).
+Перевірка програмна — native-концерни **`crates/rules-core/src/concerns/changelog_consistency.rs`** (+ `changelog_consistency_git.rs`/`changelog_consistency_version.rs`/`changelog_consistency_workspace.rs`), delta-гейт присутності — **`crates/rules-core/src/concerns/changelog_presence.rs`**.
 
 ## Формат CHANGELOG.md
 
@@ -81,7 +81,7 @@ Merge-коміт (готовий, з другим предком, або `MERGE_
 
 Секції — підмножина `### Added`, `### Changed`, `### Fixed`, `### Removed` (одна або кілька).
 
-Механічно `main.mjs` (`checkChangelogFormat`) перевіряє лише наявність рядка `# Changelog` (H1). Точна лексика секцій і порядок версій (новіші зверху) — конвенція, яку check **не** валідує: наявні `CHANGELOG.md` у цьому репо містять і нестандартні секції (`### BREAKING`, `### Notes`, `### TODO` тощо) з історичних причин, тож строга валідація словника секцій зробила б check несумісним із власною практикою репо. Дотримання — на розсуд автора change-файлу.
+Механічно `check_changelog_format` (**`crates/rules-core/src/concerns/changelog_consistency_workspace.rs`**) перевіряє лише наявність рядка `# Changelog` (H1). Точна лексика секцій і порядок версій (новіші зверху) — конвенція, яку check **не** валідує: наявні `CHANGELOG.md` у цьому репо містять і нестандартні секції (`### BREAKING`, `### Notes`, `### TODO` тощо) з історичних причин, тож строга валідація словника секцій зробила б check несумісним із власною практикою репо. Дотримання — на розсуд автора change-файлу.
 
 ## Post-release інваріант (гарантує CI)
 
