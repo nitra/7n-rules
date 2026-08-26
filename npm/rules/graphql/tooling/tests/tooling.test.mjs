@@ -12,6 +12,7 @@
  */
 import { describe, expect, test } from 'vitest'
 import { dirname, join } from 'node:path'
+import { env } from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { writeFile } from 'node:fs/promises'
 
@@ -33,7 +34,11 @@ const concernId = 'tooling'
 // звідки взяти `npm/rules/graphql/vscode_extensions`. Той самий явний override,
 // що вже задокументований у `npm/tests/integration-repo-checks.test.mjs` для
 // `k8s/manifests` (доккомент `crates/rules-core/src/rules_package.rs`).
-process.env.N_RULES_PACKAGE_ROOT ??= join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..')
+// Опційна змінна (fallback за замовчуванням) — `env` з `node:process`, не
+// прямий `process.env` (js-run.mdc, розділ «CheckEnv та заборона прямого
+// process.env»): мандатний `checkEnv`/`@nitra/check-env` тут зайвий, бо
+// значення завжди має дефолт, ніколи не вимагається ззовні.
+env.N_RULES_PACKAGE_ROOT ??= join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..')
 
 const check = async dir => {
   const result = await runConcernDetector(CONCERN, { cwd: dir, ruleId, concernId, files: undefined })

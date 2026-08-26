@@ -5,6 +5,7 @@ import { describe, expect, test } from 'vitest'
 import { existsSync } from 'node:fs'
 import { copyFile, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { env } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 import { runConcernDetector } from '../scripts/lib/lint-surface/detect.mjs'
@@ -41,7 +42,11 @@ if (!existsSync(WASM_PATH)) {
 // `npm/rules/nginx-default-tpl/vscode_extensions`. Той самий явний override, що вже
 // задокументований у `npm/rules/graphql/tooling/tests/tooling.test.mjs` (доккомент
 // `crates/rules-core/src/rules_package.rs`).
-process.env.N_RULES_PACKAGE_ROOT ??= join(TEST_DIR, '..')
+// Опційна змінна (fallback за замовчуванням) — `env` з `node:process`, не
+// прямий `process.env` (js-run.mdc, розділ «CheckEnv та заборона прямого
+// process.env»): мандатний `checkEnv`/`@nitra/check-env` тут зайвий, бо
+// значення завжди має дефолт, ніколи не вимагається ззовні.
+env.N_RULES_PACKAGE_ROOT ??= join(TEST_DIR, '..')
 
 // Адаптери під unified lint surface: detector → 0 (чисто) / 1 (є violations).
 const checkNginx = async dir => {

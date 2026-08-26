@@ -1,0 +1,3 @@
+schema: '**/*.graphql'
+documents:
+  - '**/*.{js,mjs,ts,tsx,vue}'

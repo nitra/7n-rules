@@ -14,6 +14,7 @@
     "rust-lang.rust-analyzer",
     "tamasfe.even-better-toml",
     "ms-python.python",
-    "charliermarsh.ruff"
+    "charliermarsh.ruff",
+    "graphql.vscode-graphql"
   ]
 }

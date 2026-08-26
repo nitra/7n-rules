@@ -3,6 +3,7 @@
  */
 import { describe, expect, test } from 'vitest'
 import { join } from 'node:path'
+import { env } from 'node:process'
 import { writeFile } from 'node:fs/promises'
 
 import { runConcernDetector } from '../scripts/lib/lint-surface/detect.mjs'
@@ -24,7 +25,11 @@ const checkDocker = async dir => {
 // самий диспетчер, що й у бойовому прогоні. Детектор шукає rego-політики й
 // сніпети у КОРЕНІ ПАКЕТА, а тимчасове дерево його не містить — звідси явний
 // override, задокументований саме під цей випадок (`rules_package.rs`).
-process.env.N_RULES_PACKAGE_ROOT ??= join(TEST_DIR, '..')
+// Опційна змінна (fallback за замовчуванням) — `env` з `node:process`, не
+// прямий `process.env` (js-run.mdc, розділ «CheckEnv та заборона прямого
+// process.env»): мандатний `checkEnv`/`@nitra/check-env` тут зайвий, бо
+// значення завжди має дефолт, ніколи не вимагається ззовні.
+env.N_RULES_PACKAGE_ROOT ??= join(TEST_DIR, '..')
 const checkK8s = async dir => {
   const result = await runConcernDetector(null, { cwd: dir, ruleId: 'k8s', concernId: 'manifests' })
   return result.violations.length === 0 ? 0 : 1
