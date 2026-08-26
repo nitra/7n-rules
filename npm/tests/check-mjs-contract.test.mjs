@@ -39,8 +39,26 @@ async function listRuleIds(dir) {
   return entries.filter(e => e.isDirectory() && !e.name.startsWith('.') && e.name !== 'node_modules').map(e => e.name)
 }
 
-const ruleIdsRaw = await listRuleIds(RULES_DIR)
-const ruleIds = ruleIdsRaw.toSorted((a, b) => a.localeCompare(b))
+/** Файл-маркер власності правила: тека `rules/<id>` є правилом лише разом із ним. */
+const OWNER_FILE = 'main.mdc'
+
+const coreDirIds = (await listRuleIds(RULES_DIR)).toSorted((a, b) => a.localeCompare(b))
+
+/**
+ * Правила ядра — теки з `main.mdc`, а не «будь-яка тека в rules/». Той самий критерій
+ * власності, що у `listManagedMirrors` (mirror-parity) і в переліку плагінних правил нижче:
+ * інакше кількість «правил ядра» залежить від сміття у робочому дереві, а не від репо.
+ */
+const ruleIds = coreDirIds.filter(id => existsSync(join(RULES_DIR, id, OWNER_FILE)))
+
+/**
+ * Теки без `main.mdc` у ядрі: mixin-доповнення до чужого правила живуть лише в плагінах
+ * (`plugins/<name>/rules/<id>`), тож у `npm/rules/` така тека — осиротілий залишок міграції.
+ * Мовчки її пропустити не можна: вона і роздуває лічильник правил ядра, і потрапляє у
+ * mixin-extras `listManagedMirrors` — її concern-и (ті, що з `concern.json`) синк доінлайнює
+ * у дзеркало плагінного правила `.cursor/rules/n-<id>.mdc`.
+ */
+const orphanCoreDirs = coreDirIds.filter(id => !existsSync(join(RULES_DIR, id, OWNER_FILE)))
 
 /**
  * Rules-теки плагінів монорепо: plugins/<name>/rules (якщо є). `owner` —
@@ -88,7 +106,14 @@ async function listConcerns(ruleDir) {
 
 describe('concern contract — усі правила', () => {
   test('22 правила ядра (ci4 → doc-files; ga → ci-github; rust/python/php/js-сімʼя+style → lang-плагіни; test — core-власник, lang-js mixin)', () => {
-    expect(ruleIds.length).toBe(22)
+    expect(ruleIds.length, `правила ядра: ${ruleIds.join(', ')}`).toBe(22)
+  })
+
+  test(`у rules/ немає тек без ${OWNER_FILE} (осиротілі залишки міграцій)`, () => {
+    expect(
+      orphanCoreDirs,
+      `теки без ${OWNER_FILE} — не правила ядра, приберіть їх: ${orphanCoreDirs.join(', ')}`
+    ).toEqual([])
   })
 
   test('плагіни монорепо володіють правилами ga, azure-pipelines, rust, python, php і js-сімʼєю', () => {
