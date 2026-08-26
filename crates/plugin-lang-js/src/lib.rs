@@ -137,6 +137,19 @@
 //!    концерну викличуть з файлами поза глобом (напр. per-file dispatch
 //!    напряму, не лише full-scope міст).
 //!
+//! **Сам детект — AST, не порядковий regex** (розбіжність зі знятим
+//! JS-каноном, свідома; задача 2026-08-26). Regex `process\.chdir\s*\(`
+//! спрацьовував на ЗГАДЦІ виклику в прозі — доккоментар
+//! `npm/scripts/lib/lint-surface/tests/wasm-plugin-parity-php.test.mjs`
+//! цитує `no-process-chdir.mdc` разом із дужкою, тож `lint --no-fix` репортив
+//! порушення на будь-якому дереві, включно з `origin/main`, а LLM-автофікс
+//! «лагодив» його переписуванням цитати — псував документацію замість коду.
+//! [`find_process_chdir_call_lines`] шукає `CallExpression` через `oxc_parser`
+//! (той самий движок, що AST-концерни задач Q3/Q4), тож коментарі й
+//! рядкові/шаблонні літерали структурно не спрацьовують. Еталони
+//! `fixtures/wasm-parity/test/no-process-chdir.json` від цього не змінилися —
+//! усі три кейси там суто кодові.
+//!
 //! # `js/utils_imports`/`test/no-relative-fs-path` — AST-концерни через
 //! `oxc_parser` (задача Q3, `docs/specs/2026-08-01-wasm-ast-strategy.md`)
 //!
@@ -305,9 +318,13 @@ const POOL_FORKS_PATTERN: &str = r#"pool\s*:\s*['"]forks['"]"#;
 /// `VITEST_CONFIG_NAMES` (`main.mjs:13`).
 const VITEST_CONFIG_NAMES: [&str; 2] = ["vitest.config.mjs", "vitest.config.js"];
 
-/// Викличний паттерн `process.chdir(` з відкривною дужкою — не зачепить
-/// згадку у docstring/коментарі. Точний порт `CHDIR_CALL_RE`
-/// (`plugins/lang-js/rules/test/no-process-chdir/main.mjs:7`).
+/// Викличний паттерн `process.chdir(` з відкривною дужкою — історичний
+/// `CHDIR_CALL_RE` знятого JS-канону
+/// (`plugins/lang-js/rules/test/no-process-chdir/main.mjs:7`). Відкривна
+/// дужка НЕ рятує від згадки у прозі: доккоментар, що цитує саме це правило,
+/// пише `process.chdir(dir)` разом із дужкою — реальний false positive, через
+/// який детект переїхав на AST (доккомент [`find_process_chdir_call_lines`]).
+/// Лишається ЛИШЕ як фолбек для файлу, що не парситься.
 const CHDIR_CALL_PATTERN: &str = r"process\.chdir\s*\(";
 
 /// Використання класу `n-admin-table` у `.vue`. Точний порт `USAGE_RE`
@@ -3993,28 +4010,130 @@ fn detect_pool_forks(files: &[SourceFile]) -> Vec<Diagnostic> {
     }]
 }
 
-/// Точний порт `lint()` `test/no-process-chdir` (`main.mjs:14-40`) —
-/// WHOLE-BATCH: кожен `*.test.{mjs,js}` (гість-фільтр
-/// [`is_test_file_no_process_chdir`], доккомент модуля «розбіжність
-/// full-scope мосту») скануємо порядково, одна діагностика на кожен рядок із
-/// `process.chdir(`. `data` — вручну зібраний JSON-рядок (той самий мотив,
-/// що `crates/test-plugin-guest`, доккомент модуля тут) — точний відповідник
-/// `data: { line: i + 1 }`.
-fn detect_no_process_chdir(files: &[SourceFile]) -> Vec<Diagnostic> {
+/// Чи `expr` — ідентифікатор `process` (крізь дужки: `(process).chdir(…)` —
+/// той самий виклик).
+fn is_process_identifier(expr: &Expression) -> bool {
+    matches!(
+        expr.get_inner_expression(),
+        Expression::Identifier(ident) if ident.name.as_str() == "process"
+    )
+}
+
+/// Чи `callee` — саме `process.chdir`: статичний доступ (`process.chdir(…)`,
+/// зокрема optional-chaining `process?.chdir(…)`) або computed із рядковим
+/// ключем (`process['chdir'](…)`, який порядковий regex не бачив зовсім).
+/// `foo.chdir(…)` — НЕ цей виклик. Голий `chdir(…)` з
+/// `import { chdir } from 'node:process'` теж НЕ ловиться: це відома діра
+/// знятого JS-канону (`npm/CHANGELOG.md`, запис про `stryker_config`), яку цей
+/// фікс свідомо не розширює — він прибирає хибні спрацювання, не додає нові
+/// сутності детекту.
+fn is_process_chdir_callee(callee: &Expression) -> bool {
+    match callee.get_inner_expression() {
+        Expression::StaticMemberExpression(member) => {
+            member.property.name.as_str() == "chdir" && is_process_identifier(&member.object)
+        }
+        Expression::ComputedMemberExpression(member) => {
+            matches!(
+                member.expression.get_inner_expression(),
+                Expression::StringLiteral(literal) if literal.value.as_str() == "chdir"
+            ) && is_process_identifier(&member.object)
+        }
+        _ => false,
+    }
+}
+
+/// Visitor для [`find_process_chdir_call_lines`] — 1-індексовані рядки ВСІХ
+/// `process.chdir(…)`-викликів у програмі. Коментарі й рядкові/шаблонні
+/// літерали сюди СТРУКТУРНО не потрапляють: у AST це не `CallExpression`.
+/// `BTreeSet` — щоб два виклики в одному рядку дали одну діагностику
+/// (поведінка порядкового скану, який рахував саме РЯДКИ), і щоб порядок був
+/// зростаючим незалежно від обходу.
+struct ProcessChdirVisitor<'c> {
+    content: &'c str,
+    lines: BTreeSet<usize>,
+}
+
+impl<'a, 'c> Visit<'a> for ProcessChdirVisitor<'c> {
+    fn visit_call_expression(&mut self, it: &CallExpression<'a>) {
+        if is_process_chdir_callee(&it.callee) {
+            self.lines
+                .insert(line_number_at_offset(self.content, it.span.start as usize));
+        }
+        walk_call_expression(self, it);
+    }
+}
+
+/// Рядки з ВИКЛИКОМ `process.chdir(…)` у `content` — зростаюче, без дублів.
+///
+/// **AST, а не порядковий regex.** [`CHDIR_CALL_PATTERN`] спрацьовував і на
+/// ЗГАДЦІ виклику в прозі: доккоментар
+/// `npm/scripts/lib/lint-surface/tests/wasm-plugin-parity-php.test.mjs`
+/// цитує `no-process-chdir.mdc` разом із `process.chdir(dir)`, тож
+/// `lint --no-fix` репортив порушення на будь-якому дереві, включно з
+/// `origin/main`. Гірше за сам false positive був його «фікс»: LLM-автофікс
+/// переписував прозу, підміняючи точну цитату правила — псував документацію
+/// замість коду (задача 2026-08-26 відкотила такий автофікс свідомо).
+/// Детект тепер дивиться на КОД, тож цитата правила у коментарі чи рядковому
+/// літералі (фікстура, що ЗАПИСУЄ такий тест) більше не порушення.
+///
+/// Файл, що НЕ парситься, не мовчить: тоді працює regex-фолбек
+/// [`CHDIR_CALL_PATTERN`] — синтаксично зламаний тест краще перевірити
+/// приблизно, ніж пропустити тихо (свідома розбіжність із
+/// [`find_offenders_in_body`], де порт `parseProgramOrNull` такий файл
+/// відкидає цілком; там ціна помилки — хибний шлях у діагностиці, тут —
+/// process-wide мутація cwd, через яку вже був rogue-коміт у реальний
+/// репозиторій, `no-process-chdir.mdc`).
+fn find_process_chdir_call_lines(content: &str) -> Vec<usize> {
+    let allocator = Allocator::default();
+    let source_type = SourceType::from_path("test.mjs").unwrap_or_default();
+    let ret = Parser::new(&allocator, content, source_type).parse();
+    if !ret.diagnostics.is_empty() {
+        return chdir_call_lines_by_regex(content);
+    }
+    let mut visitor = ProcessChdirVisitor {
+        content,
+        lines: BTreeSet::new(),
+    };
+    visitor.visit_program(&ret.program);
+    visitor.lines.into_iter().collect()
+}
+
+/// Фолбек [`find_process_chdir_call_lines`] для файлу з syntax-error —
+/// історична порядкова поведінка: рядок, у якому regex знайшов
+/// `process.chdir(`. Коментарі тут знову хибно спрацьовують, але це шлях
+/// для НЕПАРСОВНОГО файлу, а не штатний.
+fn chdir_call_lines_by_regex(content: &str) -> Vec<usize> {
     let chdir_re = regex::Regex::new(CHDIR_CALL_PATTERN).expect("CHDIR_CALL_PATTERN валідний");
+    content
+        .split('\n')
+        .enumerate()
+        .filter(|(_, line)| chdir_re.is_match(line))
+        .map(|(index, _)| index + 1)
+        .collect()
+}
+
+/// `test/no-process-chdir` — WHOLE-BATCH: кожен `*.test.{mjs,js}` (гість-фільтр
+/// [`is_test_file_no_process_chdir`], доккомент модуля «розбіжність
+/// full-scope мосту») перевіряємо через AST
+/// ([`find_process_chdir_call_lines`]), одна діагностика на кожен рядок із
+/// викликом. `data` — вручну зібраний JSON-рядок (той самий мотив, що
+/// `crates/test-plugin-guest`, доккомент модуля тут): `{ line }`.
+///
+/// Дешевий префільтр `contains("chdir")` — щоб не парсити КОЖЕН тестовий файл
+/// репозиторію заради концерну, який майже завжди мовчить (full-scope обхід
+/// віддає сюди весь `**/*.test.{mjs,js}`). Підрядок `chdir` — надмножина обох
+/// форм виклику, які ловить [`is_process_chdir_callee`], тож префільтр нічого
+/// не приховує.
+fn detect_no_process_chdir(files: &[SourceFile]) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
     for file in files {
         if !is_test_file_no_process_chdir(&file.path) {
             continue;
         }
-        if !chdir_re.is_match(&file.content) {
+        if !file.content.contains("chdir") {
             continue;
         }
-        for (index, line) in file.content.split('\n').enumerate() {
-            if !chdir_re.is_match(line) {
-                continue;
-            }
-            let line_number = index + 1;
+        for line_number in find_process_chdir_call_lines(&file.content) {
             diagnostics.push(Diagnostic {
                 reason: NO_PROCESS_CHDIR_VIOLATION_REASON.to_string(),
                 message: format!(
@@ -12933,6 +13052,96 @@ mod tests {
             source("tests/b.test.mjs", "process.chdir(\"/x\")\n"),
         ];
         assert_eq!(detect_no_process_chdir(&files).len(), 3);
+    }
+
+    /// Регресія 2026-08-26: `lint --no-fix` репортив порушення на будь-якому
+    /// дереві, включно з `origin/main`, бо доккоментар
+    /// `wasm-plugin-parity-php.test.mjs` ЦИТУЄ правило разом із дужкою.
+    /// Фрагмент нижче — скорочена копія того самого JSDoc.
+    #[test]
+    fn detect_no_process_chdir_passes_on_jsdoc_citation_with_paren() {
+        let files = vec![source(
+            "tests/foo.test.mjs",
+            "/**\n * Перша спроба обходила її `process.chdir(dir)` на час JS-виклику —\n              * і це прямо заборонено `npm/rules/test/main.mdc`.\n */\ntest(\"ok\", () => {})\n",
+        )];
+        assert!(detect_no_process_chdir(&files).is_empty());
+    }
+
+    #[test]
+    fn detect_no_process_chdir_passes_on_line_comment_with_paren() {
+        let files = vec![source(
+            "tests/foo.test.mjs",
+            "// Заборонено: process.chdir(dir) — process-wide мутація.\ntest(\"ok\", () => {})\n",
+        )];
+        assert!(detect_no_process_chdir(&files).is_empty());
+    }
+
+    /// Фікстура, що ЗАПИСУЄ на диск тест із забороненим викликом (саме так
+    /// влаштований parity-тест самого концерну), — не порушення: виклику в
+    /// коді немає, є рядковий літерал.
+    #[test]
+    fn detect_no_process_chdir_passes_on_string_literal_fixture() {
+        let files = vec![source(
+            "tests/foo.test.mjs",
+            "await writeFile(join(dir, \"a.test.mjs\"), \"process.chdir('/tmp')\")\n",
+        )];
+        assert!(detect_no_process_chdir(&files).is_empty());
+    }
+
+    #[test]
+    fn detect_no_process_chdir_passes_on_template_literal_fixture() {
+        let files = vec![source(
+            "tests/foo.test.mjs",
+            "const fixture = `test(\"bad\", () => { process.chdir(dir) })`\n",
+        )];
+        assert!(detect_no_process_chdir(&files).is_empty());
+    }
+
+    /// `chdir` в іншому обʼєкті — не `process.chdir`.
+    #[test]
+    fn detect_no_process_chdir_passes_on_foreign_object_chdir() {
+        let files = vec![source("tests/foo.test.mjs", "shell.chdir(\"/tmp\")\n")];
+        assert!(detect_no_process_chdir(&files).is_empty());
+    }
+
+    /// AST бачить те, чого порядковий regex не бачив зовсім.
+    #[test]
+    fn detect_no_process_chdir_flags_computed_member_call() {
+        let files = vec![source(
+            "tests/foo.test.mjs",
+            "process[\"chdir\"](\"/tmp\")\n",
+        )];
+        assert_eq!(detect_no_process_chdir(&files).len(), 1);
+    }
+
+    #[test]
+    fn detect_no_process_chdir_flags_optional_chaining_call() {
+        let files = vec![source("tests/foo.test.mjs", "process?.chdir(\"/tmp\")\n")];
+        assert_eq!(detect_no_process_chdir(&files).len(), 1);
+    }
+
+    /// Дві діагностики на один рядок були б шумом — рахуємо РЯДКИ, як і
+    /// порядковий скан до переїзду на AST.
+    #[test]
+    fn detect_no_process_chdir_reports_one_diagnostic_per_line() {
+        let files = vec![source(
+            "tests/foo.test.mjs",
+            "process.chdir(\"/tmp\"); process.chdir(\"/var\")\n",
+        )];
+        assert_eq!(detect_no_process_chdir(&files).len(), 1);
+    }
+
+    /// Непарсовний тест не мовчить — фолбек на regex (краще хибне
+    /// спрацювання, ніж тиха діра).
+    #[test]
+    fn detect_no_process_chdir_falls_back_to_regex_on_syntax_error() {
+        let files = vec![source(
+            "tests/foo.test.mjs",
+            "function broken( {\nprocess.chdir(\"/tmp\")\n",
+        )];
+        let diagnostics = detect_no_process_chdir(&files);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].data.as_deref(), Some("{\"line\":2}"));
     }
 
     // --- style/admin_table ---
