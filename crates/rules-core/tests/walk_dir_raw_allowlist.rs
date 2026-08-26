@@ -65,10 +65,6 @@ use std::path::{Path, PathBuf};
 /// - `rules-core/src/rename_yaml.rs` — 1: напівфабрикат, `extra_ignore_globs`
 ///   від виклику вже нормалізовані (`rules-cli`'s власний, архітектурно
 ///   окремий читач конфігу) — доккомент модуля;
-/// - `rules-core/src/concerns/sample_secret.rs` — 1: «1:1-порт», JS-оригінал
-///   теж не читав `.n-rules.json` — доккомент модуля, розділ «Обхід дерева»;
-/// - `rules-core/src/concerns/hasura_migrations.rs` — 1: те саме, «1:1-порт»
-///   — доккомент модуля;
 /// - `rules-core/src/concerns/k8s_manifests_kubescape.rs` — 2:
 ///   `find_kustomization_dirs`/`read_all_yaml_text_under_dir` обходять
 ///   ПІДДЕРЕВО, що вже пройшло фільтрацію на рівні вибору k8s-коренів
@@ -79,11 +75,14 @@ use std::path::{Path, PathBuf};
 /// - `rules-cli/src/ci_cmd.rs` — 1: `collect_path_scoped_files`, корені
 ///   різні (`--path`), `rules-cli` тримає власний читач `.n-rules.json`
 ///   (`cursor_ignore`, Р5-виняток) — доккомент функції.
+///
+/// `sample_secret.rs` і `hasura_migrations.rs` — колишні «1:1-порти» реєстру
+/// §2.27 — тут БІЛЬШЕ НЕМАЄ: §2.30 перевело обидва на обгортки
+/// (`walk_repo`/`walk_under_repo` відповідно), тож прямих production-викликів
+/// `walk_dir_raw(` у цих файлах не лишилось (доккомент обох модулів).
 const ALLOWLIST: &[(&str, usize)] = &[
     ("rules-core/src/concerns/cursor_ignore.rs", 1),
     ("rules-core/src/rename_yaml.rs", 1),
-    ("rules-core/src/concerns/sample_secret.rs", 1),
-    ("rules-core/src/concerns/hasura_migrations.rs", 1),
     ("rules-core/src/concerns/k8s_manifests_kubescape.rs", 2),
     ("rules-napi/src/lib.rs", 1),
     ("rules-cli/src/ci_cmd.rs", 1),
