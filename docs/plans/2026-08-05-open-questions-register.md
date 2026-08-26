@@ -4579,6 +4579,130 @@ truthy-перевірка), не як ключ `on:` — не той самий 
 
 ---
 
+### 2.38. `DetectorError('немає main.mjs')` називав наслідок, а не причину — коли причина відома, повідомлення тепер каже про неї
+
+**Дефект:** `npm/wasm-plugins/builtin-pins.json` — gitignored, генерується лише
+`node npm/scripts/build-wasm-plugins.mjs`. На свіжому checkout-і (і в цьому
+worktree до збірки) файла немає → `resolveWasmConcernMap`
+(`wasm-plugins.mjs`, `readBuiltinPinsConfig`) мовчки повертає порожню мапу —
+навмисна поведінка, звірена тестом («немає builtin-pins.json → тиша,
+порожня мапа», `wasm-plugins.test.mjs`). Для concern-ів, ПОРТОВАНИХ у
+wasm-плагін `lang-js` (`vue/tfm-translations`, `style/gap` і 30+ інших —
+`main.mjs` фізично видалено під час міграції), диспатч (`detect.mjs`,
+`runConcernDetector`) провалюється крізь native → wasm → main.mjs/policy до
+фінального `throw new DetectorError(…, 'немає main.mjs')`. Повідомлення
+називало наслідок («немає main.mjs»), а не причину (відсутній build-артефакт)
+— шум супроводжував КОЖЕН lint-прогін у цій сесії, двічі призвів до
+хибного «преекзистуючий фейл», і один агент витратив ~1.5 год на пошук
+неіснуючого дефекту, перш ніж знайшов справжню причину каузальним
+експериментом.
+
+**Чи вдалось відрізнити два випадки — ні, і це визначило форму фіксу.** У
+точці фінального `throw` (`detect.mjs:281`) неможливо дізнатись, чи
+`ruleId/concernId`, що провалився сюди, взагалі КОЛИСЬ мав бути wasm-
+контрибуцією: єдине джерело правди про контрибуції плагіна —
+`manifest.concerns` з РЕАЛЬНОГО `.wasm` (`wasmPluginManifest()`,
+napi-міст) — без зібраного артефакту прочитати його неможливо. Статичний
+список-дзеркало є (`EXPECTED_LANG_JS_CONCERNS`,
+`npm/scripts/lib/tests/wasm-builtin-pins.test.mjs`), але це тестовий
+mirror з явним застереженням у власному доккоменті («розсинхрон не
+production-дефект») — непридатний як джерело правди в продакшн-диспатчі.
+Тому фікс не замінює повідомлення, а УМОВНО ДОПОВНЮЄ його: якщо
+`npm/wasm-plugins/builtin-pins.json` відсутній — підказка («якщо цей
+концерн портовано у wasm-плагін — перевірте …; згенеруйте …»); якщо
+файл присутній (тобто збірка була, і причина explicitly не в ній) —
+стара коротка фраза лишається без змін, щоб не шуміти невлучним натяком
+на симетрично зламаних concern-ах, які ніколи не мали стосунку до wasm.
+
+**Зроблено:**
+
+- `npm/scripts/lib/lint-surface/wasm-plugins.mjs` — новий експорт
+  `hasBuiltinPinsArtifact(builtinPinsDir = WASM_PLUGINS_DIR)`: точковий
+  `existsSync` предикат, без читання/валідації вмісту (на відміну від
+  `readBuiltinPinsConfig`).
+- `npm/scripts/lib/lint-surface/detect.mjs` — фінальний `throw` перед
+  `!existsSync(mainPath)` тепер звіряє `hasBuiltinPinsArtifact()` і формує
+  `detail` умовно (доккомент на місці пояснює обидва випадки).
+
+**Сигнал у `resolveWasmConcernMap` — оцінено й свідомо НЕ додано.**
+Задача явно просила оцінити, чи не мала б сама `resolveWasmConcernMap`
+сигналити про відсутній `builtin-pins.json`, замість мовчазного
+повернення порожньої мапи. Два незалежні аргументи проти:
+
+1. **Заблокований тест.** `wasm-plugins.test.mjs` явно перевіряє тишу:
+   `test('немає builtin-pins.json (repo-дерево без збірки) → тиша,
+   порожня мапа', …)` з `expect(warnSpy).not.toHaveBeenCalled()` —
+   і доккомент `readBuiltinPinsConfig` називає відсутність файла
+   «очікуваним станом repo-дерева без локальної wasm-збірки», навмисно
+   без `console.warn`. Warn там ламав би задокументований контракт.
+2. **Неправильна гранулярність сигналу.** `resolveWasmConcernMap`
+   викликається на КОЖЕН concern, незалежно від того, чи той concern
+   узагалі стосується wasm — консюмер без жодного `wasmPlugins` в
+   `.n-rules.json` і без збігу з жодною first-party контрибуцією
+   отримував би попередження, яке для нього нічого не означає (задача
+   явно застерігала не робити артефакт обов'язковим для сценаріїв, де
+   wasm не потрібен). Точка фінального `throw` у `detect.mjs` — навпаки,
+   природне місце: сюди доходять лише concern-и, які ВЖЕ не резолвились
+   жодним іншим шляхом, тобто підказка релевантна саме тоді.
+
+**Перевірено дією:** новий `npm/scripts/lib/lint-surface/tests/
+detect-wasm-hint.test.mjs` (2 тести, `hasBuiltinPinsArtifact` мокнуто
+через `vi.mock` + `importOriginal`, `resolveWasmConcernMap` лишається
+реальним — фейковий `ruleId/concernId` цього файлу не збігається з жодною
+реальною wasm-контрибуцією, тому детермінований в обох станах робочого
+дерева):
+
+- «builtin-pins.json відсутній → повідомлення згадує файл і команду
+  генерації» — на ДОФІКСОВОМУ `detect.mjs` (тимчасовий `git stash` лише
+  на двох змінених файлах) ЧЕРВОНИЙ: `AssertionError: expected [Function]
+  to throw error matching /npm\/wasm-plugins\/builtin-pins…/ but got
+  'detector scratch/no_impl: немає main.mjs'`; `git stash pop` повернув
+  фікс — тест зелений.
+- «builtin-pins.json присутній → зворотний випадок: коротка помилка без
+  хибної підказки» — підтверджує, що п. 3 задачі («не роби артефакт
+  обов'язковим») дотримано: коли файл є, повідомлення НЕ містить
+  `builtin-pins.json`.
+
+Обидва тести пройдено ще раз ПІСЛЯ реальної збірки
+(`cargo build --release -p rules-napi` + `node npm/scripts/
+build-wasm-plugins.mjs`, `npm/wasm-plugins/builtin-pins.json` реально
+з'явився) — разом із рештою wasm-сюїти (`wasm-plugins.test.mjs`,
+`wasm-builtin-pins.test.mjs`, `detect.test.mjs`): 64/64 зелено.
+
+**Сюрприз поза задачею:** повний `npx vitest run` на цьому worktree
+спершу дав 88 червоних (35 suite) — усі під `rules-cli parity`/`tools
+registry: JS ⇄ Rust`/`n-rules lint --full …`, з `resolveRulesCliBin()`
+(`npm/scripts/utils/test-helpers.mjs`), що явно кидає «немає збірки
+бінаря … збери локально: `cargo build --release -p rules-cli`». Задача
+називала лише `cargo build --release -p rules-napi` +
+`build-wasm-plugins.mjs` як достатні для зеленого прогону — насправді
+парність-suite (`rules-cli`, окремий бінар-крейт) потребує ТРЕТЬОЇ
+команди. Після `cargo build --release -p rules-cli` лишилось 23 червоних
+(повний прогін, паралельно) — жоден файл з переліку не імпортує
+`detect.mjs`/`wasm-plugins.mjs` (`grep`-перевірено). Розібрано на три
+групи: (1) `mirror-parity.test.mjs` + `docgen-scan.test.mjs` (4 тести) —
+реальні `AssertionError` про НЕвстановлені first-party плагіни
+(`@7n/rules-ci-github` тощо) в `node_modules` цього worktree,
+відтворюється в ізоляції, не залежить від паралелізму — гепворкспейсу,
+не мого фіксу. (2) `rules-cli-lint-parity.test.mjs` (9 тестів,
+підмножина «паритет на синтетичному rules-каталозі») — `STACK_TRACE_ERROR`
+(порожній serialized stack, ознака крашу/збою дочірнього процесу, не
+реальний assertion-мисматч), відтворюється НАВІТЬ у прогоні лише цього
+одного файлу (не лише в full run) — і, вирішально, відтворюється
+БІТ-У-БІТ так само на `git stash` двох змінених файлів (`detect.mjs`,
+`wasm-plugins.mjs`), тобто на ДОФІКСОВОМУ коді теж — preexisting, не
+регресія цієї задачі. (3) решта (`native-batch-parity.test.mjs`,
+`run-detectors.test.mjs`, `run-fix.test.mjs`, `wasm-fix-e2e.test.mjs`,
+`wasm-plugin-e2e.test.mjs`, `detect.test.mjs`, `detect-wasm-hint.test.mjs`
+й кілька несуміжних) — той самий порожній `STACK_TRACE_ERROR`, але
+відтворюється ЛИШЕ в повному паралельному прогоні: той самий набір
+файлів, прогнаний разом БЕЗ решти 1242 suite (`npx vitest run <ці
+файли>`), дав 88/88 зелено — типова ознака ресурсного тиску
+(CPU/пам'ять) під `pool: 'forks'` на повному дереві одразу після двох
+важких `cargo build --release`, а не логічна регресія коду.
+
+---
+
 ## Як користуватись
 
 Дійшовши кінця плану міграції, пройти реєстр згори вниз: розділи 1 і 6 — це
