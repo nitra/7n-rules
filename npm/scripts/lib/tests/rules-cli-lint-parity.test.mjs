@@ -17,7 +17,11 @@ import { jsEntryPath, realRepoRoot, resolveRulesCliBin, withTmpDir } from '../..
  *
  * 1. **byte-exact вихід** — stdout, stderr і exit-код збігаються там, де
  *    native виконує прогін сам (синтетичний rules-каталог + реальний
- *    дельта-прогін цього репо);
+ *    scoped-прогін цього репо). На РЕАЛЬНОМУ дельта-прогоні брудного дерева
+ *    native чесно делегує (full-scope wasm-концерн `npm-module/package_structure`
+ *    з глобом `**\/*` сидить у плані щойно змінено будь-що), тож там
+ *    гейтиться byte-exact вихід МІНУС рівно один рядок-нотатка про делегацію
+ *    із задокументованою причиною — доккоментар того тесту нижче;
  * 2. **саме РІШЕННЯ «нативно чи делегувати»** — воно доводиться недосяжним
  *    `N_RULES_JS_RUNTIME`: якби шлях лишався native, зламаний рантайм нічого
  *    б не змінив, а якби делегувався — прогін падає з помилкою спавна;
@@ -475,7 +479,65 @@ describe('rules-cli lint: k8s/kubeconform у native-сегменті', () => {
   })
 })
 
-describe('rules-cli lint: паритет на реальному дельта-прогоні цього репо', () => {
+/**
+ * Єдина ФОРМА рядка, яким native-шлях повідомляє про чесну делегацію в
+ * JS-CLI (`crates/rules-cli/src/lint_cmd.rs`, гілка `Bail::Delegate`).
+ * Захоплена група — причина делегації.
+ */
+const DELEGATION_NOTICE = /^ℹ️ rules-cli lint: (.+?) — делегую в JS-CLI\.\n/
+
+/**
+ * Причини делегації, ЗАДОКУМЕНТОВАНІ для цього зрізу (розділ 11.3 спеки
+ * `docs/specs/2026-08-01-rules-cli-phase8-skeleton.md`). Причина поза цим
+ * списком — регресія, а не «інформаційний шум»: тест мусить впасти, інакше
+ * фільтр stderr перетворився б на глушник майбутніх розбіжностей.
+ */
+const KNOWN_DELEGATION_REASONS = [/^план містить wasm-концерн «[^»]+», який native-шлях цього зрізу не виконує$/]
+
+/**
+ * Відрізає РІВНО ОДИН рядок-нотатку про делегацію з голови stderr native-боку.
+ * Другий такий рядок (як і будь-який інший вивід) лишається в `rest` і
+ * ламає byte-exact звірку — навмисно.
+ * @param {string} stderr stderr native-прогону
+ * @returns {{ reason: string|null, rest: string }} причина делегації (`null` якщо її не було) і решта stderr
+ */
+function splitDelegationNotice(stderr) {
+  const match = DELEGATION_NOTICE.exec(stderr)
+  if (!match) return { reason: null, rest: stderr }
+  return { reason: match[1], rest: stderr.slice(match[0].length) }
+}
+
+/**
+ * Еталонний бік: справжній JS-CLI (`npm/bin/n-rules.js`) у detect-режимі.
+ * @param {string[]} args аргументи після `lint --no-fix`
+ * @returns {{ stdout: string, stderr: string, status: number|null }} результат
+ */
+function runJsCli(args) {
+  return spawnSync(execPath, [JS_ENTRY, 'lint', '--no-fix', ...args], {
+    cwd: REPO_ROOT,
+    encoding: 'utf8',
+    env: { ...env }
+  })
+}
+
+/**
+ * Прогріває еталонний бік і повертає обидва результати.
+ *
+ * ПЕРШИЙ прогін — прогрівальний і в порівнянні не бере участі: одноразові
+ * побічні ефекти (авто-встановлення зовнішніх тулів через `ensure-tool`,
+ * self-upgrade `devDependencies` JS-роутера) друкують у stderr лише раз, і
+ * без прогріву вони приписались би тому боку, що стартував першим.
+ * @param {string[]} args аргументи після `lint --no-fix`
+ * @returns {{ js: object, native: object }} результати обох боків
+ */
+function runBothSides(args) {
+  runJsCli(args)
+  const js = runJsCli(args)
+  const native = runNativeLint(args, REPO_ROOT)
+  return { js, native }
+}
+
+describe('rules-cli lint: паритет на реальних прогонах цього репо', () => {
   /**
    * Головний гейт зрізу: обидва шляхи ганяються по РЕАЛЬНОМУ дельта-набору
    * цього репозиторію — з native-концернами, policy-концернами і
@@ -485,23 +547,57 @@ describe('rules-cli lint: паритет на реальному дельта-п
    * Тест довгий (кожен бік — секунди), але саме він ловить розбіжність
    * дискавері/плану/порядку, якої синтетичні фікстури не бачать.
    *
-   * ПЕРШИЙ прогін — прогрівальний і в порівнянні не бере участі: одноразові
-   * побічні ефекти (авто-встановлення зовнішніх тулів через `ensure-tool`,
-   * self-upgrade `devDependencies` JS-роутера) друкують у stderr лише раз, і
-   * без прогріву вони приписались би тому боку, що стартував першим.
+   * **Чому stderr звіряється не голим `toBe`.** `npm-module/package_structure`
+   * — full-scope wasm-концерн з глобом `**\/*`, тож щойно в дереві є БУДЬ-ЯКА
+   * зміна, він сидить у дельта-плані, і native-шлях чесно віддає весь прогін
+   * у JS-CLI (розділ 11.3 спеки: «мовчазна розбіжність гірша за делегацію»).
+   * Нотатка про делегацію native-однобічна ЗА КОНСТРУКЦІЄЮ: JS-CLI — не
+   * делегатор, а ЦІЛЬ делегації, дзеркалити цей рядок йому нічого. Тому
+   * гейтиться не «stderr однакові», а точніше твердження: причина делегації
+   * задокументована, і **вся решта** stdout/stderr/exit — byte-exact.
+   *
+   * На чистому дереві (порожня дельта → у плані немає wasm-концерну) гілка
+   * `reason === null` вимагає повного byte-exact stderr, як і раніше.
+   *
+   * Делегований прогін — це JS проти JS, тож САМ native-шлях він не гейтить;
+   * це робить scoped-тест нижче.
    */
   test('stdout/stderr/exit збігаються byte-exact', { timeout: 600_000 }, () => {
-    const runJs = () =>
-      spawnSync(execPath, [JS_ENTRY, 'lint', '--no-fix'], {
-        cwd: REPO_ROOT,
-        encoding: 'utf8',
-        env: { ...env }
-      })
-    runJs()
-    const js = runJs()
-    const native = runNativeLint([], REPO_ROOT)
+    const { js, native } = runBothSides([])
+    const { reason, rest } = splitDelegationNotice(native.stderr)
+    if (reason !== null) {
+      expect(
+        KNOWN_DELEGATION_REASONS.some(pattern => pattern.test(reason)),
+        `native-шлях делегував із НЕзадокументованої причини: «${reason}»`
+      ).toBe(true)
+    }
+    expect(rest).toBe(js.stderr)
     expect(native.stdout).toBe(js.stdout)
-    expect(native.stderr).toBe(js.stderr)
+    expect(native.status).toBe(js.status)
+  })
+
+  /**
+   * Гейт САМОГО native-виконання на реальному репо — компенсація дірки, яку
+   * лишає wasm-делегація вище: на будь-якому брудному дереві дельта-прогін
+   * делегується цілком, і byte-exact звірка вироджується в «JS проти JS».
+   *
+   * `adr` обрано навмисно: у плані цього правила немає wasm-концернів (тож
+   * native-шлях виконує його сам), але є ОБИДВА класи виконавців —
+   * `adr/hooks` рахує native-реєстр `rules_core::concerns`, а
+   * `adr/settings_json` + `adr/settings_local_json` (policy/rego) йдуть через
+   * міст ОДНИМ батчем із двох items. Саме така форма ловить саботажі
+   * батчингу мосту (розділ 11.5 спеки).
+   *
+   * `reason === null` — не косметика, а суть тесту: якщо native-шлях колись
+   * почне делегувати й тут (напр. `adr` отримає wasm-контрибуцію), гейт має
+   * впасти голосно, а не тихо звіряти два JS-прогони.
+   */
+  test('scoped-прогін реального правила виконується НАТИВНО і збігається byte-exact', { timeout: 600_000 }, () => {
+    const { js, native } = runBothSides(['adr'])
+    const { reason, rest } = splitDelegationNotice(native.stderr)
+    expect(reason, `native-шлях делегував scoped-прогін замість виконати його: «${reason}»`).toBe(null)
+    expect(rest).toBe(js.stderr)
+    expect(native.stdout).toBe(js.stdout)
     expect(native.status).toBe(js.status)
   })
 })
