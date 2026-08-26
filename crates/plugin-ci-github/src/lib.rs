@@ -821,29 +821,36 @@ fn value_as_owned_string(value: &regorus::Value) -> Option<String> {
 /// `eval_rule("data.<namespace>.deny")` — точний відповідник ОДНОГО спавну
 /// `conftest test <file> -p <policyDir> --namespace <namespace> [--data …]`
 /// (`runConftestBatch`) для ОДНОГО файла. Помилка (побитий policy-текст чи
-/// вхідний JSON) — структурна помилка порту, не user-facing діагностика:
+/// вхідний JSON) позначена стадією (`"compile"`/`"set_input"`/`"eval"`,
+/// перший елемент кортежу помилки) — [`run_all_ga_rego`] перетворює її на
+/// видиму діагностику через [`push_rego_engine_error`], НЕ ковтає мовчки:
 /// живий rego верифікований 55 `conftest verify`-тестами, тож продакшн-шлях
-/// сюди не потрапляє; викликається лише для чотирьох per-workflow таргетів,
-/// НЕ для `workflow_common` (там один `Engine` на весь батч файлів,
-/// [`build_workflow_common_engine`] — доккомент модуля, розділ «regorus дає
-/// РІВНО один `input`»).
+/// сюди не потрапляє СЬОГОДНІ, але мовчазний fail-open — найгірший режим
+/// відмови лінтера (зелено, бо нічого не перевірено), тож про регресію
+/// (апгрейд `regorus`, зламаний вшитий `.rego`) користувач має дізнатись з
+/// діагностики, а не з тиші (звіт задачі, «правка 1»). Викликається лише
+/// для чотирьох per-workflow таргетів, НЕ для `workflow_common` (там один
+/// `Engine` на весь батч файлів, [`build_workflow_common_engine`] —
+/// доккомент модуля, розділ «regorus дає РІВНО один `input`»).
 fn eval_deny_rule(
     rego_source: &str,
     namespace: &str,
     data_json: &str,
     input_json: &str,
-) -> Result<Vec<String>, String> {
+) -> Result<Vec<String>, (&'static str, String)> {
     let mut engine = regorus::Engine::new();
     engine
         .add_policy(format!("{namespace}.rego"), rego_source.to_string())
-        .map_err(|e| e.to_string())?;
-    engine.add_data_json(data_json).map_err(|e| e.to_string())?;
+        .map_err(|e| ("compile", e.to_string()))?;
+    engine
+        .add_data_json(data_json)
+        .map_err(|e| ("compile", e.to_string()))?;
     engine
         .set_input_json(input_json)
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| ("set_input", e.to_string()))?;
     let result = engine
         .eval_rule(format!("data.{namespace}.deny"))
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| ("eval", e.to_string()))?;
     Ok(extract_string_set(&result))
 }
 
@@ -906,6 +913,47 @@ fn push_rego_violation(diagnostics: &mut Vec<Diagnostic>, prefix: &str, rego_mes
         file,
         severity: Severity::Error,
         data,
+    });
+}
+
+/// `reason` видимої діагностики, коли сам regorus-виклик (не rego-правило,
+/// а інфраструктура навколо нього) провалюється — compile/set_input/eval,
+/// доккомент [`eval_deny_rule`]. Заміна мовчазного fail-open (звіт задачі,
+/// «правка 1»): без каноничного `main.mjs`-відповідника, тому reason новий
+/// (не порт існуючого JS-рядка).
+const REGO_ENGINE_ERROR_REASON: &str = "rego-engine-error";
+
+/// Пуш видимої діагностики про провал самого regorus-виклику
+/// (compile/set_input/eval) — точна протилежність мовчазного fail-open, що
+/// був тут раніше (`if let Ok(...)`/`let Ok(...) else { continue }`, звіт
+/// задачі «правка 1»): якщо гілка, яку доккомент [`eval_deny_rule`] називає
+/// «структурно недосяжною», раптом стане досяжною (регресія в одному з
+/// пʼяти вшитих `.rego`, апгрейд `regorus`, зміна форми YAML), лінт має
+/// показати помилку, а не тишу. `file` — шлях workflow-файлу для per-file
+/// помилок (per-workflow таргети, `workflow_common` per-file
+/// `set_input`/`eval`); `None` — для batch-рівня (провал компіляції
+/// `workflow_common`-engine ще до першого файлу батчу).
+fn push_rego_engine_error(
+    diagnostics: &mut Vec<Diagnostic>,
+    file: Option<&str>,
+    namespace: &str,
+    stage: &str,
+    err: &str,
+) {
+    let location = file.unwrap_or(".github/workflows");
+    diagnostics.push(Diagnostic {
+        reason: REGO_ENGINE_ERROR_REASON.to_string(),
+        message: format!(
+            "{location}: regorus-виклик policy-пакета {namespace} провалився на етапі \
+             {stage}: {err} — це має бути структурно недосяжно (живий rego верифікований \
+             55 conftest verify-тестами); якщо бачиш це в реальному прогоні, перевір недавні \
+             зміни в .rego чи версію regorus"
+        ),
+        file: file.map(str::to_string),
+        severity: Severity::Error,
+        data: Some(format!(
+            "{{\"kind\":\"rego-engine-error\",\"namespace\":\"{namespace}\",\"stage\":\"{stage}\"}}"
+        )),
     });
 }
 
@@ -1209,16 +1257,30 @@ fn run_actionlint(diagnostics: &mut Vec<Diagnostic>) {
         scratch_in: vec![],
         scratch_out: vec![],
     });
-    if let Some(code) = result.status {
-        if code != 0 && code != 127 {
-            diagnostics.push(Diagnostic {
-                reason: "actionlint".to_string(),
-                message: "actionlint знайшов порушення (ga.mdc)".to_string(),
-                file: None,
-                severity: Severity::Error,
-                data: None,
-            });
-        }
+    let Some(code) = result.status else {
+        push_tool_unavailable(
+            diagnostics,
+            "actionlint",
+            "Тул береться як npm-пакет `github-actionlint`; перевір, що `node_modules/.bin` цілий (`bun install`).",
+        );
+        return;
+    };
+    if code == 127 {
+        push_tool_unavailable(
+            diagnostics,
+            "actionlint",
+            "Код 127 — виконуваний файл не знайдено; перевір, що `node_modules/.bin` цілий (`bun install`).",
+        );
+        return;
+    }
+    if code != 0 {
+        diagnostics.push(Diagnostic {
+            reason: "actionlint".to_string(),
+            message: "actionlint знайшов порушення (ga.mdc)".to_string(),
+            file: None,
+            severity: Severity::Error,
+            data: None,
+        });
     }
 }
 
@@ -1244,17 +1306,52 @@ fn run_zizmor(diagnostics: &mut Vec<Diagnostic>) {
         scratch_in: vec![],
         scratch_out: vec![],
     });
-    if let Some(code) = result.status {
-        if code != 0 && code != 127 {
-            diagnostics.push(Diagnostic {
-                reason: "zizmor".to_string(),
-                message: "zizmor знайшов ризики у workflow (ga.mdc)".to_string(),
-                file: None,
-                severity: Severity::Error,
-                data: None,
-            });
-        }
+    let Some(code) = result.status else {
+        push_tool_unavailable(
+            diagnostics,
+            "zizmor",
+            "Це SECURITY-скан workflow-ів — його мовчазний пропуск лишав лінт зеленим без перевірки. Потрібен `uvx` у PATH (`brew install uv` / `pipx install uv`).",
+        );
+        return;
+    };
+    if code == 127 {
+        push_tool_unavailable(
+            diagnostics,
+            "zizmor",
+            "Код 127 — `uvx` не знайдено в PATH (`brew install uv` / `pipx install uv`).",
+        );
+        return;
     }
+    if code != 0 {
+        diagnostics.push(Diagnostic {
+            reason: "zizmor".to_string(),
+            message: "zizmor знайшов ризики у workflow (ga.mdc)".to_string(),
+            file: None,
+            severity: Severity::Error,
+            data: None,
+        });
+    }
+}
+
+/// Діагностика «зовнішній тул не запустився» — спільна для `actionlint` і
+/// `zizmor` (§2.29). До фіксу обидві функції мовчали і на `status: None`
+/// (тул не зарезолвлено), і на коді `127` (`resolveCmd` не знайшов `bunx`):
+/// перевірка просто не виконувалась, а лінт лишався зеленим. Для `zizmor`
+/// це особливо погано — це security-скан workflow-ів.
+///
+/// Форма взята з [`check_shellcheck_installed`], що вже робив це правильно
+/// в цьому ж файлі: назвати тул, пояснити наслідок, дати команду.
+fn push_tool_unavailable(diagnostics: &mut Vec<Diagnostic>, tool: &str, hint: &str) {
+    diagnostics.push(Diagnostic {
+        reason: format!("{tool}-unavailable"),
+        message: format!(
+            "{tool} не вдалося запустити — перевірку workflow-ів ПРОПУЩЕНО, \
+             а не пройдено. {hint} (ga.mdc)"
+        ),
+        file: None,
+        severity: Severity::Error,
+        data: None,
+    });
 }
 
 /// Точний відповідник `runAllGaRego` (`main.mjs`) — доккомент модуля,
@@ -1301,9 +1398,14 @@ fn run_all_ga_rego(
             continue;
         };
         let input_json = json_to_string(&ensure_step_uses_key_present(&root));
-        if let Ok(messages) = eval_deny_rule(rego_source, namespace, data_json, &input_json) {
-            for msg in messages {
-                push_rego_violation(diagnostics, workflow_path, &msg);
+        match eval_deny_rule(rego_source, namespace, data_json, &input_json) {
+            Ok(messages) => {
+                for msg in messages {
+                    push_rego_violation(diagnostics, workflow_path, &msg);
+                }
+            }
+            Err((stage, err)) => {
+                push_rego_engine_error(diagnostics, Some(workflow_path), namespace, stage, &err);
             }
         }
     }
@@ -1311,19 +1413,40 @@ fn run_all_ga_rego(
     if yml_workflows.is_empty() {
         return;
     }
-    let Ok(mut engine) = build_workflow_common_engine(&templates.workflow_common) else {
-        return;
+    let mut engine = match build_workflow_common_engine(&templates.workflow_common) {
+        Ok(engine) => engine,
+        Err(err) => {
+            push_rego_engine_error(diagnostics, None, "ga.workflow_common", "compile", &err);
+            return;
+        }
     };
     for file in yml_workflows {
         let Some(root) = parse_yaml_document(&file.content) else {
             continue;
         };
         let input_json = json_to_string(&ensure_step_uses_key_present(&root));
-        if engine.set_input_json(&input_json).is_err() {
+        if let Err(err) = engine.set_input_json(&input_json) {
+            push_rego_engine_error(
+                diagnostics,
+                Some(&file.path),
+                "ga.workflow_common",
+                "set_input",
+                &err.to_string(),
+            );
             continue;
         }
-        let Ok(result) = engine.eval_rule("data.ga.workflow_common.deny".to_string()) else {
-            continue;
+        let result = match engine.eval_rule("data.ga.workflow_common.deny".to_string()) {
+            Ok(result) => result,
+            Err(err) => {
+                push_rego_engine_error(
+                    diagnostics,
+                    Some(&file.path),
+                    "ga.workflow_common",
+                    "eval",
+                    &err.to_string(),
+                );
+                continue;
+            }
         };
         for msg in extract_string_set(&result) {
             push_rego_violation(diagnostics, &file.path, &msg);
@@ -2285,5 +2408,128 @@ mod tests {
         let mut d = Vec::new();
         run_all_ga_rego(&mut d, &[&non_yml], &[]);
         assert!(d.is_empty());
+    }
+
+    // --- правка 1: видима діагностика замість мовчазного fail-open ---
+    //
+    // Три rego-помилки нижче зроблено ЛИШЕ тестовими (test-local) рядками —
+    // жоден реальний `.rego`-файл не чіпається. Продакшн-шлях
+    // [`run_all_ga_rego`] справді недосяжний для цих гілок (rego-джерело й
+    // `--data`-шаблони вшиті на compile-time, JSON-`input` завжди валідний —
+    // [`write_json`] не може випустити побитий синтаксис), тож єдиний спосіб
+    // довести, що діагностика зʼявляється замість тиші — прямий виклик
+    // [`eval_deny_rule`]/[`push_rego_engine_error`] зі зламаним входом,
+    // сконструйованим тут.
+
+    #[test]
+    fn eval_deny_rule_reports_compile_stage_error_for_unparsable_rego() {
+        // Незбалансована дужка — policy взагалі не парситься.
+        let broken_rego = "package ga.broken\ndeny contains msg if { msg := \"x\"";
+        let result = eval_deny_rule(broken_rego, "ga.broken", "{}", "{}");
+        let Err((stage, err)) = result else {
+            panic!("зламаний rego мав дати Err, отримано {result:?}");
+        };
+        assert_eq!(stage, "compile");
+        assert!(!err.is_empty());
+    }
+
+    #[test]
+    fn eval_deny_rule_reports_set_input_stage_error_for_malformed_input_json() {
+        let ok_rego = "package ga.ok\ndeny contains msg if { msg := \"x\" }";
+        let result = eval_deny_rule(ok_rego, "ga.ok", "{}", "not-json");
+        let Err((stage, err)) = result else {
+            panic!("побитий input_json мав дати Err, отримано {result:?}");
+        };
+        assert_eq!(stage, "set_input");
+        assert!(!err.is_empty());
+    }
+
+    #[test]
+    fn eval_deny_rule_reports_eval_stage_error_for_namespace_mismatch() {
+        // `namespace`, переданий викликачем, не збігається з `package`
+        // усередині policy — `data.ga.wrong.deny` не існує (регорус: "not a
+        // valid rule path", доккомент [`eval_deny_rule`]).
+        let rego = "package ga.actual\ndeny contains msg if { msg := \"x\" }";
+        let result = eval_deny_rule(rego, "ga.wrong", "{}", "{}");
+        let Err((stage, err)) = result else {
+            panic!("розбіжність namespace мала дати Err, отримано {result:?}");
+        };
+        assert_eq!(stage, "eval");
+        assert!(!err.is_empty());
+    }
+
+    #[test]
+    fn broken_policy_produces_visible_diagnostic_not_silence() {
+        // Пряме порівняння СТАРОЇ (до правки 1) і НОВОЇ поведінки на ОДНІЙ і
+        // тій самій зламаній policy — доводить сáме твердження задачі: там,
+        // де стара гілка (`if let Ok(messages) = eval_deny_rule(...) { … }`,
+        // без `else`) мовчки ковтала Err, нова (`match … Err((stage, err)) =>
+        // push_rego_engine_error(...)`) дає РІВНО одну діагностику.
+        let broken_rego = "package ga.broken\ndeny contains msg if { msg := \"x\"";
+        let namespace = "ga.broken";
+        let workflow_path = ".github/workflows/broken.yml";
+        let result = eval_deny_rule(broken_rego, namespace, "{}", "{}");
+
+        // СТАРА поведінка, відтворена буквально (звіт задачі, «правка 1»):
+        // `if let Ok(messages) = eval_deny_rule(...) { push violations }` —
+        // жодної гілки на `Err`, тож `Err` просто випадає в нікуди.
+        let mut old_style_diagnostics: Vec<Diagnostic> = Vec::new();
+        if let Ok(messages) = &result {
+            for msg in messages {
+                push_rego_violation(&mut old_style_diagnostics, workflow_path, msg);
+            }
+        }
+        assert!(
+            old_style_diagnostics.is_empty(),
+            "стара гілка мовчки ковтає зламаний rego — саме це й є fail-open баг"
+        );
+
+        // НОВА поведінка (правка 1) — той самий `result`, але через
+        // актуальний `match`, що тепер стоїть у [`run_all_ga_rego`].
+        let mut new_diagnostics: Vec<Diagnostic> = Vec::new();
+        match result {
+            Ok(messages) => {
+                for msg in messages {
+                    push_rego_violation(&mut new_diagnostics, workflow_path, &msg);
+                }
+            }
+            Err((stage, err)) => {
+                push_rego_engine_error(
+                    &mut new_diagnostics,
+                    Some(workflow_path),
+                    namespace,
+                    stage,
+                    &err,
+                );
+            }
+        }
+        assert_eq!(
+            new_diagnostics.len(),
+            1,
+            "зламана policy має дати РІВНО одну видиму діагностику, не тишу"
+        );
+        assert_eq!(new_diagnostics[0].reason, REGO_ENGINE_ERROR_REASON);
+        assert_eq!(new_diagnostics[0].file.as_deref(), Some(workflow_path));
+        assert_eq!(new_diagnostics[0].severity, Severity::Error);
+        assert!(new_diagnostics[0].message.contains(namespace));
+        assert!(new_diagnostics[0].message.contains("compile"));
+    }
+
+    #[test]
+    fn push_rego_engine_error_batch_level_has_no_file() {
+        // `build_workflow_common_engine`-провал (доккомент
+        // [`push_rego_engine_error`]) — batch-рівень, `file: None`.
+        let mut d = Vec::new();
+        push_rego_engine_error(&mut d, None, "ga.workflow_common", "compile", "boom");
+        assert_eq!(d.len(), 1);
+        assert_eq!(d[0].reason, REGO_ENGINE_ERROR_REASON);
+        assert!(d[0].file.is_none());
+        assert!(d[0].message.contains(".github/workflows"));
+        assert!(d[0].message.contains("ga.workflow_common"));
+        assert!(d[0].message.contains("boom"));
+        assert_eq!(
+            d[0].data.as_deref(),
+            Some("{\"kind\":\"rego-engine-error\",\"namespace\":\"ga.workflow_common\",\"stage\":\"compile\"}")
+        );
     }
 }
