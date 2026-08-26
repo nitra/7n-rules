@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.100.7] - 2026-08-26
+
+### Fixed
+
+- ga/workflows (plugin-ci-github): мовчазний fail-open замінено видимою діагностикою у двох каналах — regorus (compile/set_input/eval → `rego-engine-error`) і зовнішні тули (`actionlint`/`zizmor` не запустились → `*-unavailable`). Раніше обидва канали давали зелений лінт без виконаної перевірки; для `zizmor` це означало мовчазний пропуск security-скану workflow-ів
+
 ## [1.100.6] - 2026-08-26
 
 ### Fixed
