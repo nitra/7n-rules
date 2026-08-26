@@ -626,3 +626,33 @@ export function resolveWasmConcernMap(cwd, opts = {}) {
 export function resetWasmConcernMapForTests() {
   wasmConcernMapPromise = null
 }
+
+/**
+ * Точковий предикат «чи існує `builtin-pins.json`» — без читання/валідації
+ * вмісту (на відміну від [`readBuiltinPinsConfig`], яка мовчить при
+ * відсутності файлу, доккомент модуля §O1). Диспатчер (`detect.mjs`,
+ * `runConcernDetector`) звіряє цей прапорець у ЄДИНІЙ точці, де вже
+ * вичерпані всі джерела реалізації concern-а (native, wasm-мапа, main.mjs,
+ * policy) — якщо файла немає, `DetectorError('немає main.mjs')` не може
+ * розрізнити «concern портовано у wasm, але локальна збірка не робилась» від
+ * «concern справді зламаний», тож повідомлення лише ДОПОВНЮЄ підказкою
+ * (не замінює — заміна брехала б у другому випадку), доккомент виклику.
+ *
+ * Свідомо НЕ інтегровано в [`resolveWasmConcernMap`]/[`readBuiltinPinsConfig`]
+ * як `console.warn`: відсутність файлу там — задокументований очікуваний стан
+ * repo-дерева без локальної wasm-збірки (доккомент [`readBuiltinPinsConfig`]),
+ * і мовчання там звірене тестом (`wasm-plugins.test.mjs`, «немає
+ * builtin-pins.json → тиша, порожня мапа»); резолв викликається для КОЖНОГО
+ * concern-а незалежно від того, чи той concern узагалі стосується wasm —
+ * warn там гримів би і тоді, коли жодна причина для нього немає (задача,
+ * що ставила цей предикат, явно застерігала не робити артефакт обов'язковим
+ * для сценаріїв, де wasm не потрібен). Тут же виклик стається лише в
+ * останній інстанції, коли concern УЖЕ не резолвився жодним іншим шляхом —
+ * природне місце для підказки, не для сигналу за замовчуванням.
+ * @param {string} [builtinPinsDir] абсолютний шлях до `npm/wasm-plugins/`
+ *   (дефолт — [`WASM_PLUGINS_DIR`]; тести підміняють неіснуючою текою)
+ * @returns {boolean} true, якщо `builtin-pins.json` присутній у теці
+ */
+export function hasBuiltinPinsArtifact(builtinPinsDir = WASM_PLUGINS_DIR) {
+  return existsSync(join(builtinPinsDir, 'builtin-pins.json'))
+}

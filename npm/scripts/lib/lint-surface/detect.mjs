@@ -14,7 +14,7 @@ import { pathToFileURL } from 'node:url'
 import { loadNative } from '../native.mjs'
 import { hasResolvableFiles, isGeneratedFile } from './codegen-opa-wrapper.mjs'
 import { evaluatePolicyConcern } from './policy-lint-adapter.mjs'
-import { resolveWasmConcernMap } from './wasm-plugins.mjs'
+import { hasBuiltinPinsArtifact, resolveWasmConcernMap } from './wasm-plugins.mjs'
 
 /**
  * Кеш ключів native-портованих concern-ів (`ruleId/concernId`), один на процес.
@@ -205,8 +205,13 @@ function hasHandWrittenMain(mainPath) {
  * `resolveWasmConcernMap` уже відфільтрувала при побудові мапи — такий запис
  * туди просто не потрапляє), concern не валить прогін — попереджає й падає
  * назад на `main.mjs`/policy-гілки нижче, якщо для цього ж concern-а є
- * ручна реалізація; інакше дійде до `DetectorError('немає main.mjs')`, як
- * і будь-який concern без жодної реалізації.
+ * ручна реалізація; інакше дійде до фінального `DetectorError` нижче, як
+ * і будь-який concern без жодної реалізації — те саме повідомлення умовно
+ * доповнюється підказкою про відсутній `npm/wasm-plugins/builtin-pins.json`,
+ * коли той файл справді відсутній ([`hasBuiltinPinsArtifact`],
+ * `wasm-plugins.mjs`) — не можна відрізнити «concern портовано у wasm, але
+ * локальна збірка не робилась» від «concern справді без реалізації», тож
+ * повідомлення лише доповнюється, не замінюється (доккомент виклику нижче).
  *
  * Інакше — чисті policy-concern-и (rego/template, без ручного `main.mjs`)
  * оцінюються напряму через `evaluatePolicyConcern` з даних `concern.json` —
@@ -279,7 +284,21 @@ export async function runConcernDetector(concern, ctx) {
   }
 
   if (!existsSync(mainPath)) {
-    throw new DetectorError(ctx.ruleId, ctx.concernId, 'немає main.mjs')
+    // Дефект з сесії 2026-08-26 (§2.38): `builtin-pins.json` відсутній (репо-дерево
+    // без локальної wasm-збірки, `.gitignore`) → `resolveWasmConcernMap` мовчки
+    // повертає порожню мапу (доккомент `hasBuiltinPinsArtifact`) → для ПОРТОВАНИХ
+    // у wasm concern-ів (яким `main.mjs` видалено під час міграції) диспатч
+    // провалюється сюди і повідомлення називало наслідок («немає main.mjs»), а не
+    // причину. Тут неможливо відрізнити «concern портовано у wasm, артефакт не
+    // зібраний» від «concern справді зламаний» (для другого випадку стара коротка
+    // фраза лишається правильною) — тому підказка лише ДОПОВНЮЄ повідомлення
+    // умовним «якщо портовано», а не замінює його (заміна брехала б у другому
+    // випадку). Коли `builtin-pins.json` присутній, причина explicitly НЕ в
+    // відсутній збірці — підказку не додаємо, щоб не шуміти невлучним натяком.
+    const detail = hasBuiltinPinsArtifact()
+      ? 'немає main.mjs'
+      : 'немає main.mjs (якщо цей концерн портовано у wasm-плагін — перевірте npm/wasm-plugins/builtin-pins.json: файл відсутній; згенеруйте його: node npm/scripts/build-wasm-plugins.mjs)'
+    throw new DetectorError(ctx.ruleId, ctx.concernId, detail)
   }
   let mod
   try {
