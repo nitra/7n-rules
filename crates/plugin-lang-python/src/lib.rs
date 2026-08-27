@@ -21,9 +21,9 @@
 //! - `python/doc_comments` (per-file) — порт
 //!   `plugins/lang-python/rules/python/doc_comments/main.mjs`: рекомендовані
 //!   вимоги до docstring-ів (module-level + top-level публічний def/class).
-//!   T0-фіксер (`fix-doc_comments.mjs`, 64 рядки) СВІДОМО поза обсягом цієї
-//!   хвилі — `Guest::fix` повертає порожній план для цього концерну, як і
-//!   для решти ([`Guest::fix`]).
+//!   T0-фіксер (`fix-doc_comments.mjs`, 64 рядки) — ПЕРША хвиля лишила його
+//!   поза обсягом; четверта ПОРТУВАЛА ([`fix_doc_comments`], доккомент
+//!   нижче, розділ «`python/doc_comments` — Т0-фіксер ПОРТОВАНО»).
 //!
 //! # Обхід дерева — чому в гості немає `globby`
 //!
@@ -57,6 +57,38 @@
 //! емпірично при першій спробі зібрати без цієї фічі — доккомент
 //! `Cargo.toml`). `unicode-case` не потрібен: жоден патерн цього крейта не
 //! має `(?i)`.
+//!
+//! # `python/doc_comments` — Т0-фіксер ПОРТОВАНО (перший фіксер цього крейта)
+//!
+//! Четверта ітерація вже відпрацьованого патерна (перша — `js/doc_comments`,
+//! друга — `rust/cargo_mutants_config`, третя — `rust/doc_comments`,
+//! доккомент `crates/plugin-lang-rust/src/lib.rs`): [`fix_doc_comments`]
+//! перетворює суцільний `#`-блок ВПРИТУЛ над `def`/`class` на docstring
+//! одразу після заголовка (текст автора зберігається дослівно, точний
+//! семантичний порт T0-патерна `promote-comments-to-docstring`,
+//! `fix-doc_comments.mjs`). Module-docstring T0 НЕ синтезує (провідний
+//! `#`-блок файлу часто shebang/ліцензія, не намір — `missing-module-docstring`
+//! НІКОЛИ не несе `promotable`, той самий контракт, що JS-канон).
+//!
+//! На відміну від rust-сусіда (`fix_doc_comments`,
+//! `crates/plugin-lang-rust/src/lib.rs` — ЛИШЕ заміна вмісту рядків, довжина
+//! масиву незмінна), цей фікс ВСТАВЛЯЄ docstring і ВИДАЛЯЄ коментар-джерело
+//! — довжина `lines` змінюється, тож ПОРЯДОК застосування кількох фіксів
+//! усередині одного файлу критичний: обробка йде ЗНИЗУ ВГОРУ (спадання
+//! `headerEnd`, точний порт JS `toSorted((a,b) => b.headerEnd - a.headerEnd)`)
+//! — вставки/видалення для нижніх (уже оброблених) `def`/`class` не зсувають
+//! індекси ще не оброблених верхніх.
+//!
+//! Крейт НЕ має `serde_json` (розмірна політика, доккомент вище) — `data`
+//! (власного виробництва [`check_file_doc_comments`], не consumer-репо)
+//! розбирається двома мінімальними рядковими helper-ами
+//! ([`json_bool_field_is_true`], [`json_usize_field`]) замість повного
+//! JSON-парсера, той самий прийом, що rust-сусід.
+//!
+//! JS-канон (`fix-doc_comments.mjs`) цією хвилею СВІДОМО НЕ видалено — той
+//! самий порядок «спершу парність, зняття подвійної реалізації — окрема
+//! хвиля», що вже був для `rust/cargo_mutants_config`/`rust/doc_comments` і
+//! для детекторів.
 //!
 //! # Друга хвиля
 //!
@@ -221,6 +253,35 @@ fn json_escape_string(s: &str) -> String {
     }
     out.push('"');
     out
+}
+
+/// Чи flat-JSON `data` (тут — завжди ВЛАСНОГО виробництва цього крейта,
+/// [`json_escape_string`]-сусід із протилежним напрямком) містить
+/// `"field":true`. Без `serde_json` (крейт-політика, той самий мотив, що
+/// `crates/plugin-lang-rust/src/lib.rs::json_bool_field_is_true`) — рядковий
+/// пошук достатній, формат контролює РІВНО [`check_file_doc_comments`], не
+/// consumer-репо.
+fn json_bool_field_is_true(data: &str, field: &str) -> bool {
+    data.contains(&format!("\"{field}\":true"))
+}
+
+/// Читає ціле невід'ємне поле `"field":123` із того самого flat-JSON `data`,
+/// що [`json_bool_field_is_true`]. `None` — поле відсутнє чи не число
+/// (застаріла/чужа діагностика); [`fix_doc_comments`] тоді просто пропускає
+/// блок, той самий fail-safe дух, що `promotable_block_from_data`
+/// (`crates/plugin-lang-js/src/lib.rs`).
+fn json_usize_field(data: &str, field: &str) -> Option<usize> {
+    let needle = format!("\"{field}\":");
+    let start = data.find(&needle)? + needle.len();
+    let digits: String = data[start..]
+        .chars()
+        .take_while(char::is_ascii_digit)
+        .collect();
+    if digits.is_empty() {
+        None
+    } else {
+        digits.parse().ok()
+    }
 }
 
 /// Діагностика форми `fail(msg)` (без `file`/`data`) — точний відповідник
@@ -494,6 +555,159 @@ fn detect_doc_comments(files: &[SourceFile]) -> Vec<Diagnostic> {
         ));
     }
     out
+}
+
+/// Один promotable-фікс [`detect_doc_comments`] (`missing-def-docstring`,
+/// `data.promotable == true`): зріз полів, реально споживаних
+/// [`fix_doc_comments`] (`fromLine`/`toLine`/`headerEnd`; `name`/`promotable`
+/// перевірені окремо в [`doc_comment_promote_fix`]). `missing-module-docstring`
+/// НІКОЛИ не несе `promotable` — T0 не синтезує module-docstring (доккомент
+/// [`fix_doc_comments`]).
+struct DocCommentPromoteFix {
+    from_line: usize,
+    to_line: usize,
+    header_end: usize,
+}
+
+/// Розбирає [`DocCommentPromoteFix`] із `data` діагностики — `None`, якщо
+/// `data` не позначено `"promotable":true` чи бракує потрібного поля
+/// (застаріла/чужа діагностика, той самий fail-safe дух, що
+/// `promotable_block_from_data` `plugin-lang-js`).
+fn doc_comment_promote_fix(data: &str) -> Option<DocCommentPromoteFix> {
+    if !json_bool_field_is_true(data, "promotable") {
+        return None;
+    }
+    Some(DocCommentPromoteFix {
+        from_line: json_usize_field(data, "fromLine")?,
+        to_line: json_usize_field(data, "toLine")?,
+        header_end: json_usize_field(data, "headerEnd")?,
+    })
+}
+
+/// Точний порт `buildDocstring` (`fix-doc_comments.mjs:19-22`): один текст —
+/// однорядковий `"""…"""`; кілька — багаторядковий блок, кожен рядок тіла з
+/// відступом.
+fn build_docstring(texts: &[String], indent: &str) -> Vec<String> {
+    if texts.len() == 1 {
+        return vec![format!("{indent}\"\"\"{}\"\"\"", texts[0])];
+    }
+    let mut out = Vec::with_capacity(texts.len() + 1);
+    out.push(format!("{indent}\"\"\"{}", texts[0]));
+    for text in &texts[1..] {
+        out.push(format!("{indent}{text}"));
+    }
+    out.push(format!("{indent}\"\"\""));
+    out
+}
+
+/// Знімає провідний `#` і ОДИН опційний пробільний символ одразу після —
+/// точний порт `COMMENT_PREFIX_RE = /^#\s?/` (`fix-doc_comments.mjs`). Рядки
+/// без провідного `#` повертаються без змін (той самий контракт, що
+/// non-matching `String.prototype.replace`); безпечно — [`fix_doc_comments`]
+/// викликає це лише на рядках блоку, який [`comment_block_above`] уже
+/// підтвердив як `COMMENT_LINE_RE`-матч (колонка 0, без відступу — на
+/// відміну від rust-сусіда).
+fn strip_python_comment_prefix(line: &str) -> &str {
+    let Some(rest) = line.strip_prefix('#') else {
+        return line;
+    };
+    match rest.chars().next() {
+        Some(c) if c.is_whitespace() => &rest[c.len_utf8()..],
+        _ => rest,
+    }
+}
+
+/// Провідні пробільні символи рядка — точний порт `INDENT_RE = /^\s*/`
+/// (`fix-doc_comments.mjs`), той самий `.trim_start()`-мотив, що
+/// [`header_end_line`]/[`comment_block_above`] уже використовують на боці
+/// детекту цього крейта.
+fn leading_whitespace(line: &str) -> &str {
+    &line[..line.len() - line.trim_start().len()]
+}
+
+/// Т0-фіксер `python/doc_comments` — точний семантичний порт T0-патерна
+/// `promote-comments-to-docstring` (`fix-doc_comments.mjs`), ПЕРШИЙ
+/// портований фіксер `plugin-lang-python` (три попередні хвилі лишили
+/// `Guest::fix` суцільною заглушкою для КОЖНОГО концерну).
+///
+/// 1. групування діагностик з `data.promotable == true` за файлом (порядок
+///    надходження, дзеркало JS `Map`) — [`doc_comment_promote_fix`] читає
+///    `fromLine`/`toLine`/`headerEnd` без `serde_json` (доккомент
+///    [`json_usize_field`]); `missing-module-docstring` НІКОЛИ не проходить
+///    (немає `promotable`) — T0 module-docstring не синтезує;
+/// 2. усередині файлу фікси йдуть ЗНИЗУ ВГОРУ — спадання `headerEnd`
+///    (дзеркало JS `toSorted((a,b) => b.headerEnd - a.headerEnd)`): на
+///    відміну від rust-сусіда (`fix_doc_comments`,
+///    `crates/plugin-lang-rust/src/lib.rs`, ЛИШЕ заміна вмісту рядків без
+///    зміни довжини масиву), цей фікс ВСТАВЛЯЄ docstring і ВИДАЛЯЄ
+///    коментар-джерело — довжина `lines` змінюється, тож порядок
+///    визначає коректність: обробка знизу вгору лишає індекси ще НЕ
+///    оброблених (вищих) фіксів незайманими;
+/// 3. для кожного фіксу: тексти комент-рядків [`strip_python_comment_prefix`]
+///    + `trim_end()`; відступ — від першого непорожнього рядка тіла
+///    (`headerEnd + 1`) чи 4 пробіли, якщо тіло порожнє чи відсутнє
+///    ([`leading_whitespace`]); docstring ([`build_docstring`]) ВСТАВЛЯЄТЬСЯ
+///    одразу після заголовка (`headerEnd + 1` — строго ПІСЛЯ вихідного
+///    коментар-блоку, тож вставка не зсуває індекси ще не видаленого
+///    блоку), СТАРИЙ коментар-блок ВИДАЛЯЄТЬСЯ;
+/// 4. файл без реальних змін у план не потрапляє (`next == content`).
+fn fix_doc_comments(request: &FixRequest) -> FixPlan {
+    let mut by_file: Vec<(&str, Vec<DocCommentPromoteFix>)> = Vec::new();
+    for diagnostic in &request.diagnostics {
+        let Some(data) = diagnostic.data.as_deref() else {
+            continue;
+        };
+        let Some(fix) = doc_comment_promote_fix(data) else {
+            continue;
+        };
+        let Some(file) = diagnostic.file.as_deref() else {
+            continue;
+        };
+        match by_file.iter_mut().find(|(path, _)| *path == file) {
+            Some((_, fixes)) => fixes.push(fix),
+            None => by_file.push((file, vec![fix])),
+        }
+    }
+
+    let mut edits = Vec::new();
+    for (file, fixes) in &mut by_file {
+        let Some(source) = request.files.iter().find(|f| f.path == *file) else {
+            continue;
+        };
+        let mut lines: Vec<String> = source.content.split('\n').map(str::to_string).collect();
+        fixes.sort_by_key(|f| std::cmp::Reverse(f.header_end));
+        for fix in fixes.iter() {
+            if fix.from_line > fix.to_line || fix.to_line >= lines.len() {
+                // Застаріла/неспівставна діагностика — best-effort пропуск
+                // (fail-safe, той самий дух, що [`json_usize_field`]); JS
+                // на такому вхід теоретично впав би на `undefined`-зрізі.
+                continue;
+            }
+            let texts: Vec<String> = lines[fix.from_line..=fix.to_line]
+                .iter()
+                .map(|line| strip_python_comment_prefix(line).trim_end().to_string())
+                .collect();
+            let body_line = lines.get(fix.header_end + 1).cloned().unwrap_or_default();
+            let indent = if body_line.trim().is_empty() {
+                " ".repeat(4)
+            } else {
+                leading_whitespace(&body_line).to_string()
+            };
+            let doc_lines = build_docstring(&texts, &indent);
+            let insert_at = (fix.header_end + 1).min(lines.len());
+            lines.splice(insert_at..insert_at, doc_lines);
+            lines.drain(fix.from_line..=fix.to_line);
+        }
+        let next = lines.join("\n");
+        if next == source.content {
+            continue;
+        }
+        edits.push(FileEdit::Write(WriteFile {
+            path: source.path.clone(),
+            content: next,
+        }));
+    }
+    FixPlan { edits }
 }
 
 // =====================================================================
@@ -2044,12 +2258,17 @@ impl Guest for LangPython {
         diagnostics
     }
 
-    /// Перша хвиля не портує жодного fix-контуру (T0 `python/doc_comments`
-    /// — `fix-doc_comments.mjs`, 64 рядки — лишається JS, доккомент модуля):
-    /// порожній план для КОЖНОГО концерну, сумісна заглушка (доккомент
-    /// `wit/world.wit` біля `export fix`).
-    fn fix(_request: FixRequest) -> FixPlan {
-        FixPlan { edits: vec![] }
+    /// Перші три хвилі не портували жодного fix-контуру; четверта додала
+    /// `python/doc_comments` ([`fix_doc_comments`], доккомент функції) —
+    /// ПЕРШИЙ реальний план цього крейта. JS-канон (`fix-doc_comments.mjs`)
+    /// лишається чинним (парність, не заміна). Решта концернів і далі
+    /// отримують сумісну заглушку — порожній план (доккомент `wit/world.wit`
+    /// біля `export fix`).
+    fn fix(request: FixRequest) -> FixPlan {
+        match request.concern_id.as_str() {
+            CONCERN_DOC_COMMENTS => fix_doc_comments(&request),
+            _ => FixPlan { edits: vec![] },
+        }
     }
 
     fn ecosystem_outdated(_request: EcosystemRequest) -> Result<Vec<OutdatedDep>, DomainError> {
@@ -2335,6 +2554,149 @@ mod tests {
         let src = "#!/usr/bin/env python\nfrom __future__ import annotations\n\"\"\"Намір.\"\"\"\n\ndef go():\n    \"\"\"X.\"\"\"\n    return 1\n";
         let files = vec![sf("pkg/mod.py", src)];
         assert!(detect_doc_comments(&files).is_empty());
+    }
+
+    // --- python/doc_comments: guest-фікс (перший портований T0-план цього
+    // крейта, доккомент модуля, розділ «`python/doc_comments` — Т0-фіксер
+    // ПОРТОВАНО») ---
+
+    /// Діагностики в формі, яку реально віддає [`detect_doc_comments`] —
+    /// тести фіксу нижче ганяють detect → fix парою (той самий прийом, що
+    /// `plugin-lang-rust`).
+    fn doc_comments_fix_request_for(files: Vec<SourceFile>) -> FixRequest {
+        let diagnostics = detect_doc_comments(&files);
+        FixRequest {
+            concern_id: CONCERN_DOC_COMMENTS.to_string(),
+            files,
+            diagnostics,
+        }
+    }
+
+    #[test]
+    fn fix_doc_comments_promotes_multiline_comment_block_to_docstring() {
+        // Та сама фікстура, що `detect_doc_comments_marks_promotable_comment_block_above_def`.
+        let src =
+            "\"\"\"Модуль.\"\"\"\n\n\n# Опис функції\n# другий рядок\ndef run():\n    return 1\n";
+        let files = vec![sf("pkg/mod.py", src)];
+        let plan = fix_doc_comments(&doc_comments_fix_request_for(files));
+        assert_eq!(plan.edits.len(), 1);
+        let FileEdit::Write(write) = &plan.edits[0] else {
+            panic!("очікували write-edit")
+        };
+        assert_eq!(
+            write.content,
+            "\"\"\"Модуль.\"\"\"\n\n\ndef run():\n    \"\"\"Опис функції\n    другий рядок\n    \"\"\"\n    return 1\n"
+        );
+    }
+
+    #[test]
+    fn fix_doc_comments_indent_follows_body_line_not_hardcoded() {
+        // Тіло `def go()` відступлене на 8 пробілів (не типові 4) —
+        // indent docstring-а має піти ЗА тілом ([`leading_whitespace`]), не
+        // за хардкодом.
+        let src = "\"\"\"Модуль.\"\"\"\n\n\n# Опис\ndef go():\n        return 1\n";
+        let files = vec![sf("pkg/mod.py", src)];
+        let plan = fix_doc_comments(&doc_comments_fix_request_for(files));
+        assert_eq!(plan.edits.len(), 1);
+        let FileEdit::Write(write) = &plan.edits[0] else {
+            panic!("очікували write-edit")
+        };
+        assert_eq!(
+            write.content,
+            "\"\"\"Модуль.\"\"\"\n\n\ndef go():\n        \"\"\"Опис\"\"\"\n        return 1\n"
+        );
+    }
+
+    #[test]
+    fn fix_doc_comments_falls_back_to_four_spaces_when_body_line_is_blank() {
+        let src = "\"\"\"Модуль.\"\"\"\n\n\n# Опис\ndef go():\n\n    return 1\n";
+        let files = vec![sf("pkg/mod.py", src)];
+        let plan = fix_doc_comments(&doc_comments_fix_request_for(files));
+        assert_eq!(plan.edits.len(), 1);
+        let FileEdit::Write(write) = &plan.edits[0] else {
+            panic!("очікували write-edit")
+        };
+        assert_eq!(
+            write.content,
+            "\"\"\"Модуль.\"\"\"\n\n\ndef go():\n    \"\"\"Опис\"\"\"\n\n    return 1\n"
+        );
+    }
+
+    #[test]
+    fn fix_doc_comments_ignores_module_docstring_violation_t0_does_not_synthesize() {
+        // `missing-module-docstring` НІКОЛИ не несе `promotable` — файл БЕЗ
+        // module-docstring, але з def-docstring уже присутнім, дає РІВНО
+        // одну (module) діагностику, і фікс її ігнорує.
+        let src = "def go():\n    \"\"\"X.\"\"\"\n    return 1\n";
+        let files = vec![sf("pkg/mod.py", src)];
+        let request = doc_comments_fix_request_for(files);
+        assert_eq!(request.diagnostics.len(), 1);
+        assert_eq!(
+            request.diagnostics[0].reason,
+            DOC_COMMENTS_MISSING_MODULE_REASON
+        );
+        assert!(fix_doc_comments(&request).edits.is_empty());
+    }
+
+    #[test]
+    fn fix_doc_comments_returns_empty_plan_without_diagnostics() {
+        let request = FixRequest {
+            concern_id: CONCERN_DOC_COMMENTS.to_string(),
+            files: vec![sf("pkg/mod.py", "def go():\n    return 1\n")],
+            diagnostics: vec![],
+        };
+        assert!(fix_doc_comments(&request).edits.is_empty());
+    }
+
+    #[test]
+    fn fix_doc_comments_processes_multiple_defs_bottom_up_without_index_drift() {
+        // Два `def` в одному файлі — [`fix_doc_comments`] мусить обробити їх
+        // ЗНИЗУ ВГОРУ (спадання `headerEnd`), інакше вставка/видалення для
+        // `a` зсунула б індекси `b`. Дзеркало JS `toSorted((a,b) =>
+        // b.headerEnd - a.headerEnd)`. `a` навмисно з ДВОРЯДКОВИМ коментарем
+        // (2 рядки коментаря → 3 рядки docstring, NET +1 рядок) — з
+        // однорядковими блоками (NET 0) порядок обробки байдужий, бага не
+        // видно; асиметрія довжин — необхідна умова, щоб тест РЕАЛЬНО
+        // перевіряв інваріант (перевірено дією нижче).
+        let src = "\"\"\"Модуль.\"\"\"\n\n\n# Перший\n# рядок два\ndef a():\n    return 1\n\n\n# Другий\ndef b():\n    return 2\n";
+        let files = vec![sf("pkg/mod.py", src)];
+        let plan = fix_doc_comments(&doc_comments_fix_request_for(files));
+        assert_eq!(plan.edits.len(), 1);
+        let FileEdit::Write(write) = &plan.edits[0] else {
+            panic!("очікували write-edit")
+        };
+        assert_eq!(
+            write.content,
+            "\"\"\"Модуль.\"\"\"\n\n\ndef a():\n    \"\"\"Перший\n    рядок два\n    \"\"\"\n    return 1\n\n\ndef b():\n    \"\"\"Другий\"\"\"\n    return 2\n"
+        );
+        assert!(detect_doc_comments(&[sf("pkg/mod.py", &write.content)]).is_empty());
+    }
+
+    /// T0-раунд-трип ВСЕРЕДИНІ гостя (доповнює `wasm-plugin-parity-python.test.mjs`'s
+    /// гість-детект → JS-фікс → гість-детект чисто цикл доказом, що
+    /// гість-детект → гість-фікс → гість-детект теж замикається чисто) — той
+    /// самий прийом, що `plugin-lang-rust`.
+    #[test]
+    fn fix_doc_comments_round_trip_with_detect_is_clean() {
+        let before = vec![sf(
+            "pkg/mod.py",
+            "\"\"\"Модуль.\"\"\"\n\n\n# Опис функції\n# другий рядок\ndef run():\n    return 1\n",
+        )];
+        let diagnostics_before = detect_doc_comments(&before);
+        assert_eq!(diagnostics_before.len(), 1);
+
+        let plan = fix_doc_comments(&FixRequest {
+            concern_id: CONCERN_DOC_COMMENTS.to_string(),
+            files: before.clone(),
+            diagnostics: diagnostics_before,
+        });
+        assert_eq!(plan.edits.len(), 1);
+        let FileEdit::Write(write) = &plan.edits[0] else {
+            panic!("очікували write-edit")
+        };
+
+        let after = vec![sf(&write.path, &write.content)];
+        assert!(detect_doc_comments(&after).is_empty());
     }
 
     // --- build_manifest ---

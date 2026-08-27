@@ -12,9 +12,10 @@
 //! - `rust/doc_comments` (per-file) — порт
 //!   `plugins/lang-rust/rules/rust/doc_comments/main.mjs`: рекомендовані
 //!   вимоги до rustdoc-коментарів (провідний `//!`-header + `///` над кожним
-//!   top-level `pub`-елементом). T0-фіксер (`fix-doc_comments.mjs`, JS)
-//!   СВІДОМО поза обсягом цієї хвилі — `Guest::fix` повертає порожній план
-//!   для цього концерну, як і для решти ([`Guest::fix`]).
+//!   top-level `pub`-елементом). T0-фіксер (`fix-doc_comments.mjs`, JS) —
+//!   ПЕРША хвиля лишила його поза обсягом; четверта ПОРТУВАЛА
+//!   ([`fix_doc_comments`], доккомент нижче, розділ «Т0-фіксер
+//!   ПОРТОВАНО» — той самий заголовок, що для `rust/cargo_mutants_config`).
 //! - `rust/workspace_root` (full-scope) — порт
 //!   `plugins/lang-rust/rules/rust/workspace_root/main.mjs`: репозиторій має
 //!   мати рівно один кореневий Cargo workspace. Єдиний концерн цього крейта,
@@ -276,6 +277,44 @@
 //! подвійної реалізації — окрема хвиля (той самий порядок, що вже був для
 //! детекторів).
 //!
+//! # `rust/doc_comments` — Т0-фіксер ПОРТОВАНО (другий фіксер цього крейта)
+//!
+//! Третя ітерація вже відпрацьованого патерна (перша — `js/doc_comments`
+//! `crates/plugin-lang-js/src/lib.rs::fix_doc_comments`, друга —
+//! `rust/cargo_mutants_config` вище): [`fix_doc_comments`] підвищує
+//! суцільний блок `//`-коментарів до `///`/`//!` (текст автора зберігається
+//! дослівно, точний семантичний порт T0-патерна
+//! `promote-line-comments-to-rustdoc`, `fix-doc_comments.mjs`).
+//!
+//! На відміну від `js/doc_comments` (byte/UTF-16-офсети `data.{start,end}`,
+//! точки конверсії, доккомент `crates/plugin-lang-js/src/lib.rs`), `data`
+//! цього концерну — LINE-based (`fromLine`/`toLine`/`header`, [`check_file_doc_comments`]
+//! вище): жодної UTF-16↔байт конверсії, жодного «спадання позиції» —
+//! [`fix_doc_comments`] лише замінює вміст `lines[fromLine..=toLine]`,
+//! довжина масиву рядків НЕ змінюється (на відміну від python-сусіда
+//! нижче, де фікс ВСТАВЛЯЄ/ВИДАЛЯЄ рядки), тож порядок застосування блоків
+//! байдужий — АРХІТЕКТУРНО простіший за `js/doc_comments`, той самий
+//! напрямок, що вже показав `rust/cargo_mutants_config`.
+//!
+//! Крейт НЕ має `serde_json` (розмірна політика, доккомент
+//! `Cargo.toml`/`PkgJsonValue`) — `data` (власного виробництва
+//! [`check_file_doc_comments`], не consumer-репо) розбирається двома
+//! мінімальними рядковими helper-ами ([`json_bool_field_is_true`],
+//! [`json_usize_field`]) замість повного JSON-парсера.
+//!
+//! Guard ідемпотентності, якого немає в JS-каноні: `PLAIN_COMMENT_PREFIX_RE`
+//! (`/^(\s*)\/\//`) матчить префікс `//` і в уже піднятому `///`/`//!`, тож
+//! JS теоретично міг би пошкодити повторно піднятий рядок при подвійному
+//! `apply`. [`promote_plain_comment_line`] явно відмовляє, коли символ
+//! одразу після `//` — `/` чи `!`; на практиці недосяжно (детект уже НЕ
+//! видає блок над піднятим рядком), лишено як defensive-in-depth, не як
+//! спостережену розбіжність.
+//!
+//! JS-канон (`fix-doc_comments.mjs`) цією хвилею СВІДОМО НЕ видалено —
+//! той самий порядок «спершу парність, зняття подвійної реалізації —
+//! окрема хвиля», що вже був для `rust/cargo_mutants_config` і для
+//! детекторів.
+//!
 //! # `rust/wasm_component` — межа `{ workspace = true }`-успадкування
 //!
 //! Канон резолвить `{ workspace = true }`-успадковані `wasm-bindgen`/
@@ -380,6 +419,34 @@ fn json_escape_string(s: &str) -> String {
     }
     out.push('"');
     out
+}
+
+/// Чи flat-JSON `data` (тут — завжди ВЛАСНОГО виробництва цього крейта,
+/// [`json_escape_string`]-сусід із протилежним напрямком) містить
+/// `"field":true`. Без `serde_json` (крейт-політика, той самий мотив, що
+/// `PkgJsonValue`/[`json_escape_string`]) — рядковий пошук достатній, бо
+/// формат контролює РІВНО [`check_file_doc_comments`], не consumer-репо.
+fn json_bool_field_is_true(data: &str, field: &str) -> bool {
+    data.contains(&format!("\"{field}\":true"))
+}
+
+/// Читає ціле невід'ємне поле `"field":123` із того самого flat-JSON `data`,
+/// що [`json_bool_field_is_true`]. `None` — поле відсутнє чи не число
+/// (застаріла/чужа діагностика); [`fix_doc_comments`] тоді просто пропускає
+/// блок, той самий fail-safe дух, що `promotable_block_from_data`
+/// (`crates/plugin-lang-js/src/lib.rs`).
+fn json_usize_field(data: &str, field: &str) -> Option<usize> {
+    let needle = format!("\"{field}\":");
+    let start = data.find(&needle)? + needle.len();
+    let digits: String = data[start..]
+        .chars()
+        .take_while(char::is_ascii_digit)
+        .collect();
+    if digits.is_empty() {
+        None
+    } else {
+        digits.parse().ok()
+    }
 }
 
 /// Діагностика без `file`/`data` — точний відповідник дефолтної гілки
@@ -728,6 +795,120 @@ fn detect_doc_comments(files: &[SourceFile]) -> Vec<Diagnostic> {
         ));
     }
     out
+}
+
+/// Один promotable-блок [`detect_doc_comments`]: зріз полів `data`, які
+/// РЕАЛЬНО споживає [`fix_doc_comments`] (`fromLine`/`toLine`/`header`;
+/// `name`/`promotable` уже перевірені окремо в [`doc_comment_promote_block`]).
+struct DocCommentPromoteBlock {
+    from_line: usize,
+    to_line: usize,
+    header: bool,
+}
+
+/// Розбирає один блок [`DocCommentPromoteBlock`] із `data` діагностики —
+/// `None`, якщо `data` не позначено `"promotable":true` чи бракує
+/// `fromLine`/`toLine` (застаріла/чужа діагностика, той самий fail-safe
+/// дух, що `promotable_block_from_data` `plugin-lang-js`).
+fn doc_comment_promote_block(data: &str) -> Option<DocCommentPromoteBlock> {
+    if !json_bool_field_is_true(data, "promotable") {
+        return None;
+    }
+    Some(DocCommentPromoteBlock {
+        from_line: json_usize_field(data, "fromLine")?,
+        to_line: json_usize_field(data, "toLine")?,
+        header: json_bool_field_is_true(data, "header"),
+    })
+}
+
+/// Підвищує ОДИН `//`-рядок до `///`/`//!` — точний порт заміни в
+/// `promoteBlock` (`fix-doc_comments.mjs:19-23`, `PLAIN_COMMENT_PREFIX_RE =
+/// /^(\s*)\/\//`): відступ (той самий `.trim_start()`, що
+/// [`is_plain_comment_line`] уже використовує на боці детекту — інваріант
+/// «детект і фікс згодні, що є відступом» важливіший за буквальний ASCII
+/// `[ \t]`-клас) зберігається, `//` замінюється на `marker`, решта рядка —
+/// дослівно.
+///
+/// `None` — рядок уже НЕ звичайний `//`-коментар (guard ідемпотентності,
+/// якого немає в JS-каноні: `PLAIN_COMMENT_PREFIX_RE` матчить префікс `//`
+/// і в `///`/`//!`, тож повторний `apply` над уже піднятим рядком поламав
+/// би розмітку — `///`→`////`-подібний зсув. Гість цей клас багів
+/// структурно виключає, а не відтворює: щойно рядок піднято, [`comment_block_above`]
+/// на наступному `detect`-проході вже бачить `///`/`//!`, block-based фікс
+/// на нього НЕ вказує знову — guard тут суто defensive-in-depth).
+fn promote_plain_comment_line(line: &str, marker: &str) -> Option<String> {
+    let trimmed = line.trim_start();
+    let indent = &line[..line.len() - trimmed.len()];
+    let after = trimmed.strip_prefix("//")?;
+    if after.starts_with('/') || after.starts_with('!') {
+        return None;
+    }
+    Some(format!("{indent}{marker}{after}"))
+}
+
+/// Т0-фіксер `rust/doc_comments` — точний семантичний порт T0-патерна
+/// `promote-line-comments-to-rustdoc` (`fix-doc_comments.mjs`), другий
+/// портований фіксер цього крейта (перший — [`fix_cargo_mutants_config`]).
+///
+/// 1. групування діагностик з `data.promotable == true` за файлом (порядок
+///    надходження, дзеркало JS `Map`) — [`doc_comment_promote_block`] читає
+///    `fromLine`/`toLine`/`header` без `serde_json` (доккомент
+///    [`json_usize_field`]);
+/// 2. кожен блок підвищує рядки `[fromLine..=toLine]` — [`promote_plain_comment_line`];
+///    на відміну від byte-offset фіксерів (`js/doc_comments`,
+///    `crates/plugin-lang-js/src/lib.rs::fix_doc_comments`), координати тут
+///    line-based і довжина `lines` НЕ змінюється жодним блоком (лише заміна
+///    вмісту рядків у своєму діапазоні) — порядок застосування блоків
+///    байдужий, `.take()`/`.skip()` на `iter_mut()` нізащо не панікують
+///    навіть на неспівставній/застарілій `data` (діапазон просто дає 0
+///    ітерацій);
+/// 3. файл без реальних змін у план не потрапляє (`next == content`).
+fn fix_doc_comments(request: &FixRequest) -> FixPlan {
+    let mut by_file: Vec<(&str, Vec<DocCommentPromoteBlock>)> = Vec::new();
+    for diagnostic in &request.diagnostics {
+        let Some(data) = diagnostic.data.as_deref() else {
+            continue;
+        };
+        let Some(block) = doc_comment_promote_block(data) else {
+            continue;
+        };
+        let Some(file) = diagnostic.file.as_deref() else {
+            continue;
+        };
+        match by_file.iter_mut().find(|(path, _)| *path == file) {
+            Some((_, blocks)) => blocks.push(block),
+            None => by_file.push((file, vec![block])),
+        }
+    }
+
+    let mut edits = Vec::new();
+    for (file, blocks) in &by_file {
+        let Some(source) = request.files.iter().find(|f| f.path == *file) else {
+            continue;
+        };
+        let mut lines: Vec<String> = source.content.split('\n').map(str::to_string).collect();
+        for block in blocks {
+            let marker = if block.header { "//!" } else { "///" };
+            for line in lines
+                .iter_mut()
+                .take(block.to_line.saturating_add(1))
+                .skip(block.from_line)
+            {
+                if let Some(promoted) = promote_plain_comment_line(line, marker) {
+                    *line = promoted;
+                }
+            }
+        }
+        let next = lines.join("\n");
+        if next == source.content {
+            continue;
+        }
+        edits.push(FileEdit::Write(WriteFile {
+            path: source.path.clone(),
+            content: next,
+        }));
+    }
+    FixPlan { edits }
 }
 
 // =====================================================================
@@ -2191,15 +2372,16 @@ impl Guest for LangRust {
         diagnostics
     }
 
-    /// Перша й друга хвилі НЕ портували жодного fix-контуру: порожній план
-    /// для КОЖНОГО концерну (T0 `rust/doc_comments` — `fix-doc_comments.mjs`
-    /// — лишається JS, доккомент модуля). Виняток — `rust/cargo_mutants_config`
-    /// ([`fix_cargo_mutants_config`], доккомент модуля, розділ
-    /// «Т0-фіксер ПОРТОВАНО»), перший реальний план цього крейта; решта
-    /// концернів і далі отримують сумісну заглушку.
+    /// Перша й друга хвилі не портували жодного fix-контуру; третя додала
+    /// `rust/cargo_mutants_config` ([`fix_cargo_mutants_config`]); четверта —
+    /// `rust/doc_comments` ([`fix_doc_comments`], доккомент модуля, розділ
+    /// «Т0-фіксер ПОРТОВАНО») — JS-канон `fix-doc_comments.mjs` лишається
+    /// чинним (парність, не заміна цієї хвилі). Решта концернів і далі
+    /// отримують сумісну заглушку — порожній план.
     fn fix(request: FixRequest) -> FixPlan {
         match request.concern_id.as_str() {
             CONCERN_CARGO_MUTANTS_CONFIG => fix_cargo_mutants_config(&request),
+            CONCERN_DOC_COMMENTS => fix_doc_comments(&request),
             _ => FixPlan { edits: vec![] },
         }
     }
@@ -2414,6 +2596,135 @@ mod tests {
         let src = "//! H.\npub fn облік() {}\n";
         let files = vec![sf("src/a.rs", src)];
         assert!(detect_doc_comments(&files).is_empty());
+    }
+
+    // --- rust/doc_comments: guest-фікс (другий портований T0-план цього
+    // крейта, доккомент модуля, розділ «`rust/doc_comments` — Т0-фіксер
+    // ПОРТОВАНО») ---
+
+    /// Діагностики в формі, яку реально віддає [`detect_doc_comments`] —
+    /// тести фіксу нижче ганяють detect → fix парою (той самий прийом, що
+    /// `cargo_mutants_fix_request_for` вище).
+    fn doc_comments_fix_request_for(files: Vec<SourceFile>) -> FixRequest {
+        let diagnostics = detect_doc_comments(&files);
+        FixRequest {
+            concern_id: CONCERN_DOC_COMMENTS.to_string(),
+            files,
+            diagnostics,
+        }
+    }
+
+    #[test]
+    fn fix_doc_comments_promotes_header_and_pub_doc_blocks() {
+        // Дзеркало JS-тесту «обидва блоки підвищено» (`fix-doc_comments.test.mjs`).
+        let src = "// намір файлу\n\n// робить X\npub fn go() {}\n";
+        let files = vec![sf("src/a.rs", src)];
+        let plan = fix_doc_comments(&doc_comments_fix_request_for(files));
+        assert_eq!(plan.edits.len(), 1);
+        let FileEdit::Write(write) = &plan.edits[0] else {
+            panic!("очікували write-edit")
+        };
+        assert_eq!(write.path, "src/a.rs");
+        assert_eq!(
+            write.content,
+            "//! намір файлу\n\n/// робить X\npub fn go() {}\n"
+        );
+    }
+
+    #[test]
+    fn fix_doc_comments_preserves_indent_and_author_text() {
+        // Файл УЖЕ має `//!`-header (жодної header-діагностики) — єдина
+        // діагностика вказує на ВІДСТУПЛЕНИЙ (2 пробіли) `//`-блок над
+        // top-level `pub fn go` (сам item — колонка 0, той самий контракт,
+        // що [`parse_pub_item`]; лише КОМЕНТАР над ним відступлений).
+        let src = "//! H.\n\n  // перший\n  // другий\npub fn go() {}\n";
+        let files = vec![sf("src/a.rs", src)];
+        let plan = fix_doc_comments(&doc_comments_fix_request_for(files));
+        assert_eq!(plan.edits.len(), 1);
+        let FileEdit::Write(write) = &plan.edits[0] else {
+            panic!("очікували write-edit")
+        };
+        assert_eq!(
+            write.content,
+            "//! H.\n\n  /// перший\n  /// другий\npub fn go() {}\n"
+        );
+    }
+
+    #[test]
+    fn fix_doc_comments_ignores_diagnostics_without_promotable_data() {
+        // `{"name":"go"}` без `promotable` (немає суміжного коментаря) —
+        // T0 нічого не вигадує, лишається LLM-ladder-у.
+        let request = FixRequest {
+            concern_id: CONCERN_DOC_COMMENTS.to_string(),
+            files: vec![sf("src/a.rs", "pub fn go() {}\n")],
+            diagnostics: vec![Diagnostic {
+                reason: DOC_COMMENTS_MISSING_PUB_DOC_REASON.to_string(),
+                message: "src/a.rs: pub fn go без ///-опису.".to_string(),
+                file: Some("src/a.rs".to_string()),
+                severity: Severity::Error,
+                data: Some("{\"name\":\"go\"}".to_string()),
+            }],
+        };
+        assert!(fix_doc_comments(&request).edits.is_empty());
+    }
+
+    #[test]
+    fn fix_doc_comments_returns_empty_plan_without_diagnostics() {
+        let request = FixRequest {
+            concern_id: CONCERN_DOC_COMMENTS.to_string(),
+            files: vec![sf("src/a.rs", "pub fn go() {}\n")],
+            diagnostics: vec![],
+        };
+        assert!(fix_doc_comments(&request).edits.is_empty());
+    }
+
+    #[test]
+    fn fix_doc_comments_skips_already_promoted_line_idempotency_guard() {
+        // Guard, якого немає в JS-каноні (доккомент модуля, розділ
+        // «`rust/doc_comments` — Т0-фіксер ПОРТОВАНО»): застаріла діагностика
+        // все ще вказує `fromLine`/`toLine` на рядок, який ВЖЕ `///` —
+        // [`promote_plain_comment_line`] відмовляє, план лишається порожнім
+        // замість пошкодження розмітки (`///` → `////`-подібний зсув).
+        let request = FixRequest {
+            concern_id: CONCERN_DOC_COMMENTS.to_string(),
+            files: vec![sf("src/a.rs", "//! H.\n/// вже піднято\npub fn go() {}\n")],
+            diagnostics: vec![Diagnostic {
+                reason: DOC_COMMENTS_MISSING_PUB_DOC_REASON.to_string(),
+                message: "стала діагностика".to_string(),
+                file: Some("src/a.rs".to_string()),
+                severity: Severity::Error,
+                data: Some(
+                    "{\"promotable\":true,\"fromLine\":1,\"toLine\":1,\"name\":\"go\"}"
+                        .to_string(),
+                ),
+            }],
+        };
+        assert!(fix_doc_comments(&request).edits.is_empty());
+    }
+
+    /// T0-раунд-трип ВСЕРЕДИНІ гостя (доповнює `wasm-plugin-parity-rust.test.mjs`'s
+    /// гість-детект → JS-фікс → гість-детект чисто цикл доказом, що
+    /// гість-детект → гість-фікс → гість-детект теж замикається чисто) —
+    /// той самий прийом, що `fix_cargo_mutants_config_round_trip_with_detect_is_clean`.
+    #[test]
+    fn fix_doc_comments_round_trip_with_detect_is_clean() {
+        let before = vec![sf("src/a.rs", "// намір\n\n// робить X\npub fn go() {}\n")];
+        let diagnostics_before = detect_doc_comments(&before);
+        assert_eq!(diagnostics_before.len(), 2);
+
+        let plan = fix_doc_comments(&FixRequest {
+            concern_id: CONCERN_DOC_COMMENTS.to_string(),
+            files: before.clone(),
+            diagnostics: diagnostics_before,
+        });
+        assert_eq!(plan.edits.len(), 1);
+        let FileEdit::Write(write) = &plan.edits[0] else {
+            panic!("очікували write-edit")
+        };
+
+        // Симуляція застосування host-ом: замінюємо вміст файлу в батчі.
+        let after = vec![sf(&write.path, &write.content)];
+        assert!(detect_doc_comments(&after).is_empty());
     }
 
     // --- rust/workspace_root ---
