@@ -22,7 +22,7 @@
     },
     "demo": {
       "name": "demo",
-      "version": "0.0.20",
+      "version": "0.0.21",
       "dependencies": {
         "vue": "^3.5.38",
       },
@@ -37,7 +37,7 @@
     },
     "npm": {
       "name": "@7n/rules",
-      "version": "1.100.13",
+      "version": "1.100.16",
       "bin": {
         "n-rules": "bin/n-rules.js",
         "n-cursor": "bin/n-rules.js",
@@ -60,16 +60,16 @@
         "zod": "^4.4.3",
       },
       "optionalDependencies": {
-        "@7n/rules-darwin-arm64": "1.100.13",
-        "@7n/rules-linux-x64": "1.100.13",
-        "@7n/rules-win32-x64": "1.100.13",
+        "@7n/rules-darwin-arm64": "1.100.16",
+        "@7n/rules-linux-x64": "1.100.16",
+        "@7n/rules-win32-x64": "1.100.16",
         "@earendil-works/pi-ai": "0.80.10",
         "@earendil-works/pi-coding-agent": "0.80.10",
       },
     },
     "plugins/ci-azure": {
       "name": "@7n/rules-ci-azure",
-      "version": "2.1.0",
+      "version": "2.1.1",
       "dependencies": {
         "yaml": "^2.9.0",
       },
@@ -79,7 +79,7 @@
     },
     "plugins/ci-github": {
       "name": "@7n/rules-ci-github",
-      "version": "2.4.1",
+      "version": "2.4.2",
       "dependencies": {
         "yaml": "^2.9.0",
       },
@@ -89,7 +89,7 @@
     },
     "plugins/lang-js": {
       "name": "@7n/rules-lang-js",
-      "version": "0.27.1",
+      "version": "0.28.0",
       "dependencies": {
         "@vue/compiler-dom": "^3.0.0",
         "@vue/compiler-sfc": "^3.0.0",
@@ -112,7 +112,7 @@
     },
     "plugins/lang-php": {
       "name": "@7n/rules-lang-php",
-      "version": "0.4.1",
+      "version": "0.4.2",
       "dependencies": {
         "php-parser": "^3.7.0",
       },
@@ -122,7 +122,7 @@
     },
     "plugins/lang-python": {
       "name": "@7n/rules-lang-python",
-      "version": "0.14.0",
+      "version": "0.14.1",
       "dependencies": {
         "@vscode/tree-sitter-wasm": "^0.3.1",
         "smol-toml": "^1.7.0",
@@ -137,7 +137,7 @@
     },
     "plugins/lang-rust": {
       "name": "@7n/rules-lang-rust",
-      "version": "0.17.0",
+      "version": "0.17.1",
       "dependencies": {
         "globby": "^16.0.0",
         "smol-toml": "^1.7.0",
@@ -166,7 +166,7 @@
 
     "@7n/rules-ci-github": ["@7n/rules-ci-github@workspace:plugins/ci-github"],
 
-    "@7n/rules-darwin-arm64": ["@7n/rules-darwin-arm64@1.100.13", "", { "os": "darwin", "cpu": "arm64" }, "sha512-4hu7JolqLnfKn5sluynExD5pe969FL9Q/dZOMlo0vgOBQHzfDmhOsxpoQJasnOKY5Ii9EmdpvJVae/vCA/sqlg=="],
+    "@7n/rules-darwin-arm64": ["@7n/rules-darwin-arm64@1.100.16", "", { "os": "darwin", "cpu": "arm64" }, "sha512-iXaM/TRt0xASM1/Yu0VxtaU6VwVZxQZvQp7jeZ8x8KQquuGVGWEN5mh5G/36WJtCOxi5QOFjLFLWGI5Z7Oy3/g=="],
 
     "@7n/rules-lang-js": ["@7n/rules-lang-js@workspace:plugins/lang-js"],
 
@@ -176,9 +176,9 @@
 
     "@7n/rules-lang-rust": ["@7n/rules-lang-rust@workspace:plugins/lang-rust"],
 
-    "@7n/rules-linux-x64": ["@7n/rules-linux-x64@1.100.13", "", { "os": "linux", "cpu": "x64" }, "sha512-N3rgnDIRss8XijM7HzMUs26lebvx8tVqlsCuj1lRHoHWZWCje8k22wEvRk6HGAIyz4YoURN4Sb68T6qTOrclkw=="],
+    "@7n/rules-linux-x64": ["@7n/rules-linux-x64@1.100.16", "", { "os": "linux", "cpu": "x64" }, "sha512-2m93nO3Ys0xo84bwD2tj1/CUG/aO44SjZBsoK4NTwJ04iBYpai2mwJakvKl/oKQAXgXOAwrHWZ5K3lwRTIgzEg=="],
 
-    "@7n/rules-win32-x64": ["@7n/rules-win32-x64@1.100.13", "", { "os": "win32", "cpu": "x64" }, "sha512-syoA+Yf59EufLTyDHMbkrzDeSXF5nSRwutLDwwe28/Z3lEvy71+3hFYKnzoe4RjI4fvftIk6ymV1BEbpgxb60w=="],
+    "@7n/rules-win32-x64": ["@7n/rules-win32-x64@1.100.16", "", { "os": "win32", "cpu": "x64" }, "sha512-5fwbRBRY6lYIB4D/v28J1nrBklLKgSbFd7a1rDVGySrFxxK8+p7EzKowRle1bGiPWB/h4EivmA4xlFP3UGAzUg=="],
 
     "@anthropic-ai/sdk": ["@anthropic-ai/sdk@0.91.1", "", { "dependencies": { "json-schema-to-ts": "^3.1.1" }, "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" }, "optionalPeers": ["zod"], "bin": { "anthropic-ai-sdk": "bin/cli" } }, "sha512-LAmu761tSN9r66ixvmciswUj/ZC+1Q4iAfpedTfSVLeswRwnY3n2Nb6Tsk+cLPP28aLOPWeMgIuTuCcMC6W/iw=="],
 
