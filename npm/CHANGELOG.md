@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.100.15] - 2026-08-27
+
+### Fixed
+
+- Ізольовано чотири тестові файли (graphql/tooling, check-rule-fixtures, check-empty-trees, hasura-native-parity) від Bun-розбіжності process.env ⇄ native-аддон: symlink node_modules/@7n/rules замість N_RULES_PACKAGE_ROOT у JS
+
 ## [1.100.14] - 2026-08-26
 
 ### Changed
