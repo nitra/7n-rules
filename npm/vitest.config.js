@@ -71,6 +71,11 @@ export default defineConfig({
     // Forks лишилися як safety net на випадок випадкового `process.chdir`
     // у third-party коді або під час майбутніх рефакторів.
     pool: 'forks',
+    // Той самий ліміт, що в кореневому конфізі: без нього пул бере ~кількість
+    // ядер, і паралельні прогони з кількох worktree множаться до десятків
+    // процесів. Тримати обидва конфіги узгодженими — інакше `npm/`-прогін
+    // обходив би обмеження кореневого.
+    poolOptions: { forks: { maxForks: 4 } },
     coverage: { provider: 'v8', reporter: ['lcov', 'text-summary'] }
   }
 })
