@@ -281,13 +281,17 @@ fn cache_step_has_workspaces(lines: &[&str], cache_line: usize, dash_col: usize)
 }
 
 /// Один запис аналізу `dtolnay/rust-toolchain` кроку в межах його job-а —
-/// звужений порт `ToolchainStepScan` (`main.mjs`): поля `line`/`dashCol`/
-/// `cacheLine` оригіналу тут НЕ потрібні (`lint()` JS-оригіналу їх теж не
-/// читає — лише `hasCache`/`cacheHasWorkspaces`/`jobHasTauriAction`, звірено
-/// читанням `main.mjs:160-178`), тож структура несе лише те, що споживає
-/// [`detect_toolchain_cache`].
+/// точний порт `ToolchainStepScan` (`main.mjs`). `line`/`dash_col`/
+/// `cache_line` спершу НЕ читав тут ніхто (`detect_toolchain_cache` їх не
+/// потребує, той самий обсяг, що `lint()` JS-оригіналу, `main.mjs:160-178`)
+/// — повернуті поля-відповідники, коли до цього ж скана додався
+/// [`insert_rust_cache`]/[`add_cache_workspaces`] (T0-фіксер, звіт задачі):
+/// обом потрібні координати вставки, які `detect` ігнорує.
 struct ToolchainStepScan {
+    line: usize,
+    dash_col: usize,
     has_cache: bool,
+    cache_line: Option<usize>,
     cache_has_workspaces: bool,
     job_has_tauri_action: bool,
 }
@@ -313,12 +317,120 @@ fn scan_toolchain_steps(content: &str) -> Vec<ToolchainStepScan> {
                 .cache_line
                 .is_some_and(|cache_line| cache_step_has_workspaces(&lines, cache_line, dash_col));
         out.push(ToolchainStepScan {
+            line: i,
+            dash_col,
             has_cache: job_scan.has_cache,
+            cache_line: job_scan.cache_line,
             cache_has_workspaces,
             job_has_tauri_action: job_scan.job_has_tauri_action,
         });
     }
     out
+}
+
+// =====================================================================
+// `rust/toolchain_cache` — Т0-фіксер ПОРТОВАНО (доккомент модуля пояснює
+// хвилі; тут — той самий прийом текстового splice-у, що `add_persist_credentials`
+// у розділі `ga/workflows` нижче, лише над [`scan_toolchain_steps`] замість
+// окремого регекс-скана). Точний семантичний порт двох T0-трансформерів
+// `fix-toolchain_cache.mjs` (лишається JS-каноном — доккомент того файла):
+// [`insert_rust_cache`] ← `insertRustCache`, [`add_cache_workspaces`] ←
+// `addCacheWorkspaces`. `fix_toolchain_cache` (розділ нижче, біля
+// `fix_workflows`) компонує обидва послідовно на одному буфері — той самий
+// мотив, що композиція трьох трансформерів `ga/workflows`.
+// =====================================================================
+
+/// Індекс першого рядка ПІСЛЯ step-блоку, що починається на `step_line`
+/// (дашова колонка `dash_col`) — точний порт `stepBlockEnd`
+/// (`fix-toolchain_cache.mjs`): перший рядок з відступом НЕ БІЛЬШИМ за
+/// `dash_col` (сусідній крок того самого рівня чи dedent), або EOF.
+fn step_block_end(lines: &[&str], step_line: usize, dash_col: usize) -> usize {
+    let mut j = step_line + 1;
+    while j < lines.len() {
+        let line = lines[j];
+        if !line.trim().is_empty() && indent_of(line) <= dash_col {
+            break;
+        }
+        j += 1;
+    }
+    j
+}
+
+/// Точний порт `insertRustCache` (`fix-toolchain_cache.mjs`): вставляє
+/// `Swatinem/rust-cache@v2` одразу після КОЖНОГО `dtolnay/rust-toolchain@…`
+/// кроку без cache-кроку в тому самому job-і (`!step.has_cache`). Коли
+/// `workspace_dir` заданий і job також викликає `tauri-apps/tauri-action`
+/// (`step.job_has_tauri_action`) — новий крок одразу отримує
+/// `with.workspaces: <dir>` (той самий текстовий splice, не два проходи).
+/// Вставки застосовуються ЗГОРИ ВНИЗ (`sort_by` за спаданням `at`) — той
+/// самий мотив, що коментар `inserts.sort` JS-оригіналу: індекси попередніх
+/// вставок не зсуваються під час `splice`. `None` — жодного кроку без кешу
+/// (файл уже чистий).
+fn insert_rust_cache(content: &str, workspace_dir: Option<&str>) -> Option<String> {
+    let borrowed: Vec<&str> = content.split('\n').collect();
+    let missing: Vec<ToolchainStepScan> = scan_toolchain_steps(content)
+        .into_iter()
+        .filter(|s| !s.has_cache)
+        .collect();
+    if missing.is_empty() {
+        return None;
+    }
+    let mut inserts: Vec<(usize, Vec<String>)> = missing
+        .iter()
+        .map(|step| {
+            let at = step_block_end(&borrowed, step.line, step.dash_col);
+            let ind = " ".repeat(step.dash_col);
+            let mut text = vec![format!("{ind}- uses: Swatinem/rust-cache@v2")];
+            if let (Some(dir), true) = (workspace_dir, step.job_has_tauri_action) {
+                text.push(format!("{ind}  with:"));
+                text.push(format!("{ind}    workspaces: {dir}"));
+            }
+            (at, text)
+        })
+        .collect();
+    inserts.sort_by(|a, b| b.0.cmp(&a.0));
+    let mut lines: Vec<String> = borrowed.into_iter().map(str::to_string).collect();
+    for (at, text) in inserts {
+        lines.splice(at..at, text);
+    }
+    Some(lines.join("\n"))
+}
+
+/// Точний порт `addCacheWorkspaces` (`fix-toolchain_cache.mjs`): дописує
+/// `with: workspaces: <dir>` у КОЖЕН уже наявний `Swatinem/rust-cache@…` крок
+/// Tauri-job-а (`step.job_has_tauri_action`), якому бракує `workspaces`
+/// (`!step.cache_has_workspaces`). Колонка вставки — `uses:`-колонка самого
+/// кеш-кроку (не `dash_col` toolchain-кроку, той самий зсув, що JS
+/// `usesCol`); [`dash_col_for`] тут — той самий float-guard, що JS
+/// `usesCol - 2` без явного `Math.max` (перевикористання, не новий inline
+/// код). `None` — жодного кеш-кроку без `workspaces` серед `targets`.
+fn add_cache_workspaces(content: &str, workspace_dir: &str) -> Option<String> {
+    let borrowed: Vec<&str> = content.split('\n').collect();
+    let targets: Vec<ToolchainStepScan> = scan_toolchain_steps(content)
+        .into_iter()
+        .filter(|s| s.has_cache && s.job_has_tauri_action && !s.cache_has_workspaces)
+        .collect();
+    if targets.is_empty() {
+        return None;
+    }
+    let mut inserts: Vec<(usize, Vec<String>)> = Vec::new();
+    for step in &targets {
+        let Some(cache_line) = step.cache_line else {
+            continue;
+        };
+        let Some(uses_col) = borrowed[cache_line].find("uses:") else {
+            continue;
+        };
+        let ind = " ".repeat(uses_col);
+        let at = step_block_end(&borrowed, cache_line, dash_col_for(uses_col));
+        inserts.push((at, vec![format!("{ind}with:"), format!("{ind}  workspaces: {workspace_dir}")]));
+    }
+    inserts.sort_by(|a, b| b.0.cmp(&a.0));
+    let mut lines: Vec<String> = borrowed.into_iter().map(str::to_string).collect();
+    for (at, text) in inserts {
+        lines.splice(at..at, text);
+    }
+    Some(lines.join("\n"))
 }
 
 /// Шукає файл у батчі за точним posix-relative шляхом — batch-відповідник
@@ -1888,6 +2000,62 @@ fn fix_workflows(request: &FixRequest) -> FixPlan {
     FixPlan { edits }
 }
 
+/// Т0-фіксер `rust/toolchain_cache` — єдина точка входу [`Guest::fix`] для
+/// цього концерну (доккомент розділу біля [`insert_rust_cache`]). Групує
+/// `request.diagnostics` за файлом для ДВОХ reason-ів
+/// ([`MISSING_RUST_CACHE_REASON`]/[`MISSING_RUST_CACHE_WORKSPACES_REASON`]),
+/// `workspace_dir` бере з `data.workspaceDir` ПЕРШОЇ діагностики, де воно є
+/// (той самий `.find(…)`-прийом, що `workspaceDir` у [`fix_workflows`] для
+/// `glob`). Кожен цільовий файл проходить [`insert_rust_cache`], тоді
+/// [`add_cache_workspaces`] послідовно на ОДНОМУ буфері — той самий мотив
+/// композиції, що доккомент розділу «`ga/workflows` — Т0-фіксер ПОРТОВАНО»
+/// пояснює для [`fix_workflows`]. Файл без реальних змін у план не потрапляє.
+fn fix_toolchain_cache(request: &FixRequest) -> FixPlan {
+    let mut files: Vec<&str> = Vec::new();
+    let mut workspace_dir: Option<String> = None;
+    for diagnostic in &request.diagnostics {
+        let Some(file) = diagnostic.file.as_deref() else {
+            continue;
+        };
+        let reason = diagnostic.reason.as_str();
+        if reason != MISSING_RUST_CACHE_REASON && reason != MISSING_RUST_CACHE_WORKSPACES_REASON {
+            continue;
+        }
+        if !files.contains(&file) {
+            files.push(file);
+        }
+        if workspace_dir.is_none() {
+            workspace_dir = diagnostic
+                .data
+                .as_deref()
+                .and_then(|d| json_string_field(d, "workspaceDir"));
+        }
+    }
+
+    let mut edits = Vec::new();
+    for file in files {
+        let Some(source) = batch_file(&request.files, file) else {
+            continue;
+        };
+        let mut content = source.content.clone();
+        if let Some(next) = insert_rust_cache(&content, workspace_dir.as_deref()) {
+            content = next;
+        }
+        if let Some(dir) = &workspace_dir {
+            if let Some(next) = add_cache_workspaces(&content, dir) {
+                content = next;
+            }
+        }
+        if content != source.content {
+            edits.push(FileEdit::Write(WriteFile {
+                path: source.path.clone(),
+                content,
+            }));
+        }
+    }
+    FixPlan { edits }
+}
+
 /// Чиста (без host-імпортів `log`/`report-progress`) конструктор
 /// маніфеста — винесений з [`Guest::describe`] окремо, щоб host-таргет
 /// unit-тести могли звірити форму маніфеста без реального wasmtime-хоста
@@ -1974,13 +2142,16 @@ impl Guest for CiGithub {
         diagnostics
     }
 
-    /// `ga/workflows` — перший портований T0-фіксер цього гостя
-    /// ([`fix_workflows`], доккомент розділу «`ga/workflows` — Т0-фіксер
-    /// ПОРТОВАНО»); `rust/toolchain_cache` і далі отримує сумісну заглушку
-    /// — порожній план (`fixability: "config"` у `toolchain_cache/concern.json`).
+    /// Два портовані T0-фіксери — `ga/workflows` ([`fix_workflows`], перший,
+    /// доккомент розділу «`ga/workflows` — Т0-фіксер ПОРТОВАНО») і
+    /// `rust/toolchain_cache` ([`fix_toolchain_cache`], другий, доккомент
+    /// розділу біля [`insert_rust_cache`]). `fixability: "config"` у обох
+    /// `concern.json` — не про це: то прапор LLM-ladder-а (host-side
+    /// `run-fix.mjs`), guestFix-пріоритет — окремий механізм.
     fn fix(request: FixRequest) -> FixPlan {
         match request.concern_id.as_str() {
             CONCERN_WORKFLOWS => fix_workflows(&request),
+            CONCERN_TOOLCHAIN_CACHE => fix_toolchain_cache(&request),
             _ => FixPlan { edits: vec![] },
         }
     }
@@ -2233,6 +2404,184 @@ mod tests {
         // `is_workflow_path` мусить їх відфільтрувати з циклу перебору.
         let files = vec![sf("Cargo.toml", "[workspace]\n")];
         assert!(detect_toolchain_cache(&files).is_empty());
+    }
+
+    // --- insert_rust_cache / add_cache_workspaces — точні відповідники
+    // `fix-toolchain_cache.test.mjs::describe('fix rust.toolchain_cache — T0
+    // текстові трансформери')` ---
+
+    #[test]
+    fn insert_rust_cache_inserts_after_toolchain_step_and_its_with_block() {
+        let next = insert_rust_cache(NO_CACHE_YML, None).expect("має змінитись");
+        let lines: Vec<&str> = next.split('\n').collect();
+        let components_idx = lines
+            .iter()
+            .position(|l| l.contains("components: rustfmt, clippy"))
+            .expect("components-рядок є");
+        let cache_idx = lines
+            .iter()
+            .position(|l| l.contains("Swatinem/rust-cache@v2"))
+            .expect("cache-рядок вставлено");
+        let tauri_idx = lines
+            .iter()
+            .position(|l| l.contains("tauri-apps/tauri-action@v0"))
+            .expect("tauri-рядок є");
+        assert!(cache_idx > components_idx);
+        assert!(cache_idx < tauri_idx);
+    }
+
+    #[test]
+    fn insert_rust_cache_already_has_cache_is_none() {
+        assert!(insert_rust_cache(WITH_CACHE_YML, None).is_none());
+    }
+
+    #[test]
+    fn insert_rust_cache_with_workspace_dir_appends_with_block_only_for_tauri_job() {
+        let next = insert_rust_cache(NO_CACHE_YML, Some("src-tauri")).expect("має змінитись");
+        assert!(next.contains("workspaces: src-tauri"));
+    }
+
+    #[test]
+    fn add_cache_workspaces_appends_with_block_to_existing_cache_step() {
+        let src = "jobs:\n  build:\n    steps:\n      - uses: dtolnay/rust-toolchain@stable\n      - uses: Swatinem/rust-cache@v2\n      - uses: tauri-apps/tauri-action@v0\n";
+        let next = add_cache_workspaces(src, "src-tauri").expect("має змінитись");
+        assert!(next.contains("workspaces: src-tauri"));
+    }
+
+    #[test]
+    fn add_cache_workspaces_already_present_is_none() {
+        let src = "jobs:\n  build:\n    steps:\n      - uses: dtolnay/rust-toolchain@stable\n      - uses: Swatinem/rust-cache@v2\n        with:\n          workspaces: src-tauri\n      - uses: tauri-apps/tauri-action@v0\n";
+        assert!(add_cache_workspaces(src, "src-tauri").is_none());
+    }
+
+    #[test]
+    fn add_cache_workspaces_non_tauri_job_is_none() {
+        let src =
+            "jobs:\n  build:\n    steps:\n      - uses: dtolnay/rust-toolchain@stable\n      - uses: Swatinem/rust-cache@v2\n";
+        assert!(add_cache_workspaces(src, "src-tauri").is_none());
+    }
+
+    // --- fix_toolchain_cache: guest FixRequest → FixPlan ---
+
+    #[test]
+    fn fix_toolchain_cache_missing_cache_writes_edit() {
+        let rel = ".github/workflows/release.yml";
+        let request = FixRequest {
+            concern_id: CONCERN_TOOLCHAIN_CACHE.to_string(),
+            files: vec![sf(rel, NO_CACHE_YML)],
+            diagnostics: vec![Diagnostic {
+                reason: MISSING_RUST_CACHE_REASON.to_string(),
+                message: "x".to_string(),
+                file: Some(rel.to_string()),
+                severity: Severity::Error,
+                data: Some(MISSING_RUST_CACHE_DATA.to_string()),
+            }],
+        };
+        let plan = fix_toolchain_cache(&request);
+        assert_eq!(plan.edits.len(), 1);
+        let FileEdit::Write(write) = &plan.edits[0] else {
+            panic!("очікували write-edit")
+        };
+        assert_eq!(write.path, rel);
+        assert!(write.content.contains("Swatinem/rust-cache@v2"));
+    }
+
+    #[test]
+    fn fix_toolchain_cache_missing_workspaces_writes_edit() {
+        let rel = ".github/workflows/release.yml";
+        let content = "jobs:\n  build:\n    steps:\n      - uses: dtolnay/rust-toolchain@stable\n      - uses: Swatinem/rust-cache@v2\n      - uses: tauri-apps/tauri-action@v0\n";
+        let request = FixRequest {
+            concern_id: CONCERN_TOOLCHAIN_CACHE.to_string(),
+            files: vec![sf(rel, content)],
+            diagnostics: vec![Diagnostic {
+                reason: MISSING_RUST_CACHE_WORKSPACES_REASON.to_string(),
+                message: "x".to_string(),
+                file: Some(rel.to_string()),
+                severity: Severity::Error,
+                data: Some(
+                    "{\"kind\":\"missing-rust-cache-workspaces\",\"workspaceDir\":\"src-tauri\"}"
+                        .to_string(),
+                ),
+            }],
+        };
+        let plan = fix_toolchain_cache(&request);
+        assert_eq!(plan.edits.len(), 1);
+        let FileEdit::Write(write) = &plan.edits[0] else {
+            panic!("очікували write-edit")
+        };
+        assert!(write.content.contains("workspaces: src-tauri"));
+    }
+
+    #[test]
+    fn fix_toolchain_cache_ignores_foreign_reason() {
+        let request = FixRequest {
+            concern_id: CONCERN_TOOLCHAIN_CACHE.to_string(),
+            files: vec![sf(".github/workflows/release.yml", NO_CACHE_YML)],
+            diagnostics: vec![Diagnostic {
+                reason: "other".to_string(),
+                message: "x".to_string(),
+                file: Some(".github/workflows/release.yml".to_string()),
+                severity: Severity::Error,
+                data: None,
+            }],
+        };
+        assert!(fix_toolchain_cache(&request).edits.is_empty());
+    }
+
+    /// T0-раунд-трип ВСЕРЕДИНІ гостя для `missing-rust-cache` — той самий
+    /// прийом, що `add_persist_credentials_round_trip_with_rego_detect_is_clean`:
+    /// [`detect_toolchain_cache`] — реальний detect-шлях цього reason-а, БЕЗ
+    /// host-імпортів.
+    #[test]
+    fn fix_toolchain_cache_missing_cache_round_trip_with_detect_is_clean() {
+        let rel = ".github/workflows/release.yml";
+        let before = vec![sf(rel, NO_CACHE_YML)];
+        let diagnostics_before = detect_toolchain_cache(&before);
+        assert_eq!(diagnostics_before.len(), 1);
+        assert_eq!(diagnostics_before[0].reason, MISSING_RUST_CACHE_REASON);
+
+        let plan = fix_toolchain_cache(&FixRequest {
+            concern_id: CONCERN_TOOLCHAIN_CACHE.to_string(),
+            files: before.clone(),
+            diagnostics: diagnostics_before,
+        });
+        let FileEdit::Write(write) = &plan.edits[0] else {
+            panic!("очікували write-edit")
+        };
+        let after = vec![sf(rel, &write.content)];
+        assert!(detect_toolchain_cache(&after).is_empty());
+    }
+
+    /// T0-раунд-трип ВСЕРЕДИНІ гостя для `missing-rust-cache-workspaces` —
+    /// той самий мотив, що тест вище.
+    #[test]
+    fn fix_toolchain_cache_missing_workspaces_round_trip_with_detect_is_clean() {
+        let rel = ".github/workflows/release.yml";
+        let content = "jobs:\n  build:\n    steps:\n      - uses: dtolnay/rust-toolchain@stable\n      - uses: Swatinem/rust-cache@v2\n      - uses: tauri-apps/tauri-action@v0\n";
+        let before = vec![
+            sf("src-tauri/Cargo.toml", "[package]\nname=\"t\"\n"),
+            sf(rel, content),
+        ];
+        let diagnostics_before = detect_toolchain_cache(&before);
+        assert_eq!(diagnostics_before.len(), 1);
+        assert_eq!(
+            diagnostics_before[0].reason,
+            MISSING_RUST_CACHE_WORKSPACES_REASON
+        );
+
+        let plan = fix_toolchain_cache(&FixRequest {
+            concern_id: CONCERN_TOOLCHAIN_CACHE.to_string(),
+            files: before.clone(),
+            diagnostics: diagnostics_before,
+        });
+        let FileEdit::Write(write) = &plan.edits[0] else {
+            panic!("очікували write-edit")
+        };
+        let after = vec![
+            sf("src-tauri/Cargo.toml", "[package]\nname=\"t\"\n"),
+            sf(rel, &write.content),
+        ];
+        assert!(detect_toolchain_cache(&after).is_empty());
     }
 
     // --- маніфест: anti-drift `plugin.toml` ---
