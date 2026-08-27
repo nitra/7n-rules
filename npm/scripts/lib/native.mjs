@@ -92,10 +92,14 @@ function dlopenAddon(p) {
  * УВАГА: на Windows cdylib БЕЗ `lib`-префікса (`rules_napi.dll`, не
  * `librules_napi.dll`) — конвенція MSVC-тулчейну, на відміну від
  * darwin/linux, де cargo додає `lib`-префікс автоматично.
+ *
+ * Експортовано (а не лишено module-private): `test-preflight.mjs` перевикористовує
+ * її разом із [`localBuildCandidates`], щоб не дублювати platform→ім'я мапінг —
+ * той самий Р1-мотив, що спонукав винести [`nativeAddonChain`].
  * @param {string} platform process.platform
  * @returns {string} ім'я бібліотеки
  */
-function cdylibName(platform) {
+export function cdylibName(platform) {
   if (platform === 'darwin') return 'librules_napi.dylib'
   if (platform === 'win32') return 'rules_napi.dll'
   return 'librules_napi.so'
@@ -119,12 +123,18 @@ function isSourceTree(repoRoot, exists) {
 /**
  * Кандидати локальної збірки: сирий cdylib з `cargo build -p rules-napi`
  * (release перемагає debug) і вивід `napi build` у `crates/rules-napi/`.
+ *
+ * Експортовано для [`cdylibName`] (доккомент там) — `test-preflight.mjs`
+ * викликає її з `suffix=undefined`, щоб перевірити РІВНО те, що лишає по
+ * собі `cargo build --release -p rules-napi` (перші два кандидати), без
+ * платформо-специфічного napi-суфікса (той стосується лише встановленого
+ * підпакета, не dev-збірки).
  * @param {string} repoRoot корінь репо
  * @param {string} platform process.platform
  * @param {string | undefined} suffix napi-суфікс артефакта для платформи
  * @returns {string[]} шляхи-кандидати в порядку пріоритету
  */
-function localBuildCandidates(repoRoot, platform, suffix) {
+export function localBuildCandidates(repoRoot, platform, suffix) {
   const candidates = Array.from(['release', 'debug'], profile =>
     join(repoRoot, 'target', profile, cdylibName(platform))
   )

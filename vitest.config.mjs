@@ -23,6 +23,7 @@ export default defineConfig({
     // форки на прогін лишають запас під паралелізм, не подовжуючи одиночний
     // прогін відчутно (`pool: 'forks'` тут — defence-in-depth ізоляція, не
     // спосіб вичавити швидкість).
-    poolOptions: { forks: { maxForks: 4 } }
+    poolOptions: { forks: { maxForks: 4 } },
+    globalSetup: ['./npm/scripts/lib/test-preflight.mjs']
   }
 })
