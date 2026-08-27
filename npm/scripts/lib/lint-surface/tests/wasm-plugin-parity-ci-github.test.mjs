@@ -918,6 +918,84 @@ jobs:
   })
 })
 
+// --- ga/workflows: замикання T0-циклу через РЕАЛЬНИЙ napi-міст ---------
+//
+// §2.49 open-questions-register: `ga/workflows` — Т0-фіксер ПОРТОВАНО
+// (`fix_workflows`, доккомент `crates/plugin-ci-github/src/lib.rs`, розділ
+// «`ga/workflows` — Т0-фіксер ПОРТОВАНО»), концерн НЕ в `NATIVE_FIXES`
+// (`crates/rules-core/src/concerns/fix.rs`) — production-шлях
+// (`run-fix.mjs::loadT0Patterns`) ЗАВЖДИ веде через `wasmFixPattern` →
+// `runWasmConcernFix` napi-міст. До цього сценарію жоден тест цього файлу не
+// проганяв guest-фікс через РЕАЛЬНИЙ `runWasmConcernFix` — увесь
+// describe-блок вище звіряє ЛИШЕ детект (`runWasmConcern`), фікс-контур
+// (`fix_workflows`) не торкався жоден тест. Той самий клас прогалини, що
+// закрила `test/no-bun-test-import`/`js/doc_comments`/`js/check` у
+// `wasm-plugin-parity.test.mjs`, і `rust/cargo_mutants_config` +
+// `rust/doc_comments` нижче в `wasm-plugin-parity-rust.test.mjs` (доккомент
+// там).
+//
+// `bare-n-rules` — file-scoped violation (`diagnostic.file` ЗАВЖДИ
+// заповнений [`verify_no_bare_n_cursor`]) — цикл НЕ проходить крізь
+// full-scope fallback `run_wasm_concern_fix` (`crates/rules-napi/src/lib.rs`,
+// той самий фолбек, що ловив баг #513 для whole-batch `js/check`); тест тут
+// перевіряє file-scoped гілку моста (`target_files` з `diagnostic.file`,
+// `read_source_files`) — саме той шлях, яким production реально фіксить
+// `ga/workflows`.
+describe('wasm-plugin — ga/workflows: T0-цикл через fix-міст (детект гостем → runWasmConcernFix → детект гостем чистий)', () => {
+  test(
+    'голий `n-rules …` (без bunx) у run: — runWasmConcernFix дописує bunx, повторний wasm-детект мовчить по bare-n-rules',
+    async () => {
+      await withTmpDir(async dir => {
+        await writeFileDeep(
+          dir,
+          '.github/workflows/lint.yml',
+          [
+            'name: Lint',
+            'on:',
+            '  push:',
+            '    branches: [main]',
+            'concurrency:',
+            '  group: ${{ github.ref }}-${{ github.workflow }}',
+            '  cancel-in-progress: true',
+            'jobs:',
+            '  lint:',
+            '    runs-on: ubuntu-latest',
+            '    steps:',
+            '      - run: n-rules lint ga --no-fix',
+            ''
+          ].join('\n')
+        )
+        const { execFileSync } = await import('node:child_process')
+        execFileSync('git', ['init', '-q', '--initial-branch=main'], { cwd: dir })
+        execFileSync('git', ['add', '-A'], { cwd: dir })
+
+        // Порожній `toolPaths` — actionlint/zizmor/shellcheck дають
+        // "tool-unavailable" (`file: None`, доккомент `push_tool_unavailable`),
+        // жодна з цих діагностик не заважає `target_files` (лише
+        // `bare-n-rules` несе `file` у цій фікстурі).
+        const before = loadNative().runWasmConcern(WASM_PATH, WORKFLOWS_CONCERN_KEY, dir, null, {}).violations
+        const bareBefore = before.filter(v => v.reason === 'bare-n-rules')
+        expect(bareBefore).toHaveLength(1)
+        expect(bareBefore[0].file).toBe('.github/workflows/lint.yml')
+
+        const plan = loadNative().runWasmConcernFix(WASM_PATH, WORKFLOWS_CONCERN_KEY, dir, before, {})
+        const edit = plan.edits.find(e => e.path === '.github/workflows/lint.yml')
+        expect(edit).toBeDefined()
+        expect(edit.type).toBe('write')
+        expect(edit.content).toContain('run: bunx n-rules lint ga --no-fix')
+        expect(edit.content).not.toMatch(/run: n-rules/)
+
+        for (const e of plan.edits) {
+          if (e.type === 'write') await writeFile(join(dir, e.path), e.content, 'utf8')
+        }
+
+        const after = loadNative().runWasmConcern(WASM_PATH, WORKFLOWS_CONCERN_KEY, dir, null, {}).violations
+        expect(after.filter(v => v.reason === 'bare-n-rules')).toEqual([])
+      })
+    }
+  )
+})
+
 describe('wasm-плагін plugin-ci-github — describe()/розмір', () => {
   test('describe() повертає manifest з двома full-scope концернами', () => {
     const manifest = loadNative().wasmPluginManifest(WASM_PATH)

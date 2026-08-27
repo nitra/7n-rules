@@ -490,6 +490,61 @@ describe('python/doc_comments — T0-цикл: детект гостем → JS-
   })
 })
 
+// --- python/doc_comments: замикання T0-циклу через РЕАЛЬНИЙ napi-міст --
+// (§2.49 open-questions-register) ----------------------------------------
+//
+// Доккомент модуля (розділ «`python/doc_comments`») застарів: `Guest::fix`
+// цього концерну більше НЕ віддає порожній план — четверта хвиля порту
+// додала [`fix_doc_comments`] (`crates/plugin-lang-python/src/lib.rs`,
+// доккомент функції `fix`: «четверта додала python/doc_comments — ПЕРШИЙ
+// реальний план цього крейта»), і концерн НЕ входить у `NATIVE_FIXES`
+// (`crates/rules-core/src/concerns/fix.rs`) — production-шлях
+// (`run-fix.mjs::loadT0Patterns`) веде через `wasmFixPattern` →
+// `runWasmConcernFix` napi-міст.
+//
+// Describe-блок вище («T0-цикл: детект гостем → JS-фіксер → детект гостем
+// чистий») цей факт не перевіряє: `apply()` там береться з
+// `fix-doc_comments.mjs` (JS-канон) НАПРЯМУ — `runWasmConcernFix` жодного
+// разу не викликається, тож guest-фікс (реальний код продакшена) лишається
+// неперевіреним через міст. Той самий клас прогалини, що PR #513 (`js/check`,
+// `wasm-plugin-parity.test.mjs`) закрив для lang-js. `python/doc_comments` —
+// PerFile, кожна fixable діагностика несе `diagnostic.file`
+// ([`check_file_doc_comments`]-еквівалент, `crates/plugin-lang-python`), тож
+// цикл нижче НЕ проходить крізь full-scope fallback `run_wasm_concern_fix`
+// (той самий фолбек, що ловив #513 для whole-batch `js/check`) — перевіряє
+// file-scoped гілку моста.
+describe('python/doc_comments — T0-цикл через fix-міст (детект гостем → runWasmConcernFix → детект гостем чистий)', () => {
+  const tq = '"'.repeat(3)
+
+  test('#-блок над def промотується в docstring через runWasmConcernFix, повторний детект гостем мовчить', async () => {
+    await withTmpDir(async dir => {
+      const rel = 'pkg/mod.py'
+      await writeFileDeep(dir, rel, [`${tq}Модуль.${tq}`, '', '# робить X', 'def go():', '    return 1', ''].join('\n'))
+
+      const before = withDefaultSeverity(
+        loadNative().runWasmConcern(WASM_PATH, DOC_COMMENTS_CONCERN_KEY, dir, [rel]).violations
+      )
+      expect(before).toHaveLength(1)
+      expect(before[0].file).toBe(rel)
+      expect(before[0].data?.promotable).toBe(true)
+
+      const plan = loadNative().runWasmConcernFix(WASM_PATH, DOC_COMMENTS_CONCERN_KEY, dir, before)
+      expect(plan.edits).toHaveLength(1)
+      expect(plan.edits[0]).toMatchObject({ type: 'write', path: rel })
+      for (const edit of plan.edits) {
+        if (edit.type === 'write') await writeFile(join(dir, edit.path), edit.content, 'utf8')
+      }
+
+      const after = await readFile(join(dir, rel), 'utf8')
+      expect(after).toContain(`    ${tq}робить X${tq}`)
+      expect(after).not.toContain('# робить X')
+
+      const again = loadNative().runWasmConcern(WASM_PATH, DOC_COMMENTS_CONCERN_KEY, dir, [rel])
+      expect(again.violations).toEqual([])
+    })
+  })
+})
+
 // --- python/mypy + python/ruff (друга хвиля, доккомент секції
 // «`python/mypy` + `python/ruff`» перед `build_manifest` у
 // `crates/plugin-lang-python/src/lib.rs`) -------------------------------

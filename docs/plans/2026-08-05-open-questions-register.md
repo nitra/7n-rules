@@ -5593,6 +5593,113 @@ JS-fallback шляху диспетчера (§2.45).
 
 ---
 
+### 2.49. Прогалина покриття fix-мосту закрита для чотирьох файл-скоуп фіксерів — `rust/cargo_mutants_config`, `rust/doc_comments`, `python/doc_comments`, `ga/workflows`
+
+**Задача:** §2.47 знайшла реальний баг у `run_wasm_concern_fix`
+(`crates/rules-napi`) виключно тому, що ОДИН тест ганявся через РЕАЛЬНИЙ
+`runWasmConcernFix`, а не прямий виклик гостя. §2.46/§2.48 самі чесно
+задокументували межу свого покриття — цитати з їхнього ж тексту: «Parity-гейти
+без регресій: `wasm-plugin-parity-rust.test.mjs` 56/56,
+`wasm-plugin-parity-python.test.mjs` 58/58 (**обидва тестують лише
+detect-парність — `fix` цим гейтом не покритий**, доказ парності фіксера —
+внутрішній round-trip-тест гостя)» (§2.46) і «`wasm-plugin-parity-ci-github.test.mjs`
+24/24 без змін (detect-only гейт, `fix()` не покриває) … **той файл `fix()` не
+викликає взагалі**» (§2.48). Задача — інвентаризувати всі шість портованих
+T0-фіксерів (`test/no-bun-test-import`, `js/doc_comments`, `js/check` —
+lang-js; `rust/cargo_mutants_config`, `rust/doc_comments` — lang-rust;
+`python/doc_comments` — lang-python; `ga/workflows` — ci-github) за критерієм
+«чи цикл detect→fix→apply→re-detect реально проходить через
+`loadNative().runWasmConcernFix`, а не повз нього», і закрити прогалину.
+
+**Інвентар (до):**
+
+| Фіксер | Whole-batch? (`diagnostic.file`) | Через міст (`runWasmConcernFix`) до |
+| --- | --- | --- |
+| `test/no-bun-test-import` (lang-js) | ні, несе `file` | ТАК — `wasm-plugin-parity.test.mjs:693` |
+| `js/doc_comments` (lang-js) | ні, несе `file` | ТАК — `runDocCommentsFixBoth` |
+| `js/check` (lang-js) | **ТАК, whole-batch** | ТАК — `runJsCheckFixBoth` (§2.47, найповніше покриття) |
+| `rust/cargo_mutants_config` | ні, несе `file` | НІ — `apply()` брався з `fix-cargo_mutants_config.mjs` напряму |
+| `rust/doc_comments` | ні, несе `file` | НІ — `apply()` брався з `fix-doc_comments.mjs` напряму |
+| `python/doc_comments` | ні, несе `file` | НІ — `apply()` брався з `fix-doc_comments.mjs` напряму |
+| `ga/workflows` | ні, несе `file` | НІ — жодного fix-циклу в гейті взагалі |
+
+`js/check` лишається ЄДИНИМ whole-batch (жоден `diagnostic` не несе `file`)
+фіксером у репо — саме тому лише він і проходить крізь full-scope fallback
+`run_wasm_concern_fix` (§2.47). Решта шести — file-scoped, фолбек для них
+структурно недосяжний, підтверджено дією нижче.
+
+**Знахідка — не в продакшн-коді.** Три describe-блоки (`rust`/`python`) і
+взагалі відсутність блоку (`ci-github`) для fix-циклу існували, але зверталися
+до `fix-<concern>.mjs` (транзитивний JS-канон) НАПРЯМУ через
+`patterns[0].apply(...)` — цикл замикався детектом гостя з ОБОХ боків
+(`before`/`again` через `runWasmConcern`), але сам застосований fix ніколи не
+проходив через napi. Guest-фікс (реальний код, що виконується в проді —
+жоден із чотирьох концернів не входить у `NATIVE_FIXES`,
+`crates/rules-core/src/concerns/fix.rs` — `run-fix.mjs::loadT0Patterns` для
+всіх веде через `wasmFixPattern`) лишався НЕПЕРЕВІРЕНИМ бридж-тестом.
+
+**Додано 4 нові сценарії, усі — повний цикл через `loadNative().runWasmConcern`
+→ `loadNative().runWasmConcernFix` → застосування едитів на диск → повторний
+`runWasmConcern` чистий:**
+
+1. `npm/scripts/lib/lint-surface/tests/wasm-plugin-parity-rust.test.mjs` —
+   новий describe `rust/doc_comments + rust/cargo_mutants_config — T0-цикл
+   через fix-міст`, 2 тести (поруч зі старим JS-канон-циклом, який
+   лишився — не дублювання, а різні шари: старий доводить парність
+   `violations`-форми, новий доводить сам bridge-виклик).
+2. `npm/scripts/lib/lint-surface/tests/wasm-plugin-parity-python.test.mjs` —
+   новий describe `python/doc_comments — T0-цикл через fix-міст`, 1 тест.
+3. `npm/scripts/lib/lint-surface/tests/wasm-plugin-parity-ci-github.test.mjs` —
+   новий describe `ga/workflows: T0-цикл через fix-міст`, 1 тест (bare
+   `n-rules …` → `runWasmConcernFix` дописує `bunx`) — ПЕРШИЙ fix-цикл у
+   цьому файлі взагалі.
+
+**Перевірено дією (red → green), КОЖЕН новий сценарій:**
+
+- `rust/doc_comments`: `fix_doc_comments` тимчасово замінено на
+  `return FixPlan { edits: vec![] }` — новий тест ЧЕРВОНІЄ
+  (`plan.edits.length` 0 замість `>0`), сусідній `cargo_mutants_config`-тест
+  лишився зеленим (довело ізоляцію сценаріїв). Повернуто, перезібрано,
+  58/58.
+- `rust/cargo_mutants_config`: та сама техніка (`fix_cargo_mutants_config`
+  → порожній план) — новий тест ЧЕРВОНІЄ (`plan.edits` довжина 0 замість 1),
+  сусідній `doc_comments`-тест лишився зеленим. Повернуто, 58/58.
+- `python/doc_comments`: `fix_doc_comments` → порожній план — новий тест
+  ЧЕРВОНІЄ (`plan.edits` довжина 0 замість 1). Повернуто, 59/59.
+- `ga/workflows`: виклик `prefix_bunx_n_command` тимчасово прибрано з
+  `fix_workflows` — новий тест ЧЕРВОНІЄ (`plan.edits.find(...)` дає
+  `undefined`, `toBeDefined()` провалюється). Повернуто, 25/25.
+- **Емпіричний доказ, що ці 4 сценарії НЕ дублюють whole-batch-клас #513**
+  (а не голослівне твердження): full-scope fallback `run_wasm_concern_fix`
+  тимчасово прибрано ЦІЛКОМ (`crates/rules-napi`, ідентична мутація §2.47) —
+  перезібрано `rules-napi` і всі чотири wasm-гості, прогнано ВСІ ЧОТИРИ
+  parity-файли разом (402 тести): падають РІВНО ті самі 2 тести, що й у
+  §2.47 (`js/check` — `.oxlintrc.json`/vue-workspace merge), усі 4 нові
+  bridge-сценарії лишаються зеленими (400/402). Підтверджує документально:
+  ці фіксери структурно не залежать від full-scope fallback — фолбек
+  потрібен ЛИШЕ `js/check`. Повернуто фікс — знову 402/402.
+
+**Whole-batch-аудит (п.3 задачі):** окрім `js/check`, серед шести портованих
+фіксерів жоден інший НЕ whole-batch — кожен з решти п'яти несе
+`diagnostic.file` на КОЖНІЙ fixable діагностиці (перевірено читанням джерела
+`workspace_root_file_violation`/per-file `Diagnostic`-конструкторів усіх
+трьох крейтів). Знайдено ДВА концерни-кандидати НА РИЗИК для майбутніх
+портів (fix ще НЕ портований, детект уже whole-batch-подібний):
+`rust/check` (full-scope, усі діагностики через `plain_violation` — `file:
+None` завжди) і non-fixable batch-рівневі гілки самого `ga/workflows`
+(`simple_fail`/`push_tool_unavailable`/`push_rego_engine_error` — `file:
+None`, але ці reason-и НЕ входять у `fix_workflows`-whitelist, тож не
+ризиковані, доки хтось не додасть fix для НИХ). Якщо колись з'явиться
+T0-фіксер для `rust/check` (чи для файл-less-гілок `ga/workflows`) — він
+МУСИТЬ отримати bridge fix-parity сценарій ПЕРШИМ, до мержу, за прецедентом
+цього запису.
+
+**Не змінено:** жодного продакшн-файлу (`crates/`) — усі тимчасові red-проби
+відкочено, `git diff` по `crates/` порожній. Змінено лише три
+`wasm-plugin-parity-*.test.mjs`.
+
+---
+
 ## Як користуватись
 
 Дійшовши кінця плану міграції, пройти реєстр згори вниз: розділи 1 і 6 — це
