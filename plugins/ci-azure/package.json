@@ -1,6 +1,6 @@
 {
   "name": "@7n/rules-ci-azure",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "Плагін @7n/rules: канон Azure Pipelines (azure-pipelines.yml) — структура, lint-степ, VS Code",
   "keywords": [
     "azure-pipelines",
