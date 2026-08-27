@@ -20,19 +20,24 @@
  * PATH. Лише коли добути справді нема звідки (авто-install відключено чи
  * впав) — прогін пропускається.
  *
- * `N_RULES_PACKAGE_ROOT` виставляється явно: cwd фікстур — tmp-каталог поза
- * репо, тож каскад `rules_package::package_root` (node_modules/@7n/rules → npm/
- * вгору від cwd) там нічого не знайде. Це і є призначення override-змінної.
+ * Корінь пакета резолвиться явно: cwd фікстур — tmp-каталог поза репо, тож
+ * каскад `rules_package::package_root` (node_modules/@7n/rules → npm/ вгору
+ * від cwd) там нічого не знайде без допомоги. Резолв — `linkPackageRoot`
+ * (`test-helpers.mjs`, symlink `node_modules/@7n/rules` усередині tmp-кореня
+ * фікстури), НЕ env-var `N_RULES_PACKAGE_ROOT`: `runConcernDetector` тут —
+ * in-process native-виклик (dlopen, не subprocess), і під Bun (канонічний
+ * рантайм, `n-bun.mdc`) мутація `process.env`/`env` з JS не доходить до
+ * `std::env::var` у native-аддоні (доккомент `linkPackageRoot` розписує
+ * клас Bun-розбіжності й прецедент — `ensure-tool.mjs`/`resolve-cmd.mjs`).
  */
-import { beforeAll, describe, expect, test } from 'vitest'
+import { describe, expect, test } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { env } from 'node:process'
 
 import { runConcernDetector } from '../../../scripts/lib/lint-surface/detect.mjs'
 import { ensureToolAsync } from '../../../scripts/lib/ensure-tool.mjs'
-import { withTmpDir } from '../../../scripts/utils/test-helpers.mjs'
+import { linkPackageRoot, withTmpDir } from '../../../scripts/utils/test-helpers.mjs'
 
 const hasConftest = await ensureToolAsync('conftest').then(
   () => true,
@@ -244,16 +249,13 @@ async function seedDir(root, dirParts, files) {
  * @param {string} cwd корінь tmp-репо
  * @returns {Promise<import('../../../scripts/lib/lint-surface/types.mjs').LintResult>} результат
  */
-function runConcern(concernId, cwd) {
+async function runConcern(concernId, cwd) {
+  await linkPackageRoot(cwd)
   const dir = join(PACKAGE_ROOT, 'rules', 'k8s', concernId)
   return runConcernDetector({ name: concernId, dir }, { cwd, ruleId: 'k8s', concernId })
 }
 
 describe.skipIf(!hasConftest)('k8s/hasura_* — native-паритет із видаленим JS-каноном', () => {
-  beforeAll(() => {
-    env.N_RULES_PACKAGE_ROOT = PACKAGE_ROOT
-  })
-
   test('hasura_configmap: CronJob ConfigMap без Hasura Deployment — 0 порушень', async () => {
     await withTmpDir(async root => {
       await seedDir(root, ['jobs', 'assign-request', 'k8s', 'base'], {

@@ -4701,6 +4701,99 @@ registry: JS ⇄ Rust`/`n-rules lint --full …`, з `resolveRulesCliBin()`
 (CPU/пам'ять) під `pool: 'forks'` на повному дереві одразу після двох
 важких `cargo build --release`, а не логічна регресія коду.
 
+### 2.40. Чотири тестові файли ізольовано від Bun-розбіжності `process.env` ⇄ native-аддон
+
+**Дефект:** чотири тести (`graphql/tooling/tests/tooling.test.mjs`,
+`npm/tests/check-rule-fixtures.test.mjs`, `npm/tests/check-empty-trees.test.mjs`,
+`k8s/tests/hasura-native-parity.test.mjs`) виставляли `env.N_RULES_PACKAGE_ROOT`
+(`node:process`) перед `runConcernDetector` на tmp-фікстурах поза репо
+(`withTmpDir`) і під `bun run --bun vitest run` падали з `DetectorError: не
+вдалося знайти корінь пакета @7n/rules` — стабільно 10 разів на повному
+прогоні (0 під `npx vitest run`). Причина: `runConcernDetector` →
+`loadNative().runNativeConcern(...)` — синхронний **in-process** виклик
+через dlopen (не subprocess), Rust читає override через `std::env::var`
+(`rules_package.rs::package_root`, `ENV_OVERRIDE`). Під Bun мутація
+`process.env`/`env` з JS-боку НЕ доходить до цього виклику — підтверджено
+ізольованим репро (окремо від vitest, окремо від чотирьох файлів): env
+виставлено БЕЗПОСЕРЕДНЬО перед викликом, `process.env.X` в JS вже повертає
+нове значення, а Rust усе одно кидає «не вдалося знайти корінь». Той самий
+репро з `N_RULES_PACKAGE_ROOT=… bun run …` (значення успадковане в реальний
+envp ПРИ СТАРТІ процеса, а не JS-мутація після) — зелений і під Bun, і під
+Node. Це підтверджує межу: Bun не синхронізує runtime-мутації
+`process.env` з реальним `environ`, який читає `getenv`/`std::env::var`; Node
+синхронізує (`process.env.X = …` там реально викликає `setenv()`).
+
+**Підхід: обхід через файлову систему, не через napi-сигнатуру й не через
+нову env-змінну.** Два запропоновані напрями мали downsides: явний параметр
+кореня пакета в `runNativeConcern`/`run_native_concern` означав би зміну
+napi-контракту, що споживає ПРОДАКШН-диспатч (`run-detectors.mjs`,
+`run_native_concerns_batch`) заради суто тестового сценарію; нова
+env-змінна на кшталт `N_CURSOR_TOOL_CACHE_DIR` (`ensure-tool.mjs`) тут не
+рятує — сам КАНАЛ (JS→native env) зламаний для БУДЬ-ЯКОЇ змінної, не
+конкретно для `N_RULES_PACKAGE_ROOT`. Обраний прийом — той самий КЛАС, що
+`ensure-tool.mjs`/`resolve-cmd.mjs` (не покладатись на канал, що не
+синхронізується під Bun), але реалізований через кроки 2-3 самого
+Rust-каскаду (`package_root_from_tree`: `node_modules/@7n/rules/package.json`
+вгору від `cwd`), які читають ФАЙЛОВУ СИСТЕМУ, не env, і тому не залежать
+від Bun-розбіжності взагалі. Новий хелпер `linkPackageRoot(dir)`
+(`npm/scripts/utils/test-helpers.mjs`) створює symlink
+`dir/node_modules/@7n/rules` → реальний `npm/` корінь монорепо
+(`realRepoRoot()`); Rust читає `package.json` за symlink-ом прозоро (звичайний
+`read_to_string`), і `rules_root()` від резолвленого кореня знаходить
+СПРАВЖНІ rego-полісі — той самий ефект, що давав би `N_RULES_PACKAGE_ROOT`,
+тепер однаковий під обома рантаймами. `N_RULES_PACKAGE_ROOT` як
+env-override лишається чинним для реальних нестандартних layout-ів
+(`rules_package.rs` не чіпався) — лише тести більше на нього не покладаються.
+
+**Перевірено дією, до і після, по кожному файлу окремо (`bun run --bun
+vitest run <файл>` і `npx vitest run <файл>`):**
+
+| файл | Bun ДО | Bun ПІСЛЯ | Node ДО | Node ПІСЛЯ |
+|---|---|---|---|---|
+| `tooling.test.mjs` | 2 fail / 12 (та сама `DetectorError`) | 12/12 | 12/12 | 12/12 |
+| `check-rule-fixtures.test.mjs` | 1 fail / 25 (та сама) | 25/25 | 25/25 | 25/25 |
+| `check-empty-trees.test.mjs` | 2 fail / 4 (1 — та сама `DetectorError`, 1 — мережевий timeout, преекзистуючий) | 1 fail / 4 (той самий timeout, НЕ `DetectorError`) | 4/4 | 4/4 |
+| `hasura-native-parity.test.mjs` | 5 fail / 8 (та сама) | 8/8 | 8/8 | 8/8 |
+
+Для кожного файлу ДО-стан знято на РЕАЛЬНОМУ (ще не зміненому) коді — той
+самий текст `DetectorError` («не вдалося знайти корінь пакета @7n/rules»)
+у кожному випадку, підтверджує, що фікс закриває саме цю ваду, не щось
+суміжне. `check-empty-trees.test.mjs` — єдиний файл, де ПІСЛЯ лишається
+1 fail: тест `check-k8s — 1, якщо patch.target вказує на неіснуючий ресурс`
+тягне `$schema` за мережевим URL (yannh) і впирається у `testTimeout`
+(5000мс) під навантаженим прогоном — з `--testTimeout=20000` так само не
+встигає (61с на дереві з cargo-навантаженням); той самий тест ТАК САМО
+падав ДО фіксу (інша причина, той самий рядок) — не регресія цієї задачі.
+
+**Повний `bun run --bun vitest run` після фіксу:** `не вдалося знайти
+корінь пакета` — **0** (було 10). Залишилось **11 fail / 4148** (321/325
+файлів зелені): **7 timeouts** (1 — вищезгаданий мережевий у
+`check-empty-trees.test.mjs`; 6 — `rules-cli-lint-parity.test.mjs`,
+підмножина «паритет на синтетичному rules-каталозі», `Test timed out in
+5000ms` на кожному, спавнять `rules-cli` підпроцес — типова ознака
+ресурсного тиску, той самий клас, що вже задокументований §2.38
+(«ресурсний тиск CPU/пам'ять під `pool: 'forks'` … не логічна регресія»));
+**4 преекзистуючі environmental-фейли**, НЕ timeout і НЕ `DetectorError` —
+`mirror-parity.test.mjs` (2) + `docgen-scan.test.mjs` (2), реальний
+`AssertionError` про НЕвстановлені first-party плагіни
+(`@7n/rules-ci-github`, `@7n/rules-lang-rust`, `@7n/rules-lang-python`,
+`@7n/rules-lang-js`) у `node_modules` цього worktree (`ls node_modules/@7n/`
+— порожньо) — той самий симптом, БІТ-У-БІТ той самий список плагінів, що
+вже задокументований §2.38 («мій фікс» іншого агента, той самий worktree
+patternclass) — гепворкспейсу, не цієї задачі.
+
+**Сюрприз:** мій перший (наївний) репро — `runNativeConcern('docker/lint',
+'/tmp', null)` одразу після виставлення env — пройшов і під Bun, і під
+Node, що спершу виглядало як спростування самої гіпотези задачі. Причина —
+`/tmp` порожній, `docker/lint` рано виходить (exit 0) ДО того, як
+детектор взагалі доходить до резолву кореня пакета (`run_conftest_batch`
+викликається лише коли є що перевіряти) — хибнонегативний репро. Лише
+відтворивши ПОВНИЙ шлях виклику з реальними фікстурами (файл з `gql`,
+`.graphqlrc.yml`, `.vscode/extensions.json` — той самий сценарій, що й
+справжній failing-тест) вада проявилась. Урок: для Bun-парності
+in-process native-виклику треба репродукувати ГЛИБИНУ виклику, не лише
+факт виклику — early-exit гілки маскують env-розбіжність.
+
 ---
 
 ## Як користуватись

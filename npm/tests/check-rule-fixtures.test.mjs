@@ -5,12 +5,11 @@ import { describe, expect, test } from 'vitest'
 import { existsSync } from 'node:fs'
 import { copyFile, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { env } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 import { runConcernDetector } from '../scripts/lib/lint-surface/detect.mjs'
 import { loadNative } from '../scripts/lib/native.mjs'
-import { ensureDir, realRepoRoot, withTmpDir, writeJson } from '../scripts/utils/test-helpers.mjs'
+import { ensureDir, linkPackageRoot, realRepoRoot, withTmpDir, writeJson } from '../scripts/utils/test-helpers.mjs'
 
 const TEST_DIR = fileURLToPath(new URL('.', import.meta.url))
 
@@ -36,20 +35,19 @@ if (!existsSync(WASM_PATH)) {
   )
 }
 
+// Адаптери під unified lint surface: detector → 0 (чисто) / 1 (є violations).
+//
 // Гейт відкритий (шаблон валідний, `.vscode/extensions.json`/`settings.json` є) доходить
 // до `run_conftest_batch`, який резолвить корінь пакета `@7n/rules` від `cwd` (тимчасовий
-// каталог поза репо в `withTmpDir`) — без override нема звідки взяти
-// `npm/rules/nginx-default-tpl/vscode_extensions`. Той самий явний override, що вже
-// задокументований у `npm/rules/graphql/tooling/tests/tooling.test.mjs` (доккомент
-// `crates/rules-core/src/rules_package.rs`).
-// Опційна змінна (fallback за замовчуванням) — `env` з `node:process`, не
-// прямий `process.env` (js-run.mdc, розділ «CheckEnv та заборона прямого
-// process.env»): мандатний `checkEnv`/`@nitra/check-env` тут зайвий, бо
-// значення завжди має дефолт, ніколи не вимагається ззовні.
-env.N_RULES_PACKAGE_ROOT ??= join(TEST_DIR, '..')
-
-// Адаптери під unified lint surface: detector → 0 (чисто) / 1 (є violations).
+// каталог поза репо в `withTmpDir`) — без резолву нема звідки взяти
+// `npm/rules/nginx-default-tpl/vscode_extensions`. Резолв — `linkPackageRoot`
+// (`test-helpers.mjs`, symlink `node_modules/@7n/rules` усередині `dir`), НЕ
+// env-var: `runConcernDetector` — in-process native-виклик (dlopen), і під
+// Bun (канонічний рантайм) мутація `process.env` з JS не доходить до
+// `std::env::var` у native-аддоні (доккомент `linkPackageRoot` розписує
+// клас Bun-розбіжності й прецедент — `ensure-tool.mjs`/`resolve-cmd.mjs`).
 const checkNginx = async dir => {
+  await linkPackageRoot(dir)
   const result = await runConcernDetector(
     { dir: NGINX_CONCERN_DIR },
     { cwd: dir, ruleId: 'nginx-default-tpl', concernId: 'template', files: undefined }

@@ -12,13 +12,12 @@
  */
 import { describe, expect, test } from 'vitest'
 import { dirname, join } from 'node:path'
-import { env } from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { writeFile } from 'node:fs/promises'
 
 import { sourceFileHasGqlTaggedTemplate } from '../../lib/graphql-gql-scan.mjs'
 import { runConcernDetector } from '../../../../scripts/lib/lint-surface/detect.mjs'
-import { ensureDir, withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
+import { ensureDir, linkPackageRoot, withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
 /** Абсолютний шлях теки концерну (тека з `concern.json`, без main.mjs — native-порт). */
 const CONCERN_DIR = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -31,16 +30,17 @@ const concernId = 'tooling'
 // `check_extensions_recommendation` (гілка з наявним `.vscode/extensions.json`)
 // доходить до `run_conftest_batch`, який резолвить корінь пакета `@7n/rules` від
 // `cwd` (тимчасовий каталог поза репо в `withTmpDir`) — без override там нема
-// звідки взяти `npm/rules/graphql/vscode_extensions`. Той самий явний override,
-// що вже задокументований у `npm/tests/integration-repo-checks.test.mjs` для
-// `k8s/manifests` (доккомент `crates/rules-core/src/rules_package.rs`).
-// Опційна змінна (fallback за замовчуванням) — `env` з `node:process`, не
-// прямий `process.env` (js-run.mdc, розділ «CheckEnv та заборона прямого
-// process.env»): мандатний `checkEnv`/`@nitra/check-env` тут зайвий, бо
-// значення завжди має дефолт, ніколи не вимагається ззовні.
-env.N_RULES_PACKAGE_ROOT ??= join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..')
-
+// звідки взяти `npm/rules/graphql/vscode_extensions`. Резолв — symlink
+// `node_modules/@7n/rules` усередині `dir` ([`linkPackageRoot`],
+// `test-helpers.mjs`), НЕ env-var: `runConcernDetector` тут — in-process
+// native-виклик (dlopen, не subprocess), і під Bun (канонічний рантайм,
+// `n-bun.mdc`) мутація `process.env`/`env` з JS не доходить до
+// `std::env::var` у native-аддоні — `N_RULES_PACKAGE_ROOT`, виставлений
+// звідси, native-бік просто не побачив би (доккомент `linkPackageRoot`
+// розписує це детально й дає посилання на прецедент того самого класу
+// Bun-розбіжності — `ensure-tool.mjs`/`resolve-cmd.mjs`).
 const check = async dir => {
+  await linkPackageRoot(dir)
   const result = await runConcernDetector(CONCERN, { cwd: dir, ruleId, concernId, files: undefined })
   return result.violations
 }
