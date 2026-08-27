@@ -9775,6 +9775,19 @@ const VUE_SCAN_MAX_DEPTH: usize = 8;
 /// `VUE_LIST_RE` (`eslint-config.mjs:32`).
 const VUE_LIST_PATTERN: &str = r"\bvue\s*:\s*\[([^\]]*)\]";
 
+/// `NODE_LIST_RE` (`eslint-config.mjs:33`) — потрібен лише T0-фіксеру
+/// (`mergeEslintConfig` вилучає vue-воркспейси зі списку `node`); детектор
+/// список `node` не читає взагалі.
+const NODE_LIST_PATTERN: &str = r"\bnode\s*:\s*\[([^\]]*)\]";
+
+/// `IGNORES_OPEN_RE` (`eslint-config.mjs:35`) — теж лише для T0-фіксера
+/// (вставка `AUTO_IMPORTS_IGNORE` у перший `ignores: [`).
+const IGNORES_OPEN_PATTERN: &str = r"\bignores\s*:\s*\[";
+
+/// `GET_CONFIG_OBJ_RE` (`eslint-config.mjs:34`) — fallback-точка вставки
+/// `vue: [...]`, коли в конфігу ще немає власного списку.
+const GET_CONFIG_OBJ_PATTERN: &str = r"getConfig\(\s*\{";
+
 /// `STRING_ENTRY_RE` (`eslint-config.mjs:36`).
 const STRING_ENTRY_PATTERN: &str = r#"'([^']*)'|"([^"]*)""#;
 
@@ -9871,9 +9884,11 @@ fn is_vue_workspace(files: &[SourceFile], ws: &str) -> bool {
     })
 }
 
-/// Точний порт `detectWorkspaceTypes` (`eslint-config.mjs:109-129`) —
-/// повертає лише `vue`-половину (`node` детектор не читає).
-fn detect_vue_workspaces(files: &[SourceFile]) -> Vec<String> {
+/// Точний порт `detectWorkspaceTypes` (`eslint-config.mjs:109-129`) — ПОВНА
+/// форма `{ node, vue }`. Детектор читає лише `vue`-половину
+/// ([`detect_vue_workspaces`]); T0-фіксер ([`plan_eslint_config_fix`])
+/// потребує обидві — те саме розгортання `dirs`, без другого проходу.
+fn detect_workspace_types(files: &[SourceFile]) -> (Vec<String>, Vec<String>) {
     let root_pkg = batch_file(files, "package.json").and_then(|f| parse_json_ordered(&f.content));
     let ws_field: Vec<JsonOrdered> = root_pkg
         .as_ref()
@@ -9884,25 +9899,37 @@ fn detect_vue_workspaces(files: &[SourceFile]) -> Vec<String> {
     let dirs = expand_workspaces(files, &ws_field);
     if dirs.is_empty() {
         return if is_vue_workspace(files, ".") {
-            vec![".".to_string()]
+            (Vec::new(), vec![".".to_string()])
         } else {
-            Vec::new()
+            (vec![".".to_string()], Vec::new())
         };
     }
-    dirs.into_iter()
-        .filter(|ws| is_vue_workspace(files, ws))
-        .collect()
+    let mut node = Vec::new();
+    let mut vue = Vec::new();
+    for ws in dirs {
+        if is_vue_workspace(files, &ws) {
+            vue.push(ws);
+        } else {
+            node.push(ws);
+        }
+    }
+    (node, vue)
 }
 
-/// Точний порт `listEntries` + `parseVueList` (`eslint-config.mjs:136-151`).
-fn parse_vue_list(raw: &str) -> Vec<String> {
-    let list_re = regex::Regex::new(VUE_LIST_PATTERN).expect("VUE_LIST_PATTERN валідний");
-    let Some(inner) = list_re.captures(raw).and_then(|c| c.get(1)) else {
-        return Vec::new();
-    };
+/// Vue-половина [`detect_workspace_types`] — усе, що читає детектор
+/// (`checkEslintWorkspaceTypes` у JS-каноні теж дивиться лише на `vue`).
+fn detect_vue_workspaces(files: &[SourceFile]) -> Vec<String> {
+    detect_workspace_types(files).1
+}
+
+/// Записи string-літералів усередині вмісту списку — точний порт `listEntries`
+/// (`eslint-config.mjs:136-142`), винесений окремо від [`parse_list`], бо
+/// `mergeEslintConfig` (`eslint-config.mjs:217-224`) викликає його НАПРЯМУ на
+/// вже захопленому `nodeMatch[1]`, а не через повторний пошук регексу.
+fn list_entries_from_capture(inner: &str) -> Vec<String> {
     let entry_re = regex::Regex::new(STRING_ENTRY_PATTERN).expect("STRING_ENTRY_PATTERN валідний");
     entry_re
-        .captures_iter(inner.as_str())
+        .captures_iter(inner)
         .map(|caps| {
             let value = caps
                 .get(1)
@@ -9912,6 +9939,22 @@ fn parse_vue_list(raw: &str) -> Vec<String> {
             normalize_ws(value)
         })
         .collect()
+}
+
+/// Спільна форма `parseVueList`/аналогічного розбору `node: [...]`
+/// (`eslint-config.mjs:149-151`): знаходить перший список за `pattern`,
+/// розбирає його вміст [`list_entries_from_capture`].
+fn parse_list(raw: &str, pattern: &str) -> Vec<String> {
+    let list_re = regex::Regex::new(pattern).expect("список-патерн валідний");
+    let Some(inner) = list_re.captures(raw).and_then(|c| c.get(1)) else {
+        return Vec::new();
+    };
+    list_entries_from_capture(inner.as_str())
+}
+
+/// Точний порт `parseVueList` (`eslint-config.mjs:149-151`).
+fn parse_vue_list(raw: &str) -> Vec<String> {
+    parse_list(raw, VUE_LIST_PATTERN)
 }
 
 /// Створює діагностику концерну — дефолтний `reason` (`ctx.concernId`)
@@ -10155,6 +10198,398 @@ fn detect_js_check(files: &[SourceFile]) -> Vec<Diagnostic> {
         }
     }
     out
+}
+
+// ---------------------------------------------------------------------
+// `js/check` — T0-фіксер ПОРТОВАНО (`fix-check.mjs`, `eslint-config.mjs`,
+// `tooling/main.mjs`).
+//
+// # Чому саме цей фіксер — з підтвердженим дублюванням, не за замовчуванням
+//
+// `planOxlintrcFix` (`tooling/main.mjs:203-230`) — не незалежна реалізація
+// merge-у, а structural mirror `verifyOxlintRcAgainstCanonical`
+// (`tooling/main.mjs:155-192`), яку гість УЖЕ портував раніше
+// ([`verify_oxlintrc_against_canonical`], доккомент секції «Зріз 2» вище):
+// той самий перелік спеціальних ключів (`rules`/`ignorePatterns`/
+// `jsPlugins`), та сама трійка допоміжних понять (`asRecordOrEmpty` ⇄
+// [`as_record_or_empty`], `deepEqualOxlintCanonical` ⇄
+// [`deep_equal_oxlint_canonical`]) — verify ЗВІРЯЄ те саме дерево рішень,
+// яке fix БУДУЄ. Портувати лише [`plan_oxlintrc_fix`] і лишити
+// `verifyOxlintRcAgainstCanonical` як єдиний JS-канон означало б тримати
+// ДВІ копії одного дерева галузей — тут обидві половини вже в гості.
+//
+// # Package-асети — та сама межа, той самий прецедент
+//
+// Як і `verifyOxlintRcAgainstCanonical` раніше, [`plan_oxlintrc_fix`]
+// потребує канон `oxlint-canonical.json` — [`OXLINT_CANONICAL_JSON`] уже
+// вшитий (доккомент секції «Зріз 2»), другого `include_str!` не додано.
+// `knip-canonical.json` для `js-check-knip`-патерна вшивається ВПЕРШЕ цією
+// хвилею — [`KNIP_CANONICAL_JSON`], прецедент `CARGO_MUTANTS_CONFIG_BASELINE`
+// (`crates/plugin-lang-rust/src/lib.rs`, PR #508): читає ТОЙ САМИЙ файл, що
+// JS-канон через `KNIP_CANONICAL_JSON_PATH`, копії не створено. Розмір —
+// 765 байт (`wc -c knip-canonical.json`), проти 15 407 байт уже вшитого
+// oxlint-канону — не вплинуло помітно на бюджет компонента (задача порту,
+// звіт). Анти-дрейф-гейт — [`embedded_knip_canonical_matches_source_file`],
+// той самий шаблон, що PR #508: байт-у-байт звірка з файлом-джерелом через
+// `env!("CARGO_MANIFEST_DIR")`, незалежно від шляху `include_str!`.
+//
+// # `eslint.config.js` — третій патерн, найбільший за обсягом порту
+//
+// `js-check-eslint-config` (scaffold/merge) — увесь `eslint-config.mjs`,
+// детектор уже читав `vue`-половину [`detect_workspace_types`]
+// ([`detect_vue_workspaces`]); [`plan_eslint_config_fix`] — перший
+// споживач `node`-половини. Регекс-плани [`merge_eslint_config`] —
+// текстовий хірургічний merge (не AST-переписування): той самий
+// fail-safe, що в JS-каноні (немає `getConfig({` — вставка `vue: [...]`
+// не відбувається, решта merge-кроків усе одно застосовується).
+//
+// # `FixRequest` без диск-IO — детермінований і без capability
+//
+// На відміну від `fix-check.mjs` (три окремі `fs`-виклики: `readFile`
+// `.oxlintrc.json`, `readFile`/`writeFile` `eslint.config.js`, `copyFile`
+// `knip.json`), [`fix_js_check`] читає ЛИШЕ `request.files` (той самий
+// батч, що бачив [`detect_js_check`], спека §3.2) — жодного `fs-read`
+// не потребує, WriteFile-контент повністю обчислюється з батчу й вшитих
+// канонів.
+//
+// # Доказ парності
+//
+// `detect → fix → detect` чисто — тест
+// [`fix_js_check_round_trip_with_detect_is_clean`] нижче (гість-only
+// раунд-трип, дзеркало `fix_cargo_mutants_config_round_trip_with_detect_is_clean`
+// PR #508). Parity JS-канон ⇄ гість — новий блок
+// `wasm-plugin-parity.test.mjs` (секція «js/check T0-фікс»), той самий
+// `runWasmConcernFix`, що вже ганяє `js/doc_comments`.
+
+/// Канон knip, вшитий у компонент — ТОЙ САМИЙ файл, що читає JS-канон через
+/// `KNIP_CANONICAL_JSON_PATH` (`tooling/main.mjs`). Анти-дрейф —
+/// [`embedded_knip_canonical_matches_source_file`] (доккомент секції вище).
+const KNIP_CANONICAL_JSON: &str =
+    include_str!("../../../plugins/lang-js/rules/js/tooling/data/tooling/knip-canonical.json");
+
+/// Одинарно-квотований літерал списку — точний порт `quote`
+/// (`eslint-config.mjs:157-159`).
+fn quote_ws(ws: &str) -> String {
+    format!("'{ws}'")
+}
+
+/// Точний порт `renderEslintConfigScaffold` (`eslint-config.mjs:167-184`) —
+/// повний шаблон файлу, коли `eslint.config.{js,mjs}` відсутній.
+fn render_eslint_config_scaffold(node: &[String], vue: &[String]) -> String {
+    let mut args: Vec<String> = Vec::new();
+    if !node.is_empty() {
+        let list = node.iter().map(|w| quote_ws(w)).collect::<Vec<_>>().join(", ");
+        args.push(format!("    node: [{list}]"));
+    }
+    if !vue.is_empty() {
+        let list = vue.iter().map(|w| quote_ws(w)).collect::<Vec<_>>().join(", ");
+        args.push(format!("    vue: [{list}]"));
+    }
+    [
+        "import { getConfig } from '@nitra/eslint-config'".to_string(),
+        String::new(),
+        "export default [".to_string(),
+        "  {".to_string(),
+        format!("    ignores: ['{AUTO_IMPORTS_IGNORE}']"),
+        "  },".to_string(),
+        "  ...getConfig({".to_string(),
+        args.join(",\n"),
+        "  })".to_string(),
+        "]".to_string(),
+        String::new(),
+    ]
+    .join("\n")
+}
+
+/// Точний порт `mergeEslintConfig` (`eslint-config.mjs:197-227`) —
+/// хірургічний merge наявного `eslint.config.{js,mjs}` без переписування
+/// решти файлу (кастомні ignores/overrides/коментарі не чіпаються). Бере
+/// лише `vue` — сам JS-оригінал приймає весь `types`, але читає з нього
+/// ЛИШЕ `types.vue` (`node`-список фільтрується від vue-записів, не від
+/// `types.node`); порт відображає це явно сигнатурою, а не мовчазним
+/// ігноруванням параметра.
+fn merge_eslint_config(raw: &str, vue: &[String]) -> String {
+    let mut out = raw.to_string();
+
+    if !out.contains(AUTO_IMPORTS_IGNORE) {
+        let ignores_re = regex::Regex::new(IGNORES_OPEN_PATTERN).expect("IGNORES_OPEN_PATTERN валідний");
+        if let Some(m) = ignores_re.find(&out) {
+            let replacement = format!("{}'{AUTO_IMPORTS_IGNORE}', ", m.as_str());
+            out = format!("{}{replacement}{}", &out[..m.start()], &out[m.end()..]);
+        }
+    }
+
+    let current_vue_list = parse_vue_list(&out);
+    let missing_vue: Vec<&String> = vue.iter().filter(|ws| !current_vue_list.contains(ws)).collect();
+    if !missing_vue.is_empty() {
+        let inserted = missing_vue.iter().map(|w| quote_ws(w)).collect::<Vec<_>>().join(", ");
+        let vue_re = regex::Regex::new(VUE_LIST_PATTERN).expect("VUE_LIST_PATTERN валідний");
+        if let Some(caps) = vue_re.captures(&out) {
+            let whole = caps.get(0).expect("група 0 завжди присутня");
+            let inner = caps.get(1).map(|m| m.as_str()).unwrap_or("");
+            let rest = if !inner.trim().is_empty() {
+                format!(", {inner}")
+            } else {
+                inner.to_string()
+            };
+            let replacement = format!("vue: [{inserted}{rest}]");
+            out = format!("{}{replacement}{}", &out[..whole.start()], &out[whole.end()..]);
+        } else {
+            let get_config_re =
+                regex::Regex::new(GET_CONFIG_OBJ_PATTERN).expect("GET_CONFIG_OBJ_PATTERN валідний");
+            if let Some(m) = get_config_re.find(&out) {
+                let replacement = format!("{}\n    vue: [{inserted}],", m.as_str());
+                out = format!("{}{replacement}{}", &out[..m.start()], &out[m.end()..]);
+            }
+            // без `getConfig({` — merge неможливий, лишаємо як є (fail-safe,
+            // дзеркало JS-коментаря `eslint-config.mjs:214`).
+        }
+    }
+
+    let node_re = regex::Regex::new(NODE_LIST_PATTERN).expect("NODE_LIST_PATTERN валідний");
+    if let Some(caps) = node_re.captures(&out) {
+        let whole = caps.get(0).expect("група 0 завжди присутня");
+        let inner = caps.get(1).map(|m| m.as_str()).unwrap_or("");
+        let entries = list_entries_from_capture(inner);
+        let kept: Vec<&String> = entries.iter().filter(|e| !vue.contains(e)).collect();
+        if kept.len() != entries.len() {
+            let replacement = format!(
+                "node: [{}]",
+                kept.iter().map(|w| quote_ws(w)).collect::<Vec<_>>().join(", ")
+            );
+            out = format!("{}{replacement}{}", &out[..whole.start()], &out[whole.end()..]);
+        }
+    }
+
+    out
+}
+
+/// Результат [`plan_eslint_config_fix`] — точний відповідник JS
+/// `{ path, content, message }` (`eslint-config.mjs:236`), без `message`
+/// (WIT `fix-plan` v3.0 не несе людських повідомлень, доккомент
+/// `crates/rules-contract/src/fix.rs`).
+struct EslintConfigPlan {
+    path: String,
+    content: String,
+}
+
+/// Точний порт `planEslintConfigFix` (`eslint-config.mjs:236-263`) — scaffold
+/// відсутнього `eslint.config.js` або merge наявного під детектовані типи.
+/// `None` — «нічого міняти» (файл уже узгоджений, дзеркало JS `return null`).
+fn plan_eslint_config_fix(files: &[SourceFile]) -> Option<EslintConfigPlan> {
+    let (node, vue) = detect_workspace_types(files);
+
+    let Some(existing) = ESLINT_CONFIG_NAMES
+        .iter()
+        .copied()
+        .find(|name| batch_file(files, name).is_some())
+    else {
+        // JS-канон тут ще будує людський `summary` для `message`
+        // (`eslint-config.mjs:241-246`) — WIT `fix-plan` v3.0 його не несе
+        // (доккомент `EslintConfigPlan`), тож у порту цей текст не потрібен.
+        return Some(EslintConfigPlan {
+            path: "eslint.config.js".to_string(),
+            content: render_eslint_config_scaffold(&node, &vue),
+        });
+    };
+
+    let raw = batch_file(files, existing).map(|f| f.content.as_str()).unwrap_or("");
+    let merged = merge_eslint_config(raw, &vue);
+    if merged == raw {
+        return None;
+    }
+    Some(EslintConfigPlan {
+        path: existing.to_string(),
+        content: merged,
+    })
+}
+
+/// Запис-як-record-або-порожньо — точний порт `asRecordOrEmpty`
+/// (`tooling/main.mjs:72-79`).
+fn as_record_or_empty(v: Option<&JsonOrdered>) -> Vec<(String, JsonOrdered)> {
+    match v {
+        Some(JsonOrdered::Object(entries)) => entries.clone(),
+        _ => Vec::new(),
+    }
+}
+
+/// Значення за ключем у записі впорядкованих пар — дзеркало `record[key]`.
+fn record_get<'a>(record: &'a [(String, JsonOrdered)], key: &str) -> Option<&'a JsonOrdered> {
+    record.iter().find(|(k, _)| k == key).map(|(_, v)| v)
+}
+
+/// `record[key] = value` зі збереженням JS-семантики порядку ключів
+/// (`{...a, ...b}`): наявний ключ оновлюється НА МІСЦІ (позиція не
+/// змінюється), новий — додається в кінець.
+fn record_set(record: &mut Vec<(String, JsonOrdered)>, key: &str, value: JsonOrdered) {
+    if let Some(entry) = record.iter_mut().find(|(k, _)| k == key) {
+        entry.1 = value;
+    } else {
+        record.push((key.to_string(), value));
+    }
+}
+
+/// `{ ...base, ...incoming }` — точний порядок ключів JS spread-обʼєкта:
+/// ключі `base` першими (значення можуть бути перезаписані), потім ключі
+/// `incoming`, яких не було в `base`, у порядку `incoming`.
+fn spread_merge_records(
+    base: Vec<(String, JsonOrdered)>,
+    incoming: &[(String, JsonOrdered)],
+) -> Vec<(String, JsonOrdered)> {
+    let mut out = base;
+    for (key, value) in incoming {
+        record_set(&mut out, key, value.clone());
+    }
+    out
+}
+
+/// Точний порт `planOxlintrcFix` (`tooling/main.mjs:203-230`) — детермінований
+/// merge `.oxlintrc.json` до відповідності канону. ДЗЕРКАЛИТЬ
+/// [`verify_oxlintrc_against_canonical`] (доккомент секції вище): та сама
+/// трійка спецключів (`rules`/`ignorePatterns`/`jsPlugins`), той самий
+/// прохід `canonical.entries()` в документному порядку. Project-specific
+/// розширення (зайві `rules`-ключі, зайві `ignorePatterns`) НЕ видаляються.
+fn plan_oxlintrc_fix(actual: Option<&JsonOrdered>, canonical: &JsonOrdered) -> JsonOrdered {
+    let mut merged = as_record_or_empty(actual);
+    for (key, expected) in canonical.entries() {
+        match key.as_str() {
+            "rules" => {
+                let base = as_record_or_empty(record_get(&merged, "rules"));
+                let expected_entries = match expected {
+                    JsonOrdered::Object(entries) => entries.clone(),
+                    _ => Vec::new(),
+                };
+                let merged_rules = spread_merge_records(base, &expected_entries);
+                record_set(&mut merged, "rules", JsonOrdered::Object(merged_rules));
+            }
+            "ignorePatterns" => {
+                let existing: Vec<JsonOrdered> = record_get(&merged, "ignorePatterns")
+                    .and_then(JsonOrdered::as_array)
+                    .map(<[JsonOrdered]>::to_vec)
+                    .unwrap_or_default();
+                let canon_patterns: &[JsonOrdered] = expected.as_array().unwrap_or(&[]);
+                let mut combined = existing.clone();
+                for pattern in canon_patterns {
+                    if !existing.contains(pattern) {
+                        combined.push(pattern.clone());
+                    }
+                }
+                record_set(&mut merged, "ignorePatterns", JsonOrdered::Array(combined));
+            }
+            "jsPlugins" => {
+                let existing: Vec<JsonOrdered> = record_get(&merged, "jsPlugins")
+                    .and_then(JsonOrdered::as_array)
+                    .map(<[JsonOrdered]>::to_vec)
+                    .unwrap_or_default();
+                let canon_plugins: &[JsonOrdered] = expected.as_array().unwrap_or(&[]);
+                let mut combined = existing.clone();
+                for plugin in canon_plugins {
+                    if existing
+                        .iter()
+                        .all(|entry| !deep_equal_oxlint_canonical(Some(entry), plugin))
+                    {
+                        combined.push(plugin.clone());
+                    }
+                }
+                record_set(&mut merged, "jsPlugins", JsonOrdered::Array(combined));
+            }
+            _ => record_set(&mut merged, key, expected.clone()),
+        }
+    }
+    JsonOrdered::Object(merged)
+}
+
+/// Дзеркало `JSON.stringify(value, null, 2)` — документний порядок ключів
+/// (як і компактний [`js_json_stringify`]), 2-пробільний відступ на рівень,
+/// порожні обʼєкт/масив БЕЗ переносу рядка (`{}`/`[]`, той самий edge-case,
+/// що в JS). Потрібен лише для запису `.oxlintrc.json` — детект-шлях
+/// повідомлень лишається на компактній формі.
+fn js_json_stringify_pretty(value: &JsonOrdered, indent_level: usize) -> String {
+    let pad = "  ".repeat(indent_level);
+    let child_pad = "  ".repeat(indent_level + 1);
+    match value {
+        JsonOrdered::Null => "null".to_string(),
+        JsonOrdered::Bool(true) => "true".to_string(),
+        JsonOrdered::Bool(false) => "false".to_string(),
+        JsonOrdered::Number(n) => n.to_string(),
+        JsonOrdered::Str(s) => json_escape_string(s),
+        JsonOrdered::Array(items) => {
+            if items.is_empty() {
+                return "[]".to_string();
+            }
+            let inner: Vec<String> = items
+                .iter()
+                .map(|item| format!("{child_pad}{}", js_json_stringify_pretty(item, indent_level + 1)))
+                .collect();
+            format!("[\n{}\n{pad}]", inner.join(",\n"))
+        }
+        JsonOrdered::Object(entries) => {
+            if entries.is_empty() {
+                return "{}".to_string();
+            }
+            let inner: Vec<String> = entries
+                .iter()
+                .map(|(k, v)| {
+                    format!(
+                        "{child_pad}{}: {}",
+                        json_escape_string(k),
+                        js_json_stringify_pretty(v, indent_level + 1)
+                    )
+                })
+                .collect();
+            format!("{{\n{}\n{pad}}}", inner.join(",\n"))
+        }
+    }
+}
+
+/// T0-фіксер `js/check` — точний порт трьох патернів `fix-check.mjs`
+/// (`js-check-eslint-config`, `js-check-oxlintrc`, `js-check-knip`, у тому
+/// самому порядку). Кожен патерн — окремий `test`/`apply` у JS-каноні;
+/// тут — незалежна `if`-гілка за належним `reason` у `request.diagnostics`
+/// (доккомент секції вище пояснює вибір package-асетів і межу `FixRequest`).
+fn fix_js_check(request: &FixRequest) -> FixPlan {
+    let mut edits = Vec::new();
+
+    let needs_eslint_config = request.diagnostics.iter().any(|d| {
+        matches!(
+            d.reason.as_str(),
+            ESLINT_CONFIG_MISSING_REASON | ESLINT_CONFIG_IGNORES_REASON | ESLINT_CONFIG_VUE_WORKSPACE_REASON
+        )
+    });
+    if needs_eslint_config {
+        if let Some(plan) = plan_eslint_config_fix(&request.files) {
+            edits.push(FileEdit::Write(WriteFile {
+                path: plan.path,
+                content: plan.content,
+            }));
+        }
+    }
+
+    let needs_oxlintrc = request
+        .diagnostics
+        .iter()
+        .any(|d| matches!(d.reason.as_str(), OXLINTRC_MISSING_REASON | OXLINTRC_DRIFT_REASON));
+    if needs_oxlintrc {
+        let actual = batch_file(&request.files, ".oxlintrc.json").and_then(|f| parse_json_ordered(&f.content));
+        let canonical =
+            parse_json_ordered(OXLINT_CANONICAL_JSON).expect("вшитий канон oxlint — валідний JSON");
+        let merged = plan_oxlintrc_fix(actual.as_ref(), &canonical);
+        let content = format!("{}\n", js_json_stringify_pretty(&merged, 0));
+        edits.push(FileEdit::Write(WriteFile {
+            path: ".oxlintrc.json".to_string(),
+            content,
+        }));
+    }
+
+    let needs_knip = request.diagnostics.iter().any(|d| d.reason == KNIP_MISSING_REASON);
+    if needs_knip && batch_file(&request.files, "knip.json").is_none() {
+        edits.push(FileEdit::Write(WriteFile {
+            path: "knip.json".to_string(),
+            content: KNIP_CANONICAL_JSON.to_string(),
+        }));
+    }
+
+    FixPlan { edits }
 }
 
 // =====================================================================
@@ -12770,15 +13205,18 @@ impl Guest for LangJs {
 
     /// fix-контур contract v3: `test/no-bun-test-import` (пілот,
     /// [`fix_no_bun_test_import`] — Rust-порт видаленого
-    /// `fix-no-bun-test-import.mjs`) і `js/doc_comments` (зріз 4 контракту
-    /// v3.1, [`fix_doc_comments`] — порт `fix-doc_comments.mjs`, який тут,
-    /// на відміну від пілота, ЛИШАЄТЬСЯ як JS-fallback); решта концернів —
+    /// `fix-no-bun-test-import.mjs`), `js/doc_comments` (зріз 4 контракту
+    /// v3.1, [`fix_doc_comments`] — порт `fix-doc_comments.mjs`) і `js/check`
+    /// (доккомент секції «`js/check` — T0-фіксер ПОРТОВАНО»,
+    /// [`fix_js_check`] — порт `fix-check.mjs`) — усі три JS-канони тут, на
+    /// відміну від пілота, ЛИШАЮТЬСЯ як JS-fallback; решта концернів —
     /// порожній план («нічого не чинити», сумісна заглушка — доккомент
     /// `wit/world.wit` біля `export fix`).
     fn fix(request: FixRequest) -> FixPlan {
         match request.concern_id.as_str() {
             CONCERN_NO_BUN_TEST_IMPORT => fix_no_bun_test_import(&request),
             CONCERN_DOC_COMMENTS => fix_doc_comments(&request),
+            CONCERN_JS_CHECK => fix_js_check(&request),
             _ => FixPlan { edits: vec![] },
         }
     }
@@ -16042,6 +16480,315 @@ mod tests {
                 "Знайдено застарілий конфіг ESLint: .eslintrc — видали, використовуй flat config",
                 "Знайдено застарілий конфіг ESLint: .eslintrc.yml — видали, використовуй flat config",
             ]
+        );
+    }
+
+    // --- js/check: T0-фіксер (доккомент секції «`js/check` — T0-фіксер
+    // ПОРТОВАНО»), дзеркало трьох патернів `fix-check.mjs` ---
+
+    /// Діагностики реально віддає [`detect_js_check`] — той самий мотив, що
+    /// [`fix_request_for`] для `no-bun-test-import` вище.
+    fn js_check_fix_request(files: Vec<SourceFile>) -> FixRequest {
+        let diagnostics = detect_js_check(&files);
+        FixRequest {
+            concern_id: CONCERN_JS_CHECK.to_string(),
+            files,
+            diagnostics,
+        }
+    }
+
+    /// Вміст `.oxlintrc.json` конкретного write-edit у плані (панікує, якщо
+    /// його немає).
+    fn oxlintrc_write_content(plan: &FixPlan) -> &str {
+        plan.edits
+            .iter()
+            .find_map(|edit| match edit {
+                FileEdit::Write(write) if write.path == ".oxlintrc.json" => Some(write.content.as_str()),
+                _ => None,
+            })
+            .expect(".oxlintrc.json write-edit відсутній у плані")
+    }
+
+    /// Доказ парності «детект → фікс → повторний детект чисто» —
+    /// гість-only раунд-трип на порожньому репо: усі три патерни
+    /// спрацьовують одночасно (`eslint-config-missing`, `oxlintrc-missing`,
+    /// `knip-missing`), застосований план задовольняє повторний детект.
+    #[test]
+    fn fix_js_check_round_trip_with_detect_is_clean() {
+        let before: Vec<SourceFile> = vec![];
+        let diagnostics_before = detect_js_check(&before);
+        assert_eq!(
+            diagnostics_before.iter().map(|d| d.reason.as_str()).collect::<Vec<_>>(),
+            vec!["eslint-config-missing", "oxlintrc-missing", "knip-missing"]
+        );
+
+        let plan = fix_js_check(&FixRequest {
+            concern_id: CONCERN_JS_CHECK.to_string(),
+            files: before.clone(),
+            diagnostics: diagnostics_before,
+        });
+        assert_eq!(plan.edits.len(), 3);
+
+        // Симуляція застосування host-ом: кожен write-edit додається в батч.
+        let mut after = before;
+        for edit in &plan.edits {
+            let FileEdit::Write(write) = edit else {
+                panic!("js/check не видаляє файлів")
+            };
+            after.push(source(&write.path, &write.content));
+        }
+        // Root package.json з жодним workspaces-полем не потрібен для
+        // "node: ['.']" сценарію (детектор вважає корінь єдиним воркспейсом),
+        // тож повторний детект на `after` має бути повністю чистим.
+        assert!(
+            detect_js_check(&after).is_empty(),
+            "план не задовольнив повторний детект: {:?}",
+            detect_js_check(&after)
+        );
+    }
+
+    /// Порожній `.oxlintrc.json` (файл відсутній) — T0 копіює канон один в
+    /// один: [`plan_oxlintrc_fix`] на `actual = None` дає структурно ТОЙ
+    /// САМИЙ обʼєкт, що й сам канон (задовольняє
+    /// [`verify_oxlintrc_against_canonical`] — доказ того, що фікс і verify
+    /// дзеркалять те саме дерево рішень, доккомент секції).
+    #[test]
+    fn fix_js_check_missing_oxlintrc_copies_canonical_and_passes_own_verify() {
+        let files = vec![source("knip.json", "{}"), source("eslint.config.js", "x")];
+        let plan = js_check_fix_request(files);
+        let result = fix_js_check(&plan);
+        let content = oxlintrc_write_content(&result);
+        let written = parse_json_ordered(content).expect("вшитий T0-запис — валідний JSON");
+        let canonical = parse_json_ordered(OXLINT_CANONICAL_JSON).expect("канон — валідний JSON");
+        assert!(verify_oxlintrc_against_canonical(&written, &canonical).is_empty());
+        // `JSON.stringify(merged, null, 2)` завершується `\n` (`fix-check.mjs:85`).
+        assert!(content.ends_with('\n'));
+    }
+
+    /// ГОЛОВНИЙ тест duplication-твердження звіту порту: `.oxlintrc.json` із
+    /// вирізаним правилом і зайвим project-specific ключем — T0-merge
+    /// [`plan_oxlintrc_fix`] заповнює прогалину, зберігає зайве, і
+    /// РЕЗУЛЬТАТ проходить [`verify_oxlintrc_against_canonical`] БЕЗ жодної
+    /// додаткової синхронізації між ними — саме тому вони описані як
+    /// дзеркальна пара, а не дві незалежні реалізації.
+    #[test]
+    fn fix_js_check_oxlintrc_drift_merge_satisfies_own_verify_and_keeps_extra_rule() {
+        let mut cfg = parse_json_ordered(OXLINT_CANONICAL_JSON).expect("валідний");
+        if let JsonOrdered::Object(entries) = &mut cfg {
+            for (key, value) in entries.iter_mut() {
+                if key == "rules" {
+                    if let JsonOrdered::Object(rules) = value {
+                        rules.retain(|(k, _)| k != "eqeqeq");
+                        rules.push((
+                            "project-specific/no-foo".to_string(),
+                            JsonOrdered::Str("error".to_string()),
+                        ));
+                    }
+                }
+            }
+        }
+        let files = vec![
+            source(".oxlintrc.json", &js_json_stringify(&cfg)),
+            source("knip.json", "{}"),
+            source("eslint.config.js", "x"),
+        ];
+        let request = js_check_fix_request(files);
+        assert!(request
+            .diagnostics
+            .iter()
+            .any(|d| d.reason == OXLINTRC_DRIFT_REASON));
+
+        let plan = fix_js_check(&request);
+        let content = oxlintrc_write_content(&plan);
+        let written = parse_json_ordered(content).expect("валідний JSON");
+        let canonical = parse_json_ordered(OXLINT_CANONICAL_JSON).expect("канон валідний");
+
+        // T0-merge задовольняє ТОЙ САМИЙ verify, що видав diagnostics-drift.
+        assert!(verify_oxlintrc_against_canonical(&written, &canonical).is_empty());
+        // Project-specific розширення не видалене.
+        let rules = written.get("rules").expect("rules присутнє");
+        assert!(rules.get("project-specific/no-foo").is_some());
+    }
+
+    /// `.oxlintrc.json` уже канонічний — [`plan_oxlintrc_fix`] повертає
+    /// СТРУКТУРНО ідентичний обʼєкт (порожній diff), не порожній план: на
+    /// відміну від `planEslintConfigFix`, у JS-каноні немає гілки
+    /// «нічого не робити» для oxlintrc-патерна — T0 завжди пише файл, коли
+    /// `oxlintrc-missing`/`oxlintrc-drift` присутні серед діагностик.
+    #[test]
+    fn fix_js_check_canonical_oxlintrc_merge_is_a_no_op_rewrite() {
+        let canonical_content = OXLINT_CANONICAL_JSON;
+        let files = vec![
+            source(".oxlintrc.json", canonical_content),
+            source("knip.json", "{}"),
+            source("eslint.config.js", "x"),
+        ];
+        // Канонічний файл не дає жодного drift — тест перевіряє напряму
+        // виклик [`plan_oxlintrc_fix`], не проходить через `test()`-гейт.
+        let canonical = parse_json_ordered(OXLINT_CANONICAL_JSON).expect("валідний");
+        let merged = plan_oxlintrc_fix(Some(&canonical), &canonical);
+        assert!(verify_oxlintrc_against_canonical(&merged, &canonical).is_empty());
+        assert!(detect_js_check(&files)
+            .iter()
+            .all(|d| d.reason != OXLINTRC_DRIFT_REASON));
+    }
+
+    /// Відсутній `eslint.config.{js,mjs}` без workspaces — scaffold з
+    /// `node: ['.']` (корінь — єдиний non-vue воркспейс).
+    #[test]
+    fn fix_js_check_scaffolds_eslint_config_for_plain_root() {
+        let files = vec![source(".oxlintrc.json", OXLINT_CANONICAL_JSON), source("knip.json", "{}")];
+        let plan = fix_js_check(&js_check_fix_request(files));
+        let write = plan
+            .edits
+            .iter()
+            .find_map(|e| match e {
+                FileEdit::Write(w) if w.path == "eslint.config.js" => Some(w),
+                _ => None,
+            })
+            .expect("eslint.config.js write-edit відсутній");
+        assert!(write.content.contains("import { getConfig } from '@nitra/eslint-config'"));
+        assert!(write.content.contains("node: ['.']"));
+        assert!(!write.content.contains("vue:"));
+        assert!(write.content.contains("ignores: ['**/auto-imports.d.ts']"));
+    }
+
+    /// Vue-воркспейс поза `vue: [...]` — T0 хірургічно дописує запис, решта
+    /// файлу (кастомний коментар) недоторкана.
+    #[test]
+    fn fix_js_check_merges_missing_vue_workspace_into_existing_config() {
+        let files = vec![
+            source(
+                "eslint.config.js",
+                "// custom header comment\nimport { getConfig } from '@nitra/eslint-config'\nexport default [\n  { ignores: ['**/auto-imports.d.ts'] },\n  ...getConfig({\n    node: ['app']\n  })\n]\n",
+            ),
+            source("package.json", r#"{"workspaces":["app"]}"#),
+            source("app/package.json", r#"{"dependencies":{"vue":"^3.6.0"}}"#),
+            source(".oxlintrc.json", OXLINT_CANONICAL_JSON),
+            source("knip.json", "{}"),
+        ];
+        let request = js_check_fix_request(files);
+        assert!(request
+            .diagnostics
+            .iter()
+            .any(|d| d.reason == ESLINT_CONFIG_VUE_WORKSPACE_REASON));
+        let plan = fix_js_check(&request);
+        let write = plan
+            .edits
+            .iter()
+            .find_map(|e| match e {
+                FileEdit::Write(w) if w.path == "eslint.config.js" => Some(w),
+                _ => None,
+            })
+            .expect("eslint.config.js write-edit відсутній");
+        assert!(write.content.contains("// custom header comment"));
+        assert!(write.content.contains("vue: ['app']"));
+        // `app` вилучено зі списку `node`.
+        assert!(!write.content.contains("node: ['app']"));
+    }
+
+    /// Ідемпотентність: узгоджений `eslint.config.js` (getConfig +
+    /// @nitra/eslint-config + ignores + жоден vue-воркспейс поза списком) —
+    /// жодного `eslint.config.js` write-edit у плані, навіть якщо ІНШІ
+    /// патерни (тут — `oxlintrc-missing`) все ще спрацьовують.
+    #[test]
+    fn fix_js_check_leaves_consistent_eslint_config_untouched() {
+        let files = vec![
+            source(
+                "eslint.config.js",
+                "import { getConfig } from '@nitra/eslint-config'\nexport default [{ ignores: ['**/auto-imports.d.ts'] }, ...getConfig({ node: ['.'] })]\n",
+            ),
+            source("knip.json", "{}"),
+        ];
+        let request = js_check_fix_request(files);
+        assert!(request.diagnostics.iter().any(|d| d.reason == OXLINTRC_MISSING_REASON));
+        let plan = fix_js_check(&request);
+        assert!(plan
+            .edits
+            .iter()
+            .all(|e| !matches!(e, FileEdit::Write(w) if w.path == "eslint.config.js")));
+        // …а `oxlintrc-missing` усе одно фіксується — патерни незалежні.
+        assert!(plan
+            .edits
+            .iter()
+            .any(|e| matches!(e, FileEdit::Write(w) if w.path == ".oxlintrc.json")));
+    }
+
+    /// `knip.json` відсутній — T0 копіює вшитий канон байт-у-байт (те саме,
+    /// що `copyFile` у JS-каноні).
+    #[test]
+    fn fix_js_check_copies_knip_canonical_when_missing() {
+        let files = vec![source(".oxlintrc.json", OXLINT_CANONICAL_JSON), source("eslint.config.js", "x")];
+        let plan = fix_js_check(&js_check_fix_request(files));
+        let write = plan
+            .edits
+            .iter()
+            .find_map(|e| match e {
+                FileEdit::Write(w) if w.path == "knip.json" => Some(w),
+                _ => None,
+            })
+            .expect("knip.json write-edit відсутній");
+        assert_eq!(write.content, KNIP_CANONICAL_JSON);
+    }
+
+    /// Ідемпотентність `js-check-knip` (доккомент `fix-check.mjs:101-103`):
+    /// `knip.json` уже присутній у батчі (паралельний фіксер/попередній
+    /// прогін) — план НЕ перезаписує чужий вміст, навіть якщо діагностика
+    /// (застаріла) все ще в запиті.
+    #[test]
+    fn fix_js_check_does_not_overwrite_existing_knip_json() {
+        let files = vec![
+            source(".oxlintrc.json", OXLINT_CANONICAL_JSON),
+            source("eslint.config.js", "x"),
+            source("knip.json", "{\"custom\":true}"),
+        ];
+        // `detect_js_check` на цьому батчі вже не видасть `knip-missing`
+        // (файл присутній) — тест емулює «застарілу» діагностику явно, щоб
+        // перевірити ІДЕМПОТЕНТНІСТЬ фіксера окремо від детектора.
+        let request = FixRequest {
+            concern_id: CONCERN_JS_CHECK.to_string(),
+            files,
+            diagnostics: vec![js_check_diagnostic(KNIP_MISSING_REASON, "стала діагностика".to_string())],
+        };
+        let plan = fix_js_check(&request);
+        assert!(plan
+            .edits
+            .iter()
+            .all(|e| !matches!(e, FileEdit::Write(w) if w.path == "knip.json")));
+    }
+
+    /// Анти-дрейф-гейт для [`KNIP_CANONICAL_JSON`] (доккомент секції «`js/check`
+    /// — T0-фіксер ПОРТОВАНО»): читає канонічний файл-джерело НЕЗАЛЕЖНО від
+    /// `include_str!`-шляху (через `CARGO_MANIFEST_DIR`) і звіряє байт-у-байт
+    /// із вшитою константою — той самий шаблон, що
+    /// `embedded_cargo_mutants_baseline_matches_canonical_source_file`
+    /// (`crates/plugin-lang-rust/src/lib.rs`, PR #508).
+    #[test]
+    fn embedded_knip_canonical_matches_source_file() {
+        let canonical_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(
+            "../../plugins/lang-js/rules/js/tooling/data/tooling/knip-canonical.json",
+        );
+        let on_disk = std::fs::read_to_string(&canonical_path).unwrap_or_else(|err| {
+            panic!("не вдалось прочитати канонічний knip-canonical.json {canonical_path:?}: {err}")
+        });
+        assert_eq!(
+            KNIP_CANONICAL_JSON, on_disk,
+            "вшитий `include_str!`-вміст розійшовся з канонічним файлом-джерелом \
+             {canonical_path:?} — JS-фіксер (`fix-check.mjs`, `KNIP_CANONICAL_JSON_PATH`) \
+             і гість мають вшивати/читати ІДЕНТИЧНИЙ канон"
+        );
+    }
+
+    /// [`js_json_stringify_pretty`] — дзеркало `JSON.stringify(v, null, 2)`:
+    /// вкладені обʼєкт/масив з відступом 2 проб./рівень, порожні — без
+    /// переносу рядка.
+    #[test]
+    fn js_json_stringify_pretty_mirrors_json_stringify_with_indent() {
+        let value = parse_json_ordered(r#"{"b":1,"a":["x",{"n":null,"empty":{},"list":[]}]}"#)
+            .expect("валідний");
+        assert_eq!(
+            js_json_stringify_pretty(&value, 0),
+            "{\n  \"b\": 1,\n  \"a\": [\n    \"x\",\n    {\n      \"n\": null,\n      \"empty\": {},\n      \"list\": []\n    }\n  ]\n}"
         );
     }
 

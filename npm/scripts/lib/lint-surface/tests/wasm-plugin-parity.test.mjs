@@ -149,6 +149,16 @@ const STRYKER_CONFIG_CONCERN_KEY = 'test/stryker_config'
 // `crates/plugin-lang-js/src/lib.rs` (вшитий канон oxlint + рефакторинг
 // рішення Ґ, через який `knip.json` став спостережуваним порушенням).
 const JS_CHECK_CONCERN_KEY = 'js/check'
+// T0-фіксер `js/check` (`fix-check.mjs`) — JS-канон детектора (`main.mjs`)
+// УЖЕ видалено (доккомент модуля, «ЕТАЛОН, НЕ ЖИВИЙ КАНОН» — case видалення
+// разом із портом детекту), тож violations для fix-parity беруться НЕ з
+// `goldenJs`, а напряму з `runWasmConcern` (доведена парність детекту
+// [`runJsCheckBoth`] вище робить це коректним джерелом — той самий шлях, яким
+// `applyT0` реально живиться в проді, бо JS-детектора для `js/check` більше
+// немає). Фіксер (`fix-check.mjs`) НЕ видалено — лишається живим каноном,
+// як `fix-doc_comments.mjs` для зрізу 4 нижче.
+const JS_CHECK_DIR = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'js', 'check')
+const JS_CHECK_FIX_MJS_PATH = join(JS_CHECK_DIR, 'fix-check.mjs')
 // Зріз 4 контракту v3.1: `js/doc_comments` — секція «Зріз 4» у
 // `crates/plugin-lang-js/src/lib.rs`. На відміну від решти зрізів, тут у
 // парі беруть участь ДВА JS-модулі: детектор і T0-фіксер (він лишається
@@ -3439,20 +3449,22 @@ describe('wasm-plugin parity — test/stryker_config (JS канон vs wasm plug
 const eslintConfigWith = args =>
   `import { getConfig } from '@nitra/eslint-config'\n\nexport default [\n  {\n    ignores: ['**/auto-imports.d.ts']\n  },\n  ...getConfig(${args})\n]\n`
 
+/**
+ * Канон oxlint із пакета — той самий файл, що вшито в компонент. Модульна
+ * область видимості (не всередині одного `describe`) — і детект-, і
+ * fix-parity блоки `js/check` його читають.
+ * @returns {Promise<string>} вміст `oxlint-canonical.json`.
+ */
+const readOxlintCanonical = async () => {
+  const { readFile } = await import('node:fs/promises')
+  return readFile(
+    join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'js', 'tooling', 'data', 'tooling', 'oxlint-canonical.json'),
+    'utf8'
+  )
+}
+
 describe('wasm-plugin parity — js/check (JS канон vs wasm plugin-lang-js, зріз 2 контракту v3.1)', () => {
   const runJsCheckBoth = dir => runFullScopeBoth(JS_CHECK_CONCERN_KEY, 'js', 'check', dir)
-
-  /**
-   * Канон oxlint із пакета — той самий файл, що вшито в компонент.
-   * @returns {Promise<string>} вміст `oxlint-canonical.json`.
-   */
-  const readOxlintCanonical = async () => {
-    const { readFile } = await import('node:fs/promises')
-    return readFile(
-      join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'js', 'tooling', 'data', 'tooling', 'oxlint-canonical.json'),
-      'utf8'
-    )
-  }
 
   test('порожній репо — три порушення в тому самому порядку', async () => {
     await withTmpDir(async dir => {
@@ -3687,6 +3699,172 @@ describe('wasm-plugin parity — js/check (JS канон vs wasm plugin-lang-js,
         'Знайдено застарілий конфіг ESLint: .eslintrc — видали, використовуй flat config',
         'Знайдено застарілий конфіг ESLint: .eslintrc.yml — видали, використовуй flat config'
       ])
+    })
+  })
+})
+
+// Зріз 2 контракту v3.1: `js/check` — T0-фіксер (`fix-check.mjs`) parity.
+// Три можливі цільові шляхи ([`JS_CHECK_TARGET_PATHS`]) — `snapshot`/
+// `restore` пара (мотив [`runDocCommentsFixBoth`]: JS-патерни пишуть на
+// РЕАЛЬНИЙ диск, тож перед wasm-планом стан треба повернути до «before»,
+// інакше wasm побачить уже змінені JS-фіксером файли).
+describe('wasm-plugin parity — js/check T0-фікс (JS-канон fix-check.mjs vs wasm plugin-lang-js)', () => {
+  const JS_CHECK_TARGET_PATHS = ['eslint.config.js', 'eslint.config.mjs', '.oxlintrc.json', 'knip.json']
+
+  /**
+   * Знімок вмісту трьох можливих цільових файлів `js/check` — `null` для
+   * відсутнього.
+   * @param {string} dir абсолютний шлях tmp-каталогу
+   * @returns {Promise<Record<string, string|null>>} шлях → вміст (або `null`)
+   */
+  async function snapshotJsCheckTargets(dir) {
+    const { readFile: read } = await import('node:fs/promises')
+    const out = {}
+    for (const rel of JS_CHECK_TARGET_PATHS) {
+      try {
+        out[rel] = await read(join(dir, rel), 'utf8')
+      } catch {
+        out[rel] = null
+      }
+    }
+    return out
+  }
+
+  /**
+   * Повертає цільові файли до знятого знімку — видаляє те, чого не було,
+   * перезаписує те, що було.
+   * @param {string} dir абсолютний шлях tmp-каталогу
+   * @param {Record<string, string|null>} snapshot знімок [`snapshotJsCheckTargets`]
+   */
+  async function restoreJsCheckTargets(dir, snapshot) {
+    const { writeFile: write, rm } = await import('node:fs/promises')
+    for (const rel of JS_CHECK_TARGET_PATHS) {
+      const abs = join(dir, rel)
+      if (snapshot[rel] === null) {
+        await rm(abs, { force: true })
+      } else {
+        await write(abs, snapshot[rel], 'utf8')
+      }
+    }
+  }
+
+  /**
+   * Parity T0-фікса `js/check`: violations беруться напряму з `runWasmConcern`
+   * (доккомент модуля біля [`JS_CHECK_FIX_MJS_PATH`] пояснює, чому НЕ з
+   * `goldenJs` — JS-детектора для `js/check` вже немає), подаються і в усі
+   * три `patterns` `fix-check.mjs` (пише на РЕАЛЬНИЙ диск tmp-каталогу — той
+   * самий канон, що лишається fallback-ом), і в `runWasmConcernFix`
+   * (повертає план). Порівнюється фінальний вміст усіх трьох можливих
+   * цільових шляхів.
+   * @param {string} dir абсолютний шлях tmp-каталогу з уже записаними фікстурами
+   * @returns {Promise<{ js: Record<string, string|null>, wasm: Record<string, string|null>, violations: unknown[] }>}
+   *   фінальні знімки обох реалізацій і violations, якими обидві живились
+   */
+  async function runJsCheckFixBoth(dir) {
+    const before = await snapshotJsCheckTargets(dir)
+    const violations = withDefaultSeverity(
+      loadNative().runWasmConcern(WASM_PATH, JS_CHECK_CONCERN_KEY, dir, null).violations
+    )
+
+    // eslint-disable-next-line no-unsanitized/method
+    const { patterns } = await import(pathToFileURL(JS_CHECK_FIX_MJS_PATH).href)
+    for (const pattern of patterns) {
+      if (pattern.test(violations)) {
+        await pattern.apply(violations, { cwd: dir, ruleId: 'js', concernId: 'check' })
+      }
+    }
+    const jsAfter = await snapshotJsCheckTargets(dir)
+    await restoreJsCheckTargets(dir, before)
+
+    const plan = loadNative().runWasmConcernFix(WASM_PATH, JS_CHECK_CONCERN_KEY, dir, violations, {})
+    const wasmAfter = { ...before }
+    for (const edit of plan.edits) {
+      if (edit.type === 'write' && JS_CHECK_TARGET_PATHS.includes(edit.path)) {
+        wasmAfter[edit.path] = edit.content
+      }
+    }
+
+    return { js: jsAfter, wasm: wasmAfter, violations }
+  }
+
+  test('порожній репо — T0 створює eslint.config.js, .oxlintrc.json і knip.json ідентично', async () => {
+    await withTmpDir(async dir => {
+      const { js, wasm, violations } = await runJsCheckFixBoth(dir)
+      expect(violations.map(v => v.reason)).toEqual(['eslint-config-missing', 'oxlintrc-missing', 'knip-missing'])
+      expect(wasm).toEqual(js)
+      expect(js['eslint.config.js']).toContain("import { getConfig } from '@nitra/eslint-config'")
+      expect(js['.oxlintrc.json']).not.toBeNull()
+      expect(js['knip.json']).not.toBeNull()
+    })
+  })
+
+  test('`.oxlintrc.json` із вирізаним правилом — T0-merge доповнює правило ідентично й зберігає зайве', async () => {
+    await withTmpDir(async dir => {
+      const canonical = JSON.parse(await readOxlintCanonical())
+      delete canonical.rules.eqeqeq
+      canonical.rules['project-specific/no-foo'] = 'error'
+      await writeFileDeep(dir, 'eslint.config.js', eslintConfigWith("{ node: ['.'] }"))
+      await writeFileDeep(dir, '.oxlintrc.json', JSON.stringify(canonical, null, 2))
+      await writeFileDeep(dir, 'knip.json', '{}\n')
+      const { js, wasm, violations } = await runJsCheckFixBoth(dir)
+      expect(violations.some(v => v.reason === 'oxlintrc-drift')).toBe(true)
+      expect(wasm).toEqual(js)
+      const merged = JSON.parse(js['.oxlintrc.json'])
+      expect(merged.rules.eqeqeq).toEqual(['deny', 'always', { null: 'ignore' }])
+      expect(merged.rules['project-specific/no-foo']).toBe('error')
+    })
+  })
+
+  test('канонічний `.oxlintrc.json` — T0-merge не рухає жоден інший файл (drift нема)', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'eslint.config.js', eslintConfigWith("{ node: ['.'] }"))
+      await writeFileDeep(dir, '.oxlintrc.json', await readOxlintCanonical())
+      await writeFileDeep(dir, 'knip.json', '{}\n')
+      const { js, wasm, violations } = await runJsCheckFixBoth(dir)
+      expect(violations).toEqual([])
+      expect(wasm).toEqual(js)
+      expect(js['eslint.config.js']).toBe(eslintConfigWith("{ node: ['.'] }"))
+    })
+  })
+
+  test('vue-воркспейс поза `vue: [...]` — T0 хірургічно дописує запис, кастомний коментар лишається', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(
+        dir,
+        'eslint.config.js',
+        "// custom header\nimport { getConfig } from '@nitra/eslint-config'\nexport default [\n  { ignores: ['**/auto-imports.d.ts'] },\n  ...getConfig({\n    node: ['app']\n  })\n]\n"
+      )
+      await writeFileDeep(dir, 'package.json', JSON.stringify({ name: 'root', type: 'module', workspaces: ['app'] }))
+      await writeFileDeep(
+        dir,
+        'app/package.json',
+        JSON.stringify({
+          name: 'app',
+          type: 'module',
+          engines: { node: '>=24', bun: '>=1.4' },
+          dependencies: { vue: '^3.6.0' }
+        })
+      )
+      await writeFileDeep(dir, '.oxlintrc.json', await readOxlintCanonical())
+      await writeFileDeep(dir, 'knip.json', '{}\n')
+      const { js, wasm, violations } = await runJsCheckFixBoth(dir)
+      expect(violations.some(v => v.reason === 'eslint-config-vue-workspace')).toBe(true)
+      expect(wasm).toEqual(js)
+      expect(js['eslint.config.js']).toContain('// custom header')
+      expect(js['eslint.config.js']).toContain("vue: ['app']")
+      expect(js['eslint.config.js']).not.toContain("node: ['app']")
+    })
+  })
+
+  test('`knip.json` уже присутній — T0 не перезаписує чужий вміст в жодній реалізації', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'eslint.config.js', eslintConfigWith("{ node: ['.'] }"))
+      await writeFileDeep(dir, '.oxlintrc.json', await readOxlintCanonical())
+      await writeFileDeep(dir, 'knip.json', '{"custom":true}\n')
+      const { js, wasm, violations } = await runJsCheckFixBoth(dir)
+      expect(violations).toEqual([])
+      expect(wasm).toEqual(js)
+      expect(js['knip.json']).toBe('{"custom":true}\n')
     })
   })
 })

@@ -5498,6 +5498,98 @@ fix — рефакторинг трьох раніше-inline рядкових �
 policy-теках (`clean_ga_workflows`/`clean_merged_branch`/`lint_ga`/
 `git_ai`/`workflow_common`) — 9+9+11+8+18 = 55/55 без регресій, `.rego` не
 торкнуто.
+### 2.47. `js/check` — Т0-фіксер портовано (усі три патерни), і виявлено реальний баг у napi fix-мосту
+
+**Задача:** розвідка інвентарю позначила `js/check` як єдиний концерн із
+**підтвердженим** дублюванням, не за замовчуванням: `planOxlintrcFix`
+(`plugins/lang-js/rules/js/tooling/main.mjs:203-230`) structurally
+дзеркалить `verifyOxlintRcAgainstCanonical` (той самий файл, `:155-192`) —
+уже портовану раніше в гість (`verify_oxlintrc_against_canonical`,
+`crates/plugin-lang-js/src/lib.rs`, доккомент секції «Зріз 2»): ідентична
+трійка спецключів (`rules`/`ignorePatterns`/`jsPlugins`), той самий прохід
+`Object.entries(canonical)` у документному порядку. **Перевірено самостійно
+перед роботою** — твердження підтвердилось, розвідка не перебільшила:
+merge-гілки `plan_oxlintrc_fix` дослівно повторюють `if`-гілки
+`verify_oxlintrc_against_canonical` (порт-тест
+`fix_js_check_oxlintrc_drift_merge_satisfies_own_verify_and_keeps_extra_rule`
+доводить це прямо — T0-merge задовольняє ТОЙ САМИЙ verify, що видав
+diagnostics-drift, без жодної додаткової синхронізації).
+
+Портовано ВЕСЬ `fix-check.mjs` (~112 рядків, три T0-патерни:
+`js-check-eslint-config`, `js-check-oxlintrc`, `js-check-knip`), не лише
+oxlintrc-половину — файли `eslint-config.mjs`
+(scaffold/merge `eslint.config.js` за детектованими workspace-типами) і
+`tooling/main.mjs` (`planOxlintrcFix`, knip-канон) поруч. Детект-примітиви
+(`detect_vue_workspaces`, `parse_vue_list`, `verify_oxlintrc_against_canonical`,
+`JsonOrdered`) уже існували в гості — рефакторинг
+`detect_vue_workspaces`→`detect_workspace_types` (повна `{node, vue}`-форма
+замість лише vue-половини) додав `node`-список фіксеру без другого проходу
+по `expand_workspaces`/`is_vue_workspace`.
+
+**Package-асети — той самий прецедент §2.44, другий раз.** Канон
+`oxlint-canonical.json` (15 407 байт) уже був вшитий `include_str!` раніше
+(детект-порт) — другого вшивання не знадобилось. Канон `knip-canonical.json`
+(765 байт) вшито ВПЕРШЕ цією хвилею — `include_str!` того самого файлу, що
+читає `KNIP_CANONICAL_JSON_PATH` у JS-каноні, копії не створено.
+Анти-дрейф-тест (`embedded_knip_canonical_matches_source_file`) читає
+канонічний файл НЕЗАЛЕЖНО від `include_str!`-шляху (через
+`CARGO_MANIFEST_DIR`) і звіряє байт-у-байт — той самий шаблон, що
+`embedded_cargo_mutants_baseline_matches_canonical_source_file` (#508).
+
+**Перевірено дією (red → green), ДВІ окремі знахідки:**
+
+1. **`plan_oxlintrc_fix` (гість, юніт-тест):** тимчасово прибрав
+   `spread_merge_records(base, …)` з гілки `"rules"`, лишивши тільки
+   канонічні значення (втрата project-specific розширень) — рівно ОДИН
+   тест ЧЕРВОНІЄ
+   (`fix_js_check_oxlintrc_drift_merge_satisfies_own_verify_and_keeps_extra_rule`,
+   `assert!(rules.get("project-specific/no-foo").is_some())`), решта 19
+   тестів js/check лишаються зеленими — довело, що саме ЦЕЙ тест реально
+   стереже інваріант «розширення не втрачаються», а не збігається з виводом
+   випадково. Повернув — знову 396/396 (`cargo test -p plugin-lang-js`).
+2. **`KNIP_CANONICAL_JSON` (анти-дрейф):** тимчасово навів `include_str!`
+   на копію з одним зміненим байтом (`$schema` → `$schela`) —
+   `embedded_knip_canonical_matches_source_file` ЧЕРВОНІЄ з точним
+   диффом. Повернув шлях — знову зелений.
+3. **СЮРПРИЗ — не в порту, а в napi-мості:** перша спроба end-to-end
+   fix-parity через РЕАЛЬНИЙ `runWasmConcernFix` (не прямий виклик
+   `fix_js_check` у юніт-тесті) провалилась одразу, без жодної навмисної
+   мутації. `crates/rules-napi::run_wasm_concern_fix` будував
+   `FixRequest::files` ЛИШЕ з `diagnostic.file`-полів переданих violations
+   — а `js/check` (whole-batch концерн) НІКОЛИ не кладе `file` у свої
+   діагностики (JS-канон теж цього не робить — golden-фікстура
+   `wasm-parity/js/check.json` підтверджує). Результат: гість завжди бачив
+   ПОРОЖНІЙ батч файлів, тобто не міг відрізнити «файл відсутній» від
+   «файл є, але хост його не передав» — і замість хірургічного merge
+   scaffold-ив/копіював канон, ЗАТИРАЮЧИ наявний `eslint.config.js`
+   (кастомні коментарі, node/vue-списки) і `.oxlintrc.json`
+   (project-specific `rules`/`ignorePatterns`) дефолтним/канонічним
+   вмістом. Підтверджено red-тестом: тимчасово відкотив фікс
+   (`run_wasm_concern_fix` без full-scope fallback) — 2 з 5 нових
+   fix-parity тестів ЧЕРВОНІЮТЬ саме на цьому сценарії (drift-merge і
+   vue-workspace-merge; toEqual-дифф показує повну втрату кастомного
+   вмісту). Виправлено: full-scope fallback (той самий резолв, що
+   `run_wasm_concern` уже робить для `files: None` на детекті) —
+   спрацьовує ЛИШЕ коли `target_files` (з `diagnostic.file`) порожній,
+   тож file-scoped фіксери (`test/no-bun-test-import`, `js/doc_comments`,
+   `rust/cargo_mutants_config` — усі несуть `diagnostic.file`) поведінки не
+   міняють (перевірено: всі три — єдині інші наразі підключені `fix()`
+   у всьому репо — мають file-carrying діагностики). Повернув фікс —
+   `wasm-plugin-parity.test.mjs` знову 260/260.
+
+**Числа:** `cargo test -p plugin-lang-js` 374 → 396 (+22, з них 20 —
+js/check фіксер + анти-дрейф + pretty-json), `cargo test -p rules-napi` без
+змін у кількості (6/6, фікс не додає нових юніт-тестів — покритий
+`wasm-plugin-parity.test.mjs`). `wasm-plugin-parity.test.mjs` 255 → 260
+(+5, новий блок «js/check T0-фікс»), увесь файл 260/260 без регресій.
+Розмір `plugin_lang_js.wasm`: 2 250 284 → 2 261 653 байт (+11 369, +0.51%),
+проти бюджету 2 621 440 (2,5 МіБ) — запас 359 787 байт (~351 КБ, 86.28% від
+бюджету зайнято). Найбільший гість лишається найбільшим, але з запасом.
+
+**JS-фіксер (`fix-check.mjs`) СВІДОМО НЕ видалено** — той самий порядок
+«спершу парність, зняття подвійної реалізації — окрема хвиля», що §2.44 і
+§2.46. `eslint-config.mjs`/`tooling/main.mjs` лишаються каноном для
+JS-fallback шляху диспетчера (§2.45).
 
 ---
 

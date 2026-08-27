@@ -651,10 +651,13 @@ fn build_full_scope_files(cwd: &Path, glob_patterns: &[String]) -> Vec<SourceFil
 ///   `Vec<rules_contract::diagnostic::Diagnostic>` (нормалізовані
 ///   violations JS-боку; зайві поля `ruleId`/`concernId` serde ігнорує) —
 ///   стає `FixRequest::diagnostics`.
-/// - `FixRequest::files` хост будує САМ з `file`-полів переданих violations
+/// - `FixRequest::files` хост будує з `file`-полів переданих violations
 ///   (дедуп зі збереженням порядку, читання через [`read_source_files`]) —
-///   fix потребує лише файли, на які реально вказують діагностики, окремий
-///   full-scope обхід тут зайвий.
+///   ТИПОВО fix потребує лише файли, на які реально вказують діагностики,
+///   окремий full-scope обхід зайвий. Якщо ЖОДНА діагностика не несе
+///   `file` (whole-batch концерн — `js/check`, доккомент нижче біля
+///   full-scope fallback-гілки), хост падає назад на ТОЙ САМИЙ full-scope
+///   резолв, що [`run_wasm_concern`] робить для `files: None` на детекті.
 ///
 /// Порожній `edits` = «фікс для цих violations нічого не змінює» — той
 /// самий контракт застосовності, що в native-плану ([`run_native_concern_fix`]).
@@ -685,10 +688,39 @@ pub fn run_wasm_concern_fix(
             target_files.push(file.clone());
         }
     }
-    let files = read_source_files(&cwd_path, target_files);
 
     let resolver = build_tool_resolver(tool_paths);
     let plan = with_loaded_plugin(&wasm_path, |plugin| {
+        // Full-scope fallback (задача порту T0-фіксера `js/check`, доккомент
+        // `crates/plugin-lang-js/src/lib.rs`, секція «`js/check` — T0-фіксер
+        // ПОРТОВАНО»): whole-batch концерни (`checkOxlintRc`/
+        // `checkKnipConfig`/`checkEslintConfig` — стан цілого дерева, не
+        // одного файлу) НІКОЛИ не кладуть `file` у свої діагностики (той
+        // самий JS-канон, golden-фікстура `js/check.json` це підтверджує) —
+        // без цієї гілки `target_files` була б ЗАВЖДИ порожньою для такого
+        // концерну, і `FixRequest::files` не бачила б жодного наявного файлу
+        // на диску консюмера (фіксер писав би наосліп: не міг би відрізнити
+        // «файл відсутній» від «файл є, але хост його не передав»). Той
+        // самий full-scope резолв, що [`run_wasm_concern`] уже робить для
+        // `files: None` на детекті ([`build_full_scope_files`]) — спрацьовує
+        // ЛИШЕ коли жодна діагностика не назвала конкретний файл, тож
+        // file-scoped фіксери (`test/no-bun-test-import`, `js/doc_comments`,
+        // `rust/cargo_mutants_config` — усі несуть `diagnostic.file`)
+        // поведінки не міняють.
+        let files = if target_files.is_empty() {
+            let contribution = plugin
+                .describe()
+                .concerns
+                .iter()
+                .find(|c| c.key == key)
+                .cloned();
+            match contribution {
+                Some(c) if c.scope == ConcernScope::Full => build_full_scope_files(&cwd_path, &c.glob),
+                _ => Vec::new(),
+            }
+        } else {
+            read_source_files(&cwd_path, target_files.clone())
+        };
         plugin.set_tool_resolver(resolver);
         // Слот `repo-root@1` host-контексту (доккомент `wit/world.wit` біля
         // `import host-context`) — той самий `cwd`, що резолвить `files`.
