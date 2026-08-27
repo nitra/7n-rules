@@ -4904,6 +4904,117 @@ cargo/wasm-артефакти з постановки задачі цього н
 
 ---
 
+### 2.39. Три build-артефакти для JS-суїту ніде не документовані — vitest `globalSetup`-preflight замість пізніх/оманливих фейлів
+
+**Звідки:** свіжий checkout/worktree не має ТРЬОХ локальних build-артефактів,
+без яких `vitest` не дає достовірного результату — `cargo build --release
+-p rules-napi` (без нього loader мовчки відкочується на старий/registry
+бінар), `cargo build --release -p rules-cli` (без нього ~88 тестів
+parity/tools-registry падають з порожнім `STACK_TRACE_ERROR`, що не каже
+взагалі нічого) і `node npm/scripts/build-wasm-plugins.mjs` (генерує
+gitignored `npm/wasm-plugins/builtin-pins.json` + `.wasm`-компоненти).
+Ціна вже виміряна на цій сесії — відсутність wasm-плагінів двічі дала
+оманливий `DetectorError('немає main.mjs')` (симптом лікувала #502
+підказкою в `detect.mjs`, точковий фікс), відсутність `rules-cli` згаяла
+~1.5 години пошуку неіснуючого дефекту.
+
+**Рішення — vitest `globalSetup`, не `pretest`-скрипт.** `globalSetup`
+спрацьовує РІВНО ОДИН раз перед стартом усіх тестів, до першого test-файлу,
+і має доступ до конфігу без окремого npm-скрипта, який легко забути
+підключити при альтернативних способах запуску (`npx vitest` напряму, не
+лише `bun run test`). Модуль — `npm/scripts/lib/test-preflight.mjs`
+(експортує `collectMissingArtifacts`/`assertTestArtifacts` для юніт-тестів
+на ін'єктованих deps, і default-export для самого `globalSetup`), підключений
+у ДВОХ місцях: кореневому `vitest.config.mjs` (той самий процес, що `bun run
+test`/CI, покриває весь monorepo одним проходом) і `npm/vitest.config.js`
+(dev-петля `cd npm && npx vitest run` бере СВІЙ конфіг, не кореневий —
+vitest резолвить конфіг від cwd, не вгору по дереву).
+
+**`lib/`, не `utils/`** (`js.mdc`/концерн `utils_imports`): перша версія
+лежала в `npm/scripts/utils/test-preflight.mjs` і одразу впіймала
+самообслуговуючий сигнал від власного PostToolUse-хука — `utils/` гейтиться
+лінтом на relative-імпорти з `..` (модуль знає про домен: napi-loader,
+cargo-крейти, wasm-плагіни — не generic helper). Перенесено в
+`npm/scripts/lib/test-preflight.mjs`, імпорти без `..`-виходу за межі
+`lib/`/`utils/` (`./native.mjs` — той самий каталог, `../build-wasm-plugins.mjs`
+і `../utils/test-helpers.mjs` — дозволено для `lib/`).
+
+**Перевірка — `existsSync` плюс кілька малих `readFileSync` на `Cargo.toml`
+(ім'я пакета для wasm-stem), БЕЗ жодного `spawn` cargo.** Свідомо без
+staleness/mtime-евристики: команди-підказки самі інкрементальні (no-op,
+якщо нічого не змінилось) — переізобретати граф залежностей cargo тут
+не було б чим виграти. Свідомо без per-file сканування «чи цей тест
+торкається native/wasm»: гейти `native.mjs`/`WASM_PATH` прошивають
+переважну більшість suite (усі чотири workspace-пакети — `npm` і кожен
+language-plugin), а сама перевірка коштує одиниці мс незалежно від обсягу
+запущеного — звужувати дороге не було б чим. Явний опт-аут для вузького
+«один суто-JS файл, Rust-тулчейну нема» — `N_RULES_TEST_PREFLIGHT_SKIP=1`
+(друкує `console.warn` навіть при пропуску — мовчазний skip суперечив би
+"fail loud").
+
+**Повідомлення — ОДНЕ, з УСІМА відсутніми одразу** (не по одному, як
+сталося на цій сесії): для кожного — що бракує, чому важливо (той самий
+текст симптому: «мовчки відкочується на старий/registry бінар»,
+«STACK_TRACE_ERROR», «DetectorError('немає main.mjs')»), яка ТОЧНА команда.
+Тон — за взірцем hard-fail `wasm-plugin-parity-ci-github.test.mjs`. Не
+дублює підказку #502 в `detect.mjs` (та лишається для пізнішого/вужчого
+випадку — коли хтось усе одно дійшов до конкретного детектора; preflight
+спрацьовує РАНІШЕ, до старту жодного тесту, і ширше — усі три артефакти
+одразу).
+
+**Перевірено дією, по кожному з трьох окремо** (`mv` артефакту в scratch і
+назад, `collectMissingArtifacts()`/`assertTestArtifacts()` напряму й через
+реальний vitest-прогін):
+
+- `target/release/librules_napi.dylib` прибрано → `missing = ['rules-napi']`,
+  деталь називає САМЕ napi-аддон і стейлий registry-відкат, команда
+  `cargo build --release -p rules-napi`; реальний `npx vitest run` кидає це
+  ДО жодного тесту (`Unhandled Error` у `_initializeGlobalSetup`).
+- `target/release/rules-cli` прибрано → `missing = ['rules-cli']`, деталь
+  називає САМЕ `STACK_TRACE_ERROR`, команда `cargo build --release -p
+  rules-cli`.
+- `npm/wasm-plugins/builtin-pins.json` прибрано → `missing = ['wasm-плагіни']`,
+  деталь називає САМЕ цей файл; окремо перевірено підмножину — прибраний
+  лише `target/wasm32-wasip2/release/plugin_ci_github.wasm` (пини на місці)
+  → деталь називає САМЕ `ci-github` і його шлях, не решту чотирьох плагінів.
+- Усі три прибрано одночасно → `missing.length === 3`, ОДНЕ повідомлення,
+  усі три команди присутні, порядок стабільний 1→2→3.
+
+10 юніт-тестів на ін'єктованих deps (`npm/scripts/lib/tests/
+test-preflight.test.mjs`) — той самий DI-канон, що `native.test.mjs`.
+
+**Документація — канон `npm/rules/worktree/main.mdc`, не мирор напряму.**
+Перше місце розміщення (нове окреме секція) — `.cursor/rules/n-worktree.mdc`
+напряму: цей файл — керований мирор (`listManagedMirrors`/
+`expectedMirrorContent`, `npm/scripts/lib/mirror-parity.mjs`), правка вручну
+ламає parity. Відкочено, той самий текст внесено в канон
+`npm/rules/worktree/main.mdc` (секція «Локальні build-артефакти перед
+тестами», після «## Команди» — worktree-lifecycle rule, `alwaysApply: true`,
+тож гарантовано в контексті кожного агента з першого повідомлення; не
+дублює команди з тексту preflight-помилки, лише пояснює, чому вони
+потрібні). Мирор регенеровано через `expectedMirrorContent` +
+`writeFileSync`, `findMirrorDrift(repoRoot)` — `[]` (21 мирор, включно з
+щойно зміненим `worktree`), звірено з реальним тестом `mirror-parity.test.mjs`
+(зелений). Розглянуто й відкинуто: `AGENTS.md` (генерується Mustache-темплейтом
+з `package.json:scripts`, не місце для ручного тексту), `docs/*.md`
+(layered-doc пайплайн з CRC у frontmatter — той самий ризик дрейфу), README
+кореня (майже порожній boilerplate без ознак підтримуваного «getting
+started»).
+
+**Повний `npx vitest run` (з усіма трьома артефактами на місці) —
+зелений**, exit 0, увесь monorepo одним проходом (`Duration` ~0ms setup-фаза
+— вимір `setup: 0ms` у vitest-звіті будь-якого підмножинного прогону
+підтверджує, що сам preflight не вносить відчутної затримки).
+
+**Сюрприз поза задачею:** перша спроба поставити модуль у `npm/scripts/
+utils/` пройшла `node --check`, усі юніт-тести й навіть ручні `existsSync`-
+перевірки — жодна з них не зачепила architecture-boundary; про порушення
+сигналізував лише PostToolUse-хук (`js/utils_imports`) одразу після Edit,
+до будь-якого lint-прогону. Без цього сигналу дефект розміщення пройшов би
+непоміченим до першого реального `npx @7n/rules lint`.
+
+---
+
 ## Як користуватись
 
 Дійшовши кінця плану міграції, пройти реєстр згори вниз: розділи 1 і 6 — це

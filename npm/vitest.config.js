@@ -76,6 +76,7 @@ export default defineConfig({
     // процесів. Тримати обидва конфіги узгодженими — інакше `npm/`-прогін
     // обходив би обмеження кореневого.
     poolOptions: { forks: { maxForks: 4 } },
+    globalSetup: ['./scripts/lib/test-preflight.mjs'],
     coverage: { provider: 'v8', reporter: ['lcov', 'text-summary'] }
   }
 })
