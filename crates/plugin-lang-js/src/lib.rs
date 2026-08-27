@@ -10022,7 +10022,7 @@ fn check_engines_bun(label: &str, pkg: &JsonOrdered, out: &mut Vec<Diagnostic>) 
         out.push(js_check_diagnostic(
             JS_CHECK_REASON,
             format!(
-                "{label} не містить engines.bun — додай: \"engines\": {{ \"bun\": \">=1.3\" }}"
+                "{label} не містить engines.bun — додай: \"engines\": {{ \"bun\": \">=1.4\" }}"
             ),
         ));
         return;
@@ -10037,14 +10037,14 @@ fn check_engines_bun(label: &str, pkg: &JsonOrdered, out: &mut Vec<Diagnostic>) 
     let minor = tokens.get(1).copied();
     let ok = match (major, minor) {
         (Some(major), Some(minor)) if major.is_finite() && minor.is_finite() => {
-            major > 1.0 || (major == 1.0 && minor >= 3.0)
+            major > 1.0 || (major == 1.0 && minor >= 4.0)
         }
         _ => false,
     };
     if !ok {
         out.push(js_check_diagnostic(
             JS_CHECK_REASON,
-            format!("{label}: engines.bun \"{engine}\" — має бути >=1.3"),
+            format!("{label}: engines.bun \"{engine}\" — має бути >=1.4"),
         ));
     }
 }
@@ -15857,14 +15857,20 @@ mod tests {
             source("package.json", r#"{"workspaces":["a","b"]}"#),
             source(
                 "a/package.json",
-                r#"{"type":"module","engines":{"node":">=24","bun":">=1.3"}}"#,
+                r#"{"type":"module","engines":{"node":">=24","bun":">=1.4"}}"#,
             ),
             source(
                 "b/package.json",
-                r#"{"type":"commonjs","engines":{"node":">=22","bun":">=1.2"}}"#,
+                r#"{"type":"commonjs","engines":{"node":">=22","bun":">=1.3"}}"#,
             ),
         ];
-        let messages: Vec<String> = detect_js_check(&files)
+        let diagnostics = detect_js_check(&files);
+        // Межа: "a/package.json" з engines.bun ">=1.4" — валідний, без bun-порушень.
+        assert!(diagnostics.iter().all(|d| !(d
+            .message
+            .starts_with("a/package.json")
+            && d.message.contains("engines.bun"))));
+        let messages: Vec<String> = diagnostics
             .into_iter()
             .map(|d| d.message)
             .filter(|m| m.starts_with("b/package.json"))
@@ -15874,7 +15880,8 @@ mod tests {
             vec![
                 "b/package.json: має містити \"type\": \"module\" (js.mdc)",
                 "b/package.json: engines.node \">=22\" — має бути >=24",
-                "b/package.json: engines.bun \">=1.2\" — має бути >=1.3",
+                // Межа піднялась: ">=1.3" (колишній валідний поріг) тепер порушення.
+                "b/package.json: engines.bun \">=1.3\" — має бути >=1.4",
             ]
         );
     }
@@ -15973,7 +15980,7 @@ mod tests {
             source("package.json", r#"{"workspaces":["packages/*"]}"#),
             source(
                 "packages/ui/package.json",
-                r#"{"type":"module","engines":{"node":">=24","bun":">=1.3"}}"#,
+                r#"{"type":"module","engines":{"node":">=24","bun":">=1.4"}}"#,
             ),
             source("packages/ui/src/Widget.vue", "<template><div /></template>\n"),
             // `dist/` — навіть під vue-воркспейсом не рахується (`is_vue_workspace`).

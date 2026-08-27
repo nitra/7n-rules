@@ -4796,6 +4796,114 @@ in-process native-виклику треба репродукувати ГЛИБ�
 
 ---
 
+### 2.41. `engines.bun` мінімум піднято `>=1.3` → `>=1.4` — рішення власника, а не техдефект
+
+**Задача:** фактично встановлений і потрібний Bun — 1.4 (`bun -v` на машині
+власника → `1.4.0`), а правило `js.package_json` досі дозволяло `>=1.3`.
+Підняти поріг у ВСІХ місцях, де він захардкожений, не лише в тексті
+повідомлень.
+
+**Знайдено два незалежні детектори з власним порогом**, не один, як
+підказувала постановка задачі:
+
+1. **Native/wasm** (`crates/plugin-lang-js/src/lib.rs`, `check_engines_bun`)
+   — semver-парсинг через `regex::Regex::new(r"\D+")` + `f64`-токени,
+   поріг `major == 1.0 && minor >= 3.0` → `>= 4.0`; обидва повідомлення
+   (`не містить engines.bun`, `"{engine}" — має бути >=1.3`) → `>=1.4`.
+2. **Rego-гейт** `js.package_json` (`plugins/lang-js/rules/js/package_json/
+   package_json.rego`, окремий `conftest verify`-контур, дублює перевірку
+   ПАРАЛЕЛЬНО native/wasm з власним текстом повідомлення) — задача про
+   нього НЕ згадувала взагалі; знайдено grep-ом
+   `engines.bun.*має бути` по репо. `engines_bun_meets`: `parts[1] >= 3` →
+   `>= 4`, повідомлення `"package.json: engines.bun має бути >= 1.3
+   (js.mdc)"` → `>= 1.4`, плюс доккомент на верху файлу.
+
+**Чи є лексикографічний баг на `>=1.10` проти `>=1.4` — ні, в ОБОХ
+контурах.** Задача явно просила це перевірити. Native/wasm розбиває
+`engine`-рядок на числові токени регексом `\D+` і парсить кожен як `f64`
+(`token.parse::<f64>()`), тобто `>=1.10` дає `minor = 10.0` — порівняння
+`10.0 >= 4.0` числове, не рядкове. Rego симетрично: `split_to_numbers`
+через `regex.split` + `to_number(t)` → `parts[1]` теж число. Обидва
+контури порівнюють ЧИСЛА, не підрядки — гіпотетичний баг з постановки
+задачі не підтвердився в жодному з двох детекторів.
+
+**Зроблено:**
+
+- Native/wasm-повідомлення й поріг (2 місця) + 3 тестові фікстури в тому ж
+  `lib.rs` (`>=1.3` → `>=1.4`, включно з межовим тестом нижче).
+- Rego-поріг, повідомлення й доккомент (`package_json.rego`) + `valid_pkg`
+  у `package_json_test.rego`.
+- Канон `plugins/lang-js/rules/js/package_json/package_json.mdc` (єдине
+  джерело, дзеркало `.cursor/rules/n-js.mdc` регенеровано через
+  `expectedMirrorContent`).
+- Parity-еталон `npm/scripts/lib/lint-surface/tests/fixtures/wasm-parity/
+  js/check.json` (2 повідомлення) — відредаговано текст, решту ключів не
+  чіпав; canonical JS, з якого еталон знімався, в дереві більше немає
+  (`N_WASM_PARITY_CAPTURE=1` впав би на імпорті) — перезняти неможливо.
+- `npm/scripts/lib/lint-surface/tests/wasm-plugin-parity.test.mjs` — 5
+  місць (3 фікстури-входи `>=1.3` → `>=1.4`, 2 очікувані повідомлення).
+- Власні маніфести: не лише кореневий `package.json`, а ВСІ 8
+  `package.json` репо з `engines.bun` — `demo`, `npm`,
+  `plugins/{lang-js,lang-rust,lang-php,lang-python,ci-azure,ci-github}`
+  (grep `"bun": ">=1\.3"` по репо, не лише названі задачею).
+- 8 change-файлів (`plugins/lang-js` — `minor`/`Changed`, реальна зміна
+  вимоги до споживачів; решта 7 — `patch`/`Changed`, лише власна
+  `engines.bun`-декларація).
+
+**Не чіпав (історичні записи, а не активний поріг):** `docs/adr/*`,
+`docs/plans/*` (окрім цього реєстру), `docs/specs/*`, `npm/CHANGELOG.md`,
+`COVERAGE.md`, `npm/scripts/utils/{glob-compat.mjs,tests/glob-compat.test.mjs,
+docs/glob-compat.md}`, `npm/rules/docker/main.mdc` — усі згадують КОНКРЕТНУ
+патч-версію (`1.3.14`) як спостережену поведінку в минулому, не поточний
+мінімум-поріг; переписувати заднім числом — фальсифікація історії.
+**Свідомо не чіпав** (окрема, змістовна, а не текстова правка):
+`.cursor/rules/n-js-run.mdc` / `plugins/lang-js/rules/js-run/runtime/
+runtime.mdc` — параграф про заборону `Temporal` згадує «діапазон версій
+репозиторію — bun >= 1.3» як контекст ДЛЯ ІНШОГО твердження (відсутність
+`Temporal` у Bun 1.3.x); чи має Bun 1.4 вже `Temporal` — окреме фактичне
+питання, яке потребує перевірки, а не механічної заміни цифри.
+
+**Перевірено дією (red → green), в обох контурах:**
+
+- Native/wasm: тимчасово повернув поріг на `minor >= 3.0` (лишивши новий
+  тест `detect_js_check_engines_thresholds` з входом `b/package.json`
+  bun=`>=1.3`) — `cargo test -p plugin-lang-js` ЧЕРВОНИЙ:
+  `assertion left == right failed`, очікуване повідомлення про
+  `engines.bun ">=1.3"` відсутнє в `left`. Повернув поріг — `test result:
+  ok. 385 passed; 0 failed` (увесь крейт, не лише новий тест).
+- Rego: тимчасово повернув `parts[1] >= 3` (лишивши новий
+  `test_deny_bun_too_old`, мутує `valid_pkg.engines.bun` на `>=1.3`) —
+  `conftest verify --policy plugins/lang-js/rules/js/package_json`
+  ЧЕРВОНИЙ: `FAIL … test_deny_bun_too_old`, `9 tests, 8 passed, 1
+  failure`. Повернув поріг — `9 tests, 9 passed`.
+- Повний parity-гейт після ребілду wasm (`node npm/scripts/
+  build-wasm-plugins.mjs`, вихідники до цього моменту тимчасово
+  відхилялись для red-перевірки): `npx vitest run
+  wasm-plugin-parity.test.mjs` — 255/255 зелено, включно з size-budget
+  тестом.
+
+**Розмір гостя:** `plugin_lang_js.wasm` 2 238 207 → 2 250 284 байт (+12 077,
++0.5%) проти бюджету `2 621 440` (`2.5 MiB`, `WASM_SIZE_BUDGET_BYTES` у тому
+ж `wasm-plugin-parity.test.mjs`) — 371 156 байт (14.2%) запасу лишилось,
+той самий size-budget-тест підтверджує зелено.
+
+**Сюрприз поза задачею (передумова, не знайдена задачею):** у цьому
+worktree взагалі не було `node_modules` (свіжий `git worktree`/`checkout
+-b`, без `bun install`) — `mirror-parity.mjs` мовчки не знаходив жодного
+плагіна (`resolveRulesDirs` резолвить контрибуції ЧЕРЕЗ `node_modules`,
+не напряму з `plugins/*` монорепо-дерева), тож `findMirrorDrift` не бачив
+навіть власну щойно внесену розбіжність у `n-js` — виглядало як «дзеркало
+й так синхронне», хоча канон уже розійшовся. `bun install` (1057
+пакетів, symlink-workspace) — обов'язковий крок ПЕРЕД будь-якою
+`mirror-parity`/changelog-перевіркою в свіжому worktree, самі по собі три
+cargo/wasm-артефакти з постановки задачі цього не покривають.
+`findMirrorDrift` baseline: `[]` до задачі → `["js"]` одразу після правки
+канону (мирор ще не регенеровано) → `[]` після
+`expectedMirrorContent`-регенерації `n-js.mdc` — збігається з очікуваним
+порожнім baseline і до, і після.
+
+---
+
 ## Як користуватись
 
 Дійшовши кінця плану міграції, пройти реєстр згори вниз: розділи 1 і 6 — це
