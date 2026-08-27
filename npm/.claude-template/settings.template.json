@@ -8,19 +8,5 @@
       "Bash(npx --no @7n/rules *)",
       "Bash(npx @7n/rules *)"
     ]
-  },
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Edit|Write|MultiEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "npx --no @7n/rules hook --post-tool-use",
-            "timeout": 300
-          }
-        ]
-      }
-    ]
   }
 }

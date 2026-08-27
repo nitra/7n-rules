@@ -5077,6 +5077,102 @@ target-шлях (порахований детектором), гостьово�
 
 ---
 
+### 2.43. PostToolUse lint-хук прибрано з `sync-claude-config.mjs` — тепер і з боку sync, не лише з наявного `.claude/settings.json`
+
+**Задача:** попередній PR прибрав detect-only PostToolUse-хук
+(`npx --no @7n/rules hook --post-tool-use`) із ВІДСТЕЖУВАНОГО
+`.claude/settings.json` цього репо — причина: холодний старт `npx` + cspell
+на кожен `Edit`/`Write`, 29% CPU у власника, десятки процесів при
+паралельній роботі кількох агентів. Цього було замало: `sync-claude-config.mjs`
+(джерело — `npm/.claude-template/settings.template.json` і
+`codex-hooks.template.json`) при наступному ресинку повернув би хук назад
+— темплейти самі його ще пропонували.
+
+**Знайдені місця генерації і рішення по кожному:**
+
+- **Claude Code** (`.claude/settings.json`, темплейт `settings.template.json`) —
+  прибрано: пряме продовження попереднього PR.
+- **Codex CLI** (`.codex/hooks.json`, темплейт `codex-hooks.template.json`,
+  matcher `apply_patch`) — теж прибрано. Обґрунтування: причина
+  навантаження (холодний старт `npx` + cspell на кожен виклик) не залежить
+  від того, який агент тригерить hook — Codex платив би ту саму ціну за
+  кожен `apply_patch`. Тримати різну політику для Claude Code й Codex без
+  технічної причини — невиправдана асиметрія.
+- **Cursor** (`.cursor/hooks.json`) — нема чого прибирати: `mergeCursorHooksConfig`
+  ніколи не вставляв аналог цього хука, там лише ADR stop-entries (`adr`)
+  і rtk preToolUse-entry (`local-ai`). Підтверджено читанням merge-логіки —
+  жодної згадки PostToolUse-маркера в Cursor-гілці.
+- **pi.dev** (`.pi/extensions/`) — так само не має аналога; extensions там
+  — `n-rules-adr` (ADR) і `rtk.ts` (rtk), обидва не мають нічого спільного
+  з lint-хуком.
+
+**Active cleanup — той самий маркерний механізм, не новий.** Прибрано
+запис із темплейтів (просто видалено `hooks.PostToolUse` з обох
+`.json`-темплейтів) — цього ДОСИТЬ, бо `MANAGED_HOOK_COMMAND_MARKER`
+(`'@7n/rules hook'`, вже в `MANAGED_HOOK_COMMAND_MARKERS`) і без того ловить
+поточну команду `npx --no @7n/rules hook --post-tool-use` як managed.
+Коли темплейт більше не пропонує групу для події `PostToolUse`,
+`mergeHooks` (Claude) і `mergeCodexHooks`/`mergeHooks` (Codex) відфільтровують
+managed-запис із наявного конфігу й не додають нічого замість нього —
+подія зникає повністю. Нового `LEGACY_*`-маркера навмисно НЕ додано:
+конструкція вже узагальнена (той самий маркер описаний у JSDoc як
+`hook --post-tool-use`/`hook --stop`), а не одноразова для однієї команди.
+
+**Реальний дефект, знайдений по дорозі (не гіпотетичний):** `syncCodexHooksConfig`
+мав ранній `return { written: false }`, коли змержені hooks виявлялись
+порожніми — і повертав його БЕЗУМОВНО, навіть якщо `.codex/hooks.json` уже
+існував на диску зі стейлим managed-записом. Тобто для Codex «active
+cleanup» до фіксу НЕ спрацьовував би: cleanup-тест на реальному темплейті
+падав і на dof-фіксовому production-коді (не лише на dof-фіксовому
+темплейті) — `PostToolUse` лишався в файлі незмінним. Фікс: рання
+відмова від запису лишається лише коли файлу раніше не було
+(`!hadFile`, сирова перевірка `existsSync`, а не `existing !== undefined`,
+щоб покрити і випадок невалідного JSON); якщо файл існував — пишемо
+порожню `{"hooks": {}}`, як і належить symmetричному cleanup.
+
+**Перевірено дією (red → green):** 7 нових тестів у
+`sync-claude-config.test.mjs` (окремий блок, синкає із СПРАВЖНЬОГО
+`npm/.claude-template/`, а не з synthetic fixture — `realPkgRoot`, той
+самий підхід, що вже мав тест на `ADR_GITIGNORE_SNIPPET_REL`) — не-додавання
+(Claude + Codex), cleanup наявного managed-хука (Claude + Codex, окремо і
+разом з `adr`), і збереження чужого (без managed-маркера) запису (Claude +
+Codex). `git stash` двох темплейтних `.json`-файлів → усі 7 червоні
+(включно з «не чіпає чужі записи» — на старому темплейті merge додає назад
+managed-групу поряд із чужою, довжина 2 замість 1); `git stash pop` → усі
+7 зелені. Разом з рештою файлу — 63/63; суміжні `n-rules-cwd.test.mjs`,
+`n-rules-helpers.test.mjs`, `n-rules-cli.test.mjs`, `hook.test.mjs`,
+`post-tool-use-check.test.mjs`, `sync-pi-extensions.test.mjs` — без
+регресій (215/215 разом).
+
+**Живий доказ на самому репо:** прогін `syncClaudeConfig` проти кореня
+цього репо (bundledPackageRoot = локальний `npm/`, rules — з `.n-rules.json`)
+прибрав PostToolUse із ВЖЕ ІСНУЮЧОГО `.codex/hooks.json` (той не встиг
+потрапити під попередній PR — той чіпав лише `.claude/settings.json`), ADR
+Stop-групи лишились незмінними; `.claude/settings.json` і `.cursor/hooks.json`
+без диффу (уже чисті з попереднього PR); жоден fully-owned файл
+(`capture-decisions.sh`, `rtk.ts`, `lib/*.sh`) не змінився байт-у-байт.
+
+**Документація:** канон `npm/rules/doc-files/check/file-docs.mdc`
+(секція `## Hook'и`, раніше стверджувала «PostToolUse сигналить») і
+`npm/rules/adr/main.mdc` (прибрано згадку «поряд із PostToolUse
+fix-хуком») відредаговано вручну; дзеркала `.cursor/rules/n-doc-files.mdc`
+і `.cursor/rules/n-adr.mdc` — РЕГЕНЕРОВАНО через `syncManagedRuleFiles`
+(той самий виклик, що робить `n-rules-cli.mjs` під час звичайного sync),
+не відредаговано руками. Докблок `npm/bin/n-rules-cli.mjs` (рядок з описом
+`hook --post-tool-use` у CLI usage) і JSDoc `sync-claude-config.mjs`
+(`MANAGED_HOOK_COMMAND_MARKER`, `syncCodexHooksConfig`, `mergeHooks`)
+підправлено, щоб не стверджувати автоматичне прописування, якого більше
+нема.
+
+**Сюрприз:** дефект `syncCodexHooksConfig` (мовчазний skip запису при
+порожньому merged-результаті) — той самий клас бага, що вже фігурував у
+`feedback_fail-loud-not-silent.md`: мовчазний пропуск замість явної дії.
+Якби cleanup спирався лише на маркерну фільтрацію без цього фіксу, Codex
+конфіги лишились би стейлими назавжди — жоден майбутній ресинк їх би не
+торкнувся, доки `.codex/hooks.json` не видалити вручну.
+
+---
+
 ## Як користуватись
 
 Дійшовши кінця плану міграції, пройти реєстр згори вниз: розділи 1 і 6 — це

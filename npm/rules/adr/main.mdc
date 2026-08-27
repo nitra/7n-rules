@@ -8,7 +8,7 @@ version: '2.2'
 
 ## Stop-hook у `.claude/settings.json`
 
-Канонічний запис, який вставляє sync (поряд із PostToolUse fix-хуком — той живе в іншій події, тут не показаний):
+Канонічний запис, який вставляє sync:
 
 ```json title=".claude/settings.json"
 {

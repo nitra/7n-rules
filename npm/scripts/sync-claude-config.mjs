@@ -36,7 +36,14 @@ import { existsSync } from 'node:fs'
 import { chmod, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-/** Маркер hook-ів пакета (`hook --post-tool-use`, `hook --stop`). */
+/**
+ * Маркер hook-ів пакета (`hook --post-tool-use`, `hook --stop`). Жоден темплейт більше не
+ * вставляє базовий detect-only PostToolUse-хук цією командою (прибрано разом із Claude Code —
+ * холодний старт `npx` + cspell на кожен `Edit`/`Write`/`apply_patch` створював відчутне
+ * навантаження при паралельній роботі кількох агентів, і причина агент-незалежна); маркер
+ * лишається в {@link MANAGED_HOOK_COMMAND_MARKERS}, щоб при ресинку прибрати вже вставлений
+ * запис у наявних конфігах (`.claude/settings.json`, `.codex/hooks.json`).
+ */
 export const MANAGED_HOOK_COMMAND_MARKER = '@7n/rules hook'
 /** @deprecated — маркер hook-ів до перейменування пакету на `@7n/rules`; лишається для cleanup наявних конфігів при ресинку. */
 export const LEGACY_PACKAGE_HOOK_COMMAND_MARKER = '@nitra/cursor hook'
@@ -306,7 +313,10 @@ export function mergeAllowList(existing, fromTemplate) {
  *      прибирає застарілі hook'и при переході на нову версію темплейту);
  *   2) дописуємо managed-групи з темплейту.
  * Перебір union-у подій важливий: коли пакет переносить hook між подіями (напр. `Stop`
- * → `PostToolUse`), старі managed entries у вже-непотрібній події теж мають піти.
+ * → `PostToolUse`), старі managed entries у вже-непотрібній події теж мають піти. Той самий
+ * механізм прибирає подію повністю, коли темплейт перестає пропонувати для неї будь-які
+ * групи (напр. detect-only `PostToolUse` hook — темплейт більше не містить цієї події,
+ * тож managed-запис із наявного конфігу фільтрується, нового не додається, і подія зникає).
  * @param {Record<string, HookGroup[]> | undefined} existing поточна `hooks`-секція з .claude/settings.json
  * @param {Record<string, HookGroup[]> | undefined} fromTemplate цільова `hooks`-секція з темплейту
  * @returns {Record<string, HookGroup[]>} результат злиття (порожні події видаляються)
@@ -508,10 +518,16 @@ export function mergeCodexHooks(existing, template, options = {}) {
 }
 
 /**
- * Синхронізує `.codex/hooks.json` для Codex CLI: базовий PostToolUse lint-hook (правило-
- * незалежний, з темплейту `codex-hooks.template.json`, matcher `apply_patch` — best-guess,
- * див. JSDoc {@link ../../hook.mjs}) + опційні ADR Stop-hook групи. Codex не має rtk hook:
- * інтеграція rtk відбувається через пряму інструкцію в AGENTS.md.
+ * Синхронізує `.codex/hooks.json` для Codex CLI: опційні ADR Stop-hook групи (правило `adr`) —
+ * і більше нічого правило-незалежного. Базовий detect-only PostToolUse lint-hook (matcher
+ * `apply_patch`, див. JSDoc {@link ../../hook.mjs}) темплейт `codex-hooks.template.json`
+ * **більше не пропонує** — прибрано синхронно з аналогічним PostToolUse-хуком Claude Code
+ * (`syncClaudeSettings`): причина навантаження (холодний старт `npx` + cspell на кожен
+ * `apply_patch`) не залежить від того, який агент його тригерить, тож рішення для обох
+ * поверхонь однакове. Managed-запис у вже-синкнутих `.codex/hooks.json` прибирається через
+ * {@link MANAGED_HOOK_COMMAND_MARKER} у {@link mergeHooks} (`isManagedHookGroup`) — той самий
+ * механізм, що й для legacy-маркерів. Codex не має rtk hook: інтеграція rtk відбувається
+ * через пряму інструкцію в AGENTS.md.
  * На відміну від `.claude/settings.json` тут немає секції `permissions` — Codex тримає
  * дозволи окремо в `config.toml`.
  * @param {string} projectRoot корінь проєкту, куди писати
@@ -529,12 +545,26 @@ export async function syncCodexHooksConfig(projectRoot, templateDir, options = {
     JSON.parse(await readFile(templatePath, 'utf8'))
   )
   const hooksPath = join(projectRoot, CODEX_HOOKS_FILE)
+  // hadFile — сирова наявність файлу на диску (а не `existing !== undefined`): файл із
+  // managed-записами, які треба прибрати, лишається валідним JSON, тож readJsonOrUndefined
+  // його прочитає; але той самий прапорець ловить і випадок невалідного JSON, де без нього
+  // cleanup-запис нижче був би пропущений разом зі стейлим PostToolUse-хуком.
+  const hadFile = existsSync(hooksPath)
   const existing = /** @type {{ hooks?: Record<string, HookGroup[]> } | undefined} */ (
     await readJsonOrUndefined(hooksPath)
   )
   const mergedHooks = mergeCodexHooks(existing?.hooks, template.hooks, options)
   if (Object.keys(mergedHooks).length === 0) {
-    return { written: false, path: '' }
+    if (!hadFile) {
+      // Нема ні файлу, ні що в нього писати (без ADR і без вже вставленого lint-хука) —
+      // не створюємо порожній `.codex/hooks.json` заради самого факту синку.
+      return { written: false, path: '' }
+    }
+    // Файл ІСНУЄ, але після cleanup-у managed-груп (напр. видалений з темплейту
+    // detect-only PostToolUse) для нього більше нема жодного контенту — це саме active
+    // cleanup: перезаписуємо порожньою hooks-секцією, а не мовчки лишаємо стейлий запис
+    // на диску (симетрично до `mergeHooks`/`syncClaudeSettings`, де managed-групу
+    // прибирає та сама подія-union, навіть коли результат порожній).
   }
   await mkdir(join(projectRoot, CODEX_DIR), { recursive: true })
   await writeFile(hooksPath, `${JSON.stringify({ hooks: mergedHooks }, null, 2)}\n`, 'utf8')

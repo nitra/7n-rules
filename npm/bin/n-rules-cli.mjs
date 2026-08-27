@@ -5,7 +5,7 @@
  *   `npx \@7n/rules`             — завантажити cursor-правила (синк); якщо в корені вже є `.n-rules.json`,
  *                                     спочатку зчитується конфіг і за потреби дописується `$schema`
  *   `npx \@7n/rules rename-yaml-extensions` — k8s `*.yml` → `*.yaml`, `.github` `*.yaml` → `*.yml` (опції: `--dry-run`, `--root=…`; див. bin/rename-yaml-extensions.mjs)
- *   `npx \@7n/rules hook --post-tool-use` — PostToolUse hook: per-file lint правила для зміненого файлу (stdin JSON `tool_input.file_path`). Прописується автоматично в `.claude/settings.json`.
+ *   `npx \@7n/rules hook --post-tool-use` — PostToolUse hook: per-file lint правила для зміненого файлу (stdin JSON `tool_input.file_path`). Sync більше НЕ прописує його автоматично (ні в `.claude/settings.json`, ні в `.codex/hooks.json`) — лишається для ручного виклику/діагностики; див. `sync-claude-config.mjs`.
  *   `npx \@7n/rules hook --stop`           — Stop hook: per-file lint по всіх змінених файлах (git diff HEAD + untracked).
  *   `npx \@7n/rules lint`        — data-driven оркестратор lint+конформності по `rules/<id>/meta.json` (`lint: per-file|full`):
  *                                     за замовчуванням fix-by-default по дельті vs origin (лише `per-file` правила); `--full` =
