@@ -5591,6 +5591,142 @@ js/check фіксер + анти-дрейф + pretty-json), `cargo test -p rules
 §2.46. `eslint-config.mjs`/`tooling/main.mjs` лишаються каноном для
 JS-fallback шляху диспетчера (§2.45).
 
+### 2.52. `run_wasm_concern_fix` — #513 закрив full-scope гілку, лишив мовчазну для решти НЕ-full-scope концернів
+
+**Задача:** #513 (§2.47) додав full-scope glob-обхід у `run_wasm_concern_fix`
+(`crates/rules-napi/src/lib.rs`), коли `target_files` (побудований з
+`diagnostic.file`-полів) порожній, а концерн задекларований `scope: full`
+(`js/check`). Фікс був вужчим за проблему: гілка `_ => Vec::new()`
+лишалась і далі мовчки віддавала ПОРОЖНІЙ batch для БУДЬ-ЯКОГО НЕ-full-scope
+концерну (`scope: per-file`, чи взагалі не знайденого в `describe()`), чиї
+РЕАЛЬНІ (непорожні) violations теж не несуть `file` — та сама двозначність
+#513 («файлів немає» vs «хост їх не передав»), просто для іншого класу
+концернів. Задача — зробити цей стан гучним (owner: «сигналізувати яскраво,
+не ховати», error, не warn), а не мовчазним.
+
+**З'ясування — контрактна помилка концерну чи легітимний випадок:** прочитав
+`crates/rules-contract/wit/world.wit` (`record diagnostic`, `record
+fix-request`, `enum concern-scope`). Жодне з двох не підтвердилось у чистому
+вигляді:
+
+- НЕ контрактна помилка концерну — `diagnostic.file: option<string>` не
+  обумовлений `scope`-ом ніде в схемі; агрегована діагностика (одна на весь
+  прогін зовнішнього тула, не по файлах) — легітимний `detect()`-результат,
+  схема цього не забороняє;
+- НЕ безпечний legit-кейс за наявною формою контракту — full-scope
+  glob-обхід (як для `scope: full`) тут НЕбезпечний: для `per-file`-концерну
+  він розширив би `fix` ЗА МЕЖІ дельти, порушивши сам per-file-контракт,
+  який концерн заявив (`enum concern-scope`, доккомент `per-file`: «хост сам
+  фільтрує дельту й передає підмножину `detect-batch.files`» — тобто
+  full-scope glob НЕ той самий контракт, що per-file делта).
+
+Контракт **МОВЧИТЬ**: не визначає, як host має будувати
+`fix-request.files`, коли `per-file`-концерн віддає file-less діагностики.
+Задокументовано це прямо в `wit/world.wit` (новий доккомент-блок біля
+`record diagnostic`: «`file: none` для `concern-scope::per-file` — ВІДКРИТЕ
+питання, не заборона» + перехресне посилання біля `record fix-request`) —
+наступний, хто чіпає це поле, має або (а) заборонити `file: none` для
+`per-file` явно, або (б) додати спосіб нести «per-file-делта без
+per-diagnostic атрибуції» на рівні batch-у; не вгадав, а лишив явний вибір
+задокументованим.
+
+**Живий кандидат, підтверджений читанням коду (не з чужих слів):**
+`python/ruff` (`crates/plugin-lang-python/src/lib.rs::detect_ruff`/
+`run_ruff_step`) — `scope: per-file` (`build_manifest`), АЛЕ одна діагностика
+на ВЕСЬ прогін `ruff check`/`ruff format --check` (`plain_violation` без
+`file` — тула не парсить власний вивід по файлах). Порт реального фіксера
+цього концерну сьогодні впирався б у мовчазну порожню поведінку (наразі —
+сумісна заглушка, `fix()` повертає порожній план для будь-якого concern_id
+поза `CONCERN_DOC_COMMENTS`, тож нікого не зупиняло на практиці — ця
+перевірка робить межу видимою ДО спроби порту, не post-mortem).
+
+**СПРОСТУВАННЯ вхідної тези задачі — `rust/check` НЕ кандидат.** Бриф
+стверджував «аудит #514 (§2.49) назвав ще один [кандидат]: `rust/check`» —
+grep по `docs/plans/2026-08-05-open-questions-register.md` за `2.49`/`2.50`/
+`2.51`/`#514` не дав ЖОДНОГО збігу: цих секцій/PR не існує в реєстрі на
+момент задачі (перевірено `git log --all --oneline | grep "513\|514"` —
+є лише #513). Незалежно від цієї розбіжності перевірив `rust/check` за
+кодом: `crates/plugin-lang-rust/src/lib.rs::build_manifest` декларує його
+`scope: Full` (не `per-file`), тож він і ДО цього фіксу йшов гілкою
+`build_full_scope_files`, цієї помилки не бачить і бачити не міг — не
+кандидат. Не записав цю тезу як факт без перевірки.
+
+**Форма фіксу:** оскільки контракт мовчить, а не забороняє чи дозволяє
+явно — host не вгадує жодну сторону. `run_wasm_concern_fix` тепер падає з
+типізованою помилкою (`ambiguous_empty_fix_batch_err`,
+`crates/rules-napi/src/lib.rs`) саме на цьому проміжному стані:
+`target_files` порожній, `diagnostics` НЕПОРОЖНІЙ, концерн НЕ `scope: full`
+(чи не знайдений у `describe()`). Повідомлення називає концерн, причину
+(жодна діагностика не несе `file`) і що робити (концерн має класти `file`,
+або WIT потребує розширення — не вирішено тут). Порожні `diagnostics` (нема
+violations — нема що фіксити) і далі дають `Vec::new()` без помилки —
+різниця з попереднім станом лише коли violations Є, а `file` нема в жодній.
+
+JS-бік (`npm/scripts/lib/lint-surface/run-fix.mjs::computeWasmFixPlan`) ловить
+цю помилку try/catch (той самий graceful-degrade контур, що вже несе
+`loadT0Patterns` для битого `fix-<concern>.mjs`, доккомент нижче в тому ж
+файлі, і `runConcernDetector` для wasm-падіння під час `detect()`,
+`detect.mjs`): `console.error` з причиною (не мовчазний catch), деградація до
+`{ edits: [] }` — concern далі йде в ladder. `run_wasm_concern_fix` кличеться
+в циклі по концернах (`runFixPipeline` → `fixConcern` → `runOne`, без
+try/catch навколо КОЖНОГО виклику в цьому циклі) — падіння з napi без
+цього catch-у вбило б увесь fix-прогін на першому ж не-full-scope концерні
+з file-less діагностикою, не лише той concern.
+
+**Перевірено дією (red → green):** тимчасово повернув старий `_ => Vec::new()`
+(прибрав нову `_ if diagnostics.is_empty()` / error-гілку) — рівно ОДИН
+новий тест ЧЕРВОНІЄ
+(`run_wasm_concern_fix_errors_loudly_on_ambiguous_empty_batch`,
+`crates/rules-napi/src/lib.rs`): виклик проти `test/guest-echo`
+(`test-plugin-guest`, `scope: per-file`) з однією file-less violation
+повертав `Ok({"edits": []})` замість падіння — саме та мовчазна поведінка,
+яку задача просила зробити гучною. Решта 9 тестів (`cargo test -p
+rules-napi`) лишились зеленими, підтверджуючи, що новий тест ловить саме
+цю гілку, не випадковий збіг. Повернув фікс — знову 10/10.
+
+**Три робочі шляхи — не зачеплені:** file-scoped фіксери (`test/no-bun-test-import`,
+`js/doc_comments`, `rust/doc_comments`, `rust/cargo_mutants_config`,
+`ga/workflows`, `rust/toolchain_cache` — усі несуть `diagnostic.file`) не
+входять у гілку `target_files.is_empty()` узагалі; full-scope `js/check` і
+далі йде `build_full_scope_files` (гілка `Some(c) if c.scope ==
+ConcernScope::Full` не змінена). Регресійне покриття: 4 нові тести
+`crates/rules-napi/src/lib.rs` проти РЕАЛЬНОЇ guest-фікстури
+(`crates/test-plugin-guest` — додано `scope: full` fix-хук
+`test/guest-fix-full-scope`, дзеркало `fix_rewrite_plan`, щоб мати
+керовану full-scope регресію без збірки важчого `plugin-lang-js.wasm`
+для `cargo test -p rules-napi`) — ambiguous-error, full-scope fallback,
+file-scoped unaffected, empty-diagnostics-no-error. Плюс живі e2e/parity:
+`wasm-fix-e2e.test.mjs` 5/5 (`test/no-bun-test-import` через продакшн
+napi-міст, той самий `computeWasmFixPlan`, що дістав try/catch) і
+`wasm-plugin-parity.test.mjs` 260/260 без регресій (включно з блоком
+«js/check T0-фікс» — full-scope шлях і «js/doc_comments» — file-scoped,
+обидва з `.wasm`, зібраним щойно цією сесією).
+
+**Сюрприз — napi-крейт (`crate-type = ["cdylib"]`) не лінкується під
+`cargo test` на macOS:** `_napi_call_threadsafe_function`/
+`_napi_delete_reference`/`_napi_reference_unref` — undefined symbols
+(на Linux, де ганяє CI, `cargo test --workspace` цього не бачить —
+дефолтна поведінка лінкера різна). Обхід — `RUSTFLAGS="-C
+link-args=-Wl,-undefined,dynamic_lookup"` лише для host-цілі (НЕ для
+`wasm32-wasip2` — той самий прапор ламає `wasm-component-ld`
+з «unexpected argument '-W'», тож збірку wasm-фікстур і native cdylib
+довелось рознести на окремі виклики, не одну команду з єдиним
+`RUSTFLAGS`). Задокументовано тут, бо наступний, хто спробує `cargo test
+-p rules-napi` на macOS без цього прапора, отримає незрозумілу помилку
+лінкера, що не має нічого спільного з логікою тестів.
+
+**Числа:** `cargo test -p rules-napi` 6 → 10 (+4, ambiguous-error +
+full-scope regression + file-scoped regression + empty-diagnostics edge
+case). `cargo test -p rules-contract -p test-plugin-guest` 59+5+0/59+5+0
+без регресій (`wit_parity.rs` підтверджує новий доккомент-блок не ламає
+парсинг WIT). `cargo test -p rules-plugin-host --test contract_test_kit`
+17/17 без регресій (новий `test/guest-fix-full-scope` у манифесті
+`test-plugin-guest` не ламає `load_and_describe_returns_expected_manifest` —
+тест не звіряє точний список concerns). `wasm-fix-e2e.test.mjs` 5/5,
+`wasm-plugin-parity.test.mjs` 260/260 (без змін у кількості — новий фікс
+не додає JS-рівневих тестів, покритий Rust-стороною й уже наявним
+parity-суїтом).
+
 ---
 
 ### 2.49. Прогалина покриття fix-мосту закрита для чотирьох файл-скоуп фіксерів — `rust/cargo_mutants_config`, `rust/doc_comments`, `python/doc_comments`, `ga/workflows`

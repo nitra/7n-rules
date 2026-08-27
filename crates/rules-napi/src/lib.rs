@@ -611,6 +611,66 @@ fn build_full_scope_files(cwd: &Path, glob_patterns: &[String]) -> Vec<SourceFil
     read_source_files(cwd, matched)
 }
 
+/// Типізована помилка «неоднозначний порожній fix-batch» — [`run_wasm_concern_fix`]
+/// кличе її, коли `target_files` (побудований з `diagnostic.file`-полів)
+/// порожній, `diagnostics` НЕПОРОЖНІЙ, а концерн НЕ `scope: Full` (чи
+/// взагалі не знайдений у `describe().concerns`).
+///
+/// # Чому не мовчазний `Vec::new()` і не full-scope glob-обхід
+///
+/// Обидва — здогадки, а не безпечні дефолти для цього стану:
+/// - `Vec::new()` — ТА САМА прихована вада, що виправив #513
+///   (`crates/plugin-lang-js/src/lib.rs`, «`js/check` — T0-фіксер
+///   ПОРТОВАНО»): гість отримує порожній batch і не може відрізнити
+///   «файлів немає» від «хост їх не передав» — там це стиралось конфіги
+///   консюмера, тут (не-full-scope концерн) наслідок менш руйнівний, але
+///   природа та сама;
+/// - full-scope glob-обхід (як для `scope: full`) — безпечний ЛИШЕ коли
+///   концерн сам заявив, що хоче цілий репозиторій. Для `per-file`
+///   концерну він розширив би fix ЗА МЕЖІ дельти — порушив би саме той
+///   scope-контракт, що `per-file` декларує (`wit/world.wit`, доккомент
+///   `enum concern-scope`).
+///
+/// # Контракт МОВЧИТЬ, а не забороняє
+///
+/// WIT (`wit/world.wit`, `record diagnostic`/`record fix-request`) не
+/// каже, що `per-file`-концерн МУСИТЬ класти `file` у кожну діагностику
+/// (там, де він агрегує вивід зовнішнього тула на весь прогін, а не по
+/// файлах, — приклад нижче), і не визначає, як host має будувати
+/// `fix-request.files`, коли він цього не робить. Це НЕ підтверджена
+/// помилка контракту концерну (схема дозволяє `file: none`) і НЕ
+/// підтверджений безпечний legit-кейс (full-scope обхід тут небезпечний,
+/// вище) — контракт просто ще не визначився. Тому хост не вгадує жодну
+/// сторону — падає з поясненням (принцип власника «сигналізувати яскраво,
+/// не ховати»: error, не warn), а рішення лишається на подальший WIT-мінор.
+///
+/// Живий кандидат на сьогодні: `python/ruff`
+/// (`crates/plugin-lang-python/src/lib.rs::detect_ruff`/`run_ruff_step`) —
+/// `scope: per-file`, але одна діагностика на ВЕСЬ прогін `ruff
+/// check`/`ruff format --check` (тула не парсить власний вивід по
+/// файлах), `file: None`. Порт реального фіксера цього концерну сьогодні
+/// впирається саме в цю помилку (наразі — сумісна заглушка, `fix()`
+/// повертає порожній план, тож помилка ще нікого не зупиняла на практиці;
+/// ця перевірка робить межу видимою ДО того, як хтось спробує портувати
+/// фіксер і мовчки отримає биту поведінку). `rust/check` — НЕ кандидат,
+/// на відміну від попередніх нотаток: `crates/plugin-lang-rust/src/lib.rs`
+/// декларує його `scope: Full` (`ConcernContribution` у `build_manifest`),
+/// тож він і сьогодні йде full-scope гілкою вище, цієї помилки не бачить.
+fn ambiguous_empty_fix_batch_err(key: &str, scope_label: &str, diagnostics_count: usize) -> Error {
+    Error::from_reason(format!(
+        "runWasmConcernFix: концерн `{key}` (scope: {scope_label}) — {diagnostics_count} \
+         діагностик(и) fix-запиту, і ЖОДНА не несе `file`. Хост не може безпечно побудувати \
+         FixRequest::files: концерн не `full`-scope, тож full-scope glob-обхід розширив би fix \
+         за межі дельти (порушив би per-file семантику), а порожній batch — та сама прихована \
+         вада, що PR #513 (js/check затирав конфіги консюмера), лише для не-full-scope \
+         концерну — гість не зміг би відрізнити «файлів немає» від «хост їх не передав». \
+         Контракт (wit/world.wit, record diagnostic / record fix-request) наразі МОВЧИТЬ про \
+         цей випадок: або концерн має класти diagnostic.file для violations, для яких \
+         запитується fix, або WIT потребує явного розширення під агреговані per-file fix-и — \
+         не вирішено тут, лишається задокументованим відкритим питанням."
+    ))
+}
+
 /// Виконує `detect` одного концерну wasm-плагіна — тонкий binding над
 /// `LoadedPlugin::detect` (задача K фази 6, full-scope міст — задача N2).
 /// Повертає ТУ САМУ форму `{"violations": [...]}`, що [`run_native_concern`]
@@ -657,7 +717,15 @@ fn build_full_scope_files(cwd: &Path, glob_patterns: &[String]) -> Vec<SourceFil
 ///   окремий full-scope обхід зайвий. Якщо ЖОДНА діагностика не несе
 ///   `file` (whole-batch концерн — `js/check`, доккомент нижче біля
 ///   full-scope fallback-гілки), хост падає назад на ТОЙ САМИЙ full-scope
-///   резолв, що [`run_wasm_concern`] робить для `files: None` на детекті.
+///   резолв, що [`run_wasm_concern`] робить для `files: None` на детекті —
+///   АЛЕ лише коли концерн реально `scope: full` (задекларовано в
+///   `describe().concerns`). Якщо `target_files` порожній, диагностики
+///   непорожні, а концерн НЕ `full`-scope (чи взагалі не знайдений у
+///   маніфесті) — хост НЕ вгадує (ні мовчазний порожній batch, ні
+///   full-scope glob-обхід, який для `per-file`-концерну розширив би fix
+///   за межі дельти): падає з типізованою помилкою (доккомент
+///   [`ambiguous_empty_fix_batch_err`] нижче) — задача fix/napi-empty-fix-batch,
+///   продовження #513 для НЕ-full-scope концернів.
 ///
 /// Порожній `edits` = «фікс для цих violations нічого не змінює» — той
 /// самий контракт застосовності, що в native-плану ([`run_native_concern_fix`]).
@@ -706,17 +774,56 @@ pub fn run_wasm_concern_fix(
         // ЛИШЕ коли жодна діагностика не назвала конкретний файл, тож
         // file-scoped фіксери (`test/no-bun-test-import`, `js/doc_comments`,
         // `rust/cargo_mutants_config` — усі несуть `diagnostic.file`)
-        // поведінки не міняють.
+        // поведінки не міняють. Безпечний ЛИШЕ для `scope: full` — для
+        // `per-file` концерну той самий glob-обхід розширив би fix ЗА МЕЖІ
+        // дельти (порушив би сам per-file-контракт), тож гілка нижче
+        // звужена саме на `Full`.
+        //
+        // # Неоднозначний порожній batch для НЕ-full-scope концерну
+        // (задача fix/napi-empty-fix-batch, продовження #513)
+        //
+        // `target_files` порожній ще й тоді, коли `per-file`-концерн має
+        // РЕАЛЬНІ (непорожні) violations, але жодна не несе `file` —
+        // агрегована діагностика на весь прогін зовнішнього тула, не по
+        // одному файлу (живий кандидат: `python/ruff` —
+        // `crates/plugin-lang-python/src/lib.rs::detect_ruff`, одна
+        // діагностика на ВЕСЬ `ruff check`/`ruff format --check`, тула не
+        // парсить свій вивід по файлах). Це ТА САМА двозначність, що
+        // спричинила #513 (`Vec::new()` → гість не відрізняє «файлів
+        // немає» від «хост їх не передав»), лише для не-full-scope
+        // концерну, де full-scope glob-обхід — НЕ безпечна заміна (вище).
+        // WIT-контракт (`wit/world.wit`, `record diagnostic`/`record
+        // fix-request`) МОВЧИТЬ про цей випадок — не каже, що per-file
+        // діагностика МУСИТЬ нести `file`, і не визначає, як host має
+        // будувати `fix-request.files`, коли вона цього не робить. Тож
+        // замість вгадувати — падаємо голосно (доккомент
+        // [`ambiguous_empty_fix_batch_err`]): принцип власника
+        // «сигналізувати яскраво, не ховати» (error, не warn). Порожні
+        // `diagnostics` (нема violations узагалі — нема що фіксити)
+        // лишаються Vec::new(), як і раніше — жодної двозначності немає.
+        let contribution = plugin
+            .describe()
+            .concerns
+            .iter()
+            .find(|c| c.key == key)
+            .cloned();
         let files = if target_files.is_empty() {
-            let contribution = plugin
-                .describe()
-                .concerns
-                .iter()
-                .find(|c| c.key == key)
-                .cloned();
-            match contribution {
-                Some(c) if c.scope == ConcernScope::Full => build_full_scope_files(&cwd_path, &c.glob),
-                _ => Vec::new(),
+            match &contribution {
+                Some(c) if c.scope == ConcernScope::Full => {
+                    build_full_scope_files(&cwd_path, &c.glob)
+                }
+                _ if diagnostics.is_empty() => Vec::new(),
+                _ => {
+                    let scope_label = contribution
+                        .as_ref()
+                        .map(|c| format!("{:?}", c.scope))
+                        .unwrap_or_else(|| "не заявлений у describe().concerns".to_string());
+                    return Err(ambiguous_empty_fix_batch_err(
+                        &key,
+                        &scope_label,
+                        diagnostics.len(),
+                    ));
+                }
             }
         } else {
             read_source_files(&cwd_path, target_files.clone())
@@ -910,5 +1017,177 @@ mod tests {
         let files = build_full_scope_files(dir.path(), &["**/*.txt".to_string()]);
 
         assert_eq!(sorted_paths(&files), vec!["keep.txt", "vendor/skip.txt"]);
+    }
+
+    // --- run_wasm_concern_fix: неоднозначний порожній fix-batch ---
+    //
+    // Задача fix/napi-empty-fix-batch (продовження #513 для НЕ-full-scope
+    // концернів, доккомент [`ambiguous_empty_fix_batch_err`]). Тести кличуть
+    // РЕАЛЬНИЙ `run_wasm_concern_fix` проти зібраної guest-фікстури
+    // `crates/test-plugin-guest` — той самий `.wasm`, що
+    // `crates/rules-plugin-host/tests/contract_test_kit.rs` (шлях
+    // обчислюється так само, `CARGO_MANIFEST_DIR` тут — `crates/rules-napi`,
+    // теж два рівні вгору до кореня workspace).
+
+    /// Абсолютний шлях до зібраного `.wasm`-компонента фікстури
+    /// (`crates/test-plugin-guest/build.sh`).
+    fn guest_fixture_wasm_path() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../target/wasm32-wasip2/release/test_plugin_guest.wasm")
+    }
+
+    /// Падає з чіткою інструкцією збірки, якщо фікстура відсутня — не
+    /// мовчазний skip (той самий мотив, що `require_fixture` у
+    /// `contract_test_kit.rs`).
+    fn require_guest_fixture() -> PathBuf {
+        let path = guest_fixture_wasm_path();
+        assert!(
+            path.is_file(),
+            "guest-фікстура contract-test-kit не зібрана: {} відсутній.\n\
+             Зберіть її командою: bash crates/test-plugin-guest/build.sh",
+            path.display(),
+        );
+        path
+    }
+
+    /// Червоний-зелений якір цього фіксу: `test/guest-echo` — `scope:
+    /// per-file` у `describe()` (`test-plugin-guest`), і `fix()` для нього
+    /// падає на дефолтну заглушку (не `FIX_REWRITE_CONCERN_ID`) — тобто
+    /// ДО фіксу цей самий виклик тихо повертав `Ok({"edits": []})` (гілка
+    /// `_ => Vec::new()`, `target_files.is_empty()` для `PerFile`), а
+    /// gуест і не підозрював, що йому дали порожній batch замість
+    /// реального. Одна violation БЕЗ `file` — та сама двозначність, що
+    /// #513, лише не-full-scope. Після фіксу — типізована помилка з
+    /// поясненням (концерн, причина), не мовчазний порожній план.
+    #[test]
+    fn run_wasm_concern_fix_errors_loudly_on_ambiguous_empty_batch() {
+        let wasm_path = require_guest_fixture();
+        let cwd = tempfile::tempdir().expect("tmp dir");
+        let violations = serde_json::json!([
+            {
+                "reason": "guest-echo",
+                "message": "агрегована діагностика без file",
+                "severity": "warn"
+            }
+        ]);
+
+        let result = run_wasm_concern_fix(
+            wasm_path.to_string_lossy().to_string(),
+            "test/guest-echo".to_string(),
+            cwd.path().to_string_lossy().to_string(),
+            violations,
+            None,
+        );
+
+        let err = result.expect_err(
+            "per-file концерн з file-less діагностикою МАЄ падати з поясненням, не мовчати",
+        );
+        let message = err.to_string();
+        assert!(
+            message.contains("test/guest-echo"),
+            "повідомлення має називати конкретний концерн: {message}"
+        );
+        assert!(
+            message.contains("file"),
+            "повідомлення має пояснювати причину (відсутній `file`): {message}"
+        );
+    }
+
+    /// Регресія на full-scope шлях (`js/check`-подібний): `target_files`
+    /// порожній (жодна violation не несе `file`), АЛЕ концерн заявлений
+    /// `scope: full` у `describe()` — хост МАЄ впасти назад на
+    /// `build_full_scope_files`, не на нову помилку. Непорожній `edits`
+    /// (guest реально переписав знайдений на диску `broken.marker`)
+    /// доводить, що файли справді прийшли з full-scope glob-обходу, а не
+    /// просто «виклик не впав».
+    #[test]
+    fn run_wasm_concern_fix_full_scope_concern_falls_back_to_glob_when_target_files_empty() {
+        let wasm_path = require_guest_fixture();
+        let dir = tempfile::tempdir().expect("tmp dir");
+        std::fs::write(dir.path().join("broken.marker"), "BROKEN content").expect("marker file");
+        let violations = serde_json::json!([
+            {
+                "reason": "guest-full-scope",
+                "message": "whole-batch діагностика без file",
+                "severity": "warn"
+            }
+        ]);
+
+        let result = run_wasm_concern_fix(
+            wasm_path.to_string_lossy().to_string(),
+            "test/guest-fix-full-scope".to_string(),
+            dir.path().to_string_lossy().to_string(),
+            violations,
+            None,
+        );
+
+        let plan =
+            result.expect("full-scope концерн має впасти назад на glob-обхід, не на нову помилку");
+        let edits = plan["edits"].as_array().expect("edits — масив");
+        assert_eq!(
+            edits.len(),
+            1,
+            "full-scope обхід мав знайти marker-файл на диску: {plan:?}"
+        );
+        assert_eq!(edits[0]["type"], "write");
+        assert_eq!(edits[0]["path"], "broken.marker");
+        assert_eq!(edits[0]["content"], "FIXED content");
+    }
+
+    /// Регресія на file-scoped шлях (`test/no-bun-test-import`,
+    /// `js/doc_comments`, `rust/doc_comments`, `rust/cargo_mutants_config`,
+    /// `ga/workflows`, `rust/toolchain_cache` — усі несуть
+    /// `diagnostic.file`): `target_files` НЕПОРОЖНІЙ (violation несе
+    /// `file`) — гілка `if target_files.is_empty()` узагалі не
+    /// виконується, увесь цей фікс на неї не впливає. `test/guest-fix-rewrite`
+    /// (`test-plugin-guest`) — той самий шаблон `BROKEN`→`FIXED`.
+    #[test]
+    fn run_wasm_concern_fix_file_scoped_concern_uses_explicit_diagnostic_file_unaffected() {
+        let wasm_path = require_guest_fixture();
+        let dir = tempfile::tempdir().expect("tmp dir");
+        std::fs::write(dir.path().join("target.txt"), "BROKEN content").expect("target file");
+        let violations = serde_json::json!([
+            {
+                "reason": "guest-echo",
+                "message": "file-scoped violation",
+                "file": "target.txt",
+                "severity": "warn"
+            }
+        ]);
+
+        let result = run_wasm_concern_fix(
+            wasm_path.to_string_lossy().to_string(),
+            "test/guest-fix-rewrite".to_string(),
+            dir.path().to_string_lossy().to_string(),
+            violations,
+            None,
+        );
+
+        let plan = result.expect("file-scoped фіксер з diagnostic.file не мав зламатись фіксом");
+        let edits = plan["edits"].as_array().expect("edits — масив");
+        assert_eq!(edits.len(), 1);
+        assert_eq!(edits[0]["path"], "target.txt");
+        assert_eq!(edits[0]["content"], "FIXED content");
+    }
+
+    /// Порожні `diagnostics` (немає violations узагалі — нема що фіксити)
+    /// лишаються Vec::new() без помилки: нема двозначності «діагностики
+    /// без file», бо діагностик просто немає. Відрізняє «нічого фіксити»
+    /// від ambiguous-кейсу вище.
+    #[test]
+    fn run_wasm_concern_fix_empty_diagnostics_returns_empty_plan_without_error() {
+        let wasm_path = require_guest_fixture();
+        let cwd = tempfile::tempdir().expect("tmp dir");
+
+        let result = run_wasm_concern_fix(
+            wasm_path.to_string_lossy().to_string(),
+            "test/guest-echo".to_string(),
+            cwd.path().to_string_lossy().to_string(),
+            serde_json::json!([]),
+            None,
+        );
+
+        let plan = result.expect("порожні diagnostics — немає що фіксити, не помилка");
+        assert_eq!(plan["edits"].as_array().expect("edits — масив").len(), 0);
     }
 }

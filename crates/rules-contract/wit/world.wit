@@ -88,6 +88,28 @@ world plugin {
   /// (`crates/rules-core/src/diagnostics.rs`): `reason`/`message` обов'язкові,
   /// `file` опційний posix-relative шлях, `severity` з дефолтом `error`.
   ///
+  /// # `file: none` для `concern-scope::per-file` — ВІДКРИТЕ питання, не
+  /// заборона (задача fix/napi-empty-fix-batch)
+  ///
+  /// Схема НЕ вимагає `file` для `per-file`-концерну: агрегована
+  /// діагностика (одна на весь прогін зовнішнього тула, що сам не
+  /// атрибутує вивід по файлах — приклад: `python/ruff`,
+  /// `crates/plugin-lang-python/src/lib.rs::detect_ruff`) — легітимний
+  /// `detect()`-результат, ЦЯ record цього не забороняє. Але контракт
+  /// СВІДОМО НЕ визначає, як host має будувати `fix-request.files`
+  /// (нижче), коли `fix`-запит несе такі діагностики: ні мовчазний
+  /// порожній `files` (гість не відрізнить «файлів немає» від «хост їх не
+  /// передав» — вада #513, `crates/rules-napi/src/lib.rs::run_wasm_concern_fix`,
+  /// доккомент `ambiguous_empty_fix_batch_err`), ні full-scope glob-обхід
+  /// (безпечний лише для `scope: full` — для `per-file` він розширив би
+  /// `fix` за межі дельти) тут не встановлені як дефолт. Сьогоднішній
+  /// host — fail-loud на цьому стані (типізована помилка, не здогадка).
+  /// Наступний, хто чіпає це поле: або (а) заборонити `file: none` для
+  /// `per-file`-концернів явно тут, у схемі/доккоменті, або (б) додати
+  /// цій record-і чи `fix-request` спосіб нести «per-file-делта без
+  /// per-diagnostic атрибуції» (напр. окреме поле файлів на рівні
+  /// batch-у) — не вгадуй, обирай і документуй тут.
+  ///
   /// `data` — JSON-рядок (серіалізований `serde_json::Value::Object`), не
   /// структурний тип: WIT record/variant не підтримує довільний
   /// (self-describing, динамічно типізований) JSON-обʼєкт — представлення
@@ -138,6 +160,12 @@ world plugin {
 
   /// Вхід `fix`: ті самі файли й концерн, що й `detect`, плюс діагностики,
   /// для яких запитується fix (підмножина результату `detect`).
+  ///
+  /// Host сьогодні виводить `files` із `diagnostics[].file` (не з
+  /// незалежного delta-списку `detect`-виклику) — коли жодна діагностика
+  /// не несе `file`, дивись відкрите питання біля `record diagnostic`
+  /// (`file: none` для `per-file`): цей запис нічого не гарантує щодо
+  /// того, звідки host бере `files` у такому разі.
   record fix-request {
     concern-id: string,
     files: list<source-file>,
