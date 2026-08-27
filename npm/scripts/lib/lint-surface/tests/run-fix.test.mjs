@@ -1,10 +1,10 @@
-import { describe, expect, test } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { env } from 'node:process'
 
-import { resolveFixLadderModels, runFixPipeline } from '../run-fix.mjs'
+import { loadT0Patterns, resolveFixLadderModels, runFixPipeline } from '../run-fix.mjs'
 import { withTmpDir, writeJson } from '../../../utils/test-helpers.mjs'
 
 /**
@@ -273,6 +273,207 @@ describe('runFixPipeline — T0 permanent', () => {
       expect(code).toBe(1)
       // Ключове: rollback цілить у S1 (post-T0='partial'), НЕ у pre-T0 (absent).
       expect(readFileSync(join(dir, 'out.txt'), 'utf8')).toBe('partial')
+    })
+  })
+})
+
+// Вада 1 (T0-dispatch double-apply, run-fix.mjs `loadT0Patterns`/`applyT0`): гість
+// (native/wasm, `T0Pattern.guestFix`) і `fix-<concern>.mjs` пушаться в один масив
+// `patterns`; `applyT0` ганяв ОБИДВА одним і тим самим (застарілим) масивом
+// `violations` — реальний фікс гостя (напр. `js/doc_comments`) і JS-fallback
+// застосовувались поспіль на тому самому файлі. Тести нижче б'ють по `applyT0` через
+// `deps.t0For` (без побудови native/wasm-артефактів — вони недоступні у свіжому
+// worktree) і звіряють `chainExtra.t0Applied` (телеметрія, той самий канон, що блок
+// «телеметрія ланцюжка» нижче) — точний перелік патернів, які РЕАЛЬНО застосувались.
+describe('runFixPipeline — T0 guestFix-пріоритет (double-apply гейт)', () => {
+  test('гість (guestFix) реально фіксить → JS-fallback того самого concern-а НЕ застосовується', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = await seedConcern(dir)
+      const ends = []
+      const t0 = [
+        {
+          id: 'guest-real',
+          guestFix: true,
+          test: () => true,
+          apply: (_v, ctx) => {
+            writeFileSync(join(ctx.cwd, 'out.txt'), 'done')
+            return { touchedFiles: [join(ctx.cwd, 'out.txt')], message: 'гість застосував' }
+          }
+        },
+        {
+          id: 'js-fallback',
+          // Той самий (застарілий) масив violations, що й у гостя — до фіксу test()
+          // все одно повертав true, бо `applyT0` не re-detect-ить між патернами.
+          test: () => true,
+          apply: (_v, ctx) => {
+            // Живий доказ double-apply: без гейта цей патерн допише маркер — його
+            // наявність на диску і є відтвореною вадою.
+            writeFileSync(join(ctx.cwd, 'fallback-ran.txt'), 'ran')
+            return { touchedFiles: [join(ctx.cwd, 'fallback-ran.txt')], message: 'fallback застосував (НЕ МАЄ ТУТ БУТИ)' }
+          }
+        }
+      ]
+      const code = await runFixPipeline({
+        rulesDir,
+        cwd: dir,
+        full: true,
+        log: () => {
+          /* no-op logger */
+        },
+        deps: {
+          ladder: ONE_RUNG,
+          t0For: () => t0,
+          workerFor: () => () => {
+            /* no-op worker */
+          },
+          chainFactory: captureChainFactory(ends)
+        }
+      })
+      expect(code).toBe(0)
+      // RED до фіксу: файл існує (fallback реально відпрацював поверх гостя).
+      expect(existsSync(join(dir, 'fallback-ran.txt'))).toBe(false)
+      expect(ends[0].extra.t0Applied).toEqual([{ id: 'guest-real', message: 'гість застосував' }])
+    })
+  })
+
+  test('гість-заглушка (test()===false) → JS-fallback далі працює (перехідний період не зламано)', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = await seedConcern(dir)
+      const ends = []
+      const t0 = [
+        {
+          id: 'guest-stub',
+          guestFix: true,
+          // Заглушка v3.0: план завжди порожній → test()===false, apply() не кличеться.
+          test: () => false,
+          apply: () => {
+            throw new Error('стаб не має викликати apply() — test() відсіює його раніше')
+          }
+        },
+        {
+          id: 'js-fallback',
+          test: () => true,
+          apply: (_v, ctx) => {
+            writeFileSync(join(ctx.cwd, 'out.txt'), 'done')
+            return { touchedFiles: [join(ctx.cwd, 'out.txt')], message: 'fallback закрив' }
+          }
+        }
+      ]
+      const code = await runFixPipeline({
+        rulesDir,
+        cwd: dir,
+        full: true,
+        log: () => {
+          /* no-op logger */
+        },
+        deps: {
+          ladder: ONE_RUNG,
+          t0For: () => t0,
+          workerFor: () => () => {
+            /* no-op worker */
+          },
+          chainFactory: captureChainFactory(ends)
+        }
+      })
+      expect(code).toBe(0)
+      expect(ends[0].extra.t0Applied).toEqual([{ id: 'js-fallback', message: 'fallback закрив' }])
+    })
+  })
+
+  test('гість test()===true, але apply() нічого не торкнув (touchedFiles: []) → JS-fallback все одно спрацьовує', async () => {
+    await withTmpDir(async dir => {
+      const rulesDir = await seedConcern(dir)
+      const ends = []
+      const t0 = [
+        {
+          id: 'guest-noop',
+          guestFix: true,
+          // Напр. wasm-план із самими `delete`-правками на вже відсутній файл:
+          // `edits.length>0` (test()===true), але `apply()` нічого фактично не торкнув —
+          // гейт МАЄ бути динамічний (за touchedFiles), не за статичним test().
+          test: () => true,
+          apply: () => ({ touchedFiles: [] })
+        },
+        {
+          id: 'js-fallback',
+          test: () => true,
+          apply: (_v, ctx) => {
+            writeFileSync(join(ctx.cwd, 'out.txt'), 'done')
+            return { touchedFiles: [join(ctx.cwd, 'out.txt')], message: 'fallback закрив' }
+          }
+        }
+      ]
+      const code = await runFixPipeline({
+        rulesDir,
+        cwd: dir,
+        full: true,
+        log: () => {
+          /* no-op logger */
+        },
+        deps: {
+          ladder: ONE_RUNG,
+          t0For: () => t0,
+          workerFor: () => () => {
+            /* no-op worker */
+          },
+          chainFactory: captureChainFactory(ends)
+        }
+      })
+      expect(code).toBe(0)
+      expect(ends[0].extra.t0Applied).toEqual([
+        { id: 'guest-noop', message: null },
+        { id: 'js-fallback', message: 'fallback закрив' }
+      ])
+    })
+  })
+})
+
+// Вада 2 (T0-dispatch мовчазний catch, `loadT0Patterns`): битий `fix-<concern>.mjs`
+// (синтаксис, поламаний імпорт) ковтався мовчки — користувач бачив порушення, запускав
+// `--fix`, воно «нічого не робило» без жодного пояснення. Перевіряємо напряму
+// `loadT0Patterns` (без побудови native/wasm — `ruleId` свідомо вигаданий, щоб не
+// влучити в реальний native-fix реєстр).
+describe('loadT0Patterns — битий fix-модуль сигналить гучно (не мовчазний skip)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  test('синтаксично зламаний fix-<concern>.mjs → console.error, concern без T0-патернів', async () => {
+    await withTmpDir(async dir => {
+      const concernDir = join(dir, 'rules', 'probe', 'check')
+      await mkdir(concernDir, { recursive: true })
+      const fixPath = join(concernDir, 'fix-check.mjs')
+      await writeFile(fixPath, 'export const patterns = [ this is not valid js', 'utf8')
+
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {
+        /* no-op — лише перевіряємо факт виклику */
+      })
+      const patterns = await loadT0Patterns(concernDir, 'check', 'probe-never-native', dir)
+
+      // RED до фіксу: patterns === [] (той самий, як і зараз — це коректно), АЛЕ
+      // errorSpy.toHaveBeenCalled() === false (мовчазний catch{}) — вада саме в тиші.
+      expect(patterns).toEqual([])
+      expect(errorSpy).toHaveBeenCalledTimes(1)
+      const [message] = errorSpy.mock.calls[0]
+      expect(message).toContain(fixPath)
+      expect(message).toContain('probe-never-native/check')
+    })
+  })
+
+  test('fix-<concern>.mjs з поламаним імпортом → console.error з причиною помилки', async () => {
+    await withTmpDir(async dir => {
+      const concernDir = join(dir, 'rules', 'probe', 'check')
+      await mkdir(concernDir, { recursive: true })
+      const fixPath = join(concernDir, 'fix-check.mjs')
+      await writeFile(fixPath, "import { nope } from './does-not-exist.mjs'\nexport const patterns = []\n", 'utf8')
+
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {
+        /* no-op */
+      })
+      const patterns = await loadT0Patterns(concernDir, 'check', 'probe-never-native', dir)
+
+      expect(patterns).toEqual([])
+      expect(errorSpy).toHaveBeenCalledTimes(1)
     })
   })
 })
@@ -1425,5 +1626,24 @@ describe('runFixPipeline — телеметрія ланцюжка (problem/reso
       expect(ends[0].extra.touchedTotal).toBe(0)
       expect(ends[0].extra.problem).toMatchObject({ violations: 1, reasons: ['not-done'] })
     })
+  })
+})
+
+// Проводка `guestFix`, а не лише механізм. Тести вище ставлять прапорець у
+// ВЛАСНИХ фікстурах, тож вони лишаються зеленими навіть якщо продакшн-фабрики
+// перестануть його виставляти — перевірено дією: заміна `guestFix: true` на
+// `false` у `run-fix.mjs` не валила жодного з них. Цей блок закриває саме той
+// розрив: він читає патерн, який `loadT0Patterns` реально віддає для
+// native-fix концерну, і вимагає прапорця на ньому.
+describe('loadT0Patterns — продакшн-патерни несуть guestFix', () => {
+  test('native-fix концерн: повернутий патерн має guestFix', async () => {
+    const { loadNative } = await import('../../native.mjs')
+    const keys = loadNative().listNativeFixes()
+    // Порожній реєстр зробив би тест беззмістовним — падаємо, а не «пропускаємо».
+    expect(keys.length).toBeGreaterThan(0)
+    const [ruleId, concernId] = keys[0].split('/')
+    const patterns = await loadT0Patterns('/nonexistent-dir', concernId, ruleId, process.cwd())
+    expect(patterns.length).toBeGreaterThan(0)
+    expect(patterns[0].guestFix).toBe(true)
   })
 })
