@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.103.0] - 2026-08-27
+
+### Added
+
+- `plugin-ci-github` (wasm-гість): портовано T0-фіксер `ga/workflows` — перший реальний `fn fix` цього гостя (раніше — заглушка з порожнім планом). Точний семантичний порт трьох чисто текстових T0-патернів `fix-workflows.mjs`: `addPersistCredentials` (дописує `with: persist-credentials: false` у `actions/checkout`-кроки), `removePathsGlobs` (прибирає незматчені `on.*.paths` glob-и) і `prefixBunxNCursor` (`n-rules …` → `bunx n-rules …`). На відміну від JS-канону (три окремі `T0Pattern`, застосовуються послідовно з перечитуванням файла з диска між ними), `wasmFixPattern` синтезує РІВНО один патерн на весь wasm-концерн — `fix_workflows` тому сам компонує всі три трансформери на одному буфері за один виклик. `persist-credentials`/`bare-n-rules` — вручну (`strip_prefix`/`indent_of`, той самий стиль, що `rust/toolchain_cache`), `bare-n-rules`-префікс — через вже лінкований `regex`-крейт (той самий `\b`-патерн, що детект-бік `verify_no_bare_n_cursor`, жодної нової залежності). JS-фіксер свідомо НЕ видалено — спершу парність; диспетчер `run-fix.mjs` (T0Pattern.guestFix, #509) автоматично пріоритезує гостя без жодної зміни коду. Розмір гостя: 2 574 836 → 2 590 442 байт (+15 606, 98.8% бюджету 2 621 440). Тести: cargo 87 (+22), wasm-plugin-parity-ci-github 24, conftest verify 55/55 по пʼятьох policy-теках без регресій.
+- `plugin-lang-js` (wasm-гість): портовано T0-фіксер `js/check` (`fix-check.mjs`) — усі три патерни (`js-check-eslint-config`, `js-check-oxlintrc`, `js-check-knip`), а не лише один. Обрано саме цей концерн через ПІДТВЕРДЖЕНЕ дублювання: `planOxlintrcFix` structurally дзеркалить `verifyOxlintRcAgainstCanonical`, вже портовану раніше, — фіксер і verify тепер поділяють ту саму трійку спецключів (`rules`/`ignorePatterns`/`jsPlugins`) в одному крейті. Канон `knip-canonical.json` вшито через `include_str!` (прецедент PR #508, `oxlint-canonical.json` вже був вшитий раніше) — 765 байт, анти-дрейф-тест байт-у-байт проти файлу-джерела. Розмір `.wasm` виріс на ~11 КБ (2 250 284 → 2 261 653 байт), запас до бюджету 2,5 МіБ — ~351 КБ.
+
+Побічний фікс (виявлений тестуванням через реальний napi-міст, не юніт-тестами гостя): `runWasmConcernFix` (`crates/rules-napi`) будував `FixRequest::files` ЛИШЕ з `diagnostic.file`-полів — для whole-batch концернів на кшталт `js/check`, чиї діагностики НІКОЛИ не несуть `file` (стан цілого дерева, не одного файлу), це давало ЗАВЖДИ порожній батч: фіксер писав би наосліп, затираючи наявні `eslint.config.js`/`.oxlintrc.json` дефолтним/канонічним вмістом замість хірургічного merge. Додано full-scope fallback (той самий резолв, що вже робить `run_wasm_concern` для детекту) — активується лише коли жодна діагностика не назвала конкретний файл, тож file-scoped фіксери (`test/no-bun-test-import`, `js/doc_comments`, `rust/cargo_mutants_config`) поведінки не міняють.
+
+JS-фіксер (`fix-check.mjs`) свідомо НЕ видалено — спершу парність (доказ: `wasm-plugin-parity.test.mjs`, новий блок «js/check T0-фікс», плюс гість-only `detect → fix → detect` раунд-трип у `crates/plugin-lang-js/src/lib.rs`), зняття подвійної реалізації — окрема хвиля.
+
 ## [1.102.0] - 2026-08-27
 
 ### Added
