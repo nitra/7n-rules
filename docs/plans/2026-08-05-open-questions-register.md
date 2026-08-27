@@ -4988,6 +4988,95 @@ plugin API, битий маніфест), його дзеркала мовчки
 
 ---
 
+### 2.44. Перший T0-фіксер `plugin-lang-rust` портовано — `rust/cargo_mutants_config`, `include_str!` замість package-асета
+
+**Задача:** детектор `rust/cargo_mutants_config` уже давно в гості
+(§2.16-й хвилі), але `Guest::fix` цього крейта — суцільна заглушка
+(`FixPlan { edits: vec![] }` для КОЖНОГО концерну) — жоден фіксер ще не
+портовано. `rust/cargo_mutants_config` обрано першим кандидатом: чистий
+текстовий T0-фіксер (створює `.cargo/mutants.toml` з canonical baseline,
+жодних зовнішніх тулів), уже має T0-round-trip-тест
+(`wasm-plugin-parity-rust.test.mjs`, PR #489), стереже межу гість↔фіксер.
+
+**Головна перешкода й рішення.** JS-канон (`fix-cargo_mutants_config.mjs`)
+читає ВМІСТ `data/cargo_mutants_config/mutants.toml.baseline` через
+`dirname(fileURLToPath(import.meta.url))` — шлях усередині npm-пакета
+ПЛАГІНА, гостю недосяжний ні через `FixRequest::files` (host будує їх ЛИШЕ
+з `diagnostic.file`-полів, `.cargo/mutants.toml` на диску консюмера НЕ
+існує — саме тому діагностика видана), ні через `capabilities.fs-read`
+(той слот — про РЕПО споживача, не про package-асети плагіна). Обрано
+`include_str!` — прецедент `plugin-ci-github` (вшиті `.rego`-політики):
+вміст, що НІКОЛИ не залежить від репо споживача, природний кандидат на
+compile-time embed. Вшито ТОЙ САМИЙ файл, що читає JS-фіксер (одне
+джерело на диску, не копія) — `include_str!("../../../plugins/lang-rust/
+rules/rust/cargo_mutants_config/data/cargo_mutants_config/mutants.toml.baseline")`
+з `crates/plugin-lang-rust/src/lib.rs`.
+
+**Анти-дрейф-тест — так, знадобився, і він реально червоніє.**
+`embedded_cargo_mutants_baseline_matches_canonical_source_file` читає
+канонічний файл НЕЗАЛЕЖНО від `include_str!`-шляху (через
+`env!("CARGO_MANIFEST_DIR")`, інший macro-вираз) і звіряє байт-у-байт із
+вшитою константою — ловить сценарій «`include_str!` почав вказувати на
+інший/дубльований файл». Перевірено дією: тимчасово підмінив
+`include_str!`-шлях на копію baseline з ОДНИМ зміненим байтом
+(`universal` → `Universal`) у scratch-каталозі поза репо — тест
+ЧЕРВОНИЙ (`assertion left == right failed`, точний diff байта в
+повідомленні); повернув канонічний шлях — знову зелений, `cargo test -p
+plugin-lang-rust` 69/69.
+
+**Доказ парності гість↔гість (не гість↔JS — порівнювати вже нема чим у
+рамках самого фіксу, JS фіксер лишається окремим споживачем того ж
+`reason`).** Новий юніт-тест
+`fix_cargo_mutants_config_round_trip_with_detect_is_clean`: відсутній
+baseline → `detect_cargo_mutants_config` дає 1 діагностику →
+`fix_cargo_mutants_config` дає 1 write-edit → застосований edit (додано
+до батчу вручну, симуляція host-запису) → повторний
+`detect_cargo_mutants_config` — порожньо. Existing
+`wasm-plugin-parity-rust.test.mjs`-цикл «детект гостем → JS-фіксер →
+детект гостем чисто» (`reason`-рядок `mutants-config-missing` спільний
+для обох боків) лишився зеленим без змін — 56/56 assertions,
+`fix-cargo_mutants_config.test.mjs` (JS, незалежний) — 5/5.
+
+**Розмір гостя:** `plugin_lang_rust.wasm` 1 393 980 → 1 404 294 байт
+(+10 314, +0.7%) проти бюджету `2 621 440` (2,5 MiB) — 1 217 146 байт
+(46,4%) запасу лишилось, той самий size-budget-тест
+(`wasm-plugin parity — size-budget`) підтверджує зелено.
+
+**Сканувальний рушій — дублювання ЗНЯТО в новому шляху, старий лишився
+живий.** JS-фіксер (`fix-cargo_mutants_config.mjs`) ІГНОРУЄ вхідні
+`violations` (крім `test()`) і сам ПОВТОРНО сканує диск через
+`resolveAllCargoManifests(ctx.cwd)` — окремий рушій
+(`npm/scripts/utils/resolve-cargo-manifest.mjs`), що мусить лишатись
+byte-точним дзеркалом гостьового `resolve_all_cargo_manifests`
+(§2.28 задокументувала ризик розсинхрону явно). Гостьовий
+`fix_cargo_mutants_config` цього НЕ повторює — кожна вхідна діагностика
+вже несе точний target-шлях у `diagnostic.file` (порахував детектор),
+фіксер лише дедуплікує й пише; повторний виклик
+`resolve_all_cargo_manifests` у fix-шляху не потрібен. Але дублювання
+НЕ зникло цілком: JS-канон СВІДОМО НЕ видалено цією хвилею (директива
+задачі — доказ парності спершу, зняття подвійної реалізації окремою
+хвилею, як було з детекторами), тож `resolveAllCargoManifests`
+(`resolve-cargo-manifest.mjs`) і далі живе й далі мусить лишатись
+синхронною з гостем — просто вже НЕ на єдиному критичному шляху
+(wasm-fix-патерн у `run-fix.mjs::loadT0Patterns` додається ПЕРЕД
+JS-патерном і застосовується першим; JS-патерн, застосований другим,
+бачить уже записаний файл і мовчки `continue` — `existsSync(target)`,
+без подвійного запису).
+
+**Wiring:** `run-fix.mjs` жодних змін не потребував — `resolveWasmConcernMap`
+уже мапить `rust/cargo_mutants_config` на `plugin-lang-rust` (детектор уже
+там), `wasmFixPattern` автоматично отримує непорожній план щойно
+`Guest::fix` перестав бути заглушкою для цього concern-а.
+
+**Сюрприз:** сам фіксер вийшов АРХІТЕКТУРНО простішим за канон, а не
+лише «портованим» — оскільки `FixRequest::diagnostics` уже несе точний
+target-шлях (порахований детектором), гостьовому фіксеру не потрібен
+власний скан-рушій ВЗАГАЛІ (на відміну від JS-версії, що передумовно
+пересканує диск). Це не апроксимація й не звуження покриття — точний
+семантичний еквівалент, просто без зайвого проходу.
+
+---
+
 ## Як користуватись
 
 Дійшовши кінця плану міграції, пройти реєстр згори вниз: розділи 1 і 6 — це

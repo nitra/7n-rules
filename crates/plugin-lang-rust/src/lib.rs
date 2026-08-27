@@ -216,6 +216,66 @@
 //!     каталозі` — гість детектує, JS-фіксер застосовує, повторний детект
 //!     гостя чистий.
 //!
+//! # `rust/cargo_mutants_config` — Т0-фіксер ПОРТОВАНО (перший фіксер цього крейта)
+//!
+//! На відміну від решти концернів (`Guest::fix` — порожня заглушка для
+//! КОЖНОГО з них, доккомент [`Guest::fix`]), `rust/cargo_mutants_config` —
+//! ВИНЯТОК: перший T0-фіксер `plugin-lang-rust` з реальним планом
+//! ([`fix_cargo_mutants_config`]). Ключова перешкода була та сама межа, що
+//! пункт (b) вище: JS-канон (`fix-cargo_mutants_config.mjs`) читає ВМІСТ
+//! `data/cargo_mutants_config/mutants.toml.baseline` через
+//! `dirname(fileURLToPath(import.meta.url))` — шлях усередині npm-пакета
+//! ПЛАГІНА, недосяжний гостю ні через `FixRequest::files` (host будує їх
+//! ЛИШЕ з `diagnostic.file`-полів, `rules-napi::run_wasm_concern_fix` —
+//! `.cargo/mutants.toml` на диску споживача НЕ існує, саме тому діагностика
+//! видана), ні через `capabilities.fs-read` (той слот — про РЕПО споживача,
+//! не про package-асети плагіна, доккомент `wit/world.wit` біля `record
+//! capabilities`).
+//!
+//! Вирішено `include_str!` — прецедент `plugin-ci-github`
+//! (`crates/plugin-ci-github/src/lib.rs`, вшиті `.rego`-політики): вміст, що
+//! НІКОЛИ не залежить від репо споживача (статичний canonical baseline),
+//! природний кандидат на compile-time embed. [`CARGO_MUTANTS_CONFIG_BASELINE`]
+//! вшиває ТОЙ САМИЙ файл, що читає JS-фіксер — ОДНЕ джерело, БЕЗ нового
+//! package-локального дубліката. Такий вибір структурно виключає «дрейф
+//! ВМІСТУ двох копій»: обидва споживачі (guest-компайл і JS-runtime) читають
+//! той самий файл на диску репозиторію. Реальний залишковий ризик —
+//! дрейф ШЛЯХУ: якби `include_str!` колись почав вказувати на інший
+//! (застарілий/дубльований) файл, вшитий вміст мовчки розійшовся б із
+//! канонічним джерелом, яке далі споживає JS-фіксер. Тест
+//! [`embedded_cargo_mutants_baseline_matches_canonical_source_file`] ловить
+//! САМЕ це: незалежно від `include_str!`-шляху читає файл напряму через
+//! `env!("CARGO_MANIFEST_DIR")` і звіряє байт-у-байт із вшитою константою.
+//! Перевірено дією (звіт задачі порту): тимчасова підміна `include_str!`-шляху
+//! на файл з одним відмінним байтом — тест ЧЕРВОНІЄ з точним діагностичним
+//! повідомленням, повернення шляху назад — знову зелений.
+//!
+//! [`fix_cargo_mutants_config`] АРХІТЕКТУРНО простіший за JS-канон: JS
+//! `apply()` ігнорує `violations` (крім `test()`) і сам ПОВТОРНО сканує диск
+//! через `resolveAllCargoManifests(ctx.cwd)` — окремий сканувальний рушій
+//! (`npm/scripts/utils/resolve-cargo-manifest.mjs`), що мусить лишатись
+//! byte-точним дзеркалом [`resolve_all_cargo_manifests`] (доккомент пункту
+//! (c) вище явно попереджає про цей ризик розсинхрону). Гостьовий фіксер
+//! ЦЬОГО дублювання не повторює: кожна вхідна діагностика
+//! (`reason == `[`CARGO_MUTANTS_CONFIG_MISSING_REASON`]`) вже несе ТОЧНИЙ
+//! target-шлях у `diagnostic.file` — його порахував детектор
+//! ([`detect_cargo_mutants_config`]), тож [`fix_cargo_mutants_config`] лише
+//! дедуплікує ці шляхи (та сама `Vec::contains`-дедуп-форма, що
+//! `fix_no_bun_test_import`, `crates/plugin-lang-js/src/lib.rs:922`) і пише
+//! [`CARGO_MUTANTS_CONFIG_BASELINE`] в кожен — ПОВТОРНИЙ виклик
+//! [`resolve_all_cargo_manifests`] тут не потрібен: сканує ЛИШЕ
+//! [`detect_cargo_mutants_config`], `fix` — ні. Ідемпотентність (JS:
+//! `existsSync(target)) continue`) відтворена через `request.files` — якщо
+//! host передав вміст цільового шляху (діагностика застаріла чи файл
+//! зʼявився між `detect` і `fix`), edit для нього пропускається.
+//!
+//! JS-канон (`fix-cargo_mutants_config.mjs`) цією хвилею СВІДОМО НЕ
+//! видалено — доказ парності (T0-раунд-трип гість-детект → гість-фікс →
+//! гість-детект чисто, дзеркало вже наявного гість-детект → JS-фікс →
+//! гість-детект циклу з `wasm-plugin-parity-rust.test.mjs`) є, але зняття
+//! подвійної реалізації — окрема хвиля (той самий порядок, що вже був для
+//! детекторів).
+//!
 //! # `rust/wasm_component` — межа `{ workspace = true }`-успадкування
 //!
 //! Канон резолвить `{ workspace = true }`-успадковані `wasm-bindgen`/
@@ -1236,6 +1296,18 @@ fn detect_check(files: &[SourceFile]) -> Vec<Diagnostic> {
 /// цим reason).
 const CARGO_MUTANTS_CONFIG_MISSING_REASON: &str = "mutants-config-missing";
 
+/// Canonical neutral baseline `.cargo/mutants.toml`, вшитий `include_str!` з
+/// ТОГО САМОГО файлу, що читає (за тим самим шляхом на диску) JS-фіксер
+/// `fix-cargo_mutants_config.mjs` (`BASELINE_PATH`) — ОДНЕ джерело, не копія
+/// (доккомент модуля, розділ «`rust/cargo_mutants_config` — Т0-фіксер
+/// ПОРТОВАНО», прецедент `plugin-ci-github`). Компонується в бінарник під
+/// час `cargo build`, тож гість не потребує package-асетів консюмера чи
+/// файлової системи хост-пакета під час виконання (`Capabilities::fs_read`
+/// лишається порожнім — доккомент [`build_manifest`]).
+const CARGO_MUTANTS_CONFIG_BASELINE: &str = include_str!(
+    "../../../plugins/lang-rust/rules/rust/cargo_mutants_config/data/cargo_mutants_config/mutants.toml.baseline"
+);
+
 /// Мінімальне (без `serde_json`) представлення JSON-значення для читання
 /// `package.json` — потрібне ЛИШЕ поле `workspaces` (масив рядків) на
 /// верхньому рівні; решта структури лише ПРОПУСКАЄТЬСЯ без семантичного
@@ -1621,6 +1693,49 @@ fn detect_cargo_mutants_config(files: &[SourceFile]) -> Vec<Diagnostic> {
         ));
     }
     diagnostics
+}
+
+/// Т0-фіксер `rust/cargo_mutants_config` — перший реальний план цього
+/// крейта (доккомент модуля, розділ «`rust/cargo_mutants_config` —
+/// Т0-фіксер ПОРТОВАНО», пояснює й вибір `include_str!`, і чому тут НЕМАЄ
+/// повторного виклику [`resolve_all_cargo_manifests`]).
+///
+/// Бере ЛИШЕ діагностики з `reason ==` [`CARGO_MUTANTS_CONFIG_MISSING_REASON`]
+/// — кожна вже несе точний target-шлях у `diagnostic.file` (порахований
+/// [`detect_cargo_mutants_config`]), дедуп зі збереженням порядку (та сама
+/// `Vec::contains`-форма, що `fix_no_bun_test_import`,
+/// `crates/plugin-lang-js/src/lib.rs:922`). Ідемпотентність — точний
+/// відповідник JS `existsSync(target)) continue`: якщо `request.files`
+/// містить вміст цільового шляху (host передав його — файл уже існує на
+/// диску консюмера), edit для нього пропускається; порожній `edits` =
+/// «фіксити нічого» (той самий контракт, що решта `fix_*` цього репозиторію).
+fn fix_cargo_mutants_config(request: &FixRequest) -> FixPlan {
+    let mut targets: Vec<&str> = Vec::new();
+    for diagnostic in &request.diagnostics {
+        if diagnostic.reason != CARGO_MUTANTS_CONFIG_MISSING_REASON {
+            continue;
+        }
+        let Some(target) = diagnostic.file.as_deref() else {
+            continue;
+        };
+        if !targets.contains(&target) {
+            targets.push(target);
+        }
+    }
+
+    let mut edits = Vec::new();
+    for target in targets {
+        if batch_file(&request.files, target).is_some() {
+            // Ціль уже присутня у батчі (діагностика застаріла чи файл
+            // зʼявився між `detect` і `fix`) — не перезаписуємо.
+            continue;
+        }
+        edits.push(FileEdit::Write(WriteFile {
+            path: target.to_string(),
+            content: CARGO_MUTANTS_CONFIG_BASELINE.to_string(),
+        }));
+    }
+    FixPlan { edits }
 }
 
 // =====================================================================
@@ -2076,11 +2191,17 @@ impl Guest for LangRust {
         diagnostics
     }
 
-    /// Перша хвиля не портує жодного fix-контуру (T0 `rust/doc_comments` —
-    /// `fix-doc_comments.mjs` — лишається JS, доккомент модуля): порожній
-    /// план для КОЖНОГО концерну, сумісна заглушка.
-    fn fix(_request: FixRequest) -> FixPlan {
-        FixPlan { edits: vec![] }
+    /// Перша й друга хвилі НЕ портували жодного fix-контуру: порожній план
+    /// для КОЖНОГО концерну (T0 `rust/doc_comments` — `fix-doc_comments.mjs`
+    /// — лишається JS, доккомент модуля). Виняток — `rust/cargo_mutants_config`
+    /// ([`fix_cargo_mutants_config`], доккомент модуля, розділ
+    /// «Т0-фіксер ПОРТОВАНО»), перший реальний план цього крейта; решта
+    /// концернів і далі отримують сумісну заглушку.
+    fn fix(request: FixRequest) -> FixPlan {
+        match request.concern_id.as_str() {
+            CONCERN_CARGO_MUTANTS_CONFIG => fix_cargo_mutants_config(&request),
+            _ => FixPlan { edits: vec![] },
+        }
     }
 
     fn ecosystem_outdated(_request: EcosystemRequest) -> Result<Vec<OutdatedDep>, DomainError> {
@@ -2725,6 +2846,188 @@ mod tests {
         let violations = detect_cargo_mutants_config(&files);
         assert_eq!(violations.len(), 1);
         assert_eq!(violations[0].file.as_deref(), Some(".cargo/mutants.toml"));
+    }
+
+    // --- rust/cargo_mutants_config: guest-фікс (перший реальний T0-план
+    // цього крейта, доккомент модуля, розділ «Т0-фіксер ПОРТОВАНО») ---
+
+    /// Діагностики в формі, яку реально віддає [`detect_cargo_mutants_config`]
+    /// — тести фіксу нижче ганяють detect → fix парою, як конвеєр (той самий
+    /// прийом, що `fix_request_for` у `crates/plugin-lang-js/src/lib.rs`).
+    fn cargo_mutants_fix_request_for(files: Vec<SourceFile>) -> FixRequest {
+        let diagnostics = detect_cargo_mutants_config(&files);
+        FixRequest {
+            concern_id: CONCERN_CARGO_MUTANTS_CONFIG.to_string(),
+            files,
+            diagnostics,
+        }
+    }
+
+    #[test]
+    fn fix_cargo_mutants_config_creates_root_baseline_when_missing() {
+        let files = vec![sf("Cargo.toml", "[package]\nname = \"a\"\n")];
+        let plan = fix_cargo_mutants_config(&cargo_mutants_fix_request_for(files));
+        assert_eq!(plan.edits.len(), 1);
+        match &plan.edits[0] {
+            FileEdit::Write(write) => {
+                assert_eq!(write.path, ".cargo/mutants.toml");
+                assert_eq!(write.content, CARGO_MUTANTS_CONFIG_BASELINE);
+                assert!(write.content.contains("cargo-mutants"));
+                // Neutral baseline: жодних framework-specific ключів
+                // (той самий контракт, що `fix-cargo_mutants_config.test.mjs`).
+                assert!(!write.content.contains("additional_cargo_test_args"));
+                assert!(!write.content.contains("exclude_globs"));
+            }
+            FileEdit::Delete(_) => panic!("очікували write-edit"),
+        }
+    }
+
+    #[test]
+    fn fix_cargo_mutants_config_writes_baseline_for_each_resolved_manifest() {
+        // Дзеркало JS-тесту «кілька Cargo.toml (root + Tauri + flat
+        // workspace) — створює у КОЖЕН» (`fix-cargo_mutants_config.test.mjs`).
+        let files = vec![
+            sf("Cargo.toml", "[package]\nname = \"r\"\n"),
+            sf(
+                "package.json",
+                "{\"workspaces\":[\"tauri-app\",\"cli\"]}",
+            ),
+            sf(
+                "tauri-app/src-tauri/Cargo.toml",
+                "[package]\nname = \"t\"\n",
+            ),
+            sf("cli/Cargo.toml", "[package]\nname = \"c\"\n"),
+        ];
+        let plan = fix_cargo_mutants_config(&cargo_mutants_fix_request_for(files));
+        let mut written: Vec<&str> = plan
+            .edits
+            .iter()
+            .map(|edit| match edit {
+                FileEdit::Write(write) => write.path.as_str(),
+                FileEdit::Delete(_) => panic!("очікували лише write-edits"),
+            })
+            .collect();
+        written.sort_unstable();
+        assert_eq!(
+            written,
+            vec![
+                ".cargo/mutants.toml",
+                "cli/.cargo/mutants.toml",
+                "tauri-app/src-tauri/.cargo/mutants.toml",
+            ]
+        );
+    }
+
+    #[test]
+    fn fix_cargo_mutants_config_skips_target_already_present_in_batch() {
+        // Ідемпотентність — точний відповідник JS `existsSync(target)) continue`:
+        // якщо host передав вміст цільового шляху (стала діагностика чи файл
+        // зʼявився між `detect` і `fix`), edit пропускається.
+        let request = FixRequest {
+            concern_id: CONCERN_CARGO_MUTANTS_CONFIG.to_string(),
+            files: vec![sf(".cargo/mutants.toml", "# custom, already there\n")],
+            diagnostics: vec![workspace_root_file_violation(
+                CARGO_MUTANTS_CONFIG_MISSING_REASON,
+                "stale".to_string(),
+                ".cargo/mutants.toml",
+            )],
+        };
+        assert!(fix_cargo_mutants_config(&request).edits.is_empty());
+    }
+
+    #[test]
+    fn fix_cargo_mutants_config_ignores_diagnostics_with_other_reason() {
+        let request = FixRequest {
+            concern_id: CONCERN_CARGO_MUTANTS_CONFIG.to_string(),
+            files: vec![],
+            diagnostics: vec![workspace_root_file_violation(
+                "some-other-reason",
+                "не наш reason".to_string(),
+                ".cargo/mutants.toml",
+            )],
+        };
+        assert!(fix_cargo_mutants_config(&request).edits.is_empty());
+    }
+
+    #[test]
+    fn fix_cargo_mutants_config_dedups_repeated_target_across_diagnostics() {
+        let request = FixRequest {
+            concern_id: CONCERN_CARGO_MUTANTS_CONFIG.to_string(),
+            files: vec![],
+            diagnostics: vec![
+                workspace_root_file_violation(
+                    CARGO_MUTANTS_CONFIG_MISSING_REASON,
+                    "перша".to_string(),
+                    ".cargo/mutants.toml",
+                ),
+                workspace_root_file_violation(
+                    CARGO_MUTANTS_CONFIG_MISSING_REASON,
+                    "дублікат".to_string(),
+                    ".cargo/mutants.toml",
+                ),
+            ],
+        };
+        assert_eq!(fix_cargo_mutants_config(&request).edits.len(), 1);
+    }
+
+    #[test]
+    fn fix_cargo_mutants_config_returns_empty_plan_without_diagnostics() {
+        let request = FixRequest {
+            concern_id: CONCERN_CARGO_MUTANTS_CONFIG.to_string(),
+            files: vec![sf("Cargo.toml", "[package]\nname = \"a\"\n")],
+            diagnostics: vec![],
+        };
+        assert!(fix_cargo_mutants_config(&request).edits.is_empty());
+    }
+
+    /// T0-раунд-трип ВСЕРЕДИНІ гостя (доповнює
+    /// `wasm-plugin-parity-rust.test.mjs`'s гість-детект → JS-фікс →
+    /// гість-детект чисто цикл доказом, що гість-детект → гість-фікс →
+    /// гість-детект теж замикається чисто): відсутній baseline → план із
+    /// одним write-edit → застосований edit ЗАДОВОЛЬНЯЄ повторний детект.
+    #[test]
+    fn fix_cargo_mutants_config_round_trip_with_detect_is_clean() {
+        let before = vec![sf("Cargo.toml", "[package]\nname = \"a\"\n")];
+        let diagnostics_before = detect_cargo_mutants_config(&before);
+        assert_eq!(diagnostics_before.len(), 1);
+
+        let plan = fix_cargo_mutants_config(&FixRequest {
+            concern_id: CONCERN_CARGO_MUTANTS_CONFIG.to_string(),
+            files: before.clone(),
+            diagnostics: diagnostics_before,
+        });
+        assert_eq!(plan.edits.len(), 1);
+        let FileEdit::Write(write) = &plan.edits[0] else {
+            panic!("очікували write-edit")
+        };
+
+        // Симуляція застосування host-ом: додаємо записаний файл до батчу.
+        let mut after = before;
+        after.push(sf(&write.path, &write.content));
+        assert!(detect_cargo_mutants_config(&after).is_empty());
+    }
+
+    /// Анти-дрейф-гейт для [`CARGO_MUTANTS_CONFIG_BASELINE`] (доккомент
+    /// модуля, розділ «Т0-фіксер ПОРТОВАНО»): читає канонічний файл-джерело
+    /// НЕЗАЛЕЖНО від `include_str!`-шляху (через `CARGO_MANIFEST_DIR`, а не
+    /// той самий macro-вираз) і звіряє байт-у-байт із вшитою константою.
+    /// Якби `include_str!` колись почав указувати на інший (застарілий чи
+    /// дубльований) файл, вшитий вміст мовчки розійшовся б із джерелом, яке
+    /// далі читає JS-фіксер — саме цей сценарій тест ловить.
+    #[test]
+    fn embedded_cargo_mutants_baseline_matches_canonical_source_file() {
+        let canonical_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(
+            "../../plugins/lang-rust/rules/rust/cargo_mutants_config/data/cargo_mutants_config/mutants.toml.baseline",
+        );
+        let on_disk = std::fs::read_to_string(&canonical_path).unwrap_or_else(|err| {
+            panic!("не вдалось прочитати канонічний baseline {canonical_path:?}: {err}")
+        });
+        assert_eq!(
+            CARGO_MUTANTS_CONFIG_BASELINE, on_disk,
+            "вшитий `include_str!`-вміст розійшовся з канонічним файлом-джерелом \
+             {canonical_path:?} — JS-фіксер (`fix-cargo_mutants_config.mjs`) і гість \
+             мають вшивати/читати ІДЕНТИЧНИЙ baseline"
+        );
     }
 
     // --- rust/wasm_component ---
