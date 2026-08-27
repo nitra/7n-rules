@@ -266,12 +266,17 @@ T0-штампу CRC для `crc-mismatch` **немає навмисно**: св�
 назавжди маскує дрейф (CRC-гейт вважає доку актуальною і вона більше не регенерується).
 Свіжий CRC пише лише генерація разом із новим вмістом.
 
-## Hook'и
+## Hook'и (прибрано з автосинку)
 
-PostToolUse (`hook --post-tool-use` → `detectAll` для зміненого файлу) **сигналить** про
-дрейф одразу після правки кодового файлу; Stop-гейт (`hook --stop` → `detectAll` по `git diff`
-HEAD) **блокує завершення** задачі за наявності застарілих док. Обидва — read-only детект,
-без fix. Ручна регенерація — `npx @7n/rules lint doc-files` (fix-by-default) або скіл
+Sync (`sync-claude-config.mjs`) більше **не** вставляє detect-only PostToolUse-хук
+(`hook --post-tool-use` → `detectAll` для зміненого файлу) ні в `.claude/settings.json`, ні в
+`.codex/hooks.json` — холодний старт `npx` і cspell на кожен `Edit`/`Write`/`apply_patch`
+створювали відчутне навантаження при паралельній роботі кількох агентів, і причина не залежить
+від того, який агент її тригерить. Дрейф файлової доки більше **не сигналиться автоматично**:
+перевірка актуальності — свідомий крок задачі, нарівні з lint (див. `CLAUDE.md`, розділ
+«Файлова документація»). CLI-режими `hook --post-tool-use`/`hook --stop` (read-only детект, без
+fix) лишаються доступними для ручного виклику й діагностики, але жоден темплейт їх більше не
+прописує. Регенерація — `npx @7n/rules lint doc-files` (fix-by-default) або скіл
 `/n-doc-files`. Package-level business/architecture projection використовує той самий
 `doc-files` owner через atomic `n-rules docs …` workflow.
 

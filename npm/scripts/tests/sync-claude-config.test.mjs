@@ -2,9 +2,20 @@
  * Тести sync-claude-config: merge-логіка settings.json, опт-аут,
  * синхронізація slash-команд і ADR Stop-hook'ів.
  *
- * Управлений хук пакета зараз — PostToolUse (`npx --no \@7n/rules hook --post-tool-use`).
- * Legacy-команди (`stop-hook`, `post-tool-use-check`, `post-tool-use-fix`) усе ще
- * ідентифікуються як managed, щоб при оновленні старих інсталяцій автоматично прибиратись.
+ * Синтетичні fixture-темплейти (`setupTemplate` нижче) навмисно ще будують PostToolUse-групу
+ * (`npx --no \@7n/rules hook --post-tool-use`) за замовчуванням — так тестується сама
+ * merge-машинерія (`mergeHooks`/`isManagedHookGroup`) незалежно від того, чи реальний темплейт
+ * пакета цю групу пропонує. Легасі-команди (`stop-hook`, `post-tool-use-check`,
+ * `post-tool-use-fix`) усе ще ідентифікуються як managed, щоб при оновленні старих
+ * інсталяцій автоматично прибиратись.
+ *
+ * Реальний темплейт пакета (`npm/.claude-template/settings.template.json` і
+ * `codex-hooks.template.json`) детект-only PostToolUse-хук **більше не пропонує** — прибрано
+ * разом із Claude Code (холодний старт `npx` + cspell на кожен Edit/Write/apply_patch,
+ * причина агент-незалежна). Тести на це — окремий блок нижче
+ * (`describe('PostToolUse lint-hook прибрано з реального темплейту')`), який синкає з
+ * СПРАВЖНЬОГО `npm/.claude-template/` (не із synthetic fixture), щоб довести і не-додавання
+ * у нових конфігах, і active cleanup у вже-синкнутих.
  */
 import { describe, expect, test } from 'vitest'
 import { spawnSync } from 'node:child_process'
@@ -1019,6 +1030,130 @@ exit 0
         encoding: 'utf8'
       })
       expect(status).toBe(0)
+    })
+  })
+})
+
+/**
+ * `realPkgRoot` вказує на СПРАВЖНІЙ `npm/` пакета (не synthetic fixture з `setupTemplate`) —
+ * той самий шлях, що вже використовує `'ADR_GITIGNORE_SNIPPET_REL: реальний канонічний
+ * фрагмент існує в пакеті й застосовується'` вище. Це навмисно: тести нижче доводять
+ * поведінку реального `npm/.claude-template/settings.template.json` і
+ * `codex-hooks.template.json`, а не абстрактної merge-машинерії. Якщо темплейт колись знову
+ * почне пропонувати PostToolUse-групу — ці тести червоніють.
+ */
+const realPkgRoot = join(HERE, '..', '..')
+const realTemplateDir = join(realPkgRoot, '.claude-template')
+
+describe('PostToolUse lint-hook прибрано з реального темплейту (не лише з synthetic fixture)', () => {
+  test('НЕ-ДОДАВАННЯ — Claude Code: чистий проєкт після синку не отримує PostToolUse', async () => {
+    await withTmpDir(async cwdAbs => {
+      const result = await syncClaudeSettings(cwdAbs, realTemplateDir)
+      expect(result.written).toBe(true)
+      const settings = JSON.parse(await readFile(join(cwdAbs, '.claude/settings.json'), 'utf8'))
+      expect(settings.hooks?.PostToolUse).toBeUndefined()
+    })
+  })
+
+  test('НЕ-ДОДАВАННЯ — Codex CLI: чистий проєкт після синку не отримує PostToolUse (і файл не пишеться без ADR)', async () => {
+    await withTmpDir(async cwdAbs => {
+      const result = await syncCodexHooksConfig(cwdAbs, realTemplateDir)
+      // Без "adr" і без наявного файлу мерж дає порожні hooks → нічого писати.
+      expect(result.written).toBe(false)
+      expect(existsSync(join(cwdAbs, '.codex/hooks.json'))).toBe(false)
+    })
+  })
+
+  test('CLEANUP — Claude Code: наявний managed PostToolUse-хук зникає після синку з реального темплейту', async () => {
+    await withTmpDir(async cwdAbs => {
+      await mkdir(join(cwdAbs, '.claude'), { recursive: true })
+      await writeJson(join(cwdAbs, '.claude/settings.json'), {
+        permissions: { allow: ['Bash(git *)'] },
+        hooks: {
+          PostToolUse: [
+            {
+              matcher: 'Edit|Write|MultiEdit',
+              hooks: [{ type: 'command', command: 'npx --no @7n/rules hook --post-tool-use', timeout: 300 }]
+            }
+          ]
+        }
+      })
+      const result = await syncClaudeSettings(cwdAbs, realTemplateDir)
+      expect(result.written).toBe(true)
+      const settings = JSON.parse(await readFile(join(cwdAbs, '.claude/settings.json'), 'utf8'))
+      expect(settings.hooks?.PostToolUse).toBeUndefined()
+      // permissions.allow (union з темплейтом) не постраждали від cleanup-у hooks.
+      expect(settings.permissions.allow).toContain('Bash(git *)')
+      expect(settings.permissions.allow).toContain('Bash(bun *)')
+    })
+  })
+
+  test('CLEANUP — Codex CLI: наявний managed PostToolUse-хук зникає після синку з реального темплейту', async () => {
+    await withTmpDir(async cwdAbs => {
+      await mkdir(join(cwdAbs, '.codex'), { recursive: true })
+      await writeJson(join(cwdAbs, '.codex/hooks.json'), {
+        hooks: {
+          PostToolUse: [
+            {
+              matcher: 'apply_patch',
+              hooks: [{ type: 'command', command: 'npx --no @7n/rules hook --post-tool-use', timeout: 300 }]
+            }
+          ]
+        }
+      })
+      await syncCodexHooksConfig(cwdAbs, realTemplateDir)
+      const codexHooks = JSON.parse(await readFile(join(cwdAbs, '.codex/hooks.json'), 'utf8'))
+      expect(codexHooks.hooks.PostToolUse).toBeUndefined()
+    })
+  })
+
+  test('CLEANUP — Codex CLI: cleanup спрацьовує і разом з ADR-правилом (Stop-групи лишаються, PostToolUse зникає)', async () => {
+    await withTmpDir(async cwdAbs => {
+      await mkdir(join(cwdAbs, '.codex'), { recursive: true })
+      await writeJson(join(cwdAbs, '.codex/hooks.json'), {
+        hooks: {
+          PostToolUse: [
+            {
+              matcher: 'apply_patch',
+              hooks: [{ type: 'command', command: 'npx --no @7n/rules hook --post-tool-use', timeout: 300 }]
+            }
+          ]
+        }
+      })
+      await syncCodexHooksConfig(cwdAbs, realTemplateDir, { includeAdrHook: true })
+      const codexHooks = JSON.parse(await readFile(join(cwdAbs, '.codex/hooks.json'), 'utf8'))
+      expect(codexHooks.hooks.PostToolUse).toBeUndefined()
+      expect(codexHooks.hooks.Stop).toHaveLength(2)
+    })
+  })
+
+  test('НЕ ЧІПАЄ чужі записи — Claude Code: PostToolUse без managed-маркера (доданий користувачем вручну) виживає', async () => {
+    await withTmpDir(async cwdAbs => {
+      await mkdir(join(cwdAbs, '.claude'), { recursive: true })
+      await writeJson(join(cwdAbs, '.claude/settings.json'), {
+        hooks: {
+          PostToolUse: [{ matcher: 'Edit', hooks: [{ type: 'command', command: 'echo my-own-post-tool-use-hook' }] }]
+        }
+      })
+      await syncClaudeSettings(cwdAbs, realTemplateDir)
+      const settings = JSON.parse(await readFile(join(cwdAbs, '.claude/settings.json'), 'utf8'))
+      expect(settings.hooks.PostToolUse).toHaveLength(1)
+      expect(settings.hooks.PostToolUse[0].hooks[0].command).toBe('echo my-own-post-tool-use-hook')
+    })
+  })
+
+  test('НЕ ЧІПАЄ чужі записи — Codex CLI: PostToolUse без managed-маркера (доданий користувачем вручну) виживає', async () => {
+    await withTmpDir(async cwdAbs => {
+      await mkdir(join(cwdAbs, '.codex'), { recursive: true })
+      await writeJson(join(cwdAbs, '.codex/hooks.json'), {
+        hooks: {
+          PostToolUse: [{ matcher: 'apply_patch', hooks: [{ type: 'command', command: 'echo my-own-codex-hook' }] }]
+        }
+      })
+      await syncCodexHooksConfig(cwdAbs, realTemplateDir)
+      const codexHooks = JSON.parse(await readFile(join(cwdAbs, '.codex/hooks.json'), 'utf8'))
+      expect(codexHooks.hooks.PostToolUse).toHaveLength(1)
+      expect(codexHooks.hooks.PostToolUse[0].hooks[0].command).toBe('echo my-own-codex-hook')
     })
   })
 })
