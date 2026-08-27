@@ -8,7 +8,7 @@
 # (`devDependencies.@nitra/eslint-config`); rego лише парсить поріг і робить semver-порівняння.
 #
 # Логіка, що ЛИШАЄТЬСЯ у rego (inverse, без template-значення):
-#  - `engines.node` >= 24, `engines.bun` >= 1.3 (semver range parsing).
+#  - `engines.node` >= 24, `engines.bun` >= 1.4 (semver range parsing).
 package js.package_json
 
 import rego.v1
@@ -45,7 +45,7 @@ deny contains msg if {
 deny contains msg if {
 	engines := object.get(input, "engines", {})
 	not engines_bun_meets(object.get(engines, "bun", ""))
-	msg := "package.json: engines.bun має бути >= 1.3 (js.mdc)"
+	msg := "package.json: engines.bun має бути >= 1.4 (js.mdc)"
 }
 
 # ── deny: @nitra/eslint-config >= snippet-поріг ─────────────────────────
@@ -102,7 +102,7 @@ engines_bun_meets(spec) if {
 	parts := split_to_numbers(spec)
 	count(parts) >= 2
 	parts[0] == 1
-	parts[1] >= 3
+	parts[1] >= 4
 }
 
 eslint_config_meets_min(range) if startswith(trim_space(range), "workspace:")

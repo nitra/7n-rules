@@ -3562,7 +3562,7 @@ describe('wasm-plugin parity — js/check (JS канон vs wasm plugin-lang-js,
         JSON.stringify({
           name: 'app',
           type: 'module',
-          engines: { node: '>=24', bun: '>=1.3' },
+          engines: { node: '>=24', bun: '>=1.4' },
           dependencies: { vue: '^3.6.0' }
         })
       )
@@ -3587,7 +3587,7 @@ describe('wasm-plugin parity — js/check (JS канон vs wasm plugin-lang-js,
       await writeFileDeep(
         dir,
         'packages/ui/package.json',
-        JSON.stringify({ name: 'ui', type: 'module', engines: { node: '>=24', bun: '>=1.3' } })
+        JSON.stringify({ name: 'ui', type: 'module', engines: { node: '>=24', bun: '>=1.4' } })
       )
       await writeFileDeep(dir, 'packages/ui/src/Widget.vue', '<template><div /></template>\n')
       await writeFileDeep(dir, '.oxlintrc.json', await readOxlintCanonical())
@@ -3607,7 +3607,7 @@ describe('wasm-plugin parity — js/check (JS канон vs wasm plugin-lang-js,
       await writeFileDeep(
         dir,
         'app/package.json',
-        JSON.stringify({ name: 'app', type: 'module', engines: { node: '>=24', bun: '>=1.3' } })
+        JSON.stringify({ name: 'app', type: 'module', engines: { node: '>=24', bun: '>=1.4' } })
       )
       await writeFileDeep(dir, 'app/dist/Bundled.vue', '<template><div /></template>\n')
       await writeFileDeep(dir, '.oxlintrc.json', await readOxlintCanonical())
@@ -3630,7 +3630,7 @@ describe('wasm-plugin parity — js/check (JS канон vs wasm plugin-lang-js,
       expect(js.map(v => v.message)).toEqual([
         'app/package.json: має містити "type": "module" (js.mdc)',
         'app/package.json не містить engines.node — додай: "engines": { "node": ">=24" }',
-        'app/package.json не містить engines.bun — додай: "engines": { "bun": ">=1.3" }'
+        'app/package.json не містить engines.bun — додай: "engines": { "bun": ">=1.4" }'
       ])
     })
   })
@@ -3650,7 +3650,7 @@ describe('wasm-plugin parity — js/check (JS канон vs wasm plugin-lang-js,
       expect(wasm).toEqual(js)
       expect(js.map(v => v.message)).toEqual([
         'app/package.json: engines.node ">=22.1" — має бути >=24',
-        'app/package.json: engines.bun "^1.2.9" — має бути >=1.3'
+        'app/package.json: engines.bun "^1.2.9" — має бути >=1.4'
       ])
     })
   })

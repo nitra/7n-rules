@@ -10,7 +10,7 @@ template_data := {"snippet": {
 
 valid_pkg := {
 	"type": "module",
-	"engines": {"node": ">=24", "bun": ">=1.3"},
+	"engines": {"node": ">=24", "bun": ">=1.4"},
 	"devDependencies": {"@nitra/eslint-config": "^3.10.0"},
 }
 
@@ -26,6 +26,13 @@ test_deny_type_not_module if {
 test_deny_node_too_old if {
 	bad := json.patch(valid_pkg, [{"op": "replace", "path": "/engines/node", "value": ">=20"}])
 	count(package_json.deny) > 0 with input as bad with data.template as template_data
+}
+
+# Межа піднялась 1.3 → 1.4: колишній валідний поріг ">=1.3" тепер порушення.
+test_deny_bun_too_old if {
+	bad := json.patch(valid_pkg, [{"op": "replace", "path": "/engines/bun", "value": ">=1.3"}])
+	some msg in package_json.deny with input as bad with data.template as template_data
+	contains(msg, "engines.bun")
 }
 
 test_deny_eslint_config_too_old if {
