@@ -77,6 +77,14 @@
  *   пропускає початковий detect у fix-режимі (spec
  *   docs/specs/2026-07-02-text-check-per-file-split-design.md §8, Phase 2). Не стосується
  *   `--no-fix` (detect-only) шляху.
+ * @property {boolean} [guestFix] true — патерн синтезовано над планом гостя (native/wasm
+ *   `export fix`, `run-fix.mjs`: `nativeFixPattern`/`wasmFixPattern`). Немає декларативного
+ *   способу відрізнити гостя-заглушку (завжди порожній план — сумісна поведінка v3.0) від
+ *   гостя з реальним фіксом (wit-контракт не несе такого прапорця) — тож ознака РЕАЛЬНОГО
+ *   фіксу суто динамічна: `guestFix`-патерн, чий `apply()` дав непорожній `touchedFiles`,
+ *   вважається авторитетним, і `applyT0` (`run-fix.mjs`) зупиняє подальші (JS-fallback)
+ *   патерни ЦЬОГО concern-а в тому самому проході — заглушка (`touchedFiles: []`) цей гейт
+ *   не зводить, JS-fallback лишається робочим (перехідний період, доккомент `loadT0Patterns`).
  */
 
 /**

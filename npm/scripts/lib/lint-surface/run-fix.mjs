@@ -137,6 +137,9 @@ function computeNativeFixPlan(key, cwd, violations) {
 function nativeFixPattern(key, cwd) {
   return {
     id: `native-fix:${key}`,
+    // Гість-пріоритет (T0Pattern.guestFix, types.mjs): якщо `apply()` дасть непорожній
+    // touchedFiles, `applyT0` зупинить подальші (JS-fallback) патерни цього concern-а.
+    guestFix: true,
     test: violations => {
       const plan = computeNativeFixPlan(key, cwd, violations)
       return plan !== null && plan.edits.length > 0
@@ -210,6 +213,11 @@ function computeWasmFixPlan(key, cwd, entry, violations) {
 function wasmFixPattern(key, cwd, entry) {
   return {
     id: `wasm-fix:${key}`,
+    // Гість-пріоритет (T0Pattern.guestFix, types.mjs): якщо `apply()` дасть непорожній
+    // touchedFiles, `applyT0` зупинить подальші (JS-fallback) патерни цього concern-а —
+    // вада double-apply (реальний wasm-фікс + `fix-<concern>.mjs` поспіль на тому самому
+    // файлі, напр. `js/doc_comments`).
+    guestFix: true,
     test: violations => computeWasmFixPlan(key, cwd, entry, violations).edits.length > 0,
     apply: async (violations, ctx) => {
       const plan = computeWasmFixPlan(key, cwd, entry, violations)
@@ -253,6 +261,17 @@ function wasmFixPattern(key, cwd, entry) {
  *    поведінка v3.0, доккомент `wit/world.wit` біля `export fix`) не має
  *    мовчки вимикати чинний JS T0-фікс концерну;
  * 3. dynamic import() `fix-<concern>.mjs`, якщо файл є.
+ *
+ * **Порядок масиву — інваріант, не деталь реалізації**: native/wasm-патерн
+ * (`guestFix: true`, types.mjs) ЗАВЖДИ йде ПЕРЕД патернами з `fix-<concern>.mjs`.
+ * `applyT0` (нижче) покладається саме на цей порядок, щоб зупинити подальші
+ * JS-fallback патерни, коли гість реально щось застосував — wit-контракт НЕ
+ * несе прапорця «цей concern має реальний, не-заглушковий fix» (`export fix`
+ * — один і той самий сигнатурний слот для стабу й реалізації), тож єдиний
+ * надійний спосіб відрізнити їх — динамічний: чи дав `apply()` непорожній
+ * `touchedFiles` У ЦЬОМУ проході (не декларативний `test()`-прапорець наперед
+ * — `test()===true` з подальшим `touchedFiles: []` теж можливий, напр. wasm-план
+ * з самими `delete`-правками на вже відсутній файл, `wasmFixPattern.apply` вище).
  * @param {string} concernDir Директорія concern-а, де шукати fix-модуль.
  * @param {string} concernName Ім'я concern-а для формування назви fix-файлу.
  * @param {string} ruleId Id правила (для `ruleId/concernId`-ключа native-fix реєстру).
@@ -272,8 +291,18 @@ export async function loadT0Patterns(concernDir, concernName, ruleId, cwd) {
       // eslint-disable-next-line no-unsanitized/method
       const mod = await import(pathToFileURL(fixPath).href)
       if (Array.isArray(mod.patterns)) patterns.push(...mod.patterns)
-    } catch {
-      // Битий fix-модуль — той самий silent-skip, що й до wasm-гілки.
+    } catch (error) {
+      // Битий fix-модуль (синтаксис, поламаний імпорт) — НЕ мовчазний skip: без цього
+      // логу користувач бачить порушення, запускає `--fix`, воно «нічого не робить» —
+      // і жодного пояснення (принцип власника: сигналізувати яскраво, не ховати).
+      // `console.error` (не throw): `loadT0Patterns` кличеться в циклі по концернах
+      // (`runFixPipeline` → `plan.map`, `fixConcernCore`) — падіння ОДНОГО fix-модуля
+      // не має вбивати весь прогін, лише позбавляти ЦЕЙ concern JS T0-фікса (concern
+      // далі йде в LLM-ladder, як і при повній відсутності `fix-<concern>.mjs`).
+      console.error(
+        `❌ T0: fix-модуль "${fixPath}" (${ruleId}/${concernName}) не завантажився — ${error.message}. ` +
+          'JS T0-фікс цього concern-а пропущено, concern піде в ladder.'
+      )
     }
   }
   return patterns
@@ -301,6 +330,22 @@ async function loadFixWorker(concernDir) {
  * (spec docs/specs/2026-07-02-text-check-per-file-split-design.md §8, Phase 2) обходить
  * `test()`-гейт: патерн сам ідемпотентний і самоаналізуючий (напр. `oxfmt --write`) — не
  * потребує per-violation даних, щоб вирішити, чи запускати `apply()`.
+ *
+ * **Гість-пріоритет / double-apply гейт** (`T0Pattern.guestFix`, types.mjs): щойно
+ * `guestFix`-патерн (native/wasm, [`nativeFixPattern`]/[`wasmFixPattern`]) реально
+ * застосував зміни (`apply()` дав непорожній `touchedFiles`), цикл ЗУПИНЯЄТЬСЯ — подальші
+ * патерни того самого concern-а (за інваріантом порядку `loadT0Patterns`: усе, що йде
+ * ПІСЛЯ guestFix-патерну, — `fix-<concern>.mjs`) НЕ тестуються й не застосовуються.
+ * Без цього `applyT0` ганяв би ОБИДВА фіксери одним і тим самим (уже застарілим після
+ * першого запису) масивом `violations` — другий бачив би файл, УЖЕ змінений першим
+ * (concern `js/doc_comments` — живий приклад, `fix-doc_comments.mjs` мав власний
+ * idempotency-guard саме на цей випадок, доккомент модуля там). Гість-заглушка
+ * (порожній план → `touchedFiles: []`, а частіше й `test()===false` — не проходить
+ * ґейт вище) цей брейк НЕ зводить: JS-fallback лишається робочим — перехідний період,
+ * доккомент `loadT0Patterns`. Гейт — динамічний (за фактичним `touchedFiles`), не за
+ * `test()`: `test()===true` з подальшим порожнім `touchedFiles` (напр. wasm-план із
+ * самими `delete` на вже відсутній файл) НЕ має глушити fallback, якому справді є що
+ * зробити.
  * @param {T0Pattern[]} patterns Список T0-патернів для перевірки й застосування.
  * @param {LintViolation[]} violations Порушення свого concern-а.
  * @param {LintContext} ctx Контекст лінту (cwd, ruleId, concernId тощо).
@@ -316,6 +361,7 @@ async function applyT0(patterns, violations, ctx, log) {
       applied.push({ id: p.id, message: res.message ?? null, touchedFiles: res.touchedFiles })
       if (res.message) log(`  ⚙️  T0 ${ctx.ruleId}/${ctx.concernId}: ${res.message}\n`)
     }
+    if (p.guestFix && res?.touchedFiles?.length > 0) break
   }
   return applied
 }
