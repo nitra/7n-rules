@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.101.1] - 2026-08-27
+
+### Changed
+
+- sync-claude-config: детект-only PostToolUse lint-хук більше не вставляється в `.claude/settings.json` і `.codex/hooks.json` (холодний старт npx + cspell на кожен Edit/Write/apply_patch); наявні managed-записи в обох файлах активно прибираються при ресинку, а не лишаються стейлими
+
+### Fixed
+
+- T0-dispatch (loadT0Patterns/applyT0): гість (native/wasm) і fix-<concern>.mjs більше не застосовуються двічі до того самого concern-а — applyT0 зупиняється, щойно guestFix-патерн реально торкнув файли; битий fix-<concern>.mjs тепер сигналить console.error замість мовчазного пропуску
+
 ## [1.101.0] - 2026-08-27
 
 ### Added
