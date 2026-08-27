@@ -876,6 +876,22 @@ fn build_workflow_common_engine(data_json: &str) -> Result<regorus::Engine, Stri
 /// простий substring-тест (регекс без метасимволів), regex-крейт тут зайвий.
 const CHECKOUT_PERSIST_NEEDLE: &str = "persist-credentials";
 
+/// `reason`/`data.kind` — точний відповідник `CHECKOUT_PERSIST_CREDENTIALS`
+/// (`main.mjs`). Спільна константа для detect ([`checkout_persist_hint`]) і
+/// fix ([`fix_workflows`], доккомент розділу «`ga/workflows` — Т0-фіксер
+/// ПОРТОВАНО») — ОДНЕ джерело рядка, не дві копії, що можуть розійтись.
+const WORKFLOWS_CHECKOUT_PERSIST_REASON: &str = "checkout-persist-credentials";
+
+/// `reason`/`data.kind` — точний відповідник `UNMATCHED_PATHS_GLOB`
+/// (`main.mjs`). Спільна константа для detect ([`verify_one_paths_glob`]) і
+/// fix ([`fix_workflows`]) — той самий мотив, що [`WORKFLOWS_CHECKOUT_PERSIST_REASON`].
+const WORKFLOWS_UNMATCHED_PATHS_GLOB_REASON: &str = "unmatched-paths-glob";
+
+/// `reason`/`data.kind` — точний відповідник `BARE_N_RULES`
+/// (`main.mjs`). Спільна константа для detect ([`verify_no_bare_n_cursor`])
+/// і fix ([`fix_workflows`]) — той самий мотив, що [`WORKFLOWS_CHECKOUT_PERSIST_REASON`].
+const WORKFLOWS_BARE_NCURSOR_REASON: &str = "bare-n-rules";
+
 /// Structured fix-hint для rego-violation про `actions/checkout` без
 /// `persist-credentials: false` — точний відповідник `checkoutPersistHint`
 /// (`main.mjs`). Повертає `(reason, file, data)` чи `None`.
@@ -885,7 +901,7 @@ fn checkout_persist_hint(
 ) -> Option<(&'static str, String, &'static str)> {
     if message.contains(CHECKOUT_PERSIST_NEEDLE) {
         Some((
-            "checkout-persist-credentials",
+            WORKFLOWS_CHECKOUT_PERSIST_REASON,
             file.to_string(),
             "{\"kind\":\"checkout-persist-credentials\"}",
         ))
@@ -1052,7 +1068,7 @@ fn verify_one_paths_glob(
         return;
     }
     diagnostics.push(Diagnostic {
-        reason: "unmatched-paths-glob".to_string(),
+        reason: WORKFLOWS_UNMATCHED_PATHS_GLOB_REASON.to_string(),
         message: format!(
             "{rel_path}: on.{event_name}.paths glob не матчитсья ні на один файл: {}",
             json_escape_string(p)
@@ -1117,7 +1133,7 @@ fn verify_no_bare_n_cursor(diagnostics: &mut Vec<Diagnostic>, rel_path: &str, co
             continue;
         }
         diagnostics.push(Diagnostic {
-            reason: "bare-n-rules".to_string(),
+            reason: WORKFLOWS_BARE_NCURSOR_REASON.to_string(),
             message: format!(
                 "{rel_path}: `n-rules …` (рядок {}) має бути `bunx n-rules …` — n-rules не на PATH у CI (ga.mdc)",
                 i + 1
@@ -1524,6 +1540,354 @@ fn detect_workflows(files: &[SourceFile]) -> Vec<Diagnostic> {
     diagnostics
 }
 
+// =====================================================================
+// `ga/workflows` — Т0-фіксер ПОРТОВАНО (перший реальний план цього гостя,
+// той самий заголовок-прецедент, що `rust/cargo_mutants_config`/
+// `rust/doc_comments` у `crates/plugin-lang-rust`).
+//
+// Точний семантичний порт трьох чисто текстових T0-патернів
+// `fix-workflows.mjs` (`plugins/ci-github/rules/ga/workflows/fix-workflows.mjs`):
+// `addPersistCredentials`/`removePathsGlobs`/`prefixBunxNCursor`. Ключова
+// відмінність від `rust/cargo_mutants_config`/`rust/doc_comments`: JS-канон
+// реєструє ЦІ ТРИ трансформери як ОКРЕМІ `T0Pattern` (застосовуються
+// послідовно, кожен через `applyToFiles`, що перечитує файл із ДИСКА між
+// викликами — `npm/scripts/utils/apply-to-files.mjs`), тоді як
+// `wasmFixPattern` (`npm/scripts/lib/lint-surface/run-fix.mjs`) синтезує
+// РІВНО ОДИН `T0Pattern` на весь wasm-концерн: `applyT0` викликає гостьовий
+// `fix()` ОДИН раз з ПОВНИМ масивом `violations` цього concern-а (усіх трьох
+// kind-ів разом). [`fix_workflows`] тому сам компонує всі три трансформери
+// послідовно на ОДНОМУ `content`-буфері (той самий порядок, що масив
+// `patterns` JS-канону), а не покладається на проміжний re-detect між ними.
+// =====================================================================
+
+/// Літеральний підрядок ПІСЛЯ `uses:`, що ідентифікує крок checkout —
+/// точний відповідник `CHECKOUT_USES_RE = /uses:\s*actions\/checkout@/u`
+/// (`fix-workflows.mjs`); перевіряється через [`line_has_uses_target`] (той
+/// самий helper, що [`scan_toolchain_steps`] вище).
+const WORKFLOWS_CHECKOUT_ACTION_TARGET: &str = "actions/checkout@";
+
+/// Індекс першого непорожнього рядка з `from` (включно) — точний
+/// відповідник `nextNonEmpty` (`fix-workflows.mjs`).
+fn next_non_empty_workflow_line(lines: &[&str], from: usize) -> usize {
+    let mut j = from;
+    while j < lines.len() && lines[j].trim().is_empty() {
+        j += 1;
+    }
+    j
+}
+
+/// Точний відповідник `WITH_LINE_RE = /^\s*with:\s*$/u` — увесь (trim-ований)
+/// рядок дорівнює `with:`.
+fn is_with_block_line(line: &str) -> bool {
+    line.trim() == "with:"
+}
+
+/// Точний відповідник `PERSIST_KEY_RE = /^\s*persist-credentials\s*:/u` —
+/// той самий підхід, що [`is_workspaces_key`] вище (`strip_prefix` замість
+/// regex-крейта).
+fn is_persist_credentials_key(line: &str) -> bool {
+    match line.trim_start().strip_prefix("persist-credentials") {
+        Some(rest) => rest.trim_start().starts_with(':'),
+        None => false,
+    }
+}
+
+/// Точний відповідник `withBlockHasPersist` (`fix-workflows.mjs`): скан від
+/// `with_line + 1` до dedent-у (відступ ≤ `col`) на предмет уже наявного
+/// `persist-credentials`.
+fn with_block_has_persist(lines: &[&str], with_line: usize, col: usize) -> bool {
+    for line in lines.iter().skip(with_line + 1) {
+        if line.trim().is_empty() {
+            continue;
+        }
+        if indent_of(line) <= col {
+            return false; // dedent → блок `with:` завершився
+        }
+        if is_persist_credentials_key(line) {
+            return true;
+        }
+    }
+    false
+}
+
+/// Insert-план для одного checkout-кроку — точний відповідник
+/// `persistInsertFor` (`fix-workflows.mjs`): `at` — індекс рядка ПЕРЕД яким
+/// вставляти, `text` — самі рядки вставки.
+struct PersistCredentialsInsert {
+    at: usize,
+    text: Vec<String>,
+}
+
+/// Точний відповідник `persistInsertFor` (`fix-workflows.mjs`): чи крок уже
+/// має блок `with:` (на рядку `j`, тій самій колонці, що `uses:`) — якщо
+/// так, вставляє ключ УСЕРЕДИНУ (чи `None`, якщо ключ уже там); інакше
+/// створює новий блок `with:` одразу ПІСЛЯ рядка `uses:`.
+fn persist_credentials_insert_for(
+    lines: &[&str],
+    i: usize,
+    col: usize,
+) -> Option<PersistCredentialsInsert> {
+    let ind = " ".repeat(col);
+    let j = next_non_empty_workflow_line(lines, i + 1);
+    let has_with_block =
+        j < lines.len() && is_with_block_line(lines[j]) && lines[j].find("with:") == Some(col);
+    if has_with_block {
+        if with_block_has_persist(lines, j, col) {
+            None
+        } else {
+            Some(PersistCredentialsInsert {
+                at: j + 1,
+                text: vec![format!("{ind}  persist-credentials: false")],
+            })
+        }
+    } else {
+        Some(PersistCredentialsInsert {
+            at: i + 1,
+            text: vec![format!("{ind}with:"), format!("{ind}  persist-credentials: false")],
+        })
+    }
+}
+
+/// Т0-фіксер `checkout-persist-credentials` — точний семантичний порт
+/// `addPersistCredentials` (`fix-workflows.mjs`): дописує
+/// `with: persist-credentials: false` у кожен `actions/checkout` крок, де
+/// його бракує. Усі insert-и зібрані наперед і застосовані ЗГОРИ ВНИЗ (спад
+/// за `at`), щоб індекси попередніх вставок не зсувались наступними (той
+/// самий коментар, що JS-оригінал).
+fn add_persist_credentials(content: &str) -> Option<String> {
+    let lines: Vec<&str> = content.split('\n').collect();
+    let mut inserts: Vec<PersistCredentialsInsert> = Vec::new();
+    for i in 0..lines.len() {
+        let Some(col) = lines[i].find("uses:") else {
+            continue;
+        };
+        if !line_has_uses_target(lines[i], WORKFLOWS_CHECKOUT_ACTION_TARGET) {
+            continue;
+        }
+        if let Some(ins) = persist_credentials_insert_for(&lines, i, col) {
+            inserts.push(ins);
+        }
+    }
+    if inserts.is_empty() {
+        return None;
+    }
+    inserts.sort_by(|a, b| b.at.cmp(&a.at));
+    let mut out: Vec<String> = lines.iter().map(|s| (*s).to_string()).collect();
+    for ins in &inserts {
+        for (k, text_line) in ins.text.iter().enumerate() {
+            out.insert(ins.at + k, text_line.clone());
+        }
+    }
+    Some(out.join("\n"))
+}
+
+/// Точний відповідник `PATHS_KEY_RE = /^\s*paths:\s*$/u` — той самий
+/// шаблон, що [`is_with_block_line`].
+fn is_paths_block_line(line: &str) -> bool {
+    line.trim() == "paths:"
+}
+
+/// Точний відповідник `QUOTE_EDGE_RE = /^['"]|['"]$/gu`: знімає ОДНУ
+/// провідну й ОДНУ кінцеву лапку (`'`/`"`), якщо є, незалежно від типу —
+/// послідовні `strip_prefix`/`strip_suffix` дають той самий результат, що
+/// послідовна пара regex-заміщень (доккомент [`remove_paths_globs`]).
+fn strip_quote_edges(s: &str) -> &str {
+    let s = s.strip_prefix('\'').or_else(|| s.strip_prefix('"')).unwrap_or(s);
+    s.strip_suffix('\'').or_else(|| s.strip_suffix('"')).unwrap_or(s)
+}
+
+/// Т0-фіксер `unmatched-paths-glob` — точний семантичний порт
+/// `removePathsGlobs` (`fix-workflows.mjs`): прибирає list-елементи із
+/// заданими значеннями всередині блоків `paths:` (scoped до самого блоку —
+/// dedent завершує сканування, той самий контракт, що
+/// [`with_block_has_persist`]).
+fn remove_paths_globs(content: &str, globs: &[String]) -> Option<String> {
+    let lines: Vec<&str> = content.split('\n').collect();
+    let mut out: Vec<&str> = Vec::with_capacity(lines.len());
+    let mut paths_col: Option<usize> = None;
+    let mut changed = false;
+    for line in &lines {
+        if is_paths_block_line(line) {
+            paths_col = line.find("paths:");
+            out.push(line);
+            continue;
+        }
+        if let Some(pcol) = paths_col {
+            if !line.trim().is_empty() {
+                let col = indent_of(line);
+                if col > pcol {
+                    let trimmed = line.trim_start();
+                    if let Some(rest) = trimmed.strip_prefix("- ") {
+                        let val = strip_quote_edges(rest.trim());
+                        if globs.iter().any(|g| g == val) {
+                            changed = true;
+                            continue;
+                        }
+                    }
+                    out.push(line);
+                    continue;
+                }
+                paths_col = None; // dedent → блок `paths:` завершився
+            }
+        }
+        out.push(line);
+    }
+    if changed {
+        Some(out.join("\n"))
+    } else {
+        None
+    }
+}
+
+/// Т0-фіксер `bare-n-rules` — точний семантичний порт `prefixBunxNCursor`
+/// (`fix-workflows.mjs`, три регекси: `WRAPPED_NCURSOR_RE`/
+/// `RUN_INLINE_NCURSOR_MATCH`/`BARE_LINE_NCURSOR_MATCH`). Regex-крейт тут —
+/// ЖОДНОЇ нової залежності: той самий крейт+фіти (`unicode-perl`, потрібен
+/// саме для `\b`), що вже лінкований і виконується в
+/// [`verify_no_bare_n_cursor`] (detect-бік цього самого концерну,
+/// доккомент `Cargo.toml` пояснює, чому `\b` взагалі вимагає `unicode-perl`).
+fn prefix_bunx_n_command(content: &str) -> Option<String> {
+    let wrapped = regex::Regex::new(r"\b(?:bunx|npx)\s+n-(?:cursor|rules)")
+        .expect("WRAPPED_NCURSOR_RE валідний");
+    let run_inline = regex::Regex::new(r"^(\s*(?:-\s*)?run:\s*)n-(?:cursor|rules)(\s.*)$")
+        .expect("RUN_INLINE_NCURSOR_MATCH валідний");
+    let bare_line = regex::Regex::new(r"^(\s+)n-(?:cursor|rules)(\s.*)$")
+        .expect("BARE_LINE_NCURSOR_MATCH валідний");
+    let mut changed = false;
+    let out: Vec<String> = content
+        .split('\n')
+        .map(|line| {
+            if wrapped.is_match(line) {
+                return line.to_string();
+            }
+            if let Some(caps) = run_inline.captures(line) {
+                changed = true;
+                return format!("{}bunx n-rules{}", &caps[1], &caps[2]);
+            }
+            if let Some(caps) = bare_line.captures(line) {
+                changed = true;
+                return format!("{}bunx n-rules{}", &caps[1], &caps[2]);
+            }
+            line.to_string()
+        })
+        .collect();
+    if changed {
+        Some(out.join("\n"))
+    } else {
+        None
+    }
+}
+
+/// Читає значення рядкового поля `"field":"…"` із flat-JSON `data` —
+/// зворотне до [`json_escape_string`] (розпізнає РІВНО ті самі
+/// escape-послідовності, які той виробляє: `data` цього концерну —
+/// самопороджений формат, не consumer-контрольований вхід, той самий мотив,
+/// що [`json_bool_field_is_true`]/`json_usize_field` у
+/// `crates/plugin-lang-rust`). `None` — поле відсутнє, не рядок, чи
+/// обірваний escape (застаріла/чужа діагностика).
+fn json_string_field(data: &str, field: &str) -> Option<String> {
+    let needle = format!("\"{field}\":\"");
+    let start = data.find(&needle)? + needle.len();
+    let mut out = String::new();
+    let mut chars = data[start..].chars();
+    loop {
+        match chars.next()? {
+            '"' => return Some(out),
+            '\\' => match chars.next()? {
+                '"' => out.push('"'),
+                '\\' => out.push('\\'),
+                'n' => out.push('\n'),
+                'r' => out.push('\r'),
+                't' => out.push('\t'),
+                'u' => {
+                    let hex: String = chars.by_ref().take(4).collect();
+                    out.push(char::from_u32(u32::from_str_radix(&hex, 16).ok()?)?);
+                }
+                _ => return None,
+            },
+            c => out.push(c),
+        }
+    }
+}
+
+/// Т0-фіксер `ga/workflows` — єдина точка входу [`Guest::fix`] для цього
+/// концерну (доккомент розділу вище). Групує `request.diagnostics` за
+/// файлом для ТРЬОХ `reason`-ів
+/// ([`WORKFLOWS_CHECKOUT_PERSIST_REASON`]/[`WORKFLOWS_UNMATCHED_PATHS_GLOB_REASON`]/
+/// [`WORKFLOWS_BARE_NCURSOR_REASON`]), для `unmatched-paths-glob` додатково
+/// збирає `data.glob` per-file (той самий `Map<file, Set<glob>>`-дедуп, що
+/// JS `byFile`). Кожен цільовий файл проходить усі три трансформери
+/// послідовно на ОДНОМУ буфері (доккомент розділу вище пояснює, чому це не
+/// три окремі проходи, як у JS-каноні) — файл без реальних змін у план не
+/// потрапляє.
+fn fix_workflows(request: &FixRequest) -> FixPlan {
+    let mut files: Vec<&str> = Vec::new();
+    let mut globs_by_file: Vec<(&str, Vec<String>)> = Vec::new();
+
+    for diagnostic in &request.diagnostics {
+        let Some(file) = diagnostic.file.as_deref() else {
+            continue;
+        };
+        let reason = diagnostic.reason.as_str();
+        let is_relevant = reason == WORKFLOWS_CHECKOUT_PERSIST_REASON
+            || reason == WORKFLOWS_UNMATCHED_PATHS_GLOB_REASON
+            || reason == WORKFLOWS_BARE_NCURSOR_REASON;
+        if !is_relevant {
+            continue;
+        }
+        if !files.contains(&file) {
+            files.push(file);
+        }
+        if reason == WORKFLOWS_UNMATCHED_PATHS_GLOB_REASON {
+            let Some(glob) = diagnostic
+                .data
+                .as_deref()
+                .and_then(|d| json_string_field(d, "glob"))
+            else {
+                continue;
+            };
+            match globs_by_file.iter_mut().find(|(f, _)| *f == file) {
+                Some((_, globs)) => {
+                    if !globs.contains(&glob) {
+                        globs.push(glob);
+                    }
+                }
+                None => globs_by_file.push((file, vec![glob])),
+            }
+        }
+    }
+
+    let empty_globs: Vec<String> = Vec::new();
+    let mut edits = Vec::new();
+    for file in files {
+        let Some(source) = batch_file(&request.files, file) else {
+            continue;
+        };
+        let mut content = source.content.clone();
+        if let Some(next) = add_persist_credentials(&content) {
+            content = next;
+        }
+        let globs = globs_by_file
+            .iter()
+            .find(|(f, _)| *f == file)
+            .map(|(_, g)| g)
+            .unwrap_or(&empty_globs);
+        if let Some(next) = remove_paths_globs(&content, globs) {
+            content = next;
+        }
+        if let Some(next) = prefix_bunx_n_command(&content) {
+            content = next;
+        }
+        if content != source.content {
+            edits.push(FileEdit::Write(WriteFile {
+                path: source.path.clone(),
+                content,
+            }));
+        }
+    }
+    FixPlan { edits }
+}
+
 /// Чиста (без host-імпортів `log`/`report-progress`) конструктор
 /// маніфеста — винесений з [`Guest::describe`] окремо, щоб host-таргет
 /// unit-тести могли звірити форму маніфеста без реального wasmtime-хоста
@@ -1610,11 +1974,15 @@ impl Guest for CiGithub {
         diagnostics
     }
 
-    /// Жоден T0-фіксер не портований цією хвилею (`fixability: "config"` у
-    /// `concern.json`) — порожній план, та сама сумісна заглушка, що в
-    /// решти чотирьох гостей на своїй першій хвилі.
-    fn fix(_request: FixRequest) -> FixPlan {
-        FixPlan { edits: vec![] }
+    /// `ga/workflows` — перший портований T0-фіксер цього гостя
+    /// ([`fix_workflows`], доккомент розділу «`ga/workflows` — Т0-фіксер
+    /// ПОРТОВАНО»); `rust/toolchain_cache` і далі отримує сумісну заглушку
+    /// — порожній план (`fixability: "config"` у `toolchain_cache/concern.json`).
+    fn fix(request: FixRequest) -> FixPlan {
+        match request.concern_id.as_str() {
+            CONCERN_WORKFLOWS => fix_workflows(&request),
+            _ => FixPlan { edits: vec![] },
+        }
     }
 
     fn ecosystem_outdated(_request: EcosystemRequest) -> Result<Vec<OutdatedDep>, DomainError> {
@@ -2531,5 +2899,327 @@ mod tests {
             d[0].data.as_deref(),
             Some("{\"kind\":\"rego-engine-error\",\"namespace\":\"ga.workflow_common\",\"stage\":\"compile\"}")
         );
+    }
+
+    // =====================================================================
+    // `ga/workflows` — guest-фікс (перший портований T0-план цього гостя,
+    // доккомент модуля, розділ «`ga/workflows` — Т0-фіксер ПОРТОВАНО»).
+    // Фікстури нижче — точні відповідники `fix-workflows.test.mjs`.
+    // =====================================================================
+
+    // --- prefix_bunx_n_command ---
+
+    #[test]
+    fn prefix_bunx_n_command_rewrites_inline_run() {
+        let src = "      - name: lint\n        run: n-rules lint text --no-fix\n";
+        let out = prefix_bunx_n_command(src).expect("має змінитись");
+        assert!(out.contains("run: bunx n-rules lint text --no-fix"));
+    }
+
+    #[test]
+    fn prefix_bunx_n_command_rewrites_bare_line_in_run_block() {
+        let src = "        run: |\n          n-rules lint ga --no-fix\n";
+        let out = prefix_bunx_n_command(src).expect("має змінитись");
+        assert!(out.contains("          bunx n-rules lint ga --no-fix"));
+    }
+
+    #[test]
+    fn prefix_bunx_n_command_already_wrapped_is_none() {
+        assert!(prefix_bunx_n_command("        run: bunx n-rules release\n").is_none());
+        assert!(prefix_bunx_n_command("        run: npx n-rules lint\n").is_none());
+    }
+
+    #[test]
+    fn prefix_bunx_n_command_without_n_rules_is_none() {
+        assert!(prefix_bunx_n_command("        run: echo hi\n").is_none());
+    }
+
+    /// T0-раунд-трип ВСЕРЕДИНІ гостя для `bare-n-rules` (доповнює
+    /// `wasm-plugin-parity-ci-github.test.mjs`'s гість-детект → JS-фікс →
+    /// гість-детект чисто цикл доказом, що гість-детект → гість-фікс →
+    /// гість-детект теж замикається чисто, той самий прийом, що
+    /// `fix_cargo_mutants_config_round_trip_with_detect_is_clean`,
+    /// `crates/plugin-lang-rust`): [`verify_no_bare_n_cursor`] — реальний
+    /// detect-шлях цього reason-а, БЕЗ host-імпортів (той самий контракт,
+    /// що тести `verify_no_bare_n_cursor_*` вище).
+    #[test]
+    fn prefix_bunx_n_command_round_trip_with_detect_is_clean() {
+        let before = "        run: n-rules lint ga --no-fix\n";
+        let mut diagnostics_before = Vec::new();
+        verify_no_bare_n_cursor(&mut diagnostics_before, "wf.yml", before);
+        assert_eq!(diagnostics_before.len(), 1);
+        assert_eq!(diagnostics_before[0].reason, WORKFLOWS_BARE_NCURSOR_REASON);
+
+        let after = prefix_bunx_n_command(before).expect("має змінитись");
+        let mut diagnostics_after = Vec::new();
+        verify_no_bare_n_cursor(&mut diagnostics_after, "wf.yml", &after);
+        assert!(diagnostics_after.is_empty());
+    }
+
+    // --- add_persist_credentials ---
+
+    #[test]
+    fn add_persist_credentials_creates_with_block_when_missing() {
+        let src = "jobs:\n  main:\n    steps:\n      - uses: actions/checkout@v6\n";
+        let out = add_persist_credentials(src).expect("має змінитись");
+        assert_eq!(
+            out,
+            "jobs:\n  main:\n    steps:\n      - uses: actions/checkout@v6\n        with:\n          persist-credentials: false\n"
+        );
+    }
+
+    #[test]
+    fn add_persist_credentials_appends_key_into_existing_with_block() {
+        let src = "      - name: Checkout\n        uses: actions/checkout@v6\n        with:\n          fetch-depth: 0 # коментар\n";
+        let out = add_persist_credentials(src).expect("має змінитись");
+        assert!(out.contains(
+            "        with:\n          persist-credentials: false\n          fetch-depth: 0 # коментар"
+        ));
+        // не додав другий with:
+        assert_eq!(out.matches("with:").count(), 1);
+    }
+
+    #[test]
+    fn add_persist_credentials_already_present_is_none() {
+        let src =
+            "      - uses: actions/checkout@v6\n        with:\n          persist-credentials: false\n";
+        assert!(add_persist_credentials(src).is_none());
+    }
+
+    #[test]
+    fn add_persist_credentials_fixes_all_checkout_steps() {
+        let src =
+            "      - uses: actions/checkout@v6\n      - run: echo a\n      - uses: actions/checkout@v6\n";
+        let out = add_persist_credentials(src).expect("має змінитись");
+        assert_eq!(out.matches("persist-credentials: false").count(), 2);
+    }
+
+    #[test]
+    fn add_persist_credentials_ignores_non_checkout_uses() {
+        assert!(add_persist_credentials("      - uses: actions/setup-node@v4\n").is_none());
+    }
+
+    /// T0-раунд-трип ВСЕРЕДИНІ гостя для `checkout-persist-credentials` —
+    /// той самий прийом, що [`prefix_bunx_n_command_round_trip_with_detect_is_clean`]:
+    /// [`run_all_ga_rego`] — реальний detect-шлях цього reason-а (regorus,
+    /// БЕЗ host-імпортів, той самий контракт, що
+    /// [`run_all_ga_rego_workflow_common_flags_checkout_without_persist_credentials`]
+    /// вище).
+    #[test]
+    fn add_persist_credentials_round_trip_with_rego_detect_is_clean() {
+        let before = sfw(
+            ".github/workflows/other.yml",
+            "name: Sample\non:\n  push:\n    branches: [main]\nconcurrency:\n  group: ${{ github.ref }}-${{ github.workflow }}\n  cancel-in-progress: true\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v6\n",
+        );
+        let mut diagnostics_before = Vec::new();
+        run_all_ga_rego(&mut diagnostics_before, &[&before], &[&before]);
+        assert_eq!(diagnostics_before.len(), 1);
+        assert_eq!(diagnostics_before[0].reason, WORKFLOWS_CHECKOUT_PERSIST_REASON);
+
+        let fixed_content = add_persist_credentials(&before.content).expect("має змінитись");
+        let after = sfw(&before.path, &fixed_content);
+        let mut diagnostics_after = Vec::new();
+        run_all_ga_rego(&mut diagnostics_after, &[&after], &[&after]);
+        assert!(diagnostics_after.is_empty());
+    }
+
+    // --- remove_paths_globs ---
+
+    const WORKFLOWS_PATHS_GLOBS_FIXTURE: &str = "on:\n  push:\n    paths:\n      - '**/*.php'\n      - 'composer.json'\n      - 'composer.lock'\n      - 'psalm.xml'\n  pull_request:\n    paths:\n      - 'composer.lock'\n      - 'psalm.xml'\njobs: {}\n";
+
+    #[test]
+    fn remove_paths_globs_removes_only_listed_values_in_both_blocks() {
+        let globs = vec!["composer.lock".to_string(), "psalm.xml".to_string()];
+        let out = remove_paths_globs(WORKFLOWS_PATHS_GLOBS_FIXTURE, &globs).expect("має змінитись");
+        assert!(!out.contains("composer.lock"));
+        assert!(!out.contains("psalm.xml"));
+        assert!(out.contains("**/*.php"));
+        assert!(out.contains("composer.json"));
+    }
+
+    #[test]
+    fn remove_paths_globs_ignores_values_outside_paths_block() {
+        let src = "env:\n  X: 'composer.lock'\non:\n  push:\n    paths:\n      - 'composer.lock'\njobs: {}\n";
+        let globs = vec!["composer.lock".to_string()];
+        let out = remove_paths_globs(src, &globs).expect("має змінитись");
+        assert!(out.contains("X: 'composer.lock'"));
+        assert_eq!(out.matches("composer.lock").count(), 1);
+    }
+
+    #[test]
+    fn remove_paths_globs_no_match_is_none() {
+        let globs = vec!["nope.toml".to_string()];
+        assert!(remove_paths_globs(WORKFLOWS_PATHS_GLOBS_FIXTURE, &globs).is_none());
+    }
+
+    // --- json_string_field ---
+
+    #[test]
+    fn json_string_field_reads_plain_value() {
+        assert_eq!(
+            json_string_field("{\"kind\":\"unmatched-paths-glob\",\"glob\":\"**/*.php\"}", "glob").as_deref(),
+            Some("**/*.php")
+        );
+    }
+
+    #[test]
+    fn json_string_field_unescapes_quotes_and_backslashes() {
+        assert_eq!(
+            json_string_field("{\"glob\":\"a\\\"b\\\\c\"}", "glob").as_deref(),
+            Some("a\"b\\c")
+        );
+    }
+
+    #[test]
+    fn json_string_field_missing_field_is_none() {
+        assert!(json_string_field("{\"kind\":\"bare-n-rules\"}", "glob").is_none());
+    }
+
+    // --- fix_workflows: guest FixRequest → FixPlan ---
+
+    #[test]
+    fn fix_workflows_persist_credentials_writes_edit() {
+        let rel = "wf.yml";
+        let request = FixRequest {
+            concern_id: CONCERN_WORKFLOWS.to_string(),
+            files: vec![sf(rel, "      - uses: actions/checkout@v6\n")],
+            diagnostics: vec![Diagnostic {
+                reason: WORKFLOWS_CHECKOUT_PERSIST_REASON.to_string(),
+                message: "x".to_string(),
+                file: Some(rel.to_string()),
+                severity: Severity::Error,
+                data: Some("{\"kind\":\"checkout-persist-credentials\"}".to_string()),
+            }],
+        };
+        let plan = fix_workflows(&request);
+        assert_eq!(plan.edits.len(), 1);
+        let FileEdit::Write(write) = &plan.edits[0] else {
+            panic!("очікували write-edit")
+        };
+        assert_eq!(write.path, rel);
+        assert!(write.content.contains("persist-credentials: false"));
+    }
+
+    #[test]
+    fn fix_workflows_unmatched_paths_glob_removes_only_addressed_glob() {
+        let rel = "lint-php.yml";
+        let content = "on:\n  push:\n    paths:\n      - 'psalm.xml'\n      - '**/*.php'\njobs: {}\n";
+        let request = FixRequest {
+            concern_id: CONCERN_WORKFLOWS.to_string(),
+            files: vec![sf(rel, content)],
+            diagnostics: vec![Diagnostic {
+                reason: WORKFLOWS_UNMATCHED_PATHS_GLOB_REASON.to_string(),
+                message: "x".to_string(),
+                file: Some(rel.to_string()),
+                severity: Severity::Error,
+                data: Some(
+                    "{\"kind\":\"unmatched-paths-glob\",\"event\":\"push\",\"glob\":\"psalm.xml\"}"
+                        .to_string(),
+                ),
+            }],
+        };
+        let plan = fix_workflows(&request);
+        assert_eq!(plan.edits.len(), 1);
+        let FileEdit::Write(write) = &plan.edits[0] else {
+            panic!("очікували write-edit")
+        };
+        assert!(!write.content.contains("psalm.xml"));
+        assert!(write.content.contains("**/*.php"));
+    }
+
+    #[test]
+    fn fix_workflows_bare_n_rules_writes_edit() {
+        let rel = "wf.yml";
+        let request = FixRequest {
+            concern_id: CONCERN_WORKFLOWS.to_string(),
+            files: vec![sf(rel, "        run: n-rules lint ga --no-fix\n")],
+            diagnostics: vec![Diagnostic {
+                reason: WORKFLOWS_BARE_NCURSOR_REASON.to_string(),
+                message: "x".to_string(),
+                file: Some(rel.to_string()),
+                severity: Severity::Error,
+                data: Some("{\"kind\":\"bare-n-rules\"}".to_string()),
+            }],
+        };
+        let plan = fix_workflows(&request);
+        assert_eq!(plan.edits.len(), 1);
+        let FileEdit::Write(write) = &plan.edits[0] else {
+            panic!("очікували write-edit")
+        };
+        assert!(write.content.contains("bunx n-rules lint ga --no-fix"));
+    }
+
+    #[test]
+    fn fix_workflows_ignores_foreign_reason() {
+        let request = FixRequest {
+            concern_id: CONCERN_WORKFLOWS.to_string(),
+            files: vec![sf("wf.yml", "jobs: {}\n")],
+            diagnostics: vec![Diagnostic {
+                reason: "other".to_string(),
+                message: "x".to_string(),
+                file: Some("wf.yml".to_string()),
+                severity: Severity::Error,
+                data: None,
+            }],
+        };
+        assert!(fix_workflows(&request).edits.is_empty());
+    }
+
+    #[test]
+    fn fix_workflows_returns_empty_plan_without_diagnostics() {
+        let request = FixRequest {
+            concern_id: CONCERN_WORKFLOWS.to_string(),
+            files: vec![sf("wf.yml", "      - uses: actions/checkout@v6\n")],
+            diagnostics: vec![],
+        };
+        assert!(fix_workflows(&request).edits.is_empty());
+    }
+
+    #[test]
+    fn fix_workflows_composes_all_three_transforms_on_one_file() {
+        // Один файл, три різні kind-и одночасно — [`fix_workflows`] мусить
+        // застосувати ВСІ три трансформери на ОДНОМУ буфері (доккомент
+        // розділу «`ga/workflows` — Т0-фіксер ПОРТОВАНО»), не лише перший
+        // ("гість-пріоритет" ЗАМІНЯЄ всі три JS-патерни одним викликом).
+        let rel = "wf.yml";
+        let content = "on:\n  push:\n    paths:\n      - 'psalm.xml'\njobs:\n  build:\n    steps:\n      - uses: actions/checkout@v6\n      - run: n-rules lint ga --no-fix\n";
+        let request = FixRequest {
+            concern_id: CONCERN_WORKFLOWS.to_string(),
+            files: vec![sf(rel, content)],
+            diagnostics: vec![
+                Diagnostic {
+                    reason: WORKFLOWS_CHECKOUT_PERSIST_REASON.to_string(),
+                    message: "x".to_string(),
+                    file: Some(rel.to_string()),
+                    severity: Severity::Error,
+                    data: Some("{\"kind\":\"checkout-persist-credentials\"}".to_string()),
+                },
+                Diagnostic {
+                    reason: WORKFLOWS_UNMATCHED_PATHS_GLOB_REASON.to_string(),
+                    message: "y".to_string(),
+                    file: Some(rel.to_string()),
+                    severity: Severity::Error,
+                    data: Some(
+                        "{\"kind\":\"unmatched-paths-glob\",\"event\":\"push\",\"glob\":\"psalm.xml\"}"
+                            .to_string(),
+                    ),
+                },
+                Diagnostic {
+                    reason: WORKFLOWS_BARE_NCURSOR_REASON.to_string(),
+                    message: "z".to_string(),
+                    file: Some(rel.to_string()),
+                    severity: Severity::Error,
+                    data: Some("{\"kind\":\"bare-n-rules\"}".to_string()),
+                },
+            ],
+        };
+        let plan = fix_workflows(&request);
+        assert_eq!(plan.edits.len(), 1);
+        let FileEdit::Write(write) = &plan.edits[0] else {
+            panic!("очікували write-edit")
+        };
+        assert!(write.content.contains("persist-credentials: false"));
+        assert!(!write.content.contains("psalm.xml"));
+        assert!(write.content.contains("bunx n-rules lint ga --no-fix"));
     }
 }

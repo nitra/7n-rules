@@ -5398,6 +5398,109 @@ index-shift-бага мусить мати НЕНУЛЬОВИЙ net-зсув в 
 
 ---
 
+### 2.48. `ga/workflows` — перший T0-фіксер `plugin-ci-github` портовано, найтісніший бюджет усієї міграції
+
+**Задача:** §2.44/§2.46 портували T0-фіксери в `plugin-lang-rust`/
+`plugin-lang-python` (три концерни). `plugin-ci-github` лишався з
+заглушковим `Guest::fix` для ОБОХ своїх концернів. `ga/workflows`
+(`fix-workflows.mjs`, 212 рядків, чистий текстовий codemod) обрано першим
+— три T0Pattern (`checkout-persist-credentials`/`unmatched-paths-glob`/
+`bare-n-rules`), детектор уже в гості, перетворення без зовнішніх тулів.
+Головне обмеження — бюджет: гість уже 2 574 836 з 2 621 440 (98.2%,
+запасу 46 604 байти, 1.8%) через `regorus` (851 рядок вшитого Rego).
+
+**Виміряно рано, за планом:** повна імплементація (усі три трансформери +
+диспетчер `fix_workflows`) зібрана й змірена ДО написання тестів — приріст
+15 606 байт (2 574 836 → 2 590 442), 33.5% запасу. Влізло з запасом
+30 998 байт (66.5% запасу лишилось), size-budget тест
+(`wasm-plugin-parity-ci-github.test.mjs`, `< 2.5 * 1024 * 1024`) зелений.
+Підіймати бюджет самовільно не знадобилось.
+
+**`regex`-крейт тут НЕ новий кошт.** На відміну від `rust/toolchain_cache`
+(перша хвиля цього гостя, доккомент `Cargo.toml`: ручний
+`line_has_uses_target`/`indent_of` замість регексів, бо `regex` тоді ще не
+був лінкований), `ga/workflows` (друга хвиля) вже ТЯГНЕ `regex` крейт
+(`unicode-perl`, потрібен для `\b` у detect-боці
+`verify_no_bare_n_cursor`/Rego `workflow_common.rego:43`-патерні).
+`prefix_bunx_n_command` (порт `prefixBunxNCursor`, три регекси з
+захопленням груп) тому переюзує ВЖЕ сплачений крейт — нуль нової
+залежності, мінімальний ризик ручного транслювання капчур-груп.
+`add_persist_credentials`/`remove_paths_globs` — навпаки, повністю
+вручну (`strip_prefix`/`indent_of`, той самий стиль toolchain_cache):
+жодних `\b`/капчур-груп не потрібно, ручний скан коротший і безпечніший.
+
+**Один `wasmFixPattern` замість трьох JS `T0Pattern`.** JS-канон реєструє
+три ОКРЕМІ патерни (`applyToFiles` перечитує файл із диска між ними —
+`npm/scripts/utils/apply-to-files.mjs`), а `wasmFixPattern`
+(`run-fix.mjs`) синтезує РІВНО один патерн на ввесь wasm-концерн:
+`applyT0` кличе гостьовий `fix()` ОДИН раз з ПОВНИМ масивом `violations`
+концерну (усіх трьох kind-ів разом). `fix_workflows` тому сам компонує
+всі три трансформери на ОДНОМУ буфері за один прохід (той самий порядок,
+що масив `patterns` JS-канону: persist-credentials → paths-glob →
+bare-n-rules), а не покладається на проміжний re-detect між ними — це
+структурна відмінність від JS-канону, не спрощення заради економії байтів.
+`fix_workflows_composes_all_three_transforms_on_one_file` — окремий тест
+саме на цю архітектурну відмінність (нижче, «перевірка дією»).
+
+**`reason` уже дорівнює `data.kind`** для всіх трьох kind-ів (детект-бік
+пушить `reason: "checkout-persist-credentials"`/`"unmatched-paths-glob"`/
+`"bare-n-rules"` — той самий рядок, що `data.kind`). `fix_workflows` тому
+диспетчерує за `diagnostic.reason` напряму, БЕЗ потреби парсити `data.kind`
+— `json_string_field` (мінімальний ручний JSON-рядковий парсер, той самий
+мотив, що `json_bool_field_is_true`/`json_usize_field` у
+`plugin-lang-rust`, §2.44) потрібен лише для ОДНОГО поля (`data.glob`,
+`unmatched-paths-glob`). Три reason-константи
+(`WORKFLOWS_CHECKOUT_PERSIST_REASON`/`WORKFLOWS_UNMATCHED_PATHS_GLOB_REASON`/
+`WORKFLOWS_BARE_NCURSOR_REASON`) винесено як СПІЛЬНЕ джерело для detect і
+fix — рефакторинг трьох раніше-inline рядкових літералів на detect-боці,
+не нова поведінка.
+
+**JS-фіксер `fix-workflows.mjs` СВІДОМО НЕ видалено** — той самий порядок
+«спершу парність», що §2.44/§2.46. Диспетчер (`run-fix.mjs`,
+`T0Pattern.guestFix`, §2.45) автоматично пріоритезує гостя — нуль JS-змін
+у dispatcher-шарі для цього PR.
+
+**Перевірка дією (дві мутації, обидві дали червоне):**
+1. Індентацію `add_persist_credentials`-insert зсунуто на +1 пробіл
+   (`" ".repeat(col + 1)`) — два байт-точні тести
+   (`add_persist_credentials_creates_with_block_when_missing`/
+   `_appends_key_into_existing_with_block`) почервоніли з точним диффом
+   (`left`/`right` рядки різняться на один пробіл відступу). Повернуто.
+2. Виклик `remove_paths_globs` прибрано з `fix_workflows` (симуляція
+   «забули підключити другий трансформер» у composed-диспетчері) —
+   `fix_workflows_composes_all_three_transforms_on_one_file` і
+   `fix_workflows_unmatched_paths_glob_removes_only_addressed_glob`
+   почервоніли (перший — `assertion failed:
+   !write.content.contains("psalm.xml")`, другий — `left: 0, right: 1`
+   edits). Повернуто. На відміну від §2.46 (де перша спроба зламу НЕ дала
+   червоного через симетричну фікстуру), обидві мутації тут почервоніли з
+   першої спроби — переробляти фікстуру не знадобилось.
+
+**Round-trip ВСЕРЕДИНІ гостя для ДВОХ із трьох kind-ів** (той самий
+прийом, що §2.44/§2.46): `checkout-persist-credentials` через
+`run_all_ga_rego` (regorus, БЕЗ host-імпортів) → `add_persist_credentials`
+→ `run_all_ga_rego` знову — чисто. `bare-n-rules` через
+`verify_no_bare_n_cursor` (теж БЕЗ host-імпортів) → `prefix_bunx_n_command`
+→ знову — чисто. Третій kind (`unmatched-paths-glob`) СТРУКТУРНО не
+має host-таргет round-trip: `verify_one_paths_glob` кличе
+`git_has_any_tracked_file_matching_glob` (`exec_tool`, host-імпорт) — той
+самий кордон, що решта тестів detect-боку цього концерну (`mod tests`
+доккомент, «`run_all_ga_rego`/`eval_deny_rule` — БЕЗ жодного host-імпорту
+… НАВПАКИ»); покрито чистим-трансформером тестом
+(`remove_paths_globs_no_match_is_none`) замість round-trip, і повним
+циклом у `wasm-plugin-parity-ci-github.test.mjs` (реальний wasmtime-хост,
+хоч і лише detect-бік — той файл `fix()` не викликає взагалі).
+
+**Числа:** розмір гостя 2 574 836 → 2 590 442 (+15 606, 98.8% бюджету
+2 621 440, запасу лишилось 30 998 байт). Тести: cargo `plugin-ci-github`
+65 → 87 (+22), `wasm-plugin-parity-ci-github.test.mjs` 24/24 без змін
+(detect-only гейт, `fix()` не покриває), `conftest verify` по пʼятьох
+policy-теках (`clean_ga_workflows`/`clean_merged_branch`/`lint_ga`/
+`git_ai`/`workflow_common`) — 9+9+11+8+18 = 55/55 без регресій, `.rego` не
+торкнуто.
+
+---
+
 ## Як користуватись
 
 Дійшовши кінця плану міграції, пройти реєстр згори вниз: розділи 1 і 6 — це
