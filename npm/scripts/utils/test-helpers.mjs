@@ -16,7 +16,7 @@
  * перевірку `rules/test/js/no-process-chdir.mjs`.
  */
 import { existsSync } from 'node:fs'
-import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { delimiter, dirname, isAbsolute, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { tmpdir } from 'node:os'
@@ -93,6 +93,51 @@ export async function withTmpDir(fn) {
     // без впливу на штатний випадок (де rm завершується з першої спроби).
     await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   }
+}
+
+/**
+ * Робить `dir` резолвним як корінь пакета `@7n/rules` для in-process
+ * native-концернів (`runConcernDetector` → `loadNative().runNativeConcern`,
+ * `npm/scripts/lib/lint-surface/detect.mjs`) — без env-var.
+ *
+ * Native-каскад (`crates/rules-core/src/rules_package.rs::package_root`)
+ * має три кроки: (1) явний override `N_RULES_PACKAGE_ROOT`, (2)-(3) обхід
+ * предків `cwd` у пошуках `node_modules/@7n/rules/package.json` чи
+ * `npm/package.json`. Для tmp-фікстур `withTmpDir` (навмисно ПОЗА репо —
+ * доккомент модуля вище) кроки 2-3 нічого не знайдуть, тож канонічний
+ * прийом — крок 1: виставити `N_RULES_PACKAGE_ROOT` з JS перед викликом.
+ *
+ * Під Bun (`bun run --bun vitest run`, канонічний рантайм, `n-bun.mdc`) цей
+ * прийом НЕ працює: `runNativeConcern` — синхронний in-process виклик через
+ * dlopen (не subprocess), і Rust читає override через `std::env::var`;
+ * мутація `process.env`/`env` із JS-боку під Bun не доходить до цього
+ * виклику (підтверджено ізольованим репро — той самий `runNativeConcern`,
+ * env виставлено БЕЗПОСЕРЕДНЬО перед викликом, `process.env.X` в JS вже
+ * повертає нове значення, а Rust усе одно кидає «не вдалося знайти
+ * корінь»). Під Node той самий код працює: `process.env.X = …` там реально
+ * викликає `setenv()`, і `std::env::var` бачить зміну. Це той самий клас
+ * Bun-розбіжності, що вже обходили в цьому репо без покладання на
+ * env-канал, що не синхронізується (`ensure-tool.mjs` — `os.homedir()`-
+ * знімок під Bun; `resolve-cmd.mjs` — PATH-знімок дочірніх процесів під
+ * Bun) — тут інстанс того самого класу: not-a-subprocess, а in-process
+ * native-виклик, тож обхід той самий за духом: не покладатись на
+ * env-поширення, а задовольнити крок 2 каскаду напряму файловою системою.
+ *
+ * Реалізація — symlink `dir/node_modules/@7n/rules` → реальний `npm/`
+ * корінь монорепо (`realRepoRoot()`): `declares_package` у Rust читає
+ * `package.json` за фізичним шляхом (стандартний `read_to_string`, symlink
+ * прозорий), а `rules_root()` від резолвленого кореня знаходить СПРАВЖНІ
+ * rego-полісі — той самий ефект, що дав би `N_RULES_PACKAGE_ROOT`,
+ * гарантовано однаковий під обома рантаймами, бо не залежить від env
+ * узагалі. `N_RULES_PACKAGE_ROOT` як override лишається чинним для
+ * реальних (не-тестових) нестандартних layout-ів — цей хелпер його не
+ * чіпає, лише не покладається на нього в тестах.
+ * @param {string} dir абсолютний шлях tmp-каталогу (від `withTmpDir`)
+ * @returns {Promise<void>} результат
+ */
+export async function linkPackageRoot(dir) {
+  await mkdir(join(dir, 'node_modules', '@7n'), { recursive: true })
+  await symlink(join(realRepoRoot(), 'npm'), join(dir, 'node_modules', '@7n', 'rules'))
 }
 
 /**

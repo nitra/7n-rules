@@ -3,34 +3,33 @@
  */
 import { describe, expect, test } from 'vitest'
 import { join } from 'node:path'
-import { env } from 'node:process'
 import { writeFile } from 'node:fs/promises'
 
 import { runConcernDetector } from '../scripts/lib/lint-surface/detect.mjs'
-import { ensureDir, withBinStubInPath, withTmpDir } from '../scripts/utils/test-helpers.mjs'
-
-const TEST_DIR = import.meta.dirname
+import { ensureDir, linkPackageRoot, withBinStubInPath, withTmpDir } from '../scripts/utils/test-helpers.mjs'
 
 // `docker/lint` і `k8s/manifests` — native-концерни без `main.mjs`, тож
 // виклик іде через той самий диспетчер, що й у бойовому прогоні. Перший
 // аргумент `runConcernDetector` (`concern`-entry з policy-`dir`) читається
 // лише в JS/wasm-гілках нижче native-перевірки (`detect.mjs:220-230`) — для
 // вже native-зареєстрованого ключа `null` безпечний, той самий патерн, що й
-// нижче для `checkK8s`.
+// нижче для `checkK8s`. Обидва детектори шукають rego-політики й сніпети у
+// КОРЕНІ ПАКЕТА, а тимчасове дерево (`withTmpDir`) його не містить — звідси
+// `linkPackageRoot` (`test-helpers.mjs`, symlink `node_modules/@7n/rules`
+// усередині `dir`), НЕ env-var: `runConcernDetector` — in-process
+// native-виклик (dlopen), і під Bun (канонічний рантайм) мутація
+// `process.env` з JS не доходить до `std::env::var` у native-аддоні
+// (доккомент `linkPackageRoot` розписує клас Bun-розбіжності й прецедент —
+// `ensure-tool.mjs`/`resolve-cmd.mjs`). Дешево й безумовно для обох
+// детекторів — навіть сценарії раннього виходу (порожнє дерево) не
+// шкодять від зайвого symlink-а.
 const checkDocker = async dir => {
+  await linkPackageRoot(dir)
   const result = await runConcernDetector(null, { cwd: dir, ruleId: 'docker', concernId: 'lint' })
   return result.violations.length === 0 ? 0 : 1
 }
-// `k8s/manifests` — native-концерн без `main.mjs`, тож виклик іде через той
-// самий диспетчер, що й у бойовому прогоні. Детектор шукає rego-політики й
-// сніпети у КОРЕНІ ПАКЕТА, а тимчасове дерево його не містить — звідси явний
-// override, задокументований саме під цей випадок (`rules_package.rs`).
-// Опційна змінна (fallback за замовчуванням) — `env` з `node:process`, не
-// прямий `process.env` (js-run.mdc, розділ «CheckEnv та заборона прямого
-// process.env»): мандатний `checkEnv`/`@nitra/check-env` тут зайвий, бо
-// значення завжди має дефолт, ніколи не вимагається ззовні.
-env.N_RULES_PACKAGE_ROOT ??= join(TEST_DIR, '..')
 const checkK8s = async dir => {
+  await linkPackageRoot(dir)
   const result = await runConcernDetector(null, { cwd: dir, ruleId: 'k8s', concernId: 'manifests' })
   return result.violations.length === 0 ? 0 : 1
 }
