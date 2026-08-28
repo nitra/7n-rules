@@ -29,5 +29,5 @@ all_uses_text := concat("\n", [u |
 deny contains msg if {
 	expected_uses_blob != ""
 	not contains(all_uses_text, expected_uses_blob)
-	msg := sprintf("lint-security.yml: відсутній крок з uses %q (security.mdc)", [expected_uses_blob])
+	msg := sprintf("lint-security.yml: відсутній крок з uses \"%v\" (security.mdc)", [expected_uses_blob])
 }

@@ -20,14 +20,21 @@
 # `git_ai`/`workflow_common` МАЮТЬ ВЛАСНІ `.rego`-пакети, але то не окремі
 # `ruleId/concernId` контрибуції JS-канону — вони вшиті РІВНО в `ga/workflows`
 # як внутрішні rego-namespace-и, доккомент `src/lib.rs`) лишаються поза
-# обсягом. Поля 1:1 відповідають `rules_contract::manifest::Manifest`
+# обсягом.
+#
+# ТРЕТЯ хвиля: три policy-концерни (`ga/vscode_extensions`,
+# `ga/vscode_settings`, `security/lint_security_yml`) — доказ, що спільні
+# JS T0-fix-рушії (`vscode-ext-add.mjs`/`template-deep-merge.mjs`)
+# масштабуються на решту концернів цього плагіна без нової інфраструктури
+# (доккомент `src/lib.rs`, розділ «ТРЕТЯ хвиля»). Поля 1:1 відповідають
+# `rules_contract::manifest::Manifest`
 # (crates/rules-contract/src/manifest.rs, без serde-перейменувань — назви
 # полів тотожні Rust-структурі). Хост читає цей файл лише як довідник для
 # людини й дистрибуційний supplement — джерело правди в рантаймі завжди
 # `describe()` (не парситься назад у `PluginHost`, спека §3.1).
 
 id = "ci-github/wasm-concerns"
-version = "0.2.0"
+version = "0.3.0"
 world_version = "3.1.0"
 domains = ["lint"]
 # Top-level поля маніфеста — ОБОВʼЯЗКОВО перед першим `[[concerns]]`: після
@@ -92,6 +99,26 @@ glob = [
   ".megalinter.yaml",
   ".mega-linter.yaml"
 ]
+
+[[concerns]]
+# ТРЕТЯ хвиля — `ga/vscode_extensions`: full-scope, ОДИН target-файл
+# (`concern.json.policy.files.single`), той самий glob (доккомент
+# `src/lib.rs`, розділ «ТРЕТЯ хвиля»).
+key = "ga/vscode_extensions"
+scope = "full"
+glob = [".vscode/extensions.json"]
+
+[[concerns]]
+# ТРЕТЯ хвиля — `ga/vscode_settings`: full-scope, ОДИН target-файл.
+key = "ga/vscode_settings"
+scope = "full"
+glob = [".vscode/settings.json"]
+
+[[concerns]]
+# ТРЕТЯ хвиля — `security/lint_security_yml`: full-scope, ОДИН target-файл.
+key = "security/lint_security_yml"
+scope = "full"
+glob = [".github/workflows/lint-security.yml"]
 
 [capabilities]
 # Хост передає вміст файлів inline у `detect-batch` (host-побудований
