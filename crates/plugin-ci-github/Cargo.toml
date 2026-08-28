@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 license = "Apache-2.0"
-description = "wasm-компонент n-rules:plugin@3.1.0 — ci-github/wasm-concerns (5 концернів: rust/toolchain_cache, ga/workflows, ga/vscode_extensions, ga/vscode_settings, security/lint_security_yml)"
+description = "wasm-компонент n-rules:plugin@3.2.0 — ci-github/wasm-concerns (5 концернів: rust/toolchain_cache, ga/workflows, ga/vscode_extensions, ga/vscode_settings, security/lint_security_yml)"
 
 [lib]
 # `cdylib` — обов'язково: `wasm32-wasip2` виводить готовий Component Model
@@ -18,41 +18,43 @@ crate-type = ["cdylib"]
 # Cargo.lock кореня) — НЕ розширюй у caret-діапазон без причини.
 wit-bindgen = "0.60"
 # `ga/workflows` (друга хвиля порту `plugins/ci-github/rules/ga/workflows/main.mjs`)
-# запускає 851 рядок Rego IN-PROCESS через regorus (Microsoft, MIT AND
-# Apache-2.0 AND BSD-3-Clause, github.com/microsoft/regorus) — жодного
-# `conftest`-субпроцесу. Виміряно на цьому крейті (release, wasm32-wasip2,
-# з per-package profile-блоком кореневого `Cargo.toml` застосованим в обох
-# замірах): `regorus` з default-features — 6 223 519 байт компонента;
-# ЦЯ тримована конфігурація (лише `regex`+`std`) — 2 578 673. `std` тягне за
-# собою `parking_lot`/`rand` (feature-unification `rand/std`,
-# `dep:parking_lot` у власному `std`-фіті regorus) — не наш вибір, вимога
-# самого `Engine` (interior-mutability кешів компіляції).
-regorus = { version = "0.11", default-features = false, features = ["regex", "std"] }
-# regorus пінує `regex` із `default-features = false` — Perl-скорочення
-# (`\d \s \w \b`) не компілюються всередині policy (regorus не вмикає
-# `unicode-perl` сам). Явна сиблінг-залежність тут — Cargo feature-unifies
-# її в ОДНУ копію з тим самим semver-діапазоном, що вже тягне regorus, тож
-# нового окремого крейта в графі НЕ зʼявляється, лише інший feature-набір
-# тієї самої версії. Виміряно: увімкнення дефолтних фітів на самому
-# sibling-записі (`regex = "1"`, без явного `unicode-perl`) дає БАЙТ-У-БАЙТ
-# той самий розмір компонента, що з явним `features = ["unicode-perl"]` —
-# `unicode-perl` вже входить у дефолтний набір `regex`-крейта, явний прапор
-# лишається як задокументований намір (fragile-proof на випадок майбутньої
-# зміни дефолтів regex-крейта), не як джерело додаткового розміру. Без
-# sibling-запису взагалі `workflow_common.rego:43`-подібний depcheck-патерн
-# (`\b`-межа слова — ASSERTION без character-class еквівалента) не
-# скомпілювався б: rewrite інструкції "уникнути `\b`" в самому Rego НЕ
-# розглядався як заміна — `\b` там не character-class, а assertion, тож
-# рерайт был би неповним.
+# оцінює 851 рядок Rego через `regorus` (Microsoft, MIT AND Apache-2.0 AND
+# BSD-3-Clause, github.com/microsoft/regorus) — жодного `conftest`-субпроцесу.
+#
+# **ОНОВЛЕНО** (реєстр відкритих питань
+# `docs/plans/2026-08-05-open-questions-register.md` §2.66): `regorus`
+# ПЕРЕЇХАВ із цього гостя на хост — `wasm32-wasip2`-збірка більше НЕ несе
+# `regorus`/`regex` у своєму component-графі взагалі (Cargo резолвить
+# залежності по цільовій платформі — таргет-специфічний блок нижче ставить
+# `rules-rego-engine` лише на `cfg(not(target_arch = "wasm32"))`, wasm32
+# кличе host-import resource `rego-engine`, `wit/world.wit`). Стара пряма
+# `regorus`-залежність цього крейта (0,11, `["regex","std"]`) видалена
+# ЦІЛКОМ — попередні заміри розміру («regorus з default-features —
+# 6 223 519 байт компонента; тримана конфігурація `regex`+`std` — 2 578 673»)
+# лишаються документованою історією вибору фітів, перенесеною дослівно в
+# `crates/rules-rego-engine/Cargo.toml` (той самий пін, той самий
+# feature-набір — семантика НЕ переглядалась, лише хост, що її виконує,
+# змінився). Нове виміряне число розміру ЦЬОГО гостя (до/після) — звіт
+# задачі §2.66, не тут.
+#
 # YAML — `saphyr` (YAML 1.2, а не Go-yaml 1.1, яким читає `conftest`;
 # найменший виміряний, активно підтримуваний, НЕ deprecated). regorus має
 # власний `yaml`-фіт, але той на опублікованому 0.11.0 тягне
 # `serde_yaml v0.9.34+deprecated` — свідомо уникнено. Плагін парсить
 # workflow-YAML САМ (вхідний `input` для кожного Rego-виклику) і
 # конвертує AST у JSON-текст ([`yaml_to_json`], `src/lib.rs`) — жодного
-# YAML-крейта в regorus-фітах, лише тут.
-regex = { version = "1", features = ["unicode-perl"] }
+# YAML-крейта в regorus-фітах, лише тут (і regorus тепер не тут, доккомент
+# вище).
 saphyr = "0.0"
+# `\b`-межа слова для `BARE_N_RULES`-перевірки ([`verify_no_bare_n_cursor`]/
+# `fix_workflows`) — ПРЯМИЙ вжиток цим крейтом, НЕ лише sibling-feature-unify
+# трюк для регорус-а (той трюк відпав разом із регорус-ом, доккомент вище):
+# `\b`-assertion не має character-class еквівалента, ручний порт без regex
+# сюди не підходить (на відміну від чотирьох `uses:`-патернів
+# [`line_has_uses_target`]/[`is_workspaces_key`] нижче — ті свідомо без
+# regex). Лишається УНІВЕРСАЛЬНОЮ (не таргет-гейтованою) залежністю — ці
+# виклики живуть і на wasm32 (продакшн), і на host-таргеті (тести).
+regex = { version = "1", features = ["unicode-perl"] }
 # `jsonc-parser` (dprint, MIT, 9,66 млн завантажень) — справжня JSONC-підтримка
 # (`//`/`/* */`-коментарі, trailing comma) для `.vscode/*.json`-таргетів
 # ([`fix_template_merge`]/[`fix_vscode_extensions`]/[`detect_policy`]),
@@ -92,10 +94,17 @@ jsonc-parser = { version = "0.33", default-features = false }
 # `crates/plugin-lang-php` (ручний порт замість тягнути regex заради двох
 # простих патернів). `rust/toolchain_cache` (перша хвиля) лишається
 # найлегшим ОКРЕМИМ концерном цього крейта; `ga/workflows` (друга хвиля,
-# цей блок) додає regorus/regex/saphyr — розмір збірки НАБАГАТО більший,
-# звіт задачі містить виміряний фінальний розмір і причину, чому бюджет
-# 2,5 MiB для цього крейта більше не є hard-гейтом (рішення власника, не
-# самовільне прощення).
+# цей блок) додає saphyr — регорус (§2.66) більше не тут (доккомент вище).
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# Реєстр §2.66: `regorus` виконується IN-PROCESS лише на host-таргеті
+# (нативні `cargo test`) — той самий `rules-rego-engine`, що
+# `crates/rules-plugin-host` реалізує через host-import resource
+# `rego-engine` для wasm32 (доккомент [`RegoEngineHandle`], `src/lib.rs`).
+# Cargo резолвить цю залежність ЛИШЕ на не-wasm32 таргеті — у
+# wasm32-wasip2 build graph цього ребра просто немає, тож `regorus`/`regex`
+# НЕ резолвиться в component-артефакт узагалі.
+rules-rego-engine = { path = "../rules-rego-engine" }
 
 [dev-dependencies]
 # Anti-drift тест `plugin_toml_concern_keys_match_describe` (той самий мотив,

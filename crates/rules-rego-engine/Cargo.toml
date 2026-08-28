@@ -1,0 +1,37 @@
+[package]
+name = "rules-rego-engine"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "Apache-2.0"
+description = "Тонка спільна обгортка над regorus::Engine — єдине джерело істини для rego-семантики (add-policy/add-data-json/eval-rule), яку споживають і crates/rules-plugin-host (host-resource, продакшн wasm-шлях), і crates/plugin-ci-github під cfg(not(wasm32)) (нативні тести, in-process)"
+
+[dependencies]
+# Той самий пін і той самий feature-набір, що раніше жив у
+# `crates/plugin-ci-github/Cargo.toml` (доккомент того файлу пояснював
+# вибір `regex`+`std` — перенесено сюди дослівно, вибір НЕ переглядався).
+# `regorus` тепер НІКОЛИ не резолвиться у wasm32-wasip2 build graph: єдиний
+# споживач цього крейта під тим таргетом — `crates/rules-plugin-host`
+# (нативний host-бінарник, компілюється лише для host-таргету), а
+# `plugin-ci-github` підключає цей крейт лише через
+# `[target.'cfg(not(target_arch = "wasm32"))'.dependencies]` (реєстр
+# §2.66) — Cargo резолвить залежності по цільовій платформі, тож у
+# wasm32-wasip2-графі цього ребра просто немає.
+#
+# `"arc"` — ДОДАНО поверх пінового набору `plugin-ci-github` (`regex`+
+# `std`), звідки цей крейт перенесений: `wasmtime::component::ResourceTable::push`
+# вимагає `T: Send + 'static` (`crates/rules-plugin-host/src/rego_engine.rs`
+# зберігає `RegoEngine` у таблиці ресурсів), а `regorus::Engine` за
+# замовчуванням тримає джерела policy в `Rc` (не `Send`) — `"arc"`
+# перемикає його на `Arc` (той самий тип, лише інший лічильник посилань,
+# семантика rego НЕ змінюється). Ціна — нуль для wasm-гостя (цей крейт
+# туди взагалі не резолвиться, доккомент вище) і не вимірювана для
+# нативного хоста (не бюджетований шлях).
+regorus = { version = "0.11", default-features = false, features = ["regex", "std", "arc"] }
+# regorus пінує `regex` із `default-features = false` — Perl-скорочення
+# (`\d \s \w \b`) не компілюються всередині policy без цього. Явна
+# sibling-залежність тут — Cargo feature-unifies її в ОДНУ копію з тим
+# самим semver-діапазоном, що вже тягне regorus (доккомент, який раніше
+# стояв у `crates/plugin-ci-github/Cargo.toml`, повністю застосовний і
+# тут — перенесено без змін по суті).
+regex = { version = "1", features = ["unicode-perl"] }
