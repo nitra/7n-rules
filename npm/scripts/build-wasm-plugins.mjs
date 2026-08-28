@@ -55,7 +55,10 @@ export const WASM_PLUGINS_DIR = join(NPM_ROOT, 'wasm-plugins')
  * `plugins/ci-github/rules/rust/toolchain_cache`, `crates/plugin-ci-github`
  * — `name` тут короткий package-суфікс `@7n/rules-ci-github`, той самий
  * мотив, що `lang-js`/`lang-python`/`lang-rust`/`lang-php`, доккомент
- * `crates/plugin-ci-github/plugin.toml`).
+ * `crates/plugin-ci-github/plugin.toml`) і `ci-azure` (ШОСТИЙ гість, перша
+ * хвиля порту ДВОХ концернів `plugins/ci-azure/rules/azure-pipelines/
+ * {lint_pipeline,vscode_extensions}`, `crates/plugin-ci-azure` — той самий
+ * `name`-мотив, `@7n/rules-ci-azure`).
  * Новий first-party плагін додається одним рядком тут; той самий реєстр
  * читає й CI-крок (той самий скрипт, `node npm/scripts/build-wasm-plugins.mjs`).
  * @type {Array<{ name: string, crateDir: string }>}
@@ -65,7 +68,8 @@ export const FIRST_PARTY_WASM_PLUGINS = [
   { name: 'lang-python', crateDir: 'crates/plugin-lang-python' },
   { name: 'lang-rust', crateDir: 'crates/plugin-lang-rust' },
   { name: 'lang-php', crateDir: 'crates/plugin-lang-php' },
-  { name: 'ci-github', crateDir: 'crates/plugin-ci-github' }
+  { name: 'ci-github', crateDir: 'crates/plugin-ci-github' },
+  { name: 'ci-azure', crateDir: 'crates/plugin-ci-azure' }
 ]
 
 /** Ціль Component Model, під яку зібрані first-party плагіни (доккомент `build.sh`). */

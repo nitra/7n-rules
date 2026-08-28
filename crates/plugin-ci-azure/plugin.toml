@@ -1,0 +1,60 @@
+# Маніфест wasm-плагіна `ci-azure/wasm-concerns` — ШОСТИЙ first-party
+# wasm-гість репозиторію (перший — `crates/plugin-lang-js`, другий —
+# `crates/plugin-lang-python`, третій — `crates/plugin-lang-rust`, четвертий —
+# `crates/plugin-lang-php`, п'ятий — `crates/plugin-ci-github`, доккомент
+# того `plugin.toml` пояснює саму форму), створений за тим самим флоу скіла
+# `npm/skills/wasm-plugin/`. Плагін-джерело — `@7n/rules-ci-azure`
+# (`plugins/ci-azure/`), другий НЕ-lang first-party гість.
+#
+# ПЕРША хвиля: два з десяти концернів плагіна — доказ, що каркас працює, і
+# базовий замір вартості (доккомент `src/lib.rs`, розділ модуля). Обраний
+# `azure-pipelines/lint_pipeline` (чистий rego-детект, БЕЗ фіксатора) і
+# `azure-pipelines/vscode_extensions` (rego-детект + T0-фіксер, той самий
+# спільний рушій `vscode-ext-add.mjs`, що `ga/vscode_extensions` у
+# `plugin-ci-github`) — представники ОБОХ форм (детект-лише і детект+фікс),
+# не два зручних однакових. Решта вісім концернів (`pipeline_common`,
+# `service_deploy_pipeline`, `docker/lint_pipeline_docker`,
+# `k8s/lint_pipeline_k8s`, `security/lint_pipeline_security`,
+# `style/lint_pipeline_style`, `text/lint_pipeline_text`,
+# `ci_artifact/consume_azure`) — поза обсягом цієї хвилі, JS-канон УСІХ
+# десяти лишається недоторканим (парність доводиться, JS не видаляється).
+#
+# Поля 1:1 відповідають `rules_contract::manifest::Manifest`
+# (crates/rules-contract/src/manifest.rs, без serde-перейменувань — назви
+# полів тотожні Rust-структурі). Хост читає цей файл лише як довідник для
+# людини й дистрибуційний supplement — джерело правди в рантаймі завжди
+# `describe()` (не парситься назад у `PluginHost`, спека §3.1).
+
+id = "ci-azure/wasm-concerns"
+version = "0.1.0"
+world_version = "3.2.0"
+domains = ["lint"]
+# Top-level поля маніфеста — ОБОВʼЯЗКОВО перед першим `[[concerns]]`: після
+# array-of-tables заголовка TOML відніс би їх до останнього елемента масиву,
+# а не до кореня (та сама пастка, задокументована в `plugin.toml` решти
+# п'яти гостей).
+ci_artifacts = []
+tools = []
+
+[[concerns]]
+# Чистий rego-детект, БЕЗ T0-фіксатора (`concern.json` не декларує
+# `fixability`) — один обов'язковий `azure-pipelines.yml`-файл.
+key = "azure-pipelines/lint_pipeline"
+scope = "full"
+glob = ["azure-pipelines.yml"]
+
+[[concerns]]
+# rego-детект + T0-фіксатор (`fixability: "config"`) — один обов'язковий
+# `.vscode/extensions.json`-файл, той самий `vscode-ext-add.mjs`-рушій, що
+# `ga/vscode_extensions` у `plugin-ci-github`.
+key = "azure-pipelines/vscode_extensions"
+scope = "full"
+glob = [".vscode/extensions.json"]
+
+[capabilities]
+# Хост передає вміст файлів inline у `detect-batch` (host-побудований
+# full-scope batch за `glob` вище) — плагін не читає диск сам (той самий
+# мотив, що решта пʼяти гостей). Жоден concern цієї хвилі не декларує
+# `tools` — обидва обмежуються rego + вшитим snippet-шаблоном.
+fs_read = []
+network = false
