@@ -1,6 +1,6 @@
 {
   "name": "@7n/rules-linux-x64",
-  "version": "1.105.0",
+  "version": "1.107.0",
   "description": "Попередньо скомпільований native napi-аддон rules-core для @7n/rules — Linux x64 (glibc)",
   "license": "ISC",
   "author": "v@nitra.ai",
