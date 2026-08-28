@@ -11910,9 +11910,14 @@ fn detect_jscpd_duplicates() -> Vec<Diagnostic> {
 //    `walkDir`, хост тепер теж читає `.n-rules.json` перед побудовою батчу.
 //    Двигун обходу той самий (`rules_core::scan::walk_dir`), тож
 //    `.gitignore`/`node_modules` поводяться однаково.
-// 5. **T0-фікс лишається JS.** `fix-runtime.mjs` — текстовий патч
-//    `package.json#imports`, не `FixPlan` із повного вмісту файлу; порт
-//    fix-контуру цього концерну — не цей зріз.
+// 5. **T0-фікс портовано ОКРЕМОЮ хвилею, ПІСЛЯ цього зрізу** —
+//    [`fix_js_run_runtime`] нижче. Це ВИПРАВЛЯЄ, а не підтверджує,
+//    попереднє твердження цього пункту («`fix-runtime.mjs` — текстовий
+//    патч `package.json#imports`»): на момент того запису опис уже не
+//    відповідав файлу — `fix-runtime.mjs` встиг спроститись до ОДНОГО
+//    FS-патерну (`js-run-jsconfig-create`, `git log` показує кілька хвиль
+//    видалення старих патернів) задовго до цього доккомента. Доккомент
+//    біля [`fix_js_run_runtime`] — джерело правди для fix-половини.
 // =====================================================================
 
 /// Ключ контрибуції `js-run/runtime` (зріз 7 контракту v3.1).
@@ -11926,6 +11931,21 @@ const JS_RUN_RUNTIME_REASON: &str = "runtime";
 /// Дефолт каталогу підключень — порт `fallback` `resolveConnDirFromPackageJson`
 /// (`conn-imports-scan.mjs:52`).
 const CONN_DIR_FALLBACK: &str = "src/conn";
+
+/// Канон `jsconfig.json`, вшитий у компонент — ТОЙ САМИЙ файл, що читає
+/// T0-фіксер `fix-runtime.mjs` (`readFileSync(new URL('../jsconfig/template/…'))`)
+/// і policy-концерн `js-run/jsconfig` (`--data` для `jsconfig.rego`). Той самий
+/// прецедент, що [`KNIP_CANONICAL_JSON`] (доккомент секції «`js/check` —
+/// T0-фіксер ПОРТОВАНО», PR #513): жодної копії, анти-дрейф —
+/// [`embedded_jsconfig_canonical_matches_source_file`] нижче. Джерело файлу
+/// вже нормалізоване (`trimEnd() + '\n'` == сирі байти на диску, перевірено
+/// вручну при порту) — `include_str!` тут не потребує додаткової нормалізації,
+/// на відміну від того, як [`fix_js_run_runtime`] це робить у прода-Rust-порту
+/// [`fix-runtime.mjs`]'s `JSCONFIG_CONTENT` (JS-бік перестраховується
+/// нормалізацією про всяк випадок; порт вимагає, щоб файл-джерело ВЖЕ був
+/// нормалізований — анти-дрейф-тест це й перевіряє).
+const JSCONFIG_CANONICAL_JSON: &str =
+    include_str!("../../../plugins/lang-js/rules/js-run/jsconfig/template/jsconfig.json.snippet.json");
 
 /// Заборонені logger-модулі під-перевірки 2 — порт `FORBIDDEN_MODULES`
 /// (`bunyan-imports.mjs:24`).
@@ -12970,6 +12990,113 @@ fn detect_js_run_runtime(files: &[SourceFile]) -> Vec<Diagnostic> {
     out
 }
 
+// ---------------------------------------------------------------------
+// T0-фікс `js-run/runtime` — портовано ЦІЄЮ хвилею (розбіжність 5 доккомента
+// секції «Зріз 7» вище — СКАСОВАНА, не жива: `fix-runtime.mjs` на момент
+// того запису вже був спрощений до одного FS-патерну, доккомент
+// [`fix_js_run_runtime`] нижче деталізує).
+//
+// # Що саме портовано
+//
+// `fix-runtime.mjs` (46 рядків, `git log` показує кілька попередніх хвиль
+// спрощення) несе РІВНО один T0Pattern — `js-run-jsconfig-create`, T0-фікс
+// під-перевірки 1 («є `src/`, немає `jsconfig.json`»): для КОЖНОГО violation
+// виду `[<ws>] є каталог src/, але немає jsconfig.json…` пише канонічний
+// `<ws>/jsconfig.json`, якщо файла ще немає. Це вже НЕ текстовий патч
+// `package.json#imports` (застаріле твердження доккомента секції «Зріз 7» —
+// стосувалось попередньої, ширшої версії файлу; поточний канон і порт нижче
+// узгоджені з РЕАЛЬНИМ станом `fix-runtime.mjs`, не з історичним).
+//
+// # `FixRequest` — whole-batch, той самий full-scope fallback, що `js/check`
+//
+// [`detect_js_run_runtime`] НІКОЛИ не кладе `file` у `Diagnostic`
+// (`check_js_run_workspace_package`, кожен `fail(...)` — `file: None`) —
+// тобто `js-run/runtime` СТАЄ другим (після [`CONCERN_JS_CHECK`]) whole-batch
+// концерном контрибуції, і його T0-фікс так само проходить крізь full-scope
+// fallback `run_wasm_concern_fix` (`crates/rules-napi`, задокументований
+// доккоментом секції «`js/check` — T0-фіксер ПОРТОВАНО» і §2.47/§2.49
+// реєстру): `FixRequest::files` тут — увесь батч концерну (глоб контрибуції
+// вже несе `**/jsconfig.json` — гейт «файл уже існує» під-перевірки 1),
+// не лише файли з `diagnostic.file`. Саме тому доказ парності — РЕАЛЬНИЙ
+// napi-міст (`runWasmConcern` → `runWasmConcernFix`), не прямий виклик
+// гостя (той самий урок §2.47/§2.49: пряме тестування гостя не бачить цю
+// гілку взагалі).
+//
+// # Workspace — з `message`, не з `diagnostic.data`
+//
+// JS-канон кодує workspace ПРЯМО в тексті повідомлення
+// (`[<ws>] є каталог src/, …`) і витягує його назад анхореним регексом
+// (`JSCONFIG_MISSING_WS_RE`) — жодного структурованого поля `data` немає.
+// [`jsconfig_missing_ws`] — точний порт того самого регекса (анхор на
+// ПОЧАТОК рядка: `message`, що містить підрядок, але без провідного
+// `[ws] `, мовчки ігнорується — той самий edge case, що характеризаційний
+// гейт `fix-runtime/tests/fix-runtime.test.mjs` фіксує для JS-канону).
+//
+// # Дедуп і ідемпотентність — БЕЗ диск-IO, на відміну від JS
+//
+// JS-канон — синхронний цикл `existsSync`/`writeFileSync`: ДРУГЕ violation
+// з тим самим workspace бачить файл, щойно записаний ПЕРШИМ, і мовчки
+// пропускає його (реальний FS-side-effect у межах одного виклику `apply`).
+// Порт не пише на диск узагалі (`FixPlan` — декларація, не побічний ефект),
+// тож той самий результат («той самий шлях — рівно один edit») дає явний
+// `planned`-набір: перше входження шляху лишає його в `planned`, друге —
+// коротко пропускається БЕЗ повторної перевірки `batch_file`.
+fn fix_js_run_runtime(request: &FixRequest) -> FixPlan {
+    let mut edits = Vec::new();
+    let mut planned: HashSet<String> = HashSet::new();
+    for diagnostic in &request.diagnostics {
+        let Some(ws) = jsconfig_missing_ws(&diagnostic.message) else {
+            continue;
+        };
+        let path = jsconfig_target_path(ws);
+        if !planned.insert(path.clone()) {
+            continue;
+        }
+        if batch_file(&request.files, &path).is_some() {
+            continue;
+        }
+        edits.push(FileEdit::Write(WriteFile {
+            path,
+            content: JSCONFIG_CANONICAL_JSON.to_string(),
+        }));
+    }
+    FixPlan { edits }
+}
+
+/// Точний порт `JSCONFIG_MISSING_WS_RE` (`fix-runtime.mjs`) —
+/// `^\[([^\]]*)\] є каталог src\/, але немає jsconfig\.json`: якір на
+/// ПОЧАТОК рядка (на відміну від тестового `JSCONFIG_MISSING_RE`, який
+/// матчиться будь-де), тому повертає `None`, якщо `message` не починається
+/// РІВНО з `[<ws>] ` перед підрядком.
+fn jsconfig_missing_ws(message: &str) -> Option<&str> {
+    let rest = message.strip_prefix('[')?;
+    let (ws, rest) = rest.split_once(']')?;
+    let rest = rest.strip_prefix(' ')?;
+    if rest.starts_with(JSCONFIG_MISSING_SUBSTR) {
+        Some(ws)
+    } else {
+        None
+    }
+}
+
+/// Підрядок, який матчить substring-регекс `JSCONFIG_MISSING_RE`
+/// (`fix-runtime.mjs`) — тут використовується лише як частина
+/// [`jsconfig_missing_ws`] (анхорена перевірка `test()`-регекса тут не
+/// потрібна: `fix()` викликається хостом лише коли якесь violation вже
+/// пройшло `test()` на JS/wasm-диспетчер-рівні, доккомент `run-fix.mjs`).
+const JSCONFIG_MISSING_SUBSTR: &str = "є каталог src/, але немає jsconfig.json";
+
+/// Точний порт `join(cwd, ws, 'jsconfig.json')` (`fix-runtime.mjs`) у
+/// repo-relative форму `FileEdit::Write::path` — той самий
+/// [`normalize_rel_path`], що [`pkg_json_path`] використовує для
+/// `package.json` (`.`/`""` → корінь без префікса).
+fn jsconfig_target_path(ws: &str) -> String {
+    match normalize_rel_path(ws) {
+        Some(norm) => format!("{norm}/jsconfig.json"),
+        None => "jsconfig.json".to_string(),
+    }
+}
+
 /// Guest-реалізація world `plugin` — тридцять дев'ять контрибуцій ([`CONCERN_TFM`],
 /// [`CONCERN_GAP`], [`CONCERN_POOL_FORKS`], [`CONCERN_NO_PROCESS_CHDIR`],
 /// [`CONCERN_ADMIN_TABLE`], [`CONCERN_QUASAR_FIXES`], [`CONCERN_LOCATION`],
@@ -13206,17 +13333,19 @@ impl Guest for LangJs {
     /// fix-контур contract v3: `test/no-bun-test-import` (пілот,
     /// [`fix_no_bun_test_import`] — Rust-порт видаленого
     /// `fix-no-bun-test-import.mjs`), `js/doc_comments` (зріз 4 контракту
-    /// v3.1, [`fix_doc_comments`] — порт `fix-doc_comments.mjs`) і `js/check`
+    /// v3.1, [`fix_doc_comments`] — порт `fix-doc_comments.mjs`), `js/check`
     /// (доккомент секції «`js/check` — T0-фіксер ПОРТОВАНО»,
-    /// [`fix_js_check`] — порт `fix-check.mjs`) — усі три JS-канони тут, на
-    /// відміну від пілота, ЛИШАЮТЬСЯ як JS-fallback; решта концернів —
-    /// порожній план («нічого не чинити», сумісна заглушка — доккомент
-    /// `wit/world.wit` біля `export fix`).
+    /// [`fix_js_check`] — порт `fix-check.mjs`) і `js-run/runtime`
+    /// (доккомент біля [`fix_js_run_runtime`], порт `fix-runtime.mjs`) —
+    /// усі чотири JS-канони тут, на відміну від пілота, ЛИШАЮТЬСЯ як
+    /// JS-fallback; решта концернів — порожній план («нічого не чинити»,
+    /// сумісна заглушка — доккомент `wit/world.wit` біля `export fix`).
     fn fix(request: FixRequest) -> FixPlan {
         match request.concern_id.as_str() {
             CONCERN_NO_BUN_TEST_IMPORT => fix_no_bun_test_import(&request),
             CONCERN_DOC_COMMENTS => fix_doc_comments(&request),
             CONCERN_JS_CHECK => fix_js_check(&request),
+            CONCERN_JS_RUN_RUNTIME => fix_js_run_runtime(&request),
             _ => FixPlan { edits: vec![] },
         }
     }
@@ -19464,5 +19593,200 @@ plugins: [VueMacros({}), AutoImport({ imports: ['vue'] })] }\n";
             "const now = Temporal.Now.instant()\n",
         ))
         .is_empty());
+    }
+
+    // =====================================================================
+    // js-run/runtime — T0-фікс `js-run-jsconfig-create` (доккомент біля
+    // [`fix_js_run_runtime`]): порт `fix-runtime.mjs`, характеризаційний
+    // JS-гейт — `plugins/lang-js/rules/js-run/runtime/tests/fix-runtime.test.mjs`.
+    // =====================================================================
+
+    /// Точний формат `message`, який реально видає [`check_js_run_workspace_package`]
+    /// для під-перевірки 1 — той самий рядок, що `fix-runtime.mjs`'s
+    /// `JSCONFIG_MISSING_WS_RE` парсить назад.
+    fn jsconfig_missing_message(ws: &str) -> String {
+        format!(
+            "[{ws}] є каталог src/, але немає jsconfig.json — додай канонічний файл з js-run.mdc \
+             (NodeNext, include: src/**/*)."
+        )
+    }
+
+    fn jsconfig_missing_diagnostic(ws: &str) -> Diagnostic {
+        Diagnostic {
+            reason: JS_RUN_RUNTIME_REASON.to_string(),
+            message: jsconfig_missing_message(ws),
+            file: None,
+            severity: Severity::Error,
+            data: None,
+        }
+    }
+
+    #[test]
+    fn jsconfig_missing_ws_parses_anchored_bracket_prefix() {
+        assert_eq!(jsconfig_missing_ws(&jsconfig_missing_message("api")), Some("api"));
+        assert_eq!(
+            jsconfig_missing_ws(&jsconfig_missing_message("packages/api")),
+            Some("packages/api")
+        );
+    }
+
+    /// Точний порт асиметрії `JSCONFIG_MISSING_WS_RE` vs `JSCONFIG_MISSING_RE`
+    /// (доккомент [`jsconfig_missing_ws`]): підрядок без провідного `[ws] `
+    /// не дає workspace, навіть якщо substring-тест (`test()` JS-канону)
+    /// спрацював би.
+    #[test]
+    fn jsconfig_missing_ws_none_without_anchored_bracket_prefix() {
+        assert_eq!(
+            jsconfig_missing_ws("десь тут є каталог src/, але немає jsconfig.json теж"),
+            None
+        );
+        assert_eq!(jsconfig_missing_ws("[api]є каталог src/, але немає jsconfig.json"), None);
+        assert_eq!(jsconfig_missing_ws("немає дужок узагалі"), None);
+    }
+
+    /// Основний сценарій: один workspace, `jsconfig.json` відсутній у батчі —
+    /// один `Write`-edit з ТОЧНИМ вшитим каноном.
+    #[test]
+    fn fix_js_run_runtime_creates_missing_jsconfig() {
+        let request = FixRequest {
+            concern_id: CONCERN_JS_RUN_RUNTIME.to_string(),
+            files: vec![source("api/package.json", r#"{"name":"api"}"#)],
+            diagnostics: vec![jsconfig_missing_diagnostic("api")],
+        };
+        let plan = fix_js_run_runtime(&request);
+        assert_eq!(plan.edits.len(), 1);
+        let FileEdit::Write(write) = &plan.edits[0] else {
+            panic!("js-run/runtime не видаляє файлів")
+        };
+        assert_eq!(write.path, "api/jsconfig.json");
+        assert_eq!(write.content, JSCONFIG_CANONICAL_JSON);
+    }
+
+    /// Кілька workspace-ів одразу — edit на КОЖЕН, у порядку `diagnostics`
+    /// (той самий порядок, що `touchedFiles` JS-канону).
+    #[test]
+    fn fix_js_run_runtime_creates_jsconfig_for_each_workspace_in_order() {
+        let request = FixRequest {
+            concern_id: CONCERN_JS_RUN_RUNTIME.to_string(),
+            files: vec![],
+            diagnostics: vec![
+                jsconfig_missing_diagnostic("api"),
+                jsconfig_missing_diagnostic("worker"),
+            ],
+        };
+        let plan = fix_js_run_runtime(&request);
+        let paths: Vec<&str> = plan
+            .edits
+            .iter()
+            .map(|e| match e {
+                FileEdit::Write(w) => w.path.as_str(),
+                FileEdit::Delete { .. } => panic!("js-run/runtime не видаляє файлів"),
+            })
+            .collect();
+        assert_eq!(paths, vec!["api/jsconfig.json", "worker/jsconfig.json"]);
+    }
+
+    /// `jsconfig.json` уже присутній у батчі (full-scope fallback читає його
+    /// з диска, доккомент [`fix_js_run_runtime`]) — ідемпотентність:
+    /// відсутній edit для ЦЬОГО workspace-а, інший (справді відсутній)
+    /// лишається в плані.
+    #[test]
+    fn fix_js_run_runtime_skips_workspace_whose_jsconfig_already_exists() {
+        let request = FixRequest {
+            concern_id: CONCERN_JS_RUN_RUNTIME.to_string(),
+            files: vec![source("api/jsconfig.json", "{\"custom\":true}\n")],
+            diagnostics: vec![
+                jsconfig_missing_diagnostic("api"),
+                jsconfig_missing_diagnostic("worker"),
+            ],
+        };
+        let plan = fix_js_run_runtime(&request);
+        assert_eq!(plan.edits.len(), 1);
+        assert!(matches!(&plan.edits[0], FileEdit::Write(w) if w.path == "worker/jsconfig.json"));
+    }
+
+    /// `message`, що містить підрядок, але не проходить анхор [`jsconfig_missing_ws`]
+    /// — мовчки ігнорується, план порожній (той самий edge case, що
+    /// характеризаційний JS-гейт).
+    #[test]
+    fn fix_js_run_runtime_ignores_non_anchored_diagnostic() {
+        let request = FixRequest {
+            concern_id: CONCERN_JS_RUN_RUNTIME.to_string(),
+            files: vec![],
+            diagnostics: vec![Diagnostic {
+                reason: JS_RUN_RUNTIME_REASON.to_string(),
+                message: "десь тут є каталог src/, але немає jsconfig.json теж".to_string(),
+                file: None,
+                severity: Severity::Error,
+                data: None,
+            }],
+        };
+        assert!(fix_js_run_runtime(&request).edits.is_empty());
+    }
+
+    /// Дублікат діагностики для ТОГО САМОГО workspace-а (напр. повторний
+    /// прогін детекту на неоновленому батчі) — рівно ОДИН edit, не два
+    /// (доккомент [`fix_js_run_runtime`] пояснює, чому порт емулює
+    /// `existsSync`-побічний ефект JS-циклу через явний `planned`-набір).
+    #[test]
+    fn fix_js_run_runtime_dedupes_duplicate_diagnostics_for_same_workspace() {
+        let request = FixRequest {
+            concern_id: CONCERN_JS_RUN_RUNTIME.to_string(),
+            files: vec![],
+            diagnostics: vec![jsconfig_missing_diagnostic("api"), jsconfig_missing_diagnostic("api")],
+        };
+        assert_eq!(fix_js_run_runtime(&request).edits.len(), 1);
+    }
+
+    /// Доказ парності «детект → фікс → повторний детект чисто» — гість-only
+    /// раунд-трип (той самий прийом, що [`fix_js_check_round_trip_with_detect_is_clean`]):
+    /// РЕАЛЬНИЙ [`detect_js_run_runtime`] на батчі з `src/`, без `jsconfig.json`,
+    /// дає під-перевірку 1; застосований план задовольняє повторний детект.
+    #[test]
+    fn fix_js_run_runtime_round_trip_with_detect_is_clean() {
+        let before = js_run_workspace_files("", "src/index.mjs", "export const app = 1\n");
+        let diagnostics_before = detect_js_run_runtime(&before);
+        assert_eq!(diagnostics_before.len(), 1);
+        assert!(diagnostics_before[0].message.contains("є каталог src/, але немає jsconfig.json"));
+
+        let plan = fix_js_run_runtime(&FixRequest {
+            concern_id: CONCERN_JS_RUN_RUNTIME.to_string(),
+            files: before.clone(),
+            diagnostics: diagnostics_before,
+        });
+        assert_eq!(plan.edits.len(), 1);
+
+        let mut after = before;
+        for edit in &plan.edits {
+            let FileEdit::Write(write) = edit else {
+                panic!("js-run/runtime не видаляє файлів")
+            };
+            after.push(source(&write.path, &write.content));
+        }
+        assert!(
+            detect_js_run_runtime(&after).is_empty(),
+            "план не задовольнив повторний детект: {:?}",
+            detect_js_run_runtime(&after)
+        );
+    }
+
+    /// Анти-дрейф-гейт для [`JSCONFIG_CANONICAL_JSON`] — той самий шаблон,
+    /// що [`embedded_knip_canonical_matches_source_file`]: читає канонічний
+    /// файл-джерело НЕЗАЛЕЖНО від `include_str!`-шляху (через
+    /// `CARGO_MANIFEST_DIR`) і звіряє байт-у-байт із вшитою константою.
+    #[test]
+    fn embedded_jsconfig_canonical_matches_source_file() {
+        let canonical_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(
+            "../../plugins/lang-js/rules/js-run/jsconfig/template/jsconfig.json.snippet.json",
+        );
+        let on_disk = std::fs::read_to_string(&canonical_path).unwrap_or_else(|err| {
+            panic!("не вдалось прочитати канонічний jsconfig.json.snippet.json {canonical_path:?}: {err}")
+        });
+        assert_eq!(
+            JSCONFIG_CANONICAL_JSON, on_disk,
+            "вшитий `include_str!`-вміст розійшовся з канонічним файлом-джерелом \
+             {canonical_path:?} — T0-фіксер (`fix-runtime.mjs`) і гість мають вшивати/читати \
+             ІДЕНТИЧНИЙ канон"
+        );
     }
 }

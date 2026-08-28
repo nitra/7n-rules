@@ -159,6 +159,14 @@ const JS_CHECK_CONCERN_KEY = 'js/check'
 // як `fix-doc_comments.mjs` для зрізу 4 нижче.
 const JS_CHECK_DIR = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'js', 'check')
 const JS_CHECK_FIX_MJS_PATH = join(JS_CHECK_DIR, 'fix-check.mjs')
+// T0-фіксер `js-run/runtime` (`js-run-jsconfig-create`, доккомент біля
+// `fix_js_run_runtime` у `crates/plugin-lang-js/src/lib.rs`) — той самий
+// full-scope fallback шлях `run_wasm_concern_fix`, що `js/check` (жодна
+// діагностика цього концерну не несе `file`), тож пряме тестування гостя
+// цю гілку НЕ доводить (§2.47/§2.49 реєстру) — describe нижче ганяє
+// РЕАЛЬНИЙ napi-міст (`runWasmConcern` → `runWasmConcernFix`).
+const JS_RUN_RUNTIME_FIX_DIR = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'js-run', 'runtime')
+const JS_RUN_RUNTIME_FIX_MJS_PATH = join(JS_RUN_RUNTIME_FIX_DIR, 'fix-runtime.mjs')
 // Зріз 4 контракту v3.1: `js/doc_comments` — секція «Зріз 4» у
 // `crates/plugin-lang-js/src/lib.rs`. На відміну від решти зрізів, тут у
 // парі беруть участь ДВА JS-модулі: детектор і T0-фіксер (він лишається
@@ -4688,6 +4696,140 @@ describe('wasm-plugin parity — js-run/runtime (JS канон vs wasm plugin-la
       const { js, wasm } = await runJsRunRuntimeBoth(dir)
       expect(wasm).toEqual(js)
       expect(js).toEqual([])
+    })
+  })
+})
+
+// T0-фіксер `js-run/runtime` (`js-run-jsconfig-create`, доккомент біля
+// `JS_RUN_RUNTIME_FIX_MJS_PATH` вище) — той самий snapshot/restore-мотив, що
+// `js/check T0-фікс` ([`snapshotJsCheckTargets`]/[`restoreJsCheckTargets`]):
+// JS-патерн пише на РЕАЛЬНИЙ диск tmp-каталогу, тож перед wasm-планом стан
+// треба повернути до «before», інакше wasm побачить уже змінені JS-фіксером
+// файли. На відміну від `js/check` (фіксований набір із чотирьох можливих
+// шляхів), цільові шляхи тут залежать від workspace-ів конкретного сценарію
+// — параметризовано явним списком, а не константою.
+describe('wasm-plugin parity — js-run/runtime T0-фікс (JS-канон fix-runtime.mjs vs wasm plugin-lang-js, через napi-міст)', () => {
+  /**
+   * Знімок вмісту заданих файлів tmp-дерева — `null` для відсутнього (той
+   * самий контракт, що `snapshotJsCheckTargets`).
+   * @param {string} dir абсолютний шлях tmp-каталогу
+   * @param {string[]} relPaths repo-relative шляхи для знімку
+   * @returns {Promise<Record<string, string|null>>} шлях → вміст (або `null`)
+   */
+  async function snapshotTargets(dir, relPaths) {
+    const { readFile: read } = await import('node:fs/promises')
+    const out = {}
+    for (const rel of relPaths) {
+      try {
+        out[rel] = await read(join(dir, rel), 'utf8')
+      } catch {
+        out[rel] = null
+      }
+    }
+    return out
+  }
+
+  /**
+   * Повертає задані файли до знятого знімку (той самий контракт, що
+   * `restoreJsCheckTargets`).
+   * @param {string} dir абсолютний шлях tmp-каталогу
+   * @param {string[]} relPaths repo-relative шляхи (той самий список, що [`snapshotTargets`])
+   * @param {Record<string, string|null>} snapshot знімок [`snapshotTargets`]
+   */
+  async function restoreTargets(dir, relPaths, snapshot) {
+    const { writeFile: write, rm } = await import('node:fs/promises')
+    for (const rel of relPaths) {
+      const abs = join(dir, rel)
+      if (snapshot[rel] === null) {
+        await rm(abs, { force: true })
+      } else {
+        await write(abs, snapshot[rel], 'utf8')
+      }
+    }
+  }
+
+  /**
+   * Parity T0-фікса `js-run/runtime`: violations беруться напряму з
+   * `runWasmConcern` (whole-batch full-scope, той самий шлях, що
+   * [`runJsRunRuntimeBoth`] вище), подаються і в `fix-runtime.mjs` (пише на
+   * РЕАЛЬНИЙ диск — той самий канон, що лишається fallback-ом), і в
+   * `runWasmConcernFix` (повертає план). Порівнюється фінальний вміст усіх
+   * `targetPaths`.
+   * @param {string} dir абсолютний шлях tmp-каталогу з уже записаними фікстурами
+   * @param {string[]} targetPaths repo-relative шляхи `<ws>/jsconfig.json`, які сценарій очікує торкнутись
+   * @returns {Promise<{ js: Record<string, string|null>, wasm: Record<string, string|null>, violations: unknown[] }>}
+   *   фінальні знімки обох реалізацій і violations, якими обидві живились
+   */
+  async function runJsRunRuntimeFixBoth(dir, targetPaths) {
+    const before = await snapshotTargets(dir, targetPaths)
+    const violations = withDefaultSeverity(
+      loadNative().runWasmConcern(WASM_PATH, JS_RUN_RUNTIME_CONCERN_KEY, dir, null).violations
+    )
+
+    // eslint-disable-next-line no-unsanitized/method
+    const { patterns } = await import(pathToFileURL(JS_RUN_RUNTIME_FIX_MJS_PATH).href)
+    for (const pattern of patterns) {
+      if (pattern.test(violations)) {
+        await pattern.apply(violations, { cwd: dir, ruleId: 'js-run', concernId: 'runtime' })
+      }
+    }
+    const jsAfter = await snapshotTargets(dir, targetPaths)
+    await restoreTargets(dir, targetPaths, before)
+
+    const plan = loadNative().runWasmConcernFix(WASM_PATH, JS_RUN_RUNTIME_CONCERN_KEY, dir, violations, {})
+    const wasmAfter = { ...before }
+    for (const edit of plan.edits) {
+      if (edit.type === 'write' && targetPaths.includes(edit.path)) {
+        wasmAfter[edit.path] = edit.content
+      }
+    }
+
+    return { js: jsAfter, wasm: wasmAfter, violations }
+  }
+
+  test('один workspace без jsconfig.json — обидві реалізації створюють ІДЕНТИЧНИЙ канонічний файл', async () => {
+    await withTmpDir(async dir => {
+      await writeWorkspaceRoot(dir)
+      await writeApiFile(dir, 'src/index.mjs', 'export const app = 1\n')
+      const { js, wasm, violations } = await runJsRunRuntimeFixBoth(dir, ['api/jsconfig.json'])
+      expect(violations).toHaveLength(1)
+      expect(violations[0].message).toContain('є каталог src/, але немає jsconfig.json')
+      expect(wasm).toEqual(js)
+      expect(js['api/jsconfig.json']).not.toBeNull()
+      expect(js['api/jsconfig.json']).toContain('"include": ["src/**/*"]')
+    })
+  })
+
+  test('кілька workspace-ів без jsconfig.json одночасно — обидві реалізації створюють файл для КОЖНОГО', async () => {
+    await withTmpDir(async dir => {
+      const { mkdir } = await import('node:fs/promises')
+      await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'root', workspaces: ['api', 'worker'] }))
+      await mkdir(join(dir, 'api'), { recursive: true })
+      await writeFile(join(dir, 'api', 'package.json'), JSON.stringify({ name: 'api' }))
+      await mkdir(join(dir, 'api', 'src'), { recursive: true })
+      await writeFile(join(dir, 'api', 'src', 'index.mjs'), 'export const app = 1\n')
+      await mkdir(join(dir, 'worker'), { recursive: true })
+      await writeFile(join(dir, 'worker', 'package.json'), JSON.stringify({ name: 'worker' }))
+      await mkdir(join(dir, 'worker', 'src'), { recursive: true })
+      await writeFile(join(dir, 'worker', 'src', 'index.mjs'), 'export const w = 1\n')
+
+      const targetPaths = ['api/jsconfig.json', 'worker/jsconfig.json']
+      const { js, wasm, violations } = await runJsRunRuntimeFixBoth(dir, targetPaths)
+      expect(violations).toHaveLength(2)
+      expect(wasm).toEqual(js)
+      for (const path of targetPaths) expect(js[path]).not.toBeNull()
+    })
+  })
+
+  test('jsconfig.json уже існує — обидві реалізації НЕ перезаписують чужий вміст (violations порожні)', async () => {
+    await withTmpDir(async dir => {
+      await writeWorkspaceRoot(dir)
+      await writeApiFile(dir, 'src/index.mjs', 'export const app = 1\n')
+      await writeApiFile(dir, 'jsconfig.json', '{"custom":true}\n')
+      const { js, wasm, violations } = await runJsRunRuntimeFixBoth(dir, ['api/jsconfig.json'])
+      expect(violations).toEqual([])
+      expect(wasm).toEqual(js)
+      expect(js['api/jsconfig.json']).toBe('{"custom":true}\n')
     })
   })
 })
