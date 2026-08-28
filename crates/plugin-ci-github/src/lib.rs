@@ -2666,10 +2666,33 @@ fn edit_start(e: &Edit) -> usize {
 /// позиції (той самий мотив, що `inserts.sort_by` в [`insert_rust_cache`]:
 /// індекси попередніх, ще не застосованих правок не зсуваються, коли
 /// пізніша (нижче за текстом) правка застосовується першою).
-fn apply_edits(content: &str, mut edits: Vec<Edit>) -> String {
-    edits.sort_by_key(|e| std::cmp::Reverse(edit_start(e)));
+/// Застосовує `edits` у порядку `push` (доккомент [`apply_edits`] пояснює
+/// чому це НЕ довільний вибір): [`surgical_merge_node`] — DFS
+/// post-order-подібний обхід — дочірні правки завжди `push`-нуться в
+/// `edits` РАНІШЕ за правку «бракує ключів» їхнього ВЛАСНОГО батька (та
+/// послідовно РАНІШЕ за правки будь-якого предка вище), тож вихідний
+/// порядок вектора вже несе інформацію про глибину вкладеності — саме її
+/// [`apply_edits`] мусить зберегти на в'язках з однаковою `at`.
+fn apply_edits(content: &str, edits: Vec<Edit>) -> String {
+    // Вставки на ОДНАКОВІЙ позиції — реальний сценарій, не крайній випадок:
+    // коли «останній наявний запис» кількох різних предків (кроку в
+    // масиві, job-а, кореня) структурно дном впирається в ТУ САМУ
+    // найглибшу скалярну позицію документа (§2.58, доккомент
+    // [`deepest_last_leaf_end`]), усі їхні вставки анкеряться в ОДНУ й ТУ
+    // САМУ байтову точку. `String::insert_str` при повторній вставці в ТУ
+    // САМУ позицію ставить НОВИЙ текст ПЕРЕД раніше вставленим — тож щоб
+    // найглибша (найпізніше `push`-нута) правка опинилась НАЙБЛИЖЧЕ до
+    // якоря (структурно правильно — вона належить найглибшому контейнеру),
+    // її треба застосувати ОСТАННЬОЮ серед в'язки. Сортуємо за спаданням
+    // `at`, а в'язки з однаковим `at` — за СПАДАННЯМ індексу `push` (пізніше
+    // `push`-нуте — раніше в порядку застосування, отже раніше «зсунуте
+    // праворуч» наступними й опиняється НАЙДАЛІ від якоря; найраніше
+    // `push`-нуте — найглибше — застосовується останнім і лишається
+    // найближче до якоря).
+    let mut indexed: Vec<(usize, Edit)> = edits.into_iter().enumerate().collect();
+    indexed.sort_by_key(|(idx, e)| (std::cmp::Reverse(edit_start(e)), std::cmp::Reverse(*idx)));
     let mut out = content.to_string();
-    for edit in edits {
+    for (_, edit) in indexed {
         match edit {
             Edit::Insert(at, text) => out.insert_str(at, &text),
             Edit::Replace(start, end, text) => out.replace_range(start..end, &text),
@@ -2989,6 +3012,10 @@ fn surgical_merge_array(
 /// якщо [`surgical_merge_node`] десь по дорозі впала в непідтримуваний
 /// випадок — виклична сторона (`fix_template_merge`) падає на повну
 /// регенерацію.
+/// `None` — хірургічний шлях недосяжний ЧИ (незалежно від причини)
+/// результат не пройшов ПОСТ-ГЕНЕРАЦІЙНУ перевірку коректності (доккомент
+/// нижче) — виклична сторона (`fix_template_merge`) падає на повну
+/// регенерацію в ОБОХ випадках однаково.
 fn try_surgical_merge(content: &str, snippet: &Json, is_yaml: bool) -> Option<String> {
     let root = parse_marked_document(content)?;
     let mut edits = Vec::new();
@@ -3002,7 +3029,30 @@ fn try_surgical_merge(content: &str, snippet: &Json, is_yaml: bool) -> Option<St
         // регенерацію, ніж мовчки повернути незмінний текст.
         return None;
     }
-    Some(apply_edits(content, edits))
+    let result = apply_edits(content, edits);
+    // Обовʼязковий post-generation guard (рішення власника репозиторію,
+    // звіт задачі — незалежна перевірка на реальній фікстурі з кількома
+    // одночасними вставками на різних рівнях вклад дала невалідний YAML,
+    // хоч усі юніт-тести цього модуля були зелені): коректність байтового
+    // splice-у НЕ приймається на віру з побудови — результат ПОВТОРНО
+    // парситься тим самим [`parse_yaml_document`], що виклична сторона
+    // використовує для `actual`, і звіряється [`is_subset`]-ом проти
+    // ТОГО САМОГО snippet-а, що й [`fix_template_merge`] звіряв ДО фіксу
+    // (той самий контракт, що «повторний детект чистий»). Будь-яка
+    // невідповідність — синтаксична (побитий YAML/JSON) чи семантична
+    // (результат усе ще НЕ задовольняє snippet, симптом помилково
+    // обчисленого якоря чи порядку застосування правок) — трактується
+    // ОДНАКОВО: `None`, `fix_template_merge` падає на стару повну
+    // регенерацію. Це не «спробувати й подивитись», а «перевірити перед
+    // тим, як віддати» — ціна фальшивого fallback-у (втрачені коментарі на
+    // рідкісному дереві, де хірургічний шлях насправді спрацював би)
+    // прийнятна; ціна протилежної помилки (відданий побитий YAML
+    // користувачу) — ні.
+    let reparsed = parse_yaml_document(&result)?;
+    if !is_subset(Some(&reparsed), snippet) {
+        return None;
+    }
+    Some(result)
 }
 
 /// Статична конфігурація одного `createTemplateFixPattern`-концерну —
@@ -5167,6 +5217,86 @@ mod tests {
         assert_eq!(w.content, expected);
         let after = vec![sf(LINT_SECURITY_YML_CFG.target_path, &w.content)];
         assert!(detect_policy(&after, &LINT_SECURITY_YML_CFG).is_empty());
+    }
+
+    /// Регрес-тест на баг, знайдений незалежним ревʼю PR #528 (звіт задачі
+    /// §2.58): фікстура, де snippet-у бракує КІЛЬКОХ гілок дерева одразу —
+    /// вставка в послідовність, де вже є елемент (`on.push.branches`),
+    /// цілком відсутній сусідній ключ (`on.pull_request`), цілком відсутній
+    /// кореневий ключ (`concurrency`), відсутній ключ усередині елемента
+    /// масиву (`steps[0].with`) і відсутній ЦІЛИЙ елемент масиву
+    /// (`steps[1]`, trufflehog). Кілька з цих вставок структурно
+    /// «дном впираються» в ТУ САМУ найглибшу скалярну позицію документа
+    /// (`uses: actions/checkout@v6` — останній реальний YAML-токен файлу,
+    /// доккомент [`deepest_last_leaf_end`]) — перша версія
+    /// [`apply_edits`] застосовувала прив'язані до однієї позиції правки в
+    /// ПОМИЛКОВОМУ порядку (стабільне сортування залишало в'язки в порядку
+    /// `push`, що на практиці ІНВЕРТувало вкладеність при застосуванні) і
+    /// давала синтаксично НЕВАЛІДНИЙ YAML з дубльованими/неправильно
+    /// вкладеними ключами. Виправлено: (а) [`apply_edits`] застосовує
+    /// в'язки з однаковою `at` у порядку СПАДАННЯ `push`-індексу (найглибше
+    /// `push`-нута правка застосовується ОСТАННЬОЮ й лишається найближче до
+    /// якоря); (б) [`try_surgical_merge`] ДОДАТКОВО (незалежно від (а) —
+    /// belt-and-suspenders, рішення власника: «валідність виводу не
+    /// підлягає компромісу») повторно парсить результат і звіряє
+    /// [`is_subset`] проти snippet-а ПЕРЕД тим, як його повернути — будь-яка
+    /// розбіжність (синтаксична чи семантична) падає на стару повну
+    /// регенерацію, а не віддає непідтверджений вивід. Цей тест перевіряє
+    /// ОБИДВІ половини критерію приймання одночасно: валідний YAML (парситься)
+    /// І чистий повторний детект (`is_subset`) — а не лише одну з них.
+    #[test]
+    fn fix_lint_security_yml_multi_insertion_produces_valid_reparseable_yaml() {
+        let before = concat!(
+            "# Верхній коментар файлу — мусить вижити\n",
+            "name: Lint Security\n",
+            "\n",
+            "on:\n",
+            "  # коментар усередині мапи\n",
+            "  push:\n",
+            "    branches:\n",
+            "      - main # хвостовий коментар на елементі\n",
+            "\n",
+            "jobs:\n",
+            "  security:\n",
+            "    runs-on: ubuntu-latest\n",
+            "    steps:\n",
+            "      - uses: actions/checkout@v6\n",
+            "# нижній коментар наприкінці файлу\n"
+        );
+        let files = vec![sf(LINT_SECURITY_YML_CFG.target_path, before)];
+        let diags = vec![Diagnostic {
+            reason: POLICY_DENY_REASON.to_string(),
+            message: "x".to_string(),
+            file: Some(LINT_SECURITY_YML_CFG.target_path.to_string()),
+            severity: Severity::Error,
+            data: None,
+        }];
+        let plan = fix_template_merge(
+            &fix_req(CONCERN_LINT_SECURITY_YML, files, diags),
+            &LINT_SECURITY_YML_FIX_CFG,
+        );
+        let FileEdit::Write(w) = &plan.edits[0] else {
+            panic!("write")
+        };
+        // Критерій 1 — синтаксично валідний YAML (незалежно від того, чи
+        // спрацював хірургічний шлях, чи fallback на повну регенерацію —
+        // ОБИДВА зобовʼязані давати валідний результат).
+        let reparsed = parse_yaml_document(&w.content)
+            .unwrap_or_else(|| panic!("вивід має бути валідним YAML, отримано:\n{}", w.content));
+        // Критерій 2 — повторний детект чистий (snippet — підмножина
+        // записаного дерева).
+        let snippet = parse_embedded_template("lint-security snippet", LINT_SECURITY_YML_CFG.snippet_raw);
+        assert!(
+            is_subset(Some(&reparsed), &snippet),
+            "повторний детект має бути чистим, отримано:\n{}",
+            w.content
+        );
+        // Критерій 3 (доккомент вище — байт-у-байт де застосовний) — усі
+        // чотири коментарі з input-фікстури лишаються присутніми дослівно.
+        assert!(w.content.contains("# Верхній коментар файлу — мусить вижити"));
+        assert!(w.content.contains("# коментар усередині мапи"));
+        assert!(w.content.contains("- main # хвостовий коментар на елементі"));
+        assert!(w.content.contains("# нижній коментар наприкінці файлу"));
     }
 
     // --- deep-subset/deep-merge примітиви ---

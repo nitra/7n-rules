@@ -74,6 +74,7 @@ import { env } from 'node:process'
 import { pathToFileURL } from 'node:url'
 
 import { describe, expect, test, vi } from 'vitest'
+import { parse as parseYaml } from 'yaml'
 
 import { loadNative } from '../../native.mjs'
 import { realRepoRoot, withBinRemovedFromPath, withTmpDir } from '../../../utils/test-helpers.mjs'
@@ -1075,6 +1076,70 @@ describe('wasm-плагін plugin-ci-github — третя хвиля: T0-ци�
       expect(edit).toBeDefined()
       expect(edit.content).toContain('local-step')
       expect(edit.content).toContain('trufflesecurity/trufflehog@main')
+
+      await writeFile(join(dir, edit.path), edit.content, 'utf8')
+      const after = loadNative().runWasmConcern(WASM_PATH, 'security/lint_security_yml', dir, null, {})
+        .violations
+      expect(after).toEqual([])
+    })
+  })
+
+  /**
+   * Регрес-тест на баг, знайдений незалежним ревʼю PR #528 крізь РЕАЛЬНИЙ
+   * napi-міст (звіт задачі §2.58, `crates/plugin-ci-github/src/lib.rs`):
+   * фікстура, де snippet-у бракує КІЛЬКОХ гілок дерева одразу (вставка в
+   * послідовність з наявним елементом, цілком відсутній сусідній ключ,
+   * цілком відсутній кореневий ключ, відсутній ключ усередині елемента
+   * масиву, відсутній цілий елемент масиву) — кілька з цих вставок
+   * структурно «дном впираються» в ТУ САМУ найглибшу скалярну позицію
+   * документа. Rust-юніт-тест
+   * (`fix_lint_security_yml_multi_insertion_produces_valid_reparseable_yaml`)
+   * звіряє ту саму фікстуру прямим викликом `fix_template_merge` — цей тест
+   * повторює те саме крізь `runWasmConcernFix` napi-моста (production-шлях,
+   * не прямий виклик гостя) і, на відміну від Rust-тесту, парсить вивід
+   * РЕАЛЬНИМ `yaml`-пакетом JS-канону (не власним [`parse_yaml_document`]
+   * порту) — незалежна від Rust-парсера перевірка синтаксичної валідності.
+   */
+  test('security/lint_security_yml: кілька одночасних вставок на різних рівнях глибини — валідний YAML, коментарі збережені, повторний детект чистий', async () => {
+    await withTmpDir(async dir => {
+      await mkdir(join(dir, '.github', 'workflows'), { recursive: true })
+      const multiInsertion = [
+        '# Верхній коментар файлу — мусить вижити',
+        'name: Lint Security',
+        '',
+        'on:',
+        '  # коментар усередині мапи',
+        '  push:',
+        '    branches:',
+        '      - main # хвостовий коментар на елементі',
+        '',
+        'jobs:',
+        '  security:',
+        '    runs-on: ubuntu-latest',
+        '    steps:',
+        '      - uses: actions/checkout@v6',
+        '# нижній коментар наприкінці файлу',
+        ''
+      ].join('\n')
+      await writeFile(join(dir, '.github/workflows/lint-security.yml'), multiInsertion, 'utf8')
+
+      const before = loadNative().runWasmConcern(WASM_PATH, 'security/lint_security_yml', dir, null, {})
+        .violations
+      expect(before.length).toBeGreaterThan(0)
+
+      const plan = loadNative().runWasmConcernFix(WASM_PATH, 'security/lint_security_yml', dir, before, {})
+      const edit = plan.edits.find(e => e.path === '.github/workflows/lint-security.yml')
+      expect(edit).toBeDefined()
+
+      // Синтаксична валідність — РЕАЛЬНИМ `yaml`-пакетом JS-канону, не
+      // Rust-парсером порту (незалежна перевірка).
+      expect(() => parseYaml(edit.content)).not.toThrow()
+
+      // Усі чотири коментарі з input-фікстури — дослівно.
+      expect(edit.content).toContain('# Верхній коментар файлу — мусить вижити')
+      expect(edit.content).toContain('# коментар усередині мапи')
+      expect(edit.content).toContain('- main # хвостовий коментар на елементі')
+      expect(edit.content).toContain('# нижній коментар наприкінці файлу')
 
       await writeFile(join(dir, edit.path), edit.content, 'utf8')
       const after = loadNative().runWasmConcern(WASM_PATH, 'security/lint_security_yml', dir, null, {})
