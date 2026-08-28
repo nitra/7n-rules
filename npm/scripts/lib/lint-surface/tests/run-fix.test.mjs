@@ -4,7 +4,7 @@ import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { env } from 'node:process'
 
-import { loadT0Patterns, resolveFixLadderModels, runFixPipeline } from '../run-fix.mjs'
+import { applyPlanEdit, loadT0Patterns, resolveFixLadderModels, runFixPipeline } from '../run-fix.mjs'
 import { withTmpDir, writeJson } from '../../../utils/test-helpers.mjs'
 
 /**
@@ -1645,5 +1645,53 @@ describe('loadT0Patterns — продакшн-патерни несуть guestF
     const patterns = await loadT0Patterns('/nonexistent-dir', concernId, ruleId, process.cwd())
     expect(patterns.length).toBeGreaterThan(0)
     expect(patterns[0].guestFix).toBe(true)
+  })
+})
+
+// Вада: `nativeFixPattern`/`wasmFixPattern` (`apply()`) робили `unlink` на `delete`-правку —
+// це (а) не працює на директорію (EPERM на macOS, EISDIR на Linux — детектор `abie/firebase_hosting`
+// емітить саме `Delete` на `.firebase/`), і (б) ловили БУДЬ-яку помилку мовчки (голий `catch {}`),
+// не лише «шлях уже відсутній». Гість, що просить видалити теку, мовчки нічого не робив, а хост
+// звітував «нічого не змінилось» — прямий клас вади «мовчазний no-op». `applyPlanEdit` — спільний
+// застосовувач обох патернів (`run-fix.mjs`), тести нижче б'ють по ньому напряму: без цієї правки
+// перший тест падав з ENOTDIR/EISDIR (директорія лишалась на диску), третій — проходив мовчки
+// (catch {} ковтав ENOTDIR), емпірично перевірено тимчасовим відкатом на `unlink`.
+describe('applyPlanEdit — delete на директорію та не-ENOENT помилка (мовчазний no-op, run-fix.mjs)', () => {
+  test('delete на директорію рекурсивно прибирає весь піддерево', async () => {
+    await withTmpDir(async dir => {
+      const target = join(dir, '.firebase')
+      await mkdir(join(target, 'nested'), { recursive: true })
+      await writeFile(join(target, 'a.txt'), 'a', 'utf8')
+      await writeFile(join(target, 'nested', 'b.txt'), 'b', 'utf8')
+      const recorded = []
+      const ctx = { recordWrite: p => recorded.push(p) }
+
+      const result = await applyPlanEdit({ type: 'delete', path: '.firebase' }, dir, ctx)
+
+      expect(result).toBe(target)
+      expect(existsSync(target)).toBe(false)
+      // recordWrite викликається ПЕРЕД мутацією (rollback-контракт, той самий і для файлів).
+      expect(recorded).toEqual([target])
+    })
+  })
+
+  test('delete на вже відсутній шлях (ENOENT) — задокументований best-effort, без throw', async () => {
+    await withTmpDir(async dir => {
+      const result = await applyPlanEdit({ type: 'delete', path: 'absent' }, dir, { recordWrite: () => {} })
+      expect(result).toBeNull()
+    })
+  })
+
+  test('delete з НЕ-ENOENT помилкою (ENOTDIR) НЕ ковтається — кидає гучний Error замість мовчазного no-op', async () => {
+    await withTmpDir(async dir => {
+      // 'blocker.txt' — файл, не директорія: rm('blocker.txt/child', {recursive:true}) детерміновано
+      // (POSIX, без залежності від прав доступу root/CI) кидає ENOTDIR, не ENOENT.
+      await writeFile(join(dir, 'blocker.txt'), 'x', 'utf8')
+
+      const attempt = applyPlanEdit({ type: 'delete', path: 'blocker.txt/child' }, dir, { recordWrite: () => {} })
+
+      await expect(attempt).rejects.toThrow(/не вдалося видалити/)
+      await expect(attempt.catch(e => e.cause?.code)).resolves.toBe('ENOTDIR')
+    })
   })
 })
