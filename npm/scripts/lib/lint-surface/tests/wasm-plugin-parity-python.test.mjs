@@ -54,9 +54,9 @@
  * ВСЕРЕДИНІ `compute()` [`goldenJs`] — виконується лише в режимі зняття.
  *
  * Останній describe-блок (`size-budget`) — окремо від parity: заміряє
- * реальний `plugin_lang_python.wasm` проти того самого бюджету 2,5 MiB, що
- * `plugin-lang-js` (`WASM_SIZE_BUDGET_BYTES`, доккомент нижче й
- * `wasm-plugin-parity.test.mjs`).
+ * реальний `plugin_lang_python.wasm` проти спільної для всіх гостей стелі
+ * (`WASM_SIZE_BUDGET_BYTES`, `./wasm-size-budget.mjs` — там і число, і
+ * походження, і межі того, що цей гейт ловить).
  */
 import { existsSync } from 'node:fs'
 import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises'
@@ -69,6 +69,7 @@ import { describe, expect, test } from 'vitest'
 import { loadNative } from '../../native.mjs'
 import { realRepoRoot, withTmpDir } from '../../../utils/test-helpers.mjs'
 import { createGoldenJs } from './wasm-parity-golden.mjs'
+import { WASM_SIZE_BUDGET_BYTES, WASM_SIZE_BUDGET_LABEL } from './wasm-size-budget.mjs'
 
 const REPO_ROOT = realRepoRoot()
 const WASM_PATH = join(REPO_ROOT, 'target', 'wasm32-wasip2', 'release', 'plugin_lang_python.wasm')
@@ -98,8 +99,6 @@ const PROJECT_CONCERN_KEY = 'python/project'
 const MYPY_CONCERN_KEY = 'python/mypy'
 const RUFF_CONCERN_KEY = 'python/ruff'
 
-/** Size-budget компонента — той самий бюджет, що `plugin-lang-js` (доккомент модуля). */
-const WASM_SIZE_BUDGET_BYTES = 2.5 * 1024 * 1024
 
 // ---------------------------------------------------------------------
 // Шар еталонів ([`goldenJs`], `wasm-parity-golden.mjs`): JS-детектори
@@ -1302,7 +1301,7 @@ describe('wasm-plugin parity — python/project (JS канон vs wasm plugin-la
 })
 
 describe('wasm-plugin — size-budget (python/wasm-concerns, перша хвиля)', () => {
-  test(`plugin_lang_python.wasm не перевищує бюджет ${WASM_SIZE_BUDGET_BYTES} байт (2,5 MiB)`, async () => {
+  test(`plugin_lang_python.wasm не перевищує бюджет ${WASM_SIZE_BUDGET_LABEL}`, async () => {
     const { stat } = await import('node:fs/promises')
     const { size } = await stat(WASM_PATH)
     expect(size).toBeLessThanOrEqual(WASM_SIZE_BUDGET_BYTES)
