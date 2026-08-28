@@ -1,6 +1,6 @@
 {
   "name": "@7n/rules-darwin-arm64",
-  "version": "1.108.0",
+  "version": "1.109.0",
   "description": "Попередньо скомпільований native napi-аддон rules-core для @7n/rules — macOS arm64 (Apple Silicon)",
   "license": "ISC",
   "author": "v@nitra.ai",
