@@ -120,6 +120,76 @@ key = "security/lint_security_yml"
 scope = "full"
 glob = [".github/workflows/lint-security.yml"]
 
+# ЧЕТВЕРТА хвиля — дванадцять `createTemplateFixPattern`-концернів, кожен
+# full-scope з ОДНИМ target-файлом (той самий мотив, що ТРЕТЯ хвиля вище,
+# доккомент `src/lib.rs`, розділ «ЧЕТВЕРТА хвиля»). Дев'ять мають власний
+# `.rego` (детект через regorus, `detect_policy`); два (`ga/lint_repo_yml`,
+# `npm-module/npm_publish_yml`) — `"check": "template"` у `concern.json`
+# (НЕМАЄ `.rego`, детект — структурний subset, `detect_template_check`).
+
+[[concerns]]
+key = "ga/git_ai"
+scope = "full"
+glob = [".github/workflows/git-ai.yml"]
+
+[[concerns]]
+key = "ga/lint_ga"
+scope = "full"
+glob = [".github/workflows/lint-ga.yml"]
+
+[[concerns]]
+key = "ga/clean_ga_workflows"
+scope = "full"
+glob = [".github/workflows/clean-ga-workflows.yml"]
+
+[[concerns]]
+key = "ga/clean_merged_branch"
+scope = "full"
+glob = [".github/workflows/clean-merged-branch.yml"]
+
+[[concerns]]
+key = "docker/lint_docker_yml"
+scope = "full"
+glob = [".github/workflows/lint-docker.yml"]
+
+[[concerns]]
+key = "ga/zizmor_yml"
+scope = "full"
+glob = [".github/zizmor.yml"]
+
+[[concerns]]
+key = "k8s/lint_k8s_yml"
+scope = "full"
+glob = [".github/workflows/lint-k8s.yml"]
+
+[[concerns]]
+key = "style/lint_style_yml"
+scope = "full"
+glob = [".github/workflows/lint-style.yml"]
+
+[[concerns]]
+key = "text/lint_text"
+scope = "full"
+glob = [".github/workflows/lint-text.yml"]
+
+[[concerns]]
+# `required: false` (`concern.json` немає `policy.files.required`) —
+# доккомент `src/lib.rs`, [`PolicyCfg::required`]: спільний target-файл з
+# `ga/clean_merged_branch` вище, той самий glob навмисно.
+key = "abie/clean_merged_ignore_branches"
+scope = "full"
+glob = [".github/workflows/clean-merged-branch.yml"]
+
+[[concerns]]
+key = "ga/lint_repo_yml"
+scope = "full"
+glob = [".github/workflows/lint-repo.yml"]
+
+[[concerns]]
+key = "npm-module/npm_publish_yml"
+scope = "full"
+glob = [".github/workflows/npm-publish.yml"]
+
 [capabilities]
 # Хост передає вміст файлів inline у `detect-batch` (host-побудований
 # full-scope batch за `glob` вище) — плагін не читає диск сам (той самий

@@ -69,7 +69,7 @@
  */
 import { existsSync } from 'node:fs'
 import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises'
-import { delimiter, join } from 'node:path'
+import { delimiter, dirname, join } from 'node:path'
 import { env } from 'node:process'
 import { pathToFileURL } from 'node:url'
 
@@ -1260,11 +1260,174 @@ describe('wasm-плагін plugin-ci-github — третя хвиля: T0-ци�
   })
 })
 
+/**
+ * ЧЕТВЕРТА хвиля — дванадцять `createTemplateFixPattern`-концернів, що
+ * раніше лишались JS-шимами (доккомент задачі, звіт §2.6x). Той самий
+ * прийом, що блок вище для третьої хвилі: detect гостем → `runWasmConcernFix`
+ * → застосування правок → detect гостем знову, чистий — крізь РЕАЛЬНИЙ
+ * napi-міст (production-шлях, не прямий виклик гостя — юніт-тести
+ * `crates/plugin-ci-github` звіряють ту саму поведінку прямим викликом
+ * Rust-функцій, доккомент задачі, «Обовʼязкова послідовність», пункт 2).
+ * Дев'ять reuse rego (детект через regorus), два (`ga/lint_repo_yml`,
+ * `npm-module/npm_publish_yml`) — `"check": "template"` без `.rego`.
+ */
+describe('wasm-плагін plugin-ci-github — четверта хвиля: T0-цикл через fix-міст (дванадцять createTemplateFixPattern-концернів)', () => {
+  const FOURTH_WAVE = [
+    { key: 'ga/git_ai', path: '.github/workflows/git-ai.yml' },
+    { key: 'ga/lint_ga', path: '.github/workflows/lint-ga.yml' },
+    { key: 'ga/clean_ga_workflows', path: '.github/workflows/clean-ga-workflows.yml' },
+    { key: 'ga/clean_merged_branch', path: '.github/workflows/clean-merged-branch.yml' },
+    { key: 'docker/lint_docker_yml', path: '.github/workflows/lint-docker.yml' },
+    { key: 'ga/zizmor_yml', path: '.github/zizmor.yml' },
+    { key: 'k8s/lint_k8s_yml', path: '.github/workflows/lint-k8s.yml' },
+    { key: 'style/lint_style_yml', path: '.github/workflows/lint-style.yml' },
+    { key: 'text/lint_text', path: '.github/workflows/lint-text.yml' },
+    { key: 'ga/lint_repo_yml', path: '.github/workflows/lint-repo.yml' },
+    { key: 'npm-module/npm_publish_yml', path: '.github/workflows/npm-publish.yml' }
+  ]
+
+  for (const { key, path } of FOURTH_WAVE) {
+    test(`${key}: файл відсутній — fix копіює snippet, повторний детект чистий`, async () => {
+      await withTmpDir(async dir => {
+        const before = loadNative().runWasmConcern(WASM_PATH, key, dir, null, {}).violations
+        expect(before).toHaveLength(1)
+        expect(before[0].reason).toBe('policy-file-missing')
+
+        const plan = loadNative().runWasmConcernFix(WASM_PATH, key, dir, before, {})
+        const edit = plan.edits.find(e => e.path === path)
+        expect(edit, `${key}: fix мав дати edit на ${path}`).toBeDefined()
+
+        await mkdir(join(dir, dirname(path)), { recursive: true })
+        await writeFile(join(dir, edit.path), edit.content, 'utf8')
+
+        const after = loadNative().runWasmConcern(WASM_PATH, key, dir, null, {}).violations
+        expect(after).toEqual([])
+      })
+    })
+  }
+
+  // `abie/clean_merged_ignore_branches` — окремо: `required: false`
+  // (`concern.json` немає `policy.files.required`, доккомент
+  // `crates/plugin-ci-github/src/lib.rs::PolicyCfg::required`) — файл
+  // відсутній → ПОРОЖНІЙ результат, не `policy-file-missing`, на відміну
+  // від одинадцяти сусідів циклу вище. Спільний target-файл з
+  // `ga/clean_merged_branch` — сценарій пише workflow з action-кроком БЕЗ
+  // потрібних `ignore_branches`, доводить деталь-специфічний `policy-deny`
+  // → fix дописує `ignore_branches` → повторний детект чистий.
+  test('abie/clean_merged_ignore_branches: файл відсутній — мовчить (required: false)', async () => {
+    await withTmpDir(async dir => {
+      const violations = loadNative().runWasmConcern(
+        WASM_PATH,
+        'abie/clean_merged_ignore_branches',
+        dir,
+        null,
+        {}
+      ).violations
+      expect(violations).toEqual([])
+    })
+  })
+
+  test('abie/clean_merged_ignore_branches: наявний workflow без ignore_branches — fix дописує канонічні гілки, повторний детект чистий', async () => {
+    await withTmpDir(async dir => {
+      await mkdir(join(dir, '.github', 'workflows'), { recursive: true })
+      const localWorkflow = [
+        'jobs:',
+        '  cleanup_old_branches:',
+        '    steps:',
+        '      - uses: fpicalausa/remove-merged-branches@v1',
+        '        with:',
+        '          ignore_branches: main',
+        ''
+      ].join('\n')
+      await writeFile(join(dir, '.github/workflows/clean-merged-branch.yml'), localWorkflow, 'utf8')
+
+      const before = loadNative().runWasmConcern(
+        WASM_PATH,
+        'abie/clean_merged_ignore_branches',
+        dir,
+        null,
+        {}
+      ).violations
+      expect(before.length).toBeGreaterThan(0)
+      expect(before[0].reason).toBe('policy-deny')
+
+      const plan = loadNative().runWasmConcernFix(
+        WASM_PATH,
+        'abie/clean_merged_ignore_branches',
+        dir,
+        before,
+        {}
+      )
+      const edit = plan.edits.find(e => e.path === '.github/workflows/clean-merged-branch.yml')
+      expect(edit).toBeDefined()
+
+      await writeFile(join(dir, edit.path), edit.content, 'utf8')
+      const after = loadNative().runWasmConcern(
+        WASM_PATH,
+        'abie/clean_merged_ignore_branches',
+        dir,
+        null,
+        {}
+      ).violations
+      expect(after).toEqual([])
+    })
+  })
+
+  /**
+   * `%q`-пастка (доккомент задачі — вже третя поява за міграцію, §2.22 і
+   * §2.5x) — `zizmor_yml.rego` мала ДВА `%q` в ОДНІЙ `sprintf`, замінено
+   * на `\"%v\"`. Цей тест крізь РЕАЛЬНИЙ napi-міст доводить, що regorus
+   * реально виконує правило (не падає в `rego-engine-error`) і
+   * message-текст несе ОБИДВІ літерали в лапках, той самий формат, що Go
+   * `%q` дав би.
+   */
+  test('ga/zizmor_yml: неправильне значення policy — policy-deny з квотованими літералами (регрес на %q)', async () => {
+    await withTmpDir(async dir => {
+      await mkdir(join(dir, '.github'), { recursive: true })
+      await writeFile(
+        join(dir, '.github/zizmor.yml'),
+        'rules:\n  unpinned-uses:\n    config:\n      policies:\n        "*": "any"\n',
+        'utf8'
+      )
+      const violations = loadNative().runWasmConcern(WASM_PATH, 'ga/zizmor_yml', dir, null, {}).violations
+      expect(violations).toHaveLength(1)
+      expect(violations[0].reason).toBe('policy-deny')
+      expect(violations[0].message).toContain('policies["*"]')
+      expect(violations[0].message).toContain('"ref-pin"')
+    })
+  })
+
+  /**
+   * `ga/lint_repo_yml` — `"check": "template"` (немає `.rego`), детект іде
+   * через `checkSnippet`-порт ([`check_snippet_messages`],
+   * `crates/plugin-ci-github/src/lib.rs`) — `reason` тут
+   * `policy-template-mismatch`, НЕ `policy-deny`.
+   */
+  test('ga/lint_repo_yml: name не збігається зі snippet — policy-template-mismatch, fix регенерує канон, повторний детект чистий', async () => {
+    await withTmpDir(async dir => {
+      await mkdir(join(dir, '.github', 'workflows'), { recursive: true })
+      await writeFile(join(dir, '.github/workflows/lint-repo.yml'), 'name: Wrong Name\n', 'utf8')
+
+      const before = loadNative().runWasmConcern(WASM_PATH, 'ga/lint_repo_yml', dir, null, {}).violations
+      expect(before.length).toBeGreaterThan(0)
+      expect(before.every(v => v.reason === 'policy-template-mismatch')).toBe(true)
+
+      const plan = loadNative().runWasmConcernFix(WASM_PATH, 'ga/lint_repo_yml', dir, before, {})
+      const edit = plan.edits.find(e => e.path === '.github/workflows/lint-repo.yml')
+      expect(edit).toBeDefined()
+
+      await writeFile(join(dir, edit.path), edit.content, 'utf8')
+      const after = loadNative().runWasmConcern(WASM_PATH, 'ga/lint_repo_yml', dir, null, {}).violations
+      expect(after).toEqual([])
+    })
+  })
+})
+
 describe('wasm-плагін plugin-ci-github — describe()/розмір', () => {
-  test('describe() повертає manifest з пʼятьма full-scope концернами (третя хвиля — три policy-концерни)', () => {
+  test('describe() повертає manifest з сімнадцятьма full-scope концернами (четверта хвиля — дванадцять createTemplateFixPattern-концернів)', () => {
     const manifest = loadNative().wasmPluginManifest(WASM_PATH)
     expect(manifest.id).toBe('ci-github/wasm-concerns')
-    expect(manifest.concerns).toHaveLength(5)
+    expect(manifest.concerns).toHaveLength(17)
     const toolchainCache = manifest.concerns.find(c => c.key === CONCERN_KEY)
     expect(toolchainCache.scope).toBe('full')
     const workflows = manifest.concerns.find(c => c.key === WORKFLOWS_CONCERN_KEY)
@@ -1273,7 +1436,19 @@ describe('wasm-плагін plugin-ci-github — describe()/розмір', () =>
     for (const [key, glob] of [
       ['ga/vscode_extensions', '.vscode/extensions.json'],
       ['ga/vscode_settings', '.vscode/settings.json'],
-      ['security/lint_security_yml', '.github/workflows/lint-security.yml']
+      ['security/lint_security_yml', '.github/workflows/lint-security.yml'],
+      ['ga/git_ai', '.github/workflows/git-ai.yml'],
+      ['ga/lint_ga', '.github/workflows/lint-ga.yml'],
+      ['ga/clean_ga_workflows', '.github/workflows/clean-ga-workflows.yml'],
+      ['ga/clean_merged_branch', '.github/workflows/clean-merged-branch.yml'],
+      ['docker/lint_docker_yml', '.github/workflows/lint-docker.yml'],
+      ['ga/zizmor_yml', '.github/zizmor.yml'],
+      ['k8s/lint_k8s_yml', '.github/workflows/lint-k8s.yml'],
+      ['style/lint_style_yml', '.github/workflows/lint-style.yml'],
+      ['text/lint_text', '.github/workflows/lint-text.yml'],
+      ['abie/clean_merged_ignore_branches', '.github/workflows/clean-merged-branch.yml'],
+      ['ga/lint_repo_yml', '.github/workflows/lint-repo.yml'],
+      ['npm-module/npm_publish_yml', '.github/workflows/npm-publish.yml']
     ]) {
       const contribution = manifest.concerns.find(c => c.key === key)
       expect(contribution, `${key} contribution має бути в маніфесті`).toBeDefined()

@@ -49,7 +49,7 @@ expected_run_substrings contains r if {
 
 deny contains msg if {
 	input.name != expected_name
-	msg := sprintf("lint-text.yml: name має бути %q (text.mdc)", [expected_name])
+	msg := sprintf("lint-text.yml: name має бути \"%v\" (text.mdc)", [expected_name])
 }
 
 deny contains msg if {
@@ -101,7 +101,7 @@ deny contains msg if {
 deny contains msg if {
 	some required_run in expected_run_substrings
 	not contains(job_run_blob, required_run)
-	msg := sprintf("lint-text.yml: жоден крок run не містить %q (text.mdc)", [required_run])
+	msg := sprintf("lint-text.yml: жоден крок run не містить \"%v\" (text.mdc)", [required_run])
 }
 
 branches_superset_of(actual, expected) if {

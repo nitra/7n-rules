@@ -47,7 +47,7 @@ deny contains msg if {
 	expected_run := object.get(step, "run", "")
 	expected_run != ""
 	not contains(all_run_text, expected_run)
-	msg := sprintf("lint-k8s.yml: жоден крок run не містить %q (k8s.mdc)", [expected_run])
+	msg := sprintf("lint-k8s.yml: жоден крок run не містить \"%v\" (k8s.mdc)", [expected_run])
 }
 
 step_run_to_text(step) := step.run if is_string(step.run)

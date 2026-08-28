@@ -43,7 +43,7 @@ deny contains msg if {
 	missing := required_branches - parsed_ignore_tokens(ignore_branches_value)
 	count(missing) > 0
 	msg := sprintf(
-		"clean-merged-branch.yml: ignore_branches має містити %v (зараз: %q; не вистачає: %v) (abie.mdc)",
+		"clean-merged-branch.yml: ignore_branches має містити %v (зараз: \"%v\"; не вистачає: %v) (abie.mdc)",
 		[concat(",", sort(required_branches)), ignore_branches_value, concat(",", sort(missing))],
 	)
 }

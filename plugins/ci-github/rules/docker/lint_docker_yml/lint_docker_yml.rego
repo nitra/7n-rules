@@ -54,7 +54,7 @@ push_paths_set := {p |
 deny contains msg if {
 	some required in expected_paths
 	not required in push_paths_set
-	msg := sprintf("lint-docker.yml: on.push.paths має містити %q (docker.mdc)", [required])
+	msg := sprintf("lint-docker.yml: on.push.paths має містити \"%v\" (docker.mdc)", [required])
 }
 
 # ── deny: required uses present ────────────────────────────────────────
@@ -70,7 +70,7 @@ deny contains msg if {
 deny contains msg if {
 	some required_run in expected_run_substrings
 	not contains(all_run_text, required_run)
-	msg := sprintf("lint-docker.yml: жоден крок run не містить %q (docker.mdc)", [required_run])
+	msg := sprintf("lint-docker.yml: жоден крок run не містить \"%v\" (docker.mdc)", [required_run])
 }
 
 # ── helpers ────────────────────────────────────────────────────────────
