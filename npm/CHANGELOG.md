@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.103.2] - 2026-08-28
+
+### Changed
+
+- test(wasm-plugin-parity): закрити прогалину покриття fix-мосту для чотирьох файл-скоуп T0-фіксерів (`rust/cargo_mutants_config`, `rust/doc_comments`, `python/doc_comments`, `ga/workflows`) — §2.49 `docs/plans/2026-08-05-open-questions-register.md`. §2.46/§2.48 самі задокументували межу свого покриття: parity-гейти rust/python/ci-github тестували лише `detect`-парність, а fix-цикл замикався через `fix-<concern>.mjs` (транзитивний JS-канон) НАПРЯМУ — реальний `Guest::fix` цих чотирьох концернів (усі поза `NATIVE_FIXES`, у проді диспетчеризуються виключно через `wasmFixPattern` → `runWasmConcernFix`, `crates/rules-napi`) жоден тест через сам napi-міст не проганяв. Той самий клас прогалини, що §2.47 (`js/check`) уже закрила для lang-js і там-таки знайшла реальний баг у мості (затирання конфігів для whole-batch концернів).
+
+Додано 4 нові сценарії (усі — повний цикл `runWasmConcern` → `runWasmConcernFix` → застосування едитів → повторний `runWasmConcern` чистий) у `wasm-plugin-parity-rust.test.mjs` (2), `wasm-plugin-parity-python.test.mjs` (1), `wasm-plugin-parity-ci-github.test.mjs` (1, перший fix-цикл цього файлу взагалі). Кожен сценарій доведено здатним падати — тимчасовий злам відповідної guest-фікс-функції (`fix_doc_comments`/`fix_cargo_mutants_config`/`prefix_bunx_n_command`) дав червоний тест, повернення — знову зелений. Додатково емпірично підтверджено, що жоден із чотирьох НЕ whole-batch (на відміну від `js/check`): тимчасове видалення full-scope fallback `run_wasm_concern_fix` (та сама мутація, що відтворює баг §2.47) валить РІВНО ті самі 2 тести `js/check`, усі 4 нові сценарії лишаються зеленими (400/402 по чотирьох parity-файлах разом).
+
+Whole-batch-аудит: серед шести портованих T0-фіксерів `js/check` лишається ЄДИНИМ, чиї діагностики ніколи не несуть `diagnostic.file`. Знайдено кандидатів НА РИЗИК для майбутніх портів (fix ще не портований, детект уже без `file`): `rust/check` (усі діагностики через `plain_violation`) і файл-less-гілки самого `ga/workflows` (`simple_fail`/`push_tool_unavailable`) — задокументовано в реєстрі як застереження для наступного порту.
+
+Продакшн-код не змінено (усі red-проби відкочено, `git diff` по `crates/` порожній).
+
 ## [1.103.1] - 2026-08-27
 
 ### Changed
