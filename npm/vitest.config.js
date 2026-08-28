@@ -74,8 +74,9 @@ export default defineConfig({
     // Той самий ліміт, що в кореневому конфізі: без нього пул бере ~кількість
     // ядер, і паралельні прогони з кількох worktree множаться до десятків
     // процесів. Тримати обидва конфіги узгодженими — інакше `npm/`-прогін
-    // обходив би обмеження кореневого.
-    poolOptions: { forks: { maxForks: 4 } },
+    // обходив би обмеження кореневого. Ключ `maxWorkers` (не знятий у vitest 4
+    // `poolOptions.forks.maxForks`) — доккомент кореневого конфігу.
+    maxWorkers: 4,
     coverage: { provider: 'v8', reporter: ['lcov', 'text-summary'] }
   }
 })
