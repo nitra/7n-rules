@@ -23,6 +23,14 @@ export default defineConfig({
     // форки на прогін лишають запас під паралелізм, не подовжуючи одиночний
     // прогін відчутно (`pool: 'forks'` тут — defence-in-depth ізоляція, не
     // спосіб вичавити швидкість).
-    poolOptions: { forks: { maxForks: 4 } }
+    //
+    // САМЕ `maxWorkers`, а не `poolOptions.forks.maxForks`: у Vitest 4
+    // `poolOptions` ВИДАЛЕНО, всі його опції піднято на верхній рівень. Старий
+    // ключ не помилка — він мовчки ІГНОРУЄТЬСЯ (у stderr лише рядок DEPRECATED),
+    // тож ліміт існував на папері, а прогін брав ядра. Заміряно 2026-08-28 на
+    // 12 тестових файлах / 10 ядрах: `poolOptions.forks.maxForks: 4` → 9
+    // паралельних форків, `maxWorkers: 4` → рівно 4. Контракт стереже
+    // `npm/tests/vitest-config-contract.test.mjs`.
+    maxWorkers: 4
   }
 })
