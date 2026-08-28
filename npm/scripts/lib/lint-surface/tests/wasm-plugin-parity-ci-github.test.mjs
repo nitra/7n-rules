@@ -1191,6 +1191,73 @@ describe('wasm-плагін plugin-ci-github — третя хвиля: T0-ци�
       expect(after).toEqual([])
     })
   })
+
+  /**
+   * §2.62 (`docs/plans/2026-08-05-open-questions-register.md`) звузила
+   * виміряну межу §2.61 з «anchor/alias І flow-стиль непідтримні разом» до
+   * РІВНО одного класу: вставка ВСЕРЕДИНУ однорядкового flow-контейнера
+   * (`{…}`/`[…]`) — [`next_line_start`] не має де шукати `\n` у
+   * однорядковому контейнері. Rust-юніт-тести
+   * (`surgical_merge_flow_*`/`surgical_merge_mixed_flow_inside_block_tree_preserves_all_comments`
+   * у `crates/plugin-ci-github/src/lib.rs`) звіряють ту саму латку прямим
+   * викликом [`try_surgical_merge`]; цей тест — те саме крізь РЕАЛЬНИЙ
+   * `runWasmConcernFix` napi-міст (доккомент модуля вище, «§2.47/§2.49»:
+   * прямий виклик гостя вже раз приховав реальний баг мосту), з
+   * production-канонічним snippet-ом (`lint-security.yml.snippet.yml`,
+   * `on.push.branches` — двоелементний масив, `on.pull_request` — окремий
+   * ключ). Локальний workflow тут пише `on` ОДНИМ рядком у flow-стилі
+   * (`on: {push: {branches: [main]}}`, без anchor) — ДО §2.62-латки ОДНА ця
+   * flow-вставка каскадом («все або нічого», [`surgical_merge_node`]
+   * пробрасує `false` до кореня) валила ВЕСЬ мердж на повну регенерацію,
+   * втрачаючи файловий коментар і всі block-style вставки (`permissions`,
+   * trufflehog-крок, `concurrency`) заразом. Синтаксична валідність — РЕАЛЬНИМ
+   * `yaml`-пакетом JS-канону, не Rust-парсером порту.
+   */
+  test('security/lint_security_yml: flow-стиль on: {push: {…}} у локальному файлі — хірургічна вставка (dev/pull_request/permissions/trufflehog), повторний детект чистий', async () => {
+    await withTmpDir(async dir => {
+      await mkdir(join(dir, '.github', 'workflows'), { recursive: true })
+      const flowStyleWorkflow = [
+        '# файловий коментар — мусить вижити',
+        'name: Lint Security',
+        'on: {push: {branches: [main]}}',
+        'jobs:',
+        '  security:',
+        '    runs-on: ubuntu-latest',
+        '    steps:',
+        '      - uses: actions/checkout@v6',
+        '        with:',
+        '          persist-credentials: false',
+        '          fetch-depth: 0',
+        ''
+      ].join('\n')
+      await writeFile(join(dir, '.github/workflows/lint-security.yml'), flowStyleWorkflow, 'utf8')
+
+      const before = loadNative().runWasmConcern(WASM_PATH, 'security/lint_security_yml', dir, null, {})
+        .violations
+      expect(before.length).toBeGreaterThan(0)
+
+      const plan = loadNative().runWasmConcernFix(WASM_PATH, 'security/lint_security_yml', dir, before, {})
+      const edit = plan.edits.find(e => e.path === '.github/workflows/lint-security.yml')
+      expect(edit).toBeDefined()
+
+      // Синтаксична валідність і семантика — РЕАЛЬНИМ `yaml`-пакетом
+      // JS-канону, не Rust-парсером порту (незалежна перевірка).
+      const parsed = parseYaml(edit.content)
+      expect(parsed.on.push.branches).toEqual(expect.arrayContaining(['main', 'dev']))
+      expect(parsed.on.pull_request.branches).toEqual(expect.arrayContaining(['dev', 'main']))
+
+      // Файловий коментар — доказ, що це ХІРУРГІЧНИЙ шлях, не повна
+      // регенерація (яка коментарі не зберігає взагалі, доккомент розділу
+      // «Хірургічний comment-preserving merge» у `crates/plugin-ci-github/src/lib.rs`).
+      expect(edit.content).toContain('# файловий коментар — мусить вижити')
+      expect(edit.content).toContain('trufflesecurity/trufflehog@main')
+
+      await writeFile(join(dir, edit.path), edit.content, 'utf8')
+      const after = loadNative().runWasmConcern(WASM_PATH, 'security/lint_security_yml', dir, null, {})
+        .violations
+      expect(after).toEqual([])
+    })
+  })
 })
 
 describe('wasm-плагін plugin-ci-github — describe()/розмір', () => {
