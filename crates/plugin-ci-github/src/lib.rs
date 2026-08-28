@@ -3082,6 +3082,108 @@ fn already_has_trailing_comma(content: &str, pos: usize) -> bool {
     content[pos..].trim_start_matches([' ', '\t', '\r', '\n']).starts_with(',')
 }
 
+// --- Flow-стиль inline-вставка (§2.62 звузила виміряну межу §2.61 з
+// «anchor/alias І flow-стиль непідтримні разом» до РІВНО одного класу:
+// вставка ВСЕРЕДИНУ однорядкового flow-контейнера (`{…}`/`[…]`) —
+// [`next_line_start`] шукає `\n` ПІСЛЯ якоря, щоб вставити НОВИЙ рядок, а в
+// однорядковому flow-контейнері такого `\n` нема, тож [`surgical_merge_object`]/
+// [`surgical_merge_array`] падали в `None` навіть коли решта дерева (анкер/
+// аліас, звичайний block-стиль) мержилась би хірургічно. Наслідок —
+// каскадний all-or-nothing провал ([`surgical_merge_node`] пробрасує `false`
+// від будь-якого дочірнього виклику до самого кореня): ОДНА нездійсненна
+// flow-вставка будь-де в дереві валила ВЕСЬ документ на повну регенерацію,
+// втрачаючи ВСІ коментарі файлу, не лише ті, що біля flow-вузла. §2.62 оцінила
+// латку в ~80–150 рядків, без нової залежності, без приросту розміру гостя —
+// саме це нижче.
+//
+// Ключ рушія — [`flow_insert_point`]: на відміну від block-стилю, де немає
+// явного закриваючого токена (§2.58, [`deepest_last_leaf_end`]), flow-
+// контейнер МАЄ явний `}`/`]`, і `MarkedYamlOwned`-спан вузла дає його
+// офсет ТОЧНО (перевірено емпірично — доккомент функції нижче): вставка
+// відбувається безпосередньо ПЕРЕД цим байтом, з комою-роздільником лише
+// коли потрібно, БЕЗ жодного переносу рядка. ---
+
+/// `true`, якщо вузол `actual` — flow-стиль (перший байт його спану —
+/// відкриваючий `{`/`[`, а не перший символ першого ключа/елемента, як у
+/// block-стилі). `open` — очікуваний відкриваючий байт (`b'{'` для обʼєкта,
+/// `b'['` для масиву) — розрізняти два випадки одним викликом безпечно, бо
+/// [`MNode::Object`] не може фізично починатись з `[`, і навпаки.
+fn is_flow_container(content: &str, span: (usize, usize), open: u8) -> bool {
+    content.as_bytes().get(span.0) == Some(&open)
+}
+
+/// Байтовий офсет закриваючого `}`/`]` вузла flow-контейнера, і префікс
+/// (кома-роздільник чи порожній рядок), який слід вставити ПЕРЕД новим
+/// вмістом. **Пастка, знайдена ЛИШЕ емпіричною перевіркою спанів
+/// (`saphyr::MarkedYamlOwned`), не документацією крейта:** на відміну від
+/// НАЇВНОГО припущення «flow МАЄ явний закриваючий токен, тож `Span.end`
+/// вказує ОДРАЗУ ЗА ним» (як для скалярного листка, §2.58) — для flow-
+/// контейнера `Span.end` дорівнює ТОЧНОМУ офсету самого закриваючого байта
+/// (не `span.1 - 1`, а РІВНО `span.1`); той самий клас розбіжності
+/// «зауваження vs факт сканера», що вже задокументований для
+/// `Marker::index()` ([`char_byte_table`]) і для контейнерів-останнього-
+/// вмісту-документа ([`deepest_last_leaf_end`]), лише в інший бік
+/// (тугіше, не слабше, ніж наївне припущення). Перевірено прямим виводом
+/// спанів на фікстурах `{}`/`[]`/`{push: {branches: [main]}}` (звіт задачі,
+/// не залишено в крейті як тест — сам факт закодований у цій функції й
+/// перевіряється НЕПРЯМО кожним flow-тестом нижче через byte-точний
+/// `assert_eq!` на результаті).
+///
+/// Кома потрібна, якщо вміст контейнера (усе між `{`/`[` і закриваючим
+/// байтом, з обрізаними КІНЦЕВИМИ ASCII-пробілами) непорожній і ще не
+/// закінчується комою (той самий трейлінг-комою мотив, що
+/// [`already_has_trailing_comma`], лише скануючи НАЗАД від точки вставки —
+/// дзеркальний напрямок, бо flow-вставка завжди відбувається ПЕРЕД
+/// закриваючим токеном, не ПІСЛЯ останнього елемента).
+fn flow_insert_point(content: &str, span: (usize, usize)) -> (usize, &'static str) {
+    let close_at = span.1;
+    let inner = content[span.0 + 1..close_at].trim_end_matches([' ', '\t', '\r', '\n']);
+    let prefix = if inner.is_empty() {
+        "" // порожній контейнер (`{}`/`[]`) — перший елемент, кома не потрібна.
+    } else if inner.ends_with(',') {
+        " " // trailing-кома вже є — лише пробіл-роздільник, не друга кома.
+    } else {
+        ", "
+    };
+    (close_at, prefix)
+}
+
+/// Inline-серіалізатор [`Json`] для flow-контексту — БЕЗ жодного переносу
+/// рядка (на відміну від [`write_yaml_object_entries`]/
+/// [`write_yaml_array_items`], бо вставка відбувається ВСЕРЕДИНУ
+/// однорядкового контейнера — block-стиль дочірнього вузла тут синтаксично
+/// недопустимий у YAML). Рекурсивний — вкладений обʼєкт/масив у ЩОЙНО
+/// вставленому дереві теж пишеться flow-стилем (`{k: v, …}`/`[e, …]`).
+/// Скаляри — той самий [`yaml_scalar`], що block-шлях (рядки завжди в
+/// подвійних лапках, доккомент [`write_yaml_block`]).
+fn write_yaml_flow_value(v: &Json, out: &mut String) {
+    match v {
+        Json::Object(entries) => {
+            out.push('{');
+            for (i, (k, val)) in entries.iter().enumerate() {
+                if i > 0 {
+                    out.push_str(", ");
+                }
+                out.push_str(&yaml_key(k));
+                out.push_str(": ");
+                write_yaml_flow_value(val, out);
+            }
+            out.push('}');
+        }
+        Json::Array(items) => {
+            out.push('[');
+            for (i, item) in items.iter().enumerate() {
+                if i > 0 {
+                    out.push_str(", ");
+                }
+                write_yaml_flow_value(item, out);
+            }
+            out.push(']');
+        }
+        scalar => out.push_str(&yaml_scalar(scalar)),
+    }
+}
+
 /// Обхід ОДНОГО вузла snippet-а проти відповідного [`MNode`] наявного
 /// тексту — точний семантичний відповідник [`merge_json_value`], лише
 /// замість побудови нового значення накопичує [`Edit`]-и в `edits`.
@@ -3139,6 +3241,27 @@ fn surgical_merge_object(
         }
     }
     if missing.is_empty() {
+        return true;
+    }
+    // Flow-стиль (`{…}`) — inline-вставка ПЕРЕД закриваючим `}`, без
+    // переносу рядка (доккомент розділу «Flow-стиль inline-вставка» вище).
+    // Перевіряється ДО `a_entries.last()`-guard-у нижче: порожній flow-
+    // обʼєкт (`{}`) не має наявного запису, після якого вставляти (block-
+    // шлях впав би в fallback), але для flow це РІВНО той самий «перший
+    // елемент, кома не потрібна» випадок, що [`flow_insert_point`] уже
+    // розпізнає — не крайній випадок, гілка нижче.
+    if is_yaml && is_flow_container(content, *obj_span, b'{') {
+        let (insert_at, prefix) = flow_insert_point(content, *obj_span);
+        let mut block = prefix.to_string();
+        for (i, (k, v)) in missing.iter().enumerate() {
+            if i > 0 {
+                block.push_str(", ");
+            }
+            block.push_str(&yaml_key(k));
+            block.push_str(": ");
+            write_yaml_flow_value(v, &mut block);
+        }
+        edits.push(Edit::Insert(insert_at, block));
         return true;
     }
     let Some((_, last_key_span, last_value)) = a_entries.last() else {
@@ -3207,6 +3330,19 @@ fn surgical_merge_array(
         }
     }
     if missing.is_empty() {
+        return true;
+    }
+    // Flow-стиль (`[…]`) — той самий inline-мотив, що обʼєктна гілка вище.
+    if is_yaml && is_flow_container(content, *arr_span, b'[') {
+        let (insert_at, prefix) = flow_insert_point(content, *arr_span);
+        let mut block = prefix.to_string();
+        for (i, v) in missing.iter().enumerate() {
+            if i > 0 {
+                block.push_str(", ");
+            }
+            write_yaml_flow_value(v, &mut block);
+        }
+        edits.push(Edit::Insert(insert_at, block));
         return true;
     }
     let Some(last_item) = a_items.last() else {
@@ -5874,6 +6010,240 @@ mod tests {
         assert!(w.content.contains("# коментар усередині мапи"));
         assert!(w.content.contains("- main # хвостовий коментар на елементі"));
         assert!(w.content.contains("# нижній коментар наприкінці файлу"));
+    }
+
+    // --- Flow-стиль inline-вставка (§2.62 звузила межу §2.61 з «anchor/alias
+    // І flow-стиль» до РІВНО одного класу: вставка ВСЕРЕДИНУ однорядкового
+    // flow-контейнера, `{…}`/`[…]`, де [`next_line_start`] не має де шукати
+    // `\n`) — [`is_flow_container`]/[`flow_insert_point`]/
+    // [`write_yaml_flow_value`] (доккомент розділу вище). Ці тести
+    // викликають [`try_surgical_merge`] НАПРЯМУ (ізольовані фікстури, не
+    // production-снипети `LINT_SECURITY_YML_FIX_CFG`/`VSCODE_SETTINGS_FIX_CFG`
+    // — той самий підхід, що §2.62 використала для трьох тимчасових
+    // юніт-тестів, якими знайдено звуження межі, лише ці — постійні). ---
+
+    /// Flow-послідовність у корені документа (`branches: [main]`, точна
+    /// фікстура з постановки) — вставка НОВОГО елемента поряд з наявним
+    /// (потрібна кома-роздільник). Рядкові скаляри — той самий double-quote
+    /// контракт, що [`yaml_scalar`] на block-шляху (жодного вгадування
+    /// безпечності plain-форми).
+    #[test]
+    fn surgical_merge_flow_sequence_root_insert_appends_with_comma() {
+        let before = "on:\n  push:\n    branches: [main]\njobs:\n  build:\n    runs-on: ubuntu-latest\n";
+        let snippet = parse_yaml_document(
+            "on:\n  push:\n    branches: [main, dev]\njobs:\n  build:\n    runs-on: ubuntu-latest\n",
+        )
+        .expect("snippet валідний YAML");
+        let result = try_surgical_merge(before, &snippet, true)
+            .expect("flow-послідовність має мержитись хірургічно, без fallback на регенерацію");
+        assert_eq!(
+            result,
+            "on:\n  push:\n    branches: [main, \"dev\"]\njobs:\n  build:\n    runs-on: ubuntu-latest\n"
+        );
+        let reparsed = parse_yaml_document(&result).expect("вивід — валідний YAML");
+        assert!(is_subset(Some(&reparsed), &snippet));
+    }
+
+    /// Порожній flow-масив (`[]`) — перший елемент НЕ потребує коми-
+    /// роздільника (`flow_insert_point` розпізнає порожній вміст).
+    #[test]
+    fn surgical_merge_flow_sequence_empty_insert_first_no_comma() {
+        let before = "tags: []\njobs:\n  build:\n    runs-on: ubuntu-latest\n";
+        let snippet =
+            parse_yaml_document("tags: [v1]\njobs:\n  build:\n    runs-on: ubuntu-latest\n").unwrap();
+        let result = try_surgical_merge(before, &snippet, true)
+            .expect("порожній flow-масив має отримати перший елемент без коми");
+        assert_eq!(result, "tags: [\"v1\"]\njobs:\n  build:\n    runs-on: ubuntu-latest\n");
+        let reparsed = parse_yaml_document(&result).unwrap();
+        assert!(is_subset(Some(&reparsed), &snippet));
+    }
+
+    /// Порожня flow-мапа (`{}`) — симетричний випадок для обʼєктної гілки.
+    #[test]
+    fn surgical_merge_flow_mapping_empty_insert_first_no_comma() {
+        let before = "permissions: {}\njobs:\n  build:\n    runs-on: ubuntu-latest\n";
+        let snippet = parse_yaml_document(
+            "permissions: {contents: read}\njobs:\n  build:\n    runs-on: ubuntu-latest\n",
+        )
+        .unwrap();
+        let result = try_surgical_merge(before, &snippet, true)
+            .expect("порожня flow-мапа має отримати перший ключ без коми");
+        assert_eq!(
+            result,
+            "permissions: {\"contents\": \"read\"}\njobs:\n  build:\n    runs-on: ubuntu-latest\n"
+        );
+        let reparsed = parse_yaml_document(&result).unwrap();
+        assert!(is_subset(Some(&reparsed), &snippet));
+    }
+
+    /// Вкладена flow-мапа (`on: {push: {branches: [main]}}`, точна фікстура
+    /// з постановки) — вставка ОДНОЧАСНО на верхньому рівні (`on`, сусідній
+    /// ключ `workflow_dispatch` поряд з `push`) і на вкладеному (`push`,
+    /// сусідній ключ `tags` поряд з `branches`). Обидва рівні — окремі
+    /// [`Edit::Insert`] на різних байтових офсетах, обчислені проти
+    /// ОРИГІНАЛЬНОГО тексту (той самий мотив, що [`apply_edits`] — порядок
+    /// застосування не впливає на коректність, бо офсети не перетинаються).
+    #[test]
+    fn surgical_merge_flow_mapping_nested_and_top_level_insert() {
+        let before = "on: {push: {branches: [main]}}\njobs:\n  build:\n    runs-on: ubuntu-latest\n";
+        let snippet = parse_yaml_document(concat!(
+            "on: {push: {branches: [main], tags: dev-tag}, workflow_dispatch: {}}\n",
+            "jobs:\n  build:\n    runs-on: ubuntu-latest\n",
+        ))
+        .unwrap();
+        let result = try_surgical_merge(before, &snippet, true).expect(
+            "вставка і на верхньому, і на вкладеному рівні flow-мапи має бути хірургічною",
+        );
+        assert_eq!(
+            result,
+            concat!(
+                "on: {push: {branches: [main], \"tags\": \"dev-tag\"}, \"workflow_dispatch\": {}}\n",
+                "jobs:\n  build:\n    runs-on: ubuntu-latest\n",
+            )
+        );
+        let reparsed = parse_yaml_document(&result).unwrap();
+        assert!(is_subset(Some(&reparsed), &snippet));
+    }
+
+    /// Flow-контейнер з наявною trailing-комою (`[main,]` — валідний YAML,
+    /// перевірено окремо через `saphyr::YamlOwned::load_from_str` перед
+    /// написанням цього тесту) — [`flow_insert_point`] НЕ має дописувати
+    /// ДРУГУ кому (дзеркальний мотив до [`already_has_trailing_comma`] на
+    /// JSON block-шляху, лише скануючи НАЗАД від точки вставки, не вперед).
+    #[test]
+    fn surgical_merge_flow_sequence_existing_trailing_comma_not_doubled() {
+        let before = "branches: [main,]\njobs:\n  build:\n    runs-on: ubuntu-latest\n";
+        let snippet =
+            parse_yaml_document("branches: [main, dev]\njobs:\n  build:\n    runs-on: ubuntu-latest\n")
+                .unwrap();
+        let result = try_surgical_merge(before, &snippet, true)
+            .expect("наявна trailing-кома не має блокувати хірургічну вставку");
+        assert!(!result.contains(",,"), "подвійна кома: {result}");
+        assert_eq!(result, "branches: [main, \"dev\"]\njobs:\n  build:\n    runs-on: ubuntu-latest\n");
+        let reparsed = parse_yaml_document(&result).unwrap();
+        assert!(is_subset(Some(&reparsed), &snippet));
+    }
+
+    /// Найважливіший тест — точно той каскад, що §2.61 виміряла як «anchor
+    /// І flow непідтримні разом», а §2.62 звузила до «лише flow-nested-
+    /// insert» (доккомент розділу вище): документ, де flow-контейнер
+    /// (`branches: […]`) СУСІДИТЬ із коментарями в іншій частині того
+    /// самого дерева (`# top-level file comment`, трейлінг-коментар на
+    /// самій flow-лінії) і потребує ЩЕ ОДНОЇ, окремої block-style вставки
+    /// на кореневому рівні (`concurrency`). ДО фіксу — [`surgical_merge_node`]
+    /// пробрасує `false` від flow-гілки вгору (`if !surgical_merge_node(…)
+    /// { return false; }`, обхід «все або нічого») аж до кореня,
+    /// [`try_surgical_merge`] повертає `None`, ВЕСЬ документ (включно з
+    /// block-вставкою `concurrency`, яка сама по собі хірургічна) валиться
+    /// на повну регенерацію — ВСІ коментарі втрачаються. ПІСЛЯ фіксу — обидві
+    /// вставки (flow і block) застосовуються хірургічно, коментарі
+    /// зберігаються.
+    #[test]
+    fn surgical_merge_mixed_flow_inside_block_tree_preserves_all_comments() {
+        let before = concat!(
+            "# top-level file comment\n",
+            "name: CI\n",
+            "\n",
+            "on:\n",
+            "  push:\n",
+            "    branches: [main] # trailing comment on flow line\n",
+            "\n",
+            "jobs:\n",
+            "  build:\n",
+            "    runs-on: ubuntu-latest\n",
+            "    steps:\n",
+            "      - uses: actions/checkout@v6\n",
+        );
+        let snippet = parse_yaml_document(concat!(
+            "name: CI\n",
+            "on:\n",
+            "  push:\n",
+            "    branches: [main, dev]\n",
+            "jobs:\n",
+            "  build:\n",
+            "    runs-on: ubuntu-latest\n",
+            "    steps:\n",
+            "      - uses: actions/checkout@v6\n",
+            "concurrency:\n",
+            "  group: x\n",
+        ))
+        .unwrap();
+        let result = try_surgical_merge(before, &snippet, true).expect(
+            "ОДНА нездійсненна вставка всередині flow-контейнера НЕ має валити весь мердж на \
+             повну регенерацію — саме той каскад, що §2.61 виміряла як «anchor/flow непідтримні \
+             разом»",
+        );
+        assert!(result.contains("# top-level file comment"));
+        assert!(result.contains("branches: [main, \"dev\"] # trailing comment on flow line"));
+        assert!(result.contains("concurrency"));
+        let reparsed = parse_yaml_document(&result).unwrap();
+        assert!(is_subset(Some(&reparsed), &snippet));
+    }
+
+    /// РЕГРЕСІЯ — anchor/alias БЕЗ жодного flow (§2.62: «анкер/аліас уже
+    /// працює в нашому власному [`try_surgical_merge`], без жодного крейта»,
+    /// не має регресувати від додавання flow-підтримки). Три коментарі
+    /// (файловий, інлайновий на полі anchor-мапи, і перед `steps:` у job-і,
+    /// що використовує `<<: *common`) мусять вижити 3/3.
+    #[test]
+    fn surgical_merge_anchor_alias_regression_all_comments_preserved() {
+        let before = concat!(
+            "# top-level file comment\n",
+            "x-common: &common\n",
+            "  timeout-minutes: 5 # anchor field comment\n",
+            "  runs-on: ubuntu-latest\n",
+            "\n",
+            "jobs:\n",
+            "  security:\n",
+            "    <<: *common\n",
+            "    # job comment before steps\n",
+            "    steps:\n",
+            "      - uses: actions/checkout@v6\n",
+        );
+        let snippet = parse_yaml_document(concat!(
+            "jobs:\n",
+            "  security:\n",
+            "    steps:\n",
+            "      - uses: actions/checkout@v6\n",
+            "concurrency:\n",
+            "  group: x\n",
+        ))
+        .unwrap();
+        let result = try_surgical_merge(before, &snippet, true)
+            .expect("anchor/alias без flow має мержитись хірургічно (без регресії від §2.62-фіксу)");
+        assert!(result.contains("# top-level file comment"));
+        assert!(result.contains("timeout-minutes: 5 # anchor field comment"));
+        assert!(result.contains("# job comment before steps"));
+        assert!(result.contains("<<: *common"));
+        let reparsed = parse_yaml_document(&result).unwrap();
+        assert!(is_subset(Some(&reparsed), &snippet));
+    }
+
+    /// РЕГРЕСІЯ — чистий block-стиль (жодного flow, жодного anchor), точно
+    /// такий, як мержився ДО цієї задачі — не має змінити поведінку.
+    #[test]
+    fn surgical_merge_pure_block_style_regression_unaffected_by_flow_support() {
+        let before = concat!(
+            "name: X\n",
+            "# comment before jobs\n",
+            "jobs:\n",
+            "  build:\n",
+            "    runs-on: ubuntu-latest\n",
+        );
+        let snippet = parse_yaml_document(concat!(
+            "name: X\n",
+            "jobs:\n",
+            "  build:\n",
+            "    runs-on: ubuntu-latest\n",
+            "concurrency:\n",
+            "  group: x\n",
+        ))
+        .unwrap();
+        let result = try_surgical_merge(before, &snippet, true)
+            .expect("block-стиль surgical merge має спрацювати як і раніше");
+        assert!(result.contains("# comment before jobs"));
+        let reparsed = parse_yaml_document(&result).unwrap();
+        assert!(is_subset(Some(&reparsed), &snippet));
     }
 
     // --- `parse_jsonc_document`/`parse_marked_jsonc_document` (справжня
