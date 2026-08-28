@@ -79,6 +79,7 @@ import { loadNative } from '../../native.mjs'
 import { realRepoRoot, withBinRemovedFromPath, withTmpDir } from '../../../utils/test-helpers.mjs'
 import { resolveCmd } from '../../../utils/resolve-cmd.mjs'
 import { createGoldenJs } from './wasm-parity-golden.mjs'
+import { WASM_SIZE_BUDGET_BYTES, WASM_SIZE_BUDGET_LABEL } from './wasm-size-budget.mjs'
 
 // `ga/workflows`'s `lint()` викликає СИНХРОННИЙ `ensureTool('shellcheck')`/
 // `ensureTool('conftest')` (Plugin API v2 preflight, `main.mjs:398-399`) БЕЗУМОВНО на
@@ -113,8 +114,6 @@ const CONCERN_KEY = 'rust/toolchain_cache'
 const WORKFLOWS_MAIN_MJS_PATH = join(REPO_ROOT, 'plugins', 'ci-github', 'rules', 'ga', 'workflows', 'main.mjs')
 const WORKFLOWS_CONCERN_KEY = 'ga/workflows'
 
-/** Size-budget компонента — той самий бюджет, що решта чотирьох гостей (доккомент модуля). */
-const WASM_SIZE_BUDGET_BYTES = 2.5 * 1024 * 1024
 
 // ---------------------------------------------------------------------
 // Шар еталонів ([`goldenJs`], `wasm-parity-golden.mjs`): JS-детектори
@@ -1008,9 +1007,9 @@ describe('wasm-плагін plugin-ci-github — describe()/розмір', () =>
     expect(manifest.tools).toEqual(['path:git', 'npm:github-actionlint', 'path:uvx', 'shellcheck'])
   })
 
-  test(`зібраний .wasm вкладається в size-budget (${WASM_SIZE_BUDGET_BYTES} байт)`, async () => {
+  test(`зібраний .wasm вкладається в size-budget (${WASM_SIZE_BUDGET_LABEL})`, async () => {
     const { stat } = await import('node:fs/promises')
     const { size } = await stat(WASM_PATH)
-    expect(size).toBeLessThan(WASM_SIZE_BUDGET_BYTES)
+    expect(size).toBeLessThanOrEqual(WASM_SIZE_BUDGET_BYTES)
   })
 })

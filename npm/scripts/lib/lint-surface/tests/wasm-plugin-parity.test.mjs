@@ -76,8 +76,10 @@
  * збігаються навіть із забутою конверсією.
  *
  * Останній describe-блок (`size-budget`) — окремо від parity: заміряє
- * реальний `plugin_lang_js.wasm` проти бюджету 2,5 MB (задача Q3, спека
- * `docs/specs/2026-08-01-wasm-ast-strategy.md`, розділ «Рішення» п.2).
+ * реальний `plugin_lang_js.wasm` проти спільної для всіх гостей стелі
+ * (`WASM_SIZE_BUDGET_BYTES`, `./wasm-size-budget.mjs` — там число, його
+ * походження зі спайка `docs/specs/2026-08-01-wasm-ast-strategy.md` і межі
+ * того, що цей гейт ловить).
  */
 import { existsSync } from 'node:fs'
 import { chmod, writeFile } from 'node:fs/promises'
@@ -90,6 +92,7 @@ import { describe, expect, test } from 'vitest'
 import { loadNative } from '../../native.mjs'
 import { realRepoRoot, withTmpDir } from '../../../utils/test-helpers.mjs'
 import { createGoldenJs } from './wasm-parity-golden.mjs'
+import { WASM_SIZE_BUDGET_BYTES, WASM_SIZE_BUDGET_LABEL } from './wasm-size-budget.mjs'
 
 const REPO_ROOT = realRepoRoot()
 const WASM_PATH = join(REPO_ROOT, 'target', 'wasm32-wasip2', 'release', 'plugin_lang_js.wasm')
@@ -186,8 +189,6 @@ const DEP_POLICY_CONCERN_KEY = 'js/dep-policy'
 /** Реєстр предикатів — джерело правди анти-дрейф-тесту `RULE_PREDICATE_NAMES`. */
 const RULE_PREDICATES_PATH = join(REPO_ROOT, 'npm', 'scripts', 'lib', 'rule-predicates.mjs')
 
-/** Size-budget компонента (задача Q3, спека `docs/specs/2026-08-01-wasm-ast-strategy.md`, розділ «Рішення» п.2). */
-const WASM_SIZE_BUDGET_BYTES = 2.5 * 1024 * 1024
 
 // ---------------------------------------------------------------------
 // Шар еталонів ([`goldenJs`], `wasm-parity-golden.mjs`): JS-детектори
@@ -4835,7 +4836,7 @@ describe('wasm-plugin parity — js-run/runtime T0-фікс (JS-канон fix-r
 })
 
 describe('wasm-plugin — size-budget (задача Q3, спека `docs/specs/2026-08-01-wasm-ast-strategy.md`, розділ «Рішення» п.2)', () => {
-  test(`plugin_lang_js.wasm не перевищує бюджет ${WASM_SIZE_BUDGET_BYTES} байт (2.5 MB)`, async () => {
+  test(`plugin_lang_js.wasm не перевищує бюджет ${WASM_SIZE_BUDGET_LABEL}`, async () => {
     const { stat } = await import('node:fs/promises')
     const { size } = await stat(WASM_PATH)
     expect(size).toBeLessThanOrEqual(WASM_SIZE_BUDGET_BYTES)

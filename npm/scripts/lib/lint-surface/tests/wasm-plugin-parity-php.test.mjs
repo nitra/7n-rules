@@ -70,6 +70,7 @@ import { describe, expect, test, vi } from 'vitest'
 import { loadNative } from '../../native.mjs'
 import { realRepoRoot, withTmpDir } from '../../../utils/test-helpers.mjs'
 import { createGoldenJs } from './wasm-parity-golden.mjs'
+import { WASM_SIZE_BUDGET_BYTES, WASM_SIZE_BUDGET_LABEL } from './wasm-size-budget.mjs'
 
 const ensureToolAsyncMock = vi.fn()
 vi.mock('@7n/rules/scripts/lib/ensure-tool.mjs', () => ({ ensureToolAsync: ensureToolAsyncMock }))
@@ -97,8 +98,6 @@ const PROJECT_CONCERN_KEY = 'php/project'
 const MAGO_FMT_CONCERN_KEY = 'php/mago_fmt'
 const MAGO_LINT_CONCERN_KEY = 'php/mago_lint'
 
-/** Size-budget компонента — той самий бюджет, що решта трьох гостей (доккомент модуля). */
-const WASM_SIZE_BUDGET_BYTES = 2.5 * 1024 * 1024
 
 // ---------------------------------------------------------------------
 // Шар еталонів ([`goldenJs`], `wasm-parity-golden.mjs`): JS-детектори
@@ -648,7 +647,7 @@ describe.each([
 })
 
 describe('wasm-plugin — size-budget (php/wasm-concerns, одна хвиля)', () => {
-  test(`plugin_lang_php.wasm не перевищує бюджет ${WASM_SIZE_BUDGET_BYTES} байт (2,5 MiB)`, async () => {
+  test(`plugin_lang_php.wasm не перевищує бюджет ${WASM_SIZE_BUDGET_LABEL}`, async () => {
     const { stat } = await import('node:fs/promises')
     const { size } = await stat(WASM_PATH)
     expect(size).toBeLessThanOrEqual(WASM_SIZE_BUDGET_BYTES)
