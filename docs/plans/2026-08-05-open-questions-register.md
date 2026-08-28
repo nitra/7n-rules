@@ -5978,6 +5978,116 @@ fix-шляху. Прогалина проводки, не знання.
 
 ---
 
+### 2.51. `python/ruff` — Т0-фіксер ДОСЛІДЖЕНО, СВІДОМО НЕ портовано: перший кандидат класу exec-tool fix наштовхнувся на дві структурні перешкоди
+
+**Задача:** портувати `python/ruff` (`plugins/lang-python/rules/python/ruff/fix-ruff.mjs`,
+65 рядків, обгортка над `uv run --frozen ruff check --fix .` + `ruff format
+.`) у `plugin-lang-python`. Це мав бути ПЕРШИЙ фіксер класу exec-tool у
+всій міграції — усі шість дотепер портованих (`doc-files/marksman_config`,
+`hasura/migrations`, `tauri/*` — T1/T2 native; `js/doc_comments`,
+`rust/cargo_mutants_config`, `rust/doc_comments`, `python/doc_comments`,
+`test/no-bun-test-import`, `js/check` — wasm) чисто декларативні: гість
+отримує вміст, повертає `FixPlan` над ним у пам'яті. `python/ruff` —
+принципово інший клас: fix виконує ЗОВНІШНІЙ ПРОЦЕС, який сам мутує файли
+на диску.
+
+**Перешкода 1 — продакшн-міст не доносить до гостя жодного файлу.**
+`run_wasm_concern_fix` (`crates/rules-napi/src/lib.rs`) будує
+`FixRequest::files` ВИКЛЮЧНО з `diagnostic.file`-полів переданих violations
+(дедуп зі збереженням порядку); лише коли результат порожній, а
+задекларований `scope` концерну — `Full`, спрацьовує full-scope fallback
+(`build_full_scope_files` за `ConcernContribution::glob`) — той самий
+механізм, що §2.47 (`js/check`) уже виловила й полагодила. `python/ruff`'s
+діагностики (`ruff-check-violation`/`ruff-format-violation`/`ruff-unavailable`,
+`crates/plugin-lang-python/src/lib.rs::run_ruff_step`/`detect_ruff`) йдуть
+через `plain_violation`, що СТАВИТЬ `file: None` БЕЗУМОВНО — `run_ruff_step`
+виконує ОДИН `exec-tool`-виклик на ВЕСЬ переданий `targets` (той самий
+whole-batch-на-per-file-концерні мотив, що `CONCERN_MYPY`/`CONCERN_RUFF` у
+`Guest::detect`), не по файлу окремо. Водночас `plugin.toml` декларує
+`python/ruff` як `scope = "per-file"` (glob `**/*.py`), НЕ `Full` — фікс
+§2.47 звужений умовою `c.scope == ConcernScope::Full`, і `python/ruff` під
+неї НЕ підпадає. Наслідок: на кожному реальному виклику через продакшн-міст
+`fix()` отримав би `request.files: []`, попри те, що на диску реально є
+`.py`-файли й реальні violations — той самий клас дефекту, що §2.47, але
+НЕ покритий тим фіксом.
+
+**Перешкода 2 — exec-tool, що пише в реальний `cwd`, структурно ламає
+обов'язковий rollback-контракт.** `ctx.recordWrite`
+(`npm/scripts/lib/lint-surface/types.mjs`, `FixContext.recordWrite`
+doc-коментар): «worker ЗОБОВ'ЯЗАНИЙ викликати перед будь-яким записом у
+файл — runner так знімає pre-image для central rollback». Якщо `fix_ruff`
+викликає `exec_tool` з `cwd: None` (реальний корінь consumer-репо, той
+самий, що вже несуть `detect_ruff`/`detect_mypy`) і аргументами `ruff check
+--fix .`/`ruff format .` (точний функціональний порт JS-канону, що працює
+на ВЕСЬ `.`, ігноруючи `ctx.files`/цільові файли), мутація відбувається
+ВСЕРЕДИНІ `exec_tool`, синхронно, ДО того, як гість взагалі повертає
+`FixPlan` хосту. Жоден `FixPlan` — ні порожній, ні той, що постфактум
+описує ЩО змінилось — не може ретроактивно дати хосту зняти pre-image ДО
+запису: запис уже стався. Конкретний прояв: `wasmFixPattern`
+(`npm/scripts/lib/lint-surface/run-fix.mjs`) гейтить застосування на
+`edits.length > 0` (`test: violations => computeWasmFixPlan(...).edits.length
+> 0`) — порожній план («тул уже все зробив сам») означає, що
+`apply()`/`recordWrite` НЕ викликаються взагалі, `guestFix`-пріоритет
+(`applyT0`, зупиняє JS-fallback лише коли `touchedFiles.length > 0`) не
+спрацьовує, тож JS-fallback (`fix-ruff.mjs`) запускається ПОВТОРНО поверх
+уже змінених файлів — подвійний прогін сам собою нешкідливий (`ruff`
+ідемпотентний), але ховає РЕАЛЬНУ діру: жоден `recordWrite` ніколи не
+бачить справжній pre-image, тож rollback провального fix-прогону ці файли
+НЕ відновить.
+
+**Розглянутий і відхилений обхідний шлях — `scratch-dir`.** Контракт
+(`crates/rules-contract/wit/world.wit`, `scratch-in`/`scratch-out`
+`tool-request`) технічно дозволяє матеріалізувати файли в ізольований
+scratch-каталог ПЕРЕД спавном і забрати змінені файли НАЗАД як
+`FixPlan::edits`-write — зберігаючи інваріант «recordWrite ДО запису» (хост
+пише сам, з `FixPlan`, а не тул напряму). Але `ruff` (як і будь-який
+lint-фіксер із конфіг-резолвом) очікує РЕАЛЬНИЙ проєкт: `pyproject.toml`
+з `[tool.ruff]`, реальну директорійну структуру (package-relative
+правила, isort-подібне сортування імпортів), можливо `.venv`/`uv.lock` для
+`uv run --frozen`. Копіювання довільного піднабору `.py`-файлів у плаский
+scratch-каталог ризикує змінити вердикт деяких правил (втрата реальної
+ієрархії пакетів) — а сам піднабір усе одно недосяжний без розв'язання
+Перешкоди 1 (`request.files` порожній).
+
+**Альтернатива без прямого запису — `--stdin-filename`.** `ruff check
+--fix --stdin-filename <path> -`/`ruff format --stdin-filename <path> -`
+читають код зі stdin, пишуть виправлений код у stdout, НЕ торкаючись диска
+— технічно ліквідує Перешкоду 2 (той самий `stdin`/захоплений `stdout`, що
+вже несе `ToolRequest`/`ToolResult`), працюючи в реальному `cwd` (конфіг
+резолвиться відносно `--stdin-filename`, файл не мусить існувати на диску).
+Це НЕ розв'язує Перешкоду 1 самостійно (усе ще потрібен непорожній
+`request.files`, щоб знати, ЯКІ файли й з яким вмістом фіксити) і потребує
+емпіричної перевірки, що резолв конфігу `ruff` за `--stdin-filename`
+поводиться ідентично реальному файлу для всіх релевантних правил —
+поза обсягом цього кроку.
+
+**Рекомендований шлях (наступний крок, поза обсягом цього кроку):**
+1. Розширити `run_wasm_concern_fix` (`crates/rules-napi/src/lib.rs`) —
+   full-scope fallback за `ConcernContribution::glob` спрацьовує, коли
+   `target_files` порожній, НЕЗАЛЕЖНО від задекларованого `scope`
+   (не лише `Full`) — інфраструктурна зміна, що зачіпає ВСІ wasm-плагіни
+   (обидва first-party гості), не лише `plugin-lang-python`, тож свідомо
+   не зроблена в межах цього кроку.
+2. Портувати `fix_ruff` через `--stdin-filename`-режим (не пряму мутацію
+   `cwd`) — по одному файлу з `request.files`, ланцюжком `check --fix` →
+   `format`, `Write`-edit лише якщо фінальний вміст відрізняється від
+   вхідного.
+3. Довести парність і безпеку ЧЕРЕЗ ПРОДАКШН-МІСТ
+   (`runWasmConcernFix`, не прямий виклик `fix_ruff`) — той самий урок
+   §2.47: прямий виклик гостя ховає саме цей клас багів.
+
+**Висновок — чесна межа, не половинчаста реалізація.** Жодна з двох
+перешкод не розв'язується в межах одного крейта `plugin-lang-python`:
+`Guest::fix` НЕ диспетчеризує `CONCERN_RUFF` (лишається дефолтна заглушка
+— порожній план), `fix-ruff.mjs` лишається каноном без змін. Доккомент
+`crates/plugin-lang-python/src/lib.rs` (розділ «`python/ruff` — Т0-фіксер
+ДОСЛІДЖЕНО, СВІДОМО НЕ портовано») дублює цей запис коротшою формою поряд
+із кодом. Жодних змін коду `Guest::fix`/`plugin.toml`/`run_wasm_concern_fix`
+цим кроком не зроблено — `cargo test -p plugin-lang-python` лишається
+69/69 без регресій.
+
+---
+
 ## Як користуватись
 
 Дійшовши кінця плану міграції, пройти реєстр згори вниз: розділи 1 і 6 — це
