@@ -65,8 +65,8 @@
  * `wasm-plugin-parity.test.mjs`).
  */
 import { existsSync } from 'node:fs'
-import { chmod, mkdir, writeFile } from 'node:fs/promises'
-import { delimiter, join } from 'node:path'
+import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { delimiter, dirname, join } from 'node:path'
 import { env } from 'node:process'
 import { pathToFileURL } from 'node:url'
 
@@ -1096,6 +1096,84 @@ describe('rust/doc_comments + rust/cargo_mutants_config — T0-цикл: дет�
       )
       expect(patterns[0].test(before)).toBe(true)
       await patterns[0].apply(before, { cwd: dir, recordWrite: () => {} })
+
+      const again = loadNative().runWasmConcern(WASM_PATH, CARGO_MUTANTS_CONFIG_CONCERN_KEY, dir, null)
+      expect(again.violations).toEqual([])
+    })
+  })
+})
+
+// --- rust/doc_comments + rust/cargo_mutants_config: замикання T0-циклу --
+// через РЕАЛЬНИЙ napi-міст (§2.49 open-questions-register) ---------------
+//
+// Обидва концерни мають guest-фікс, ПОРТОВАНИЙ у `Guest::fix`
+// (`fix_doc_comments`/`fix_cargo_mutants_config`, доккомент
+// `crates/plugin-lang-rust/src/lib.rs`, розділ «ДРУГА ХВИЛЯ» /
+// «Т0-фіксер ПОРТОВАНО»), і НЕ входять у `NATIVE_FIXES`
+// (`crates/rules-core/src/concerns/fix.rs`) — production-шлях
+// (`run-fix.mjs::loadT0Patterns`) для обох ЗАВЖДИ веде через
+// `wasmFixPattern` → `runWasmConcernFix` napi-міст (`crates/rules-napi`).
+//
+// Describe-блок вище («T0-цикл: детект гостем → JS-фіксер → детект гостем
+// чистий») цей факт НЕ перевіряє: `apply()` там береться з
+// `fix-doc_comments.mjs`/`fix-cargo_mutants_config.mjs` (JS-канон,
+// транзитивний шар) НАПРЯМУ — `runWasmConcernFix` там жодного разу не
+// викликається. Guest-фікс (реальний код, що виконується в проді) лишається
+// НЕПЕРЕВІРЕНИМ через міст. Той самий клас прогалини, що PR #513 (`js/check`,
+// `wasm-plugin-parity.test.mjs`) — там повний цикл ІДЕ через
+// `loadNative().runWasmConcernFix`, тут — ні. Обидва концерни нижче НЕ
+// whole-batch (кожна fixable діагностика несе `diagnostic.file` —
+// `workspace_root_file_violation`/per-file `Diagnostic` відповідно), тож
+// цикл НЕ проходить крізь full-scope fallback `run_wasm_concern_fix`
+// (той самий фолбек, що ловив баг #513 для `js/check`) — перевіряється
+// file-scoped гілка моста.
+describe('rust/doc_comments + rust/cargo_mutants_config — T0-цикл через fix-міст (детект гостем → runWasmConcernFix → детект гостем чистий)', () => {
+  test('doc_comments: fix-міст (runWasmConcernFix) підвищує обидва //-блоки, повторний детект гостем мовчить', async () => {
+    await withTmpDir(async dir => {
+      const rel = 'src/a.rs'
+      await writeFileDeep(dir, rel, ['// намір файлу', '', '// робить X', 'pub fn go() {}', ''].join('\n'))
+
+      const before = withDefaultSeverity(
+        loadNative().runWasmConcern(WASM_PATH, DOC_COMMENTS_CONCERN_KEY, dir, [rel]).violations
+      )
+      expect(before).toHaveLength(2)
+      expect(before.every(v => v.file === rel)).toBe(true)
+
+      const plan = loadNative().runWasmConcernFix(WASM_PATH, DOC_COMMENTS_CONCERN_KEY, dir, before)
+      expect(plan.edits.length).toBeGreaterThan(0)
+      for (const edit of plan.edits) {
+        if (edit.type === 'write') await writeFile(join(dir, edit.path), edit.content, 'utf8')
+      }
+
+      const content = await readFile(join(dir, rel), 'utf8')
+      expect(content).toContain('//! намір файлу')
+      expect(content).toContain('/// робить X')
+      expect(content).not.toMatch(/^\/\/ /m)
+
+      const again = loadNative().runWasmConcern(WASM_PATH, DOC_COMMENTS_CONCERN_KEY, dir, [rel])
+      expect(again.violations).toEqual([])
+    })
+  })
+
+  test('cargo_mutants_config: fix-міст (runWasmConcernFix) створює baseline, повторний детект гостем мовчить', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'Cargo.toml'), '[package]\nname = "x"\nversion = "0.1.0"\n', 'utf8')
+
+      const before = withDefaultSeverity(
+        loadNative().runWasmConcern(WASM_PATH, CARGO_MUTANTS_CONFIG_CONCERN_KEY, dir, null).violations
+      )
+      expect(before).toHaveLength(1)
+      expect(before[0].file).toBe('.cargo/mutants.toml')
+
+      const plan = loadNative().runWasmConcernFix(WASM_PATH, CARGO_MUTANTS_CONFIG_CONCERN_KEY, dir, before)
+      expect(plan.edits).toHaveLength(1)
+      expect(plan.edits[0]).toMatchObject({ type: 'write', path: '.cargo/mutants.toml' })
+      for (const edit of plan.edits) {
+        if (edit.type === 'write') {
+          await mkdir(join(dir, dirname(edit.path)), { recursive: true })
+          await writeFile(join(dir, edit.path), edit.content, 'utf8')
+        }
+      }
 
       const again = loadNative().runWasmConcern(WASM_PATH, CARGO_MUTANTS_CONFIG_CONCERN_KEY, dir, null)
       expect(again.violations).toEqual([])
