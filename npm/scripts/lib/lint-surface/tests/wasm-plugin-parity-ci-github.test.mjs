@@ -1049,18 +1049,19 @@ describe('wasm-плагін plugin-ci-github — третя хвиля: T0-ци�
   })
 
   /**
-   * Регрес-тест на дані-loss баг, знайдений незалежним ревʼю PR #528 на
-   * ширшому наборі фікстур (звіт задачі §2.58, поправка): `.vscode/settings.json`
-   * у продакшн-VS-Code-конвенції часто містить JSONC `//`-коментарі — гість
-   * читав його тим самим толерантним YAML-парсером (валідний YAML 1.2, для
-   * якого `//` НЕ коментар), сусідній ключ тихо зливався з коментарем у
-   * сміттєвий ключ, і фікс писав ЗІПСОВАНИЙ файл із втраченим
-   * `editor.formatOnSave`. Тепер — floor крізь РЕАЛЬНИЙ napi-міст:
-   * `runWasmConcern` детектить `policy-input-invalid` (не строгий JSON),
-   * `runWasmConcernFix` не дає жодної правки, файл лишається байт-у-байт
-   * вхідним.
+   * Ціль задачі §2.5x (JSONC-хвиля — доккомент розділу «Справжня
+   * JSONC-підтримка», `crates/plugin-ci-github/src/lib.rs`) крізь РЕАЛЬНИЙ
+   * napi-міст, не прямий виклик гостя (доккомент задачі — прямий виклик уже
+   * двічі ховав реальні вади мосту): `.vscode/settings.json` з JSONC
+   * `//`-коментарем ПЕРЕД ключем раніше (звіт задачі §2.58, поправка) або
+   * тихо псувався (сирий `//`-рядок зливався з сусіднім ключем у сміттєвий
+   * YAML-ключ), або (floor §2.58) взагалі не чіпався. Тепер —
+   * `runWasmConcern` детектить `policy-deny` (файл РЕАЛЬНО читається),
+   * `runWasmConcernFix` дає хірургічну правку — коментар і локальне
+   * налаштування (`my.local`) лишаються байт-у-байт, канонічний блок
+   * дописаний, повторний детект чистий.
    */
-  test('ga/vscode_settings: JSONC-коментар (`//` перед ключем) — не строгий JSON, фікс НЕ чіпає файл, налаштування не втрачається', async () => {
+  test('ga/vscode_settings: JSONC-коментар (`//` перед ключем) — хірургічний merge крізь napi-міст, коментар і локальні налаштування збережені', async () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, '.vscode'), { recursive: true })
       const jsonc = [
@@ -1075,15 +1076,19 @@ describe('wasm-плагін plugin-ci-github — третя хвиля: T0-ци�
 
       const before = loadNative().runWasmConcern(WASM_PATH, 'ga/vscode_settings', dir, null, {}).violations
       expect(before.length).toBeGreaterThan(0)
-      expect(before[0].reason).toBe('policy-input-invalid')
+      expect(before[0].reason).toBe('policy-deny')
 
       const plan = loadNative().runWasmConcernFix(WASM_PATH, 'ga/vscode_settings', dir, before, {})
       const edit = plan.edits.find(e => e.path === '.vscode/settings.json')
-      expect(edit).toBeUndefined()
+      expect(edit).toBeDefined()
+      expect(edit.content).toContain('// коментар перед ключем')
+      expect(edit.content).toContain('"editor.formatOnSave": true')
+      expect(edit.content).toContain('"my.local": 42')
+      expect(edit.content).toContain('"editor.defaultFormatter": "oxc.oxc-vscode"')
 
-      const onDisk = await readFile(join(dir, '.vscode', 'settings.json'), 'utf8')
-      expect(onDisk).toBe(jsonc)
-      expect(onDisk).toContain('"editor.formatOnSave": true')
+      await writeFile(join(dir, edit.path), edit.content, 'utf8')
+      const after = loadNative().runWasmConcern(WASM_PATH, 'ga/vscode_settings', dir, null, {}).violations
+      expect(after).toEqual([])
     })
   })
 
