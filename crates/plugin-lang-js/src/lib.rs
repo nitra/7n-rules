@@ -7662,6 +7662,66 @@ fn detect_bun_layout(files: &[SourceFile]) -> Vec<Diagnostic> {
     diagnostics
 }
 
+/// Точний порт трьох T0-патернів видаленого
+/// `plugins/lang-js/rules/bun/layout/fix-layout.mjs` — `rm-forbidden-file`
+/// (видаляє кожен заборонений lock/конфіг-файл, чиє ім'я виймається з
+/// `diagnostic.message`), `bun-bunfig-create` (створює `bunfig.toml`, лише
+/// коли його ще немає в батчі — не перезаписує чужий вміст) і
+/// `bun-yarn-dir-remove` (видаляє директорію `.yarn` цілком, разом із
+/// вкладеним вмістом — `FileEdit::Delete` на батьківський шлях, той самий
+/// контракт, що `rmSync(target, { recursive: true })` JS-канону).
+///
+/// `bun/layout` — `scope: full`, WHOLE-BATCH-концерн (жодна діагностика не
+/// несе `file`, [`detect_bun_layout`]): `request.files` тут — не дельта
+/// запиту, а повний full-scope glob-обхід (`run_wasm_concern_fix`,
+/// `crates/rules-napi/src/lib.rs`, гілка `ConcernScope::Full`), тож
+/// `batch_file`/`batch_dir_exists` над ним коректно відповідають на
+/// «чи файл/каталог реально існує на диску консюмера зараз» — той самий
+/// `existsSync`, що робив JS-канон безпосередньо.
+///
+/// Імена заборонених файлів читаються з тексту повідомлення (не з
+/// `BUN_LAYOUT_FORBIDDEN_FILES` напряму), точний порт
+/// `FORBIDDEN_FILE_NAME_RE` (`/Знайдено заборонений файл: (\S+)/u`,
+/// `fix-layout.mjs:13`): `\S+` — до першого пробілу, тут — `split(' ')`,
+/// той самий ефект, бо жодне з чотирьох заборонених імен пробілів не несе.
+fn fix_bun_layout(request: &FixRequest) -> FixPlan {
+    let mut edits = Vec::new();
+
+    for diagnostic in &request.diagnostics {
+        let Some(rest) = diagnostic
+            .message
+            .strip_prefix("Знайдено заборонений файл: ")
+        else {
+            continue;
+        };
+        let name = rest.split(' ').next().unwrap_or(rest);
+        if batch_file(&request.files, name).is_some() {
+            edits.push(FileEdit::Delete(name.to_string()));
+        }
+    }
+
+    let bunfig_missing = request
+        .diagnostics
+        .iter()
+        .any(|d| d.message.starts_with("Відсутній bunfig.toml"));
+    if bunfig_missing && batch_file(&request.files, "bunfig.toml").is_none() {
+        edits.push(FileEdit::Write(WriteFile {
+            path: "bunfig.toml".to_string(),
+            content: "[install]\nlinker = \"hoisted\"\n".to_string(),
+        }));
+    }
+
+    let yarn_dir_found = request
+        .diagnostics
+        .iter()
+        .any(|d| d.message.starts_with("Знайдено директорію .yarn"));
+    if yarn_dir_found && batch_dir_exists(&request.files, ".yarn") {
+        edits.push(FileEdit::Delete(".yarn".to_string()));
+    }
+
+    FixPlan { edits }
+}
+
 /// Точний порт `checkStylelintConfigPresence`
 /// (`style/tooling/main.mjs:27-39`): без кореневого `package.json` перевірка
 /// взагалі не виконується (`return` до будь-якого `fail`). Умова
@@ -13335,9 +13395,11 @@ impl Guest for LangJs {
     /// `fix-no-bun-test-import.mjs`), `js/doc_comments` (зріз 4 контракту
     /// v3.1, [`fix_doc_comments`] — порт `fix-doc_comments.mjs`), `js/check`
     /// (доккомент секції «`js/check` — T0-фіксер ПОРТОВАНО»,
-    /// [`fix_js_check`] — порт `fix-check.mjs`) і `js-run/runtime`
-    /// (доккомент біля [`fix_js_run_runtime`], порт `fix-runtime.mjs`) —
-    /// усі чотири JS-канони тут, на відміну від пілота, ЛИШАЮТЬСЯ як
+    /// [`fix_js_check`] — порт `fix-check.mjs`), `js-run/runtime`
+    /// (доккомент біля [`fix_js_run_runtime`], порт `fix-runtime.mjs`) і
+    /// `bun/layout` ([`fix_bun_layout`] — порт `fix-layout.mjs`, ПЕРШИЙ
+    /// реальний споживач `FileEdit::Delete` на КАТАЛОГ у цьому крейті) —
+    /// усі пʼять JS-канонів тут, на відміну від пілота, ЛИШАЮТЬСЯ як
     /// JS-fallback; решта концернів — порожній план («нічого не чинити»,
     /// сумісна заглушка — доккомент `wit/world.wit` біля `export fix`).
     fn fix(request: FixRequest) -> FixPlan {
@@ -13346,6 +13408,7 @@ impl Guest for LangJs {
             CONCERN_DOC_COMMENTS => fix_doc_comments(&request),
             CONCERN_JS_CHECK => fix_js_check(&request),
             CONCERN_JS_RUN_RUNTIME => fix_js_run_runtime(&request),
+            CONCERN_BUN_LAYOUT => fix_bun_layout(&request),
             _ => FixPlan { edits: vec![] },
         }
     }
@@ -17775,6 +17838,84 @@ mod tests {
         let mut files = bun_layout_clean_root();
         files.push(src("sub/yarn.lock", ""));
         assert!(detect_bun_layout(&files).is_empty());
+    }
+
+    /// Будує `FixRequest` для `bun/layout` — діагностики беруться реальним
+    /// `detect_bun_layout` над переданим батчем (full-scope, `files` —
+    /// увесь батч, той самий контракт, що `run_wasm_concern_fix` дає для
+    /// `ConcernScope::Full` на `target_files.is_empty()`).
+    fn bun_layout_fix_request(files: Vec<SourceFile>) -> FixRequest {
+        let diagnostics = detect_bun_layout(&files);
+        FixRequest {
+            concern_id: CONCERN_BUN_LAYOUT.to_string(),
+            files,
+            diagnostics,
+        }
+    }
+
+    #[test]
+    fn fix_bun_layout_deletes_each_forbidden_file_named_in_message() {
+        let mut files = bun_layout_clean_root();
+        files.push(src("yarn.lock", ""));
+        files.push(src("package-lock.json", "{}"));
+        let plan = fix_bun_layout(&bun_layout_fix_request(files));
+        let deleted: Vec<&str> = plan
+            .edits
+            .iter()
+            .filter_map(|e| match e {
+                FileEdit::Delete(path) => Some(path.as_str()),
+                FileEdit::Write(_) => None,
+            })
+            .collect();
+        assert_eq!(deleted, vec!["package-lock.json", "yarn.lock"]);
+    }
+
+    #[test]
+    fn fix_bun_layout_creates_bunfig_when_missing() {
+        let files = vec![src("bun.lock", ""), src("package.json", "{}\n")];
+        let plan = fix_bun_layout(&bun_layout_fix_request(files));
+        let write = plan
+            .edits
+            .iter()
+            .find_map(|e| match e {
+                FileEdit::Write(w) if w.path == "bunfig.toml" => Some(w),
+                _ => None,
+            })
+            .expect("план містить write bunfig.toml");
+        assert_eq!(write.content, "[install]\nlinker = \"hoisted\"\n");
+    }
+
+    #[test]
+    fn fix_bun_layout_does_not_touch_existing_bunfig() {
+        // canonical root уже несе bunfig.toml — detect_bun_layout не видасть
+        // діагностику "Відсутній bunfig.toml", тож і write-edit не з'явиться.
+        let plan = fix_bun_layout(&bun_layout_fix_request(bun_layout_clean_root()));
+        assert!(plan
+            .edits
+            .iter()
+            .all(|e| !matches!(e, FileEdit::Write(w) if w.path == "bunfig.toml")));
+    }
+
+    #[test]
+    fn fix_bun_layout_deletes_yarn_dir_as_single_edit() {
+        let mut files = bun_layout_clean_root();
+        files.push(src(".yarn/releases/yarn-4.0.0.cjs", "// yarn\n"));
+        let plan = fix_bun_layout(&bun_layout_fix_request(files));
+        let deleted: Vec<&str> = plan
+            .edits
+            .iter()
+            .filter_map(|e| match e {
+                FileEdit::Delete(path) => Some(path.as_str()),
+                FileEdit::Write(_) => None,
+            })
+            .collect();
+        assert_eq!(deleted, vec![".yarn"]);
+    }
+
+    #[test]
+    fn fix_bun_layout_clean_root_yields_empty_plan() {
+        let plan = fix_bun_layout(&bun_layout_fix_request(bun_layout_clean_root()));
+        assert!(plan.edits.is_empty());
     }
 
     // --- Батч 8: style/tooling ---
