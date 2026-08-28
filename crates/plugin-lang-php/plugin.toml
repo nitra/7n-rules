@@ -52,7 +52,8 @@ scope = "full"
 glob = ["composer.json"]
 
 [[concerns]]
-# `composer.json` до per-file delta-batch-у приносить `lint.anchors`
+# `composer.json` до per-file DELTA-batch-у приносить `lint.anchors`
+# (а у FULL-прогоні — цей glob, куди його явно додано, §2.65)
 # відповідного `concern.json` (JS-планувальник, `plan_concern_for_delta`), НЕ
 # цей glob — доккомент `src/lib.rs`, розділ «anchors». `concern.json` цього
 # концерну модифіковано цією ж задачею, щоб декларувати
@@ -60,12 +61,12 @@ glob = ["composer.json"]
 # `python/mypy`+`python/ruff` для `pyproject.toml`.
 key = "php/mago_fmt"
 scope = "per-file"
-glob = ["**/*.php"]
+glob = ["**/*.php", "composer.json"]
 
 [[concerns]]
 key = "php/mago_lint"
 scope = "per-file"
-glob = ["**/*.php"]
+glob = ["**/*.php", "composer.json"]
 
 [capabilities]
 # Хост передає вміст файлів inline у `detect-batch` (host-побудований

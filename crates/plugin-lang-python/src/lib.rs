@@ -2276,19 +2276,27 @@ fn build_manifest() -> Manifest {
                 scope: ConcernScope::PerFile,
                 glob: vec!["**/*.py".to_string()],
             },
-            // PerFile, як `CONCERN_DOC_COMMENTS` — `pyproject.toml` до batch-у
-            // приносить НЕ цей glob, а `lint.anchors` відповідного
-            // `concern.json` (доккомент секції «`python/mypy` +
-            // `python/ruff`» перед цією функцією, розділ «Per-file + якорі»).
+            // PerFile, як `CONCERN_DOC_COMMENTS`. У ДЕЛЬТА-прогоні
+            // `pyproject.toml` до batch-у приносить НЕ цей glob, а
+            // `lint.anchors` відповідного `concern.json` (доккомент секції
+            // «`python/mypy` + `python/ruff`» перед цією функцією, розділ
+            // «Per-file + якорі»). У FULL-прогоні (`--full`, `files: None`)
+            // якорів немає: batch будує хост РІВНО з цього glob-а
+            // (`crates/rules-napi::build_detect_batch_files`, §2.65), а
+            // WIT-контрибуція поля `anchors` не має взагалі. Тому
+            // `pyproject.toml` тут ЯВНО в glob-і обох тул-детекторів — без
+            // нього [`prepare_python_run`] у `--full` бачив би `.py`-файли
+            // без якоря й повертав `Skip`, тобто концерн знову звітував би
+            // «чисто», лише вже з непорожнім batch-ем.
             ConcernContribution {
                 key: CONCERN_MYPY.to_string(),
                 scope: ConcernScope::PerFile,
-                glob: vec!["**/*.py".to_string()],
+                glob: vec!["**/*.py".to_string(), "pyproject.toml".to_string()],
             },
             ConcernContribution {
                 key: CONCERN_RUFF.to_string(),
                 scope: ConcernScope::PerFile,
-                glob: vec!["**/*.py".to_string()],
+                glob: vec!["**/*.py".to_string(), "pyproject.toml".to_string()],
             },
             ConcernContribution {
                 key: CONCERN_WORKSPACE_ROOT.to_string(),
@@ -3074,12 +3082,18 @@ mod tests {
                 .iter()
                 .find(|c| c.key == key)
                 .unwrap_or_else(|| panic!("{key} contribution має бути в маніфесті"));
-            // PerFile, як `CONCERN_DOC_COMMENTS` — `pyproject.toml` до
-            // batch-у приносить `lint.anchors` відповідного `concern.json`
-            // (JS-планувальник), НЕ ця glob-декларація (доккомент секції
-            // «`python/mypy` + `python/ruff`», розділ «Per-file + якорі»).
+            // PerFile, як `CONCERN_DOC_COMMENTS`. `pyproject.toml` у glob-і
+            // — вимога FULL-прогону (§2.65,
+            // `crates/rules-napi::build_detect_batch_files`): там batch
+            // будує хост рівно з цієї декларації, а `lint.anchors`
+            // `concern.json` (JS-планувальник) працює лише в дельті. Без
+            // якоря в glob-і [`prepare_python_run`] мовчки повертав би
+            // `Skip` на кожному `--full`.
             assert_eq!(contribution.scope, ConcernScope::PerFile);
-            assert_eq!(contribution.glob, vec!["**/*.py".to_string()]);
+            assert_eq!(
+                contribution.glob,
+                vec!["**/*.py".to_string(), "pyproject.toml".to_string()]
+            );
         }
         assert_eq!(manifest.tools, vec![UV_TOOL.to_string()]);
     }

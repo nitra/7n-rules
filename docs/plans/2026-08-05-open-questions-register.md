@@ -7569,58 +7569,133 @@ wasm-план «нічого не зробив» з погляду хоста, J
 
 ---
 
-### 2.65. ВІДКРИТЕ: `--full` мовчки НЕ перевіряє жоден `per-file` wasm-концерн — порожній batch замість glob-обходу
+### 2.65. ЗАКРИТО: `--full` мовчки НЕ перевіряв жоден `per-file` wasm-концерн — хост будує batch за glob-ом контрибуції для БУДЬ-ЯКОГО scope, нерозвʼязний стан падає гучно
 
-**Знайдено** побіжно, під час §2.64 (host-diff для `python/ruff`): у режимі
-`full: true` pipeline-тест довелось вести через `rules+files` (delta-режим),
-бо у `full` концерн просто не спрацьовував. Розбір показав не особливість
-тесту, а діру в продакшн-шляху ДЕТЕКТУ.
+**Задача:** закрити стан, знайдений побіжно під час §2.64 — у режимі
+`full: true` планувальник лишає `item.files` невизначеним для КОЖНОГО
+концерну (`rules_core::lint_plan::build_full_plan` — `files: None`), а
+`run_wasm_concern` (`crates/rules-napi/src/lib.rs`) будував batch за
+задекларованим glob-ом ЛИШЕ для `scope: Full`. Гілка `_ => Vec::new()`
+віддавала `per-file`-концерну ПОРОЖНІЙ batch: гість бачив нуль файлів,
+повертав нуль діагностик, концерн звітував «чисто» — ні помилки, ні
+попередження, ні сліду в логу. Обсяг: девʼять контрибуцій у чотирьох
+гостях (`vue/tfm-translations`, `js/doc_comments`, `python/doc_comments`,
+`python/mypy`, `python/ruff`, `rust/doc_comments`, `rust/wasm_component`,
+`php/mago_fmt`, `php/mago_lint`) — у `--full` не перевірялись узагалі.
 
-**Механізм.** `detect.mjs` передає `ctx.files ?? null` у `runWasmConcern` —
-`null` свідомо означає «планувальник не має явного списку», щоб хост сам
-побудував full-scope batch за задекларованим glob-ом (доккомент там же). Але
-`run_wasm_concern` (`crates/rules-napi/src/lib.rs`) будує його ЛИШЕ для
-full-scope:
+**Обраний варіант — 1 (симетрія з §2.53) І 2 (гучність) разом, не
+замість.** Постановка називала другий обовʼязковим мінімумом; повне
+рішення виявилось дешевшим за очікуване, тож зроблені обидва.
 
-```rust
-match contribution {
-    Some(c) if c.scope == ConcernScope::Full => build_full_scope_files(&cwd_path, &c.glob),
-    _ => Vec::new(),
-}
-```
+**Чому саме glob-обхід, а не «дельта запиту тим самим шляхом, що
+`delta_files` для fix».** Дельта — властивість ЗАПИТУ; у `--full` запит
+дельти НЕ МАЄ за визначенням (у цьому й сенс режиму), тож проводити сюди
+нічого. Справжня різниця між двома контурами не в сигнатурі, а в
+наслідку: detect READ-ONLY, і «перевір кожен файл під glob-ом концерну» —
+рівно те, що `--full` означає, і рівно те, що завжди робив JS-канон
+(`ctx.files === undefined` → детектор обходить репо сам). Fix натомість
+ПИШЕ, і той самий glob-обхід виправляв би файли поза дельтою — порушив би
+per-file-контракт (доккомент [`ambiguous_empty_fix_batch_err`], розділ
+«Чому не мовчазний `Vec::new()` і не full-scope glob-обхід»). Асиметрія
+двох napi-сигнатур лишається, але тепер вона названа й обґрунтована в
+доккоменті [`build_detect_batch_files`], а не є наслідком недогляду:
+**detect добудовує batch, fix вимагає дельту**.
 
-Для `per-file`-концерну гілка `_` віддає ПОРОЖНІЙ batch. Гість отримує нуль
-файлів, повертає нуль діагностик, концерн звітує «чисто». Мовчки — ні
-помилки, ні попередження, ні сліду в логу.
+**Фікс — [`build_detect_batch_files`]** (`crates/rules-napi/src/lib.rs`,
+одразу після [`build_full_scope_files`]) — один резолвер гілки
+`files: None`, три випадки:
 
-**Це той самий дефект, що §2.52 зробила гучним, але на detect-боці.** У
-fix-контурі порожній batch не-full-scope концерну тепер падає типізованою
-помилкою (`ambiguous_empty_fix_batch_err`, §2.52) і має дельту запиту
-(§2.53). Detect-бік лишився з мовчазним `Vec::new()` — тобто ту саму
-асиметрію двох napi-сигнатур, яку §2.53 полагодила для `fix`, ніхто не
-полагодив для `detect`.
+1. контрибуція з НЕПОРОЖНІМ glob-ом — [`build_full_scope_files`],
+   НЕЗАЛЕЖНО від `scope` (той самий обхід із consumer-ignore, що вже мав
+   `scope: Full`);
+2. `scope: Full` з ПОРОЖНІМ glob-ом — `Vec::new()`, як раніше: це
+   заявлений намір гостя («канон не читає з диска нічого перед спавном» —
+   `js/jscpd_duplicates`, `crates/plugin-lang-js/plugin.toml`), не
+   прогалина хоста;
+3. `per-file` без glob-а АБО ключ, якого немає у `describe().concerns` —
+   типізована помилка [`unresolvable_detect_batch_err`] із назвою
+   концерну, причиною і двома способами полагодити. Це detect-дзеркало
+   `ambiguous_empty_fix_batch_err` (§2.52); у продакшн-шляху її ловить
+   skip-not-crash `detect.mjs` і ГУЧНО попереджає з назвою концерну,
+   замість мовчазного «чисто».
 
-**Обсяг — девʼять концернів у чотирьох гостях** (`scope = "per-file"` у
-`plugin.toml`): `vue/tfm-translations`, `js/doc_comments`,
-`python/doc_comments`, `python/mypy`, `python/ruff`, `rust/doc_comments`,
-`rust/wasm_component`, `php/mago_fmt`, `php/mago_lint`. Усі вони в
-`--full`-прогоні не перевіряються взагалі.
+**Друга половина фіксу, без якої перша нічого не дала б для чотирьох із
+девʼяти концернів: якорі.** `python/mypy`/`python/ruff` вимагають
+`pyproject.toml` У БАТЧІ ([`prepare_python_run`]), `php/mago_fmt`/
+`php/mago_lint` — `composer.json` ([`detect_mago_per_file`]). У ДЕЛЬТА-
+прогоні їх кладе планувальник (`concern.json.lint.anchors`,
+`plan_concern_for_delta`), але у full-прогоні планувальник списку не
+будує взагалі, а WIT-контрибуція поля `anchors` НЕ МАЄ (`wit/world.wit`,
+`record concern-contribution`). Самого glob-обходу було б замало: чотири
+детектори отримали б `.py`/`.php`-файли без якоря й вийшли б у `Skip` —
+знову «чисто», лише вже з непорожнім батчем. Тому якір внесено ЯВНО у
+glob контрибуції кожного з чотирьох (`build_manifest()` + `plugin.toml`,
+anti-drift тести обох гостей оновлені), а сама вимога задокументована в
+контракті: доккомент `concern-contribution.glob` (`wit/world.wit`) тепер
+каже прямо, що для `per-file` це поле не декоративне й МУСИТЬ покривати
+якорі. Розширення WIT не знадобилось.
 
-**Чому не полагоджено тут:** §2.64 — про fix-контур, а це detect, окрема
-сигнатура й окремий шлях; зміна зачіпає ВСІ wasm-плагіни, не лише
-`plugin-lang-python`. Той самий мотив, що змусив §2.51 не розширювати
-full-scope fallback у межах свого кроку.
+**Червоність доведена дією, двома незалежними шляхами** (продакшн-гілку
+відкочено до дофіксового вигляду, гості й napi перезібрані, тести
+лишились):
 
-**Варіанти для наступного кроку:**
-1. Симетрично до §2.53 — дати `run_wasm_concern` дельту запиту й будувати
-   batch за glob-ом незалежно від задекларованого `scope`, коли явного
-   списку немає.
-2. Мінімум, який НЕ ховає проблему, — зробити цей стан гучним (типізована
-   помилка чи щонайменше `warn` із назвою концерну), як §2.52 зробила для
-   fix. Тоді `--full` перестане брехати про чистоту.
+- `cargo test -p rules-napi` — 3 з 4 нових napi-тестів `FAILED` рівно
+  мовчазним `Object {"violations": Array []}`
+  (`run_wasm_concern_full_run_resolves_per_file_concern_by_glob`,
+  `…_errors_loudly_when_batch_unresolvable`,
+  `…_errors_loudly_on_unknown_concern`); четвертий (регресія full-scope)
+  зелений і ДО, і ПІСЛЯ — доказ, що він саме регресійний;
+- `npx vitest run …/wasm-detect-full-per-file.test.mjs` — 6 із 7 `FAILED`
+  (`expected 0 to be greater than 0`), зелений лише ci-github-регрес
+  full-scope шляху.
 
-Варіант 2 обовʼязковий у будь-якому разі: навіть якщо повне рішення
-відкладеться, мовчазний skip лишатись не має.
+**Тести — нові.** `crates/rules-napi/src/lib.rs`: 8 (13 → 21) — чотири на
+резолвері як одиниці ([`build_detect_batch_files`]: per-file з glob-ом,
+full із порожнім glob-ом, per-file без glob-а, невідомий ключ) і чотири
+на РЕАЛЬНОМУ `run_wasm_concern` проти зібраної guest-фікстури
+(`crates/test-plugin-guest` дістала для цього нову `per-file`-контрибуцію
+з непорожнім glob-ом — detect-дзеркало наявної
+`test/guest-fix-full-scope`).
+`npm/scripts/lib/lint-surface/tests/wasm-detect-full-per-file.test.mjs`
+(новий, 7 тестів) — крізь РЕАЛЬНИЙ napi-міст (урок §2.47), по одному
+представнику КОЖНОГО з пʼятьох гостей: чисті детектори
+(`vue/tfm-translations`, `rust/doc_comments`, `python/doc_comments`),
+tool-детектори з якорем (`python/ruff` на фейковому `uv`, `php/mago_fmt`
+на нерезолвленому `mago` — обидва детерміновані, не залежать від того, що
+встановлено на машині), гучна помилка (незадекларований ключ) і
+full-scope регресія `plugin-ci-github` (`ga/vscode_settings` — у цього
+гостя `per-file`-контрибуцій немає взагалі).
+
+**Гейти.** `cargo test -p rules-napi` — 21 passed; `cargo test` пʼятьох
+гостей + `rules-contract` — 797 passed; `cargo test -p rules-plugin-host`
+— 126 passed, 1 ignored; `cargo clippy -p rules-napi --all-targets` — 0
+issues (у `plugin-lang-python` лишились ТІ САМІ 5 pre-existing
+`doc list item without indentation` навколо `fix_doc_comments`, поза
+дифом). Parity-гейти ВСІХ пʼятьох гостей разом із новим файлом — 452
+passed; детект/фікс-контур (`wasm-plugin-e2e`, `wasm-fix-e2e`,
+`fix-delta-files`, `detect`, `run-detectors`, `wasm-plugins`, `run-fix`,
+`detect-wasm-hint`, `wasm-fix-exec-tool-python-ruff`) — 131 passed,
+1 skipped (живий смок на справжньому `uv`/`ruff`, чесний
+`console.warn`-skip §2.64).
+
+**Стале пояснення §2.64 виправлено:** коментар у
+`wasm-fix-exec-tool-python-ruff.test.mjs`, що обґрунтовував delta-режим
+пайплайн-тесту «існуючою межею per-file-диспетчу у full», більше не
+описував би дійсність — переписаний на фактичну причину (детект межу
+подолав, фікс свідомо лишається на `delta_files`).
+
+**Межа, що лишається відкритою (свідомо):** фікс `per-file`-концерну у
+`full: true`. Для звичайних (file-scoped) діагностик він і далі працює як
+працював — `run_wasm_concern_fix` будує `FixRequest::files` із
+`diagnostic.file` кожної violation, і жодна дельта йому не потрібна.
+Падає лише вузький випадок АГРЕГОВАНОЇ діагностики без `file`
+(`python/ruff`): у `--full` дельти немає, взяти її нізвідки, і виклик
+чесно валиться `ambiguous_empty_fix_batch_err` замість того, щоб
+вгадувати. Це не наслідок цієї зміни (детект тепер такі концерни в
+`--full` бачить, а от їх фікс у тому ж режимі як не працював, так і не
+працює), і безпечного дефолту тут немає — glob-обхід виправляв би файли
+поза дельтою. Коли такий споживач зʼявиться, потрібне рішення про те, ЩО
+є дельтою `--fix --full`, а не проводка.
 
 ---
 

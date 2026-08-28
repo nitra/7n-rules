@@ -102,6 +102,18 @@ const FIX_ESCAPE_CONCERN_ID: &str = "test/guest-fix-escape";
 /// не просто не впав.
 const FIX_FULL_SCOPE_CONCERN_ID: &str = "test/guest-fix-full-scope";
 
+/// `concern-id` `scope: per-file` З НЕПОРОЖНІМ `glob` — detect-дзеркало
+/// [`FIX_FULL_SCOPE_CONCERN_ID`] (§2.65,
+/// `crates/rules-napi/src/lib.rs::build_detect_batch_files`). Решта
+/// `PerFile`-концернів цієї фікстури декларує ПОРОЖНІЙ glob, тобто перевіряє
+/// протилежну гілку («хост не має з чого будувати batch — падай гучно»);
+/// цей — штатний full-прогін `per-file`-концерну: `detect()` для нього
+/// падає у дефолтну echo-гілку (одна діагностика на КОЖЕН файл батчу), тож
+/// непорожній результат при виклику `runWasmConcern(..., files: None)`
+/// доводить, що хост реально обійшов диск за цим glob-ом, а не просто «не
+/// впав». ДО §2.65 той самий виклик тихо повертав `{"violations": []}`.
+const DETECT_PER_FILE_GLOB_CONCERN_ID: &str = "test/guest-detect-per-file-glob";
+
 /// Guest-реалізація world `plugin` — концерн-заглушка `test/guest-echo`,
 /// fs-preopen тест-хук `test/guest-echo-fs-probe`, run-tool тест-хук
 /// `test/guest-tool-echo`, exec-tool тест-хук `test/guest-exec-tool`
@@ -161,6 +173,11 @@ impl Guest for GuestEcho {
                 ConcernContribution {
                     key: FIX_FULL_SCOPE_CONCERN_ID.to_string(),
                     scope: ConcernScope::Full,
+                    glob: vec!["**/*.marker".to_string()],
+                },
+                ConcernContribution {
+                    key: DETECT_PER_FILE_GLOB_CONCERN_ID.to_string(),
+                    scope: ConcernScope::PerFile,
                     glob: vec!["**/*.marker".to_string()],
                 },
             ],

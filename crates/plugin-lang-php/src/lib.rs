@@ -987,17 +987,24 @@ fn build_manifest() -> Manifest {
                 scope: ConcernScope::Full,
                 glob: vec!["composer.json".to_string()],
             },
-            // `composer.json` до per-file delta-batch-у приносить
+            // `composer.json` до per-file DELTA-batch-у приносить
             // `lint.anchors`, НЕ цей glob (доккомент [`detect_mago_per_file`]).
+            // Але у FULL-прогоні (`--full`, `files: None`) якорів немає —
+            // batch будує хост РІВНО з цього glob-а
+            // (`crates/rules-napi::build_detect_batch_files`, §2.65), тож
+            // `composer.json` тут ЯВНО: без нього
+            // [`detect_mago_per_file`]-guard (`batch_file(files,
+            // "composer.json").is_none()`) у `--full` мовчки повертав би
+            // порожньо на будь-якому PHP-проєкті.
             ConcernContribution {
                 key: CONCERN_MAGO_FMT.to_string(),
                 scope: ConcernScope::PerFile,
-                glob: vec!["**/*.php".to_string()],
+                glob: vec!["**/*.php".to_string(), "composer.json".to_string()],
             },
             ConcernContribution {
                 key: CONCERN_MAGO_LINT.to_string(),
                 scope: ConcernScope::PerFile,
-                glob: vec!["**/*.php".to_string()],
+                glob: vec!["**/*.php".to_string(), "composer.json".to_string()],
             },
         ],
         ci_artifacts: vec![],
