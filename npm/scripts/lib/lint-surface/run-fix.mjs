@@ -201,13 +201,21 @@ const wasmFixPlanCache = new WeakMap()
  * @param {string} cwd Абсолютний корінь consumer-репо.
  * @param {import('./wasm-plugins.mjs').WasmConcernMapEntry} entry Резолвлений запис wasm-мапи (`wasmPath`, `toolPaths`).
  * @param {LintViolation[]} violations Порушення concern-а (той самий вхід у test() і apply()).
+ * @param {string[]|undefined} deltaFiles Дельта запиту (`item.files`) або `undefined` для full-scope плану.
  * @returns {{ edits: Array<{ type: string, path: string, content?: string }> }} План (порожні `edits` = фіксити нічого).
  */
-function computeWasmFixPlan(key, cwd, entry, violations) {
+function computeWasmFixPlan(key, cwd, entry, violations, deltaFiles) {
   if (wasmFixPlanCache.has(violations)) return wasmFixPlanCache.get(violations)
   let plan
   try {
-    plan = loadNative().runWasmConcernFix(entry.wasmPath, key, cwd, violations, entry.toolPaths)
+    plan = loadNative().runWasmConcernFix(
+      entry.wasmPath,
+      key,
+      cwd,
+      violations,
+      entry.toolPaths,
+      deltaFiles
+    )
   } catch (error) {
     console.error(
       `❌ wasm fix ${key}: runWasmConcernFix відмовився будувати план — ${error.message}. ` +
@@ -223,16 +231,30 @@ function computeWasmFixPlan(key, cwd, entry, violations) {
  * Синтезує T0Pattern-обгортку над wasm fix-планом — рівно та сама форма й
  * rollback-контракт (`ctx.recordWrite?.(abs)` ПЕРЕД кожною мутацією), що
  * {@link nativeFixPattern}; відрізняється лише джерело плану: `export fix`
- * wasm-плагіна через napi замість `NATIVE_FIXES`-реєстру. Валідність плану
+ * wasm-плагіна через napi замість `NATIVE_FIXES`-реєстру.
+ *
+ * `deltaFiles` вшито у замикання з ТІЄЇ САМОЇ причини, що й `cwd` у
+ * {@link nativeFixPattern}: `T0Pattern.test(violations)` не приймає `ctx`
+ * (типізація `types.mjs`), а план будується вже в `test()` і кешується під
+ * identity `violations` — діставати дельту з `ctx` у `apply()` було б пізно.
+ * Дельта потрібна host-у рівно для агрегованих (file-less) діагностик
+ * `per-file`-концерну: без неї napi не має з чого побудувати
+ * `FixRequest::files` і свідомо падає (доккомент
+ * `ambiguous_empty_fix_batch_err`, `crates/rules-napi/src/lib.rs`).
+ * `undefined` (full-scope концерн — оркестрація не має списку) лишається
+ * валідним: там host будує batch сам, glob-обходом.
+ *
+ * Валідність плану
  * (safe repo-relative шляхи, ліміти розміру) гарантує host ДО повернення
  * (`LoadedPlugin::fix` → `rules-contract::validators::fix`) — обгортці
  * лишається тільки застосувати.
  * @param {string} key `ruleId/concernId` wasm-концерну.
  * @param {string} cwd Абсолютний корінь consumer-репо.
  * @param {import('./wasm-plugins.mjs').WasmConcernMapEntry} entry Резолвлений запис wasm-мапи.
+ * @param {string[]} [deltaFiles] Дельта запиту (`item.files`); `undefined` — full-scope концерн.
  * @returns {T0Pattern} Синтетичний патерн.
  */
-function wasmFixPattern(key, cwd, entry) {
+function wasmFixPattern(key, cwd, entry, deltaFiles) {
   return {
     id: `wasm-fix:${key}`,
     // Гість-пріоритет (T0Pattern.guestFix, types.mjs): якщо `apply()` дасть непорожній
@@ -240,9 +262,9 @@ function wasmFixPattern(key, cwd, entry) {
     // вада double-apply (реальний wasm-фікс + `fix-<concern>.mjs` поспіль на тому самому
     // файлі, напр. `js/doc_comments`).
     guestFix: true,
-    test: violations => computeWasmFixPlan(key, cwd, entry, violations).edits.length > 0,
+    test: violations => computeWasmFixPlan(key, cwd, entry, violations, deltaFiles).edits.length > 0,
     apply: async (violations, ctx) => {
-      const plan = computeWasmFixPlan(key, cwd, entry, violations)
+      const plan = computeWasmFixPlan(key, cwd, entry, violations, deltaFiles)
       const touchedFiles = []
       for (const edit of plan?.edits ?? []) {
         const abs = join(cwd, edit.path)
@@ -298,15 +320,16 @@ function wasmFixPattern(key, cwd, entry) {
  * @param {string} concernName Ім'я concern-а для формування назви fix-файлу.
  * @param {string} ruleId Id правила (для `ruleId/concernId`-ключа native-fix реєстру).
  * @param {string} cwd Абсолютний корінь consumer-репо (вшивається у синтетичний патерн).
+ * @param {string[]} [deltaFiles] Дельта запиту (`item.files`) — вшивається у wasm-патерн, див. {@link wasmFixPattern}.
  * @returns {Promise<T0Pattern[]>} Масив T0-патернів або порожній, якщо немає ані native/wasm, ані fix-файлу.
  */
-export async function loadT0Patterns(concernDir, concernName, ruleId, cwd) {
+export async function loadT0Patterns(concernDir, concernName, ruleId, cwd, deltaFiles) {
   const nativeKey = `${ruleId}/${concernName}`
   if (getNativeFixKeys().has(nativeKey)) return [nativeFixPattern(nativeKey, cwd)]
   const patterns = []
   const wasmConcernMap = await resolveWasmConcernMap(cwd)
   const wasmEntry = wasmConcernMap.get(nativeKey)
-  if (wasmEntry) patterns.push(wasmFixPattern(nativeKey, cwd, wasmEntry))
+  if (wasmEntry) patterns.push(wasmFixPattern(nativeKey, cwd, wasmEntry, deltaFiles))
   const fixPath = join(concernDir, `fix-${concernName}.mjs`)
   if (existsSync(fixPath)) {
     try {
@@ -944,7 +967,8 @@ async function fixConcernCore(item, initialViolations, deps, chain, chainExtra, 
   const lintCtx = { cwd, ruleId, concernId: concernName, concernDir, files: item.files, verbose }
 
   // ── T0 (детермінований, permanent) ──
-  const patterns = deps.t0Override ?? (await loadT0Patterns(concernDir, concernName, ruleId, cwd))
+  const patterns =
+    deps.t0Override ?? (await loadT0Patterns(concernDir, concernName, ruleId, cwd, lintCtx.files))
   const t0 = await runT0Phase(item, initialViolations, patterns, lintCtx, cwd, log, progress, verbose)
   noteT0Phase(t0, chainExtra, touchedAbs)
   if (t0.closed) return true
@@ -1140,7 +1164,13 @@ export async function runFixPipeline(opts) {
         item,
         deps.t0For
           ? (deps.t0For(item.entry) ?? [])
-          : await loadT0Patterns(item.entry.concern.dir, item.entry.concern.name, item.entry.ruleId, cwd)
+          : await loadT0Patterns(
+              item.entry.concern.dir,
+              item.entry.concern.name,
+              item.entry.ruleId,
+              cwd,
+              item.files
+            )
       ])
     )
   )

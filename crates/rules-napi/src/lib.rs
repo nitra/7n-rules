@@ -613,8 +613,19 @@ fn build_full_scope_files(cwd: &Path, glob_patterns: &[String]) -> Vec<SourceFil
 
 /// Типізована помилка «неоднозначний порожній fix-batch» — [`run_wasm_concern_fix`]
 /// кличе її, коли `target_files` (побудований з `diagnostic.file`-полів)
-/// порожній, `diagnostics` НЕПОРОЖНІЙ, а концерн НЕ `scope: Full` (чи
-/// взагалі не знайдений у `describe().concerns`).
+/// порожній, `diagnostics` НЕПОРОЖНІЙ, концерн НЕ `scope: Full` (чи взагалі
+/// не знайдений у `describe().concerns`) І викликач не передав
+/// `delta_files`.
+///
+/// Після рішення (б) (дельта запиту, а не per-diagnostic атрибуція —
+/// доккомент `run_wasm_concern_fix` і `wit/world.wit` біля `record
+/// diagnostic`) це вже НЕ основна поведінка агрегованих концернів, а
+/// backstop на проводку: штатний шлях (`run-fix.mjs` → `wasmFixPattern`)
+/// дельту передає завжди, тож сюди долітає лише викликач, який її НЕ дав
+/// (наприклад прямий napi-виклик із тесту чи стороннього інструмента) або
+/// дав порожню при непорожніх діагностиках. Помилка лишається саме тому,
+/// що мовчазний `Vec::new()` у цьому місці був би регресом до #513 —
+/// «зелено, бо гість нічого не побачив».
 ///
 /// # Чому не мовчазний `Vec::new()` і не full-scope glob-обхід
 ///
@@ -631,28 +642,31 @@ fn build_full_scope_files(cwd: &Path, glob_patterns: &[String]) -> Vec<SourceFil
 ///   scope-контракт, що `per-file` декларує (`wit/world.wit`, доккомент
 ///   `enum concern-scope`).
 ///
-/// # Контракт МОВЧИТЬ, а не забороняє
+/// # Контракт більше не мовчить (рішення (б))
 ///
-/// WIT (`wit/world.wit`, `record diagnostic`/`record fix-request`) не
-/// каже, що `per-file`-концерн МУСИТЬ класти `file` у кожну діагностику
-/// (там, де він агрегує вивід зовнішнього тула на весь прогін, а не по
-/// файлах, — приклад нижче), і не визначає, як host має будувати
-/// `fix-request.files`, коли він цього не робить. Це НЕ підтверджена
-/// помилка контракту концерну (схема дозволяє `file: none`) і НЕ
-/// підтверджений безпечний legit-кейс (full-scope обхід тут небезпечний,
-/// вище) — контракт просто ще не визначився. Тому хост не вгадує жодну
-/// сторону — падає з поясненням (принцип власника «сигналізувати яскраво,
-/// не ховати»: error, не warn), а рішення лишається на подальший WIT-мінор.
+/// Питання, яке #517 лишив відкритим — «заборонити `file: none` для
+/// `per-file` чи дати спосіб нести дельту без per-diagnostic атрибуції» —
+/// вирішене на користь другого: `file: none` лишається легітимним
+/// (агрегований тул чесно каже «не знаю, який файл»; змушувати детектор
+/// ВИГАДУВАТИ атрибуцію заради host-механіки, якій вона не потрібна, —
+/// хибний напрям), а дельту несе сам запит через `delta_files`. Розширення
+/// WIT не знадобилось: `fix-request.files` — окреме поле, не похідне від
+/// діагностик, — існує з `3.0.0`; бракувало лише проводки host → napi.
+///
+/// Межа цього рішення: воно дає ВЕСЬ список файлів запиту, а не
+/// відповідність «діагностика → файл». Фіксити ПІДМНОЖИНУ діагностик
+/// агрегованого концерну і далі неможливо — сьогодні такого споживача
+/// немає (`applyT0` передає всі violations концерну одним масивом), а
+/// якщо зʼявиться, знадобиться саме атрибуція, тобто варіант (а).
 ///
 /// Живий кандидат на сьогодні: `python/ruff`
 /// (`crates/plugin-lang-python/src/lib.rs::detect_ruff`/`run_ruff_step`) —
 /// `scope: per-file`, але одна діагностика на ВЕСЬ прогін `ruff
 /// check`/`ruff format --check` (тула не парсить власний вивід по
-/// файлах), `file: None`. Порт реального фіксера цього концерну сьогодні
-/// впирається саме в цю помилку (наразі — сумісна заглушка, `fix()`
-/// повертає порожній план, тож помилка ще нікого не зупиняла на практиці;
-/// ця перевірка робить межу видимою ДО того, як хтось спробує портувати
-/// фіксер і мовчки отримає биту поведінку). `rust/check` — НЕ кандидат,
+/// файлах), `file: None`. Саме він і мотивував `delta_files`: після
+/// рішення (б) порт його фіксера цією помилкою більше НЕ блокований
+/// (лишається інша, незалежна межа — `exec-tool` у fix-контурі, PR #516).
+/// `rust/check` — НЕ кандидат,
 /// на відміну від попередніх нотаток: `crates/plugin-lang-rust/src/lib.rs`
 /// декларує його `scope: Full` (`ConcernContribution` у `build_manifest`),
 /// тож він і сьогодні йде full-scope гілкою вище, цієї помилки не бачить.
@@ -664,10 +678,11 @@ fn ambiguous_empty_fix_batch_err(key: &str, scope_label: &str, diagnostics_count
          за межі дельти (порушив би per-file семантику), а порожній batch — та сама прихована \
          вада, що PR #513 (js/check затирав конфіги консюмера), лише для не-full-scope \
          концерну — гість не зміг би відрізнити «файлів немає» від «хост їх не передав». \
-         Контракт (wit/world.wit, record diagnostic / record fix-request) наразі МОВЧИТЬ про \
-         цей випадок: або концерн має класти diagnostic.file для violations, для яких \
-         запитується fix, або WIT потребує явного розширення під агреговані per-file fix-и — \
-         не вирішено тут, лишається задокументованим відкритим питанням."
+         Штатний шлях для агрегованих (file-less) діагностик — передати дельту запиту \
+         аргументом `delta_files` (шостий параметр runWasmConcernFix, той самий список, що \
+         йде в runWasmConcern на детекті): цей виклик її НЕ передав (або передав порожню). \
+         Див. доккомент ambiguous_empty_fix_batch_err (crates/rules-napi/src/lib.rs) і \
+         wit/world.wit біля record diagnostic."
     ))
 }
 
@@ -721,11 +736,30 @@ fn ambiguous_empty_fix_batch_err(key: &str, scope_label: &str, diagnostics_count
 ///   АЛЕ лише коли концерн реально `scope: full` (задекларовано в
 ///   `describe().concerns`). Якщо `target_files` порожній, диагностики
 ///   непорожні, а концерн НЕ `full`-scope (чи взагалі не знайдений у
-///   маніфесті) — хост НЕ вгадує (ні мовчазний порожній batch, ні
-///   full-scope glob-обхід, який для `per-file`-концерну розширив би fix
-///   за межі дельти): падає з типізованою помилкою (доккомент
-///   [`ambiguous_empty_fix_batch_err`] нижче) — задача fix/napi-empty-fix-batch,
-///   продовження #513 для НЕ-full-scope концернів.
+///   маніфесті) — хост бере `delta_files` (нижче), а без неї НЕ вгадує (ні
+///   мовчазний порожній batch, ні full-scope glob-обхід, який для
+///   `per-file`-концерну розширив би fix за межі дельти): падає з
+///   типізованою помилкою (доккомент [`ambiguous_empty_fix_batch_err`]
+///   нижче) — задача fix/napi-empty-fix-batch, продовження #513 для
+///   НЕ-full-scope концернів.
+/// - `delta_files` — ОПЦІЙНИЙ явний список файлів запиту (posix-relative,
+///   та сама форма, що `files` у [`run_wasm_concern`]): дельта, по якій
+///   оркестрація вже проганяла `detect`. Потрібен рівно для одного стану —
+///   `per-file`-концерн із агрегованими (file-less) діагностиками, де
+///   вивести `files` із `diagnostics[].file` неможливо; в усіх інших
+///   гілках ігнорується, тож викликач, який його не передає, поведінки не
+///   міняє. Це рішення (б) відкритого питання, яке лишив #517 (доккомент
+///   `wit/world.wit` біля `record diagnostic`): дельту несе ЗАПИТ, а не
+///   кожна діагностика — розширювати WIT не довелось, `fix-request.files`
+///   для цього вже існує, бракувало лише проводки host → napi.
+///
+/// # Чому `delta_files` в кінці, а не в позиції `files` [`run_wasm_concern`]
+///
+/// Позиційна симетрія з детектом тут була б оманливою: у `detect` `files` —
+/// ОСНОВНИЙ вхід (що аналізувати), у `fix` основний вхід — `violations`, а
+/// `delta_files` лише добудовує batch у вузькій гілці. Хвостова позиція до
+/// того ж лишає валідними наявні 4-аргументні виклики (тести fix-контуру
+/// `wasm-plugin-parity*.test.mjs`), яким дельта не потрібна.
 ///
 /// Порожній `edits` = «фікс для цих violations нічого не змінює» — той
 /// самий контракт застосовності, що в native-плану ([`run_native_concern_fix`]).
@@ -739,6 +773,7 @@ pub fn run_wasm_concern_fix(
     cwd: String,
     violations: serde_json::Value,
     tool_paths: Option<HashMap<String, String>>,
+    delta_files: Option<Vec<String>>,
 ) -> Result<serde_json::Value> {
     use rules_contract::diagnostic::Diagnostic;
     use rules_contract::fix::FixRequest;
@@ -813,17 +848,33 @@ pub fn run_wasm_concern_fix(
                     build_full_scope_files(&cwd_path, &c.glob)
                 }
                 _ if diagnostics.is_empty() => Vec::new(),
-                _ => {
-                    let scope_label = contribution
-                        .as_ref()
-                        .map(|c| format!("{:?}", c.scope))
-                        .unwrap_or_else(|| "не заявлений у describe().concerns".to_string());
-                    return Err(ambiguous_empty_fix_batch_err(
-                        &key,
-                        &scope_label,
-                        diagnostics.len(),
-                    ));
-                }
+                // Явна дельта викликача (`delta_files`) — рішення (б)
+                // відкритого питання, яке лишив по собі fix/napi-empty-fix-batch
+                // (доккомент `wit/world.wit` біля `record diagnostic`).
+                // Агрегована діагностика `per-file`-концерну (одна на весь
+                // прогін зовнішнього тула, `python/ruff`) НЕ несе `file` — і
+                // не мусить: дельта є властивістю ЗАПИТУ, а не діагностики.
+                // Хост-оркестрація її вже знає (`item.files`, той самий
+                // список, який сусіднім викликом іде в `detect`), тож замість
+                // вимагати per-diagnostic атрибуцію вона просто проводить
+                // дельту сюди. Порожній `delta_files` НЕ приймається за
+                // відповідь (`!delta.is_empty()`): «дельта є, але порожня»
+                // при непорожніх diagnostics — той самий нерозрізненний стан,
+                // що й відсутня дельта, тож він і далі падає голосно нижче.
+                _ => match delta_files.as_deref() {
+                    Some(delta) if !delta.is_empty() => read_source_files(&cwd_path, delta.to_vec()),
+                    _ => {
+                        let scope_label = contribution
+                            .as_ref()
+                            .map(|c| format!("{:?}", c.scope))
+                            .unwrap_or_else(|| "не заявлений у describe().concerns".to_string());
+                        return Err(ambiguous_empty_fix_batch_err(
+                            &key,
+                            &scope_label,
+                            diagnostics.len(),
+                        ));
+                    }
+                },
             }
         } else {
             read_source_files(&cwd_path, target_files.clone())
@@ -1077,6 +1128,7 @@ mod tests {
             cwd.path().to_string_lossy().to_string(),
             violations,
             None,
+            None,
         );
 
         let err = result.expect_err(
@@ -1118,6 +1170,7 @@ mod tests {
             "test/guest-fix-full-scope".to_string(),
             dir.path().to_string_lossy().to_string(),
             violations,
+            None,
             None,
         );
 
@@ -1161,6 +1214,7 @@ mod tests {
             dir.path().to_string_lossy().to_string(),
             violations,
             None,
+            None,
         );
 
         let plan = result.expect("file-scoped фіксер з diagnostic.file не мав зламатись фіксом");
@@ -1185,9 +1239,130 @@ mod tests {
             cwd.path().to_string_lossy().to_string(),
             serde_json::json!([]),
             None,
+            None,
         );
 
         let plan = result.expect("порожні diagnostics — немає що фіксити, не помилка");
         assert_eq!(plan["edits"].as_array().expect("edits — масив").len(), 0);
+    }
+
+    // --- run_wasm_concern_fix: явна дельта запиту (`delta_files`) ---
+    //
+    // Рішення (б) відкритого питання #517 (доккомент
+    // [`ambiguous_empty_fix_batch_err`], секція «Контракт більше не мовчить»).
+
+    /// Червоно-зелений якір рішення (б): `test/guest-fix-rewrite` — `scope:
+    /// per-file` у `describe()`, violation БЕЗ `file` (агрегована
+    /// діагностика, як `python/ruff`). До цієї зміни виклик падав
+    /// [`ambiguous_empty_fix_batch_err`]; тепер `delta_files` дає хосту
+    /// список, з якого будується `FixRequest::files`.
+    ///
+    /// Перевіряється саме ДОСТАВКА файлів гостю, а не «виклик не впав»:
+    /// guest-фікстура переписує `BROKEN`→`FIXED` лише в тих файлах, які
+    /// РЕАЛЬНО прийшли в `FixRequest::files` (їх вміст вона бачить тільки
+    /// звідти — власного fs-доступу в неї для цього концерну немає). Порожній
+    /// `edits` тут означав би, що дельта до гостя не дійшла.
+    #[test]
+    fn run_wasm_concern_fix_uses_delta_files_when_no_diagnostic_carries_file() {
+        let wasm_path = require_guest_fixture();
+        let dir = tempfile::tempdir().expect("tmp dir");
+        std::fs::write(dir.path().join("target.txt"), "BROKEN content").expect("target file");
+        let violations = serde_json::json!([
+            {
+                "reason": "guest-echo",
+                "message": "агрегована діагностика без file",
+                "severity": "warn"
+            }
+        ]);
+
+        let result = run_wasm_concern_fix(
+            wasm_path.to_string_lossy().to_string(),
+            "test/guest-fix-rewrite".to_string(),
+            dir.path().to_string_lossy().to_string(),
+            violations,
+            None,
+            Some(vec!["target.txt".to_string()]),
+        );
+
+        let plan = result.expect("явна дельта запиту має зняти двозначність, а не падати");
+        let edits = plan["edits"].as_array().expect("edits — масив");
+        assert_eq!(
+            edits.len(),
+            1,
+            "дельта мала дійти до гостя як FixRequest::files: {plan:?}"
+        );
+        assert_eq!(edits[0]["path"], "target.txt");
+        assert_eq!(edits[0]["content"], "FIXED content");
+    }
+
+    /// Дельта НЕ звужує batch, коли діагностики самі несуть `file`:
+    /// пріоритет лишається за `diagnostic.file` (найвужчий batch — рівно ті
+    /// файли, на які вказують violations). Тут `delta_files` називає ДВА
+    /// файли, violation — один; фіксер має чинити тільки названий
+    /// діагностикою, інакше fix розповзся б по всій дельті.
+    #[test]
+    fn run_wasm_concern_fix_diagnostic_file_wins_over_delta_files() {
+        let wasm_path = require_guest_fixture();
+        let dir = tempfile::tempdir().expect("tmp dir");
+        std::fs::write(dir.path().join("target.txt"), "BROKEN content").expect("target file");
+        std::fs::write(dir.path().join("other.txt"), "BROKEN content").expect("other file");
+        let violations = serde_json::json!([
+            {
+                "reason": "guest-echo",
+                "message": "file-scoped violation",
+                "file": "target.txt",
+                "severity": "warn"
+            }
+        ]);
+
+        let result = run_wasm_concern_fix(
+            wasm_path.to_string_lossy().to_string(),
+            "test/guest-fix-rewrite".to_string(),
+            dir.path().to_string_lossy().to_string(),
+            violations,
+            None,
+            Some(vec!["target.txt".to_string(), "other.txt".to_string()]),
+        );
+
+        let plan = result.expect("file-scoped шлях не мав зламатись через передану дельту");
+        let edits = plan["edits"].as_array().expect("edits — масив");
+        assert_eq!(
+            edits.len(),
+            1,
+            "fix мав лишитись у межах diagnostic.file, не розповзтись по дельті: {plan:?}"
+        );
+        assert_eq!(edits[0]["path"], "target.txt");
+    }
+
+    /// ПОРОЖНЯ дельта не приймається за відповідь: «дельта є, але порожня»
+    /// при непорожніх діагностиках — той самий нерозрізненний стан, що й
+    /// відсутня дельта (гість не відрізнить «файлів немає» від «хост їх не
+    /// передав»), тож fail-loud лишається.
+    #[test]
+    fn run_wasm_concern_fix_empty_delta_files_still_errors_loudly() {
+        let wasm_path = require_guest_fixture();
+        let cwd = tempfile::tempdir().expect("tmp dir");
+        let violations = serde_json::json!([
+            {
+                "reason": "guest-echo",
+                "message": "агрегована діагностика без file",
+                "severity": "warn"
+            }
+        ]);
+
+        let result = run_wasm_concern_fix(
+            wasm_path.to_string_lossy().to_string(),
+            "test/guest-echo".to_string(),
+            cwd.path().to_string_lossy().to_string(),
+            violations,
+            None,
+            Some(Vec::new()),
+        );
+
+        let err = result.expect_err("порожня дельта — та сама двозначність, має падати");
+        assert!(
+            err.to_string().contains("delta_files"),
+            "повідомлення має підказати штатний шлях: {err}"
+        );
     }
 }
