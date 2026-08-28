@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.105.0] - 2026-08-28
+
+### Added
+
+- `plugin-lang-js` (wasm-гість): портовано T0-фіксер `js-run/runtime` — `js-run-jsconfig-create` (`fix-runtime.mjs`, єдиний патерн концерну, чий детект уже цілком портований). Точний семантичний порт: для кожної діагностики «є каталог `src/`, але немає `jsconfig.json`» витягує workspace анхореним парсингом (`jsconfig_missing_ws`, точний порт `JSCONFIG_MISSING_WS_RE`) і пише канонічний `<ws>/jsconfig.json`, якщо файл ще відсутній у батчі. Канон (`js-run/jsconfig/template/jsconfig.json.snippet.json`) вшито через `include_str!` з анти-дрейф-тестом (той самий прецедент, що `KNIP_CANONICAL_JSON`). `js-run/runtime` — другий whole-batch концерн у репо (жодна діагностика не несе `file`), тому парність доведено через РЕАЛЬНИЙ napi-міст (`runWasmConcern` → `runWasmConcernFix`), а не прямий виклик гостя — новий describe у `wasm-plugin-parity.test.mjs`. Попередньо знято характеризаційний JS-гейт для `fix-runtime.mjs` (`plugins/lang-js/rules/js-run/runtime/tests/fix-runtime.test.mjs`, 11 тестів) — файл ніколи не мав тестів. Заразом виправлено застарілу тезу доккомента «Зріз 7» про те, що фіксер — текстовий патч `package.json#imports`: файл уже спрощений до одного FS-патерну задовго до цього порту. JS-фіксер свідомо НЕ видалено — спершу парність; диспетчер `run-fix.mjs` (`T0Pattern.guestFix`) автоматично пріоритезує гостя без жодної зміни коду. Розмір гостя: 2 261 653 → 2 262 700 байт (+1 047, 0.04% бюджету 2 621 440, запасу лишилось 358 740 байт). Тести: `cargo test -p plugin-lang-js` 396 → 405 (+9), `wasm-plugin-parity.test.mjs` 260 → 263 (+3), новий `fix-runtime.test.mjs` 11/11.
+
 ## [1.104.3] - 2026-08-28
 
 ### Changed
