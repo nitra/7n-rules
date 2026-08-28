@@ -82,7 +82,7 @@
  * того, що цей гейт ловить).
  */
 import { existsSync } from 'node:fs'
-import { chmod, writeFile } from 'node:fs/promises'
+import { chmod, readFile, writeFile } from 'node:fs/promises'
 import { delimiter, dirname, join } from 'node:path'
 import { env } from 'node:process'
 import { pathToFileURL } from 'node:url'
@@ -90,6 +90,7 @@ import { pathToFileURL } from 'node:url'
 import { describe, expect, test } from 'vitest'
 
 import { loadNative } from '../../native.mjs'
+import { applyPlanEdit } from '../run-fix.mjs'
 import { realRepoRoot, withTmpDir } from '../../../utils/test-helpers.mjs'
 import { createGoldenJs } from './wasm-parity-golden.mjs'
 import { WASM_SIZE_BUDGET_BYTES, WASM_SIZE_BUDGET_LABEL } from './wasm-size-budget.mjs'
@@ -2717,6 +2718,121 @@ describe('wasm-plugin parity — bun/layout (JS канон vs wasm plugin-lang-j
       const { js, wasm } = await runBunLayoutBoth(dir)
       expect(wasm).toEqual(js)
       expect(js).toEqual([])
+    })
+  })
+})
+
+// `bun/layout` — T0-цикл через РЕАЛЬНИЙ napi-міст (§2.47/§2.49
+// open-questions-register: пряме звернення до гостя ховає баги моста, доказ
+// парності фіксера — round-trip САМЕ через `loadNative().runWasmConcernFix`,
+// а не `patterns[0].apply(...)` з видаленого `fix-layout.mjs` напряму).
+// `bun/layout` — WHOLE-BATCH (жодна діагностика не несе `file`,
+// [`detect_bun_layout`] у `crates/plugin-lang-js/src/lib.rs`), тож цикл
+// проходить крізь ТОЙ САМИЙ full-scope fallback `run_wasm_concern_fix`
+// (`ConcernScope::Full`), що вже ловив #513 для `js/check` — тут це не
+// fallback, а штатна гілка (`scope = "full"`, `plugin.toml`).
+//
+// Едити застосовуються через [`applyPlanEdit`] (`run-fix.mjs`) — той самий
+// код, що реально пише на диск у продакшн fix-прогоні (`wasmFixPattern` →
+// `applyPlanEdit`), НЕ ручний `fs.rm`/`fs.writeFile` тесту: `bun-yarn-dir-remove`
+// — перший у цьому крейті РЕАЛЬНИЙ `FileEdit::Delete` на КАТАЛОГ, і саме
+// `applyPlanEdit` (не сам гість) нещодавно полагодили з `unlink` на
+// `fs.rm(recursive: true)` (PR #520) — цей тест доводить, що видалення
+// каталогу реально доїжджає до диска крізь весь ланцюжок
+// napi-план → `applyPlanEdit`, а не лише правильно ФОРМУЄТЬСЯ в плані.
+describe('wasm-plugin parity — bun/layout T0-фікс через fix-міст (детект гостем → runWasmConcernFix → applyPlanEdit → детект гостем чистий)', () => {
+  /** ctx для `applyPlanEdit` — `recordWrite` не потрібен поза T0-rollback контуром. */
+  const fixCtx = dir => ({ cwd: dir, ruleId: 'bun', concernId: 'layout' })
+
+  test('порожній корінь: bunfig.toml — guest-план створює канонічний вміст, повторний детект гостем мовчить про bunfig', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'bun.lock', '')
+      await writeFileDeep(dir, 'package.json', '{}\n')
+
+      const before = withDefaultSeverity(
+        loadNative().runWasmConcern(WASM_PATH, BUN_LAYOUT_CONCERN_KEY, dir, null).violations
+      )
+      expect(before.map(v => v.message)).toEqual(['Відсутній bunfig.toml — створи з [install] linker = "hoisted" (bun.mdc)'])
+
+      const plan = loadNative().runWasmConcernFix(WASM_PATH, BUN_LAYOUT_CONCERN_KEY, dir, before, {})
+      expect(plan.edits).toEqual([{ type: 'write', path: 'bunfig.toml', content: '[install]\nlinker = "hoisted"\n' }])
+      for (const edit of plan.edits) await applyPlanEdit(edit, dir, fixCtx(dir))
+
+      expect(await readFile(join(dir, 'bunfig.toml'), 'utf8')).toBe('[install]\nlinker = "hoisted"\n')
+      const again = loadNative().runWasmConcern(WASM_PATH, BUN_LAYOUT_CONCERN_KEY, dir, null)
+      expect(again.violations.some(v => v.message.startsWith('Відсутній bunfig.toml'))).toBe(false)
+    })
+  })
+
+  test('заборонені файли: guest-план видаляє package-lock.json і yarn.lock через applyPlanEdit, повторний детект мовчить про них', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'bun.lock', '')
+      await writeFileDeep(dir, 'bunfig.toml', '[install]\nlinker = "hoisted"\n')
+      await writeFileDeep(dir, 'package.json', '{}\n')
+      await writeFileDeep(dir, 'package-lock.json', '{}\n')
+      await writeFileDeep(dir, 'yarn.lock', '# yarn\n')
+
+      const before = withDefaultSeverity(
+        loadNative().runWasmConcern(WASM_PATH, BUN_LAYOUT_CONCERN_KEY, dir, null).violations
+      )
+      expect(before.map(v => v.message)).toEqual([
+        'Знайдено заборонений файл: package-lock.json — видали його',
+        'Знайдено заборонений файл: yarn.lock — видали його'
+      ])
+
+      const plan = loadNative().runWasmConcernFix(WASM_PATH, BUN_LAYOUT_CONCERN_KEY, dir, before, {})
+      expect(plan.edits).toEqual([
+        { type: 'delete', path: 'package-lock.json' },
+        { type: 'delete', path: 'yarn.lock' }
+      ])
+      for (const edit of plan.edits) await applyPlanEdit(edit, dir, fixCtx(dir))
+
+      expect(existsSync(join(dir, 'package-lock.json'))).toBe(false)
+      expect(existsSync(join(dir, 'yarn.lock'))).toBe(false)
+      const again = loadNative().runWasmConcern(WASM_PATH, BUN_LAYOUT_CONCERN_KEY, dir, null)
+      expect(again.violations).toEqual([])
+    })
+  })
+
+  test('.yarn/ із вкладеним вмістом: guest-план дає ОДИН delete-edit на каталог, applyPlanEdit реально прибирає його з диска (доводить #520 крізь весь ланцюжок)', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'bun.lock', '')
+      await writeFileDeep(dir, 'bunfig.toml', '[install]\nlinker = "hoisted"\n')
+      await writeFileDeep(dir, 'package.json', '{}\n')
+      await writeFileDeep(dir, '.yarn/releases/yarn-4.0.0.cjs', '// yarn\n')
+      await writeFileDeep(dir, '.yarn/install-state.gz', 'binary')
+
+      const before = withDefaultSeverity(
+        loadNative().runWasmConcern(WASM_PATH, BUN_LAYOUT_CONCERN_KEY, dir, null).violations
+      )
+      expect(before.map(v => v.message)).toEqual(['Знайдено директорію .yarn — видали її'])
+
+      const plan = loadNative().runWasmConcernFix(WASM_PATH, BUN_LAYOUT_CONCERN_KEY, dir, before, {})
+      expect(plan.edits).toEqual([{ type: 'delete', path: '.yarn' }])
+      for (const edit of plan.edits) await applyPlanEdit(edit, dir, fixCtx(dir))
+
+      // Ключове твердження задачі: КАТАЛОГ (з вкладеним вмістом) реально
+      // зник із диска через РЕАЛЬНИЙ виклик `applyPlanEdit`, не лише через
+      // формально коректний `FileEdit::Delete` у плані.
+      expect(existsSync(join(dir, '.yarn'))).toBe(false)
+      const again = loadNative().runWasmConcern(WASM_PATH, BUN_LAYOUT_CONCERN_KEY, dir, null)
+      expect(again.violations).toEqual([])
+    })
+  })
+
+  test('.yarn відсутній на диску: guest-план порожній, applyPlanEdit не викликається взагалі', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'bun.lock', '')
+      await writeFileDeep(dir, 'bunfig.toml', '[install]\nlinker = "hoisted"\n')
+      await writeFileDeep(dir, 'package.json', '{}\n')
+
+      const before = withDefaultSeverity(
+        loadNative().runWasmConcern(WASM_PATH, BUN_LAYOUT_CONCERN_KEY, dir, null).violations
+      )
+      expect(before).toEqual([])
+
+      const plan = loadNative().runWasmConcernFix(WASM_PATH, BUN_LAYOUT_CONCERN_KEY, dir, before, {})
+      expect(plan.edits).toEqual([])
     })
   })
 })

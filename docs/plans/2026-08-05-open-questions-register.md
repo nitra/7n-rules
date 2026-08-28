@@ -6237,6 +6237,84 @@ lang-rust 1 406 180 (33,5%), lang-python 1 363 509 (32,5%), lang-php
 
 ---
 
+### 2.56. `bun/layout` — T0-фіксер портовано (`plugin-lang-js`), і pin-drift дев-середовища замаскував був парність під час розробки
+
+**Задача:** портувати T0-фіксер концерну `bun/layout` (три патерни
+видаленого `plugins/lang-js/rules/bun/layout/fix-layout.mjs` —
+`rm-forbidden-file`/`bun-bunfig-create`/`bun-yarn-dir-remove`) у гість
+`crates/plugin-lang-js`. Детект (`detect_bun_layout`) уже жив у гості
+(«Батч 8»), `scope = "full"` — фікс лишався заглушкою.
+
+**Порт:** `fix_bun_layout` (`crates/plugin-lang-js/src/lib.rs`, поруч із
+`detect_bun_layout`) — точний семантичний порт усіх трьох патернів. Імена
+заборонених файлів читаються з тексту `diagnostic.message` (не з константи
+напряму) — той самий `FORBIDDEN_FILE_NAME_RE`-мотив, що JS-канон.
+`bun-yarn-dir-remove` — ПЕРШИЙ у цьому крейті реальний `FileEdit::Delete`
+на КАТАЛОГ (не на файл): жоден із портованих раніше фіксерів
+(`test/no-bun-test-import`, `js/doc_comments`, `js/check`) директорій не
+видаляє. Спершу знятий характеризаційний гейт на теперішній JS-поведінці
+(`plugins/lang-js/rules/bun/layout/tests/fix-layout.test.mjs`, 10 тестів —
+фіксер раніше не мав ЖОДНОГО тесту), потім порт, потім `cargo test
+-p plugin-lang-js` (401/401, +11 нових).
+
+**Парність через РЕАЛЬНИЙ napi-міст, не прямий виклик гостя** (урок
+§2.47/§2.49: пряме звернення до `patterns[0].apply(...)` чи `Guest::fix`
+напряму ховає баги саме моста, не гостя). Чотири нові сценарії в
+`npm/scripts/lib/lint-surface/tests/wasm-plugin-parity.test.mjs`
+(describe `bun/layout T0-фікс через fix-міст`): повний цикл
+`loadNative().runWasmConcern` → `runWasmConcernFix` → `applyPlanEdit`
+(РЕАЛЬНИЙ код `run-fix.mjs`, не ручний `fs.rm`/`fs.writeFile` тесту) →
+повторний `runWasmConcern` чистий. `bun/layout` — WHOLE-BATCH (жодна
+діагностика не несе `file`), тож цикл іде штатною `scope: Full`-гілкою
+`run_wasm_concern_fix` (`crates/rules-napi/src/lib.rs`), не через
+`delta_files`-фолбек §2.53 — перший T0-цикл через міст, що реально
+проходить крізь ЦЮ гілку (`js/check`, §2.47, був єдиним попереднім
+прикладом).
+
+**Знахідка — не в продакшн-коді, а в дев-середовищі, і саме тому цінна
+методологічно.** Перший прогін нових бридж-тестів давав `plan.edits: []`
+для обох `delete`-сценаріїв (заборонені файли, `.yarn/`) БЕЗ жодної
+помилки — виглядало як реальний баг мосту (порожній full-scope
+glob-обхід). Ізольований repro (окремий тимчасовий rust-тест,
+`build_full_scope_files` напряму з ідентичними glob-патернами) показав
+правильний результат — `package-lock.json` серед знайдених файлів. Отже
+баг НЕ в логіці `run_wasm_concern_fix`/`build_full_scope_files`. Причина —
+`npm/scripts/lib/native.mjs::nativeAddonChain`: `target/{release,debug}/`
+не мав локально зібраного `librules_napi.dylib` (жоден агент цієї хвилі
+до того не запускав `cargo build -p rules-napi`), тож loader мовчки
+фолбечив на ЗАСТАРІЛИЙ прекомпільований `npm/packages/rules-darwin-arm64/
+rules-napi.darwin-arm64.node` — бінар, зібраний ДО #513/#517/§2.47 (там
+`_ => Vec::new()` для не-full-scope-гілки міг лишитись старим кодом, чи
+взагалі не мати full-scope fallback у сьогоднішній формі). Локальний
+`RUSTFLAGS="-C link-args=-Wl,-undefined,dynamic_lookup" cargo build
+-p rules-napi --release` — і всі 4 нові сценарії позеленіли без жодної
+зміни коду. Той самий клас pin-drift, що вже задокументований
+(`project_llm-lib-native-pin-drift` пам'яті агента), тепер підтверджений
+живим repro САМЕ для `rules-napi`, не лише `llm-lib`: **пряме звернення
+до гостя тут не допомогло б виявити цю пастку взагалі** — вона існує лише
+на napi-рівні, детект (`runWasmConcern`) через стару бібліотеку працював
+коректно (стара `detect`-логіка не змінювалась), тільки `fix`-гілка була
+крихкою. Урок для наступного, хто пише перший бридж-тест у гості: якщо
+`runWasmConcernFix` мовчки повертає порожній план там, де очікується
+непорожній, — спершу перевір `ls -la target/release/*.dylib` (чи взагалі
+є) і дату локальної збірки `rules-napi` відносно останніх змін
+`crates/rules-napi`/`crates/rules-plugin-host`, а не одразу підозрюй
+логіку `Guest::fix`.
+
+**Бюджет:** гість `plugin_lang_js.wasm` 2 261 653 → 2 262 509 байт (+856,
+86,3% стелі 2 621 440 — 358 931 байт запасу лишилось).
+
+**Тести:** `cargo test -p plugin-lang-js` 401/401 (+11),
+`cargo test -p rules-napi` 13/13 без регресій (після `bash
+crates/test-plugin-guest/build.sh` — фікстура `test_plugin_guest.wasm`
+теж була відсутня, окрема, незалежна від pin-drift причина),
+`fix-layout.test.mjs` 10/10 (характеризаційний гейт),
+`wasm-plugin-parity.test.mjs` 264/264 (260 наявних без регресій + 4 нових
+бридж-сценарії). JS-фіксер (`fix-layout.mjs`) НЕ видалено — диспетчер
+`run-fix.mjs` (`T0Pattern.guestFix`) автоматично пріоритезує гостя.
+
+---
+
 ## Як користуватись
 
 Дійшовши кінця плану міграції, пройти реєстр згори вниз: розділи 1 і 6 — це
