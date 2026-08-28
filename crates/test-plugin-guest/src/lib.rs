@@ -90,11 +90,23 @@ const PANIC_CONCERN_ID: &str = "test/guest-panic";
 /// (`PluginHostError::InvalidContractData`), не застосовуючи його.
 const FIX_ESCAPE_CONCERN_ID: &str = "test/guest-fix-escape";
 
+/// `concern-id` `scope: full` fix-регресії (задача fix/napi-empty-fix-batch,
+/// `crates/rules-napi/src/lib.rs::ambiguous_empty_fix_batch_err`) —
+/// ЄДИНИЙ `Full`-scope концерн цієї фікстури (решта — `PerFile`, доккомент
+/// `describe()` нижче). Потрібен, щоб `cargo test -p rules-napi` міг
+/// перевірити гілку `build_full_scope_files` (concern з `scope: full` і
+/// порожнім `target_files`) БЕЗ збірки важчого `plugin-lang-js.wasm`
+/// (реальний `js/check`) — `fix()` тут дзеркалить [`fix_rewrite_plan`]
+/// (та сама `BROKEN` → `FIXED` семантика), тож непорожній `edits` доводить,
+/// що host реально резолвнув файли з диска через full-scope glob-обхід, а
+/// не просто не впав.
+const FIX_FULL_SCOPE_CONCERN_ID: &str = "test/guest-fix-full-scope";
+
 /// Guest-реалізація world `plugin` — концерн-заглушка `test/guest-echo`,
 /// fs-preopen тест-хук `test/guest-echo-fs-probe`, run-tool тест-хук
 /// `test/guest-tool-echo`, exec-tool тест-хук `test/guest-exec-tool`
 /// (зріз 5 контракту v3.1), trap-хук `test/guest-panic` і fix-хуки
-/// `test/guest-fix-rewrite`/`test/guest-fix-escape`.
+/// `test/guest-fix-rewrite`/`test/guest-fix-escape`/`test/guest-fix-full-scope`.
 struct GuestEcho;
 
 impl Guest for GuestEcho {
@@ -145,6 +157,11 @@ impl Guest for GuestEcho {
                     key: FIX_ESCAPE_CONCERN_ID.to_string(),
                     scope: ConcernScope::PerFile,
                     glob: vec![],
+                },
+                ConcernContribution {
+                    key: FIX_FULL_SCOPE_CONCERN_ID.to_string(),
+                    scope: ConcernScope::Full,
+                    glob: vec!["**/*.marker".to_string()],
                 },
             ],
             ci_artifacts: vec![],
@@ -207,7 +224,9 @@ impl Guest for GuestEcho {
     }
 
     fn fix(request: FixRequest) -> FixPlan {
-        if request.concern_id == FIX_REWRITE_CONCERN_ID {
+        if request.concern_id == FIX_REWRITE_CONCERN_ID
+            || request.concern_id == FIX_FULL_SCOPE_CONCERN_ID
+        {
             return fix_rewrite_plan(&request);
         }
         if request.concern_id == FIX_ESCAPE_CONCERN_ID {

@@ -184,6 +184,19 @@ const wasmFixPlanCache = new WeakMap()
 /**
  * Викликає `runWasmConcernFix` (fix-контур contract v3, napi
  * `crates/rules-napi`) і кешує план під identity `violations`.
+ *
+ * `runWasmConcernFix` кидає типізовану помилку (не мовчить і не вгадує),
+ * коли `target_files` порожній для НЕ-full-scope концерну з file-less
+ * діагностиками — доккомент `ambiguous_empty_fix_batch_err`,
+ * `crates/rules-napi/src/lib.rs` (задача fix/napi-empty-fix-batch, той
+ * самий мотив, що #513). Ловимо тут і деградуємо до порожнього плану
+ * (`test()` дасть `false`, concern далі йде в ladder, як і при
+ * fix-заглушці) — той самий контур graceful-degrade, що вже несе
+ * `loadT0Patterns` для битого `fix-<concern>.mjs` (доккомент нижче) і
+ * `runConcernDetector` для wasm-падіння під час `detect()`
+ * (`detect.mjs`): падіння ОДНОГО concern-а не має вбивати весь
+ * fix-прогін (`runFixPipeline` кличе цю функцію в циклі по концернах), а
+ * `console.error` (не мовчазний catch) лишає причину видимою.
  * @param {string} key `ruleId/concernId` wasm-концерну.
  * @param {string} cwd Абсолютний корінь consumer-репо.
  * @param {import('./wasm-plugins.mjs').WasmConcernMapEntry} entry Резолвлений запис wasm-мапи (`wasmPath`, `toolPaths`).
@@ -192,7 +205,16 @@ const wasmFixPlanCache = new WeakMap()
  */
 function computeWasmFixPlan(key, cwd, entry, violations) {
   if (wasmFixPlanCache.has(violations)) return wasmFixPlanCache.get(violations)
-  const plan = loadNative().runWasmConcernFix(entry.wasmPath, key, cwd, violations, entry.toolPaths)
+  let plan
+  try {
+    plan = loadNative().runWasmConcernFix(entry.wasmPath, key, cwd, violations, entry.toolPaths)
+  } catch (error) {
+    console.error(
+      `❌ wasm fix ${key}: runWasmConcernFix відмовився будувати план — ${error.message}. ` +
+        'wasm T0-фікс цього concern-а пропущено, concern піде в ladder.'
+    )
+    plan = { edits: [] }
+  }
   wasmFixPlanCache.set(violations, plan)
   return plan
 }
