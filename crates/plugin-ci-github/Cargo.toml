@@ -53,6 +53,31 @@ regorus = { version = "0.11", default-features = false, features = ["regex", "st
 # YAML-крейта в regorus-фітах, лише тут.
 regex = { version = "1", features = ["unicode-perl"] }
 saphyr = "0.0"
+# `jsonc-parser` (dprint, MIT, 9,66 млн завантажень) — справжня JSONC-підтримка
+# (`//`/`/* */`-коментарі, trailing comma) для `.vscode/*.json`-таргетів
+# ([`fix_template_merge`]/[`fix_vscode_extensions`]/[`detect_policy`]),
+# заміна floor-валідатора `is_strict_json` (звіт задачі §2.58, друга
+# поправка — «target 2 лишається нереалізованою метою» — ЦЯ задача її
+# реалізує). Усі залежності `jsonc-parser` у ЙОГО ВЛАСНОМУ `Cargo.toml`
+# позначені `optional` (`indexmap`/`rustc-hash`/`serde`/`serde_json`/
+# `unicode-width` — усі за фітами `preserve_order`/`fast_hash`/`serde`/
+# `serde_json`/`error_unicode_width`) — без явних фітів тут (порожній
+# `features = []`, дефолт) крейт БЕЗдепний, той самий мотив «вага не
+# виправдана для вузького вжитку», яким репо раніше мотивувало відмову від
+# `serde_json` (доккомент `Cargo.toml` `lang-php`/`lang-python`), тут більше
+# НЕ застосовний — саме тому вибір впав на `jsonc-parser`, не на
+# `serde_json` (транзитивний через `regorus`, але не публічно
+# ре-експортований). `parse_to_ast` дає AST із байтовими `Range` на кожному
+# вузлі (не лише `parse_to_value`, який коментарі відкидає) —
+# коментарі НЕ входять у діапазон жодного вузла (окрема `CommentMap`,
+# `CommentCollectionStrategy::Off` за замовчуванням — комент-collection тут
+# НЕ вмикається взагалі, нам потрібні лише діапазони «живих» вузлів, той
+# самий «trivia» контракт, що вже дає block-стиль YAML/[`saphyr`] для
+# сусідніх YAML-коментарів), тож той самий [`MNode`]-обхід і [`Edit`]-машинерія
+# (доккомент розділу «Хірургічний comment-preserving merge») перевикористані
+# буквально — коментарі виживають СТРУКТУРНО (недоторкані діапазони поза
+# вузлами), не спеціальним кодом, який їх шукає.
+jsonc-parser = { version = "0.33", default-features = false }
 # НАВМИСНО жодної іншої залежності — той самий мотив, що
 # `crates/plugin-lang-php` (найлегший з чотирьох попередніх гостей): ЄДИНИЙ
 # портований концерн (`rust/toolchain_cache`) не потребує YAML-парсера
