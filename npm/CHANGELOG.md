@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.108.0] - 2026-08-28
+
+### Added
+
+- exec-tool fix клас (host-diff): портовано python/ruff — перший фіксер, що мутує диск напряму через exec-tool (uv run --frozen ruff check --fix . + ruff format .); хост сам знімає знімок диска до/після виклику fix() і синтезує edits із різниці (runWasmConcernFix, crates/rules-napi/src/lib.rs), без зміни WIT
+
 ## [1.107.4] - 2026-08-28
 
 ### Fixed
