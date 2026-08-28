@@ -4922,7 +4922,7 @@ version = "0.1.0"
 dependencies = [
  "jsonc-parser",
  "regex",
- "regorus",
+ "rules-rego-engine",
  "saphyr",
  "toml",
  "wit-bindgen 0.60.0",
@@ -5677,11 +5677,20 @@ dependencies = [
  "globset",
  "libc",
  "rules-contract",
+ "rules-rego-engine",
  "serde_json",
  "tempfile",
  "thiserror 1.0.69",
  "wasmtime",
  "wasmtime-wasi",
+]
+
+[[package]]
+name = "rules-rego-engine"
+version = "0.1.0"
+dependencies = [
+ "regex",
+ "regorus",
 ]
 
 [[package]]

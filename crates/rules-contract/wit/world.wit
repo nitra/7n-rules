@@ -41,7 +41,51 @@
 // стороннього піна це skip-not-crash із сирою wasmtime-помилкою —
 // pre-instantiate діагностика імпортів (рішення Ж) лишається наступним
 // зрізом, не цим.
-package n-rules:plugin@3.1.0;
+//
+// # Мінор `3.1.0` → `3.2.0` (rego-двигун на хості, реєстр відкритих питань
+// `docs/plans/2026-08-05-open-questions-register.md` §2.66)
+//
+// Додано РІВНО одну поверхню — `resource rego-engine` (+ `rego-stage`/
+// `rego-error` під неї). Той самий additive-мотив, що мінор `3.1.0` вище:
+// жодне наявне визначення не змінене чи видалене, компонент, зібраний
+// проти `3.1.0`, не референсить `rego-engine` і лінкується на `3.2.0`-хості
+// без повторної збірки (`Linker` дозволяє «зайві» host-визначення).
+// Зворотної сумісності немає навмисно: плагін, зібраний проти `3.2.0` (що
+// реально кличе `rego-engine`), НЕ інстанціюється на `3.1.0`-хості, що цю
+// поверхню не дає — той самий skip-not-crash режим, що вже описаний вище
+// для `exec-tool`.
+//
+// ## Це ПЕРШИЙ imported resource контракту — і нова поверхня сумісності
+//
+// До цього мінору WIT цього репозиторію не мав жодного `resource` —
+// перевірено емпірично мінімальним прикладом (wit-bindgen 0.60 + wasmtime
+// 48, world-level `resource { constructor(); method: func() -> …; }`,
+// БЕЗ обгортки `interface`) ДО порту `plugin-ci-github`, за брифом задачі:
+// гість отримує `wit_bindgen::generate!`-тип із конструктором/методами як
+// звичайними асоційованими функціями (`Counter::new(..)`,
+// `instance.increment()`), хост реалізує `Host<CamelName>`-трейт
+// (`new`/методи/`drop`) поверх `wasmtime::component::ResourceTable`,
+// реєструє через `<WorldStruct>::add_to_linker_imports` (той самий виклик,
+// що вже реєструє решту `PluginImports` — жодного окремого лінк-кроку).
+// Одна пастка, варта запису тут: `resource` — зарезервоване слово навіть у
+// СЕГМЕНТІ ІМЕНІ ПАКЕТА (`package poc:resource@…;` не парситься,
+// `package poc:rescheck@…;` парситься) — не лише як ключове слово тіла
+// world/interface.
+//
+// Друга, змістовна причина цього мінору — НОВА поверхня сумісності, не
+// лише ABI: до цього рева `regorus`-семантику пінував ВИКЛЮЧНО
+// `crates/plugin-ci-github/Cargo.toml` (пін гостя). Тепер REGO-СЕМАНТИКУ
+// ДЛЯ БУДЬ-ЯКОГО ГОСТЯ, що кличе `rego-engine`, визначає пін `regorus` у
+// ХОСТІ (`crates/rules-rego-engine`, той самий `0.11`+`["regex","std"]`,
+// перенесений дослівно) — гість, зібраний проти v3.2, більше не контролює,
+// ЯКА версія regorus реально оцінює його policy. Мовчазної несумісності
+// тут бути не може (принцип проекту): `manifest.world-version` (наявне
+// поле, вище) — точка, де гість декларує очікувану поверхню, а зміна пін-у
+// regorus у хості МІЖ мінорами `3.2.x` (напр. `0.11` → `0.12`) мусить йти
+// тим самим свідомим taze-каденсом, що `wasmtime`/`wasmtime-wasi`
+// (`crates/rules-plugin-host/Cargo.toml`, доккомент піна) — НЕ
+// автоматичним діапазоном.
+package n-rules:plugin@3.2.0;
 
 world plugin {
   use n-rules:slots/ci-artifact@1.0.0.{descriptor as ci-artifact-descriptor};
@@ -498,4 +542,72 @@ world plugin {
   /// scratch-каталог в окремий import `scratch-dir` (additive, той самий
   /// механізм).
   import host-context: func(slot: string) -> option<string>;
+
+  /// Стадія, на якій rego-виклик провалився — точний відповідник трьох
+  /// рядкових тегів, які `plugin-ci-github::push_rego_engine_error` вже
+  /// очікує (`"compile"`/`"set_input"`/`"eval"`, доккомент
+  /// `crates/rules-rego-engine/src/lib.rs::RegoStage::as_str`).
+  enum rego-stage {
+    compile,
+    input,
+    eval,
+  }
+
+  /// Помилка rego-двигуна — стадія + людинописне повідомлення.
+  record rego-error {
+    stage: rego-stage,
+    message: string,
+  }
+
+  /// Host-mediated rego-двигун (реєстр відкритих питань
+  /// `docs/plans/2026-08-05-open-questions-register.md` §2.66) — ПЕРШИЙ
+  /// imported resource цього world (доккомент версійного блоку вище,
+  /// розділ «Це ПЕРШИЙ imported resource контракту»). Виносить `regorus`
+  /// із wasm-гостя в хост: гість, якому потрібна rego-оцінка, кличе цей
+  /// resource замість того, щоб нести власну копію `regorus` у своєму
+  /// component-артефакті (перший споживач — `plugin-ci-github`,
+  /// `ga/workflows`).
+  ///
+  /// # Batch-контракт — ОДИН двигун, БАГАТО `eval-rule`
+  ///
+  /// Конструктор і `add-policy`/`add-data-json` викликаються РІВНО ОДИН
+  /// РАЗ на батч (`workflow_common`: одна policy + один `data`, потім цикл
+  /// по файлах) — точний відповідник ОДНОГО батч-спавну `conftest test
+  /// <files...> --data …`, перекладений у явний resource-хендл. Гість, що
+  /// готує двигун наново на КОЖЕН файл (як робив попередній
+  /// `eval_deny_rule`-шлях для чотирьох per-workflow таргетів), теж
+  /// підтримується — resource не змушує жодного конкретного патерну
+  /// виклику, batch-семантика — конвенція споживача, не примус контракту.
+  ///
+  /// # Чому resource, а не stateless `eval: func(policy, data, input)`
+  ///
+  /// Плаский stateless-виклик перекомпільовував би policy (851 рядок rego
+  /// для `ga/workflows`) на КОЖЕН файл — регрес, що зʼїдає весь виграш
+  /// розміру (звіт задачі: заміри батч-шляху до/після). Resource-хендл дає
+  /// гостю підготувати двигун раз і оцінювати багато разів — той самий
+  /// принцип, що вже дає `Engine`-перевикористання в
+  /// `crates/rules-rego-engine`.
+  resource rego-engine {
+    constructor();
+
+    /// Компілює й додає одну rego-policy. Помилка компіляції —
+    /// `rego-error { stage: compile, … }`.
+    add-policy: func(name: string, source: string) -> result<_, rego-error>;
+
+    /// Додає `data` (JSON-текст) до двигуна. Помилка парсингу —
+    /// `rego-error { stage: compile, … }` (той самий тег, що
+    /// `add-policy` — обидва належать до фази підготовки двигуна).
+    add-data-json: func(data-json: string) -> result<_, rego-error>;
+
+    /// `set-input(input-json)` + `eval-rule(rule)` за один виклик — межа
+    /// не розбита на два host-виклики, бо жоден чинний споживач не
+    /// перевикористовує один `input` для двох різних rule-оцінок.
+    /// `rule` — повний шлях (`"data.<namespace>.deny"`), не голе імʼя
+    /// правила. Повертає рядки з `Set`/`Array`-результату (`deny`-контракт
+    /// усіх пʼяти вшитих `.rego`-файлів `plugin-ci-github`) —
+    /// `rego-error { stage: input, … }` для побитого `input-json`,
+    /// `rego-error { stage: eval, … }` для помилки самої rego-оцінки
+    /// (відсутнє правило, runtime-помилка).
+    eval-rule: func(input-json: string, rule: string) -> result<list<string>, rego-error>;
+  }
 }

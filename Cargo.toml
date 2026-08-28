@@ -8,6 +8,7 @@ members = [
   "crates/rules-napi",
   "crates/rules-cli",
   "crates/rules-contract",
+  "crates/rules-rego-engine",
   "crates/rules-plugin-host",
   "crates/test-plugin-guest",
   "crates/plugin-lang-js",
@@ -16,6 +17,14 @@ members = [
   "crates/plugin-lang-php",
   "crates/plugin-ci-github",
 ]
+# `crates/rules-rego-engine` — тонка спільна обгортка над `regorus`
+# (задача «rego-двигун на хості», реєстр §2.66): ЄДИНЕ джерело істини для
+# `add_policy`/`add_data_json`/`eval_rule`-семантики rego, яку споживають
+# ДВОМА шляхами — `crates/rules-plugin-host` (продакшн, wasm-гість кличе
+# через host-import `rego-engine` resource) і `crates/plugin-ci-github` під
+# `cfg(not(target_arch = "wasm32"))` (нативні `cargo test`, той самий код
+# in-process, без перетину component-межі). Один крейт, дві точки виклику —
+# не дві реалізації, що можуть розійтись.
 # `crates/test-plugin-guest` — guest-фікстура contract-test-kit
 # `crates/rules-plugin-host` (задача I2, спека
 # `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md`).

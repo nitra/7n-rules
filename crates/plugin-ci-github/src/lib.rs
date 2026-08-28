@@ -1,4 +1,4 @@
-//! wasm-компонент `n-rules:plugin@3.1.0` — `ci-github/wasm-concerns`, П'ЯТИЙ
+//! wasm-компонент `n-rules:plugin@3.2.0` — `ci-github/wasm-concerns`, П'ЯТИЙ
 //! first-party wasm-гість репозиторію (перший — `crates/plugin-lang-js`,
 //! другий — `crates/plugin-lang-python`, третій — `crates/plugin-lang-rust`,
 //! четвертий — `crates/plugin-lang-php`, доккомент того `src/lib.rs` пояснює
@@ -16,9 +16,16 @@
 //! зовнішніх tool-інтеграцій (`git`/`github-actionlint`/`uvx zizmor`/
 //! `shellcheck`-проба, доккомент розділу «Чотири зовнішні тули» нижче) плюс
 //! 851 рядок Rego (пʼять `.rego`-пакетів у `plugins/ci-github/rules/ga/`),
-//! який виконується IN-PROCESS через [`regorus`] (Microsoft, MIT AND
-//! Apache-2.0 AND BSD-3-Clause) — жодного `conftest`-субпроцесу (доккомент
-//! розділу «Regorus замість conftest» нижче). `ci_artifact/consume` і решта
+//! який виконується через [`regorus`] (Microsoft, MIT AND Apache-2.0 AND
+//! BSD-3-Clause) — жодного `conftest`-субпроцесу (доккомент розділу
+//! «Regorus замість conftest» нижче). **ОНОВЛЕНО** (реєстр відкритих
+//! питань `docs/plans/2026-08-05-open-questions-register.md` §2.66): від
+//! `n-rules:plugin@3.2.0` `regorus` виконується IN-PROCESS лише на
+//! host-таргеті (`cargo test`, `cfg(not(target_arch = "wasm32"))`); на
+//! wasm32 (продакшн) той самий `regorus`-виклик перетнув component-межу —
+//! доккомент [`RegoEngineHandle`] пояснює обидва шляхи й чому нативне
+//! юніт-покриття цього блоку лишається можливим попри перенесення.
+//! `ci_artifact/consume` і решта
 //! `ga/*`-каталогів із власними `.rego` (вони НЕ окремі `ruleId/concernId`
 //! контрибуції — вшиті сюди як внутрішні rego-namespace-и) лишаються поза
 //! обсягом.
@@ -77,7 +84,8 @@
 //! `shellcheck` (bare/managed-схема — канон керує через
 //! `ensureTool('shellcheck')`, `main.mjs:398`, не голий `resolveCmd`).
 //! `conftest`-декларація канону (`ensureTool('conftest')`, `main.mjs:399`)
-//! СВІДОМО відсутня в порту — regorus замінює субпроцес.
+//! СВІДОМО відсутня в порту — regorus замінює субпроцес (від `3.2.0` —
+//! host-side regorus, доккомент вище й [`RegoEngineHandle`], не guest-side).
 //!
 //! # `ci_artifact/consume` і решта `ga/*` — поза обсягом
 //!
@@ -1443,79 +1451,105 @@ fn build_rego_templates() -> RegoTemplates {
     }
 }
 
-/// Витягує рядкові елементи з результату `eval_rule("data.<ns>.deny")` —
-/// `deny contains msg if {...}` компілюється в regorus `Value::Set`
-/// (`BTreeSet<Value>`, природно відсортований — той самий порядок, що OPA
-/// маршалить set у JSON, node conftest на боці канону читає). `Array`
-/// толерується про запас (той самий дух, що решта контракту), інші
-/// варіанти (Undefined тощо) дають порожній результат.
-fn extract_string_set(value: &regorus::Value) -> Vec<String> {
-    match value {
-        regorus::Value::Set(set) => set.iter().filter_map(value_as_owned_string).collect(),
-        regorus::Value::Array(arr) => arr.iter().filter_map(value_as_owned_string).collect(),
-        _ => Vec::new(),
-    }
+/// rego-двигун, звідки цей файл кличе `add_policy`/`add_data_json`/
+/// `eval_rule` — ДВІ реалізації одного контракту під `cfg`, не одна
+/// (реєстр відкритих питань `docs/plans/2026-08-05-open-questions-register.md`
+/// §2.66):
+///
+/// - `wasm32` (продакшн) — згенерований `wit_bindgen`-хендл resource
+///   `rego-engine` (`wit/world.wit`): `regorus` виконується на хості,
+///   гість несе лише тонкий Component Model виклик.
+/// - будь-який інший таргет (нативні `cargo test`) — `rules_rego_engine::RegoEngine`,
+///   той самий крейт, що реалізує host-бік вище — regorus виконується
+///   in-process, БЕЗ перетину component-межі.
+///
+/// Це навмисне архітектурне рішення, не тимчасовий костиль: до цієї зміни
+/// `eval_deny_rule`/`run_all_ga_rego` були НАЙРИЗИКОВАНІШОЮ частиною порту
+/// (YAML→JSON + rego-виконання, доккомент модуля) САМЕ тому, що не мали
+/// жодного host-імпорту — 53 нативні `#[test]` цього файлу (`cargo test -p
+/// plugin-ci-github`) перевіряють цю логіку напряму. Плаский перехід на
+/// resource-only виклик зробив би regorus недосяжним на host-таргеті
+/// (`wit_import`-заглушка панікує на native, той самий структурний бар'єр,
+/// що вже документує розділ «`ga/workflows` — host-таргет unit-тести» цього
+/// модуля для `exec_tool`) — 53 тести довелось би або видалити, або
+/// звузити до wasmtime-парного контуру, реальний регрес покриття
+/// найризикованішого коду. `cfg`-розділення тримає обидва: продакшн
+/// (wasm32) кличе resource, `cargo test` кличе regorus in-process — ОДНЕ
+/// джерело істини для семантики (`rules-rego-engine`), дві тонкі точки
+/// виклику, не дві реалізації, що можуть розійтись.
+#[cfg(target_arch = "wasm32")]
+type RegoEngineHandle = RegoEngine;
+#[cfg(not(target_arch = "wasm32"))]
+type RegoEngineHandle = rules_rego_engine::RegoEngine;
+
+/// `wit::RegoError`/`rules_rego_engine::RegoError` → `(stage, message)` —
+/// той самий кортежний контракт, що `eval_deny_rule` мав до цього
+/// перенесення (стадії `"compile"`/`"set_input"`/`"eval"`, доккомент
+/// [`RegoEngineHandle`]).
+#[cfg(target_arch = "wasm32")]
+fn rego_error_stage_message(err: RegoError) -> (&'static str, String) {
+    let stage = match err.stage {
+        RegoStage::Compile => "compile",
+        RegoStage::Input => "set_input",
+        RegoStage::Eval => "eval",
+    };
+    (stage, err.message)
 }
 
-fn value_as_owned_string(value: &regorus::Value) -> Option<String> {
-    match value {
-        regorus::Value::String(s) => Some(s.to_string()),
-        _ => None,
-    }
+#[cfg(not(target_arch = "wasm32"))]
+fn rego_error_stage_message(err: rules_rego_engine::RegoError) -> (&'static str, String) {
+    (err.stage.as_str(), err.message)
 }
 
-/// Один regorus-виклик: новий [`regorus::Engine`], один `add_policy`,
-/// опційний `add_data_json` (шаблон-канон), один `set_input_json` +
-/// `eval_rule("data.<namespace>.deny")` — точний відповідник ОДНОГО спавну
-/// `conftest test <file> -p <policyDir> --namespace <namespace> [--data …]`
-/// (`runConftestBatch`) для ОДНОГО файла. Помилка (побитий policy-текст чи
-/// вхідний JSON) позначена стадією (`"compile"`/`"set_input"`/`"eval"`,
-/// перший елемент кортежу помилки) — [`run_all_ga_rego`] перетворює її на
-/// видиму діагностику через [`push_rego_engine_error`], НЕ ковтає мовчки:
-/// живий rego верифікований 55 `conftest verify`-тестами, тож продакшн-шлях
-/// сюди не потрапляє СЬОГОДНІ, але мовчазний fail-open — найгірший режим
-/// відмови лінтера (зелено, бо нічого не перевірено), тож про регресію
-/// (апгрейд `regorus`, зламаний вшитий `.rego`) користувач має дізнатись з
+/// Один rego-виклик: новий [`RegoEngineHandle`], один `add_policy`,
+/// опційний `add_data_json` (шаблон-канон), один `eval_rule` —
+/// точний відповідник ОДНОГО спавну `conftest test <file> -p <policyDir>
+/// --namespace <namespace> [--data …]` (`runConftestBatch`) для ОДНОГО
+/// файла. Помилка (побитий policy-текст чи вхідний JSON) позначена стадією
+/// (`"compile"`/`"set_input"`/`"eval"`, перший елемент кортежу помилки) —
+/// [`run_all_ga_rego`] перетворює її на видиму діагностику через
+/// [`push_rego_engine_error`], НЕ ковтає мовчки: живий rego верифікований
+/// 55 `conftest verify`-тестами, тож продакшн-шлях сюди не потрапляє
+/// СЬОГОДНІ, але мовчазний fail-open — найгірший режим відмови лінтера
+/// (зелено, бо нічого не перевірено), тож про регресію (апгрейд regorus у
+/// хості, зламаний вшитий `.rego`) користувач має дізнатись з
 /// діагностики, а не з тиші (звіт задачі, «правка 1»). Викликається лише
 /// для чотирьох per-workflow таргетів, НЕ для `workflow_common` (там один
-/// `Engine` на весь батч файлів, [`build_workflow_common_engine`] —
-/// доккомент модуля, розділ «regorus дає РІВНО один `input`»).
+/// двигун на весь батч файлів, [`build_workflow_common_engine`] —
+/// доккомент модуля, розділ «rego дає РІВНО один `input`»).
+#[allow(unused_mut)] // wasm32: `RegoEngineHandle` (resource-хендл) методи беруть `&self` — `mut` потрібен лише нативній гілці (`&mut regorus::Engine`).
 fn eval_deny_rule(
     rego_source: &str,
     namespace: &str,
     data_json: &str,
     input_json: &str,
 ) -> Result<Vec<String>, (&'static str, String)> {
-    let mut engine = regorus::Engine::new();
+    let mut engine = RegoEngineHandle::new();
     engine
-        .add_policy(format!("{namespace}.rego"), rego_source.to_string())
-        .map_err(|e| ("compile", e.to_string()))?;
+        .add_policy(&format!("{namespace}.rego"), rego_source)
+        .map_err(rego_error_stage_message)?;
     engine
         .add_data_json(data_json)
-        .map_err(|e| ("compile", e.to_string()))?;
+        .map_err(rego_error_stage_message)?;
     engine
-        .set_input_json(input_json)
-        .map_err(|e| ("set_input", e.to_string()))?;
-    let result = engine
-        .eval_rule(format!("data.{namespace}.deny"))
-        .map_err(|e| ("eval", e.to_string()))?;
-    Ok(extract_string_set(&result))
+        .eval_rule(input_json, &format!("data.{namespace}.deny"))
+        .map_err(rego_error_stage_message)
 }
 
-/// Один `Engine` для `ga.workflow_common`, підготовлений ОДИН раз (policy +
-/// data), потім `set_input`+`eval_rule` у циклі по файлах
-/// ([`run_all_ga_rego`]) — точний відповідник ОДНОГО батч-спавну
-/// `conftest test <files...> --namespace ga.workflow_common --data …`
-/// канону, перекладений у явний Rust-цикл (доккомент модуля).
-fn build_workflow_common_engine(data_json: &str) -> Result<regorus::Engine, String> {
-    let mut engine = regorus::Engine::new();
+/// Один двигун для `ga.workflow_common`, підготовлений ОДИН раз (policy +
+/// data), потім `eval_rule` у циклі по файлах ([`run_all_ga_rego`]) —
+/// точний відповідник ОДНОГО батч-спавну `conftest test <files...>
+/// --namespace ga.workflow_common --data …` канону, перекладений у явний
+/// Rust-цикл (доккомент модуля).
+#[allow(unused_mut)] // доккомент над `eval_deny_rule`
+fn build_workflow_common_engine(data_json: &str) -> Result<RegoEngineHandle, String> {
+    let mut engine = RegoEngineHandle::new();
     engine
-        .add_policy(
-            "workflow_common.rego".to_string(),
-            WORKFLOW_COMMON_REGO.to_string(),
-        )
-        .map_err(|e| e.to_string())?;
-    engine.add_data_json(data_json).map_err(|e| e.to_string())?;
+        .add_policy("workflow_common.rego", WORKFLOW_COMMON_REGO)
+        .map_err(|e| rego_error_stage_message(e).1)?;
+    engine
+        .add_data_json(data_json)
+        .map_err(|e| rego_error_stage_message(e).1)?;
     Ok(engine)
 }
 
@@ -2020,6 +2054,7 @@ fn push_tool_unavailable(diagnostics: &mut Vec<Diagnostic>, tool: &str, hint: &s
 
 /// Точний відповідник `runAllGaRego` (`main.mjs`) — доккомент модуля,
 /// розділи «regorus замість conftest» і «`--data` template merge».
+#[allow(unused_mut)] // доккомент над `eval_deny_rule`
 fn run_all_ga_rego(
     diagnostics: &mut Vec<Diagnostic>,
     wf_files: &[&SourceFile],
@@ -2089,30 +2124,22 @@ fn run_all_ga_rego(
             continue;
         };
         let input_json = json_to_string(&ensure_step_uses_key_present(&root));
-        if let Err(err) = engine.set_input_json(&input_json) {
-            push_rego_engine_error(
-                diagnostics,
-                Some(&file.path),
-                "ga.workflow_common",
-                "set_input",
-                &err.to_string(),
-            );
-            continue;
-        }
-        let result = match engine.eval_rule("data.ga.workflow_common.deny".to_string()) {
-            Ok(result) => result,
-            Err(err) => {
-                push_rego_engine_error(
-                    diagnostics,
-                    Some(&file.path),
-                    "ga.workflow_common",
-                    "eval",
-                    &err.to_string(),
-                );
-                continue;
-            }
-        };
-        for msg in extract_string_set(&result) {
+        let messages =
+            match engine.eval_rule(&input_json, "data.ga.workflow_common.deny") {
+                Ok(messages) => messages,
+                Err(err) => {
+                    let (stage, message) = rego_error_stage_message(err);
+                    push_rego_engine_error(
+                        diagnostics,
+                        Some(&file.path),
+                        "ga.workflow_common",
+                        stage,
+                        &message,
+                    );
+                    continue;
+                }
+            };
+        for msg in messages {
             push_rego_violation(diagnostics, &file.path, &msg);
         }
     }
@@ -4187,9 +4214,22 @@ mod tests {
     // подібних концернів. Ці гілки покриває ЛИШЕ
     // `wasm-plugin-parity-ci-github.test.mjs` (реальний wasmtime-хост).
     //
-    // `run_all_ga_rego`/`eval_deny_rule` — НАВПАКИ, без жодного host-імпорту
-    // (regorus виконується цілком у Rust) — найризикованіша частина порту
-    // (YAML→JSON конвертація + Rego-виконання) тому ПОВНІСТЮ покрита тут.
+    // `run_all_ga_rego`/`eval_deny_rule` — НАВПАКИ, ПОВНІСТЮ покриті тут:
+    // найризикованіша частина порту (YAML→JSON конвертація + Rego-виконання)
+    // не панікує на host-таргеті, як `exec_tool`-гілки вище. **ОНОВЛЕНО**
+    // (реєстр §2.66, `docs/plans/2026-08-05-open-questions-register.md`):
+    // від `3.2.0` це вже НЕ «без жодного host-імпорту» буквально — на
+    // wasm32 `eval_deny_rule`/`build_workflow_common_engine` КЛИЧУТЬ
+    // host-import resource `rego-engine`. Нативний `cargo test` цього НЕ
+    // бачить: `RegoEngineHandle` під `cfg(not(target_arch = "wasm32"))` —
+    // це `rules_rego_engine::RegoEngine` (той самий regorus, той самий
+    // код, in-process, без Component Model межі), доккомент
+    // [`RegoEngineHandle`] пояснює чому обидва шляхи гарантовано не
+    // розходяться семантично (ОДНЕ джерело істини, `crates/rules-rego-engine`).
+    // Тести нижче й далі перевіряють РЕАЛЬНУ rego-логіку — лише не той
+    // РІВНО байт, який виконується на production (wasm32) шляху; той шлях
+    // покриває `wasm-plugin-parity-ci-github.test.mjs`, той самий контур,
+    // що вже єдиний покриває `exec_tool`-гілки вище.
     // =====================================================================
 
     fn sfw(path: &str, content: &str) -> SourceFile {
@@ -4499,21 +4539,25 @@ mod tests {
             (WORKFLOW_COMMON_REGO, "ga.workflow_common"),
         ];
         for (rego_source, namespace) in cases {
-            let mut engine = regorus::Engine::new();
+            let mut engine = RegoEngineHandle::new();
             engine
-                .add_policy(format!("{namespace}.rego"), rego_source.to_string())
-                .unwrap_or_else(|e| panic!("{namespace}: policy має компілюватись: {e}"));
-            engine.set_input(regorus::Value::new_object());
-            let result = engine.eval_rule(format!("data.{namespace}.deny")).unwrap_or_else(|e| {
-                panic!(
-                    "{namespace}: eval_rule(deny) провалився — Rust-side namespace-константа розійшлась \
-                     з `package`, вшитим у .rego: {e}"
-                )
-            });
-            assert!(
-                matches!(result, regorus::Value::Set(_) | regorus::Value::Array(_)),
-                "{namespace}: `deny` має бути set/array, отримано {result:?}"
-            );
+                .add_policy(&format!("{namespace}.rego"), rego_source)
+                .unwrap_or_else(|e| {
+                    panic!("{namespace}: policy має компілюватись: {}", rego_error_stage_message(e).1)
+                });
+            // `eval_rule` тут лише доводить, що `deny` ОБЧИСЛЮЄТЬСЯ (не
+            // помилка компіляції/eval) — сам результат (порожній
+            // set/array) не цікавить, тому `input-json: "{}"` (той самий
+            // порожній обʼєкт, що раніше давав `set_input(Value::new_object())`).
+            engine
+                .eval_rule("{}", &format!("data.{namespace}.deny"))
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "{namespace}: eval_rule(deny) провалився — Rust-side namespace-константа \
+                         розійшлась з `package`, вшитим у .rego: {}",
+                        rego_error_stage_message(e).1
+                    )
+                });
         }
     }
 

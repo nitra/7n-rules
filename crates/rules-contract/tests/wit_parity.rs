@@ -53,7 +53,7 @@ fn wit_directory_parses_without_errors() {
         .expect("wit/ має парситись без помилок");
 }
 
-/// Пакет `n-rules:plugin@3.1.0` резолвиться і містить world `plugin`.
+/// Пакет `n-rules:plugin@3.2.0` резолвиться і містить world `plugin`.
 #[test]
 fn plugin_package_and_world_resolve() {
     let mut resolve = Resolve::new();
@@ -63,7 +63,7 @@ fn plugin_package_and_world_resolve() {
     assert_eq!(pkg.name.name, "plugin");
     assert_eq!(
         pkg.name.version.as_ref().map(|v| v.to_string()).as_deref(),
-        Some("3.1.0")
+        Some("3.2.0")
     );
 
     let world_id = *pkg

@@ -1,4 +1,4 @@
-//! `rules-plugin-host` — embedded wasmtime-хост для `n-rules:plugin@3.1.0`
+//! `rules-plugin-host` — embedded wasmtime-хост для `n-rules:plugin@3.2.0`
 //! (задача I2 фази 6, спека
 //! `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md`).
 //!
@@ -29,6 +29,7 @@ mod error;
 mod host;
 mod host_state;
 mod loaded_plugin;
+mod rego_engine;
 mod scratch;
 mod tool_resolver;
 mod wit;
