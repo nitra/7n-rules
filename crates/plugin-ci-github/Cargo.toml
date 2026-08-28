@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 license = "Apache-2.0"
-description = "wasm-компонент n-rules:plugin@3.1.0 — ci-github/wasm-concerns (2 концерни: rust/toolchain_cache, ga/workflows)"
+description = "wasm-компонент n-rules:plugin@3.1.0 — ci-github/wasm-concerns (5 концернів: rust/toolchain_cache, ga/workflows, ga/vscode_extensions, ga/vscode_settings, security/lint_security_yml)"
 
 [lib]
 # `cdylib` — обов'язково: `wasm32-wasip2` виводить готовий Component Model

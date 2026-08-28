@@ -995,16 +995,115 @@ describe('wasm-plugin — ga/workflows: T0-цикл через fix-міст (д�
   )
 })
 
+// --- Третя хвиля: три policy-концерни, T0-цикл через РЕАЛЬНИЙ napi-міст ---
+//
+// Той самий прийом, що блок вище для `ga/workflows` (detect гостем →
+// runWasmConcernFix → застосування правок → detect гостем знову, чистий),
+// для КОЖНОГО з трьох нових full-scope концернів (доккомент задачі, розділ
+// «Обовʼязкова послідовність», пункт 3: парність доводиться через РЕАЛЬНИЙ
+// napi-міст, не прямий виклик гостя — юніт-тести `crates/plugin-ci-github`
+// звіряють ТУ САМУ поведінку прямим викликом Rust-функцій, цей блок — щe
+// раз, крізь увесь bridge, як production-шлях `run-fix.mjs::wasmFixPattern`).
+describe('wasm-плагін plugin-ci-github — третя хвиля: T0-цикл через fix-міст', () => {
+  test('ga/vscode_extensions: файл відсутній — fix створює recommendations, повторний детект чистий', async () => {
+    await withTmpDir(async dir => {
+      const before = loadNative().runWasmConcern(WASM_PATH, 'ga/vscode_extensions', dir, null, {}).violations
+      expect(before).toHaveLength(1)
+      expect(before[0].reason).toBe('policy-file-missing')
+
+      const plan = loadNative().runWasmConcernFix(WASM_PATH, 'ga/vscode_extensions', dir, before, {})
+      const edit = plan.edits.find(e => e.path === '.vscode/extensions.json')
+      expect(edit).toBeDefined()
+      expect(edit.content).toContain('github.vscode-github-actions')
+
+      await mkdir(join(dir, '.vscode'), { recursive: true })
+      await writeFile(join(dir, edit.path), edit.content, 'utf8')
+
+      const after = loadNative().runWasmConcern(WASM_PATH, 'ga/vscode_extensions', dir, null, {}).violations
+      expect(after).toEqual([])
+    })
+  })
+
+  test('ga/vscode_settings: наявний файл з локальним блоком — fix дописує канонічне поле, локальне лишається, повторний детект чистий', async () => {
+    await withTmpDir(async dir => {
+      await mkdir(join(dir, '.vscode'), { recursive: true })
+      const localContent = JSON.stringify({ 'editor.tabSize': 4 })
+      await writeFile(join(dir, '.vscode', 'settings.json'), localContent, 'utf8')
+
+      const before = loadNative().runWasmConcern(WASM_PATH, 'ga/vscode_settings', dir, null, {}).violations
+      expect(before.length).toBeGreaterThan(0)
+      expect(before[0].reason).toBe('policy-deny')
+
+      const plan = loadNative().runWasmConcernFix(WASM_PATH, 'ga/vscode_settings', dir, before, {})
+      const edit = plan.edits.find(e => e.path === '.vscode/settings.json')
+      expect(edit).toBeDefined()
+      const merged = JSON.parse(edit.content)
+      expect(merged['editor.tabSize']).toBe(4)
+      expect(merged['[github-actions-workflow]']['editor.defaultFormatter']).toBe('oxc.oxc-vscode')
+
+      await writeFile(join(dir, edit.path), edit.content, 'utf8')
+      const after = loadNative().runWasmConcern(WASM_PATH, 'ga/vscode_settings', dir, null, {}).violations
+      expect(after).toEqual([])
+    })
+  })
+
+  test('security/lint_security_yml: наявний workflow з локальним кроком, без trufflehog — fix дописує канонічний крок, локальний лишається, повторний детект чистий', async () => {
+    await withTmpDir(async dir => {
+      await mkdir(join(dir, '.github', 'workflows'), { recursive: true })
+      const localWorkflow = [
+        'name: Lint Security',
+        'on:',
+        '  push: {}',
+        'jobs:',
+        '  security:',
+        '    runs-on: ubuntu-latest',
+        '    steps:',
+        '      - name: local-step',
+        '        run: echo hi',
+        ''
+      ].join('\n')
+      await writeFile(join(dir, '.github/workflows/lint-security.yml'), localWorkflow, 'utf8')
+
+      const before = loadNative().runWasmConcern(WASM_PATH, 'security/lint_security_yml', dir, null, {})
+        .violations
+      expect(before).toHaveLength(1)
+      expect(before[0].reason).toBe('policy-deny')
+      expect(before[0].message).toContain('trufflesecurity/trufflehog@main')
+
+      const plan = loadNative().runWasmConcernFix(WASM_PATH, 'security/lint_security_yml', dir, before, {})
+      const edit = plan.edits.find(e => e.path === '.github/workflows/lint-security.yml')
+      expect(edit).toBeDefined()
+      expect(edit.content).toContain('local-step')
+      expect(edit.content).toContain('trufflesecurity/trufflehog@main')
+
+      await writeFile(join(dir, edit.path), edit.content, 'utf8')
+      const after = loadNative().runWasmConcern(WASM_PATH, 'security/lint_security_yml', dir, null, {})
+        .violations
+      expect(after).toEqual([])
+    })
+  })
+})
+
 describe('wasm-плагін plugin-ci-github — describe()/розмір', () => {
-  test('describe() повертає manifest з двома full-scope концернами', () => {
+  test('describe() повертає manifest з пʼятьма full-scope концернами (третя хвиля — три policy-концерни)', () => {
     const manifest = loadNative().wasmPluginManifest(WASM_PATH)
     expect(manifest.id).toBe('ci-github/wasm-concerns')
-    expect(manifest.concerns).toHaveLength(2)
+    expect(manifest.concerns).toHaveLength(5)
     const toolchainCache = manifest.concerns.find(c => c.key === CONCERN_KEY)
     expect(toolchainCache.scope).toBe('full')
     const workflows = manifest.concerns.find(c => c.key === WORKFLOWS_CONCERN_KEY)
     expect(workflows.scope).toBe('full')
     expect(manifest.tools).toEqual(['path:git', 'npm:github-actionlint', 'path:uvx', 'shellcheck'])
+    for (const [key, glob] of [
+      ['ga/vscode_extensions', '.vscode/extensions.json'],
+      ['ga/vscode_settings', '.vscode/settings.json'],
+      ['security/lint_security_yml', '.github/workflows/lint-security.yml']
+    ]) {
+      const contribution = manifest.concerns.find(c => c.key === key)
+      expect(contribution, `${key} contribution має бути в маніфесті`).toBeDefined()
+      expect(contribution.scope).toBe('full')
+      expect(contribution.glob).toEqual([glob])
+    }
   })
 
   test(`зібраний .wasm вкладається в size-budget (${WASM_SIZE_BUDGET_LABEL})`, async () => {

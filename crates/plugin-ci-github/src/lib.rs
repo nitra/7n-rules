@@ -125,6 +125,47 @@
 //! точний паритет з `crates/plugin-lang-php` (обидва — нуль стороннього
 //! крейта в рантайм-графі). Виміряний фінальний розмір — звіт задачі.
 //!
+//! ТРЕТЯ хвиля (задача, що додала цей блок): три policy-концерни, кожен —
+//! ОДИН target-файл + ОДИН `.rego`-пакет + ОДИН `template/*.snippet.*` —
+//! [`detect_policy`]/[`PolicyCfg`]. Detect-двигун — той самий `regorus`
+//! IN-PROCESS-шлях, що друга хвиля ([`eval_deny_rule`], перевикористаний
+//! буквально): `engine: "rego"` (дефолт `concern-meta.mjs`, коли
+//! `concern.json` не декларує `check: "template"`) — попри `template/`-теку в
+//! кожного з трьох, детект-логіку несе САМ Rego-пакет
+//! (`data.template.snippet` — вхід, не JS `checkSnippet`). Fix-двигун —
+//! ДВА спільні JS T0-рушії, портовані сюди Rust-функціями, які теж
+//! ПЕРЕВИКОРИСТОВУЮТЬСЯ між концернами (не 1:1 копії):
+//! - `ga/vscode_extensions` ([`fix_vscode_extensions`]) — точний порт
+//!   `npm/scripts/lib/fix/vscode-ext-add.mjs` (union `recommendations` за
+//!   рядковим значенням, решта `.vscode/extensions.json` незайманою);
+//! - `ga/vscode_settings`/`security/lint_security_yml`
+//!   ([`fix_template_merge`]/[`TemplateFixCfg`]) — точний порт
+//!   `npm/scripts/lib/fix/template-deep-merge.mjs` (deep-merge snippet →
+//!   target: обʼєкти мерджаться по ключах, масиви — union за структурним
+//!   підмножинним збігом чи `name`/`uses`-ідентичністю on-place,
+//!   [`is_subset`]/[`merge_json_value`]; файл відсутній → snippet копіюється
+//!   verbatim). Вибір другого й третього концерну — доккомент задачі: з 14
+//!   концернів, що шимлять `template-deep-merge.mjs` у цьому плагіні, РІВНО
+//!   ОДИН (`ga/vscode_settings`) має JSON-таргет — решта 13, включно з
+//!   `security/lint_security_yml`, мають YAML-workflow-таргет; порт свідомо
+//!   бере ОДИН представник кожної форми, а не два зручні JSON-и.
+//!
+//! Спільна інфраструктура ОБОХ рушіїв — [`Json`] (той самий тип, що друга
+//! хвиля, БЕЗ нового JSON-крейта: `.vscode/*.json` — валідний YAML 1.2, той
+//! самий [`saphyr`]-парсер, [`parse_yaml_document`]) + два нові серіалізатори
+//! ([`write_json_pretty`] — `.json`-таргет, [`write_yaml_block`] —
+//! `.yml`-таргет). [`write_yaml_block`] СВІДОМО не є comment-preserving
+//! YAML-Document-writer-ом (на відміну від `yaml`-пакета JS-канону,
+//! `Document.setIn`/`addIn`) — регенерує YAML з [`Json`] block-стилем,
+//! рядкові скаляри ЗАВЖДИ в подвійних лапках (не намагається вгадати, який
+//! plain-скаляр безпечний) — втрачає коментарі й форматування наявного
+//! файлу при merge-фіксі. Задокументована розбіжність із каноном (звіт
+//! задачі, не мовчазна апроксимація): паритет цього порту — «повторний
+//! detect чистий» ([`eval_deny_rule`] знову на записаному вмісті), НЕ
+//! byte-у-byte вивід fix-у; production-наслідок (втрата коментарів у
+//! наявному workflow-файлі при T0-фіксі) — рішення власника задачі, не
+//! Rust-порту.
+//!
 //! # Порядок workflow-файлів у batch — недетермінований, як і в каноні
 //!
 //! JS-оригінал перебирає `readdir(wfDir)` (порядок залежить від ФС, НЕ
@@ -423,7 +464,13 @@ fn add_cache_workspaces(content: &str, workspace_dir: &str) -> Option<String> {
         };
         let ind = " ".repeat(uses_col);
         let at = step_block_end(&borrowed, cache_line, dash_col_for(uses_col));
-        inserts.push((at, vec![format!("{ind}with:"), format!("{ind}  workspaces: {workspace_dir}")]));
+        inserts.push((
+            at,
+            vec![
+                format!("{ind}with:"),
+                format!("{ind}  workspaces: {workspace_dir}"),
+            ],
+        ));
     }
     inserts.sort_by(|a, b| b.0.cmp(&a.0));
     let mut lines: Vec<String> = borrowed.into_iter().map(str::to_string).collect();
@@ -604,6 +651,28 @@ const WORKFLOW_COMMON_REGO: &str =
     include_str!("../../../plugins/ci-github/rules/ga/workflow_common/workflow_common.rego");
 const USES_MIN_VERSIONS_SNIPPET_JSON: &str = include_str!(
     "../../../plugins/ci-github/rules/ga/workflow_common/template/uses-min-versions.snippet.json"
+);
+
+// --- ТРЕТЯ хвиля: три policy-концерни, кожен свій `.rego` + свій snippet
+// (доккомент модуля, розділ «ТРЕТЯ хвиля») — той самий `include_str!`-мотив.
+
+const VSCODE_EXTENSIONS_REGO: &str =
+    include_str!("../../../plugins/ci-github/rules/ga/vscode_extensions/vscode_extensions.rego");
+const VSCODE_EXTENSIONS_SNIPPET_JSON: &str = include_str!(
+    "../../../plugins/ci-github/rules/ga/vscode_extensions/template/extensions.json.snippet.json"
+);
+
+const VSCODE_SETTINGS_REGO: &str =
+    include_str!("../../../plugins/ci-github/rules/ga/vscode_settings/vscode_settings.rego");
+const VSCODE_SETTINGS_SNIPPET_JSON: &str = include_str!(
+    "../../../plugins/ci-github/rules/ga/vscode_settings/template/settings.json.snippet.json"
+);
+
+const LINT_SECURITY_YML_REGO: &str = include_str!(
+    "../../../plugins/ci-github/rules/security/lint_security_yml/lint_security_yml.rego"
+);
+const LINT_SECURITY_YML_SNIPPET_YML: &str = include_str!(
+    "../../../plugins/ci-github/rules/security/lint_security_yml/template/lint-security.yml.snippet.yml"
 );
 
 /// Мінімальне self-describing dynamic-значення YAML/JSON-документа — спільне
@@ -841,6 +910,267 @@ fn json_to_string(value: &Json) -> String {
     let mut out = String::new();
     write_json(value, &mut out);
     out
+}
+
+// =====================================================================
+// ТРЕТЯ хвиля — `Json` deep-subset/deep-merge (точний порт `checkSnippet`/
+// `mergeJsonValue`/`containedIn`/`identityKey`, `npm/scripts/lib/template.mjs`
+// і `npm/scripts/lib/fix/template-deep-merge.mjs`) + два нові серіалізатори
+// (доккомент модуля, розділ «ТРЕТЯ хвиля»).
+// =====================================================================
+
+/// Deep subset-of перевірка — точний функціональний відповідник
+/// `checkSnippet(actual, snippet, opts).length === 0` (`template.mjs`), БЕЗ
+/// побудови повідомлень (порт тут використовує тексти з Rego-виводу
+/// [`eval_deny_rule`] для видимих violation-ів; ЦЯ функція лише вирішує
+/// «чи fix-writer вже задовольняє snippet», той самий контракт, що
+/// `computeJsonNextText`/`computeYamlNextText` — булевий шорткат навколо
+/// `checkSnippet(...).length === 0`). `actual: None` — той самий канал, що
+/// JS `actual[k] === undefined` (ключа немає ЧИ `actual` не обʼєкт).
+fn is_subset(actual: Option<&Json>, snippet: &Json) -> bool {
+    match snippet {
+        Json::Null => true,
+        Json::Array(items) => match actual {
+            Some(Json::Array(arr)) => items.iter().all(|needle| contained_in(arr, needle)),
+            _ => false,
+        },
+        Json::Object(entries) => match actual {
+            Some(Json::Object(_)) => entries
+                .iter()
+                .all(|(k, v)| is_subset(actual.and_then(|a| a.get(k)), v)),
+            _ => false,
+        },
+        leaf => actual == Some(leaf),
+    }
+}
+
+/// Чи `needle` структурно вже присутній у якомусь елементі `actual_array` —
+/// точний відповідник `containedIn` (`template-deep-merge.mjs`).
+fn contained_in(actual_array: &[Json], needle: &Json) -> bool {
+    actual_array.iter().any(|a| is_subset(Some(a), needle))
+}
+
+/// Ключ ідентичності елемента масиву обʼєктів — точний відповідник
+/// `identityKey` (`template-deep-merge.mjs`): `name`-поле, інакше
+/// `uses`-поле БЕЗ версії (`actions/x@v6` → `uses:actions/x`).
+fn identity_key(obj: &Json) -> Option<String> {
+    let Json::Object(_) = obj else {
+        return None;
+    };
+    if let Some(name) = obj.get("name").and_then(Json::as_str) {
+        return Some(format!("name:{name}"));
+    }
+    if let Some(uses) = obj.get("uses").and_then(Json::as_str) {
+        let base = uses.split('@').next().unwrap_or(uses);
+        return Some(format!("uses:{base}"));
+    }
+    None
+}
+
+/// Індекс елемента `actual_array` з тим самим [`identity_key`], що й
+/// `needle` — точний відповідник `findIdentityIndex`.
+fn find_identity_index(actual_array: &[Json], needle: &Json) -> Option<usize> {
+    let key = identity_key(needle)?;
+    actual_array
+        .iter()
+        .position(|a| identity_key(a).as_deref() == Some(key.as_str()))
+}
+
+/// Рекурсивний deep-merge snippet у [`Json`] — точний відповідник
+/// `mergeJsonValue` (`template-deep-merge.mjs`): масиви — union за
+/// [`contained_in`]/[`find_identity_index`] (структурний збіг пропускається,
+/// той самий `name`/`uses` оновлюється on-place, інакше — додається);
+/// обʼєкти — рекурсія по ключах snippet-а (зайві поля `actual` незайманими);
+/// листя — canonical-значення перезаписує.
+fn merge_json_value(actual: Option<&Json>, snippet: &Json) -> Json {
+    match snippet {
+        Json::Array(items) => {
+            let mut arr: Vec<Json> = match actual {
+                Some(Json::Array(a)) => a.clone(),
+                _ => Vec::new(),
+            };
+            for needle in items {
+                if contained_in(&arr, needle) {
+                    continue;
+                }
+                match find_identity_index(&arr, needle) {
+                    Some(idx) => {
+                        let merged = merge_json_value(Some(&arr[idx]), needle);
+                        arr[idx] = merged;
+                    }
+                    None => arr.push(needle.clone()),
+                }
+            }
+            Json::Array(arr)
+        }
+        Json::Object(entries) => {
+            let mut obj: Vec<(String, Json)> = match actual {
+                Some(Json::Object(o)) => o.clone(),
+                _ => Vec::new(),
+            };
+            for (k, v) in entries {
+                let child = obj.iter().find(|(kk, _)| kk == k).map(|(_, vv)| vv);
+                let merged = merge_json_value(child, v);
+                match obj.iter_mut().find(|(kk, _)| kk == k) {
+                    Some(entry) => entry.1 = merged,
+                    None => obj.push((k.clone(), merged)),
+                }
+            }
+            Json::Object(obj)
+        }
+        leaf => leaf.clone(),
+    }
+}
+
+/// Pretty JSON — точний відповідник `JSON.stringify(x, null, 2) + '\n'`
+/// (2-пробільний відступ). Використовується лише для `.json`-таргетів
+/// ([`fix_vscode_extensions`]/[`fix_template_merge`] з `is_yaml: false`) —
+/// на відміну від [`write_json`]/[`json_to_string`] (компактний, лише для
+/// regorus `input`/`data`).
+fn write_json_pretty(value: &Json, indent: usize, out: &mut String) {
+    let pad = "  ".repeat(indent);
+    let pad_in = "  ".repeat(indent + 1);
+    match value {
+        Json::Array(items) if items.is_empty() => out.push_str("[]"),
+        Json::Array(items) => {
+            out.push_str("[\n");
+            for (i, item) in items.iter().enumerate() {
+                out.push_str(&pad_in);
+                write_json_pretty(item, indent + 1, out);
+                if i + 1 < items.len() {
+                    out.push(',');
+                }
+                out.push('\n');
+            }
+            out.push_str(&pad);
+            out.push(']');
+        }
+        Json::Object(entries) if entries.is_empty() => out.push_str("{}"),
+        Json::Object(entries) => {
+            out.push_str("{\n");
+            for (i, (k, v)) in entries.iter().enumerate() {
+                out.push_str(&pad_in);
+                out.push_str(&json_escape_string(k));
+                out.push_str(": ");
+                write_json_pretty(v, indent + 1, out);
+                if i + 1 < entries.len() {
+                    out.push(',');
+                }
+                out.push('\n');
+            }
+            out.push_str(&pad);
+            out.push('}');
+        }
+        scalar => write_json(scalar, out),
+    }
+}
+
+fn json_to_pretty_string(value: &Json) -> String {
+    let mut out = String::new();
+    write_json_pretty(value, 0, &mut out);
+    out.push('\n');
+    out
+}
+
+/// Block-стиль YAML-серіалізатор [`Json`] — доккомент модуля, розділ «ТРЕТЯ
+/// хвиля»: НЕ comment-preserving (регенерує з нуля, на відміну від JS-канону
+/// `yaml`-пакета), рядкові скаляри ЗАВЖДИ у подвійних лапках ([`json_escape_string`],
+/// валідний YAML double-quoted scalar — той самий escaping, що JSON), щоб
+/// уникнути plain-scalar quoting-евристик (`: `, `#`, provisions GH Actions
+/// `${{ }}`-виразів тощо) — гарантовано валідний YAML 1.2 ЦІНОЮ втрати
+/// «природної» неквотованої форми канону. Корінь має бути [`Json::Object`]
+/// (обидва наші YAML-таргети — мапи), інакше — panics (внутрішній інваріант
+/// викличної сторони, не runtime-умова).
+fn write_yaml_block(root: &Json) -> String {
+    let Json::Object(entries) = root else {
+        panic!("write_yaml_block: корінь має бути обʼєктом");
+    };
+    let mut out = String::new();
+    write_yaml_object_entries(entries, 0, &mut out);
+    out
+}
+
+fn write_yaml_object_entries(entries: &[(String, Json)], indent: usize, out: &mut String) {
+    let pad = "  ".repeat(indent);
+    for (k, v) in entries {
+        out.push_str(&pad);
+        out.push_str(&yaml_key(k));
+        out.push(':');
+        write_yaml_value_after_colon(v, indent, out);
+    }
+}
+
+/// Пише значення після `key:` — inline скаляр/`{}`/`[]`, чи блок з нового
+/// рядка для непорожніх обʼєктів/масивів. `indent` — рівень БАТЬКІВСЬКОГО
+/// ключа (масиви — той самий рівень відступу, що ключ; обʼєкти — +1).
+fn write_yaml_value_after_colon(v: &Json, indent: usize, out: &mut String) {
+    match v {
+        Json::Object(e) if e.is_empty() => out.push_str(" {}\n"),
+        Json::Object(e) => {
+            out.push('\n');
+            write_yaml_object_entries(e, indent + 1, out);
+        }
+        Json::Array(items) if items.is_empty() => out.push_str(" []\n"),
+        Json::Array(items) => {
+            out.push('\n');
+            write_yaml_array_items(items, indent, out);
+        }
+        scalar => {
+            out.push(' ');
+            out.push_str(&yaml_scalar(scalar));
+            out.push('\n');
+        }
+    }
+}
+
+fn write_yaml_array_items(items: &[Json], indent: usize, out: &mut String) {
+    let pad = "  ".repeat(indent);
+    for item in items {
+        out.push_str(&pad);
+        out.push_str("- ");
+        match item {
+            Json::Object(entries) if !entries.is_empty() => {
+                // Перший ключ — на тому самому рядку, що `- `; решта — з
+                // відступом на один рівень глибше (стандартна GH Actions
+                // block-форма `- uses: …\n  with: …`).
+                let (first, rest) = entries.split_first().expect("непорожній");
+                out.push_str(&yaml_key(&first.0));
+                out.push(':');
+                write_yaml_value_after_colon(&first.1, indent + 1, out);
+                write_yaml_object_entries(rest, indent + 1, out);
+            }
+            Json::Array(sub) if !sub.is_empty() => {
+                out.push('\n');
+                write_yaml_array_items(sub, indent + 1, out);
+            }
+            _ => {
+                out.push_str(&yaml_scalar(item));
+                out.push('\n');
+            }
+        }
+    }
+}
+
+/// Ключ мапи — YAML-ключі в цих snippet-ах завжди прості ідентифікатори
+/// (`name`/`uses`/`on`/`jobs`/…) чи `[github-actions-workflow]`-подібні
+/// VS-Code-специфічні рядки ([`ga/vscode_settings`]) — той самий
+/// double-quote мотив, що [`yaml_scalar`], щоб не вгадувати безпечність.
+fn yaml_key(k: &str) -> String {
+    json_escape_string(k)
+}
+
+/// Скаляр — рядки завжди в подвійних лапках (доккомент [`write_yaml_block`]),
+/// решта — той самий текст, що [`write_json`] (валідний і в YAML: `null`/
+/// `true`/`false`/число — той самий literal-запис в обох форматах).
+fn yaml_scalar(v: &Json) -> String {
+    match v {
+        Json::Str(s) => json_escape_string(s),
+        other => {
+            let mut out = String::new();
+            write_json(other, &mut out);
+            out
+        }
+    }
 }
 
 /// Парсить довільний вшитий шаблонний текст (YAML чи JSON — JSON є валідним
@@ -1755,7 +2085,10 @@ fn persist_credentials_insert_for(
     } else {
         Some(PersistCredentialsInsert {
             at: i + 1,
-            text: vec![format!("{ind}with:"), format!("{ind}  persist-credentials: false")],
+            text: vec![
+                format!("{ind}with:"),
+                format!("{ind}  persist-credentials: false"),
+            ],
         })
     }
 }
@@ -1804,8 +2137,13 @@ fn is_paths_block_line(line: &str) -> bool {
 /// послідовні `strip_prefix`/`strip_suffix` дають той самий результат, що
 /// послідовна пара regex-заміщень (доккомент [`remove_paths_globs`]).
 fn strip_quote_edges(s: &str) -> &str {
-    let s = s.strip_prefix('\'').or_else(|| s.strip_prefix('"')).unwrap_or(s);
-    s.strip_suffix('\'').or_else(|| s.strip_suffix('"')).unwrap_or(s)
+    let s = s
+        .strip_prefix('\'')
+        .or_else(|| s.strip_prefix('"'))
+        .unwrap_or(s);
+    s.strip_suffix('\'')
+        .or_else(|| s.strip_suffix('"'))
+        .unwrap_or(s)
 }
 
 /// Т0-фіксер `unmatched-paths-glob` — точний семантичний порт
@@ -2056,6 +2394,287 @@ fn fix_toolchain_cache(request: &FixRequest) -> FixPlan {
     FixPlan { edits }
 }
 
+// =====================================================================
+// ТРЕТЯ хвиля — три policy-концерни (доккомент модуля, розділ «ТРЕТЯ хвиля»).
+// =====================================================================
+
+/// Ключі контрибуцій ТРЕТЬОЇ хвилі — точний відповідник `ruleId/concernId`
+/// відповідних `concern.json`.
+const CONCERN_VSCODE_EXTENSIONS: &str = "ga/vscode_extensions";
+const CONCERN_VSCODE_SETTINGS: &str = "ga/vscode_settings";
+const CONCERN_LINT_SECURITY_YML: &str = "security/lint_security_yml";
+
+/// `reason` — точний відповідник `'policy-file-missing'`
+/// (`policy-lint-adapter.mjs::evaluatePolicyConcern`, гілка «файл
+/// відсутній»).
+const POLICY_FILE_MISSING_REASON: &str = "policy-file-missing";
+
+/// `reason` — точний відповідник `'policy-deny'` (та сама функція, гілка
+/// rego: КОЖЕН `deny`-рядок conftest/regorus дає ОДНУ діагностику з цим
+/// reason-ом, незалежно від concern-а — не concern-specific код).
+const POLICY_DENY_REASON: &str = "policy-deny";
+
+/// `reason` — НЕМАЄ канонічного відповідника: JS-канон для `engine: "rego"`
+/// не парсить `input` сам (`runConftestBatch` передає ШЛЯХИ файлів,
+/// `conftest`-субпроцес сам парсить YAML/JSON і сам вирішує, як
+/// повідомляти про синтаксичну помилку — зовнішній Go-бінарник, текст його
+/// помилки не є частиною JS-логіки, що порт мав би відтворити). Тут вхід
+/// парситься ЗАЗДАЛЕГІДЬ (`set_input_json` regorus вимагає готовий JSON,
+/// доккомент [`eval_deny_rule`]) — побитий JSON/YAML target-файл дає видиму
+/// діагностику з НОВИМ reason-ом замість silent-skip, той самий мотив, що
+/// [`REGO_ENGINE_ERROR_REASON`] (fail loud, не мовчазний no-op).
+const POLICY_INPUT_INVALID_REASON: &str = "policy-input-invalid";
+
+/// Статична конфігурація одного policy-концерну ТРЕТЬОЇ хвилі — доккомент
+/// [`detect_policy`].
+struct PolicyCfg {
+    target_path: &'static str,
+    missing_message: &'static str,
+    rego_source: &'static str,
+    namespace: &'static str,
+    snippet_source_name: &'static str,
+    snippet_raw: &'static str,
+}
+
+const VSCODE_EXTENSIONS_CFG: PolicyCfg = PolicyCfg {
+    target_path: ".vscode/extensions.json",
+    missing_message:
+        ".vscode/extensions.json не існує — додай github.vscode-github-actions (ga.mdc)",
+    rego_source: VSCODE_EXTENSIONS_REGO,
+    namespace: "ga.vscode_extensions",
+    snippet_source_name: "extensions.json.snippet.json",
+    snippet_raw: VSCODE_EXTENSIONS_SNIPPET_JSON,
+};
+
+const VSCODE_SETTINGS_CFG: PolicyCfg = PolicyCfg {
+    target_path: ".vscode/settings.json",
+    missing_message:
+        ".vscode/settings.json не існує — додай [github-actions-workflow].editor.defaultFormatter (ga.mdc)",
+    rego_source: VSCODE_SETTINGS_REGO,
+    namespace: "ga.vscode_settings",
+    snippet_source_name: "settings.json.snippet.json",
+    snippet_raw: VSCODE_SETTINGS_SNIPPET_JSON,
+};
+
+const LINT_SECURITY_YML_CFG: PolicyCfg = PolicyCfg {
+    target_path: ".github/workflows/lint-security.yml",
+    missing_message:
+        ".github/workflows/lint-security.yml не знайдено — створи за каноном security.mdc",
+    rego_source: LINT_SECURITY_YML_REGO,
+    namespace: "security.lint_security_yml",
+    snippet_source_name: "lint-security.yml.snippet.yml",
+    snippet_raw: LINT_SECURITY_YML_SNIPPET_YML,
+};
+
+/// Т0-детект одного policy-концерну ТРЕТЬОЇ хвилі — точний функціональний
+/// відповідник `evaluatePolicyConcern` (`policy-lint-adapter.mjs`), гілка
+/// `engine !== 'template'` (rego): `files.length === 0` → `policy-file-missing`
+/// ([`POLICY_FILE_MISSING_REASON`]); інакше — ОДИН `eval_deny_rule` виклик
+/// ([`eval_deny_rule`], той самий regorus-примітив, що друга хвиля),
+/// `data.template.snippet` — розпарсений `cfg.snippet_raw`
+/// ([`wrap_template_data`]/[`parse_embedded_template`]), `input` —
+/// розпарсений `cfg.target_path` з батчу ([`parse_yaml_document`] — той
+/// самий парсер і для `.json`, і для `.yml`, доккомент модуля). Кожен
+/// `deny`-рядок → ОДНА діагностика `policy-deny` — `message` НЕ
+/// префіксується Rust-боком (кожен `.rego` вже вбудовує `<targetPath>: ` у
+/// `sprintf`, доккомент трьох `.rego`-джерел), той самий контракт, що
+/// `add('policy-deny', d.message, file)` канону.
+fn detect_policy(files: &[SourceFile], cfg: &PolicyCfg) -> Vec<Diagnostic> {
+    let Some(source) = batch_file(files, cfg.target_path) else {
+        return vec![Diagnostic {
+            reason: POLICY_FILE_MISSING_REASON.to_string(),
+            message: cfg.missing_message.to_string(),
+            file: Some(cfg.target_path.to_string()),
+            severity: Severity::Error,
+            data: None,
+        }];
+    };
+    let Some(actual) = parse_yaml_document(&source.content) else {
+        return vec![Diagnostic {
+            reason: POLICY_INPUT_INVALID_REASON.to_string(),
+            message: format!(
+                "{}: невалідний JSON/YAML — виправ синтаксис ({})",
+                cfg.target_path, cfg.namespace
+            ),
+            file: Some(cfg.target_path.to_string()),
+            severity: Severity::Error,
+            data: None,
+        }];
+    };
+    let snippet = parse_embedded_template(cfg.snippet_source_name, cfg.snippet_raw);
+    let data_json = wrap_template_data(snippet);
+    let input_json = json_to_string(&actual);
+    match eval_deny_rule(cfg.rego_source, cfg.namespace, &data_json, &input_json) {
+        Ok(messages) => messages
+            .into_iter()
+            .map(|message| Diagnostic {
+                reason: POLICY_DENY_REASON.to_string(),
+                message,
+                file: Some(cfg.target_path.to_string()),
+                severity: Severity::Error,
+                data: None,
+            })
+            .collect(),
+        Err((stage, err)) => {
+            let mut diagnostics = Vec::new();
+            push_rego_engine_error(
+                &mut diagnostics,
+                Some(cfg.target_path),
+                cfg.namespace,
+                stage,
+                &err,
+            );
+            diagnostics
+        }
+    }
+}
+
+/// Т0-фіксер `ga/vscode_extensions` — точний порт
+/// `npm/scripts/lib/fix/vscode-ext-add.mjs`: union `.vscode/extensions.json#recommendations`
+/// із канонічним `template/extensions.json.snippet.json#recommendations` за
+/// РЯДКОВИМ значенням (не структурний `mergeJsonValue` — `vscode-ext-add.mjs`
+/// свідомо ІНШИЙ, простіший рушій, ніж `template-deep-merge.mjs`, доккомент
+/// обох файлів). Порожні `request.diagnostics` (концерн викликаний БЕЗ жодної
+/// релевантної діагностики) → порожній план — той самий контракт, що
+/// [`fix_toolchain_cache`]/[`fix_workflows`] (єдиний reason цього концерну —
+/// `policy-file-missing`/`policy-deny`, обидва релевантні тут, тож
+/// filter-by-reason тут зайвий, на відміну від тих двох концернів, що
+/// ділять кілька reason-ів на файл).
+fn fix_vscode_extensions(request: &FixRequest) -> FixPlan {
+    if request.diagnostics.is_empty() {
+        return FixPlan { edits: vec![] };
+    }
+    let snippet = parse_embedded_template(
+        VSCODE_EXTENSIONS_CFG.snippet_source_name,
+        VSCODE_EXTENSIONS_CFG.snippet_raw,
+    );
+    let canonical: Vec<String> = snippet
+        .get("recommendations")
+        .and_then(Json::as_array)
+        .map(|arr| {
+            arr.iter()
+                .filter_map(Json::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default();
+    if canonical.is_empty() {
+        return FixPlan { edits: vec![] };
+    }
+
+    let target_path = VSCODE_EXTENSIONS_CFG.target_path;
+    let existing = batch_file(&request.files, target_path);
+    let (existing_entries, recs): (Vec<(String, Json)>, Vec<String>) = match existing {
+        None => (Vec::new(), Vec::new()),
+        Some(source) => match parse_yaml_document(&source.content) {
+            Some(Json::Object(entries)) => {
+                let recs = entries
+                    .iter()
+                    .find(|(k, _)| k == "recommendations")
+                    .and_then(|(_, v)| v.as_array())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(Json::as_str)
+                            .map(str::to_string)
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                (entries, recs)
+            }
+            // Невалідний JSON — не чіпаємо (той самий `catch { return
+            // {touchedFiles: []} }`, що `vscode-ext-add.mjs`).
+            _ => return FixPlan { edits: vec![] },
+        },
+    };
+
+    let to_add: Vec<&String> = canonical.iter().filter(|c| !recs.contains(c)).collect();
+    if to_add.is_empty() && existing.is_some() {
+        return FixPlan { edits: vec![] };
+    }
+
+    let mut new_recs: Vec<Json> = recs.into_iter().map(Json::Str).collect();
+    new_recs.extend(to_add.into_iter().cloned().map(Json::Str));
+
+    let mut new_entries = existing_entries;
+    match new_entries.iter_mut().find(|(k, _)| k == "recommendations") {
+        Some(entry) => entry.1 = Json::Array(new_recs),
+        None => new_entries.push(("recommendations".to_string(), Json::Array(new_recs))),
+    }
+    let content = json_to_pretty_string(&Json::Object(new_entries));
+    FixPlan {
+        edits: vec![FileEdit::Write(WriteFile {
+            path: target_path.to_string(),
+            content,
+        })],
+    }
+}
+
+/// Статична конфігурація одного `createTemplateFixPattern`-концерну —
+/// доккомент [`fix_template_merge`].
+struct TemplateFixCfg {
+    target_path: &'static str,
+    snippet_raw: &'static str,
+    is_yaml: bool,
+}
+
+const VSCODE_SETTINGS_FIX_CFG: TemplateFixCfg = TemplateFixCfg {
+    target_path: VSCODE_SETTINGS_CFG.target_path,
+    snippet_raw: VSCODE_SETTINGS_CFG.snippet_raw,
+    is_yaml: false,
+};
+
+const LINT_SECURITY_YML_FIX_CFG: TemplateFixCfg = TemplateFixCfg {
+    target_path: LINT_SECURITY_YML_CFG.target_path,
+    snippet_raw: LINT_SECURITY_YML_CFG.snippet_raw,
+    is_yaml: true,
+};
+
+/// Т0-фіксер `ga/vscode_settings`/`security/lint_security_yml` — точний
+/// функціональний порт `createTemplateFixPattern`
+/// (`npm/scripts/lib/fix/template-deep-merge.mjs`): файл відсутній →
+/// snippet копіюється VERBATIM (байт-у-байт вшитий текст, той самий
+/// контракт, що `writeFileSync(absTarget, rawSnippet, 'utf8')`); файл є, але
+/// невалідний JSON/YAML → без змін (`catch { return null }`); файл є і вже
+/// задовольняє snippet ([`is_subset`]) → без змін (idempotent, без
+/// reformat); інакше → [`merge_json_value`] + серіалізація
+/// ([`write_yaml_block`] чи [`json_to_pretty_string`], `cfg.is_yaml`).
+fn fix_template_merge(request: &FixRequest, cfg: &TemplateFixCfg) -> FixPlan {
+    if request.diagnostics.is_empty() {
+        return FixPlan { edits: vec![] };
+    }
+    let existing = batch_file(&request.files, cfg.target_path);
+    let Some(source) = existing else {
+        return FixPlan {
+            edits: vec![FileEdit::Write(WriteFile {
+                path: cfg.target_path.to_string(),
+                content: cfg.snippet_raw.to_string(),
+            })],
+        };
+    };
+    let Some(actual) = parse_yaml_document(&source.content) else {
+        return FixPlan { edits: vec![] };
+    };
+    let snippet = parse_embedded_template("template-deep-merge snippet", cfg.snippet_raw);
+    if is_subset(Some(&actual), &snippet) {
+        return FixPlan { edits: vec![] };
+    }
+    let merged = merge_json_value(Some(&actual), &snippet);
+    let content = if cfg.is_yaml {
+        write_yaml_block(&merged)
+    } else {
+        json_to_pretty_string(&merged)
+    };
+    if content == source.content {
+        return FixPlan { edits: vec![] };
+    }
+    FixPlan {
+        edits: vec![FileEdit::Write(WriteFile {
+            path: cfg.target_path.to_string(),
+            content,
+        })],
+    }
+}
+
 /// Чиста (без host-імпортів `log`/`report-progress`) конструктор
 /// маніфеста — винесений з [`Guest::describe`] окремо, щоб host-таргет
 /// unit-тести могли звірити форму маніфеста без реального wasmtime-хоста
@@ -2063,7 +2682,7 @@ fn fix_toolchain_cache(request: &FixRequest) -> FixPlan {
 fn build_manifest() -> Manifest {
     Manifest {
         id: "ci-github/wasm-concerns".to_string(),
-        version: "0.2.0".to_string(),
+        version: "0.3.0".to_string(),
         world_version: "3.1.0".to_string(),
         domains: vec![Domain::Lint],
         concerns: vec![
@@ -2088,6 +2707,23 @@ fn build_manifest() -> Manifest {
                     ".mega-linter.yaml".to_string(),
                 ],
             },
+            // ТРЕТЯ хвиля — три policy-концерни, кожен ОДИН target-файл
+            // (доккомент модуля, розділ «ТРЕТЯ хвиля»).
+            ConcernContribution {
+                key: CONCERN_VSCODE_EXTENSIONS.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec![VSCODE_EXTENSIONS_CFG.target_path.to_string()],
+            },
+            ConcernContribution {
+                key: CONCERN_VSCODE_SETTINGS.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec![VSCODE_SETTINGS_CFG.target_path.to_string()],
+            },
+            ConcernContribution {
+                key: CONCERN_LINT_SECURITY_YML.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec![LINT_SECURITY_YML_CFG.target_path.to_string()],
+            },
         ],
         ci_artifacts: vec![],
         // Вміст файлів хост передає inline (host-побудований full-scope
@@ -2110,7 +2746,7 @@ fn build_manifest() -> Manifest {
 }
 
 /// Guest-реалізація `n-rules:plugin@3.1.0` для `ci-github/wasm-concerns` —
-/// два концерни, дві хвилі (доккомент модуля).
+/// п'ять концернів, три хвилі (доккомент модуля).
 struct CiGithub;
 
 impl Guest for CiGithub {
@@ -2130,6 +2766,18 @@ impl Guest for CiGithub {
                 report_progress(total, total);
                 detect_workflows(&batch.files)
             }
+            CONCERN_VSCODE_EXTENSIONS => {
+                report_progress(total, total);
+                detect_policy(&batch.files, &VSCODE_EXTENSIONS_CFG)
+            }
+            CONCERN_VSCODE_SETTINGS => {
+                report_progress(total, total);
+                detect_policy(&batch.files, &VSCODE_SETTINGS_CFG)
+            }
+            CONCERN_LINT_SECURITY_YML => {
+                report_progress(total, total);
+                detect_policy(&batch.files, &LINT_SECURITY_YML_CFG)
+            }
             _ => Vec::new(),
         };
         log(
@@ -2142,16 +2790,22 @@ impl Guest for CiGithub {
         diagnostics
     }
 
-    /// Два портовані T0-фіксери — `ga/workflows` ([`fix_workflows`], перший,
+    /// П'ять портованих T0-фіксерів — `ga/workflows` ([`fix_workflows`],
     /// доккомент розділу «`ga/workflows` — Т0-фіксер ПОРТОВАНО») і
-    /// `rust/toolchain_cache` ([`fix_toolchain_cache`], другий, доккомент
-    /// розділу біля [`insert_rust_cache`]). `fixability: "config"` у обох
-    /// `concern.json` — не про це: то прапор LLM-ladder-а (host-side
-    /// `run-fix.mjs`), guestFix-пріоритет — окремий механізм.
+    /// `rust/toolchain_cache` ([`fix_toolchain_cache`], доккомент розділу
+    /// біля [`insert_rust_cache`]) з другої хвилі; `ga/vscode_extensions`
+    /// ([`fix_vscode_extensions`]), `ga/vscode_settings`/
+    /// `security/lint_security_yml` ([`fix_template_merge`]) з третьої
+    /// (доккомент модуля, розділ «ТРЕТЯ хвиля»). `fixability: "config"` у
+    /// всіх пʼятьох `concern.json` — не про це: то прапор LLM-ladder-а
+    /// (host-side `run-fix.mjs`), guestFix-пріоритет — окремий механізм.
     fn fix(request: FixRequest) -> FixPlan {
         match request.concern_id.as_str() {
             CONCERN_WORKFLOWS => fix_workflows(&request),
             CONCERN_TOOLCHAIN_CACHE => fix_toolchain_cache(&request),
+            CONCERN_VSCODE_EXTENSIONS => fix_vscode_extensions(&request),
+            CONCERN_VSCODE_SETTINGS => fix_template_merge(&request, &VSCODE_SETTINGS_FIX_CFG),
+            CONCERN_LINT_SECURITY_YML => fix_template_merge(&request, &LINT_SECURITY_YML_FIX_CFG),
             _ => FixPlan { edits: vec![] },
         }
     }
@@ -2587,10 +3241,10 @@ mod tests {
     // --- маніфест: anti-drift `plugin.toml` ---
 
     #[test]
-    fn build_manifest_declares_two_full_scope_concerns() {
+    fn build_manifest_declares_five_full_scope_concerns() {
         let manifest = build_manifest();
         assert_eq!(manifest.id, "ci-github/wasm-concerns");
-        assert_eq!(manifest.concerns.len(), 2);
+        assert_eq!(manifest.concerns.len(), 5);
         assert_eq!(manifest.concerns[0].key, CONCERN_TOOLCHAIN_CACHE);
         assert_eq!(manifest.concerns[0].scope, ConcernScope::Full);
         let workflows = manifest
@@ -2618,6 +3272,22 @@ mod tests {
                 "shellcheck".to_string(),
             ]
         );
+        for (key, glob) in [
+            (CONCERN_VSCODE_EXTENSIONS, ".vscode/extensions.json"),
+            (CONCERN_VSCODE_SETTINGS, ".vscode/settings.json"),
+            (
+                CONCERN_LINT_SECURITY_YML,
+                ".github/workflows/lint-security.yml",
+            ),
+        ] {
+            let c = manifest
+                .concerns
+                .iter()
+                .find(|c| c.key == key)
+                .unwrap_or_else(|| panic!("{key} contribution має бути в маніфесті"));
+            assert_eq!(c.scope, ConcernScope::Full);
+            assert_eq!(c.glob, vec![glob.to_string()]);
+        }
     }
 
     #[test]
@@ -3363,7 +4033,10 @@ mod tests {
         let mut diagnostics_before = Vec::new();
         run_all_ga_rego(&mut diagnostics_before, &[&before], &[&before]);
         assert_eq!(diagnostics_before.len(), 1);
-        assert_eq!(diagnostics_before[0].reason, WORKFLOWS_CHECKOUT_PERSIST_REASON);
+        assert_eq!(
+            diagnostics_before[0].reason,
+            WORKFLOWS_CHECKOUT_PERSIST_REASON
+        );
 
         let fixed_content = add_persist_credentials(&before.content).expect("має змінитись");
         let after = sfw(&before.path, &fixed_content);
@@ -3406,7 +4079,11 @@ mod tests {
     #[test]
     fn json_string_field_reads_plain_value() {
         assert_eq!(
-            json_string_field("{\"kind\":\"unmatched-paths-glob\",\"glob\":\"**/*.php\"}", "glob").as_deref(),
+            json_string_field(
+                "{\"kind\":\"unmatched-paths-glob\",\"glob\":\"**/*.php\"}",
+                "glob"
+            )
+            .as_deref(),
             Some("**/*.php")
         );
     }
@@ -3452,7 +4129,8 @@ mod tests {
     #[test]
     fn fix_workflows_unmatched_paths_glob_removes_only_addressed_glob() {
         let rel = "lint-php.yml";
-        let content = "on:\n  push:\n    paths:\n      - 'psalm.xml'\n      - '**/*.php'\njobs: {}\n";
+        let content =
+            "on:\n  push:\n    paths:\n      - 'psalm.xml'\n      - '**/*.php'\njobs: {}\n";
         let request = FixRequest {
             concern_id: CONCERN_WORKFLOWS.to_string(),
             files: vec![sf(rel, content)],
@@ -3570,5 +4248,456 @@ mod tests {
         assert!(write.content.contains("persist-credentials: false"));
         assert!(!write.content.contains("psalm.xml"));
         assert!(write.content.contains("bunx n-rules lint ga --no-fix"));
+    }
+
+    // =====================================================================
+    // ТРЕТЯ хвиля — характеризаційні й round-trip тести трьох policy-концернів
+    // (доккомент модуля, розділ «ТРЕТЯ хвиля»). Жоден із трьох НЕ мав власних
+    // JS fix-тестів у `plugins/ci-github/rules/**` (лише `.rego`-conftest
+    // тести й `main.test.mjs` на detect-боці) — ці тести замінюють
+    // характеризаційний гейт задачі: `file відсутній`/`file є з локальними
+    // полями`/`file вже канонічний`/`побитий JSON`.
+    // =====================================================================
+
+    fn fix_req(concern: &str, files: Vec<SourceFile>, diagnostics: Vec<Diagnostic>) -> FixRequest {
+        FixRequest {
+            concern_id: concern.to_string(),
+            files,
+            diagnostics,
+        }
+    }
+
+    // --- `ga/vscode_extensions` ---
+
+    #[test]
+    fn detect_vscode_extensions_missing_file() {
+        let diags = detect_policy(&[], &VSCODE_EXTENSIONS_CFG);
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].reason, POLICY_FILE_MISSING_REASON);
+        assert_eq!(diags[0].file.as_deref(), Some(".vscode/extensions.json"));
+        assert!(diags[0].message.contains("github.vscode-github-actions"));
+    }
+
+    #[test]
+    fn detect_vscode_extensions_already_canonical_is_clean() {
+        let files = vec![sf(
+            ".vscode/extensions.json",
+            r#"{"recommendations":["github.vscode-github-actions","local.ext"]}"#,
+        )];
+        assert!(detect_policy(&files, &VSCODE_EXTENSIONS_CFG).is_empty());
+    }
+
+    #[test]
+    fn detect_vscode_extensions_missing_recommendation_is_deny() {
+        let files = vec![sf(".vscode/extensions.json", r#"{"recommendations":[]}"#)];
+        let diags = detect_policy(&files, &VSCODE_EXTENSIONS_CFG);
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].reason, POLICY_DENY_REASON);
+        assert!(diags[0].message.contains("github.vscode-github-actions"));
+    }
+
+    #[test]
+    fn detect_vscode_extensions_broken_json_is_input_invalid() {
+        let files = vec![sf(".vscode/extensions.json", "{ not valid json")];
+        let diags = detect_policy(&files, &VSCODE_EXTENSIONS_CFG);
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].reason, POLICY_INPUT_INVALID_REASON);
+    }
+
+    #[test]
+    fn fix_vscode_extensions_no_diagnostics_is_noop() {
+        let req = fix_req(CONCERN_VSCODE_EXTENSIONS, vec![], vec![]);
+        assert!(fix_vscode_extensions(&req).edits.is_empty());
+    }
+
+    #[test]
+    fn fix_vscode_extensions_missing_file_creates_recommendations_only() {
+        let diags = detect_policy(&[], &VSCODE_EXTENSIONS_CFG);
+        let req = fix_req(CONCERN_VSCODE_EXTENSIONS, vec![], diags);
+        let plan = fix_vscode_extensions(&req);
+        assert_eq!(plan.edits.len(), 1);
+        let FileEdit::Write(w) = &plan.edits[0] else {
+            panic!("write")
+        };
+        assert_eq!(w.path, ".vscode/extensions.json");
+        assert!(w.content.contains("github.vscode-github-actions"));
+        let parsed = parse_yaml_document(&w.content).expect("валідний JSON");
+        assert_eq!(
+            parsed
+                .get("recommendations")
+                .and_then(Json::as_array)
+                .map(<[Json]>::len),
+            Some(1)
+        );
+    }
+
+    #[test]
+    fn fix_vscode_extensions_preserves_local_fields_and_local_recommendations() {
+        let files = vec![sf(
+            ".vscode/extensions.json",
+            r#"{"unwantedRecommendations":["foo.bar"],"recommendations":["local.ext"]}"#,
+        )];
+        let diags = detect_policy(&files, &VSCODE_EXTENSIONS_CFG);
+        assert_eq!(diags.len(), 1); // канонічної рекомендації бракує
+        let plan = fix_vscode_extensions(&fix_req(CONCERN_VSCODE_EXTENSIONS, files, diags));
+        let FileEdit::Write(w) = &plan.edits[0] else {
+            panic!("write")
+        };
+        let parsed = parse_yaml_document(&w.content).expect("валідний JSON");
+        assert!(parsed.get("unwantedRecommendations").is_some());
+        let recs: Vec<&str> = parsed
+            .get("recommendations")
+            .and_then(Json::as_array)
+            .unwrap()
+            .iter()
+            .filter_map(Json::as_str)
+            .collect();
+        assert!(recs.contains(&"local.ext"));
+        assert!(recs.contains(&"github.vscode-github-actions"));
+    }
+
+    #[test]
+    fn fix_vscode_extensions_broken_json_target_is_noop() {
+        let files = vec![sf(".vscode/extensions.json", "{ not valid json")];
+        let diags = vec![Diagnostic {
+            reason: POLICY_INPUT_INVALID_REASON.to_string(),
+            message: "x".to_string(),
+            file: Some(".vscode/extensions.json".to_string()),
+            severity: Severity::Error,
+            data: None,
+        }];
+        let plan = fix_vscode_extensions(&fix_req(CONCERN_VSCODE_EXTENSIONS, files, diags));
+        assert!(plan.edits.is_empty());
+    }
+
+    #[test]
+    fn vscode_extensions_t0_round_trip_missing_file_is_clean() {
+        let diags_before = detect_policy(&[], &VSCODE_EXTENSIONS_CFG);
+        assert_eq!(diags_before[0].reason, POLICY_FILE_MISSING_REASON);
+        let plan = fix_vscode_extensions(&fix_req(CONCERN_VSCODE_EXTENSIONS, vec![], diags_before));
+        let FileEdit::Write(w) = &plan.edits[0] else {
+            panic!("write")
+        };
+        let after = vec![sf(".vscode/extensions.json", &w.content)];
+        assert!(detect_policy(&after, &VSCODE_EXTENSIONS_CFG).is_empty());
+    }
+
+    #[test]
+    fn vscode_extensions_t0_round_trip_local_fields_preserved_is_clean() {
+        let before = vec![sf(
+            ".vscode/extensions.json",
+            r#"{"recommendations":["local.ext"]}"#,
+        )];
+        let diags_before = detect_policy(&before, &VSCODE_EXTENSIONS_CFG);
+        assert_eq!(diags_before.len(), 1);
+        let plan = fix_vscode_extensions(&fix_req(CONCERN_VSCODE_EXTENSIONS, before, diags_before));
+        let FileEdit::Write(w) = &plan.edits[0] else {
+            panic!("write")
+        };
+        let after = vec![sf(".vscode/extensions.json", &w.content)];
+        assert!(detect_policy(&after, &VSCODE_EXTENSIONS_CFG).is_empty());
+        assert!(w.content.contains("local.ext"));
+    }
+
+    // --- `ga/vscode_settings` (template-deep-merge, JSON-таргет) ---
+
+    #[test]
+    fn detect_vscode_settings_missing_file() {
+        let diags = detect_policy(&[], &VSCODE_SETTINGS_CFG);
+        assert_eq!(diags[0].reason, POLICY_FILE_MISSING_REASON);
+        assert!(diags[0].message.contains("editor.defaultFormatter"));
+    }
+
+    #[test]
+    fn fix_vscode_settings_missing_file_copies_snippet_verbatim() {
+        let diags = detect_policy(&[], &VSCODE_SETTINGS_CFG);
+        let plan = fix_template_merge(
+            &fix_req(CONCERN_VSCODE_SETTINGS, vec![], diags),
+            &VSCODE_SETTINGS_FIX_CFG,
+        );
+        let FileEdit::Write(w) = &plan.edits[0] else {
+            panic!("write")
+        };
+        assert_eq!(w.content, VSCODE_SETTINGS_CFG.snippet_raw);
+    }
+
+    #[test]
+    fn fix_vscode_settings_preserves_local_keys_and_adds_canonical() {
+        let files = vec![sf(
+            ".vscode/settings.json",
+            r#"{"[github-actions-workflow]":{"local.key":true},"editor.tabSize":2}"#,
+        )];
+        let diags = detect_policy(&files, &VSCODE_SETTINGS_CFG);
+        assert_eq!(diags.len(), 1);
+        let plan = fix_template_merge(
+            &fix_req(CONCERN_VSCODE_SETTINGS, files, diags),
+            &VSCODE_SETTINGS_FIX_CFG,
+        );
+        let FileEdit::Write(w) = &plan.edits[0] else {
+            panic!("write")
+        };
+        let parsed = parse_yaml_document(&w.content).expect("валідний JSON");
+        assert_eq!(parsed.get("editor.tabSize"), Some(&Json::Int(2)));
+        let block = parsed.get("[github-actions-workflow]").expect("блок є");
+        assert_eq!(block.get("local.key"), Some(&Json::Bool(true)));
+        assert_eq!(
+            block.get("editor.defaultFormatter").and_then(Json::as_str),
+            Some("oxc.oxc-vscode")
+        );
+    }
+
+    #[test]
+    fn fix_vscode_settings_broken_json_target_is_noop() {
+        let files = vec![sf(".vscode/settings.json", "{ broken")];
+        let diags = vec![Diagnostic {
+            reason: POLICY_INPUT_INVALID_REASON.to_string(),
+            message: "x".to_string(),
+            file: Some(".vscode/settings.json".to_string()),
+            severity: Severity::Error,
+            data: None,
+        }];
+        let plan = fix_template_merge(
+            &fix_req(CONCERN_VSCODE_SETTINGS, files, diags),
+            &VSCODE_SETTINGS_FIX_CFG,
+        );
+        assert!(plan.edits.is_empty());
+    }
+
+    #[test]
+    fn fix_vscode_settings_already_canonical_is_noop() {
+        let files = vec![sf(".vscode/settings.json", VSCODE_SETTINGS_CFG.snippet_raw)];
+        // Уже канонічний → detect чистий → fix не викликається продакшн-шляхом,
+        // але й прямий виклик з порожніми diagnostics — no-op за контрактом.
+        assert!(detect_policy(&files, &VSCODE_SETTINGS_CFG).is_empty());
+        let plan = fix_template_merge(
+            &fix_req(CONCERN_VSCODE_SETTINGS, files, vec![]),
+            &VSCODE_SETTINGS_FIX_CFG,
+        );
+        assert!(plan.edits.is_empty());
+    }
+
+    #[test]
+    fn vscode_settings_t0_round_trip_missing_file_is_clean() {
+        let diags_before = detect_policy(&[], &VSCODE_SETTINGS_CFG);
+        let plan = fix_template_merge(
+            &fix_req(CONCERN_VSCODE_SETTINGS, vec![], diags_before),
+            &VSCODE_SETTINGS_FIX_CFG,
+        );
+        let FileEdit::Write(w) = &plan.edits[0] else {
+            panic!("write")
+        };
+        let after = vec![sf(".vscode/settings.json", &w.content)];
+        assert!(detect_policy(&after, &VSCODE_SETTINGS_CFG).is_empty());
+    }
+
+    #[test]
+    fn vscode_settings_t0_round_trip_local_fields_preserved_is_clean() {
+        let before = vec![sf(
+            ".vscode/settings.json",
+            r#"{"[github-actions-workflow]":{"local.key":true}}"#,
+        )];
+        let diags_before = detect_policy(&before, &VSCODE_SETTINGS_CFG);
+        assert_eq!(diags_before.len(), 1);
+        let plan = fix_template_merge(
+            &fix_req(CONCERN_VSCODE_SETTINGS, before, diags_before),
+            &VSCODE_SETTINGS_FIX_CFG,
+        );
+        let FileEdit::Write(w) = &plan.edits[0] else {
+            panic!("write")
+        };
+        let after = vec![sf(".vscode/settings.json", &w.content)];
+        assert!(detect_policy(&after, &VSCODE_SETTINGS_CFG).is_empty());
+        assert!(w.content.contains("local.key"));
+    }
+
+    // --- `security/lint_security_yml` (template-deep-merge, YAML-таргет) ---
+
+    #[test]
+    fn detect_lint_security_yml_missing_file() {
+        let diags = detect_policy(&[], &LINT_SECURITY_YML_CFG);
+        assert_eq!(diags[0].reason, POLICY_FILE_MISSING_REASON);
+    }
+
+    #[test]
+    fn detect_lint_security_yml_missing_trufflehog_step_is_deny() {
+        let files = vec![sf(
+            ".github/workflows/lint-security.yml",
+            "on: push\njobs:\n  security:\n    steps:\n      - uses: actions/checkout@v6\n",
+        )];
+        let diags = detect_policy(&files, &LINT_SECURITY_YML_CFG);
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].reason, POLICY_DENY_REASON);
+        assert!(diags[0].message.contains("trufflesecurity/trufflehog@main"));
+    }
+
+    #[test]
+    fn fix_lint_security_yml_missing_file_copies_snippet_verbatim() {
+        let diags = detect_policy(&[], &LINT_SECURITY_YML_CFG);
+        let plan = fix_template_merge(
+            &fix_req(CONCERN_LINT_SECURITY_YML, vec![], diags),
+            &LINT_SECURITY_YML_FIX_CFG,
+        );
+        let FileEdit::Write(w) = &plan.edits[0] else {
+            panic!("write")
+        };
+        assert_eq!(w.content, LINT_SECURITY_YML_CFG.snippet_raw);
+    }
+
+    #[test]
+    fn fix_lint_security_yml_broken_yaml_target_is_noop() {
+        let files = vec![sf(
+            ".github/workflows/lint-security.yml",
+            "jobs: [ this is not: valid yaml :::",
+        )];
+        // Побитий YAML — parse_yaml_document дає None; detect дав би
+        // policy-input-invalid, фікс тут викликається напряму з непорожнім
+        // diagnostics-заглушкою, щоб перевірити branch без реального detect.
+        let diags = vec![Diagnostic {
+            reason: POLICY_INPUT_INVALID_REASON.to_string(),
+            message: "x".to_string(),
+            file: Some(LINT_SECURITY_YML_CFG.target_path.to_string()),
+            severity: Severity::Error,
+            data: None,
+        }];
+        let plan = fix_template_merge(
+            &fix_req(CONCERN_LINT_SECURITY_YML, files, diags),
+            &LINT_SECURITY_YML_FIX_CFG,
+        );
+        assert!(plan.edits.is_empty());
+    }
+
+    #[test]
+    fn lint_security_yml_t0_round_trip_missing_file_is_clean() {
+        let diags_before = detect_policy(&[], &LINT_SECURITY_YML_CFG);
+        let plan = fix_template_merge(
+            &fix_req(CONCERN_LINT_SECURITY_YML, vec![], diags_before),
+            &LINT_SECURITY_YML_FIX_CFG,
+        );
+        let FileEdit::Write(w) = &plan.edits[0] else {
+            panic!("write")
+        };
+        let after = vec![sf(LINT_SECURITY_YML_CFG.target_path, &w.content)];
+        assert!(detect_policy(&after, &LINT_SECURITY_YML_CFG).is_empty());
+    }
+
+    /// Найважливіший round-trip цього концерну: наявний workflow-файл з
+    /// ЛОКАЛЬНИМ кроком (не з каноничного snippet-а) і БЕЗ trufflehog-кроку —
+    /// fix має дописати канонічний крок, ЗБЕРІГШИ локальний, а повторний
+    /// detect (через реальний [`eval_deny_rule`] на РЕГЕНЕРОВАНОМУ
+    /// [`write_yaml_block`]-виводі) — чистий.
+    #[test]
+    fn lint_security_yml_t0_round_trip_local_step_preserved_is_clean() {
+        let before = vec![sf(
+            LINT_SECURITY_YML_CFG.target_path,
+            "name: Lint Security\non:\n  push: {}\njobs:\n  security:\n    runs-on: ubuntu-latest\n    steps:\n      - name: local-step\n        run: echo hi\n",
+        )];
+        let diags_before = detect_policy(&before, &LINT_SECURITY_YML_CFG);
+        assert_eq!(diags_before.len(), 1);
+        let plan = fix_template_merge(
+            &fix_req(CONCERN_LINT_SECURITY_YML, before, diags_before),
+            &LINT_SECURITY_YML_FIX_CFG,
+        );
+        assert_eq!(plan.edits.len(), 1);
+        let FileEdit::Write(w) = &plan.edits[0] else {
+            panic!("write")
+        };
+        assert!(w.content.contains("local-step"));
+        assert!(w.content.contains("trufflesecurity/trufflehog@main"));
+        let after = vec![sf(LINT_SECURITY_YML_CFG.target_path, &w.content)];
+        assert!(detect_policy(&after, &LINT_SECURITY_YML_CFG).is_empty());
+    }
+
+    // --- deep-subset/deep-merge примітиви ---
+
+    #[test]
+    fn is_subset_object_missing_key_is_false() {
+        let actual = Json::Object(vec![("a".to_string(), Json::Int(1))]);
+        let snippet = Json::Object(vec![("b".to_string(), Json::Int(2))]);
+        assert!(!is_subset(Some(&actual), &snippet));
+    }
+
+    #[test]
+    fn is_subset_array_identity_update_keeps_structural_check_strict() {
+        let actual = Json::Array(vec![Json::Object(vec![(
+            "uses".to_string(),
+            Json::Str("actions/checkout@v5".to_string()),
+        )])]);
+        let snippet = Json::Array(vec![Json::Object(vec![(
+            "uses".to_string(),
+            Json::Str("actions/checkout@v6".to_string()),
+        )])]);
+        // Різна версія — структурно НЕ той самий елемент (subset-check не
+        // знає про identity-key, той самий контракт, що JS `checkSnippet`).
+        assert!(!is_subset(Some(&actual), &snippet));
+    }
+
+    #[test]
+    fn merge_json_value_updates_same_identity_element_in_place() {
+        // `identity_key` перевіряє `name` РАНІШЕ `uses` (доккомент
+        // `identity_key`, той самий пріоритет, що JS `identityKey`) — обидва
+        // елементи тут БЕЗ `name`, тож збіг рахується за `uses` без версії.
+        let actual = Json::Array(vec![Json::Object(vec![
+            (
+                "uses".to_string(),
+                Json::Str("actions/checkout@v5".to_string()),
+            ),
+            (
+                "with".to_string(),
+                Json::Object(vec![("local-flag".to_string(), Json::Bool(true))]),
+            ),
+        ])]);
+        let snippet = Json::Array(vec![Json::Object(vec![(
+            "uses".to_string(),
+            Json::Str("actions/checkout@v6".to_string()),
+        )])]);
+        let merged = merge_json_value(Some(&actual), &snippet);
+        let Json::Array(items) = merged else {
+            panic!("array")
+        };
+        assert_eq!(items.len(), 1, "оновлення on-place, не дублювання");
+        assert_eq!(
+            items[0].get("uses").and_then(Json::as_str),
+            Some("actions/checkout@v6")
+        );
+        assert_eq!(
+            items[0].get("with").and_then(|w| w.get("local-flag")),
+            Some(&Json::Bool(true)),
+            "локальне поле того самого елемента збережено"
+        );
+    }
+
+    #[test]
+    fn write_yaml_block_round_trips_through_saphyr() {
+        let value = Json::Object(vec![
+            ("name".to_string(), Json::Str("with: colon".to_string())),
+            (
+                "steps".to_string(),
+                Json::Array(vec![Json::Object(vec![
+                    (
+                        "uses".to_string(),
+                        Json::Str("actions/checkout@v6".to_string()),
+                    ),
+                    (
+                        "with".to_string(),
+                        Json::Object(vec![("persist-credentials".to_string(), Json::Bool(false))]),
+                    ),
+                ])]),
+            ),
+        ]);
+        let text = write_yaml_block(&value);
+        let parsed = parse_yaml_document(&text).expect("write_yaml_block дає валідний YAML");
+        assert_eq!(parsed, value);
+    }
+
+    #[test]
+    fn write_json_pretty_round_trips() {
+        let value = Json::Object(vec![(
+            "recommendations".to_string(),
+            Json::Array(vec![Json::Str("a".to_string()), Json::Str("b".to_string())]),
+        )]);
+        let text = json_to_pretty_string(&value);
+        assert!(text.ends_with('\n'));
+        let parsed = parse_yaml_document(&text).expect("валідний JSON");
+        assert_eq!(parsed, value);
     }
 }

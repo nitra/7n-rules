@@ -6246,6 +6246,124 @@ lang-rust 1 406 180 (33,5%), lang-python 1 363 509 (32,5%), lang-php
 **Резерв, якщо запас знову підійде до нуля:** `lto = "fat"` (−270 КБ, §2.1)
 — досі не взятий, бо вимагає `[profile.release]` на весь workspace.
 
+### 2.56. `plugin-ci-github` — третя хвиля: спільні JS T0-fix-рушії (`vscode-ext-add.mjs`/`template-deep-merge.mjs`) портовано на трьох policy-концернах, доказ масштабування
+
+**Задача:** §2.55 підняла стелю з 2,5 MiB до 4 MiB (і паралельно готувалась
+ще одна зміна на 10 MiB) саме тому, що `plugin-ci-github` уперся в стелю —
+але аналіз §2.50/PR #523 на тому ж запасі 16 666 Б рекомендував лишити
+решту 15 концернів гостя на JS назавжди. Стеля піднята — рекомендація
+скасована. Постановка: довести, що два спільні JS T0-fix-рушені
+(`npm/scripts/lib/fix/vscode-ext-add.mjs`, 53 рядки, шимить рівно
+`ga/vscode_extensions`; `npm/scripts/lib/fix/template-deep-merge.mjs`, 239
+рядків, шимлять 14 концернів) масштабуються — портувати `vscode-ext-add`
+на його єдиному концерні, і `template-deep-merge` на ДВОХ, обраних як
+представники, не як зручні.
+
+**Вибір двох `template-deep-merge`-концернів.** З 14 шимів рушія лише
+ОДИН (`ga/vscode_settings`) має JSON-таргет — решта 13, включно з
+`security/lint_security_yml`, мають YAML-workflow-таргет. Узято ОДИН
+представник кожної форми: `ga/vscode_settings` (JSON) і
+`security/lint_security_yml` (YAML) — не два зручні JSON-и, які приховали
+б основну складність (13 із 14 концернів).
+
+**Виявлено: усі три концерни — `engine: "rego"`, НЕ `"template"`,** попри
+власну `template/`-теку в кожного. `concern-meta.mjs::parsePolicySurface`
+дефолтить `engine` у `'template'` лише за `policy.check === 'template'`
+(legacy-поле) — жоден з трьох `concern.json` його не декларує, тож
+detect-логіка йде через `evaluatePolicyConcern`'s rego-гілку:
+`runConftestBatch` спавнить `conftest` проти concern-специфічного
+`.rego` (`vscode_extensions.rego`/`vscode_settings.rego`/
+`lint_security_yml.rego`), `template/*.snippet.*` передається як
+`--data {"template":{"snippet": …}}` — та сама форма, що пʼять
+sub-namespace-ів `ga/workflows` (§2.48). Порт ТОМУ ЙДЕ ТАК САМО: кожен з
+трьох нових концернів — окрема `ConcernContribution` у маніфесті з
+власним `include_str!`-вшитим `.rego`+snippet, оцінений через
+[`detect_policy`]/[`eval_deny_rule`] — той самий regorus-примітив, що
+§2.48, буквально перевикористаний, БЕЗ нового rego-раннера. Це важливо:
+ЩОБ `wasmFixPattern`-диспетчер (`run-fix.mjs::resolveWasmConcernMap`)
+взагалі побачив концерн і повів `fix()` крізь wasm, концерн МУСИТЬ бути в
+`manifest.concerns` — а раз він там, `detect()` теж мусить його
+обробляти (інакше — мовчазна регресія: wasm-детект концерну, якого гість
+не знає, віддав би `Vec::new()`). Порт detect-боку — НЕ опціональний
+додаток до fix-боку, а обовʼязкова передумова.
+
+**`%q`-пастка вдарила знову.** Regorus відкидає Go `%q`-verb (HARD RUNTIME
+ERROR — той самий факт, що §2.48 задокументувала для пʼяти sub-namespace-ів
+`ga/workflows`, і виправила заміною на `\"%v\"` ПРЯМО В `.rego`-джерелах,
+byte-у-byte доведено ідентичним під conftest). Підготовча заміна §2.48
+торкнулась лише тих пʼяти файлів — три нові `.rego` цієї хвилі досі мали
+`%q` і давали `rego-engine-error` замість `policy-deny` на першому ж
+характеризаційному тесті. Виправлено тим самим прийомом (`%q` →
+`\"%v\"`), `conftest verify` по всіх трьох тек — 4/4 без регресій кожна
+(підтверджує ідентичність виводу).
+
+**JSON-інфраструктура коштувала майже нуль** — головне число задачі. Тип
+`Json` (enum, `Object` як `Vec<(String,Json)>` — порядок збережено) уже
+існував із §2.48 (для конвертації YAML→regorus `input`/`data`), і `.json`
+файли — валідний YAML 1.2, тож ТОЙ САМИЙ `saphyr`-парсер
+([`parse_yaml_document`]) читає `.vscode/*.json` без окремого JSON-крейта
+чи нового парсера. Знадобилось лише ДВА нові серіалізатори
+([`write_json_pretty`] — pretty `.json`-вивід, [`write_yaml_block`] —
+block-стиль YAML-регенерація, СВІДОМО не comment-preserving — доккомент
+`src/lib.rs`, розділ «ТРЕТЯ хвиля») плюс deep-subset/deep-merge примітиви
+([`is_subset`]/[`contained_in`]/[`identity_key`]/[`merge_json_value`]) —
+точний порт `checkSnippet`/`containedIn`/`identityKey`/`mergeJsonValue`
+(`npm/scripts/lib/template.mjs`/`template-deep-merge.mjs`).
+
+**Виміряно поетапно (пряма вимога постановки), на вже піднятій стелі 4
+MiB:** база (2 концерни, §2.50) — 2 604 774 Б. Крок 1
+(`ga/vscode_extensions` — ПЕРШИЙ порт цієї хвилі, заводить усю
+JSON/deep-merge-інфраструктуру З НУЛЯ): **+6 091 Б** → 2 610 865. Крок 2
+(`ga/vscode_settings`, `template-deep-merge` на JSON-таргеті, ВСЯ
+інфраструктура вже злінкована): **+4 558 Б** → 2 615 423. Крок 3
+(`security/lint_security_yml`, той самий рушій на YAML-таргеті —
+[`write_yaml_block`] уже написаний кроком 1, лише нова конфігурація):
+**+3 880 Б** → 2 619 303 (62,4% стелі 4 MiB, 24,9% стелі 10 MiB із
+паралельної зміни). Разом — **+14 529 Б за три концерни**, кожен наступний
+дешевший за попередній: перший порт НЕ безкоштовний (заводить парсер+
+серіалізатори+примітиви), але вже другий концерн на злінкованій
+інфраструктурі коштує менше кілобайта над інфра-накладними, а не над
+нулем. Екстраполяція на решту 12 концернів рушія (усі — YAML-таргет,
+той самий шлях, що крок 3) — порядку 3,5–4 КБ/концерн, тобто ще ~45 КБ,
+з великим запасом під обидва бюджети.
+
+**Парність доведено крізь РЕАЛЬНИЙ napi-міст** (не прямий виклик гостя,
+пряма вимога постановки) — новий `describe`-блок
+`wasm-plugin-parity-ci-github.test.mjs`, той самий цикл, що §2.48 для
+`bare-n-rules`: `runWasmConcern` (detect) → `runWasmConcernFix` → apply →
+`runWasmConcern` знову, чистий. Три сценарії покривають три граничні
+кейси постановки: файл відсутній (scaffold), файл є з локальним полем
+(зберігається, канонічне дописується), побитий вхід (`policy-input-invalid`
+— НОВИЙ reason, задокументована розбіжність із каноном: JS `engine:"rego"`
+не парсить `input` сам, парс-помилку віддає зовнішній `conftest`-субпроцес,
+текст якого — не JS-логіка, яку порт мав би відтворити).
+
+**Жоден із трьох концернів не мав власних JS fix-тестів** (лише
+`.rego` conftest-тести на detect-боці) — характеризаційний гейт задачі
+написано з нуля в `crates/plugin-ci-github/src/lib.rs` (28 нових тестів:
+detect missing/canonical/deny/broken-input, fix missing/local-fields/
+broken-input/no-op-коли-канонічний, T0-раунд-трип для кожного reason-у,
+плюс юніт-тести на самі `is_subset`/`merge_json_value`/
+`write_yaml_block`/`write_json_pretty`).
+
+**Шими `template-deep-merge` — усі 14 ІДЕНТИЧНІ, ЖОДНОГО локального
+перевизначення.** Перевірено прямим читанням усіх 14
+`fix-<concern>.mjs`: кожен — рівно `export const patterns = [
+createTemplateFixPattern({ id, targetPath })]`, без жодної додаткової
+логіки чи опції понад `id`/`targetPath`. Теза «один рушій» — підтверджена,
+не припущення.
+
+**JS-реалізації НЕ видалено** — той самий порядок «спершу парність», що
+§2.44/§2.46/§2.48/§2.50. `fixability: "config"` у всіх трьох `concern.json`
+без змін.
+
+**Числа:** розмір гостя 2 604 774 → 2 619 303 (+14 529, 62,4% стелі 4 MiB,
+24,9% стелі 10 MiB). Тести: cargo `plugin-ci-github` 98 → 126 (+28),
+`wasm-plugin-parity-ci-github.test.mjs` 25 → 28 (+3, T0-цикл крізь
+napi-міст), `conftest verify` по трьох нових policy-тек — 12/12 (4+4+4)
+без регресій. `.rego` торкнуто (три файли, `%q`→`\"%v\"`, byte-ідентично
+під conftest).
+
 ---
 
 ### 2.56. `bun/layout` — T0-фіксер портовано (`plugin-lang-js`), і pin-drift дев-середовища замаскував був парність під час розробки

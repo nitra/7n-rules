@@ -18,5 +18,5 @@ deny contains msg if {
 	some leaf_key, expected_value in expected_inner
 	actual := object.get(inner, leaf_key, null)
 	actual != expected_value
-	msg := sprintf(".vscode/settings.json: %s.%s має бути %q (ga.mdc)", [block_key, leaf_key, expected_value])
+	msg := sprintf(".vscode/settings.json: %s.%s має бути \"%v\" (ga.mdc)", [block_key, leaf_key, expected_value])
 }
