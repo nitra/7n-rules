@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use wasmtime::component::{Component, HasSelf, Linker, ResourceTable};
 use wasmtime::{Config, Engine, Store};
-use wasmtime_wasi::{DirPerms, FilePerms, WasiCtxBuilder};
+use wasmtime_wasi::{FsPerms, WasiCtxBuilder};
 
 use rules_contract::manifest::{Capabilities, Manifest};
 
@@ -171,7 +171,12 @@ impl PluginHost {
         for rel in &capabilities.fs_read {
             let host_path = cwd.join(rel);
             builder
-                .preopened_dir(&host_path, rel, DirPerms::READ, FilePerms::READ)
+                // `FsPerms::ReadOnly` — wasmtime-wasi 48 звів колишню пару
+                // `DirPerms`/`FilePerms` в один enum (обидва прапорці все одно
+                // виставлялись у `READ` разом; окремий rw-стан для теки й файлу
+                // сенсу не мав). Семантика незмінна: плагін читає preopen і не
+                // мутує його — рішення Е спеки, доккомент `PluginHost::new`.
+                .preopened_dir(&host_path, rel, FsPerms::ReadOnly)
                 .map_err(|err| PluginHostError::Preopen {
                     path: host_path,
                     source: err.into(),
