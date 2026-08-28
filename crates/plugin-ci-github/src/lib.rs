@@ -152,19 +152,25 @@
 //!
 //! Спільна інфраструктура ОБОХ рушіїв — [`Json`] (той самий тип, що друга
 //! хвиля, БЕЗ нового JSON-крейта: `.vscode/*.json` — валідний YAML 1.2, той
-//! самий [`saphyr`]-парсер, [`parse_yaml_document`]) + два нові серіалізатори
+//! самий [`saphyr`]-парсер, [`parse_yaml_document`]) + два серіалізатори
 //! ([`write_json_pretty`] — `.json`-таргет, [`write_yaml_block`] —
-//! `.yml`-таргет). [`write_yaml_block`] СВІДОМО не є comment-preserving
-//! YAML-Document-writer-ом (на відміну від `yaml`-пакета JS-канону,
-//! `Document.setIn`/`addIn`) — регенерує YAML з [`Json`] block-стилем,
-//! рядкові скаляри ЗАВЖДИ в подвійних лапках (не намагається вгадати, який
-//! plain-скаляр безпечний) — втрачає коментарі й форматування наявного
-//! файлу при merge-фіксі. Задокументована розбіжність із каноном (звіт
-//! задачі, не мовчазна апроксимація): паритет цього порту — «повторний
-//! detect чистий» ([`eval_deny_rule`] знову на записаному вмісті), НЕ
-//! byte-у-byte вивід fix-у; production-наслідок (втрата коментарів у
-//! наявному workflow-файлі при T0-фіксі) — рішення власника задачі, не
-//! Rust-порту.
+//! `.yml`-таргет), обидва СВІДОМО не comment-preserving (регенерують з
+//! [`Json`] з нуля, рядкові скаляри ЗАВЖДИ в подвійних лапках) — та
+//! ОКРЕМИЙ хірургічний шлях, що ставить розбіжність із каноном на місце
+//! (§2.5x реєстру відкритих питань, розширення обсягу власником репозиторію
+//! — доккомент розділу «Хірургічний comment-preserving merge» біля
+//! [`try_surgical_merge`], нижче за текстом файлу): [`fix_template_merge`]
+//! спершу пробує хірургічний шлях (вставка/заміна байтових діапазонів на
+//! `saphyr::MarkedYamlOwned`-спанах, недоторкані рядки — байт-у-байт
+//! оригінал) і лише коли він недосяжний для конкретного дерева (порожній
+//! контейнер, тип не збігається, вставка вийшла б за межі власного
+//! `}`/`]`) — падає на старий шлях повної регенерації. Паритет цього порту
+//! — і «повторний detect чистий» ([`eval_deny_rule`] знову на записаному
+//! вмісті), і (коли хірургічний шлях застосовний — реалістичний, покритий
+//! тестами випадок для обох таргетів цього крейта) byte-у-byte збереження
+//! коментарів/форматування наявного файлу; повна регенерація лишається
+//! чесно задокументованим fallback-ом для нетипових дерев (звіт задачі), не
+//! видана за повне рішення.
 //!
 //! # Порядок workflow-файлів у batch — недетермінований, як і в каноні
 //!
@@ -2609,6 +2615,396 @@ fn fix_vscode_extensions(request: &FixRequest) -> FixPlan {
     }
 }
 
+// =====================================================================
+// Хірургічний comment-preserving merge (YAML і JSON) — заміна старого
+// «розпарсити → перегенерувати з нуля» шляху [`fix_template_merge`] брав
+// раніше (звіт задачі, доккомент модуля розділ «ТРЕТЯ хвиля» — виправлений
+// нижче за текстом файлу). Джерело правди — `saphyr::MarkedYamlOwned`
+// ([`build_mnode`]/[`parse_marked_document`]): той самий парсер, що
+// [`parse_yaml_document`], але annotated-варіант несе `Span` (байтовий —
+// точніше, char-індексний, звідси [`char_byte_table`] — діапазон кожного
+// вузла в ВИХІДНОМУ тексті. Алгоритм — той самий `mergeJsonValue`-обхід, що
+// [`merge_json_value`] (той самий [`is_subset`]/[`contained_in`]/
+// [`identity_key`]/[`find_identity_index`], перевикористані буквально), але
+// замість побудови нового [`Json`]-дерева й серіалізації його з нуля —
+// [`surgical_merge_node`] породжує список [`Edit`] (вставка/заміна
+// байтового діапазону) і застосовує їх ЗГОРИ ВНИЗ ([`apply_edits`], той
+// самий мотив, що `inserts.sort` у [`insert_rust_cache`]/
+// [`add_cache_workspaces`] вище): недоторкані діапазони вихідного тексту
+// лишаються байт-у-байт як є — коментарі й форматування зберігаються НЕ як
+// «намагання», а як структурний наслідок того, що ми ніколи не чіпаємо
+// текст поза обчисленими діапазонами.
+//
+// Коли шлях недосяжний — [`surgical_merge_node`] повертає `false`
+// (обʼєкт/масив очікувався, а прийшов інший тип; об�ʼєкт/масив порожній
+// (нема на що спертись вставкою); чи для JSON — обчислена точка вставки
+// вийшла б ЗА межі власного `}`/`]` контейнера, найпевніше через
+// однорядковий/flow-стиль) — [`fix_template_merge`] тоді падає назад на
+// СТАРИЙ шлях повної регенерації ([`write_yaml_block`]/
+// [`json_to_pretty_string`] над [`merge_json_value`]): завжди коректний
+// результат (критерій 1 — повторний детект чистий), не завжди
+// comment-preserving (критерій 2) — чесна деградація, не тиха, задокумен-
+// тована тут і в звіті задачі, а не видана за повне рішення.
+// =====================================================================
+
+/// Один запис редагування вихідного тексту — байтовий діапазон [start,end)
+/// замінюється на `text`; `start == end` — чиста вставка (нічого не
+/// видаляється).
+enum Edit {
+    Insert(usize, String),
+    Replace(usize, usize, String),
+}
+
+fn edit_start(e: &Edit) -> usize {
+    match e {
+        Edit::Insert(at, _) => *at,
+        Edit::Replace(start, _, _) => *start,
+    }
+}
+
+/// Застосовує список [`Edit`] до `content` — сортує ЗА СПАДАННЯМ початкової
+/// позиції (той самий мотив, що `inserts.sort_by` в [`insert_rust_cache`]:
+/// індекси попередніх, ще не застосованих правок не зсуваються, коли
+/// пізніша (нижче за текстом) правка застосовується першою).
+fn apply_edits(content: &str, mut edits: Vec<Edit>) -> String {
+    edits.sort_by_key(|e| std::cmp::Reverse(edit_start(e)));
+    let mut out = content.to_string();
+    for edit in edits {
+        match edit {
+            Edit::Insert(at, text) => out.insert_str(at, &text),
+            Edit::Replace(start, end, text) => out.replace_range(start..end, &text),
+        }
+    }
+    out
+}
+
+/// [`Json`] з байтовим діапазоном ([`Span`][saphyr::Marker], конвертований
+/// з char- у byte-індекси через [`char_byte_table`]) на кожному вузлі —
+/// той самий обхід дерева, що [`Json`] (`Scalar`/`Array`/`Object` —
+/// [`yaml_owned_to_json`]-подібна форма), лише annotated. Ключі обʼєкта
+/// несуть ВЛАСНИЙ діапазон (не лише значення) — потрібен для колонки
+/// відступу нового запису при вставці ([`surgical_merge_object`]).
+enum MNode {
+    Scalar(Json, (usize, usize)),
+    Array(Vec<MNode>, (usize, usize)),
+    Object(Vec<(String, (usize, usize), MNode)>, (usize, usize)),
+}
+
+fn mnode_span(n: &MNode) -> (usize, usize) {
+    match n {
+        MNode::Scalar(_, s) | MNode::Array(_, s) | MNode::Object(_, s) => *s,
+    }
+}
+
+/// Байтовий кінець ОСТАННЬОГО скалярного листка в піддереві `n` — НЕ
+/// `mnode_span(n).1` напряму: block-стиль YAML не має явного закриваючого
+/// токена для мап/масивів, тож `Span.end` контейнера, що є ОСТАННІМ
+/// реальним вмістом документа (нема жодного наступного YAML-токена після
+/// нього — трейлінг-коментарі НЕ токени, скановані як пробіл), резолвиться
+/// в позицію НАСТУПНОЇ події сканера, а не в кінець власного вмісту — на
+/// практиці це EOF, ПОЗА трейлінг-коментарем (емпірично перевірено:
+/// `saphyr-parser` скановий тест на цьому самому файлі). Скалярний листок
+/// натомість завжди має тугий, надійний `Span.end` (кінець власного
+/// токена) — рекурсивний спуск до останнього листка обходить цю
+/// розбіжність, даючи стабільну точку прив'язки вставки незалежно від
+/// позиції в документі.
+fn deepest_last_leaf_end(n: &MNode) -> usize {
+    match n {
+        MNode::Scalar(_, s) => s.1,
+        MNode::Array(items, s) => items.last().map_or(s.1, deepest_last_leaf_end),
+        MNode::Object(entries, s) => entries.last().map_or(s.1, |(_, _, v)| deepest_last_leaf_end(v)),
+    }
+}
+
+/// Забуває діапазони — точний відповідник [`yaml_owned_to_json`] над уже
+/// побудованим [`MNode`] (використовується для [`is_subset`]/
+/// [`contained_in`]/[`find_identity_index`] — ці примітиви оперують
+/// [`Json`], не [`MNode`]).
+fn mnode_to_json(n: &MNode) -> Json {
+    match n {
+        MNode::Scalar(j, _) => j.clone(),
+        MNode::Array(items, _) => Json::Array(items.iter().map(mnode_to_json).collect()),
+        MNode::Object(entries, _) => {
+            Json::Object(entries.iter().map(|(k, _, v)| (k.clone(), mnode_to_json(v))).collect())
+        }
+    }
+}
+
+/// Таблиця char-індекс → byte-індекс вихідного тексту — `saphyr::Marker`
+/// індексує В СИМВОЛАХ (доккомент поля `Marker::index` каже «bytes», але
+/// сканер інкрементує його на кількість ПРОЧИТАНИХ СИМВОЛІВ, не байтів —
+/// перевірено читанням `saphyr-parser` scanner-коду; розбіжність
+/// зауваження й факту в самому крейті). Кожен наш workflow/JSON-таргет
+/// потенційно містить нелатинський текст (українські коментарі/назви
+/// job-ів) — байт-індекс і char-індекс розходяться там, тож пряме
+/// використання `Marker::index()` як byte-офсету в `&str`-зрізи було б
+/// некоректним (панікує чи ріже посеред UTF-8 символу) без цієї таблиці.
+fn char_byte_table(content: &str) -> Vec<usize> {
+    let mut table: Vec<usize> = content.char_indices().map(|(b, _)| b).collect();
+    table.push(content.len());
+    table
+}
+
+fn byte_of(table: &[usize], char_index: usize) -> usize {
+    table
+        .get(char_index)
+        .copied()
+        .unwrap_or_else(|| *table.last().unwrap_or(&0))
+}
+
+/// Рядковий ключ вузла-мапи annotated-дерева — той самий контракт, що
+/// [`yaml_key_to_string`], лише джерело — `MarkedYamlOwned`, не `YamlOwned`.
+fn marked_key_to_string(k: &saphyr::MarkedYamlOwned) -> String {
+    use saphyr::{ScalarOwned, YamlDataOwned};
+    match &k.data {
+        YamlDataOwned::Value(ScalarOwned::String(s)) => s.clone(),
+        other => format!("{other:?}"),
+    }
+}
+
+fn build_mnode(node: &saphyr::MarkedYamlOwned, table: &[usize]) -> MNode {
+    use saphyr::YamlDataOwned;
+    let span = (
+        byte_of(table, node.span.start.index()),
+        byte_of(table, node.span.end.index()),
+    );
+    match &node.data {
+        YamlDataOwned::Value(scalar) => MNode::Scalar(scalar_owned_to_json(scalar), span),
+        YamlDataOwned::Sequence(items) => {
+            MNode::Array(items.iter().map(|n| build_mnode(n, table)).collect(), span)
+        }
+        YamlDataOwned::Mapping(map) => MNode::Object(
+            map.iter()
+                .map(|(k, v)| {
+                    let key_span = (
+                        byte_of(table, k.span.start.index()),
+                        byte_of(table, k.span.end.index()),
+                    );
+                    (marked_key_to_string(k), key_span, build_mnode(v, table))
+                })
+                .collect(),
+            span,
+        ),
+        // `Representation`/`Tagged`/`Alias`/`BadValue` — той самий
+        // skip-not-crash фолбек, що [`yaml_owned_to_json`] (доккомент
+        // там): порівняння з очікуваним snippet-ом просто не збіжеться
+        // (`Json::Null`), [`surgical_merge_node`] тоді або замінить цей
+        // вузол на канонічний, або (якщо він мав бути обʼєктом/масивом)
+        // впаде в fallback.
+        _ => MNode::Scalar(Json::Null, span),
+    }
+}
+
+/// Той самий подвійний fallback, що [`parse_yaml_document`] (парс-помилка
+/// чи не-обʼєктний корінь → `None`), лише annotated-дерево зі спанами.
+fn parse_marked_document(content: &str) -> Option<MNode> {
+    use saphyr::{LoadableYamlNode, MarkedYamlOwned};
+    let table = char_byte_table(content);
+    let docs = MarkedYamlOwned::load_from_str(content).ok()?;
+    let doc = docs.into_iter().next()?;
+    let node = build_mnode(&doc, &table);
+    match &node {
+        MNode::Object(..) => Some(node),
+        _ => None,
+    }
+}
+
+/// Колонка байтового офсету в його рядку (кількість байтів від початку
+/// рядка) — та сама байтова, не char-міра, що [`indent_of`] (той самий
+/// мотив: відступ/структурні маркери завжди ASCII в цих файлах).
+fn column_at(content: &str, byte_offset: usize) -> usize {
+    let line_start = content[..byte_offset].rfind('\n').map_or(0, |i| i + 1);
+    byte_offset - line_start
+}
+
+/// Байтовий офсет ПОЧАТКУ рядка, що йде ПІСЛЯ рядка, який містить
+/// `from_byte` — `None`, якщо `from_byte` на останньому рядку файлу (нема
+/// куди безпечно вставити повний новий рядок ПЕРЕД можливим закриттям
+/// контейнера) — той самий guard-мотив, що обмеження нижче в
+/// [`surgical_merge_object`]/[`surgical_merge_array`] для JSON.
+fn next_line_start(content: &str, from_byte: usize) -> Option<usize> {
+    content.get(from_byte..)?.find('\n').map(|rel| from_byte + rel + 1)
+}
+
+/// Обхід ОДНОГО вузла snippet-а проти відповідного [`MNode`] наявного
+/// тексту — точний семантичний відповідник [`merge_json_value`], лише
+/// замість побудови нового значення накопичує [`Edit`]-и в `edits`.
+/// Повертає `false`, якщо цей шлях не можна виразити хірургічно (доккомент
+/// розділу вище) — виклична сторона тоді падає на повну регенерацію.
+fn surgical_merge_node(
+    content: &str,
+    actual: &MNode,
+    snippet: &Json,
+    is_yaml: bool,
+    edits: &mut Vec<Edit>,
+) -> bool {
+    match snippet {
+        Json::Object(entries) => surgical_merge_object(content, actual, entries, is_yaml, edits),
+        Json::Array(items) => surgical_merge_array(content, actual, items, is_yaml, edits),
+        leaf => mnode_to_json(actual) == *leaf,
+    }
+}
+
+/// Обʼєктна гілка [`surgical_merge_node`] — точний відповідник обʼєктної
+/// гілки [`merge_json_value`]: присутні ключі — рекурсія (листя, що
+/// розійшлись, — [`Edit::Replace`] на діапазоні наявного скаляра);
+/// відсутні ключі — один [`Edit::Insert`] (усі відсутні ключі одним блоком,
+/// не окремими вставками в ту саму позицію) одразу ПІСЛЯ останнього
+/// наявного запису.
+fn surgical_merge_object(
+    content: &str,
+    actual: &MNode,
+    snippet_entries: &[(String, Json)],
+    is_yaml: bool,
+    edits: &mut Vec<Edit>,
+) -> bool {
+    let MNode::Object(a_entries, obj_span) = actual else {
+        return false;
+    };
+    let mut missing: Vec<(&str, &Json)> = Vec::new();
+    for (k, v) in snippet_entries {
+        match a_entries.iter().find(|(ak, _, _)| ak == k) {
+            Some((_, _, a_child)) => match v {
+                Json::Object(_) | Json::Array(_) => {
+                    if !surgical_merge_node(content, a_child, v, is_yaml, edits) {
+                        return false;
+                    }
+                }
+                leaf => {
+                    if mnode_to_json(a_child) != *leaf {
+                        let MNode::Scalar(_, span) = a_child else {
+                            return false;
+                        };
+                        edits.push(Edit::Replace(span.0, span.1, yaml_scalar(leaf)));
+                    }
+                }
+            },
+            None => missing.push((k.as_str(), v)),
+        }
+    }
+    if missing.is_empty() {
+        return true;
+    }
+    let Some((_, last_key_span, last_value)) = a_entries.last() else {
+        return false; // порожній обʼєкт — нема запису, після якого вставляти.
+    };
+    let level = column_at(content, last_key_span.0) / 2;
+    let anchor_end = deepest_last_leaf_end(last_value);
+    let Some(insert_at) = next_line_start(content, anchor_end) else {
+        return false;
+    };
+    if !is_yaml && insert_at >= obj_span.1 {
+        return false; // точка вставки вийшла б за межі власного `}`.
+    }
+    let mut block = String::new();
+    if is_yaml {
+        for (k, v) in &missing {
+            write_yaml_object_entries(&[((*k).to_string(), (*v).clone())], level, &mut block);
+        }
+    } else {
+        let pad = "  ".repeat(level);
+        for (i, (k, v)) in missing.iter().enumerate() {
+            if i > 0 {
+                block.push_str(",\n");
+            }
+            block.push_str(&pad);
+            block.push_str(&json_escape_string(k));
+            block.push_str(": ");
+            write_json_pretty(v, level, &mut block);
+        }
+        block.push('\n');
+        edits.push(Edit::Replace(anchor_end, anchor_end, ",".to_string()));
+    }
+    edits.push(Edit::Insert(insert_at, block));
+    true
+}
+
+/// Масивна гілка [`surgical_merge_node`] — точний відповідник масивної
+/// гілки [`merge_json_value`]: [`contained_in`] — no-op; [`find_identity_index`]
+/// — рекурсія в елемент on-place; інакше — один [`Edit::Insert`] з усіма
+/// відсутніми елементами одразу ПІСЛЯ останнього наявного.
+fn surgical_merge_array(
+    content: &str,
+    actual: &MNode,
+    snippet_items: &[Json],
+    is_yaml: bool,
+    edits: &mut Vec<Edit>,
+) -> bool {
+    let MNode::Array(a_items, arr_span) = actual else {
+        return false;
+    };
+    let a_items_json: Vec<Json> = a_items.iter().map(mnode_to_json).collect();
+    let mut missing: Vec<Json> = Vec::new();
+    for needle in snippet_items {
+        if contained_in(&a_items_json, needle) {
+            continue;
+        }
+        match find_identity_index(&a_items_json, needle) {
+            Some(idx) => {
+                if !surgical_merge_node(content, &a_items[idx], needle, is_yaml, edits) {
+                    return false;
+                }
+            }
+            None => missing.push(needle.clone()),
+        }
+    }
+    if missing.is_empty() {
+        return true;
+    }
+    let Some(last_item) = a_items.last() else {
+        return false; // порожній масив — нема елемента, після якого вставляти.
+    };
+    let last_start = mnode_span(last_item).0;
+    let last_end = deepest_last_leaf_end(last_item);
+    let item_col = column_at(content, last_start);
+    let dash_col = item_col.saturating_sub(2);
+    let Some(insert_at) = next_line_start(content, last_end) else {
+        return false;
+    };
+    if !is_yaml && insert_at >= arr_span.1 {
+        return false; // точка вставки вийшла б за межі власного `]`.
+    }
+    let mut block = String::new();
+    if is_yaml {
+        write_yaml_array_items(&missing, dash_col / 2, &mut block);
+    } else {
+        let pad = "  ".repeat(dash_col / 2);
+        for (i, v) in missing.iter().enumerate() {
+            if i > 0 {
+                block.push_str(",\n");
+            }
+            block.push_str(&pad);
+            write_json_pretty(v, dash_col / 2, &mut block);
+        }
+        block.push('\n');
+        edits.push(Edit::Replace(last_end, last_end, ",".to_string()));
+    }
+    edits.push(Edit::Insert(insert_at, block));
+    true
+}
+
+/// Публічний вхід хірургічного шляху — `None`, якщо наявний текст
+/// непарситься annotated-парсером (не мало б статись — [`fix_template_merge`]
+/// уже перевірив [`parse_yaml_document`] на тому самому `content` вище) чи
+/// якщо [`surgical_merge_node`] десь по дорозі впала в непідтримуваний
+/// випадок — виклична сторона (`fix_template_merge`) падає на повну
+/// регенерацію.
+fn try_surgical_merge(content: &str, snippet: &Json, is_yaml: bool) -> Option<String> {
+    let root = parse_marked_document(content)?;
+    let mut edits = Vec::new();
+    if !surgical_merge_node(content, &root, snippet, is_yaml, &mut edits) {
+        return None;
+    }
+    if edits.is_empty() {
+        // `is_subset` вище в `fix_template_merge` уже встановив, що щось
+        // відрізняється — порожній `edits` тут означав би розбіжність між
+        // цим обходом і `is_subset`-семантикою: безпечніше відкотитись на
+        // регенерацію, ніж мовчки повернути незмінний текст.
+        return None;
+    }
+    Some(apply_edits(content, edits))
+}
+
 /// Статична конфігурація одного `createTemplateFixPattern`-концерну —
 /// доккомент [`fix_template_merge`].
 struct TemplateFixCfg {
@@ -2658,12 +3054,22 @@ fn fix_template_merge(request: &FixRequest, cfg: &TemplateFixCfg) -> FixPlan {
     if is_subset(Some(&actual), &snippet) {
         return FixPlan { edits: vec![] };
     }
-    let merged = merge_json_value(Some(&actual), &snippet);
-    let content = if cfg.is_yaml {
-        write_yaml_block(&merged)
-    } else {
-        json_to_pretty_string(&merged)
-    };
+    // Хірургічний шлях (доккомент розділу «Хірургічний comment-preserving
+    // merge» вище) — коли він застосовний, недоторкані діапазони наявного
+    // тексту лишаються байт-у-байт як є (коментарі, форматування, стиль
+    // лапок). `None` — шлях недосяжний для цього конкретного дерева (тип
+    // не збігається/порожній контейнер/вставка вийшла б за межі власного
+    // `}`/`]`) — падає на СТАРУ повну регенерацію ([`merge_json_value`] +
+    // [`write_yaml_block`]/[`json_to_pretty_string`]): завжди коректний
+    // результат, не завжди comment-preserving.
+    let content = try_surgical_merge(&source.content, &snippet, cfg.is_yaml).unwrap_or_else(|| {
+        let merged = merge_json_value(Some(&actual), &snippet);
+        if cfg.is_yaml {
+            write_yaml_block(&merged)
+        } else {
+            json_to_pretty_string(&merged)
+        }
+    });
     if content == source.content {
         return FixPlan { edits: vec![] };
     }
@@ -4446,6 +4852,56 @@ mod tests {
         );
     }
 
+    /// Критерій приймання §2.5x (розширення обсягу власником репозиторію —
+    /// доккомент [`try_surgical_merge`]): не лише «повторний детект чистий»,
+    /// а й «усі рядки поза вставленою ділянкою — байт-у-байт оригінал».
+    /// Наявний `.vscode/settings.json` уже має ДВА локальні ключі (один —
+    /// сестра-обʼєкт [`[github-actions-workflow]`] з локальним підключем,
+    /// інший — незалежний `editor.tabSize`) з НЕстандартним 4-пробільним
+    /// відступом і незвичним порядком ключів — жоден із цих деталей
+    /// форматування не входить у snippet, тож старий шлях
+    /// ([`json_to_pretty_string`] над [`merge_json_value`]) регенерував би
+    /// ввесь файл 2-пробільним canonical-стилем, знищуючи їх. Перевіряємо
+    /// буквально: недоторкані рядки — той самий текст, що на вході.
+    #[test]
+    fn fix_vscode_settings_surgical_merge_preserves_formatting_byte_identical() {
+        let before = concat!(
+            "{\n",
+            "    \"editor.tabSize\": 4,\n",
+            "    \"[github-actions-workflow]\": {\n",
+            "        \"local.key\": true\n",
+            "    }\n",
+            "}\n"
+        );
+        let files = vec![sf(".vscode/settings.json", before)];
+        let diags = detect_policy(&files, &VSCODE_SETTINGS_CFG);
+        assert_eq!(diags.len(), 1);
+        let plan = fix_template_merge(
+            &fix_req(CONCERN_VSCODE_SETTINGS, files, diags),
+            &VSCODE_SETTINGS_FIX_CFG,
+        );
+        let FileEdit::Write(w) = &plan.edits[0] else {
+            panic!("write")
+        };
+        // Точний очікуваний вміст — не лише "detect чистий": усі три
+        // наявні рядки (відкриваюча дужка, `editor.tabSize`, вкладений
+        // `local.key`) лишаються байт-у-байт, лише кома дописана після
+        // `true` і новий канонічний ключ вставлений усередину того самого
+        // вкладеного блоку, ПЕРЕД його закриваючою `}`.
+        let expected = concat!(
+            "{\n",
+            "    \"editor.tabSize\": 4,\n",
+            "    \"[github-actions-workflow]\": {\n",
+            "        \"local.key\": true,\n",
+            "        \"editor.defaultFormatter\": \"oxc.oxc-vscode\"\n",
+            "    }\n",
+            "}\n"
+        );
+        assert_eq!(w.content, expected);
+        let after = vec![sf(".vscode/settings.json", &w.content)];
+        assert!(detect_policy(&after, &VSCODE_SETTINGS_CFG).is_empty());
+    }
+
     #[test]
     fn fix_vscode_settings_broken_json_target_is_noop() {
         let files = vec![sf(".vscode/settings.json", "{ broken")];
@@ -4603,6 +5059,112 @@ mod tests {
         };
         assert!(w.content.contains("local-step"));
         assert!(w.content.contains("trufflesecurity/trufflehog@main"));
+        let after = vec![sf(LINT_SECURITY_YML_CFG.target_path, &w.content)];
+        assert!(detect_policy(&after, &LINT_SECURITY_YML_CFG).is_empty());
+    }
+
+    /// Критерій приймання §2.5x (розширення обсягу — доккомент
+    /// [`try_surgical_merge`]): фікстура з ДВОМА коментарями, кожен у своїй
+    /// позиції з брифу задачі — (а) коментар УСЕРЕДИНІ блоку, який merge
+    /// зачіпає (`# обмежуємо чутливість сканування` прямо перед
+    /// `extra_args`, чиє значення відрізняється від snippet-а — leaf-replace
+    /// зачіпає лише сам скаляр `--results=verified`, не сусідній
+    /// коментар), і (б) коментар ОДРАЗУ ПЕРЕД точкою вставки (job-рівня
+    /// `# дозволи мінімально необхідні для сканування` одразу після
+    /// `steps:`, де відсутній ключ `permissions` вставляється — коментар не
+    /// має бути зʼїдений вставкою). Перевіряємо не «detect чистий», а
+    /// точний очікуваний вміст: усі наявні рядки — байт-у-байт, і обидва
+    /// коментарі присутні на місці.
+    #[test]
+    fn fix_lint_security_yml_surgical_merge_preserves_comments_byte_identical() {
+        let before = concat!(
+            "name: Lint Security\n",
+            "\n",
+            "on:\n",
+            "  push:\n",
+            "    branches:\n",
+            "      - dev\n",
+            "      - main\n",
+            "  pull_request:\n",
+            "    branches:\n",
+            "      - dev\n",
+            "      - main\n",
+            "\n",
+            "concurrency:\n",
+            "  group: ${{ github.ref }}-${{ github.workflow }}\n",
+            "  cancel-in-progress: true\n",
+            "\n",
+            "jobs:\n",
+            "  security:\n",
+            "    runs-on: ubuntu-latest\n",
+            "    steps:\n",
+            "      - uses: actions/checkout@v6\n",
+            "        with:\n",
+            "          persist-credentials: false\n",
+            "          fetch-depth: 0\n",
+            "      - uses: trufflesecurity/trufflehog@main\n",
+            "        with:\n",
+            "          # обмежуємо чутливість сканування\n",
+            "          extra_args: --results=verified\n",
+            "    # дозволи мінімально необхідні для сканування\n"
+        );
+        let files = vec![sf(LINT_SECURITY_YML_CFG.target_path, before)];
+        // `security.lint_security_yml.rego` (доккомент над файлом) сигналить
+        // лише про ПОВНІСТЮ відсутній `uses:`-крок — не про drift усередині
+        // вже наявного (`extra_args`/`permissions`). Обидва `uses:` тут уже
+        // присутні, тож живий `detect_policy` дав би порожній список і
+        // `fix_template_merge` (гейт — лише непорожність `diagnostics`,
+        // доккомент функції) не викликався б продакшн-шляхом — той самий
+        // `POLICY_DENY_REASON`-заглушка, що `fix_lint_security_yml_broken_yaml_target_is_noop`
+        // вище, щоб перевірити САМ merge-рушій напряму, а не межу detect-у.
+        let diags = vec![Diagnostic {
+            reason: POLICY_DENY_REASON.to_string(),
+            message: "x".to_string(),
+            file: Some(LINT_SECURITY_YML_CFG.target_path.to_string()),
+            severity: Severity::Error,
+            data: None,
+        }];
+        let plan = fix_template_merge(
+            &fix_req(CONCERN_LINT_SECURITY_YML, files, diags),
+            &LINT_SECURITY_YML_FIX_CFG,
+        );
+        let FileEdit::Write(w) = &plan.edits[0] else {
+            panic!("write")
+        };
+        let expected = concat!(
+            "name: Lint Security\n",
+            "\n",
+            "on:\n",
+            "  push:\n",
+            "    branches:\n",
+            "      - dev\n",
+            "      - main\n",
+            "  pull_request:\n",
+            "    branches:\n",
+            "      - dev\n",
+            "      - main\n",
+            "\n",
+            "concurrency:\n",
+            "  group: ${{ github.ref }}-${{ github.workflow }}\n",
+            "  cancel-in-progress: true\n",
+            "\n",
+            "jobs:\n",
+            "  security:\n",
+            "    runs-on: ubuntu-latest\n",
+            "    steps:\n",
+            "      - uses: actions/checkout@v6\n",
+            "        with:\n",
+            "          persist-credentials: false\n",
+            "          fetch-depth: 0\n",
+            "      - uses: trufflesecurity/trufflehog@main\n",
+            "        with:\n",
+            "          # обмежуємо чутливість сканування\n",
+            "          extra_args: \"--results=verified,unknown\"\n",
+            "    \"permissions\":\n",
+            "      \"contents\": \"read\"\n",
+            "    # дозволи мінімально необхідні для сканування\n"
+        );
+        assert_eq!(w.content, expected);
         let after = vec![sf(LINT_SECURITY_YML_CFG.target_path, &w.content)];
         assert!(detect_policy(&after, &LINT_SECURITY_YML_CFG).is_empty());
     }
