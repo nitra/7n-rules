@@ -611,6 +611,60 @@ fn build_full_scope_files(cwd: &Path, glob_patterns: &[String]) -> Vec<SourceFil
     read_source_files(cwd, matched)
 }
 
+/// Синтезує `FileEdit`-и з різниці "до/після" знімків диска — host-side
+/// захист для **exec-tool-фіксерів**: гість спавнить зовнішній процес
+/// (`ruff`, `eslint`, `cargo fix` тощо), який сам мутує файли на диску
+/// ВСЕРЕДИНІ виклику `fix()`, а не повертає зміни через `FixPlan`. Без
+/// цього хост бачить порожній `plan.edits` і вважає, що фікс нічого не
+/// зробив (доккомент §2.51/§2.63 реєстру відкритих питань,
+/// `docs/plans/2026-08-05-open-questions-register.md`) — `wasmFixPattern`
+/// (`npm/scripts/lib/lint-surface/run-fix.mjs`) гейтить застосування на
+/// `edits.length > 0`, гість-пріоритет (`guestFix`) не спрацьовує, і
+/// JS-fallback запускається ПОВТОРНО поверх уже змінених файлів.
+///
+/// Порівнює `before`/`after` (шлях → вміст, `posix`-relative) і повертає:
+/// - [`FileEdit::Write`] для шляхів, чий вміст змінився чи зʼявився;
+/// - [`FileEdit::Delete`] для шляхів, що зникли.
+///
+/// `already_covered` — шляхи, які вже несе план, повернений самим гостем
+/// (`plan.edits`) — синтезований діф їх НЕ дублює: явний edit гостя має
+/// пріоритет над знімком (декларативний фіксер міг ЗАДЕКЛАРУВАТИ зміну, не
+/// записавши її на диск під час `fix()` — той самий контракт, що й
+/// раніше), а `already_covered` рятує від подвійного запису того самого
+/// шляху.
+///
+/// Незмінені файли (той самий вміст до/після) — НЕ потрапляють у
+/// результат: для декларативних фіксерів (не торкаються диска в `fix()`)
+/// `before == after` для КОЖНОГО файлу знімку, тож ця функція повертає
+/// порожній `Vec` — жодної регресії наявного контракту.
+fn diff_snapshot_edits(
+    before: &HashMap<String, String>,
+    after: &HashMap<String, String>,
+    already_covered: &std::collections::HashSet<String>,
+) -> Vec<rules_contract::fix::FileEdit> {
+    use rules_contract::fix::{FileEdit, WriteFile};
+
+    let mut edits = Vec::new();
+    for (path, after_content) in after {
+        if already_covered.contains(path) {
+            continue;
+        }
+        match before.get(path) {
+            Some(before_content) if before_content == after_content => {}
+            _ => edits.push(FileEdit::Write(WriteFile {
+                path: path.clone(),
+                content: after_content.clone(),
+            })),
+        }
+    }
+    for path in before.keys() {
+        if !already_covered.contains(path) && !after.contains_key(path) {
+            edits.push(FileEdit::Delete { path: path.clone() });
+        }
+    }
+    edits
+}
+
 /// Типізована помилка «неоднозначний порожній fix-batch» — [`run_wasm_concern_fix`]
 /// кличе її, коли `target_files` (побудований з `diagnostic.file`-полів)
 /// порожній, `diagnostics` НЕПОРОЖНІЙ, концерн НЕ `scope: Full` (чи взагалі
@@ -883,13 +937,70 @@ pub fn run_wasm_concern_fix(
         // Слот `repo-root@1` host-контексту (доккомент `wit/world.wit` біля
         // `import host-context`) — той самий `cwd`, що резолвить `files`.
         plugin.set_repo_root(Some(cwd.clone()));
-        plugin
+
+        // Host-diff для exec-tool-фіксерів (§2.51/§2.63 реєстру відкритих
+        // питань) — знімок ДО виклику `fix()`. Скоуп знімку: ПОВНИЙ glob
+        // концерну (`contribution.glob`), НЕ лише `files`/`target_files`.
+        //
+        // Чому не дешевший скоуп «лише `files`»: exec-tool, що мутує диск
+        // напряму (`ruff check --fix .`, `eslint --fix` без явного списку
+        // файлів), НЕ обмежений дельтою запиту — тул сам вирішує, які
+        // файли зачепити (весь `cwd`, свій власний glob/config-резолв).
+        // Знімок лише `files` побачив би ЛИШЕ ту підмножину, яку хост і
+        // так уже передав, і мовчки пропустив би мутації поза нею — саме
+        // той клас «тихого success», який ця інфраструктура мала закрити.
+        // Обраний скоуп коштує подвійного читання `contribution.glob` на
+        // КОЖЕН fix-виклик (до і після) — свідомий компроміс «гучно й
+        // повільніше, ніж тихо й швидше» (принцип проекту), а не
+        // недогляд. Межа: якщо `contribution` не знайдено в
+        // `describe().concerns` (концерн не задекларований), glob
+        // невідомий — діф пропускається (порожні знімки), поведінка
+        // деградує до стану ДО цієї зміни, без нового захисту, але й без
+        // регресії.
+        let diff_glob: Option<&[String]> = contribution.as_ref().map(|c| c.glob.as_slice());
+        let before_snapshot: HashMap<String, String> = diff_glob
+            .map(|glob| {
+                build_full_scope_files(&cwd_path, glob)
+                    .into_iter()
+                    .map(|f| (f.path, f.content))
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        let mut plan = plugin
             .fix(&FixRequest {
                 concern_id: key.clone(),
                 files,
                 diagnostics,
             })
-            .map_err(to_wasm_napi_err)
+            .map_err(to_wasm_napi_err)?;
+
+        // Знімок ПІСЛЯ — і мерж діфу з планом, що гість повернув сам.
+        // Декларативні фіксери (диск не мутують у `fix()`) дають
+        // `before == after` для кожного шляху знімку — синтезований діф
+        // порожній, план лишається РІВНО тим, що повернув гість (жодної
+        // зміни для вже портованих концернів, напр. `js/doc_comments`).
+        if let Some(glob) = diff_glob {
+            let after_snapshot: HashMap<String, String> = build_full_scope_files(&cwd_path, glob)
+                .into_iter()
+                .map(|f| (f.path, f.content))
+                .collect();
+            let covered: std::collections::HashSet<String> = plan
+                .edits
+                .iter()
+                .map(|e| match e {
+                    rules_contract::fix::FileEdit::Write(w) => w.path.clone(),
+                    rules_contract::fix::FileEdit::Delete { path } => path.clone(),
+                })
+                .collect();
+            plan.edits.extend(diff_snapshot_edits(
+                &before_snapshot,
+                &after_snapshot,
+                &covered,
+            ));
+        }
+
+        Ok(plan)
     })?;
     serde_json::to_value(plan).map_err(|err| {
         Error::from_reason(format!(

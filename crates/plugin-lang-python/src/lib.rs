@@ -97,71 +97,51 @@
 //! окремим кроком; `python/project`/`python/workspace_root` (`uv-workspace.mjs`,
 //! `blue-oak.mjs`) — поза обсягом цього конкретного кроку.
 //!
-//! # `python/ruff` — Т0-фіксер ДОСЛІДЖЕНО, СВІДОМО НЕ портовано (перший
-//! кандидат класу exec-tool fix, реєстр `docs/plans/2026-08-05-open-questions-register.md`
-//! §2.51)
+//! # `python/ruff` — Т0-фіксер ПОРТОВАНО (перший кандидат класу exec-tool
+//! fix, реєстр `docs/plans/2026-08-05-open-questions-register.md` §2.63
+//! поправляє §2.51)
 //!
-//! На відміну від УСІХ шести дотепер портованих T0-фіксерів (декларативні
+//! На відміну від усіх дотепер портованих T0-фіксерів (декларативні
 //! `FixPlan` над вмістом у пам'яті — `fix_doc_comments` тут і в
 //! `plugin-lang-js`/`plugin-lang-rust`, `fix_no_bun_test_import`,
 //! `fix_js_check`), JS-канон `python/ruff` (`plugins/lang-python/rules/python/ruff/fix-ruff.mjs`,
 //! 65 рядків) — тонка обгортка над `uv run --frozen ruff check --fix .` +
 //! `ruff format .`: зовнішній процес сам мутує файли НА ДИСКУ consumer-репо,
-//! `apply()` лише діффить до/після. Порт через [`exec_tool`] (той самий
-//! host-mediated контур, що вже несуть [`detect_ruff`]/[`detect_mypy`])
-//! наштовхнувся на ДВІ незалежні структурні перешкоди — жодна не
-//! специфічна для `ruff`, обидві клас-рівневі для БУДЬ-якого майбутнього
-//! fix-порту, що спирається на реально мутуючий зовнішній тул:
+//! `apply()` лише діффить до/після. §2.51 зафіксував ДВІ структурні
+//! перешкоди порту через [`exec_tool`] — обидві тепер зняті:
 //!
-//! 1. **Виробничий міст (`run_wasm_concern_fix`, `crates/rules-napi/src/lib.rs`)
-//!    не доносить до гостя жодного файлу.** `FixRequest::files` там будується
-//!    ВИКЛЮЧНО з `diagnostic.file`-полів (дедуп, доккомент функції) — і лише
-//!    коли результат порожній, а задекларований `scope` концерну — `Full`,
-//!    спрацьовує full-scope fallback (задача N2/#513, `build_full_scope_files`).
-//!    `python/ruff`'s діагностики (`RUFF_CHECK_VIOLATION_REASON`/
-//!    `RUFF_FORMAT_VIOLATION_REASON`/`RUFF_TOOL_UNAVAILABLE_REASON`) йдуть
-//!    через [`plain_violation`], що СТАВИТЬ `file: None` БЕЗУМОВНО (той
-//!    самий whole-batch крок, що `run_ruff_step` виконує на весь `targets`
-//!    одним викликом, не по файлу) — а `plugin.toml` декларує
-//!    `python/ruff` як `scope = "per-file"`, НЕ `Full` (glob `**/*.py`,
-//!    той самий контракт, що `detect`). Наслідок: fallback НЕ спрацьовує
-//!    (умова — рівно `ConcernScope::Full`), і `fix()` отримав би
-//!    `request.files: []` на кожному реальному виклику через продакшн-міст,
-//!    попри те, що на диску реально є `.py`-файли й реальні violations.
-//!    Той самий клас дефекту, що §2.47 (`js/check`) уже виловив і
-//!    полагодив — АЛЕ фікс §2.47 звужений умовою `scope == Full`, і
-//!    `python/ruff` під неї не підпадає: тут потрібне ЯВНЕ розширення
-//!    (`run_wasm_concern_fix`) — інфраструктурна зміна за межами цього
-//!    крейта, свідомо не зроблена цим кроком (доккомент реєстру).
-//! 2. **Навіть з непорожнім `request.files`, exec-tool, що пише напряму в
-//!    `cwd` реального consumer-репо, структурно ламає обов'язковий
-//!    rollback-контракт `ctx.recordWrite`** (`npm/scripts/lib/lint-surface/types.mjs`:
-//!    «worker ЗОБОВ'ЯЗАНИЙ викликати `recordWrite` перед будь-яким записом
-//!    у файл — runner так знімає pre-image для central rollback»). Мутація
-//!    відбувається ВСЕРЕДИНІ `exec_tool`, синхронно, ДО того, як гість
-//!    взагалі повертає `FixPlan` хосту — жоден `FixPlan` (порожній чи
-//!    непорожній) не може ретроактивно дати хосту зняти pre-image ДО
-//!    запису, бо запис уже стався. `wasmFixPattern` (`run-fix.mjs`) до того
-//!    ж гейтить застосування на `edits.length > 0` — порожній план (варіант
-//!    «тул уже все зробив сам») означає, що `apply()`/`recordWrite` НЕ
-//!    викликаються взагалі, а `guestFix`-пріоритет не спрацьовує, тож
-//!    JS-fallback (`fix-ruff.mjs`) запускається ПОВТОРНО поверх уже
-//!    змінених файлів — подвійний прогін (нешкідливий, `ruff` ідемпотентний)
-//!    ховає РЕАЛЬНУ дірку: жоден `recordWrite` ніколи не бачить справжній
-//!    pre-image, тож rollback провального fix-прогону НЕ відновить ці
-//!    файли. Обхідний шлях без прямого запису в `cwd` (напр. `ruff check
-//!    --fix --stdin-filename <path> -`/`ruff format --stdin-filename <path>
-//!    -` — суто текстовий stdin/stdout, без диска) технічно ліквідує ЦЮ
-//!    перешкоду, але сам по собі не розв'язує (1) і вимагає емпіричної
-//!    перевірки, що резолв конфігу `ruff` за `--stdin-filename` відносно
-//!    `cwd` (без існування файлу на диску) поводиться ідентично реальному
-//!    файлу для всіх релевантних правил.
+//! 1. **«Продакшн-міст не доносить до гостя жодного файлу»** — знята PR
+//!    #519 (§2.53, `crates/rules-napi/src/lib.rs`, `delta_files`): host
+//!    тепер несе дельту запиту (`item.files`) окремим аргументом
+//!    `run_wasm_concern_fix`, незалежно від `diagnostic.file`-атрибуції.
+//!    `fix_ruff` цю дельту НЕ використовує напряму (доккомент функції
+//!    нижче) — префлайт [`prepare_python_run`] лише підтверджує наявність
+//!    `.py`-файлів у батчі; сам виклик `ruff` іде на `.`, точний порт
+//!    JS-канону.
+//! 2. **«exec-tool структурно ламає обов'язковий rollback-контракт
+//!    `ctx.recordWrite`»** — виявилась хибною засновкою (§2.63,
+//!    перевірено дією): T0-фаза (`runT0Phase`/`fixConcernCore`,
+//!    `npm/scripts/lib/lint-surface/run-fix.mjs`) передає `lintCtx` БЕЗ
+//!    `recordWrite` для ВСІХ T0-фіксерів, декларативних теж — модульний
+//!    доккомент `run-fix.mjs` документує це прямо: «T0 — permanent, поза
+//!    rollback». `recordWrite` стає реальним лише в ladder-рунзі
+//!    (`runRung`, той самий файл), куди T0-фіксери (жодного класу) не
+//!    потрапляють. Різниця exec-tool від декларативних фіксерів —
+//!    НЕ в rollback-контракті (однаково відсутній для обох у T0), а в
+//!    тому, що [`FixPlan::edits`] лишається порожнім, попри реальну
+//!    мутацію диска — це ламало `wasmFixPattern`-гейт
+//!    (`edits.length > 0`) і `guestFix`-пріоритет, а не rollback.
 //!
-//! Висновок — чесна межа, не половинчаста реалізація (жодна з двох
-//! перешкод не в межах одного крейта `plugin-lang-python`): `fix()` НЕ
-//! диспетчеризує `CONCERN_RUFF` (лишається дефолтна заглушка — порожній
-//! план, доккомент [`Guest::fix`]), `fix-ruff.mjs` лишається каноном.
-//! Деталі, цитати коду й рекомендований шлях розв'язання — реєстр §2.51.
+//! **Розвʼязання — host-diff** (рішення власника, §2.63): хост
+//! (`run_wasm_concern_fix` → `diff_snapshot_edits`,
+//! `crates/rules-napi/src/lib.rs`) сам знімає знімок файлів concern-ового
+//! glob-а ДО й ПІСЛЯ виклику `fix()` і синтезує `Write`/`Delete`-edits із
+//! різниці — без будь-якої зміни WIT (гість НЕ декларує, що змінив; хост
+//! перевіряє диск сам, fail-open інакше не був би виявлений). [`fix_ruff`]
+//! (нижче) повертає порожній `FixPlan` — синтез edits повністю на хості.
+//!
+//! Деталі рішення, скоуп знімку й доказ парності — реєстр §2.63 (і
+//! коригована §2.51).
 
 wit_bindgen::generate!({
     path: "../rules-contract/wit",
@@ -1143,6 +1123,84 @@ fn detect_ruff(files: &[SourceFile]) -> Vec<Diagnostic> {
         Ok(()) => Vec::new(),
         Err(diagnostic) => vec![diagnostic],
     }
+}
+
+/// Т0-фіксер `python/ruff` — ПОРТОВАНО (реєстр відкритих питань §2.63
+/// поправляє §2.51: обидві структурні перешкоди зняті — доккомент модуля
+/// вище, розділ «`python/ruff` — Т0-фіксер ПОРТОВАНО»). На відміну від
+/// `fix_doc_comments`/`fix_js_check` тощо, `fix_ruff` НЕ будує власний
+/// `FixPlan::edits` у пам'яті — точний порт `fix-ruff.mjs`
+/// (`plugins/lang-python/rules/python/ruff/fix-ruff.mjs`): зовнішній
+/// процес (`uv run --frozen ruff check --fix .` + `ruff format .`) сам
+/// мутує `.py`-файли НА ДИСКУ consumer-репо, синхронно, ВСЕРЕДИНІ
+/// `exec_tool`. Гість повертає ПОРОЖНІЙ план — host-diff
+/// (`run_wasm_concern_fix` → `diff_snapshot_edits`,
+/// `crates/rules-napi/src/lib.rs`) сам знімає знімок диска до/після
+/// цього виклику `fix()` і синтезує `edits` із різниці, скоупленої ПОВНИМ
+/// glob-ом концерну (`**/*.py`), а не лише `request.files`.
+///
+/// На відміну від JS-канону (`git ls-files -z -- *.py` — tracked
+/// підмножина), тут ціль — буквально `.` (весь `cwd`): host-diff уже
+/// скоупить синтезовані edits `**/*.py`-glob-ом, тож окремий `exec_tool`
+/// виклик на `git ls-files` не потрібен — `ruff` сам консультується з
+/// власним конфігом/`.gitignore`-подібними виключеннями, той самий
+/// кінцевий набір торкнутих файлів.
+///
+/// Префлайт — той самий [`prepare_python_run`], що [`detect_ruff`]: немає
+/// `pyproject.toml`/`.py`-файлів у батчі, `uv` не резолвиться, чи `ruff`
+/// недоступний у uv-середовищі — тихий no-op (`FixPlan { edits: vec![] }`), той
+/// самий контракт, що перевірка `resolveCmd('uv')` JS-канону (`fix-ruff.mjs`
+/// повертає `{ touchedFiles: [] }` без `uv`). [`run_ruff_step`] (той самий
+/// крок, що [`detect_ruff`]) тут НЕ використовується: фікс не перетворює
+/// провал кроку на diagnostic (`FixPlan` не несе violations) — обидва
+/// кроки виконуються, код виходу ігнорується, як і в JS-канону
+/// (`await spawnAsync(...)` без перевірки `exitCode`, лише diff вмісту
+/// до/після).
+fn fix_ruff(request: &FixRequest) -> FixPlan {
+    match prepare_python_run(&request.files, "ruff") {
+        PythonRunPrep::Skip | PythonRunPrep::UvMissing | PythonRunPrep::ToolUnavailable => {
+            return FixPlan { edits: vec![] };
+        }
+        // Префлайт лише підтверджує наявність `.py`-файлів у батчі (той
+        // самий гейт, що [`detect_ruff`]) — сам виклик іде на `.`, НЕ на
+        // `targets` (доккомент функції вище), тож самі `targets` тут не
+        // потрібні.
+        PythonRunPrep::Ready { .. } => {}
+    }
+
+    exec_tool(&ToolRequest {
+        tool: UV_TOOL.to_string(),
+        args: vec![
+            "run".to_string(),
+            "--frozen".to_string(),
+            "ruff".to_string(),
+            "check".to_string(),
+            "--fix".to_string(),
+            ".".to_string(),
+        ],
+        stdin: None,
+        cwd: None,
+        env: vec![],
+        scratch_in: vec![],
+        scratch_out: vec![],
+    });
+    exec_tool(&ToolRequest {
+        tool: UV_TOOL.to_string(),
+        args: vec![
+            "run".to_string(),
+            "--frozen".to_string(),
+            "ruff".to_string(),
+            "format".to_string(),
+            ".".to_string(),
+        ],
+        stdin: None,
+        cwd: None,
+        env: vec![],
+        scratch_in: vec![],
+        scratch_out: vec![],
+    });
+
+    FixPlan { edits: vec![] }
 }
 
 use std::collections::{HashMap, HashSet};
@@ -2327,15 +2385,19 @@ impl Guest for LangPython {
     /// Перші три хвилі не портували жодного fix-контуру; четверта додала
     /// `python/doc_comments` ([`fix_doc_comments`], доккомент функції) —
     /// ПЕРШИЙ реальний план цього крейта. JS-канон (`fix-doc_comments.mjs`)
-    /// лишається чинним (парність, не заміна). `python/ruff` СВІДОМО
-    /// НЕ диспетчеризовано — доккомент модуля, розділ «`python/ruff` — Т0-фіксер
-    /// ДОСЛІДЖЕНО, СВІДОМО НЕ портовано» (дві структурні перешкоди класу
-    /// exec-tool fix, реєстр §2.51). Решта концернів і далі отримують
+    /// лишається чинним (парність, не заміна). `python/ruff`
+    /// ([`fix_ruff`]) — ПЕРШИЙ ПОРТ класу exec-tool fix (реєстр §2.63
+    /// поправляє §2.51: обидві структурні перешкоди зняті, доккомент
+    /// модуля вище) — гість повертає порожній план, host-diff
+    /// (`crates/rules-napi/src/lib.rs::diff_snapshot_edits`) синтезує
+    /// edits із знімку диска до/після. `fix-ruff.mjs` лишається чинним
+    /// JS-каноном (парність, не заміна). Решта концернів і далі отримують
     /// сумісну заглушку — порожній план (доккомент `wit/world.wit` біля
     /// `export fix`).
     fn fix(request: FixRequest) -> FixPlan {
         match request.concern_id.as_str() {
             CONCERN_DOC_COMMENTS => fix_doc_comments(&request),
+            CONCERN_RUFF => fix_ruff(&request),
             _ => FixPlan { edits: vec![] },
         }
     }
