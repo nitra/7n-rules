@@ -132,12 +132,12 @@ const REASON: &str = "template";
 /// `reason` детектора застарілої назви — явний `{ reason:
 /// 'default-tpl-conf-legacy-name' }` (`main.mjs:472`). Той самий рядок
 /// матчиться `fix-template.mjs::patterns[0].test`.
-const LEGACY_NAME_REASON: &str = "default-tpl-conf-legacy-name";
+pub(super) const LEGACY_NAME_REASON: &str = "default-tpl-conf-legacy-name";
 
 /// `reason` детектора невалідної директиви — явний `{ reason:
 /// 'error-log-off-directive' }` (`main.mjs:500`). Той самий рядок матчиться
 /// `fix-template.mjs::patterns[1].test`.
-const ERROR_LOG_OFF_REASON: &str = "error-log-off-directive";
+pub(super) const ERROR_LOG_OFF_REASON: &str = "error-log-off-directive";
 
 /// Каталог rego-полісі для `.vscode/extensions.json` — `policyDirRel`
 /// (`main.mjs:421`).
@@ -160,7 +160,7 @@ static PROXY_LIKE_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"\b(proxy_pass|proxy_redirect|proxy_set_header|proxy_http_version|fastcgi_pass|grpc_pass|uwsgi_pass)\b")
         .expect("valid regex")
 });
-static ERROR_LOG_OFF_TEST_RE: LazyLock<Regex> =
+pub(super) static ERROR_LOG_OFF_TEST_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"error_log\s+off\s*;").expect("valid regex"));
 static INI_KEY_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^([A-Za-z_]\w*)\s*=").expect("valid regex"));
@@ -172,7 +172,7 @@ static GZIP_EXTENSION_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\*\.(?:js|css)").expect("valid regex"));
 
 /// Basename відносного posix-шляху — рядок після останнього `/`.
-fn posix_basename(rel: &str) -> &str {
+pub(super) fn posix_basename(rel: &str) -> &str {
     rel.rsplit('/').next().unwrap_or(rel)
 }
 
@@ -217,7 +217,10 @@ fn find_dockerfile_paths(root: &Path, ignore_paths: &[String]) -> Vec<PathBuf> {
 
 /// Точний порт `findDefaultConfTemplatePaths` (`main.mjs:71-85`): будь-який
 /// сегмент шляху `fixtures` виключає файл з результату.
-fn find_default_conf_template_paths(root: &Path, ignore_paths: &[String]) -> Vec<PathBuf> {
+pub(super) fn find_default_conf_template_paths(
+    root: &Path,
+    ignore_paths: &[String],
+) -> Vec<PathBuf> {
     let mut files: Vec<PathBuf> = walk_with_ignore_paths(root, ignore_paths)
         .into_iter()
         .filter(|rel| {

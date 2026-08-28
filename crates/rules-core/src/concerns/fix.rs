@@ -7,6 +7,18 @@
 //! `tauri/cargo_mutants_config`, `hasura/internal_urls` — кожен точний
 //! семантичний порт свого видаленого `fix-<concern>.mjs`.
 //!
+//! # T3 — перша хвиля exec-tool + структурного класу (`docs/plans/2026-08-05-open-questions-register.md` §2.67)
+//!
+//! `text/oxfmt`/`text/markdownlint` — перші native-фікси, чия
+//! Rust-функція сама спавнить зовнішній процес (`oxfmt --write`/`npx
+//! markdownlint-cli2 --fix`) ПЕРЕД тим, як побудувати [`FixPlan`]: без
+//! wasm-пісочниці й без host-diff-протоколу (§2.64, `run_wasm_concern_fix`)
+//! — просто `before`/`after`-diff у тій самій синхронній функції, що вже
+//! знає, які файли торкнула. `nginx-default-tpl/template` — структурний
+//! (два патерни: legacy-rename + директива), reuse геть детектора
+//! ([`super::nginx_default_tpl_template`]). Деталі вибору й вимір вартості
+//! — §2.67 реєстру.
+//!
 //! # Свідомо НЕ портовані T0-фікси (лишаються JS)
 //!
 //! - **`tauri/release`** (`npm/rules/tauri/release/fix-release.mjs`) —
@@ -92,7 +104,9 @@
 //!     нову семантику»).
 
 use std::path::Path;
+use std::process::Command;
 
+use crate::tool_resolve::resolve_cmd;
 use crate::{diagnostics::Violation, RulesError};
 
 /// Спільні DTO fix-домену — реекспорт із `rules-contract` (злиття дзеркала,
@@ -583,9 +597,369 @@ fn hasura_internal_urls_fix(cwd: &Path, violations: &[Violation]) -> FixPlan {
     FixPlan { edits }
 }
 
+// ── text/oxfmt (хвиля T3, exec-tool клас) ───────────────────────────────────
+
+/// `data.kind` детектора, за яким матчиться T0 — точний порт
+/// `oxfmt-unformatted` (`crates/rules-core/src/concerns/text_oxfmt.rs::REASON`,
+/// `fix-oxfmt.mjs:34`, `data.kind === 'oxfmt-unformatted'`).
+const OXFMT_UNFORMATTED_KIND: &str = "oxfmt-unformatted";
+
+/// Дедуплікує (зберігаючи порядок першої появи) файли з violations, чий
+/// `data.kind` дорівнює `kind` — той самий `[...new Set(violations.filter(...).map(v
+/// => v.file))]`, що повторюється в кожному JS T0-патерні цього класу
+/// (`fix-oxfmt.mjs:29`, `fix-markdownlint.mjs`-аналог нижче).
+fn dedup_files_by_kind(violations: &[Violation], kind: &str) -> Vec<String> {
+    let mut seen = std::collections::HashSet::new();
+    let mut files = Vec::new();
+    for v in violations {
+        let matches = v
+            .data
+            .as_ref()
+            .and_then(|d| d.get("kind"))
+            .and_then(|k| k.as_str())
+            == Some(kind);
+        if !matches {
+            continue;
+        }
+        let Some(file) = &v.file else { continue };
+        if seen.insert(file.clone()) {
+            files.push(file.clone());
+        }
+    }
+    files
+}
+
+/// T0-фікс `text/oxfmt` — перший native-порт exec-tool класу T0-фіксів
+/// (хвиля T3, вибір пілотів задокументовано в PR-описі). Точний семантичний
+/// порт `patterns[0]` з `fix-oxfmt.mjs`: спавнить `oxfmt --write <files>`
+/// над унікальними `file` кожної violation з `data.kind ===
+/// "oxfmt-unformatted"`, тоді читає результат кожного файла й планує write
+/// лише для тих, чий вміст справді змінився (той самий `before`/`after`-diff,
+/// що JS `readOrNull`-порівняння).
+///
+/// # Різниця з детектор-класом native-фіксів (T1/T2)
+///
+/// Усі попередні native-фікси (`marksman_config_fix` і далі) — чисті:
+/// читають файлову систему, але нічого не спавнять. Тут Rust-бік ВИКОНУЄ
+/// зовнішній процес (`oxfmt --write`) як частину побудови [`FixPlan`] —
+/// сам план лишається декларативним (повний новий вміст, не «команда, яку
+/// ще треба виконати»): `run-fix.mjs` застосовує лише `write`/`delete`,
+/// не знає й не повинен знати про `oxfmt` узагалі. Це прямий тест гіпотези
+/// «native-шлях не має host-diff/wasm-пісочниці, тож exec-tool T0 — не
+/// проблема» (докладніше — PR-опис): підтверджується — спавн у Rust
+/// синхронний і прямий, той самий `std::process::Command`, що вже
+/// використовує детектор цього самого concern-а
+/// ([`super::text_oxfmt::text_oxfmt`]).
+///
+/// # Резолв тула — той самий канал, що детектор
+///
+/// `resolve_cmd("oxfmt")` (PATH-lookup) — дзеркало `resolveCmd('oxfmt')`
+/// (`fix-oxfmt.mjs:28`). Відсутній тул → порожній план (JS:
+/// `if (!oxfmt) return { touchedFiles: [] }`) — не помилка: fix-домен тут
+/// повторює м'яку деградацію JS, а не fail-closed детектора (детектор
+/// сигналить відсутність тула нотою, фіксер просто нічого не робить).
+///
+/// # Спавн-помилка ПІСЛЯ успішного резолву
+///
+/// На відміну від м'якого «тул відсутній», сама невдача запуску вже
+/// зарезолвленого бінарника (та сама гонка «resolve-then-spawn», що
+/// документує [`super::text_oxfmt`]) — помилка ВИКОНАННЯ фіксу, не
+/// порожній план: [`RulesError::Concern`]. JS-канон тут некатчений
+/// `await spawnAsync(...)` — той самий канал (виняток валить `apply()`).
+fn text_oxfmt_fix(cwd: &Path, violations: &[Violation]) -> Result<FixPlan, RulesError> {
+    text_oxfmt_fix_with(cwd, violations, &resolve_cmd)
+}
+
+/// Тіло фіксу з інжектованим резолвом тула — той самий мотив ін'єкції, що
+/// `text_oxfmt_with` у детекторі (паралельні тести не повинні підміняти
+/// процес-глобальний `PATH`).
+fn text_oxfmt_fix_with(
+    cwd: &Path,
+    violations: &[Violation],
+    resolve_tool: &dyn Fn(&str) -> Option<std::path::PathBuf>,
+) -> Result<FixPlan, RulesError> {
+    let files = dedup_files_by_kind(violations, OXFMT_UNFORMATTED_KIND);
+    if files.is_empty() {
+        return Ok(FixPlan::default());
+    }
+    let Some(oxfmt) = resolve_tool("oxfmt") else {
+        return Ok(FixPlan::default());
+    };
+
+    let before: Vec<(String, Option<String>)> = files
+        .iter()
+        .map(|f| (f.clone(), std::fs::read_to_string(cwd.join(f)).ok()))
+        .collect();
+
+    Command::new(&oxfmt)
+        .current_dir(cwd)
+        .arg("--write")
+        .args(&files)
+        .output()
+        .map_err(|error| {
+            RulesError::Concern(format!("text/oxfmt: не вдалося запустити `oxfmt`: {error}"))
+        })?;
+
+    let mut edits = Vec::new();
+    for (file, before_content) in before {
+        let after = std::fs::read_to_string(cwd.join(&file)).ok();
+        if after != before_content {
+            if let Some(content) = after {
+                edits.push(FileEdit::Write(WriteFile {
+                    path: file,
+                    content,
+                }));
+            }
+        }
+    }
+    Ok(FixPlan { edits })
+}
+
+// ── text/markdownlint (хвиля T3, exec-tool клас, npx) ───────────────────────
+
+/// `reason` violation-у, за яким матчиться T0 — точний порт `'markdownlint'`
+/// (`fix-markdownlint.mjs:38`, той самий рядок, що
+/// `crates/rules-core/src/concerns/text_markdownlint.rs::LINT_REASON`).
+const MARKDOWNLINT_LINT_REASON: &str = "markdownlint";
+
+/// Track-довані `*.md`/`*.mdc` від `cwd` — точний порт `listMarkdownFiles`
+/// (`fix-markdownlint.mjs:24-32`, `git ls-files -z -- '*.md' '*.mdc'`).
+/// `status !== 0` (не git-репо / git відсутній) → порожній список, той
+/// самий м'який fallback, що JS.
+fn list_markdown_files(cwd: &Path) -> Vec<String> {
+    let output = Command::new("git")
+        .current_dir(cwd)
+        .args(["ls-files", "-z", "--", "*.md", "*.mdc"])
+        .output();
+    let Ok(output) = output else {
+        return Vec::new();
+    };
+    if !output.status.success() {
+        return Vec::new();
+    }
+    String::from_utf8_lossy(&output.stdout)
+        .split('\0')
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
+/// T0-фікс `text/markdownlint` — другий native-порт exec-tool класу (хвиля
+/// T3). Точний семантичний порт `patterns[0]` з `fix-markdownlint.mjs`:
+/// застосовність — хоч одна violation з `reason === "markdownlint"` (той
+/// самий `test()`, що JS, `standalone: true` — фіксер САМ ре-аналізує
+/// вміст, per-violation дані не потрібні); тоді (як і JS) спавнить
+/// `markdownlint-cli2 --fix '**/*.md' '**/*.mdc'` над УСІМА track-daними
+/// md/mdc файлами repo (не лише violation.file-ами — full-rescan, той
+/// самий обсяг, що JS), і планує write лише для файлів, чий вміст справді
+/// змінився.
+///
+/// # `npx`, не бібліотечний імпорт
+///
+/// JS-канон кличе `markdownlint-cli2` як npm-залежність напряму
+/// (`import { main as markdownlintCli2 } from 'markdownlint-cli2'`) — у
+/// Rust такого модуля немає. Native-бік спавнить `npx markdownlint-cli2
+/// --fix ...` — той самий канал резолву (`resolve_cmd("npx")`), що вже
+/// прийнятий для read-only детектора цього concern-а
+/// ([`super::text_markdownlint::text_markdownlint`], доккомент модуля
+/// там-таки, секція «Тул markdownlint-cli2 — третій канал»). Відсутній
+/// `npx` тут — [`RulesError::Concern`], дзеркало fail-closed детектора
+/// (npx відсутній на раннері — це не «нічого фіксити», а зламане
+/// середовище).
+fn text_markdownlint_fix(cwd: &Path, violations: &[Violation]) -> Result<FixPlan, RulesError> {
+    text_markdownlint_fix_with(cwd, violations, &resolve_cmd)
+}
+
+/// Тіло фіксу з інжектованим резолвом `npx` — той самий мотив, що
+/// [`text_oxfmt_fix_with`]/`text_markdownlint_with` у детекторі.
+fn text_markdownlint_fix_with(
+    cwd: &Path,
+    violations: &[Violation],
+    resolve_tool: &dyn Fn(&str) -> Option<std::path::PathBuf>,
+) -> Result<FixPlan, RulesError> {
+    let applicable = violations
+        .iter()
+        .any(|v| v.reason == MARKDOWNLINT_LINT_REASON);
+    if !applicable {
+        return Ok(FixPlan::default());
+    }
+
+    let files = list_markdown_files(cwd);
+    if files.is_empty() {
+        return Ok(FixPlan::default());
+    }
+
+    let Some(npx) = resolve_tool("npx") else {
+        return Err(RulesError::Concern(
+            "text/markdownlint: `npx` не знайдено в PATH — потрібен для запуску \
+             `markdownlint-cli2 --fix` (text.mdc)."
+                .to_string(),
+        ));
+    };
+
+    let before: Vec<(String, Option<String>)> = files
+        .iter()
+        .map(|f| (f.clone(), std::fs::read_to_string(cwd.join(f)).ok()))
+        .collect();
+
+    Command::new(&npx)
+        .current_dir(cwd)
+        .args(["markdownlint-cli2", "--fix", "**/*.md", "**/*.mdc"])
+        .output()
+        .map_err(|error| {
+            RulesError::Concern(format!(
+                "text/markdownlint: не вдалося запустити `npx markdownlint-cli2 --fix`: {error}"
+            ))
+        })?;
+
+    let mut edits = Vec::new();
+    for (file, before_content) in before {
+        let after = std::fs::read_to_string(cwd.join(&file)).ok();
+        if after != before_content {
+            if let Some(content) = after {
+                edits.push(FileEdit::Write(WriteFile {
+                    path: file,
+                    content,
+                }));
+            }
+        }
+    }
+    Ok(FixPlan { edits })
+}
+
+// ── nginx-default-tpl/template (хвиля T3, структурний клас) ─────────────────
+
+/// Знаходить `default.tpl.conf` під `root` (виключно cursor-ignore
+/// каталогів) — точний порт inline-`walkDir` виклику всередині
+/// `migrateDefaultTplConfFiles` (`fix-template.mjs:56-63`). На відміну від
+/// [`super::nginx_default_tpl_template::find_default_conf_template_paths`],
+/// тут НЕМАЄ фільтра `fixtures`-сегмента — JS-версія цього конкретного
+/// walkDir теж його не має (два різні виклики `findDefaultConfTemplatePaths`
+/// у тому самому файлі: один — приватний хелпер із фільтром, другий —
+/// inline без нього; порт зберігає цю асиметрію 1:1).
+fn find_legacy_tpl_conf_paths(root: &Path, ignore_paths: &[String]) -> Vec<String> {
+    let mut files: Vec<String> =
+        crate::concerns::cursor_ignore::walk_with_ignore_paths(root, ignore_paths)
+            .into_iter()
+            .filter(|rel| {
+                super::nginx_default_tpl_template::posix_basename(rel) == "default.tpl.conf"
+            })
+            .collect();
+    files.sort();
+    files
+}
+
+/// T0-фікс `nginx-default-tpl/template`, патерн 1 — точний семантичний
+/// порт `migrateDefaultTplConfFiles` + `patterns[0]`
+/// (`fix-template.mjs:59-88,131-149`): для кожного знайденого
+/// `default.tpl.conf` — якщо поруч уже є `default.conf.template`,
+/// перезаписує його вмістом `default.tpl.conf` і видаляє `default.tpl.conf`
+/// (`overwritten`-гілка); інакше — перейменування (`renamed`-гілка), у
+/// [`FixPlan`] виражене як write нового шляху + delete старого (та сама
+/// кінцева файлова структура, що атомарний `rename`, `run-fix.mjs`
+/// застосовує edit-и послідовно в порядку списку).
+fn nginx_legacy_name_fix(cwd: &Path) -> FixPlan {
+    let ignore_paths = crate::concerns::cursor_ignore::load_cursor_ignore_paths(cwd);
+    let mut edits = Vec::new();
+    for old_rel in find_legacy_tpl_conf_paths(cwd, &ignore_paths) {
+        let Some(dir) = old_rel.rsplit_once('/').map(|(d, _)| d) else {
+            // Файл у корені `cwd` — dirname порожній, ціль лишається просто
+            // "default.conf.template" (той самий `join(dirname(oldPath),
+            // 'default.conf.template')` на порожньому dirname у JS).
+            let new_rel = "default.conf.template".to_string();
+            push_legacy_rename_edits(cwd, &old_rel, &new_rel, &mut edits);
+            continue;
+        };
+        let new_rel = format!("{dir}/default.conf.template");
+        push_legacy_rename_edits(cwd, &old_rel, &new_rel, &mut edits);
+    }
+    FixPlan { edits }
+}
+
+/// Один `default.tpl.conf` → `default.conf.template` перехід — спільне
+/// тіло циклу [`nginx_legacy_name_fix`], винесене окремо лише щоб уникнути
+/// дублювання гілки "новий шлях уже існує" між кореневим і
+/// вкладеним випадком.
+fn push_legacy_rename_edits(cwd: &Path, old_rel: &str, new_rel: &str, edits: &mut Vec<FileEdit>) {
+    let Ok(old_content) = std::fs::read_to_string(cwd.join(old_rel)) else {
+        return;
+    };
+    edits.push(FileEdit::Write(WriteFile {
+        path: new_rel.to_string(),
+        content: old_content,
+    }));
+    edits.push(FileEdit::Delete {
+        path: old_rel.to_string(),
+    });
+}
+
+/// T0-фікс `nginx-default-tpl/template`, патерн 2 — точний семантичний
+/// порт `migrateErrorLogOffDirective` + `patterns[1]`
+/// (`fix-template.mjs:98-108,151-171`): пересканує ВСІ
+/// `default.conf.template` під `cwd` (fixtures-виключені, той самий
+/// [`super::nginx_default_tpl_template::find_default_conf_template_paths`],
+/// що й детектор), замінює `error_log off;` → `error_log /dev/null crit;`
+/// у кожному; write планується лише коли або (а) violations цього
+/// concern-а не несуть жодного `file` (порожня множина `files` у JS —
+/// «фіксити все знайдене»), або (б) шлях файла входить у множину `file`
+/// цих violations (`files.length === 0 || files.includes(rel)` —
+/// `fix-template.mjs:163`).
+fn nginx_error_log_off_fix(cwd: &Path, violations: &[Violation]) -> FixPlan {
+    use super::nginx_default_tpl_template::{
+        find_default_conf_template_paths, ERROR_LOG_OFF_REASON, ERROR_LOG_OFF_TEST_RE,
+    };
+
+    let target_files = dedup_files_by_kind(violations, ERROR_LOG_OFF_REASON);
+    let ignore_paths = crate::concerns::cursor_ignore::load_cursor_ignore_paths(cwd);
+    let mut edits = Vec::new();
+    for abs in find_default_conf_template_paths(cwd, &ignore_paths) {
+        let Ok(content) = std::fs::read_to_string(&abs) else {
+            continue;
+        };
+        if !ERROR_LOG_OFF_TEST_RE.is_match(&content) {
+            continue;
+        }
+        let rel = abs
+            .strip_prefix(cwd)
+            .unwrap_or(&abs)
+            .to_string_lossy()
+            .replace('\\', "/");
+        if !target_files.is_empty() && !target_files.contains(&rel) {
+            continue;
+        }
+        let next = ERROR_LOG_OFF_TEST_RE.replace_all(&content, "error_log /dev/null crit;");
+        edits.push(FileEdit::Write(WriteFile {
+            path: rel,
+            content: next.into_owned(),
+        }));
+    }
+    FixPlan { edits }
+}
+
+/// T0-фікс `nginx-default-tpl/template` — обʼєднує обидва патерни JS-канону
+/// ([`nginx_legacy_name_fix`]/[`nginx_error_log_off_fix`]) в один [`FixPlan`],
+/// у тому самому порядку, що `applyT0` пройшов би два окремі `T0Pattern`
+/// цього concern-а (`patterns[0]` тоді `patterns[1]`, `fix-template.mjs`).
+/// Застосовність кожного патерна перевіряється НЕЗАЛЕЖНО за `data.kind`
+/// відповідної violation — точний порт `test()` обох патернів.
+fn nginx_default_tpl_template_fix(cwd: &Path, violations: &[Violation]) -> FixPlan {
+    use super::nginx_default_tpl_template::{ERROR_LOG_OFF_REASON, LEGACY_NAME_REASON};
+
+    let mut edits = Vec::new();
+    if violations.iter().any(|v| v.reason == LEGACY_NAME_REASON) {
+        edits.extend(nginx_legacy_name_fix(cwd).edits);
+    }
+    if violations.iter().any(|v| v.reason == ERROR_LOG_OFF_REASON) {
+        edits.extend(nginx_error_log_off_fix(cwd, violations).edits);
+    }
+    FixPlan { edits }
+}
+
 /// Ключі native-портованих fix-ів (`ruleId/concernId`) — той самий формат,
 /// що [`super::NATIVE_CONCERNS`]. Підмножина: не кожен native-детектор має
-/// native-фікс (T1 зрізу 4 — два пілоти; T2 зрізу 5 — ще чотири; `tauri/release`
+/// native-фікс (T1 зрізу 4 — два пілоти; T2 зрізу 5 — ще чотири; T3 —
+/// перший exec-tool клас (`text/oxfmt`, `text/markdownlint`) плюс один
+/// структурний (`nginx-default-tpl/template`), PR-опис; `tauri/release`
 /// і `image-avif/avif_generation` свідомо лишаються JS — доккомент модуля).
 pub const NATIVE_FIXES: &[&str] = &[
     "abie/env_dns",
@@ -595,10 +969,13 @@ pub const NATIVE_FIXES: &[&str] = &[
     "hasura/migrations",
     "k8s/dremio_logging",
     "k8s/manifests",
+    "nginx-default-tpl/template",
     "security/sample_secret",
     "tauri/cargo_mutants_config",
     "tauri/gitignore_target",
     "tauri/linux_deps",
+    "text/markdownlint",
+    "text/oxfmt",
 ];
 
 /// Будує [`FixPlan`] для native-fix-концерну за ключем `ruleId/concernId`.
@@ -629,9 +1006,12 @@ pub fn run_concern_fix(
         "security/sample_secret" => {
             Ok(super::fix_abie_security::sample_secret_fix(cwd, violations))
         }
+        "nginx-default-tpl/template" => Ok(nginx_default_tpl_template_fix(cwd, violations)),
         "tauri/cargo_mutants_config" => Ok(tauri_cargo_mutants_config_fix(cwd, violations)),
         "tauri/gitignore_target" => Ok(tauri_gitignore_target_fix(cwd, violations)),
         "tauri/linux_deps" => Ok(tauri_linux_deps_fix(cwd, violations)),
+        "text/markdownlint" => text_markdownlint_fix(cwd, violations),
+        "text/oxfmt" => text_oxfmt_fix(cwd, violations),
         other => Err(RulesError::Concern(format!(
             "невідомий native fix: {other}"
         ))),
@@ -1381,10 +1761,13 @@ mod tests {
                 "hasura/migrations",
                 "k8s/dremio_logging",
                 "k8s/manifests",
+                "nginx-default-tpl/template",
                 "security/sample_secret",
                 "tauri/cargo_mutants_config",
                 "tauri/gitignore_target",
                 "tauri/linux_deps",
+                "text/markdownlint",
+                "text/oxfmt",
             ]
         );
     }
@@ -1433,5 +1816,280 @@ mod tests {
         let err = run_concern_fix("k8s/unknown-concern", tmp.path(), &[]).unwrap_err();
         assert!(matches!(err, RulesError::Concern(_)));
         assert!(err.to_string().contains("k8s/unknown-concern"));
+    }
+
+    // ── text/oxfmt (T3, exec-tool) ──
+
+    fn oxfmt_available() -> bool {
+        Command::new("oxfmt")
+            .arg("--version")
+            .output()
+            .is_ok_and(|out| out.status.success())
+    }
+
+    #[test]
+    fn oxfmt_fix_empty_plan_without_matching_violation() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        assert!(text_oxfmt_fix(tmp.path(), &[]).unwrap().edits.is_empty());
+        let v = violation("other", Some("bad.mjs"), None);
+        assert!(text_oxfmt_fix(tmp.path(), &[v]).unwrap().edits.is_empty());
+    }
+
+    #[test]
+    fn oxfmt_fix_empty_plan_when_tool_missing() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(tmp.path().join("bad.mjs"), "export  const   x=1\n").unwrap();
+        let v = violation(
+            "oxfmt-unformatted",
+            Some("bad.mjs"),
+            Some(serde_json::json!({ "kind": "oxfmt-unformatted" })),
+        );
+        let plan = text_oxfmt_fix_with(tmp.path(), &[v], &|_| None).unwrap();
+        assert!(plan.edits.is_empty());
+    }
+
+    #[test]
+    fn oxfmt_fix_writes_reformatted_content() {
+        if !oxfmt_available() {
+            eprintln!("text/oxfmt fix: пропуск — oxfmt відсутній у PATH");
+            return;
+        }
+        const SOURCE: &str = "export  const   x=1\nexport const y= 2\n";
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(tmp.path().join("bad.mjs"), SOURCE).unwrap();
+        let v = violation(
+            "oxfmt-unformatted",
+            Some("bad.mjs"),
+            Some(serde_json::json!({ "kind": "oxfmt-unformatted" })),
+        );
+        let plan = text_oxfmt_fix(tmp.path(), std::slice::from_ref(&v)).unwrap();
+        assert_eq!(plan.edits.len(), 1, "{plan:?}");
+        match &plan.edits[0] {
+            FileEdit::Write(w) => {
+                assert_eq!(w.path, "bad.mjs");
+                assert_ne!(w.content, SOURCE);
+            }
+            FileEdit::Delete { .. } => panic!("очікували write"),
+        }
+
+        // Продакшн-шлях: NATIVE_FIXES → run_concern_fix, не пряме звернення —
+        // окремий tempdir з тим самим вихідним вмістом (перший виклик уже
+        // переформатував файл на диску, повторний прогін на ТОМУ САМОМУ
+        // дереві дав би порожній diff, не парність).
+        assert!(NATIVE_FIXES.contains(&"text/oxfmt"));
+        let tmp2 = tempfile::TempDir::new().unwrap();
+        std::fs::write(tmp2.path().join("bad.mjs"), SOURCE).unwrap();
+        let via_dispatch = run_concern_fix("text/oxfmt", tmp2.path(), &[v]).unwrap();
+        assert_eq!(via_dispatch, plan);
+    }
+
+    #[test]
+    fn oxfmt_fix_empty_plan_when_already_formatted() {
+        if !oxfmt_available() {
+            eprintln!("text/oxfmt fix: пропуск — oxfmt відсутній у PATH");
+            return;
+        }
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(tmp.path().join("good.mjs"), "export const x = 1;\n").unwrap();
+        let v = violation(
+            "oxfmt-unformatted",
+            Some("good.mjs"),
+            Some(serde_json::json!({ "kind": "oxfmt-unformatted" })),
+        );
+        let plan = text_oxfmt_fix(tmp.path(), &[v]).unwrap();
+        assert!(plan.edits.is_empty(), "{plan:?}");
+    }
+
+    // ── text/markdownlint (T3, exec-tool, npx) ──
+
+    fn npx_available() -> bool {
+        Command::new("npx")
+            .arg("--version")
+            .output()
+            .is_ok_and(|out| out.status.success())
+    }
+
+    fn init_git_repo(dir: &Path) {
+        let status = Command::new("git")
+            .current_dir(dir)
+            .args(["init", "-q"])
+            .status()
+            .expect("git init");
+        assert!(status.success());
+    }
+
+    fn git_add(dir: &Path, rel: &str) {
+        let status = Command::new("git")
+            .current_dir(dir)
+            .args(["add", rel])
+            .status()
+            .expect("git add");
+        assert!(status.success());
+    }
+
+    #[test]
+    fn markdownlint_fix_empty_plan_without_matching_violation() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        assert!(text_markdownlint_fix(tmp.path(), &[])
+            .unwrap()
+            .edits
+            .is_empty());
+        let v = violation("other", None, None);
+        assert!(text_markdownlint_fix(tmp.path(), &[v])
+            .unwrap()
+            .edits
+            .is_empty());
+    }
+
+    #[test]
+    fn markdownlint_fix_empty_plan_without_tracked_markdown_files() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        init_git_repo(tmp.path());
+        let v = violation("markdownlint", None, None);
+        let plan = text_markdownlint_fix(tmp.path(), &[v]).unwrap();
+        assert!(plan.edits.is_empty(), "{plan:?}");
+    }
+
+    #[test]
+    fn markdownlint_fix_rewrites_tracked_markdown_files() {
+        if !npx_available() {
+            eprintln!("text/markdownlint fix: пропуск — npx відсутній у PATH");
+            return;
+        }
+        const SOURCE: &str = "# Title\nSome  text with trailing spaces   \n";
+        let tmp = tempfile::TempDir::new().unwrap();
+        init_git_repo(tmp.path());
+        std::fs::write(tmp.path().join("bad.md"), SOURCE).unwrap();
+        git_add(tmp.path(), "bad.md");
+
+        let v = violation("markdownlint", None, None);
+        let plan = text_markdownlint_fix(tmp.path(), std::slice::from_ref(&v)).unwrap();
+        assert_eq!(plan.edits.len(), 1, "{plan:?}");
+        match &plan.edits[0] {
+            FileEdit::Write(w) => {
+                assert_eq!(w.path, "bad.md");
+                assert!(!w.content.contains("trailing spaces   \n"));
+            }
+            FileEdit::Delete { .. } => panic!("очікували write"),
+        }
+
+        // Продакшн-шлях: NATIVE_FIXES → run_concern_fix, не пряме звернення —
+        // окремий git-tempdir з тим самим вихідним вмістом (той самий мотив,
+        // що в oxfmt-тесті вище: перший прогін уже переписав файл на диску).
+        assert!(NATIVE_FIXES.contains(&"text/markdownlint"));
+        let tmp2 = tempfile::TempDir::new().unwrap();
+        init_git_repo(tmp2.path());
+        std::fs::write(tmp2.path().join("bad.md"), SOURCE).unwrap();
+        git_add(tmp2.path(), "bad.md");
+        let via_dispatch = run_concern_fix("text/markdownlint", tmp2.path(), &[v]).unwrap();
+        assert_eq!(via_dispatch, plan);
+    }
+
+    // ── nginx-default-tpl/template (T3, структурний) ──
+
+    #[test]
+    fn nginx_template_fix_empty_plan_without_matching_violation() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let plan = nginx_default_tpl_template_fix(tmp.path(), &[]);
+        assert!(plan.edits.is_empty());
+        let v = violation("other", None, None);
+        assert!(nginx_default_tpl_template_fix(tmp.path(), &[v])
+            .edits
+            .is_empty());
+    }
+
+    #[test]
+    fn nginx_template_fix_renames_legacy_file_without_sibling() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::create_dir_all(tmp.path().join("web")).unwrap();
+        std::fs::write(
+            tmp.path().join("web/default.tpl.conf"),
+            "server_tokens off;\n",
+        )
+        .unwrap();
+
+        let v = violation(
+            "default-tpl-conf-legacy-name",
+            Some("web/default.tpl.conf"),
+            Some(serde_json::json!({ "kind": "default-tpl-conf-legacy-name" })),
+        );
+        let plan = nginx_default_tpl_template_fix(tmp.path(), std::slice::from_ref(&v));
+        assert_eq!(plan.edits.len(), 2, "{plan:?}");
+        assert!(plan.edits.iter().any(|e| matches!(
+            e,
+            FileEdit::Write(w) if w.path == "web/default.conf.template" && w.content == "server_tokens off;\n"
+        )));
+        assert!(plan
+            .edits
+            .iter()
+            .any(|e| matches!(e, FileEdit::Delete { path } if path == "web/default.tpl.conf")));
+
+        // Продакшн-шлях: NATIVE_FIXES → run_concern_fix, не пряме звернення.
+        assert!(NATIVE_FIXES.contains(&"nginx-default-tpl/template"));
+        let via_dispatch = run_concern_fix("nginx-default-tpl/template", tmp.path(), &[v]).unwrap();
+        assert_eq!(via_dispatch, plan);
+    }
+
+    #[test]
+    fn nginx_template_fix_overwrites_sibling_when_conf_template_exists() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(tmp.path().join("default.tpl.conf"), "NEW CONTENT\n").unwrap();
+        std::fs::write(tmp.path().join("default.conf.template"), "OLD\n").unwrap();
+
+        let v = violation(
+            "default-tpl-conf-legacy-name",
+            Some("default.tpl.conf"),
+            Some(serde_json::json!({ "kind": "default-tpl-conf-legacy-name" })),
+        );
+        let plan = nginx_default_tpl_template_fix(tmp.path(), &[v]);
+        assert_eq!(plan.edits.len(), 2, "{plan:?}");
+        assert!(plan.edits.iter().any(|e| matches!(
+            e,
+            FileEdit::Write(w) if w.path == "default.conf.template" && w.content == "NEW CONTENT\n"
+        )));
+        assert!(plan
+            .edits
+            .iter()
+            .any(|e| matches!(e, FileEdit::Delete { path } if path == "default.tpl.conf")));
+    }
+
+    #[test]
+    fn nginx_template_fix_rewrites_error_log_off_directive() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join("default.conf.template"),
+            "server {\n  error_log off;\n}\n",
+        )
+        .unwrap();
+
+        let v = violation(
+            "error-log-off-directive",
+            Some("default.conf.template"),
+            Some(serde_json::json!({ "kind": "error-log-off-directive" })),
+        );
+        let plan = nginx_default_tpl_template_fix(tmp.path(), &[v]);
+        assert_eq!(plan.edits.len(), 1, "{plan:?}");
+        match &plan.edits[0] {
+            FileEdit::Write(w) => {
+                assert_eq!(w.path, "default.conf.template");
+                assert_eq!(w.content, "server {\n  error_log /dev/null crit;\n}\n");
+            }
+            FileEdit::Delete { .. } => panic!("очікували write"),
+        }
+    }
+
+    #[test]
+    fn nginx_template_fix_error_log_off_excludes_fixtures_segment() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::create_dir_all(tmp.path().join("tests/fixtures")).unwrap();
+        std::fs::write(
+            tmp.path().join("tests/fixtures/default.conf.template"),
+            "error_log off;\n",
+        )
+        .unwrap();
+
+        let v = violation("error-log-off-directive", None, None);
+        let plan = nginx_default_tpl_template_fix(tmp.path(), &[v]);
+        assert!(plan.edits.is_empty(), "{plan:?}");
     }
 }
