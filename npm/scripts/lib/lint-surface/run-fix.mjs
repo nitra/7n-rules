@@ -15,7 +15,7 @@
  * @typedef {import('./ladder.mjs').Rung} Rung
  */
 import { existsSync, readFileSync } from 'node:fs'
-import { mkdir, unlink, writeFile } from 'node:fs/promises'
+import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
@@ -89,6 +89,62 @@ function getNativeFixKeys() {
 }
 
 /**
+ * Застосовує ОДНУ правку fix-плану ({@link nativeFixPattern}/{@link wasmFixPattern}
+ * несуть ідентичну форму `{type, path, content?}`, дзеркало контракту
+ * `rules_contract::fix::FileEdit`) до диска.
+ *
+ * `write` перезаписує/створює файл (з `mkdir -p` батьківської теки) — та сама
+ * поведінка, що й раніше. `delete` прибирає шлях цілком — файл АБО директорію
+ * (рекурсивно) — одним викликом `fs.rm(..., {recursive:true})`: та сама
+ * кінцева семантика, що Rust-міст `crates/rules-fix/src/t0.rs::to_edit_plan`
+ * (`Delete` на директорію → вся директорія зникає), лише прямим шляхом.
+ * Rust-бік розгортає директорію в пофайлові `Delete` й прибирає спорожнілі
+ * теки окремим проходом (`sweep_empty_dirs`) ТОМУ, що йому для журналу
+ * (editLog) потрібен pre-image КОЖНОГО файлу; T0-патерни тут пишуть напряму,
+ * без журналу — рекурсивний `fs.rm` дає той самий кінцевий стан без потреби
+ * повторювати журнальну машинерію.
+ *
+ * Раніше (`unlink`, лише файли) тут ловився БУДЬ-ЯКИЙ виняток мовчки — і
+ * `unlink` на директорію (EPERM на macOS, EISDIR на Linux), і права доступу,
+ * і зайнятий файл виглядали як штатний «файл уже відсутній». Тепер ловиться
+ * ЛИШЕ `ENOENT` (шлях справді вже відсутній — мета вже досягнута, той самий
+ * best-effort, що документує `to_edit_plan`: "Delete на відсутній файл — Err
+ * валідації [з боку планувальника], а не no-op" — тут толерується гонка між
+ * планом і застосуванням, не сам факт відсутності). Будь-яка ІНША помилка НЕ
+ * ковтається — принцип проекту «мовчазний skip — вада, не делікатність»:
+ * кидається гучний `Error` (з `cause`), що зупиняє прогін замість тихого
+ * звіту «0 файлів змінено» (та сама «гучна помилка», що
+ * `ambiguous_empty_fix_batch_err` на napi-боці, `crates/rules-napi/src/lib.rs`).
+ * @param {{type:string,path:string,content?:string}} edit Одна правка плану.
+ * @param {string} cwd Абсолютний корінь consumer-репо.
+ * @param {import('./types.mjs').FixContext} ctx Контекст фікса (`recordWrite` тощо).
+ * @returns {Promise<string|null>} Абсолютний шлях правки, якщо вона реально відбулась
+ *   (write — завжди; delete — лише якщо шлях справді існував), інакше `null`.
+ */
+export async function applyPlanEdit(edit, cwd, ctx) {
+  const abs = join(cwd, edit.path)
+  if (edit.type === 'write') {
+    ctx.recordWrite?.(abs)
+    await mkdir(dirname(abs), { recursive: true })
+    await writeFile(abs, edit.content, 'utf8')
+    return abs
+  }
+  if (edit.type === 'delete') {
+    ctx.recordWrite?.(abs)
+    try {
+      await rm(abs, { recursive: true })
+      return abs
+    } catch (error) {
+      // Файл/директорія вже відсутні — best-effort, той самий дух, що старий
+      // JS-фіксер (`fix-migrations.mjs`, до видалення T1 зрізу 4).
+      if (error.code === 'ENOENT') return null
+      throw new Error(`не вдалося видалити "${edit.path}": ${error.message}`, { cause: error })
+    }
+  }
+  return null
+}
+
+/**
  * Кеш native fix-плану за identity `violations`-масиву — `applyT0`
  * (`test()` → `apply()`) передає ОДИН і той самий масив в обидва виклики
  * одного проходу, тож другий native-виклик не потрібен: `apply()` переюзає
@@ -148,22 +204,8 @@ function nativeFixPattern(key, cwd) {
       const plan = computeNativeFixPlan(key, cwd, violations)
       const touchedFiles = []
       for (const edit of plan?.edits ?? []) {
-        const abs = join(cwd, edit.path)
-        if (edit.type === 'write') {
-          ctx.recordWrite?.(abs)
-          await mkdir(dirname(abs), { recursive: true })
-          await writeFile(abs, edit.content, 'utf8')
-          touchedFiles.push(abs)
-        } else if (edit.type === 'delete') {
-          ctx.recordWrite?.(abs)
-          try {
-            await unlink(abs)
-            touchedFiles.push(abs)
-          } catch {
-            // Файл уже відсутній — best-effort, той самий дух, що старий
-            // JS-фіксер (`fix-migrations.mjs`, до видалення T1 зрізу 4).
-          }
-        }
+        const applied = await applyPlanEdit(edit, cwd, ctx)
+        if (applied) touchedFiles.push(applied)
       }
       return touchedFiles.length > 0
         ? { touchedFiles, message: `native fix ${key}: ${touchedFiles.length} файл(ів)` }
@@ -267,22 +309,8 @@ function wasmFixPattern(key, cwd, entry, deltaFiles) {
       const plan = computeWasmFixPlan(key, cwd, entry, violations, deltaFiles)
       const touchedFiles = []
       for (const edit of plan?.edits ?? []) {
-        const abs = join(cwd, edit.path)
-        if (edit.type === 'write') {
-          ctx.recordWrite?.(abs)
-          await mkdir(dirname(abs), { recursive: true })
-          await writeFile(abs, edit.content, 'utf8')
-          touchedFiles.push(abs)
-        } else if (edit.type === 'delete') {
-          ctx.recordWrite?.(abs)
-          try {
-            await unlink(abs)
-            touchedFiles.push(abs)
-          } catch {
-            // Файл уже відсутній — best-effort, той самий контракт, що
-            // native-план ({@link nativeFixPattern}).
-          }
-        }
+        const applied = await applyPlanEdit(edit, cwd, ctx)
+        if (applied) touchedFiles.push(applied)
       }
       return touchedFiles.length > 0
         ? { touchedFiles, message: `wasm fix ${key}: ${touchedFiles.length} файл(ів)` }
