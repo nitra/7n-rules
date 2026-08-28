@@ -6366,7 +6366,7 @@ napi-міст), `conftest verify` по трьох нових policy-тек — 1
 
 ---
 
-### 2.56. `bun/layout` — T0-фіксер портовано (`plugin-lang-js`), і pin-drift дев-середовища замаскував був парність під час розробки
+### 2.60. `bun/layout` — T0-фіксер портовано (`plugin-lang-js`), і pin-drift дев-середовища замаскував був парність під час розробки
 
 **Задача:** портувати T0-фіксер концерну `bun/layout` (три патерни
 видаленого `plugins/lang-js/rules/bun/layout/fix-layout.mjs` —
