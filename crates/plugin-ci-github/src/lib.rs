@@ -782,6 +782,213 @@ fn parse_yaml_document(content: &str) -> Option<Json> {
     }
 }
 
+// =====================================================================
+// Строгий JSON-валідатор — доккомент задачі §2.58 (поправка після
+// незалежного ревʼю PR #528, floor-вимога власника «не зіпсувати файл
+// важливіше за все»): [`parse_yaml_document`] — YAML 1.2-парсер, СВІДОМО
+// толерантний (доккомент вище — той самий парсер обслуговує і `.yml`, і
+// `.json`-таргети, бо JSON — валідний YAML 1.2). Але `.vscode/*.json`
+// у продакшн-конвенції VS Code — часто JSONC (`//`-коментарі), а JSONC НЕ
+// є валідним YAML 1.2: `//`-рядок читається як plain-скаляр і, залежно від
+// контексту, ЗЛИВАЄТЬСЯ із сусіднім ключем у СТРУКТУРНО валідний, але
+// СЕМАНТИЧНО хибний YAML-документ (підтверджено мінімальним репро поза
+// цим модулем: `// коментар\n"key": true` парситься в ОДИН ключ
+// `"// коментар \"key\""` зі значенням `true` — не помилка парсингу, тиха
+// втрата `key`). JS-канон (`JSON.parse` — теж строгий RFC 8259, кидає на
+// `//`) на такому вході чесно НЕ чіпає файл (`catch { return null }`) —
+// порт мусить мати той самий floor: [`is_strict_json`] перевіряє вхід за
+// ПОВНОЮ грамотикою RFC 8259 (без побудови значення, лише валідність) —
+// `.json`-таргети ([`fix_template_merge`] з `cfg.is_yaml == false`,
+// [`fix_vscode_extensions`], [`detect_policy`] для JSON-таргетів) мусять
+// пройти цю перевірку ПЕРЕД тим, як довіряти [`parse_yaml_document`]-у на
+// тому самому вмісті — JSONC (чи будь-яка інша non-strict форма) падає в
+// ТОЙ САМИЙ «невалідний вхід, не чіпаємо» канал, що й побитий синтаксис.
+// =====================================================================
+
+/// Чи `target_path` — `.json`-таргет (за розширенням) — обидва `.vscode/*.json`
+/// концерни цього крейта, на відміну від `.github/workflows/*.yml` —
+/// той самий бінарний розподіл, що `cfg.is_yaml` у [`TemplateFixCfg`],
+/// лише для [`PolicyCfg`], де такого явного поля немає (три policy-концерни
+/// на один спільний [`detect_policy`], доккомент там).
+fn target_path_is_json(target_path: &str) -> bool {
+    target_path.ends_with(".json")
+}
+
+/// `true` — `content` синтаксично валідний JSON за RFC 8259 (жодного
+/// `//`/`#`-коментаря, trailing comma, unquoted ключа, одинарних лапок —
+/// точний контракт JS `JSON.parse`). Не будує значення (для цього лишається
+/// [`parse_yaml_document`] — JSON є валідним YAML 1.2, той самий парсер
+/// підходить для СТРОГО валідного JSON), лише валідує — доккомент розділу
+/// вище.
+fn is_strict_json(content: &str) -> bool {
+    let mut chars = content.chars().peekable();
+    strict_json_skip_ws(&mut chars);
+    if !strict_json_value(&mut chars) {
+        return false;
+    }
+    strict_json_skip_ws(&mut chars);
+    chars.next().is_none()
+}
+
+type StrictJsonChars<'a> = std::iter::Peekable<std::str::Chars<'a>>;
+
+/// RFC 8259 `ws` — РІВНО чотири байти-роздільники (space/tab/CR/LF), БЕЗ
+/// жодного `//`/`#`-коментаря (на відміну від [`saphyr`]-YAML, де `#`
+/// комент — легальний пробіл) — саме ця відмінність від
+/// [`parse_yaml_document`] і є точкою, де JSONC провалюється тут навмисно.
+fn strict_json_skip_ws(chars: &mut StrictJsonChars) {
+    while matches!(chars.peek(), Some(' ' | '\t' | '\n' | '\r')) {
+        chars.next();
+    }
+}
+
+fn strict_json_value(chars: &mut StrictJsonChars) -> bool {
+    match chars.peek() {
+        Some('{') => strict_json_object(chars),
+        Some('[') => strict_json_array(chars),
+        Some('"') => strict_json_string(chars),
+        Some('t') => strict_json_literal(chars, "true"),
+        Some('f') => strict_json_literal(chars, "false"),
+        Some('n') => strict_json_literal(chars, "null"),
+        Some(c) if *c == '-' || c.is_ascii_digit() => strict_json_number(chars),
+        _ => false,
+    }
+}
+
+fn strict_json_literal(chars: &mut StrictJsonChars, literal: &str) -> bool {
+    for expected in literal.chars() {
+        if chars.next() != Some(expected) {
+            return false;
+        }
+    }
+    true
+}
+
+fn strict_json_object(chars: &mut StrictJsonChars) -> bool {
+    if chars.next() != Some('{') {
+        return false;
+    }
+    strict_json_skip_ws(chars);
+    if chars.peek() == Some(&'}') {
+        chars.next();
+        return true;
+    }
+    loop {
+        strict_json_skip_ws(chars);
+        if chars.peek() != Some(&'"') || !strict_json_string(chars) {
+            return false;
+        }
+        strict_json_skip_ws(chars);
+        if chars.next() != Some(':') {
+            return false;
+        }
+        strict_json_skip_ws(chars);
+        if !strict_json_value(chars) {
+            return false;
+        }
+        strict_json_skip_ws(chars);
+        match chars.next() {
+            Some(',') => continue,
+            Some('}') => return true,
+            _ => return false,
+        }
+    }
+}
+
+fn strict_json_array(chars: &mut StrictJsonChars) -> bool {
+    if chars.next() != Some('[') {
+        return false;
+    }
+    strict_json_skip_ws(chars);
+    if chars.peek() == Some(&']') {
+        chars.next();
+        return true;
+    }
+    loop {
+        strict_json_skip_ws(chars);
+        if !strict_json_value(chars) {
+            return false;
+        }
+        strict_json_skip_ws(chars);
+        match chars.next() {
+            Some(',') => continue,
+            Some(']') => return true,
+            _ => return false,
+        }
+    }
+}
+
+fn strict_json_string(chars: &mut StrictJsonChars) -> bool {
+    if chars.next() != Some('"') {
+        return false;
+    }
+    loop {
+        match chars.next() {
+            None => return false,
+            Some('"') => return true,
+            Some('\\') => match chars.next() {
+                Some('"' | '\\' | '/' | 'b' | 'f' | 'n' | 'r' | 't') => {}
+                Some('u') => {
+                    for _ in 0..4 {
+                        match chars.next() {
+                            Some(c) if c.is_ascii_hexdigit() => {}
+                            _ => return false,
+                        }
+                    }
+                }
+                _ => return false,
+            },
+            // Неекрановані control-символи заборонені RFC 8259 (§7) — той
+            // самий інваріант, що `JSON.parse` (кидає `Unexpected token`).
+            Some(c) if (c as u32) < 0x20 => return false,
+            Some(_) => {}
+        }
+    }
+}
+
+fn strict_json_number(chars: &mut StrictJsonChars) -> bool {
+    if chars.peek() == Some(&'-') {
+        chars.next();
+    }
+    match chars.peek() {
+        Some('0') => {
+            chars.next();
+        }
+        Some(c) if c.is_ascii_digit() => {
+            while matches!(chars.peek(), Some(c) if c.is_ascii_digit()) {
+                chars.next();
+            }
+        }
+        _ => return false,
+    }
+    if chars.peek() == Some(&'.') {
+        chars.next();
+        let mut has_frac_digit = false;
+        while matches!(chars.peek(), Some(c) if c.is_ascii_digit()) {
+            chars.next();
+            has_frac_digit = true;
+        }
+        if !has_frac_digit {
+            return false;
+        }
+    }
+    if matches!(chars.peek(), Some('e' | 'E')) {
+        chars.next();
+        if matches!(chars.peek(), Some('+' | '-')) {
+            chars.next();
+        }
+        let mut has_exp_digit = false;
+        while matches!(chars.peek(), Some(c) if c.is_ascii_digit()) {
+            chars.next();
+            has_exp_digit = true;
+        }
+        if !has_exp_digit {
+            return false;
+        }
+    }
+    true
+}
+
 /// Обхідний шлях regorus 0.11.0-специфічного бага в evaluator-і (підтверджено
 /// мінімальним репро поза цим крейтом): shorthand-форма multi-value rule
 /// head `s contains arr[_].field` дає `Err("not an object")`, коли ХОЧА Б
@@ -2495,6 +2702,26 @@ fn detect_policy(files: &[SourceFile], cfg: &PolicyCfg) -> Vec<Diagnostic> {
             data: None,
         }];
     };
+    // `.json`-таргет ([`ga/vscode_extensions`]/[`ga/vscode_settings`]) —
+    // JSONC у продакшн-VS-Code-конвенції, НЕ валідний YAML 1.2 (доккомент
+    // розділу біля [`is_strict_json`]): гейтимо строгим JSON-парсером ПЕРЕД
+    // [`parse_yaml_document`], інакше `//`-коментар тихо зливається з
+    // сусіднім ключем у структурно валідний, семантично хибний YAML —
+    // detect тоді читав би СМІТТЄВИЙ `actual` і міг би дати оманливу
+    // діагностику (той самий канал, що захищає [`fix_template_merge`]/
+    // [`fix_vscode_extensions`] від запису зіпсованого виводу).
+    if target_path_is_json(cfg.target_path) && !is_strict_json(&source.content) {
+        return vec![Diagnostic {
+            reason: POLICY_INPUT_INVALID_REASON.to_string(),
+            message: format!(
+                "{}: не строгий JSON (JSONC-коментарі/trailing comma тощо) — виправ синтаксис ({})",
+                cfg.target_path, cfg.namespace
+            ),
+            file: Some(cfg.target_path.to_string()),
+            severity: Severity::Error,
+            data: None,
+        }];
+    }
     let Some(actual) = parse_yaml_document(&source.content) else {
         return vec![Diagnostic {
             reason: POLICY_INPUT_INVALID_REASON.to_string(),
@@ -2572,6 +2799,13 @@ fn fix_vscode_extensions(request: &FixRequest) -> FixPlan {
     let existing = batch_file(&request.files, target_path);
     let (existing_entries, recs): (Vec<(String, Json)>, Vec<String>) = match existing {
         None => (Vec::new(), Vec::new()),
+        // JSONC-floor (доккомент розділу біля [`is_strict_json`], звіт
+        // задачі §2.58 — незалежне ревʼю знайшло тут САМЕ ЦЮ ваду:
+        // `.vscode/extensions.json` теж читався тим самим толерантним
+        // YAML-парсером, тож `//`-коментар міг так само тихо поглинути
+        // сусідній `recommendations`-запис при union-мерджі нижче) — не
+        // строгий JSON → не чіпаємо, той самий канал, що побитий синтаксис.
+        Some(source) if !is_strict_json(&source.content) => return FixPlan { edits: vec![] },
         Some(source) => match parse_yaml_document(&source.content) {
             Some(Json::Object(entries)) => {
                 let recs = entries
@@ -3097,6 +3331,20 @@ fn fix_template_merge(request: &FixRequest, cfg: &TemplateFixCfg) -> FixPlan {
             })],
         };
     };
+    // JSONC-floor (доккомент розділу біля [`is_strict_json`], звіт задачі
+    // §2.58 — незалежне ревʼю знайшло тут реальну втрату даних:
+    // `.vscode/settings.json` у продакшн-VS-Code-конвенції часто МІСТИТЬ
+    // `//`-коментарі, а [`parse_yaml_document`] — YAML-парсер, для якого
+    // `//` НЕ коментар, тож сусідній ключ тихо зливався з ним у СМІТТЄВИЙ
+    // ключ, і фікс писав ЗІПСОВАНИЙ файл із втраченим налаштуванням
+    // користувача — критично гірше за просто «не зберегти форматування»).
+    // Гейтимо ПЕРЕД будь-яким використанням `parse_yaml_document` на
+    // `.json`-таргеті — не строгий JSON трактується РІВНО як побитий
+    // синтаксис (той самий JS-канон-контракт: `JSON.parse` кидає → `catch
+    // { return null }` → файл не чіпається).
+    if !cfg.is_yaml && !is_strict_json(&source.content) {
+        return FixPlan { edits: vec![] };
+    }
     let Some(actual) = parse_yaml_document(&source.content) else {
         return FixPlan { edits: vec![] };
     };
@@ -4826,6 +5074,60 @@ mod tests {
         assert!(plan.edits.is_empty());
     }
 
+    /// Регрес-тест на дані-loss баг, знайдений незалежним ревʼю PR #528 на
+    /// ШИРШОМУ наборі фікстур (звіт задачі §2.58, поправка): `.vscode/*.json`
+    /// у продакшн-VS-Code-конвенції — часто JSONC (`//`-коментарі), а
+    /// [`parse_yaml_document`] (YAML 1.2-парсер) НЕ трактує `//` як
+    /// коментар — сусідній ключ тихо зливався в СМІТТЄВИЙ ключ
+    /// (`"// коментар \"editor.formatOnSave\""`), і РЕАЛЬНЕ налаштування
+    /// користувача (`editor.formatOnSave`) зникало з файлу. Floor-вимога
+    /// власника («не зіпсувати файл важливіше за все») — [`is_strict_json`]
+    /// гейтить ОБИДВА JSON-таргети (тут — `ga/vscode_extensions`) ПЕРЕД
+    /// будь-яким використанням толерантного YAML-парсера: не строгий JSON
+    /// → `touchedFiles` порожній, файл НЕ чіпається (той самий контракт, що
+    /// `fix_vscode_extensions_broken_json_target_is_noop` вище — JSONC
+    /// трактується РІВНО як побитий синтаксис, не як «майже валідний»).
+    #[test]
+    fn fix_vscode_extensions_jsonc_leading_comment_is_noop_no_data_loss() {
+        let files = vec![sf(
+            ".vscode/extensions.json",
+            "{\n  // локальний коментар\n  \"recommendations\": [\"local.ext\"]\n}\n",
+        )];
+        let diags = vec![Diagnostic {
+            reason: POLICY_INPUT_INVALID_REASON.to_string(),
+            message: "x".to_string(),
+            file: Some(".vscode/extensions.json".to_string()),
+            severity: Severity::Error,
+            data: None,
+        }];
+        let plan = fix_vscode_extensions(&fix_req(CONCERN_VSCODE_EXTENSIONS, files, diags));
+        assert!(
+            plan.edits.is_empty(),
+            "JSONC-вхід НЕ має чіпатись — floor, не намагання; отримано: {:?}",
+            plan.edits
+        );
+    }
+
+    /// Симетричний випадок — хвостовий `//`-коментар на рядку значення
+    /// (`"key": 1 // comment`, теж поширений JSONC-стиль VS Code), звіт
+    /// задачі §2.58 просив саме ЦЮ пару фікстур.
+    #[test]
+    fn fix_vscode_extensions_jsonc_trailing_comment_is_noop_no_data_loss() {
+        let files = vec![sf(
+            ".vscode/extensions.json",
+            "{\n  \"recommendations\": [\"local.ext\"] // хвостовий коментар\n}\n",
+        )];
+        let diags = vec![Diagnostic {
+            reason: POLICY_INPUT_INVALID_REASON.to_string(),
+            message: "x".to_string(),
+            file: Some(".vscode/extensions.json".to_string()),
+            severity: Severity::Error,
+            data: None,
+        }];
+        let plan = fix_vscode_extensions(&fix_req(CONCERN_VSCODE_EXTENSIONS, files, diags));
+        assert!(plan.edits.is_empty());
+    }
+
     #[test]
     fn vscode_extensions_t0_round_trip_missing_file_is_clean() {
         let diags_before = detect_policy(&[], &VSCODE_EXTENSIONS_CFG);
@@ -4955,6 +5257,66 @@ mod tests {
     #[test]
     fn fix_vscode_settings_broken_json_target_is_noop() {
         let files = vec![sf(".vscode/settings.json", "{ broken")];
+        let diags = vec![Diagnostic {
+            reason: POLICY_INPUT_INVALID_REASON.to_string(),
+            message: "x".to_string(),
+            file: Some(".vscode/settings.json".to_string()),
+            severity: Severity::Error,
+            data: None,
+        }];
+        let plan = fix_template_merge(
+            &fix_req(CONCERN_VSCODE_SETTINGS, files, diags),
+            &VSCODE_SETTINGS_FIX_CFG,
+        );
+        assert!(plan.edits.is_empty());
+    }
+
+    /// РІВНО фікстура незалежного ревʼю PR #528 (звіт задачі §2.58,
+    /// поправка): `.vscode/settings.json` з JSONC `//`-коментарем ПЕРЕД
+    /// ключем — до фіксу [`is_strict_json`] `fix_template_merge` писав файл
+    /// із втраченим `editor.formatOnSave` (тихо злитим у сміттєвий ключ
+    /// `"// коментар перед ключем \"editor.formatOnSave\""`). Тепер —
+    /// floor: не строгий JSON → жодної правки, файл лишається байт-у-байт
+    /// вхідним (перевіряємо не лише порожній `edits`, а саме що
+    /// налаштування користувача НЕ зникло б, якби фікс усе ж написав щось).
+    #[test]
+    fn fix_vscode_settings_jsonc_leading_comment_is_noop_no_data_loss() {
+        let before = concat!(
+            "{\n",
+            "  // коментар перед ключем\n",
+            "  \"editor.formatOnSave\": true,\n",
+            "  \"my.local\": 42\n",
+            "}\n"
+        );
+        let files = vec![sf(".vscode/settings.json", before)];
+        let diags = vec![Diagnostic {
+            reason: POLICY_INPUT_INVALID_REASON.to_string(),
+            message: "x".to_string(),
+            file: Some(".vscode/settings.json".to_string()),
+            severity: Severity::Error,
+            data: None,
+        }];
+        let plan = fix_template_merge(
+            &fix_req(CONCERN_VSCODE_SETTINGS, files, diags),
+            &VSCODE_SETTINGS_FIX_CFG,
+        );
+        assert!(
+            plan.edits.is_empty(),
+            "JSONC-вхід НЕ має чіпатись — floor, не намагання; отримано: {:?}",
+            plan.edits
+        );
+    }
+
+    /// Симетричний випадок — хвостовий `//`-коментар на рядку значення.
+    #[test]
+    fn fix_vscode_settings_jsonc_trailing_comment_is_noop_no_data_loss() {
+        let before = concat!(
+            "{\n",
+            "  \"editor.formatOnSave\": true, // хвостовий коментар\n",
+            "  \"my.local\": 42\n",
+            "}\n"
+        );
+        let files = vec![sf(".vscode/settings.json", before)];
         let diags = vec![Diagnostic {
             reason: POLICY_INPUT_INVALID_REASON.to_string(),
             message: "x".to_string(),
@@ -5297,6 +5659,48 @@ mod tests {
         assert!(w.content.contains("# коментар усередині мапи"));
         assert!(w.content.contains("- main # хвостовий коментар на елементі"));
         assert!(w.content.contains("# нижній коментар наприкінці файлу"));
+    }
+
+    // --- `is_strict_json` (JSONC-floor, доккомент розділу вище) ---
+
+    #[test]
+    fn is_strict_json_accepts_plain_json() {
+        assert!(is_strict_json(r#"{"a":1,"b":[true,false,null,"x",1.5e10],"c":{}}"#));
+        assert!(is_strict_json("  {}  "));
+        assert!(is_strict_json("[]"));
+        assert!(is_strict_json("\"тест\""));
+        assert!(is_strict_json("-0.5"));
+    }
+
+    #[test]
+    fn is_strict_json_rejects_leading_line_comment() {
+        assert!(!is_strict_json("{\n  // коментар\n  \"a\": 1\n}\n"));
+    }
+
+    #[test]
+    fn is_strict_json_rejects_trailing_line_comment() {
+        assert!(!is_strict_json("{\"a\": 1 // коментар\n}"));
+    }
+
+    #[test]
+    fn is_strict_json_rejects_trailing_comma() {
+        assert!(!is_strict_json(r#"{"a":1,}"#));
+        assert!(!is_strict_json(r#"[1,2,]"#));
+    }
+
+    #[test]
+    fn is_strict_json_rejects_unquoted_key() {
+        assert!(!is_strict_json("{a: 1}"));
+    }
+
+    #[test]
+    fn is_strict_json_rejects_single_quotes() {
+        assert!(!is_strict_json("{'a': 1}"));
+    }
+
+    #[test]
+    fn is_strict_json_rejects_trailing_garbage() {
+        assert!(!is_strict_json("{}garbage"));
     }
 
     // --- deep-subset/deep-merge примітиви ---

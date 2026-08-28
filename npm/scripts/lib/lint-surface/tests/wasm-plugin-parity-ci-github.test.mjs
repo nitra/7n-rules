@@ -1048,6 +1048,45 @@ describe('wasm-плагін plugin-ci-github — третя хвиля: T0-ци�
     })
   })
 
+  /**
+   * Регрес-тест на дані-loss баг, знайдений незалежним ревʼю PR #528 на
+   * ширшому наборі фікстур (звіт задачі §2.58, поправка): `.vscode/settings.json`
+   * у продакшн-VS-Code-конвенції часто містить JSONC `//`-коментарі — гість
+   * читав його тим самим толерантним YAML-парсером (валідний YAML 1.2, для
+   * якого `//` НЕ коментар), сусідній ключ тихо зливався з коментарем у
+   * сміттєвий ключ, і фікс писав ЗІПСОВАНИЙ файл із втраченим
+   * `editor.formatOnSave`. Тепер — floor крізь РЕАЛЬНИЙ napi-міст:
+   * `runWasmConcern` детектить `policy-input-invalid` (не строгий JSON),
+   * `runWasmConcernFix` не дає жодної правки, файл лишається байт-у-байт
+   * вхідним.
+   */
+  test('ga/vscode_settings: JSONC-коментар (`//` перед ключем) — не строгий JSON, фікс НЕ чіпає файл, налаштування не втрачається', async () => {
+    await withTmpDir(async dir => {
+      await mkdir(join(dir, '.vscode'), { recursive: true })
+      const jsonc = [
+        '{',
+        '  // коментар перед ключем',
+        '  "editor.formatOnSave": true,',
+        '  "my.local": 42',
+        '}',
+        ''
+      ].join('\n')
+      await writeFile(join(dir, '.vscode', 'settings.json'), jsonc, 'utf8')
+
+      const before = loadNative().runWasmConcern(WASM_PATH, 'ga/vscode_settings', dir, null, {}).violations
+      expect(before.length).toBeGreaterThan(0)
+      expect(before[0].reason).toBe('policy-input-invalid')
+
+      const plan = loadNative().runWasmConcernFix(WASM_PATH, 'ga/vscode_settings', dir, before, {})
+      const edit = plan.edits.find(e => e.path === '.vscode/settings.json')
+      expect(edit).toBeUndefined()
+
+      const onDisk = await readFile(join(dir, '.vscode', 'settings.json'), 'utf8')
+      expect(onDisk).toBe(jsonc)
+      expect(onDisk).toContain('"editor.formatOnSave": true')
+    })
+  })
+
   test('security/lint_security_yml: наявний workflow з локальним кроком, без trufflehog — fix дописує канонічний крок, локальний лишається, повторний детект чистий', async () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, '.github', 'workflows'), { recursive: true })
