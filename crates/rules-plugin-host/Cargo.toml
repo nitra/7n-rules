@@ -20,7 +20,7 @@ rules-contract = { path = "../rules-contract" }
 # фактично потрібних: `component-model` (Component Model ABI/біндінги),
 # `cranelift` (компіляція wasm → native), `runtime` (Store/Instance/пам'ять
 # — сама можливість виконання), `std`.
-wasmtime = { version = "47.0", default-features = false, features = [
+wasmtime = { version = "48.0", default-features = false, features = [
   "component-model",
   "cranelift",
   "runtime",
@@ -39,7 +39,7 @@ wasmtime = { version = "47.0", default-features = false, features = [
 # замовчуванням через `WasiCtx`-політику (`allow_tcp`/`allow_udp`/
 # `allow_ip_name_lookup` лишаються `false`, доккомент `PluginHost::new` у
 # `src/host.rs`), не через відсутність wasi:sockets у `Linker`.
-wasmtime-wasi = { version = "47.0", default-features = false, features = [
+wasmtime-wasi = { version = "48.0", default-features = false, features = [
   "p2",
 ] }
 thiserror = "1"
