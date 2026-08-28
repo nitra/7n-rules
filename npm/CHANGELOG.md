@@ -1,5 +1,60 @@
 # Changelog
 
+## [1.104.0] - 2026-08-28
+
+### Added
+
+- `plugin-ci-github` (wasm-гість): портовано другий T0-фіксер — `rust/toolchain_cache` (перша хвиля гостя, детект `scan_toolchain_steps` уже жив у гості). Точний семантичний порт двох чисто текстових T0-патернів `fix-toolchain_cache.mjs`: `insertRustCache` (вставляє `Swatinem/rust-cache@v2` одразу після `dtolnay/rust-toolchain@…`-кроку без cache-кроку в тому самому job-і) і `addCacheWorkspaces` (дописує `with.workspaces` у Tauri-job-ах, де `Cargo.toml` не в корені репо). Сканувальний рушій детектора (`scan_toolchain_steps`/`ToolchainStepScan`) перевикористано напряму — розширено трьома полями (`line`/`dash_col`/`cache_line`), які потрібні фіксеру для координат вставки, але не потрібні детекту; жодного другого скана не написано. `fix_toolchain_cache` компонує обидва трансформери послідовно на одному буфері, той самий мотив, що `fix_workflows` (#512). Жодного нового регекс-патерну не знадобилось — усі чотири текстові патерни цього концерну вже портовані вручну на detect-боці ще до #512. JS-фіксер (`fix-toolchain_cache.mjs`) свідомо НЕ видалено — спершу парність; диспетчер `run-fix.mjs` (T0Pattern.guestFix) автоматично пріоритезує гостя без жодної зміни коду. Бюджет мірявся поетапно (одна трансформація → зібрати → зміряти, як і вимагала постановка): крок 1 (`insert_rust_cache`) — +8 436 байт, крок 2 (`add_cache_workspaces`, дешевший — переюзав уже злінковану `Vec<String>`/`splice`/`format!`-машинерію кроку 1) — +5 896 байт. Розмір гостя: 2 590 442 → 2 604 774 байт (+14 332, 99.4% бюджету 2 621 440, запасу лишилось 16 666 байт). Тести: cargo `plugin-ci-github` 87 → 98 (+11, включно з двома незалежними round-trip-тестами й негативними тестами для обох kind-ів), `wasm-plugin-parity-ci-github.test.mjs` + `fix-toolchain_cache.test.mjs` разом 28/28 без змін, `conftest verify` по `plugins/ci-github/rules/ga/` — 88/88 без регресій, `.rego` не торкнуто.
+
+### Fixed
+
+- `runWasmConcernFix` (`crates/rules-napi/src/lib.rs`) — продовження фіксу #513
+для НЕ-full-scope концернів. #513 додав full-scope glob-обхід, коли жодна
+violation не несе `file` і концерн задекларований `scope: full` (напр.
+`js/check`) — але лишив вужчу гілку `_ => Vec::new()` для решти випадків:
+концерн з `scope: per-file` (чи взагалі не знайдений у `describe()`), чиї
+РЕАЛЬНІ (непорожні) violations теж не несуть `file`, і далі тихо отримував
+порожній `FixRequest::files` — той самий мовчазний батч, що спричинив #513,
+лише для іншого класу концернів. Живий кандидат: `python/ruff`
+(`crates/plugin-lang-python/src/lib.rs::detect_ruff`) — `scope: per-file`,
+але одна агрегована діагностика на ВЕСЬ прогін `ruff check`/`ruff format
+--check`, без `file`; порт реального фіксера цього концерну сьогодні впирався
+б у мовчазну порожню поведінку (наразі — сумісна заглушка, `fix()` повертає
+порожній план, тож нікого не зупиняло на практиці).
+
+WIT-контракт (`crates/rules-contract/wit/world.wit`, `record diagnostic` /
+`record fix-request`) МОВЧИТЬ про цей випадок — не забороняє `file: none` для
+`per-file`-концерну (агрегована діагностика — легітимний `detect()`-результат)
+і не визначає, як host має будувати `fix-request.files`, коли жодна
+діагностика його не назвала. Це НЕ підтверджена помилка контракту концерну
+(схема дозволяє `file: none`) і НЕ підтверджений безпечний legit-кейс:
+full-scope glob-обхід тут небезпечний — для `per-file`-концерну він розширив
+би fix ЗА МЕЖІ дельти, порушивши сам per-file-контракт. Тож замість вгадувати
+(мовчки чи full-scope), `run_wasm_concern_fix` тепер падає з типізованою
+помилкою (`ambiguous_empty_fix_batch_err`) — називає концерн, причину (жодна
+діагностика не несе `file`) і що зробити (концерн має класти `file`, або WIT
+потребує явного розширення під агреговані per-file fix-и — не вирішено тут,
+задокументовано відкритим питанням у самому `world.wit`). Порожні
+`diagnostics` (нема violations — нема що фіксити) лишаються `Vec::new()` без
+помилки — двозначність лише коли violations є, а `file` немає в жодній.
+
+JS-бік (`npm/scripts/lib/lint-surface/run-fix.mjs::computeWasmFixPlan`) ловить
+цю помилку (той самий graceful-degrade контур, що вже несе `loadT0Patterns`
+для битого `fix-<concern>.mjs` і `runConcernDetector` для wasm-падіння під час
+`detect()`): `console.error` з причиною, деградація до порожнього плану —
+concern далі йде в ladder, падіння ОДНОГО concern-а не вбиває весь fix-прогін
+(`runWasmConcernFix` кличеться в циклі по концернах).
+
+Регресія: три робочі шляхи не зачеплені — file-scoped фіксери
+(`test/no-bun-test-import`, `js/doc_comments` — несуть `diagnostic.file`,
+гілка `target_files.is_empty()` для них узагалі не виконується) і full-scope
+`js/check` (`scope: full` і далі йде `build_full_scope_files`, як і раніше).
+Нові тести `crates/rules-napi/src/lib.rs` (4, проти реальної guest-фікстури
+`crates/test-plugin-guest`, нова `scope: full` fix-фікстура
+`test/guest-fix-full-scope`) + наявні `wasm-fix-e2e.test.mjs` (5/5) і
+`wasm-plugin-parity.test.mjs` (260/260, без регресій) підтверджують усі три
+шляхи разом з новою помилкою.
+
 ## [1.103.2] - 2026-08-28
 
 ### Changed
