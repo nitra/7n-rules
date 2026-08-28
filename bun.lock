@@ -37,7 +37,7 @@
     },
     "npm": {
       "name": "@7n/rules",
-      "version": "1.107.3",
+      "version": "1.107.4",
       "bin": {
         "n-rules": "bin/n-rules.js",
         "n-cursor": "bin/n-rules.js",
@@ -60,9 +60,9 @@
         "zod": "^4.4.3",
       },
       "optionalDependencies": {
-        "@7n/rules-darwin-arm64": "1.107.3",
-        "@7n/rules-linux-x64": "1.107.3",
-        "@7n/rules-win32-x64": "1.107.3",
+        "@7n/rules-darwin-arm64": "1.107.4",
+        "@7n/rules-linux-x64": "1.107.4",
+        "@7n/rules-win32-x64": "1.107.4",
         "@earendil-works/pi-ai": "0.80.10",
         "@earendil-works/pi-coding-agent": "0.80.10",
       },
@@ -166,7 +166,7 @@
 
     "@7n/rules-ci-github": ["@7n/rules-ci-github@workspace:plugins/ci-github"],
 
-    "@7n/rules-darwin-arm64": ["@7n/rules-darwin-arm64@1.107.3", "", { "os": "darwin", "cpu": "arm64" }, "sha512-U0N7QwOh1TI8zCkIWbII4eh9jW/401LhU5pmz28RW3EclQgrlmo3NDNy4QN8xyehvWUT0EyuHNIgCY1tTG3xJg=="],
+    "@7n/rules-darwin-arm64": ["@7n/rules-darwin-arm64@1.107.4", "", { "os": "darwin", "cpu": "arm64" }, "sha512-QqGW3wjJt5lY7LgBFVGlcjagqPowdXfMoWzDG+JENbkJH6RgrGazG9k6TbQo5KB9eJp1WPWCjZo2Jaj4EXeXWA=="],
 
     "@7n/rules-lang-js": ["@7n/rules-lang-js@workspace:plugins/lang-js"],
 
@@ -176,9 +176,9 @@
 
     "@7n/rules-lang-rust": ["@7n/rules-lang-rust@workspace:plugins/lang-rust"],
 
-    "@7n/rules-linux-x64": ["@7n/rules-linux-x64@1.107.3", "", { "os": "linux", "cpu": "x64" }, "sha512-Pz4Q8T1PA2wvB3IOk+i/EQeNnc9FZfks5rqLSH3GoHCWdR+cY84lq246+WGJ8yGFhO92dGoIoXAfUC/jwMS1UA=="],
+    "@7n/rules-linux-x64": ["@7n/rules-linux-x64@1.107.4", "", { "os": "linux", "cpu": "x64" }, "sha512-0gLlZ83QEM+HGmRDAyQmzp1N0cwpTPFVbe1Kzaa6RHd7JuPkYlqKVm+J7nMaRUbF/epe8CmDtGjgcogA0+pkLQ=="],
 
-    "@7n/rules-win32-x64": ["@7n/rules-win32-x64@1.107.3", "", { "os": "win32", "cpu": "x64" }, "sha512-YpgcTWhKRdPzEOn5ZSNE6CgFO306MLwcmS4uFSpPYpSn04FgFpPvOFNvwiwOfRoXfv6ROdYnPbJPk4bzOBy0tQ=="],
+    "@7n/rules-win32-x64": ["@7n/rules-win32-x64@1.107.4", "", { "os": "win32", "cpu": "x64" }, "sha512-RCcf4Uj6CEbvQkIMlkYsWq0PvroShfLYnNdSlavxE8Cexcoe1y8AGRp7eZy3DwUZhQ8UXGhp76059uNWCN7nkw=="],
 
     "@anthropic-ai/sdk": ["@anthropic-ai/sdk@0.91.1", "", { "dependencies": { "json-schema-to-ts": "^3.1.1" }, "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" }, "optionalPeers": ["zod"], "bin": { "anthropic-ai-sdk": "bin/cli" } }, "sha512-LAmu761tSN9r66ixvmciswUj/ZC+1Q4iAfpedTfSVLeswRwnY3n2Nb6Tsk+cLPP28aLOPWeMgIuTuCcMC6W/iw=="],
 
