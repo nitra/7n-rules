@@ -996,6 +996,7 @@ fn already_has_trailing_comma(content: &str, pos: usize) -> bool {
 /// block-стилі). `open` — очікуваний відкриваючий байт (`b'{'` для обʼєкта,
 /// `b'['` для масиву) — розрізняти два випадки одним викликом безпечно, бо
 /// [`MNode::Object`] не може фізично починатись з `[`, і навпаки.
+#[cfg(feature = "yaml")]
 fn is_flow_container(content: &str, span: (usize, usize), open: u8) -> bool {
     content.as_bytes().get(span.0) == Some(&open)
 }
@@ -1023,6 +1024,7 @@ fn is_flow_container(content: &str, span: (usize, usize), open: u8) -> bool {
 /// [`already_has_trailing_comma`], лише скануючи НАЗАД від точки вставки —
 /// дзеркальний напрямок, бо flow-вставка завжди відбувається ПЕРЕД
 /// закриваючим токеном, не ПІСЛЯ останнього елемента).
+#[cfg(feature = "yaml")]
 fn flow_insert_point(content: &str, span: (usize, usize)) -> (usize, &'static str) {
     let close_at = span.1;
     let inner = content[span.0 + 1..close_at].trim_end_matches([' ', '\t', '\r', '\n']);

@@ -44,6 +44,17 @@
 //!   Тож запис свідомо не додається — концерн уже native, просто іншим
 //!   класом виконавця.
 //!
+//! # T5 — ядрова пʼятірка родини `vscode_extensions` (§2.75 реєстру)
+//!
+//! `doc-files/vscode_extensions`, `graphql/vscode_extensions`,
+//! `rego/vscode_extensions`, `tauri/vscode_extensions`,
+//! `text/vscode_extensions` — усі пʼять стоять на ОДНОМУ JS-рушії
+//! (`npm/scripts/lib/fix/vscode-ext-add.mjs`), тож і порт — один рушій плюс
+//! пʼять записів конфігурації: [`super::fix_vscode_extensions`] (там же —
+//! семантика мержу й перелік полагоджених дефектів канону). Спільний
+//! JSONC-парс/серіалізацію бере крейт `rules-template-merge` (§2.71), а не
+//! друга копія в ядрі.
+//!
 //! # Свідомо НЕ портовані T0-фікси (лишаються JS)
 //!
 //! - **`tauri/release`** (`npm/rules/tauri/release/fix-release.mjs`) —
@@ -1153,17 +1164,22 @@ pub const NATIVE_FIXES: &[&str] = &[
     "abie/firebase_hosting",
     "changelog/consistency",
     "doc-files/marksman_config",
+    "doc-files/vscode_extensions",
+    "graphql/vscode_extensions",
     "hasura/internal_urls",
     "hasura/migrations",
     "k8s/dremio_logging",
     "k8s/manifests",
     "nginx-default-tpl/template",
+    "rego/vscode_extensions",
     "security/sample_secret",
     "tauri/cargo_mutants_config",
     "tauri/gitignore_target",
     "tauri/linux_deps",
+    "tauri/vscode_extensions",
     "text/markdownlint",
     "text/oxfmt",
+    "text/vscode_extensions",
 ];
 
 /// Будує [`FixPlan`] для native-fix-концерну за ключем `ruleId/concernId`.
@@ -1201,6 +1217,16 @@ pub fn run_concern_fix(
         "tauri/linux_deps" => Ok(tauri_linux_deps_fix(cwd, violations)),
         "text/markdownlint" => text_markdownlint_fix(cwd, violations),
         "text/oxfmt" => text_oxfmt_fix(cwd, violations),
+        // Родина `vscode_extensions` — ОДИН рушій на пʼять концернів
+        // (доккомент [`super::fix_vscode_extensions`]); ключ передається
+        // далі як селектор вшитого канонічного снапшота.
+        key @ ("doc-files/vscode_extensions"
+        | "graphql/vscode_extensions"
+        | "rego/vscode_extensions"
+        | "tauri/vscode_extensions"
+        | "text/vscode_extensions") => {
+            super::fix_vscode_extensions::vscode_extensions_fix(key, cwd, violations)
+        }
         other => Err(RulesError::Concern(format!(
             "невідомий native fix: {other}"
         ))),
@@ -2281,5 +2307,35 @@ mod tests {
         let v = violation("error-log-off-directive", None, None);
         let plan = nginx_default_tpl_template_fix(tmp.path(), &[v]);
         assert!(plan.edits.is_empty(), "{plan:?}");
+    }
+
+    // ── родина vscode_extensions (T5, §2.75) ──
+
+    /// Реєстр і таблиця конфігів родини не мають розходитись: ключ у
+    /// [`NATIVE_FIXES`] без конфігу дав би `RulesError` уже в рантаймі
+    /// консюмера (JS-канон при цьому вже затінений), а конфіг без ключа —
+    /// мертвий код, який ніхто ніколи не викличе.
+    #[test]
+    fn vscode_extensions_keys_registered_and_dispatched() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        for key in super::super::fix_vscode_extensions::VSCODE_EXTENSIONS_FIX_KEYS {
+            assert!(NATIVE_FIXES.contains(key), "{key} відсутній у NATIVE_FIXES");
+            // Продакшн-шлях: run_concern_fix, не пряме звернення до рушія.
+            let plan = run_concern_fix(
+                key,
+                tmp.path(),
+                &[violation(
+                    "policy-file-missing",
+                    Some(".vscode/extensions.json"),
+                    None,
+                )],
+            )
+            .unwrap_or_else(|e| panic!("{key}: {e}"));
+            assert_eq!(plan.edits.len(), 1, "{key}: очікували створення файлу");
+            match &plan.edits[0] {
+                FileEdit::Write(w) => assert_eq!(w.path, ".vscode/extensions.json"),
+                FileEdit::Delete { .. } => panic!("{key}: очікували write"),
+            }
+        }
     }
 }
