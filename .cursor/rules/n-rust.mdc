@@ -179,6 +179,6 @@ lint-workflow, цей — universal per-job перевірка для решти
 корені репо, а під `<ws>/src-tauri/` (типовий Tauri-layout) — крок
 `Swatinem/rust-cache@v2` має мати `with.workspaces: <ws>/src-tauri`.
 
-Автофікс (`fix-toolchain_cache.mjs`, T0, `fixability: config`) вставляє відсутній
+Автофікс (wasm-гість `crates/plugin-ci-github`, T0, `fixability: config`) вставляє відсутній
 крок одразу після `dtolnay/rust-toolchain@…` (і `with.workspaces`, де потрібно)
 текстовим splice-ом — зберігає формат/коментарі, ідемпотентно.

@@ -76,7 +76,7 @@ export async function lint(ctx) {
 **Реальні приклади:**
 
 - **abie** — пер-документна валідація винесена в Rego (`abie.base_deployment_preem`, `abie.clean_merged_ignore_branches`, `abie.health_check_policy`, `abie.http_route_base`, `abie.package_json_shared`) — кожне у власному concern-каталозі `npm/rules/abie/<name>/` з `concern.json`. Cross-file / FS-частини — теж окремі concern-каталоги з `main.mjs`: env→cluster DNS (`env_dns/`), HCP↔Deployment pairing і modeline `hc.yaml` (`hc_pairing/`), ua-overlay JSON6902 patches на HTTPRoute + cross-namespace `backendRefs` (`ua_http_route/`), nodeSelector у Deployment (`ua_node_selector/`), Firebase Hosting артефакти (`firebase_hosting/`).
-- **ga** — `rules/ga/workflows/main.mjs::lint(ctx)` викликає `runConftestBatch` по суміжних rego-концернах (`lint_ga`, `workflow_common` тощо), далі — JS cross-file (MegaLinter-присутність, обов'язкові workflow-файли). T0-автофікс — `fix-workflows.mjs` поруч.
+- **ga** — `rules/ga/workflows/main.mjs::lint(ctx)` викликає `runConftestBatch` по суміжних rego-концернах (`lint_ga`, `workflow_common` тощо), далі — JS cross-file (MegaLinter-присутність, обов'язкові workflow-файли). T0-автофікс — wasm-гість `crates/plugin-ci-github` (`Guest::fix`, ga/workflows).
 
 ### Workflow для нової перевірки
 
