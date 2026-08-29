@@ -23,5 +23,5 @@ deny contains msg if {
 		{},
 	)
 	object.get(policies, "*", null) != expected
-	msg := sprintf(".github/zizmor.yml: rules.unpinned-uses.config.policies[%q] має бути %q (ga.mdc)", ["*", expected])
+	msg := sprintf(".github/zizmor.yml: rules.unpinned-uses.config.policies[\"%v\"] має бути \"%v\" (ga.mdc)", ["*", expected])
 }

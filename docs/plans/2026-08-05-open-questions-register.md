@@ -7972,6 +7972,145 @@ native-фікси) — `fix-oxfmt.mjs`/`fix-markdownlint.mjs`/`fix-template.mjs`
 
 ---
 
+### 2.68. `crates/plugin-ci-github` — родина `template-deep-merge` доперенесена цілком: дванадцять останніх JS-шимів, guest 15,0% бюджету; знайдено реальний баг канону (`lint_ga.rego`/`lint_text.rego`) і третю появу пастки `%q`
+
+**Задача.** §2.56/§2.58/§2.59/§2.63 портували рушій `template-deep-merge`
+(comment-preserving JSONC/YAML deep-merge) і пʼять перших концернів
+(`ga/workflows`, `rust/toolchain_cache`, `ga/vscode_extensions`,
+`ga/vscode_settings`, `security/lint_security_yml`). Лишалось дванадцять
+однорядкових шимів (`export const patterns = [createTemplateFixPattern(…)]`,
+без локальних перевизначень — перевірено по всіх дванадцяти, теза «один
+рушій» тримається): `abie/clean_merged_ignore_branches`,
+`docker/lint_docker_yml`, `ga/clean_ga_workflows`, `ga/clean_merged_branch`,
+`ga/git_ai`, `ga/lint_ga`, `ga/lint_repo_yml`, `ga/zizmor_yml`,
+`k8s/lint_k8s_yml`, `npm-module/npm_publish_yml`, `style/lint_style_yml`,
+`text/lint_text`. Усі дванадцять портовано цією хвилею — без батчів-зупинок,
+приріст розміру рівномірний по всій хвилі (нижче).
+
+**Дві форми детекту, той самий фікс.** Десять концернів мають власний
+`.rego` (детект — [`detect_policy`], regorus, той самий рушій, що ТРЕТЯ
+хвиля §2.5x); чотири з десяти (`ga/git_ai`, `ga/lint_ga`,
+`ga/clean_ga_workflows`, `ga/clean_merged_branch`) уже мали свій `.rego` і
+snippet **вшитими** `include_str!` — вони фактично виконувались УСЕРЕДИНІ
+композитного `ga/workflows` (`run_all_ga_rego`, `.rego`-файли sub-check-ами
+одного великого концерну), просто НЕ мали власної `describe().concerns`-
+контрибуції й dispatch-гілки; порт цієї хвилі — переважно wiring
+(`PolicyCfg`/`TemplateFixCfg` + `describe()`/`detect()`/`fix()`), не нова
+логіка. Два концерни (`ga/lint_repo_yml`, `npm-module/npm_publish_yml`) НЕ
+мають `.rego` узагалі (`concern.json`: `"check": "template"`) — детект іде
+структурним subset-порівнянням, `checkSnippet` (`npm/scripts/lib/template.mjs`)
+портовано буквально як [`check_snippet_messages`]
+(`crates/plugin-ci-github/src/lib.rs`), `reason: policy-template-mismatch`,
+не `policy-deny`. Фікс — той самий [`fix_template_merge`] для всіх
+дванадцяти незалежно від того, звідки прийшла діагностика: JS-канон
+(`createTemplateFixPattern`) теж не розрізняє джерело.
+
+**Один концерн — `required: false`.** `abie/clean_merged_ignore_branches`
+(`concern.json` без `policy.files.required`) ділить target-файл
+(`.github/workflows/clean-merged-branch.yml`) з `ga/clean_merged_branch`, але
+відсутність файлу тут НЕ дає `policy-file-missing` — концерн просто мовчить
+(точний відповідник `evaluatePolicyConcern`'s `if (cfg.files.required &&
+cfg.files.single)`). `PolicyCfg` дістав нове поле `required: bool` саме
+через цей один випадок — решта одинадцять концернів хвилі мають `required:
+true`, той самий контракт, що ТРЕТЯ хвиля мала неявно.
+
+**Знахідка №1 — справжній баг канону, не порту: `job.steps[_].uses` без
+захисту в `lint_ga.rego`/`lint_text.rego`.** Round-trip-тест на власному ж
+канонічному snippet-і (файл відсутній → фікс копіює snippet verbatim →
+повторний детект МАЄ бути чистим) провалився для цих двох концернів: детект
+на щойно згенерованому канонічному файлі повертав ТРИ `policy-deny` про
+відсутні `uses`-кроки, хоча вони там БУЛИ. Причина — `job_uses_set contains
+job.steps[_].uses` (прямий dot-access, без `object.get`) на кроці БЕЗ `uses`
+(canonical snippet і lint_ga, і lint_text мають `run`-лише кроки — «Install
+conftest», «Lint …») робить comprehension недосяжним для regorus, увесь
+`job_uses_set` лишається порожнім — не «цей один крок пропущено», а «ВСІ
+кроки пропущено». Решта `.rego`-файлів цієї й попередніх хвиль читають
+`uses` захищено (`object.get(step, "uses", "")`) — саме тому цей самий клас
+дефекту не проявився більше ніде. Порт уже мав рішення — `ga/workflows`'s
+[`run_all_ga_rego`] застосовує [`ensure_step_uses_key_present`] (вставляє
+`uses: ""` кожному кроку без нього) саме тому, що ЧОТИРИ `.rego`
+(`git_ai`/`lint_ga`/`clean_ga_workflows`/`clean_merged_branch`) вже жили
+всередині цього шляху; [`detect_policy`] (спільна для десяти rego-концернів
+цієї хвилі) тепер застосовує ту саму нормалізацію УНІВЕРСАЛЬНО — безпечний
+no-op для концернів, чий `actual` не має кореневого `jobs` (JSON-таргети
+третьої хвилі, `ga/zizmor_yml`). Це дефект **живого JS-канону** —
+`policy-lint-adapter.mjs` через `runConftestBatch`/real conftest НІКОЛИ не
+проганяв ці два `.rego` в ізоляції з `run`-лише кроком у batch без
+одночасного захищеного WRAPPER-кроку, тож дефект не виявляв себе на
+практиці, доки round-trip порту не змусив прогнати ЧИСТО канонічний
+вивід через саму ж політику.
+
+**Знахідка №2 — третя поява `%q`.** Regorus не підтримує Go-verb `%q`
+(жорстка runtime-помилка) — §2.22 виловила це вперше (пʼять місць), пізніша
+хвиля — вдруге. Цього разу — **шість** `.rego`-файлів одразу
+(`docker/lint_docker_yml`, `ga/zizmor_yml` — два `%q` в ОДНІЙ `sprintf`,
+`k8s/lint_k8s_yml`, `style/lint_style_yml`, `text/lint_text` — двічі,
+`abie/clean_merged_ignore_branches`), той самий фікс — `%q` → `\"%v\"` у
+джерелі `.rego`, доведено конкретним прогоном `conftest verify` на
+кожному з шести файлів (усі проходять) і бридж-тестом на `ga/zizmor_yml`
+(два квотовані літерали в одному повідомленні, крізь реальний regorus).
+**Відкрите питання, не вирішене цією хвилею:** чи варто анти-дрейф-тест,
+що сканує ВСІ `.rego` репозиторію на `%q` одним гейтом (grep-перевірка,
+дешева), замість виловлювати його вручну щоразу, коли черговий концерн
+портується — це вже третій раз за той самий клас пастки.
+
+**Розмір гостя — поетапно (§2.56-мотив: міряти, не екстраполювати).**
+Старт хвилі — 1 571 007 Б (15,0% стелі 10 MiB, §2.66). Фінал — **1 602 445
+Б (15,3% стелі)**, приріст **+31 438 Б на всі дванадцять концернів разом**
+(жоден не мірявся окремо по батчах — уся хвиля зроблена за один прохід
+компіляції; середнє ~2,6 КБ/концерн, у ряд з першими трьома хвилями §2.56
+(+6 091/+4 558/+3 880 на хвилю), без викидів). Запас до стелі — **8,88 МБ**.
+
+**Характеризаційний гейт — де він БУВ, де його не було.** Лише
+`text/lint_text` і `npm-module/npm_publish_yml` мали власний
+`tests/fix-*.test.mjs` до цієї хвилі; десять інших концернів мали ЛИШЕ
+`*_test.rego` (conftest-рівень — характеризує детект, не fix-wiring). Додано
+десять нових `tests/fix-<concern>.test.mjs` (20 тестів — idempotent на
+каноні + файл відсутній → snippet), той самий мінімальний паттерн, що вже
+мав `text/lint_text`. Не додано: повноцінних JS-детект-характеризаційних
+тестів понад наявні `*_test.rego` — вважаю conftest-рівень достатнім
+характеризаційним гейтом для детект-сторони (той самий рушій, що й
+production `runConftestBatch`), а дублювати його як окремий vitest-набір на
+кожен із дванадцяти концернів — розкладка обсягу, не порту.
+
+**Тести.** `cargo test -p plugin-ci-github --lib`: 172/172 (16 нових —
+12 T0-round-trip по одному на концерн + `required: false`-специфічний +
+abie deny→clean round-trip + zizmor `%q`-регрес + lint_repo_yml
+mismatch-формат; `Guest::detect`/`Guest::fix` НЕ можна кликати з юніт-тесту
+напряму — `report_progress` є host-import, панікує «entered unreachable
+code» поза реальним wasmtime-хостом, dispatch-wiring звіряють прямі
+`CONCERN_*`/`*_CFG`-виклики замість). JS: 20 нових характеризаційних (вище)
++ 46 napi-bridge parity-тестів (`wasm-plugin-parity-ci-github.test.mjs` —
+11 T0-циклів по одному на концерн з дефолтним target-шляхом + 2 abie
+(required:false-мовчання, deny→fix→clean) + zizmor `%q`-регрес +
+lint_repo_yml template-mismatch-регрес + оновлений `describe()`-тест на 17
+концернів, разом з 30 наявними — усі зелені). `conftest verify` на кожному
+з шести відредагованих `.rego`: 8/8, 4/4, 6/6, 6/6, 6/6, 7/7 — без
+регресій на самій rego-логіці.
+
+**Пастка середовища, не порту.** Локальна збірка `rules-napi`
+(`RUSTFLAGS="-C link-args=-Wl,-undefined,dynamic_lookup" cargo build -p
+rules-napi --release`, доккомент брифу) впала «No space left on device» —
+диск був на 100% (121 МіБ вільно) через `target/debug` головного checkout-у
+(45 ГБ некерованого incremental-кешу). Прибрано ЗОВНІ захищеної
+`.claude/worktrees/` (яка сама важить 92 ГБ і НЕ підлягає чистці — CLAUDE.md);
+після звільнення диска бридж-збірка й усі 46 parity-тестів пройшли без змін
+у підході.
+
+**JS-канон НЕ видалено** (той самий перехідний контракт, що всі попередні
+хвилі) — усі дванадцять `fix-*.mjs`-шимів лишаються на диску незмінними;
+`.rego`-файли шести концернів отримали ЛИШЕ `%q`-правку (семантично
+еквівалентну, доведено conftest-прогоном), не структурну зміну.
+
+**Наступна хвиля.** Родина `template-deep-merge` у `ci-github` вичерпана —
+усі сімнадцять концернів гостя (5 + 12) покривають повний перелік
+`ruleId/concernId`, що мали власний `main.mjs`/policy-shim у
+`plugins/ci-github/rules/`. Відкрите — анти-дрейф-гейт на `%q` (вище) і
+рішення по родині `vscode_extensions`/`vscode_settings`-подібних концернів
+у `crates/rules-core` (§2.67 відклала).
+
+---
+
 ## Як користуватись
 
 Дійшовши кінця плану міграції, пройти реєстр згори вниз: розділи 1 і 6 — це

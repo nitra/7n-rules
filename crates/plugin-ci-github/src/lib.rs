@@ -2667,6 +2667,15 @@ struct PolicyCfg {
     namespace: &'static str,
     snippet_source_name: &'static str,
     snippet_raw: &'static str,
+    /// Точний відповідник `cfg.files.required` (`policy-lint-adapter.mjs`):
+    /// коли `false` — відсутність `target_path` НЕ дає `policy-file-missing`
+    /// (`evaluatePolicyConcern`, гілка `if (cfg.files.required &&
+    /// cfg.files.single)`), файл просто не перевіряється. Єдиний концерн
+    /// четвертої хвилі з `required: false` — `abie/clean_merged_ignore_branches`
+    /// (доккомент [`ABIE_CLEAN_MERGED_IGNORE_BRANCHES_CFG`]); решта — `true`,
+    /// той самий контракт, що ТРЕТЯ хвиля мала неявно (доккомент
+    /// [`detect_policy`]).
+    required: bool,
 }
 
 const VSCODE_EXTENSIONS_CFG: PolicyCfg = PolicyCfg {
@@ -2677,6 +2686,7 @@ const VSCODE_EXTENSIONS_CFG: PolicyCfg = PolicyCfg {
     namespace: "ga.vscode_extensions",
     snippet_source_name: "extensions.json.snippet.json",
     snippet_raw: VSCODE_EXTENSIONS_SNIPPET_JSON,
+    required: true,
 };
 
 const VSCODE_SETTINGS_CFG: PolicyCfg = PolicyCfg {
@@ -2687,6 +2697,7 @@ const VSCODE_SETTINGS_CFG: PolicyCfg = PolicyCfg {
     namespace: "ga.vscode_settings",
     snippet_source_name: "settings.json.snippet.json",
     snippet_raw: VSCODE_SETTINGS_SNIPPET_JSON,
+    required: true,
 };
 
 const LINT_SECURITY_YML_CFG: PolicyCfg = PolicyCfg {
@@ -2697,6 +2708,219 @@ const LINT_SECURITY_YML_CFG: PolicyCfg = PolicyCfg {
     namespace: "security.lint_security_yml",
     snippet_source_name: "lint-security.yml.snippet.yml",
     snippet_raw: LINT_SECURITY_YML_SNIPPET_YML,
+    required: true,
+};
+
+// =====================================================================
+// ЧЕТВЕРТА хвиля — дванадцять `createTemplateFixPattern`-концернів, що
+// раніше лишались JS-шимами. Дев'ять reuse rego+snippet, вже вшиті
+// `include_str!` (чотири — раніше, для [`run_all_ga_rego`] у складі
+// `ga/workflows`; шість — нові тут), два (`ga/lint_repo_yml`,
+// `npm-module/npm_publish_yml`) НЕ мають `.rego` (concern.json:
+// `"check": "template"`) — детект іде через [`detect_template_check`]
+// (структурний subset, точний порт `checkSnippet`
+// (`npm/scripts/lib/template.mjs`), не regorus).
+// =====================================================================
+
+const DOCKER_LINT_DOCKER_YML_REGO: &str =
+    include_str!("../../../plugins/ci-github/rules/docker/lint_docker_yml/lint_docker_yml.rego");
+const DOCKER_LINT_DOCKER_YML_SNIPPET_YML: &str = include_str!(
+    "../../../plugins/ci-github/rules/docker/lint_docker_yml/template/lint-docker.yml.snippet.yml"
+);
+
+const GA_ZIZMOR_YML_REGO: &str =
+    include_str!("../../../plugins/ci-github/rules/ga/zizmor_yml/zizmor_yml.rego");
+const GA_ZIZMOR_YML_SNIPPET_YML: &str =
+    include_str!("../../../plugins/ci-github/rules/ga/zizmor_yml/template/zizmor.yml.snippet.yml");
+
+const K8S_LINT_K8S_YML_REGO: &str =
+    include_str!("../../../plugins/ci-github/rules/k8s/lint_k8s_yml/lint_k8s_yml.rego");
+const K8S_LINT_K8S_YML_SNIPPET_YML: &str = include_str!(
+    "../../../plugins/ci-github/rules/k8s/lint_k8s_yml/template/lint-k8s.yml.snippet.yml"
+);
+
+const STYLE_LINT_STYLE_YML_REGO: &str =
+    include_str!("../../../plugins/ci-github/rules/style/lint_style_yml/lint_style_yml.rego");
+const STYLE_LINT_STYLE_YML_SNIPPET_YML: &str = include_str!(
+    "../../../plugins/ci-github/rules/style/lint_style_yml/template/lint-style.yml.snippet.yml"
+);
+
+const TEXT_LINT_TEXT_REGO: &str =
+    include_str!("../../../plugins/ci-github/rules/text/lint_text/lint_text.rego");
+const TEXT_LINT_TEXT_SNIPPET_YML: &str =
+    include_str!("../../../plugins/ci-github/rules/text/lint_text/template/lint-text.yml.snippet.yml");
+
+const ABIE_CLEAN_MERGED_IGNORE_BRANCHES_REGO: &str = include_str!(
+    "../../../plugins/ci-github/rules/abie/clean_merged_ignore_branches/clean_merged_ignore_branches.rego"
+);
+const ABIE_CLEAN_MERGED_IGNORE_BRANCHES_SNIPPET_YML: &str = include_str!(
+    "../../../plugins/ci-github/rules/abie/clean_merged_ignore_branches/template/clean-merged-branch.yml.snippet.yml"
+);
+
+const GA_LINT_REPO_YML_SNIPPET_YML: &str = include_str!(
+    "../../../plugins/ci-github/rules/ga/lint_repo_yml/template/lint-repo.yml.snippet.yml"
+);
+
+const NPM_MODULE_NPM_PUBLISH_YML_SNIPPET_YML: &str = include_str!(
+    "../../../plugins/ci-github/rules/npm-module/npm_publish_yml/template/npm-publish.yml.snippet.yml"
+);
+
+/// Ключі контрибуцій ЧЕТВЕРТОЇ хвилі — точний відповідник `ruleId/concernId`
+/// відповідних `concern.json`.
+const CONCERN_GIT_AI: &str = "ga/git_ai";
+const CONCERN_LINT_GA: &str = "ga/lint_ga";
+const CONCERN_CLEAN_GA_WORKFLOWS: &str = "ga/clean_ga_workflows";
+const CONCERN_CLEAN_MERGED_BRANCH: &str = "ga/clean_merged_branch";
+const CONCERN_LINT_DOCKER_YML: &str = "docker/lint_docker_yml";
+const CONCERN_ZIZMOR_YML: &str = "ga/zizmor_yml";
+const CONCERN_LINT_K8S_YML: &str = "k8s/lint_k8s_yml";
+const CONCERN_LINT_STYLE_YML: &str = "style/lint_style_yml";
+const CONCERN_LINT_TEXT: &str = "text/lint_text";
+const CONCERN_CLEAN_MERGED_IGNORE_BRANCHES: &str = "abie/clean_merged_ignore_branches";
+const CONCERN_LINT_REPO_YML: &str = "ga/lint_repo_yml";
+const CONCERN_NPM_PUBLISH_YML: &str = "npm-module/npm_publish_yml";
+
+/// `reason` — точний відповідник `'policy-template-mismatch'`
+/// (`policy-lint-adapter.mjs::evaluatePolicyConcern`, гілка `engine ===
+/// 'template'`) — [`detect_template_check`], НЕ [`detect_policy`] (яка дає
+/// `policy-deny`, rego-гілка).
+const POLICY_TEMPLATE_MISMATCH_REASON: &str = "policy-template-mismatch";
+
+const GIT_AI_CFG: PolicyCfg = PolicyCfg {
+    target_path: ".github/workflows/git-ai.yml",
+    missing_message: ".github/workflows/git-ai.yml не існує — створи за каноном ga.mdc",
+    rego_source: GIT_AI_REGO,
+    namespace: "ga.git_ai",
+    snippet_source_name: "git-ai.yml.snippet.yml",
+    snippet_raw: GIT_AI_SNIPPET_YML,
+    required: true,
+};
+
+const LINT_GA_CFG: PolicyCfg = PolicyCfg {
+    target_path: ".github/workflows/lint-ga.yml",
+    missing_message: ".github/workflows/lint-ga.yml не існує — створи за каноном ga.mdc",
+    rego_source: LINT_GA_REGO,
+    namespace: "ga.lint_ga",
+    snippet_source_name: "lint-ga.yml.snippet.yml",
+    snippet_raw: LINT_GA_SNIPPET_YML,
+    required: true,
+};
+
+const CLEAN_GA_WORKFLOWS_CFG: PolicyCfg = PolicyCfg {
+    target_path: ".github/workflows/clean-ga-workflows.yml",
+    missing_message:
+        ".github/workflows/clean-ga-workflows.yml не існує — створи за каноном ga.mdc",
+    rego_source: CLEAN_GA_WORKFLOWS_REGO,
+    namespace: "ga.clean_ga_workflows",
+    snippet_source_name: "clean-ga-workflows.yml.snippet.yml",
+    snippet_raw: CLEAN_GA_WORKFLOWS_SNIPPET_YML,
+    required: true,
+};
+
+const CLEAN_MERGED_BRANCH_CFG: PolicyCfg = PolicyCfg {
+    target_path: ".github/workflows/clean-merged-branch.yml",
+    missing_message:
+        ".github/workflows/clean-merged-branch.yml не існує — створи за каноном ga.mdc",
+    rego_source: CLEAN_MERGED_BRANCH_REGO,
+    namespace: "ga.clean_merged_branch",
+    snippet_source_name: "clean-merged-branch.yml.snippet.yml",
+    snippet_raw: CLEAN_MERGED_BRANCH_SNIPPET_YML,
+    required: true,
+};
+
+const LINT_DOCKER_YML_CFG: PolicyCfg = PolicyCfg {
+    target_path: ".github/workflows/lint-docker.yml",
+    missing_message:
+        ".github/workflows/lint-docker.yml не існує — створи за каноном правила (mixin @7n/rules-ci-github)",
+    rego_source: DOCKER_LINT_DOCKER_YML_REGO,
+    namespace: "docker.lint_docker_yml",
+    snippet_source_name: "lint-docker.yml.snippet.yml",
+    snippet_raw: DOCKER_LINT_DOCKER_YML_SNIPPET_YML,
+    required: true,
+};
+
+const ZIZMOR_YML_CFG: PolicyCfg = PolicyCfg {
+    target_path: ".github/zizmor.yml",
+    missing_message: ".github/zizmor.yml не існує — потрібен для zizmor (ga.mdc)",
+    rego_source: GA_ZIZMOR_YML_REGO,
+    namespace: "ga.zizmor_yml",
+    snippet_source_name: "zizmor.yml.snippet.yml",
+    snippet_raw: GA_ZIZMOR_YML_SNIPPET_YML,
+    required: true,
+};
+
+const LINT_K8S_YML_CFG: PolicyCfg = PolicyCfg {
+    target_path: ".github/workflows/lint-k8s.yml",
+    missing_message:
+        ".github/workflows/lint-k8s.yml не існує — створи за каноном правила (mixin @7n/rules-ci-github)",
+    rego_source: K8S_LINT_K8S_YML_REGO,
+    namespace: "k8s.lint_k8s_yml",
+    snippet_source_name: "lint-k8s.yml.snippet.yml",
+    snippet_raw: K8S_LINT_K8S_YML_SNIPPET_YML,
+    required: true,
+};
+
+const LINT_STYLE_YML_CFG: PolicyCfg = PolicyCfg {
+    target_path: ".github/workflows/lint-style.yml",
+    missing_message:
+        ".github/workflows/lint-style.yml не існує — створи за каноном правила (mixin @7n/rules-ci-github)",
+    rego_source: STYLE_LINT_STYLE_YML_REGO,
+    namespace: "style.lint_style_yml",
+    snippet_source_name: "lint-style.yml.snippet.yml",
+    snippet_raw: STYLE_LINT_STYLE_YML_SNIPPET_YML,
+    required: true,
+};
+
+const LINT_TEXT_CFG: PolicyCfg = PolicyCfg {
+    target_path: ".github/workflows/lint-text.yml",
+    missing_message:
+        ".github/workflows/lint-text.yml не існує — створи за каноном правила (mixin @7n/rules-ci-github)",
+    rego_source: TEXT_LINT_TEXT_REGO,
+    namespace: "text.lint_text",
+    snippet_source_name: "lint-text.yml.snippet.yml",
+    snippet_raw: TEXT_LINT_TEXT_SNIPPET_YML,
+    required: true,
+};
+
+/// `required: false` — точний відповідник `concern.json` цього концерну
+/// (немає `policy.files.required`): відсутній `.github/workflows/clean-merged-branch.yml`
+/// НЕ дає `policy-file-missing` тут (той самий файл — ОБОВ'ЯЗКОВИЙ ціль
+/// [`CLEAN_MERGED_BRANCH_CFG`] окремо; цей концерн — лише abie-специфічний
+/// шар поверх, доккомент модуля `.rego`).
+const ABIE_CLEAN_MERGED_IGNORE_BRANCHES_CFG: PolicyCfg = PolicyCfg {
+    target_path: ".github/workflows/clean-merged-branch.yml",
+    missing_message: "",
+    rego_source: ABIE_CLEAN_MERGED_IGNORE_BRANCHES_REGO,
+    namespace: "abie.clean_merged_ignore_branches",
+    snippet_source_name: "clean-merged-branch.yml.snippet.yml",
+    snippet_raw: ABIE_CLEAN_MERGED_IGNORE_BRANCHES_SNIPPET_YML,
+    required: false,
+};
+
+/// Статична конфігурація одного `"check": "template"`-концерну (немає
+/// `.rego` — [`GA_LINT_REPO_YML_CFG`]/[`NPM_MODULE_NPM_PUBLISH_YML_CFG`]) —
+/// доккомент [`detect_template_check`].
+struct TemplateCheckCfg {
+    target_path: &'static str,
+    missing_message: &'static str,
+    snippet_source_name: &'static str,
+    snippet_raw: &'static str,
+}
+
+const GA_LINT_REPO_YML_CFG: TemplateCheckCfg = TemplateCheckCfg {
+    target_path: ".github/workflows/lint-repo.yml",
+    missing_message:
+        ".github/workflows/lint-repo.yml не існує — repo-wide перевірки без path-підтримки (knip/jscpd/dep-policy) живуть в окремому workflow, що не гейтить деплой; створи за каноном ga.mdc (mixin @7n/rules-ci-github)",
+    snippet_source_name: "lint-repo.yml.snippet.yml",
+    snippet_raw: GA_LINT_REPO_YML_SNIPPET_YML,
+};
+
+const NPM_MODULE_NPM_PUBLISH_YML_CFG: TemplateCheckCfg = TemplateCheckCfg {
+    target_path: ".github/workflows/npm-publish.yml",
+    missing_message:
+        ".github/workflows/npm-publish.yml не існує — створи за каноном правила (mixin @7n/rules-ci-github)",
+    snippet_source_name: "npm-publish.yml.snippet.yml",
+    snippet_raw: NPM_MODULE_NPM_PUBLISH_YML_SNIPPET_YML,
 };
 
 /// Т0-детект одного policy-концерну ТРЕТЬОЇ хвилі — точний функціональний
@@ -2715,6 +2939,13 @@ const LINT_SECURITY_YML_CFG: PolicyCfg = PolicyCfg {
 /// `add('policy-deny', d.message, file)` канону.
 fn detect_policy(files: &[SourceFile], cfg: &PolicyCfg) -> Vec<Diagnostic> {
     let Some(source) = batch_file(files, cfg.target_path) else {
+        // `required: false` — точний відповідник `evaluatePolicyConcern`
+        // (`if (cfg.files.required && cfg.files.single)`, доккомент
+        // [`PolicyCfg::required`]): файл відсутній і НЕ обов'язковий →
+        // порожній результат, не `policy-file-missing`.
+        if !cfg.required {
+            return Vec::new();
+        }
         return vec![Diagnostic {
             reason: POLICY_FILE_MISSING_REASON.to_string(),
             message: cfg.missing_message.to_string(),
@@ -2742,7 +2973,17 @@ fn detect_policy(files: &[SourceFile], cfg: &PolicyCfg) -> Vec<Diagnostic> {
     };
     let snippet = parse_embedded_template(cfg.snippet_source_name, cfg.snippet_raw);
     let data_json = wrap_template_data(snippet);
-    let input_json = json_to_string(&actual);
+    // [`ensure_step_uses_key_present`] — той самий захисний прийом, що
+    // [`run_all_ga_rego`] застосовує для ЧОТИРЬОХ ga-концернів вище
+    // (доккомент функції): `lint_ga.rego`/`lint_text.rego` (ЧЕТВЕРТА хвиля)
+    // читають `job.steps[_].uses` НЕЗАХИЩЕНИМ прямим доступом (на відміну
+    // від `object.get(step, "uses", "")` у решти `.rego` цієї хвилі) — крок
+    // без `uses` (наприклад `run`-лише крок) інакше валить ВЕСЬ
+    // `job_uses_set` comprehension у regorus. Безпечний no-op для
+    // концернів, чий `actual` НЕ має кореневого ключа `jobs` (обидва
+    // JSON-таргети третьої хвилі, `ga/zizmor_yml`).
+    let normalized = ensure_step_uses_key_present(&actual);
+    let input_json = json_to_string(&normalized);
     match eval_deny_rule(cfg.rego_source, cfg.namespace, &data_json, &input_json) {
         Ok(messages) => messages
             .into_iter()
@@ -2764,6 +3005,227 @@ fn detect_policy(files: &[SourceFile], cfg: &PolicyCfg) -> Vec<Diagnostic> {
                 &err,
             );
             diagnostics
+        }
+    }
+}
+
+/// Токен шляху для повідомлень [`check_snippet_messages`] — точний
+/// відповідник `tokenizePathPart`/`formatPath` (`npm/scripts/lib/template.mjs`):
+/// ідентифікатор друкується голим, індекс масиву — `[]` (порт НЕ друкує
+/// реальний числовий індекс — `checkSnippet` теж завжди штовхає літерал
+/// `'[]'`, не `i`, доккомент виклику `checkSnippet(a, needle, opts, [...path,
+/// '[]'])` у JS), інакше — JSON-рядок через [`json_quote_string`].
+fn format_snippet_path(parts: &[String]) -> String {
+    let mut out = String::new();
+    for p in parts {
+        let token: String = if p == "[]" {
+            "[]".to_string()
+        } else if !p.is_empty()
+            && p.chars().next().is_some_and(|c| c.is_ascii_alphabetic() || c == '_' || c == '$')
+            && p.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '$')
+        {
+            p.clone()
+        } else {
+            json_quote_string(p)
+        };
+        if out.is_empty() {
+            out = token;
+        } else if token.starts_with('[') {
+            out.push_str(&token);
+        } else {
+            out.push('.');
+            out.push_str(&token);
+        }
+    }
+    out
+}
+
+/// JSON-рядкове квотування — точний відповідник `JSON.stringify(s)` для
+/// звичайних (без екзотичних unicode-послідовностей за межами тестових
+/// фікстур цих двох концернів) рядків: екранує `"`/`\`/control-символи.
+fn json_quote_string(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('"');
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
+
+/// `quote` (`npm/scripts/lib/template.mjs`): JSON-рядок для рядкових значень,
+/// `String(v)` (Rego-подібний друк) для інших — [`json_scalar_to_display`]
+/// покриває числа/булеві/null.
+fn quote_json_value(v: &Json) -> String {
+    match v {
+        Json::Str(s) => json_quote_string(s),
+        other => json_scalar_to_display(other),
+    }
+}
+
+/// `String(v)` для скалярів поза рядками — числа друкуються без зайвих
+/// нулів (той самий формат, що JS `String(number)` для типових цілих/дробів
+/// цих фікстур), `true`/`false`/`null` — буквально.
+fn json_scalar_to_display(v: &Json) -> String {
+    match v {
+        Json::Null => "null".to_string(),
+        Json::Bool(b) => b.to_string(),
+        Json::Int(i) => i.to_string(),
+        Json::Float(f) => {
+            if f.fract() == 0.0 {
+                format!("{f:.0}")
+            } else {
+                f.to_string()
+            }
+        }
+        Json::Str(s) => s.clone(),
+        other => json_to_string(other),
+    }
+}
+
+/// `ELEMENT_ID_KEYS` (`npm/scripts/lib/template.mjs`) — ключі, за якими
+/// [`describe_snippet_element`] ідентифікує елемент масиву обʼєктів у
+/// повідомленні (напр. workflow-крок).
+const ELEMENT_ID_KEYS: [&str; 4] = ["uses", "name", "id", "run"];
+
+/// `describeElement` (`npm/scripts/lib/template.mjs`) — точний порт:
+/// для обʼєкта — перший наявний рядковий ідентифікуючий ключ, інакше
+/// компактний JSON; для іншого — [`quote_json_value`].
+fn describe_snippet_element(needle: &Json) -> String {
+    if let Json::Object(entries) = needle {
+        for key in ELEMENT_ID_KEYS {
+            if let Some(Json::Str(v)) = entries.iter().find(|(k, _)| k == key).map(|(_, v)| v) {
+                return format!("елемент з {key}: {}", json_quote_string(v));
+            }
+        }
+        return format!("елемент {}", json_to_string(needle));
+    }
+    quote_json_value(needle)
+}
+
+/// Т0-детект одного `"check": "template"`-концерну ЧЕТВЕРТОЇ хвилі
+/// (`ga/lint_repo_yml`/`npm-module/npm_publish_yml`, доккомент модуля,
+/// розділ «ЧЕТВЕРТА хвиля») — точний функціональний відповідник
+/// `evaluatePolicyConcern` (`policy-lint-adapter.mjs`), гілка `cfg.engine ===
+/// 'template'`: `files.length === 0` → `policy-file-missing`
+/// ([`POLICY_FILE_MISSING_REASON`], той самий контракт, що
+/// [`detect_policy`]); інакше — [`check_snippet_messages`]
+/// (`checkSnippet`-порт, structural subset) на розпарсеному YAML-документі.
+/// `checkDeny`/`checkContains` НЕ портуються — обидва концерни цієї хвилі
+/// мають ЛИШЕ `*.snippet.yml` у своєму `template/` (жодного `*.deny.*`/
+/// `*.contains.*`), тож `data.deny`/`data.contains` завжди `undefined` і
+/// обидві функції завжди повертають `[]` у JS-каноні — порожній виклик,
+/// який чесно опущено, не мовчазний no-op (доккомент модуля, «fail loud»
+/// мотив розділяють усі попередні хвилі).
+fn detect_template_check(files: &[SourceFile], cfg: &TemplateCheckCfg) -> Vec<Diagnostic> {
+    let Some(source) = batch_file(files, cfg.target_path) else {
+        return vec![Diagnostic {
+            reason: POLICY_FILE_MISSING_REASON.to_string(),
+            message: cfg.missing_message.to_string(),
+            file: Some(cfg.target_path.to_string()),
+            severity: Severity::Error,
+            data: None,
+        }];
+    };
+    // YAML-таргети обидва (`.yml`) — [`parse_target_document`] з
+    // `is_json: false`, той самий диспетчер, що [`detect_policy`].
+    let Some(actual) = parse_target_document(&source.content, false) else {
+        return vec![Diagnostic {
+            reason: POLICY_INPUT_INVALID_REASON.to_string(),
+            message: format!("{}: невалідний JSON/YAML — виправ синтаксис", cfg.target_path),
+            file: Some(cfg.target_path.to_string()),
+            severity: Severity::Error,
+            data: None,
+        }];
+    };
+    let snippet = parse_embedded_template(cfg.snippet_source_name, cfg.snippet_raw);
+    check_snippet_messages(&actual, &snippet, cfg.target_path, &[])
+        .into_iter()
+        .map(|message| Diagnostic {
+            reason: POLICY_TEMPLATE_MISMATCH_REASON.to_string(),
+            message,
+            file: Some(cfg.target_path.to_string()),
+            severity: Severity::Error,
+            data: None,
+        })
+        .collect()
+}
+
+/// Точний порт `checkSnippet` (`npm/scripts/lib/template.mjs`) — deep
+/// subset-of перевірка з накопиченням повідомлень (не bool, як
+/// [`is_subset`]): кожен листок `snippet` мусить збігатись з тим самим
+/// шляхом `actual`; масиви — subset-of order-insensitive (кожен елемент
+/// `snippet` мусить структурно міститись хоч в одному елементі `actual`,
+/// рекурсивний [`check_snippet_messages`] без порушень = «міститься»);
+/// обʼєкти — рекурсія по кожному ключу `snippet`. `opts.source` у JS —
+/// завжди буквальний рядок `'main.mdc'` (`policy-lint-adapter.mjs`,
+/// `engine === 'template'`-гілка) — вшито тут як літерал, не параметр.
+fn check_snippet_messages(actual: &Json, snippet: &Json, target_path: &str, path: &[String]) -> Vec<String> {
+    match snippet {
+        Json::Null => Vec::new(),
+        Json::Array(needles) => {
+            let Json::Array(actual_arr) = actual else {
+                return vec![format!(
+                    "{target_path}: {} має бути масивом (main.mdc)",
+                    format_snippet_path(path)
+                )];
+            };
+            let mut out = Vec::new();
+            for needle in needles {
+                let mut child_path = path.to_vec();
+                child_path.push("[]".to_string());
+                let found = actual_arr
+                    .iter()
+                    .any(|a| check_snippet_messages(a, needle, target_path, &child_path).is_empty());
+                if !found {
+                    out.push(format!(
+                        "{target_path}: {} має містити {} (main.mdc)",
+                        format_snippet_path(path),
+                        describe_snippet_element(needle)
+                    ));
+                }
+            }
+            out
+        }
+        Json::Object(snippet_entries) => {
+            let Json::Object(actual_entries) = actual else {
+                return vec![format!(
+                    "{target_path}: {} має бути об'єктом (main.mdc)",
+                    format_snippet_path(path)
+                )];
+            };
+            let mut out = Vec::new();
+            for (k, v) in snippet_entries {
+                let child_actual = actual_entries
+                    .iter()
+                    .find(|(ak, _)| ak == k)
+                    .map(|(_, av)| av)
+                    .unwrap_or(&Json::Null);
+                let mut child_path = path.to_vec();
+                child_path.push(k.clone());
+                out.extend(check_snippet_messages(child_actual, v, target_path, &child_path));
+            }
+            out
+        }
+        // Leaf (string/number/boolean).
+        leaf => {
+            if actual != leaf {
+                vec![format!(
+                    "{target_path}: {} має бути {} (main.mdc)",
+                    format_snippet_path(path),
+                    quote_json_value(leaf)
+                )]
+            } else {
+                Vec::new()
+            }
         }
     }
 }
@@ -3485,6 +3947,84 @@ const LINT_SECURITY_YML_FIX_CFG: TemplateFixCfg = TemplateFixCfg {
     is_yaml: true,
 };
 
+// ЧЕТВЕРТА хвиля — фікс для всіх дванадцяти той самий рушій
+// ([`fix_template_merge`]), незалежно від rego-детекту чи
+// [`detect_template_check`]: `createTemplateFixPattern` у JS-каноні НЕ
+// розрізняє звідки прийшла діагностика (доккомент модуля, розділ «ЧЕТВЕРТА
+// хвиля»), всі YAML-таргети (`is_yaml: true`).
+
+const GIT_AI_FIX_CFG: TemplateFixCfg = TemplateFixCfg {
+    target_path: GIT_AI_CFG.target_path,
+    snippet_raw: GIT_AI_CFG.snippet_raw,
+    is_yaml: true,
+};
+
+const LINT_GA_FIX_CFG: TemplateFixCfg = TemplateFixCfg {
+    target_path: LINT_GA_CFG.target_path,
+    snippet_raw: LINT_GA_CFG.snippet_raw,
+    is_yaml: true,
+};
+
+const CLEAN_GA_WORKFLOWS_FIX_CFG: TemplateFixCfg = TemplateFixCfg {
+    target_path: CLEAN_GA_WORKFLOWS_CFG.target_path,
+    snippet_raw: CLEAN_GA_WORKFLOWS_CFG.snippet_raw,
+    is_yaml: true,
+};
+
+const CLEAN_MERGED_BRANCH_FIX_CFG: TemplateFixCfg = TemplateFixCfg {
+    target_path: CLEAN_MERGED_BRANCH_CFG.target_path,
+    snippet_raw: CLEAN_MERGED_BRANCH_CFG.snippet_raw,
+    is_yaml: true,
+};
+
+const LINT_DOCKER_YML_FIX_CFG: TemplateFixCfg = TemplateFixCfg {
+    target_path: LINT_DOCKER_YML_CFG.target_path,
+    snippet_raw: LINT_DOCKER_YML_CFG.snippet_raw,
+    is_yaml: true,
+};
+
+const ZIZMOR_YML_FIX_CFG: TemplateFixCfg = TemplateFixCfg {
+    target_path: ZIZMOR_YML_CFG.target_path,
+    snippet_raw: ZIZMOR_YML_CFG.snippet_raw,
+    is_yaml: true,
+};
+
+const LINT_K8S_YML_FIX_CFG: TemplateFixCfg = TemplateFixCfg {
+    target_path: LINT_K8S_YML_CFG.target_path,
+    snippet_raw: LINT_K8S_YML_CFG.snippet_raw,
+    is_yaml: true,
+};
+
+const LINT_STYLE_YML_FIX_CFG: TemplateFixCfg = TemplateFixCfg {
+    target_path: LINT_STYLE_YML_CFG.target_path,
+    snippet_raw: LINT_STYLE_YML_CFG.snippet_raw,
+    is_yaml: true,
+};
+
+const LINT_TEXT_FIX_CFG: TemplateFixCfg = TemplateFixCfg {
+    target_path: LINT_TEXT_CFG.target_path,
+    snippet_raw: LINT_TEXT_CFG.snippet_raw,
+    is_yaml: true,
+};
+
+const CLEAN_MERGED_IGNORE_BRANCHES_FIX_CFG: TemplateFixCfg = TemplateFixCfg {
+    target_path: ABIE_CLEAN_MERGED_IGNORE_BRANCHES_CFG.target_path,
+    snippet_raw: ABIE_CLEAN_MERGED_IGNORE_BRANCHES_CFG.snippet_raw,
+    is_yaml: true,
+};
+
+const LINT_REPO_YML_FIX_CFG: TemplateFixCfg = TemplateFixCfg {
+    target_path: GA_LINT_REPO_YML_CFG.target_path,
+    snippet_raw: GA_LINT_REPO_YML_CFG.snippet_raw,
+    is_yaml: true,
+};
+
+const NPM_PUBLISH_YML_FIX_CFG: TemplateFixCfg = TemplateFixCfg {
+    target_path: NPM_MODULE_NPM_PUBLISH_YML_CFG.target_path,
+    snippet_raw: NPM_MODULE_NPM_PUBLISH_YML_CFG.snippet_raw,
+    is_yaml: true,
+};
+
 /// Т0-фіксер `ga/vscode_settings`/`security/lint_security_yml` — точний
 /// функціональний порт `createTemplateFixPattern`
 /// (`npm/scripts/lib/fix/template-deep-merge.mjs`): файл відсутній →
@@ -3600,6 +4140,69 @@ fn build_manifest() -> Manifest {
                 scope: ConcernScope::Full,
                 glob: vec![LINT_SECURITY_YML_CFG.target_path.to_string()],
             },
+            // ЧЕТВЕРТА хвиля — дванадцять `createTemplateFixPattern`-концернів
+            // (доккомент модуля, розділ «ЧЕТВЕРТА хвиля»), кожен ОДИН
+            // target-файл, той самий `ConcernScope::Full` мотив, що ТРЕТЯ.
+            ConcernContribution {
+                key: CONCERN_GIT_AI.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec![GIT_AI_CFG.target_path.to_string()],
+            },
+            ConcernContribution {
+                key: CONCERN_LINT_GA.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec![LINT_GA_CFG.target_path.to_string()],
+            },
+            ConcernContribution {
+                key: CONCERN_CLEAN_GA_WORKFLOWS.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec![CLEAN_GA_WORKFLOWS_CFG.target_path.to_string()],
+            },
+            ConcernContribution {
+                key: CONCERN_CLEAN_MERGED_BRANCH.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec![CLEAN_MERGED_BRANCH_CFG.target_path.to_string()],
+            },
+            ConcernContribution {
+                key: CONCERN_LINT_DOCKER_YML.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec![LINT_DOCKER_YML_CFG.target_path.to_string()],
+            },
+            ConcernContribution {
+                key: CONCERN_ZIZMOR_YML.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec![ZIZMOR_YML_CFG.target_path.to_string()],
+            },
+            ConcernContribution {
+                key: CONCERN_LINT_K8S_YML.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec![LINT_K8S_YML_CFG.target_path.to_string()],
+            },
+            ConcernContribution {
+                key: CONCERN_LINT_STYLE_YML.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec![LINT_STYLE_YML_CFG.target_path.to_string()],
+            },
+            ConcernContribution {
+                key: CONCERN_LINT_TEXT.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec![LINT_TEXT_CFG.target_path.to_string()],
+            },
+            ConcernContribution {
+                key: CONCERN_CLEAN_MERGED_IGNORE_BRANCHES.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec![ABIE_CLEAN_MERGED_IGNORE_BRANCHES_CFG.target_path.to_string()],
+            },
+            ConcernContribution {
+                key: CONCERN_LINT_REPO_YML.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec![GA_LINT_REPO_YML_CFG.target_path.to_string()],
+            },
+            ConcernContribution {
+                key: CONCERN_NPM_PUBLISH_YML.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec![NPM_MODULE_NPM_PUBLISH_YML_CFG.target_path.to_string()],
+            },
         ],
         ci_artifacts: vec![],
         // Вміст файлів хост передає inline (host-побудований full-scope
@@ -3654,6 +4257,54 @@ impl Guest for CiGithub {
                 report_progress(total, total);
                 detect_policy(&batch.files, &LINT_SECURITY_YML_CFG)
             }
+            CONCERN_GIT_AI => {
+                report_progress(total, total);
+                detect_policy(&batch.files, &GIT_AI_CFG)
+            }
+            CONCERN_LINT_GA => {
+                report_progress(total, total);
+                detect_policy(&batch.files, &LINT_GA_CFG)
+            }
+            CONCERN_CLEAN_GA_WORKFLOWS => {
+                report_progress(total, total);
+                detect_policy(&batch.files, &CLEAN_GA_WORKFLOWS_CFG)
+            }
+            CONCERN_CLEAN_MERGED_BRANCH => {
+                report_progress(total, total);
+                detect_policy(&batch.files, &CLEAN_MERGED_BRANCH_CFG)
+            }
+            CONCERN_LINT_DOCKER_YML => {
+                report_progress(total, total);
+                detect_policy(&batch.files, &LINT_DOCKER_YML_CFG)
+            }
+            CONCERN_ZIZMOR_YML => {
+                report_progress(total, total);
+                detect_policy(&batch.files, &ZIZMOR_YML_CFG)
+            }
+            CONCERN_LINT_K8S_YML => {
+                report_progress(total, total);
+                detect_policy(&batch.files, &LINT_K8S_YML_CFG)
+            }
+            CONCERN_LINT_STYLE_YML => {
+                report_progress(total, total);
+                detect_policy(&batch.files, &LINT_STYLE_YML_CFG)
+            }
+            CONCERN_LINT_TEXT => {
+                report_progress(total, total);
+                detect_policy(&batch.files, &LINT_TEXT_CFG)
+            }
+            CONCERN_CLEAN_MERGED_IGNORE_BRANCHES => {
+                report_progress(total, total);
+                detect_policy(&batch.files, &ABIE_CLEAN_MERGED_IGNORE_BRANCHES_CFG)
+            }
+            CONCERN_LINT_REPO_YML => {
+                report_progress(total, total);
+                detect_template_check(&batch.files, &GA_LINT_REPO_YML_CFG)
+            }
+            CONCERN_NPM_PUBLISH_YML => {
+                report_progress(total, total);
+                detect_template_check(&batch.files, &NPM_MODULE_NPM_PUBLISH_YML_CFG)
+            }
             _ => Vec::new(),
         };
         log(
@@ -3682,6 +4333,20 @@ impl Guest for CiGithub {
             CONCERN_VSCODE_EXTENSIONS => fix_vscode_extensions(&request),
             CONCERN_VSCODE_SETTINGS => fix_template_merge(&request, &VSCODE_SETTINGS_FIX_CFG),
             CONCERN_LINT_SECURITY_YML => fix_template_merge(&request, &LINT_SECURITY_YML_FIX_CFG),
+            CONCERN_GIT_AI => fix_template_merge(&request, &GIT_AI_FIX_CFG),
+            CONCERN_LINT_GA => fix_template_merge(&request, &LINT_GA_FIX_CFG),
+            CONCERN_CLEAN_GA_WORKFLOWS => fix_template_merge(&request, &CLEAN_GA_WORKFLOWS_FIX_CFG),
+            CONCERN_CLEAN_MERGED_BRANCH => fix_template_merge(&request, &CLEAN_MERGED_BRANCH_FIX_CFG),
+            CONCERN_LINT_DOCKER_YML => fix_template_merge(&request, &LINT_DOCKER_YML_FIX_CFG),
+            CONCERN_ZIZMOR_YML => fix_template_merge(&request, &ZIZMOR_YML_FIX_CFG),
+            CONCERN_LINT_K8S_YML => fix_template_merge(&request, &LINT_K8S_YML_FIX_CFG),
+            CONCERN_LINT_STYLE_YML => fix_template_merge(&request, &LINT_STYLE_YML_FIX_CFG),
+            CONCERN_LINT_TEXT => fix_template_merge(&request, &LINT_TEXT_FIX_CFG),
+            CONCERN_CLEAN_MERGED_IGNORE_BRANCHES => {
+                fix_template_merge(&request, &CLEAN_MERGED_IGNORE_BRANCHES_FIX_CFG)
+            }
+            CONCERN_LINT_REPO_YML => fix_template_merge(&request, &LINT_REPO_YML_FIX_CFG),
+            CONCERN_NPM_PUBLISH_YML => fix_template_merge(&request, &NPM_PUBLISH_YML_FIX_CFG),
             _ => FixPlan { edits: vec![] },
         }
     }
@@ -4120,7 +4785,7 @@ mod tests {
     fn build_manifest_declares_five_full_scope_concerns() {
         let manifest = build_manifest();
         assert_eq!(manifest.id, "ci-github/wasm-concerns");
-        assert_eq!(manifest.concerns.len(), 5);
+        assert_eq!(manifest.concerns.len(), 17);
         assert_eq!(manifest.concerns[0].key, CONCERN_TOOLCHAIN_CACHE);
         assert_eq!(manifest.concerns[0].scope, ConcernScope::Full);
         let workflows = manifest
@@ -4155,6 +4820,27 @@ mod tests {
                 CONCERN_LINT_SECURITY_YML,
                 ".github/workflows/lint-security.yml",
             ),
+            (CONCERN_GIT_AI, ".github/workflows/git-ai.yml"),
+            (CONCERN_LINT_GA, ".github/workflows/lint-ga.yml"),
+            (
+                CONCERN_CLEAN_GA_WORKFLOWS,
+                ".github/workflows/clean-ga-workflows.yml",
+            ),
+            (
+                CONCERN_CLEAN_MERGED_BRANCH,
+                ".github/workflows/clean-merged-branch.yml",
+            ),
+            (CONCERN_LINT_DOCKER_YML, ".github/workflows/lint-docker.yml"),
+            (CONCERN_ZIZMOR_YML, ".github/zizmor.yml"),
+            (CONCERN_LINT_K8S_YML, ".github/workflows/lint-k8s.yml"),
+            (CONCERN_LINT_STYLE_YML, ".github/workflows/lint-style.yml"),
+            (CONCERN_LINT_TEXT, ".github/workflows/lint-text.yml"),
+            (
+                CONCERN_CLEAN_MERGED_IGNORE_BRANCHES,
+                ".github/workflows/clean-merged-branch.yml",
+            ),
+            (CONCERN_LINT_REPO_YML, ".github/workflows/lint-repo.yml"),
+            (CONCERN_NPM_PUBLISH_YML, ".github/workflows/npm-publish.yml"),
         ] {
             let c = manifest
                 .concerns
@@ -6482,4 +7168,212 @@ mod tests {
         let parsed = parse_yaml_document(&text).expect("валідний JSON");
         assert_eq!(parsed, value);
     }
+
+    // =====================================================================
+    // ЧЕТВЕРТА хвиля — дванадцять `createTemplateFixPattern`-концернів
+    // (доккомент модуля, розділ «ЧЕТВЕРТА хвиля») — T0-round-trip: файл
+    // відсутній → [`fix_template_merge`] копіює snippet VERBATIM → повторний
+    // [`detect_policy`]/[`detect_template_check`] на РЕГЕНЕРОВАНОМУ вмісті
+    // чистий. Той самий контракт, що [`lint_security_yml_t0_round_trip_missing_file_is_clean`]
+    // вище (ТРЕТЯ хвиля) — прямий виклик гостя (юніт-тест), парність через
+    // РЕАЛЬНИЙ napi-міст — окремий JS-тест
+    // (`npm/scripts/lib/lint-surface/tests/wasm-plugin-parity-ci-github.test.mjs`).
+    // =====================================================================
+
+    /// Спільний T0-round-trip для одного rego-детектованого концерну
+    /// четвертої хвилі: файл відсутній → [`detect_policy`] дає РІВНО одну
+    /// `policy-file-missing` → [`fix_template_merge`] пише snippet VERBATIM
+    /// → повторний [`detect_policy`] на РЕГЕНЕРОВАНОМУ вмісті — порожній.
+    fn assert_policy_round_trip(concern_key: &str, cfg: &PolicyCfg, fix_cfg: &TemplateFixCfg) {
+        let diags_before = detect_policy(&[], cfg);
+        assert_eq!(diags_before.len(), 1);
+        assert_eq!(diags_before[0].reason, POLICY_FILE_MISSING_REASON);
+        let plan = fix_template_merge(&fix_req(concern_key, vec![], diags_before), fix_cfg);
+        assert_eq!(plan.edits.len(), 1);
+        let FileEdit::Write(w) = &plan.edits[0] else {
+            panic!("write")
+        };
+        assert_eq!(w.content, cfg.snippet_raw);
+        let after = vec![sf(cfg.target_path, &w.content)];
+        assert!(detect_policy(&after, cfg).is_empty());
+    }
+
+    #[test]
+    fn git_ai_t0_round_trip_missing_file_is_clean() {
+        assert_policy_round_trip(CONCERN_GIT_AI, &GIT_AI_CFG, &GIT_AI_FIX_CFG);
+    }
+
+    #[test]
+    fn lint_ga_t0_round_trip_missing_file_is_clean() {
+        assert_policy_round_trip(CONCERN_LINT_GA, &LINT_GA_CFG, &LINT_GA_FIX_CFG);
+    }
+
+    #[test]
+    fn clean_ga_workflows_t0_round_trip_missing_file_is_clean() {
+        assert_policy_round_trip(
+            CONCERN_CLEAN_GA_WORKFLOWS,
+            &CLEAN_GA_WORKFLOWS_CFG,
+            &CLEAN_GA_WORKFLOWS_FIX_CFG,
+        );
+    }
+
+    #[test]
+    fn clean_merged_branch_t0_round_trip_missing_file_is_clean() {
+        assert_policy_round_trip(
+            CONCERN_CLEAN_MERGED_BRANCH,
+            &CLEAN_MERGED_BRANCH_CFG,
+            &CLEAN_MERGED_BRANCH_FIX_CFG,
+        );
+    }
+
+    #[test]
+    fn lint_docker_yml_t0_round_trip_missing_file_is_clean() {
+        assert_policy_round_trip(
+            CONCERN_LINT_DOCKER_YML,
+            &LINT_DOCKER_YML_CFG,
+            &LINT_DOCKER_YML_FIX_CFG,
+        );
+    }
+
+    #[test]
+    fn zizmor_yml_t0_round_trip_missing_file_is_clean() {
+        assert_policy_round_trip(CONCERN_ZIZMOR_YML, &ZIZMOR_YML_CFG, &ZIZMOR_YML_FIX_CFG);
+    }
+
+    #[test]
+    fn lint_k8s_yml_t0_round_trip_missing_file_is_clean() {
+        assert_policy_round_trip(CONCERN_LINT_K8S_YML, &LINT_K8S_YML_CFG, &LINT_K8S_YML_FIX_CFG);
+    }
+
+    #[test]
+    fn lint_style_yml_t0_round_trip_missing_file_is_clean() {
+        assert_policy_round_trip(
+            CONCERN_LINT_STYLE_YML,
+            &LINT_STYLE_YML_CFG,
+            &LINT_STYLE_YML_FIX_CFG,
+        );
+    }
+
+    #[test]
+    fn lint_text_t0_round_trip_missing_file_is_clean() {
+        assert_policy_round_trip(CONCERN_LINT_TEXT, &LINT_TEXT_CFG, &LINT_TEXT_FIX_CFG);
+    }
+
+    /// `zizmor_yml.rego` — `%q` двічі в ОДНІЙ `sprintf` (звіт задачі,
+    /// доккомент модуля §«ЧЕТВЕРТА хвиля» посилається на пастку `%q` з
+    /// §2.22) — виправлено на `\"%v\"` у джерелі `.rego`; цей тест доводить,
+    /// що regorus реально виконує правило (не падає в `rego-engine-error`)
+    /// і message-текст несе ОБИДВІ літерали в лапках.
+    #[test]
+    fn detect_zizmor_yml_wrong_policy_value_is_deny_with_quoted_literals() {
+        let files = vec![sf(
+            ".github/zizmor.yml",
+            "rules:\n  unpinned-uses:\n    config:\n      policies:\n        \"*\": \"any\"\n",
+        )];
+        let diags = detect_policy(&files, &ZIZMOR_YML_CFG);
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].reason, POLICY_DENY_REASON);
+        assert!(diags[0].message.contains("policies[\"*\"]"));
+        assert!(diags[0].message.contains("\"ref-pin\""));
+    }
+
+    /// `abie/clean_merged_ignore_branches` — ЄДИНИЙ концерн четвертої хвилі
+    /// з `required: false` (`concern.json` немає `policy.files.required`,
+    /// доккомент [`ABIE_CLEAN_MERGED_IGNORE_BRANCHES_CFG`]): файл відсутній
+    /// → ПОРОЖНІЙ результат, НЕ `policy-file-missing` — на відміну від усіх
+    /// одинадцяти сусідів цієї хвилі ([`assert_policy_round_trip`] вище).
+    #[test]
+    fn clean_merged_ignore_branches_missing_file_is_silent_when_not_required() {
+        let diags = detect_policy(&[], &ABIE_CLEAN_MERGED_IGNORE_BRANCHES_CFG);
+        assert!(diags.is_empty());
+    }
+
+    #[test]
+    fn clean_merged_ignore_branches_t0_round_trip_deny_then_clean() {
+        let before = vec![sf(
+            ABIE_CLEAN_MERGED_IGNORE_BRANCHES_CFG.target_path,
+            "jobs:\n  cleanup_old_branches:\n    steps:\n      - uses: fpicalausa/remove-merged-branches@v1\n        with:\n          ignore_branches: main\n",
+        )];
+        let diags_before = detect_policy(&before, &ABIE_CLEAN_MERGED_IGNORE_BRANCHES_CFG);
+        assert!(!diags_before.is_empty());
+        assert_eq!(diags_before[0].reason, POLICY_DENY_REASON);
+        let plan = fix_template_merge(
+            &fix_req(
+                CONCERN_CLEAN_MERGED_IGNORE_BRANCHES,
+                before,
+                diags_before,
+            ),
+            &CLEAN_MERGED_IGNORE_BRANCHES_FIX_CFG,
+        );
+        assert_eq!(plan.edits.len(), 1);
+        let FileEdit::Write(w) = &plan.edits[0] else {
+            panic!("write")
+        };
+        let after = vec![sf(ABIE_CLEAN_MERGED_IGNORE_BRANCHES_CFG.target_path, &w.content)];
+        assert!(detect_policy(&after, &ABIE_CLEAN_MERGED_IGNORE_BRANCHES_CFG).is_empty());
+    }
+
+    // --- Два `"check": "template"`-концерни (немає `.rego`) —
+    // [`detect_template_check`], `checkSnippet`-порт (доккомент функції). ---
+
+    #[test]
+    fn lint_repo_yml_missing_file_is_policy_file_missing() {
+        let diags = detect_template_check(&[], &GA_LINT_REPO_YML_CFG);
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].reason, POLICY_FILE_MISSING_REASON);
+    }
+
+    #[test]
+    fn lint_repo_yml_t0_round_trip_missing_file_is_clean() {
+        let diags_before = detect_template_check(&[], &GA_LINT_REPO_YML_CFG);
+        let plan = fix_template_merge(
+            &fix_req(CONCERN_LINT_REPO_YML, vec![], diags_before),
+            &LINT_REPO_YML_FIX_CFG,
+        );
+        let FileEdit::Write(w) = &plan.edits[0] else {
+            panic!("write")
+        };
+        assert_eq!(w.content, GA_LINT_REPO_YML_CFG.snippet_raw);
+        let after = vec![sf(GA_LINT_REPO_YML_CFG.target_path, &w.content)];
+        assert!(detect_template_check(&after, &GA_LINT_REPO_YML_CFG).is_empty());
+    }
+
+    /// `checkSnippet`-порт ([`check_snippet_messages`]) — точний message-текст
+    /// на leaf-мисматчі: `reason` — `policy-template-mismatch`
+    /// ([`POLICY_TEMPLATE_MISMATCH_REASON`], НЕ `policy-deny` — цей концерн
+    /// не має `.rego`), повідомлення несе шлях і очікуване квотоване значення
+    /// (точний відповідник `checkSnippet`'s ``${targetPath}: ${formatPath(path)}
+    /// має бути ${quote(snippet)} (${source})``).
+    #[test]
+    fn detect_lint_repo_yml_name_mismatch_is_template_mismatch_with_formatted_path() {
+        let files = vec![sf(GA_LINT_REPO_YML_CFG.target_path, "name: Wrong Name\n")];
+        let diags = detect_template_check(&files, &GA_LINT_REPO_YML_CFG);
+        assert!(!diags.is_empty());
+        assert!(diags.iter().all(|d| d.reason == POLICY_TEMPLATE_MISMATCH_REASON));
+        assert!(diags.iter().any(|d| d.message.contains("name") && d.message.contains("(main.mdc)")));
+    }
+
+    #[test]
+    fn npm_publish_yml_t0_round_trip_missing_file_is_clean() {
+        let diags_before = detect_template_check(&[], &NPM_MODULE_NPM_PUBLISH_YML_CFG);
+        let plan = fix_template_merge(
+            &fix_req(CONCERN_NPM_PUBLISH_YML, vec![], diags_before),
+            &NPM_PUBLISH_YML_FIX_CFG,
+        );
+        let FileEdit::Write(w) = &plan.edits[0] else {
+            panic!("write")
+        };
+        assert_eq!(w.content, NPM_MODULE_NPM_PUBLISH_YML_CFG.snippet_raw);
+        let after = vec![sf(NPM_MODULE_NPM_PUBLISH_YML_CFG.target_path, &w.content)];
+        assert!(detect_template_check(&after, &NPM_MODULE_NPM_PUBLISH_YML_CFG).is_empty());
+    }
+
+    // `CiGithub::detect`/`CiGithub::fix` (сам `Guest`-trait) НЕ покликати з
+    // юніт-тесту напряму — `detect()` кличе `report_progress`, host-import
+    // (`wit_import`), недоступний поза реальним wasmtime-хостом (панікує
+    // «entered unreachable code» тут-таки, не в проді). Dispatch-wiring
+    // (правильний `match`-ключ на правильний cfg) звіряють прямі юніт-тести
+    // вище (кожен явно передає CONCERN_*/*_CFG пару) плюс, крізь РЕАЛЬНИЙ
+    // хост, `wasm-plugin-parity-ci-github.test.mjs` (napi-міст) — той самий
+    // мотив, що решта гостя (доккомент модуля).
 }

@@ -23,7 +23,7 @@ all_run_text := concat("\n", [run_text |
 deny contains msg if {
 	expected_run_blob != ""
 	not contains(all_run_text, expected_run_blob)
-	msg := sprintf("lint-style.yml: жоден крок run не містить %q (style.mdc)", [expected_run_blob])
+	msg := sprintf("lint-style.yml: жоден крок run не містить \"%v\" (style.mdc)", [expected_run_blob])
 }
 
 deny contains msg if {
