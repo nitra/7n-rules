@@ -118,6 +118,18 @@ const FIX_FULL_SCOPE_CONCERN_ID: &str = "test/guest-fix-full-scope";
 /// впав». ДО §2.65 той самий виклик тихо повертав `{"violations": []}`.
 const DETECT_PER_FILE_GLOB_CONCERN_ID: &str = "test/guest-detect-per-file-glob";
 
+/// `concern-id` з ЯВНИМ (непорожнім) `fix-glob`, ширшим за detect-скоуп —
+/// форма §2.87 і єдина, у якій відтворюється клас «канонічного файлу
+/// БРАКУЄ» (§2.80, `test/stryker_config`): усі діагностики несуть `file`,
+/// але цих шляхів на диску НЕМАЄ (вони й мають бути створені), тож
+/// `read_source_files` пропускає їх усі, і без `fix-glob` гість дістав би
+/// ПОРОЖНІЙ `files` при непорожніх `diagnostics`.
+///
+/// `fix()` дзеркалить [`fix_rewrite_plan`] (`BROKEN` → `FIXED`), тож
+/// непорожній `edits` доводить, що батч реально прийшов із glob-обходу
+/// диска, а не «виклик просто не впав».
+const FIX_EXPLICIT_GLOB_CONCERN_ID: &str = "test/guest-fix-explicit-glob";
+
 /// Guest-реалізація world `plugin` — концерн-заглушка `test/guest-echo`,
 /// fs-preopen тест-хук `test/guest-echo-fs-probe`, run-tool тест-хук
 /// `test/guest-tool-echo`, exec-tool тест-хук `test/guest-exec-tool`
@@ -194,6 +206,16 @@ impl Guest for GuestEcho {
                     glob: vec!["**/*.marker".to_string()],
                     fix_glob: vec![],
                 },
+                ConcernContribution {
+                    key: FIX_EXPLICIT_GLOB_CONCERN_ID.to_string(),
+                    // detect-скоуп навмисно ПОРОЖНІЙ, а fix-скоуп — ні:
+                    // рівно той розрив скоупів, заради якого §2.84 завела
+                    // `fix-glob`, і рівно форма `test/stryker_config`
+                    // (детект дивиться на конфіг, фікс — на дерево).
+                    scope: ConcernScope::PerFile,
+                    glob: vec![],
+                    fix_glob: vec!["**/*.marker".to_string()],
+                },
             ],
             ci_artifacts: vec![],
             capabilities: Capabilities {
@@ -264,6 +286,7 @@ impl Guest for GuestEcho {
         if request.concern_id == FIX_REWRITE_CONCERN_ID
             || request.concern_id == FIX_FULL_SCOPE_CONCERN_ID
             || request.concern_id == DETECT_PER_FILE_GLOB_CONCERN_ID
+            || request.concern_id == FIX_EXPLICIT_GLOB_CONCERN_ID
         {
             return fix_rewrite_plan(&request);
         }

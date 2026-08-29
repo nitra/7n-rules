@@ -1031,6 +1031,42 @@ fn ambiguous_empty_fix_batch_err(key: &str, scope_label: &str, diagnostics_count
     ))
 }
 
+/// Типізована помилка «діагностики назвали ЛИШЕ відсутні на диску файли, і
+/// відновити батч нема з чого» (§2.95, продовження §2.87).
+///
+/// # Чому це окремий випадок, а не «просто порожній batch»
+///
+/// Гейт [`ambiguous_empty_fix_batch_err`] дивиться на `target_files` ДО
+/// читання диска: якщо хоч одна діагностика назвала файл, виклик уважався
+/// однозначним. Але концерн класу «канонічного файлу БРАКУЄ»
+/// (`stryker-config-missing` у `plugins/lang-js/rules/test/stryker_config`,
+/// §2.80) називає у `file` рівно той шлях, якого НЕМАЄ — його й треба
+/// створити. [`read_source_files`] пропускає відсутні шляхи
+/// (`read_source_files_all_missing_returns_empty`), тож гість діставав
+/// ПОРОЖНІЙ `files` при непорожніх `diagnostics` — та сама двозначність
+/// #513, лише занесена з іншого боку, і мовчазна: план виходив порожній, а
+/// прогін звітував «чисто».
+///
+/// Порядок відновлення (у [`run_wasm_concern_fix`]) — від найбільш
+/// заявленого до найменш: `effective_fix_glob` контрибуції (гість сам
+/// оголосив свій fix-скоуп, §2.84/§2.87) → `delta_files` запиту → ця
+/// помилка. Порожній результат ГЛОБ-обходу помилкою НЕ вважається: там
+/// хост зробив рівно те, що концерн заявив, і «у дереві нічого не
+/// знайшлось» — факт про дерево, а не невизначеність хоста.
+fn missing_target_files_fix_batch_err(key: &str, target_files: &[String]) -> Error {
+    Error::from_reason(format!(
+        "runWasmConcernFix: концерн `{key}` — усі названі діагностиками файли відсутні на \
+         диску ({target_files:?}), а контрибуція не заявляє ані `fix-glob`, ані `glob`, і \
+         виклик не передав `delta_files`. Хост не має з чого побудувати FixRequest::files, а \
+         порожній batch при непорожніх diagnostics — та сама прихована вада, що PR #513: \
+         гість не відрізнив би «файлів немає» від «хост їх не передав» і мусив би писати \
+         наосліп. Штатний шлях для концерну класу «канонічного файлу бракує» — оголосити \
+         `fix-glob` контрибуції (§2.87): непорожній `fix-glob` вмикає full-scope fix-батч із \
+         union-ом названих діагностиками файлів. Див. доккомент \
+         missing_target_files_fix_batch_err (crates/rules-napi/src/lib.rs)."
+    ))
+}
+
 /// Виконує `detect` одного концерну wasm-плагіна — тонкий binding над
 /// `LoadedPlugin::detect` (задача K фази 6, full-scope міст — задача N2).
 /// Повертає ТУ САМУ форму `{"violations": [...]}`, що [`run_native_concern`]
@@ -1302,35 +1338,61 @@ pub fn run_wasm_concern_fix(
                 // ПОРОЖНІМ списком при непорожніх diagnostics і далі падає
                 // голосно (нижче), бо «дельта є, але порожня» — це стан
                 // викликача, а не заявлений full-прогін.
-                _ => match delta_files.as_deref() {
-                    Some(delta) if !delta.is_empty() => {
-                        read_source_files(&cwd_path, delta.to_vec())?
-                    }
-                    None if contribution
-                        .as_ref()
-                        .is_some_and(|c| !c.effective_fix_glob().is_empty()) =>
-                    {
-                        let glob = contribution
+                _ => {
+                    match delta_files.as_deref() {
+                        Some(delta) if !delta.is_empty() => {
+                            read_source_files(&cwd_path, delta.to_vec())?
+                        }
+                        None if contribution
                             .as_ref()
-                            .map(|c| c.effective_fix_glob().to_vec())
-                            .unwrap_or_default();
-                        build_full_scope_files(&cwd_path, &glob)?
-                    }
-                    _ => {
-                        let scope_label = contribution
+                            .is_some_and(|c| !c.effective_fix_glob().is_empty()) =>
+                        {
+                            let glob = contribution
+                                .as_ref()
+                                .map(|c| c.effective_fix_glob().to_vec())
+                                .unwrap_or_default();
+                            build_full_scope_files(&cwd_path, &glob)?
+                        }
+                        _ => {
+                            let scope_label = contribution
                             .as_ref()
                             .map(|c| format!("{:?}", c.scope))
                             .unwrap_or_else(|| "не заявлений ані у describe().concerns, ані у fix_only_concerns".to_string());
-                        return Err(ambiguous_empty_fix_batch_err(
-                            &key,
-                            &scope_label,
-                            diagnostics.len(),
-                        ));
+                            return Err(ambiguous_empty_fix_batch_err(
+                                &key,
+                                &scope_label,
+                                diagnostics.len(),
+                            ));
+                        }
                     }
-                },
+                }
             }
         } else {
-            read_source_files(&cwd_path, target_files.clone())?
+            // Батч із названих діагностиками файлів — і ПЕРЕВІРКА ФАКТИЧНОГО
+            // батчу, а не лише `target_files` (§2.95, доккомент
+            // [`missing_target_files_fix_batch_err`]): коли всі названі
+            // шляхи на диску відсутні (клас «канонічного файлу БРАКУЄ»),
+            // `read_source_files` віддає порожній список, і гість дістав би
+            // порожній `files` при непорожніх `diagnostics` — мовчки.
+            let batch = read_source_files(&cwd_path, target_files.clone())?;
+            if !batch.is_empty() {
+                batch
+            } else {
+                match contribution
+                    .as_ref()
+                    .map(ConcernContribution::effective_fix_glob)
+                {
+                    Some(glob) if !glob.is_empty() => build_full_scope_files(&cwd_path, glob)?,
+                    _ => match delta_files.as_deref() {
+                        Some(delta) if !delta.is_empty() => {
+                            read_source_files(&cwd_path, delta.to_vec())?
+                        }
+                        _ => {
+                            return Err(missing_target_files_fix_batch_err(&key, &target_files));
+                        }
+                    },
+                }
+            }
         };
         plugin.set_tool_resolver(resolver);
         // Слот `repo-root@1` host-контексту (доккомент `wit/world.wit` біля
@@ -1356,8 +1418,9 @@ pub fn run_wasm_concern_fix(
         // невідомий — діф пропускається (порожні знімки), поведінка
         // деградує до стану ДО цієї зміни, без нового захисту, але й без
         // регресії.
-        let diff_glob: Option<&[String]> =
-            contribution.as_ref().map(ConcernContribution::effective_fix_glob);
+        let diff_glob: Option<&[String]> = contribution
+            .as_ref()
+            .map(ConcernContribution::effective_fix_glob);
         let before_snapshot: HashMap<String, String> = match diff_glob {
             Some(glob) => build_full_scope_files(&cwd_path, glob)?
                 .into_iter()
@@ -1384,11 +1447,8 @@ pub fn run_wasm_concern_fix(
                 .into_iter()
                 .map(|f| (f.path, f.content))
                 .collect();
-            let covered: std::collections::HashSet<String> = plan
-                .edits
-                .iter()
-                .map(|e| e.path().to_string())
-                .collect();
+            let covered: std::collections::HashSet<String> =
+                plan.edits.iter().map(|e| e.path().to_string()).collect();
             plan.edits.extend(diff_snapshot_edits(
                 &before_snapshot,
                 &after_snapshot,
@@ -1519,7 +1579,11 @@ mod tests {
     /// прив'язаного кореня падає `FsReadRootUnbound`.
     #[test]
     fn preopen_root_satisfies_keeps_instance_when_call_has_no_root() {
-        assert!(preopen_root_satisfies(true, Some(Path::new("/tree/one")), None));
+        assert!(preopen_root_satisfies(
+            true,
+            Some(Path::new("/tree/one")),
+            None
+        ));
         assert!(preopen_root_satisfies(true, None, None));
     }
 
@@ -1532,7 +1596,9 @@ mod tests {
         assert_eq!(absolute_root(&absolute).expect("абсолютний"), absolute);
 
         let relative = PathBuf::from("sub/tree");
-        let expected = std::env::current_dir().expect("cwd процесу").join(&relative);
+        let expected = std::env::current_dir()
+            .expect("cwd процесу")
+            .join(&relative);
         assert_eq!(absolute_root(&relative).expect("відносний"), expected);
     }
 
@@ -1825,6 +1891,134 @@ mod tests {
         assert_eq!(edits[0]["type"], "write");
         assert_eq!(edits[0]["path"], "broken.marker");
         assert_eq!(edits[0]["content"], "FIXED content");
+    }
+
+    // --- §2.95/§2.80: діагностика назвала файл, якого на диску НЕМАЄ ---
+    //
+    // Клас «канонічного файлу БРАКУЄ» (`test/stryker_config`,
+    // `stryker-config-missing`): усі діагностики несуть `file`, але ЖОДЕН
+    // із цих шляхів не існує — він і має бути створений. `target_files`
+    // непорожній, тож жодна з fallback-гілок не вмикається, а
+    // `read_source_files` пропускає всі відсутні шляхи — гість дістає
+    // ПОРОЖНІЙ батч при непорожніх діагностиках і не відрізняє «у дереві
+    // нічого немає» від «хост нічого не передав».
+
+    /// §2.87 закрила цей клас для контрибуцій із ЯВНИМ `fix-glob`: батч
+    /// будується glob-обходом, а названі діагностиками файли доливаються
+    /// поверх. Тест доводить це наскрізно (гість реально переписав
+    /// знайдений на диску `broken.marker`) — тобто для порту
+    /// `test/stryker_config` форма host-мосту БІЛЬШЕ НЕ блокер.
+    #[test]
+    fn run_wasm_concern_fix_explicit_glob_survives_diagnostics_naming_missing_files() {
+        let wasm_path = require_guest_fixture();
+        let dir = tempfile::tempdir().expect("tmp dir");
+        std::fs::write(dir.path().join("broken.marker"), "BROKEN content").expect("marker file");
+        let violations = serde_json::json!([
+            {
+                "reason": "canonical-file-missing",
+                "message": "canonical-файл відсутній — його й треба створити",
+                "file": "stryker.config.mjs",
+                "severity": "error"
+            }
+        ]);
+
+        let result = run_wasm_concern_fix(
+            wasm_path.to_string_lossy().to_string(),
+            "test/guest-fix-explicit-glob".to_string(),
+            dir.path().to_string_lossy().to_string(),
+            violations,
+            None,
+            None,
+        );
+
+        let plan = result.expect("явний fix-glob має дати батч попри відсутній таргет діагностики");
+        let edits = plan["edits"].as_array().expect("edits — масив");
+        assert_eq!(
+            edits.len(),
+            1,
+            "батч мав прийти з glob-обходу диска, не з відсутнього таргета: {plan:?}"
+        );
+        assert_eq!(edits[0]["path"], "broken.marker");
+        assert_eq!(edits[0]["content"], "FIXED content");
+    }
+
+    /// Залишок того самого класу, який §2.87 НЕ закрила: контрибуція без
+    /// явного `fix-glob`. Гейт `ambiguous_empty_fix_batch_err` дивиться на
+    /// `target_files` ДО читання, тож «діагностика назвала лише відсутні
+    /// файли» проходила повз нього — гість діставав порожній батч і
+    /// звітував «чисто». Тепер хост падає назад на `effective_fix_glob`
+    /// (та сама гілка, що для «жодна діагностика не назвала файл»), і
+    /// непорожній `edits` доводить, що файли прийшли з диска.
+    #[test]
+    fn run_wasm_concern_fix_full_scope_recovers_when_named_files_are_all_missing() {
+        let wasm_path = require_guest_fixture();
+        let dir = tempfile::tempdir().expect("tmp dir");
+        std::fs::write(dir.path().join("broken.marker"), "BROKEN content").expect("marker file");
+        let violations = serde_json::json!([
+            {
+                "reason": "canonical-file-missing",
+                "message": "canonical-файл відсутній — його й треба створити",
+                "file": "stryker.config.mjs",
+                "severity": "error"
+            }
+        ]);
+
+        let result = run_wasm_concern_fix(
+            wasm_path.to_string_lossy().to_string(),
+            "test/guest-fix-full-scope".to_string(),
+            dir.path().to_string_lossy().to_string(),
+            violations,
+            None,
+            None,
+        );
+
+        let plan = result.expect("full-scope концерн має впасти назад на glob-обхід");
+        let edits = plan["edits"].as_array().expect("edits — масив");
+        assert_eq!(
+            edits.len(),
+            1,
+            "батч мав прийти з glob-обходу диска: {plan:?}"
+        );
+        assert_eq!(edits[0]["path"], "broken.marker");
+        assert_eq!(edits[0]["content"], "FIXED content");
+    }
+
+    /// Крайній випадок того самого класу: у контрибуції немає ЖОДНОГО
+    /// глоба (ані detect-, ані fix-), тобто відновити батч нема з чого.
+    /// Тоді — гучна типізована помилка, а не порожній батч мовчки: гість
+    /// не повинен вирішувати, писати йому наосліп чи ні.
+    #[test]
+    fn run_wasm_concern_fix_errors_loudly_when_named_files_missing_and_no_glob() {
+        let wasm_path = require_guest_fixture();
+        let dir = tempfile::tempdir().expect("tmp dir");
+        let violations = serde_json::json!([
+            {
+                "reason": "guest-delete",
+                "message": "діагностика назвала файл, якого немає",
+                "file": "no-such-file.txt",
+                "severity": "error"
+            }
+        ]);
+
+        let result = run_wasm_concern_fix(
+            wasm_path.to_string_lossy().to_string(),
+            "test/guest-fix-rewrite".to_string(),
+            dir.path().to_string_lossy().to_string(),
+            violations,
+            None,
+            None,
+        );
+
+        let err = result.expect_err("порожній батч при непорожніх діагностиках має падати гучно");
+        let message = err.to_string();
+        assert!(
+            message.contains("test/guest-fix-rewrite"),
+            "повідомлення має називати концерн: {message}"
+        );
+        assert!(
+            message.contains("no-such-file.txt"),
+            "повідомлення має називати шлях, якого не знайшлось: {message}"
+        );
     }
 
     /// `per-file` контрибуція з непорожнім glob-ом і `delta_files: None`
