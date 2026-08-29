@@ -37,7 +37,7 @@
     },
     "npm": {
       "name": "@7n/rules",
-      "version": "1.118.4",
+      "version": "1.118.6",
       "bin": {
         "n-rules": "bin/n-rules.js",
         "n-cursor": "bin/n-rules.js",
@@ -60,9 +60,9 @@
         "zod": "^4.4.3",
       },
       "optionalDependencies": {
-        "@7n/rules-darwin-arm64": "1.118.4",
-        "@7n/rules-linux-x64": "1.118.4",
-        "@7n/rules-win32-x64": "1.118.4",
+        "@7n/rules-darwin-arm64": "1.118.6",
+        "@7n/rules-linux-x64": "1.118.6",
+        "@7n/rules-win32-x64": "1.118.6",
         "@earendil-works/pi-ai": "0.80.10",
         "@earendil-works/pi-coding-agent": "0.80.10",
       },
@@ -89,7 +89,7 @@
     },
     "plugins/lang-js": {
       "name": "@7n/rules-lang-js",
-      "version": "0.33.0",
+      "version": "0.33.1",
       "dependencies": {
         "@vue/compiler-dom": "^3.0.0",
         "@vue/compiler-sfc": "^3.0.0",
@@ -122,7 +122,7 @@
     },
     "plugins/lang-python": {
       "name": "@7n/rules-lang-python",
-      "version": "0.14.2",
+      "version": "0.15.0",
       "dependencies": {
         "@vscode/tree-sitter-wasm": "^0.3.1",
         "smol-toml": "^1.7.0",
@@ -137,7 +137,7 @@
     },
     "plugins/lang-rust": {
       "name": "@7n/rules-lang-rust",
-      "version": "0.17.3",
+      "version": "0.18.0",
       "dependencies": {
         "globby": "^16.0.0",
         "smol-toml": "^1.7.0",
@@ -166,7 +166,7 @@
 
     "@7n/rules-ci-github": ["@7n/rules-ci-github@workspace:plugins/ci-github"],
 
-    "@7n/rules-darwin-arm64": ["@7n/rules-darwin-arm64@1.118.4", "", { "os": "darwin", "cpu": "arm64" }, "sha512-+Wn9amL0e3gq2AJ22CNnfecRdze77Etm0Jp5gSfTltPz+F6iaw95jE2LP8sAXsEceR22YxMjLanUxVGsymzz/Q=="],
+    "@7n/rules-darwin-arm64": ["@7n/rules-darwin-arm64@1.118.6", "", { "os": "darwin", "cpu": "arm64" }, "sha512-Rzj35BdtPOPnk7iYGusJ7ZNfvnSzagnUnDIMsBcVg/V2fdtg+xI+Ji3WAgNh/fs9u+GgajFcXBhja0Ob8AJIrA=="],
 
     "@7n/rules-lang-js": ["@7n/rules-lang-js@workspace:plugins/lang-js"],
 
@@ -176,9 +176,9 @@
 
     "@7n/rules-lang-rust": ["@7n/rules-lang-rust@workspace:plugins/lang-rust"],
 
-    "@7n/rules-linux-x64": ["@7n/rules-linux-x64@1.118.4", "", { "os": "linux", "cpu": "x64" }, "sha512-x+b6XJA2D0cI8KrNq5ByT7Ml7ebmcOALpIzfJAL2l3k1C3+imUiA9is2vHpCGX8lVm/zk3TUqtBjIMRrfQia2A=="],
+    "@7n/rules-linux-x64": ["@7n/rules-linux-x64@1.118.6", "", { "os": "linux", "cpu": "x64" }, "sha512-pCl9dR6sSHbYvrDDuLqeaMcZmYLQCeY7D1Y32czpGyvhAt22aQunUQ2ypgiWPdl8icwhsPO/+y3WHMqoGL6egQ=="],
 
-    "@7n/rules-win32-x64": ["@7n/rules-win32-x64@1.118.4", "", { "os": "win32", "cpu": "x64" }, "sha512-O6luwCa32HNOZKqj7+4Ac3gBKCXilMo9dSzK6tj6rSwV+2m0bPPqcF/y7ojdBbsd2XPyAXR54NMI5AytptBrNg=="],
+    "@7n/rules-win32-x64": ["@7n/rules-win32-x64@1.118.6", "", { "os": "win32", "cpu": "x64" }, "sha512-XngTAIQAV1LiGp6D2rm1ikOKEsLtsUNE08rCpWODf18e/a2IpIlswae5Hrld1EsEASdQ3cB+VEIFYB2/ts0M9Q=="],
 
     "@anthropic-ai/sdk": ["@anthropic-ai/sdk@0.91.1", "", { "dependencies": { "json-schema-to-ts": "^3.1.1" }, "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" }, "optionalPeers": ["zod"], "bin": { "anthropic-ai-sdk": "bin/cli" } }, "sha512-LAmu761tSN9r66ixvmciswUj/ZC+1Q4iAfpedTfSVLeswRwnY3n2Nb6Tsk+cLPP28aLOPWeMgIuTuCcMC6W/iw=="],
 
