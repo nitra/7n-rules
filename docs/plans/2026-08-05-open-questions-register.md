@@ -8279,7 +8279,7 @@ comment-preserving фіксом (як `ga/vscode_settings` у `plugin-ci-github`
 
 ---
 
-### 2.70. Двигун template-merge винесено у спільний крейт `crates/rules-template-merge` — розвʼязання §1 плану завершення міграції (варіант B із трьох), `Format` замість `is_yaml: bool`
+### 2.71. Двигун template-merge винесено у спільний крейт `crates/rules-template-merge` — розвʼязання §1 плану завершення міграції (варіант B із трьох), `Format` замість `is_yaml: bool`
 
 **Задача.** §1 плану `docs/plans/2026-08-29-js-rust-migration-completion-plan.md`
 залишив відкритим питання, яке блокувало 15 концернів родини
