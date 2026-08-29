@@ -87,7 +87,7 @@ import { delimiter, dirname, join } from 'node:path'
 import { env } from 'node:process'
 import { pathToFileURL } from 'node:url'
 
-import { describe, expect, test } from 'vitest'
+import { beforeAll, describe, expect, test } from 'vitest'
 
 import { loadNative } from '../../native.mjs'
 import { applyPlanEdit } from '../run-fix.mjs'
@@ -288,6 +288,48 @@ async function runFullScopeBoth(concernKey, ruleId, concernId, dir) {
   const wasmResult = loadNative().runWasmConcern(WASM_PATH, concernKey, dir, null)
   return { js, wasm: withDefaultSeverity(wasmResult.violations) }
 }
+
+/**
+ * Стеля розігріву napi-мосту ([`beforeAll`] нижче).
+ *
+ * Перший виклик `runWasmConcern` у процесі платить одноразову ціну, якої не
+ * платить жоден наступний: `dlopen` napi-аддона (для debug-збірки
+ * `target/debug/librules_napi.dylib` — відчутно дорожче за release) плюс перша
+ * компіляція wasm-компонента `plugin_lang_js.wasm` (~2,4 МБ) рушієм хоста.
+ * Заміряно на debug-аддоні: ~12,6 с, і практично весь цей час — саме холодний
+ * старт. Дефолтні 5 с Vitest його не покривали, тож БЕЗ розігріву перший
+ * `test` файлу стабільно падав із `Test timed out in 5000ms` — «зависання»
+ * холодного старту читалося як реальний фейл парності (решта тестів файлу
+ * проходила, бо йшла вже теплою).
+ *
+ * Кореневий `vitest.config.mjs` відтоді підняв `testTimeout` до 20 с, і цього
+ * САМОГО ПО СОБІ вистачає, щоб файл був зеленим. Розігрів лишається не як
+ * дубль тієї стелі, а тому що запас 12,6 с проти 20 с — 1,6×, тобто заручник
+ * машини: повільніший диск чи холодніший кеш повертають падіння, і воно
+ * читатиметься як флейк. З розігрівом перший тест триває одиниці мілісекунд,
+ * а 20-секундна стеля лишається стелею для ШТАТНОГО тесту — тобто далі ловить
+ * справжні зависання, замість того щоб бути розтягнутою під разовий старт.
+ *
+ * 120 с — із запасом над заміряним: гейт має ловити мертвий міст, а не
+ * повільну машину.
+ */
+const NATIVE_WARMUP_TIMEOUT_MS = 120_000
+
+/**
+ * Розігріває napi-міст ОДИН раз на файл: `loadNative()` + один справжній
+ * `runWasmConcern` (той самий wasm-компонент обслуговує ВСІ концерни файлу,
+ * тож одна компіляція покриває весь суїт).
+ *
+ * Саме hook, а не піднятий `timeout` цього файлу: вартість холодного старту
+ * стає явною й одноразовою, а кожен окремий тест лишається під спільною
+ * стелею монорепо.
+ */
+beforeAll(async () => {
+  await withTmpDir(async dir => {
+    await writeFile(join(dir, 'Page.vue'), '<template><div /></template>\n<script setup></script>\n')
+    loadNative().runWasmConcern(WASM_PATH, TFM_CONCERN_KEY, dir, ['Page.vue'])
+  })
+}, NATIVE_WARMUP_TIMEOUT_MS)
 
 describe('wasm-plugin parity — vue/tfm-translations (JS канон vs wasm plugin-lang-js)', () => {
   test('порушення: імпортує tf, але не оголошує getTr() → однакове violation з обох реалізацій', async () => {
