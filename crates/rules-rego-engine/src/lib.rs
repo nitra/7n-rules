@@ -202,4 +202,89 @@ mod tests {
         let err = engine.eval_rule("{}", "data.p.deny").unwrap_err();
         assert_eq!(err.stage, RegoStage::Eval);
     }
+
+    // --- Регресійний гейт на не-дефолтні builtins (`"graph"`-фіт) ---
+    //
+    // `regorus` пінується тут із `default-features = false` — НАВМИСНО, щоб
+    // тримати розмір нативного хоста (доккомент [`regorus`-залежності]
+    // `Cargo.toml`, реєстр відкритих питань
+    // `docs/plans/2026-08-05-open-questions-register.md` §2.68). Це створює
+    // постійну спокусу «прибрати зайву фіту» — а `"graph"` ламається
+    // ОСОБЛИВО підступно: без неї policy з `walk()`/`graph.reachable`
+    // КОМПІЛЮЄТЬСЯ (hoist-прохід `regorus` розпізнає ці імена незалежно від
+    // фіту), але падає на ЕВАЛЮАЦІЇ з оманливою помилкою `use of undefined
+    // variable '...' is unsafe` — виглядає як баг Rego-безпеки в самій
+    // policy, а не як відсутній builtin (підтверджено мінімальним репро
+    // задачею §2.68, цикл, витрачений на діагностику, — сам доказ, що
+    // помилка вводить в оману). Ці два тести — якір: якщо хтось прибере
+    // `"graph"` з фіт-набору нижче, тут падає ЧЕРВОНИЙ тест із зрозумілою
+    // назвою замість загадкової помилки в чужому wasm-плагіні через
+    // півроку.
+    //
+    // `walk()` — реально ВЖЕ споживається (`plugin-ci-azure`,
+    // `azure-pipelines/lint_pipeline`, `crates/plugin-ci-azure/src/lib.rs`).
+    // `graph.reachable` — ще НЕ споживається жодним вшитим `.rego` жодного
+    // wasm-гостя (перевірено grep-ом по `plugins/{ci-github,ci-azure}/rules/`
+    // на момент написання цього тесту — обидва наявні вжитки живуть у
+    // `ga/service_deploy_workflow`/`azure-pipelines/service_deploy_pipeline`,
+    // СВІДОМО поза обсягом портованих концернів), але лежить у ТІЙ САМІЙ
+    // фіті, що `walk()` — тест тут ЗАРАНІШЕ ловить регрес, якщо майбутній
+    // порт `service_deploy_*` покладеться на неї мовчки. Решта fіт-набору
+    // (`regex`/`std`/`arc`) — не builtin-реєстрація, а мовна фіча
+    // (`regex`) чи ABI-деталь (`std`/`arc`), тому не того самого класу
+    // ризику (відсутність дає ПОМИЛКУ КОМПІЛЯЦІЇ чи взагалі не компілюється
+    // цей крейт, не оманливий рантайм-фейл) — нового гейта на них не
+    // додано.
+    #[test]
+    fn walk_builtin_traverses_nested_input_without_graph_feature_being_dropped() {
+        let mut engine = RegoEngine::new();
+        engine
+            .add_policy(
+                "p.rego",
+                r#"package p
+import rego.v1
+
+scripts contains s if {
+	walk(input, [_, node])
+	is_object(node)
+	s := node.script
+	is_string(s)
+}
+"#,
+            )
+            .unwrap();
+        engine.add_data_json("{}").unwrap();
+        let mut messages = engine
+            .eval_rule(
+                r#"{"steps":[{"script":"a"}],"nested":{"x":{"script":"b"}}}"#,
+                "data.p.scripts",
+            )
+            .expect(
+                "walk() мусить еваluюватись — якщо тут Err, фіт \"graph\" прибрано з rules-rego-engine/Cargo.toml (доккомент тесту)",
+            );
+        messages.sort();
+        assert_eq!(messages, vec!["a".to_string(), "b".to_string()]);
+    }
+
+    #[test]
+    fn graph_reachable_builtin_evaluates_without_graph_feature_being_dropped() {
+        let mut engine = RegoEngine::new();
+        engine
+            .add_policy(
+                "p.rego",
+                r#"package p
+import rego.v1
+
+deny contains "reachable" if {
+	"b" in graph.reachable({"a": {"b"}, "b": set()}, {"a"})
+}
+"#,
+            )
+            .unwrap();
+        engine.add_data_json("{}").unwrap();
+        let messages = engine.eval_rule("{}", "data.p.deny").expect(
+            "graph.reachable() мусить еваluюватись — якщо тут Err, фіт \"graph\" прибрано з rules-rego-engine/Cargo.toml (доккомент тесту)",
+        );
+        assert_eq!(messages, vec!["reachable".to_string()]);
+    }
 }

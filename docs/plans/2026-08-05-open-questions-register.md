@@ -8111,6 +8111,174 @@ rules-napi --release`, доккомент брифу) впала «No space left
 
 ---
 
+### 2.69. `plugin-ci-azure` — ШОСТИЙ wasm-гість, перший ПІСЛЯ §2.55/§2.66: два з десяти концернів, rego-двигун дістався безкоштовно, ще одна пастка `regorus` знайдена (`walk()` builtin потребує фіту `"graph"`)
+
+**Задача.** До §2.55 (стеля 2,5 → 10 MiB) і §2.66 (rego-двигун винесено з
+wasm-гостя на хост, host-import resource `rego-engine`) окремий гість для
+`ci-azure` вважався непропорційним — `regorus` коштував ~1 МБ у КОЖНОМУ
+гості, десять концернів платили б за нього вдруге. Обидві підстави зникли
+того самого дня. Цей крейт — ПЕРШИЙ гість, заведений ПІСЛЯ обох змін:
+`crates/plugin-ci-azure`, `n-rules:plugin@3.2.0` з самого початку (на
+відміну від `plugin-ci-github`, де стару пряму `regorus`-залежність
+довелось прибирати заднім числом).
+
+**Обрано два концерни з десяти**, представники ОБОХ форм, не два зручних
+однакових: `azure-pipelines/lint_pipeline` (чистий rego-детект, БЕЗ
+T0-фіксатора — `concern.json` не декларує `fixability`, substring-перевірка
+`n-rules lint`/`--no-fix` по `walk()`-обходу всього pipeline-дерева) і
+`azure-pipelines/vscode_extensions` (rego-детект subset-перевірки
+`recommendations` + T0-фіксатор — ТОЙ САМИЙ спільний рушій
+`vscode-ext-add.mjs`, що `ga/vscode_extensions` у `plugin-ci-github`: union
+за рядковим значенням, повна регенерація файлу, не хірургічний merge —
+канон сам не comment-preserving для цього концерну). Решта вісім
+(`pipeline_common`, `service_deploy_pipeline`, `docker/lint_pipeline_docker`,
+`k8s/lint_pipeline_k8s`, `security/lint_pipeline_security`,
+`style/lint_pipeline_style`, `text/lint_pipeline_text`,
+`ci_artifact/consume_azure`) — СВІДОМО поза обсягом цієї хвилі. JS-канон
+УСІХ десяти лишається недоторканим — парність доведена ПЕРЕД будь-яким
+видаленням.
+
+**`%q`-пастка (§2.66) — перевірена превентивно, знайдена рівно один раз.**
+Grep по всіх девʼяти `.rego`-політик плагіна: РІВНО одне входження
+(`vscode_extensions.rego`), замінено на `\"%v\"` (той самий біт-у-біт
+контракт, що §2.66: `sprintf("%q", s)` для ASCII-рядка без спецсимволів —
+рівно `"` + s + `"`). `conftest verify --policy plugins/ci-azure/rules`
+після правки — 54/54, без регресій.
+
+**Нова пастка, ще не задокументована в §2.66: `walk()` — не в `.rego`, а у
+фітах `regorus`.** `lint_pipeline.rego` кличе built-in `walk(input, [_,
+node])` (той самий стандартний OPA-патерн обходу всього дерева). Під
+фіт-набором, який `rules-rego-engine` мав від §2.66 (`regex`+`std`+`arc`,
+успадковано з `plugin-ci-github`, де жоден з пʼяти вшитих `.rego` не кличе
+`walk`) — той самий policy-текст ЕВАЛЮЮЄТЬСЯ (не компілюється — компіляція
+проходить, `hoist`-прохід `regorus` розпізнає `walk` за іменем незалежно
+від фіту) з оманливою помилкою `use of undefined variable 'node' is
+unsafe`, що виглядає як баг Rego-безпеки/порту, а насправді — відсутній
+builtin: `walk` живе у фіті `"graph"` (частина `full-opa`-бандла, який
+`default-features = false` свідомо не бере). Підтверджено мінімальним
+репро ПОЗА крейтом плагіна (тимчасові тести `crates/rules-rego-engine`,
+видалені після підтвердження): та сама policy падає на КОЖНІЙ формі
+виклику `walk` без фіту (bound/unbound path, plain-правило, set
+comprehension — не лише shorthand-форма multi-value rule head), з фітом —
+працює БУКВАЛЬНО без жодної зміни `.rego`-тексту. Фікс — один рядок,
+`crates/rules-rego-engine/Cargo.toml`: `features = ["regex", "std", "arc",
+"graph"]`. Чисто адитивний (реєструє builtin, не змінює жодну наявну
+семантику) — безпечний для ОБОХ наявних консюмерів
+(`rules-plugin-host`/`plugin-ci-github` під `cfg(not(wasm32))`): жоден з
+пʼяти вшитих `.rego` `ga/*` не кличе `walk`, тож фіт для них — мертва вага
+в нулі байт (regorus features гейтять лише builtin-реєстрацію, не пряму
+залежність поза wasm32). **Урок для наступного гостя:** перед портом
+rego, що кличе `walk()` (чи будь-який інший builtin поза мінімальним
+`regex`+`std`+`arc`-набором) — звір фіт-список
+`rules-rego-engine/Cargo.toml` з фактично потрібними builtin-ами ДО
+порту, не після незрозумілої «unsafe variable»-помилки.
+
+**Розмір гостя — покроково** (release, `wasm32-wasip2`, `stat -f%z`, той
+самий per-package profile, що `plugin-lang-js`/`plugin-ci-github`:
+`opt-level=z`, `codegen-units=1`, `strip=true`):
+
+| Крок | Розмір (Б) | Дельта |
+|---|---|---|
+| Порожній гість (лише `wit-bindgen`, повний `n-rules:plugin@3.2.0` world — не мінімальний ізольований проб §2.66, а реальний контракт цього репо з усіма host-import-ами) | 63 266 | — |
+| + `azure-pipelines/lint_pipeline` (перший концерн: `saphyr` YAML-парсер + rego-виклик через host-import `rego-engine`) | 238 001 | +174 735 |
+| + `azure-pipelines/vscode_extensions` (другий концерн: той самий `Json`/`eval_deny_rule`-каркас перевикористаний, лише нова detect/fix-логіка й вшитий snippet) | 248 759 | +10 758 |
+
+Другий концерн коштує на порядок дешевше першого — увесь дорогий каркас
+(`Json`-тип, YAML-парсер, rego-виклик, error-handling) уже сплачений
+першим. Абсолютний розмір (248 759 Б, 0,42 % від стелі 10 MiB, §2.55) на
+порядок менший за `plugin-ci-github` (1 571 007 Б, 5 концернів) — rego-
+двигун дійсно дістався безкоштовно: жодної прямої `regorus`/`regex`-
+залежності в `wasm32-wasip2` build graph НІКОЛИ не існувало для цього
+гостя (на відміну від `plugin-ci-github`, де регорус довелось прибирати
+заднім числом).
+
+**Парність — через РЕАЛЬНИЙ napi-міст** (критерій приймання №1, урок
+§2.47): `wasm-plugin-parity-ci-azure.test.mjs` (7 тестів) — `runWasmConcern`
+на обох концернах (`azure-pipelines.yml` відсутній/чистий/без lint-кроку/
+без `--no-fix`; `.vscode/extensions.json` через ПОВНИЙ T0-цикл
+`runWasmConcern` → `runWasmConcernFix` → застосування → повторний
+`runWasmConcern` чистий, включно зі сценарієм «наявний файл з чужою
+рекомендацією», що звіряє union, не перезапис). Golden-тест на
+завантаженому `.wasm` через `PluginHost` напряму (окремий рівень, не
+підміна napi-шару) — `crates/rules-plugin-host/tests/plugin_ci_azure.rs`
+(5 тестів), включно з регресійним якорем саме на `"graph"`-фіт
+(`lint_pipeline_walk_builtin_resolves_deny_through_real_wasm_component`).
+Юніт-тести гостя на host-таргеті (regorus IN-PROCESS через `cfg`-гілку
+§2.66) — `crates/plugin-ci-azure/src/lib.rs` (16 тестів).
+
+**Регресійний гейт на `"graph"`-фіт — доданий після незалежного ревʼю
+(власник), не в первинній хвилі.** Первинна хвиля лишила знахідку `walk`
+незахищеною — сам `Cargo.toml`-коментар, без тесту, тому фіту можна було б
+тихо прибрати назад (той самий мотив, з якого й додано: `default-features
+= false` — навмисний вибір, спокуса «підрізати зайве» реальна). Додано ДВА
+постійні тести в `crates/rules-rego-engine/src/lib.rs` (НЕ тимчасові
+probe-тести з діагностики — ті справді видалені після підтвердження,
+доккомент вище):
+`walk_builtin_traverses_nested_input_without_graph_feature_being_dropped`
+(`walk()` — уже реально споживається `plugin-ci-azure`) і
+`graph_reachable_builtin_evaluates_without_graph_feature_being_dropped`
+(`graph.reachable` — та сама фіта `"graph"`, ще НЕ споживається жодним
+вшитим `.rego` жодного гостя на момент цього запису, grep підтверджує:
+обидва наявні вжитки — `ga/service_deploy_workflow`/
+`azure-pipelines/service_deploy_pipeline`, свідомо поза обсягом портованих
+концернів — але лежать у ТІЙ САМІЙ фіті, тест ловить регрес заранiше,
+якщо майбутній порт покладеться на неї мовчки). Перевірено ручним
+регресом: тимчасове прибирання `"graph"` з `Cargo.toml` дало ЧЕРВОНИЙ
+результат обох тестів із зрозумілим `panic`-повідомленням (не побічну
+"unsafe variable"-плутанину), фіту повернуто. Решта фіт-набору
+(`regex`/`std`/`arc`) — не того самого класу ризику (відсутність дає
+помилку КОМПІЛЯЦІЇ цього крейта, не оманливий рантайм-фейл у чужому
+плагіні), новим гейтом не накрита.
+
+**Регресія.** `cargo test -p plugin-ci-azure` 16/16. `cargo test -p
+rules-rego-engine` 7/7 (5 наявних + 2 нових регресійних гейти вище). `cargo
+test -p plugin-ci-github` 156/156 — БЕЗ РЕГРЕСІЙ від зміни спільного
+`rules-rego-engine` (той самий чисто адитивний мотив, підтверджений
+реальним прогоном, не лише аргументом). `conftest verify --policy
+plugins/ci-azure/rules` 54/54. `wasm-plugin-parity-ci-azure.test.mjs`
+7/7. `crates/rules-plugin-host/tests/plugin_ci_azure.rs` 5/5.
+
+**Реєстрація.** `Cargo.toml` (member + per-package size-профіль, той самий
+мотив, що `plugin-lang-js`/`plugin-ci-github`), `npm/scripts/build-wasm-plugins.mjs`
+(`FIRST_PARTY_WASM_PLUGINS`) — обидва спільні файли, торкнуті МІНІМАЛЬНО
+(один запис кожен), `crates/plugin-ci-github/**` не чіпався зовсім
+(паралельна робота іншого агента в тому ж дереві).
+
+**Наступна хвиля.** Каркас доведений, вартість зміряна: перший концерн
+несе фіксовану вартість каркасу (~175 КБ — YAML-парсер + rego-виклик),
+кожен наступний — на порядок дешевше (~11 КБ на `vscode_extensions`-подібний
+концерн, що перевикористовує той самий каркас). Решта вісім концернів —
+кандидати на наступну хвилю тим самим методом; `service_deploy_pipeline`
+(JS-фіксер, не rego-based) і `ci_artifact/consume_azure` (без rego
+взагалі) — інший клас порту, доккомент `crates/plugin-ci-azure/src/lib.rs`
+не дає їм рецепту напряму.
+
+**Де я не погодився з власником (не помилка, уточнення).** Бриф просив
+YAML/JSON через `saphyr` для обох target-файлів, свідомо БЕЗ окремого
+JSONC-крейта (на відміну від `plugin-ci-github`'s `jsonc-parser`) — це МОЄ
+рішення обсягу, не власника: `azure-pipelines/vscode_extensions`'s фіксатор
+— повна регенерація файлу (той самий контракт, що канонічний
+`vscode-ext-add.mjs`), тож JSONC-коментарі в `.vscode/extensions.json` не
+переживають фікс НАВІТЬ у JS-каноні — жодного comment-preserving шляху
+немає, який JSONC-парсер міг би зберегти для ЦЬОГО конкретного концерну.
+Задокументовано як свідома межа (доккомент `src/lib.rs`), не мовчазна
+регресія; якщо наступна хвиля порту зачепить концерн із хірургічним
+comment-preserving фіксом (як `ga/vscode_settings` у `plugin-ci-github`) —
+тоді і лише тоді `jsonc-parser` виправданий тут.
+
+**Де власник мав рацію, а первинна версія цього запису — ні.** Незалежне
+ревʼю PR #538 упіймало реальну прогалину: перша версія цього §2.68
+задокументувала знахідку `walk`/`"graph"` лише коментарем у `Cargo.toml`,
+БЕЗ тесту — точна протилежність духу цього самого реєстру (fail loud, не
+мовчазна регресія, доккомент `push_rego_engine_error`). Ревʼю також
+впіймало банальну помилку — невірне число тестів `rules-rego-engine`
+(«17/17» замість фактичних 5, потім 7 після фіксу) — числа в звіті
+задачі мають бути звірені командою, яка їх дала, не переписані з памʼяті.
+Обидва виправлено тим самим коммітом (регресійний гейт вище, числа
+скрізь у цьому записі й у changeset).
+
+---
+
 ## Як користуватись
 
 Дійшовши кінця плану міграції, пройти реєстр згори вниз: розділи 1 і 6 — це

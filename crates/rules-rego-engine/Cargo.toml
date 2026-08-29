@@ -27,7 +27,24 @@ description = "Тонка спільна обгортка над regorus::Engine
 # семантика rego НЕ змінюється). Ціна — нуль для wasm-гостя (цей крейт
 # туди взагалі не резолвиться, доккомент вище) і не вимірювана для
 # нативного хоста (не бюджетований шлях).
-regorus = { version = "0.11", default-features = false, features = ["regex", "std", "arc"] }
+# `"graph"` — ДОДАНО задачею `crates/plugin-ci-azure` (ШОСТИЙ гість,
+# `azure-pipelines/lint_pipeline`): `regorus` реєструє built-in `walk()`
+# лише за цим фітом (частина `full-opa`-бандла, який пін тут свідомо НЕ
+# бере — `default-features = false`). Без нього `walk(input, [_, node])`
+# компілюється (hoist-прохід розпізнає `walk` за іменем незалежно від
+# фіту), але ЕВАЛЮЮЄТЬСЯ з помилкою `use of undefined variable 'node' is
+# unsafe` — оманливе повідомлення (виглядає як баг Rego-безпеки, а
+# насправді відсутній builtin). Підтверджено мінімальним репро ПОЗА цим
+# крейтом: та сама policy без цього фіту падає на КОЖНІЙ формі виклику
+# walk (bound/unbound path, plain rule, set comprehension) — з фітом
+# працює буквально без жодної зміни `.rego`-тексту. Додатковий, ЧИСТО
+# АДИТИВНИЙ фіт (реєструє builtin, не змінює жодну наявну семантику) —
+# безпечний для ОБОХ наявних споживачів (`rules-plugin-host`,
+# `plugin-ci-github` під `cfg(not(wasm32))`): жоден з них не декларує
+# rego, що конфліктує з `walk`, і жоден раніше не потребував цього
+# builtin-а (реєстр §2.66 не згадує `walk` серед пʼяти вшитих
+# `.rego`-пакетів `ga/*`).
+regorus = { version = "0.11", default-features = false, features = ["regex", "std", "arc", "graph"] }
 # regorus пінує `regex` із `default-features = false` — Perl-скорочення
 # (`\d \s \w \b`) не компілюються всередині policy без цього. Явна
 # sibling-залежність тут — Cargo feature-unifies її в ОДНУ копію з тим

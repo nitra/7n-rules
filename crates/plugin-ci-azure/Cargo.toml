@@ -1,0 +1,56 @@
+[package]
+name = "plugin-ci-azure"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "Apache-2.0"
+description = "wasm-компонент n-rules:plugin@3.2.0 — ci-azure/wasm-concerns (2 концерни: azure-pipelines/lint_pipeline, azure-pipelines/vscode_extensions)"
+
+[lib]
+# `cdylib` — обов'язково: `wasm32-wasip2` виводить готовий Component Model
+# компонент лише з цього crate-type (той самий мотив, що
+# `crates/plugin-lang-js`/`crates/plugin-ci-github`, доккомент тих Cargo.toml).
+crate-type = ["cdylib"]
+
+[dependencies]
+# Пін звірено з рештою п'яти гостей (той самий мінор, що резолвиться в
+# Cargo.lock кореня) — НЕ розширюй у caret-діапазон без причини.
+wit-bindgen = "0.60"
+# ШОСТИЙ first-party гість — ПЕРШИЙ, створений ПІСЛЯ §2.66 (реєстр відкритих
+# питань `docs/plans/2026-08-05-open-questions-register.md`): rego-двигун
+# (`regorus`) дістається БЕЗКОШТОВНО через host-import resource `rego-engine`
+# (`wit/world.wit`) — ця wasm32-збірка НІКОЛИ не несла прямої `regorus`-
+# залежності (на відміну від `plugin-ci-github`, де стару пряму залежність
+# довелось прибирати заднім числом — доккомент того Cargo.toml). Той самий
+# `rules-rego-engine` крейт, що `crates/rules-plugin-host` реалізує на боці
+# хоста, підключений тут ЛИШЕ на `cfg(not(target_arch = "wasm32"))` нижче —
+# нативні `cargo test` кличуть regorus in-process, wasm32 (продакшн) кличе
+# host-import resource (доккомент `RegoEngineHandle`, `src/lib.rs`).
+#
+# YAML — `saphyr` (YAML 1.2, а не Go-yaml 1.1, яким читає `conftest`) — той
+# самий пін і той самий мотив, що `plugin-ci-github`. Обидва target-файли
+# цього крейта (`azure-pipelines.yml`, `.vscode/extensions.json`) читаються
+# через ОДИН saphyr-парсер (JSON — валідний YAML 1.2, доккомент модуля) —
+# СВІДОМО без окремого JSONC-крейта (на відміну від `plugin-ci-github`'s
+# `jsonc-parser`): `azure-pipelines/vscode_extensions`'s фікс — ПОВНА
+# регенерація файлу (той самий контракт, що канонічний
+# `npm/scripts/lib/fix/vscode-ext-add.mjs` — `JSON.stringify`, не
+# comment-preserving surgical merge), тож JSONC-коментарі в
+# `.vscode/extensions.json` — задокументована межа (доккомент модуля), не
+# прихована регресія: канон теж губить їх при фіксі.
+saphyr = "0.0"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# Реєстр §2.66: `regorus` виконується IN-PROCESS лише на host-таргеті
+# (нативні `cargo test`) — той самий `rules-rego-engine`, що
+# `crates/rules-plugin-host` реалізує через host-import resource
+# `rego-engine` для wasm32. Cargo резолвить цю залежність ЛИШЕ на
+# не-wasm32 таргеті — у wasm32-wasip2 build graph цього ребра немає,
+# `regorus`/`regex` НЕ резолвиться в component-артефакт узагалі.
+rules-rego-engine = { path = "../rules-rego-engine" }
+
+[dev-dependencies]
+# Anti-drift тест `plugin_toml_concern_keys_match_describe` (той самий
+# мотив, що решта гостей) — парсить `plugin.toml` СПРАВЖНІМ TOML-парсером.
+# Dev-only: у wasm32-wasip2 cdylib не потрапляє.
+toml = "0.8"
