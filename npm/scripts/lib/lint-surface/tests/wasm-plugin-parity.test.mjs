@@ -87,7 +87,7 @@ import { delimiter, dirname, join } from 'node:path'
 import { env } from 'node:process'
 import { pathToFileURL } from 'node:url'
 
-import { describe, expect, test } from 'vitest'
+import { beforeAll, describe, expect, test } from 'vitest'
 
 import { loadNative } from '../../native.mjs'
 import { applyPlanEdit } from '../run-fix.mjs'
@@ -104,7 +104,6 @@ if (!existsSync(WASM_PATH)) {
       'Зберіть його командою: bash crates/plugin-lang-js/build.sh'
   )
 }
-
 
 const TFM_CONCERN_KEY = 'vue/tfm-translations'
 const GAP_CONCERN_KEY = 'style/gap'
@@ -189,7 +188,6 @@ const PACKAGE_STRUCTURE_CONCERN_KEY = 'npm-module/package_structure'
 const DEP_POLICY_CONCERN_KEY = 'js/dep-policy'
 /** Реєстр предикатів — джерело правди анти-дрейф-тесту `RULE_PREDICATE_NAMES`. */
 const RULE_PREDICATES_PATH = join(REPO_ROOT, 'npm', 'scripts', 'lib', 'rule-predicates.mjs')
-
 
 // ---------------------------------------------------------------------
 // Шар еталонів ([`goldenJs`], `wasm-parity-golden.mjs`): JS-детектори
@@ -288,6 +286,51 @@ async function runFullScopeBoth(concernKey, ruleId, concernId, dir) {
   const wasmResult = loadNative().runWasmConcern(WASM_PATH, concernKey, dir, null)
   return { js, wasm: withDefaultSeverity(wasmResult.violations) }
 }
+
+/**
+ * Стеля розігріву napi-мосту ([`beforeAll`] нижче).
+ *
+ * Перший виклик `runWasmConcern` у процесі платить одноразову ціну, якої не
+ * платить жоден наступний: `dlopen` napi-аддона (для debug-збірки
+ * `target/debug/librules_napi.dylib` — відчутно дорожче за release) плюс перша
+ * компіляція wasm-компонента `plugin_lang_js.wasm` (~2,4 МБ) рушієм хоста.
+ * Заміряно на debug-аддоні: ~12,6 с, і практично весь цей час — саме холодний
+ * старт. Дефолтні 5 с Vitest його не покривали, тож БЕЗ розігріву перший
+ * `test` файлу стабільно падав із `Test timed out in 5000ms` — «зависання»
+ * холодного старту читалося як реальний фейл парності (решта тестів файлу
+ * проходила, бо йшла вже теплою).
+ *
+ * Кореневий `vitest.config.mjs` відтоді підняв `testTimeout` до 20 с, і цього
+ * САМОГО ПО СОБІ вистачає, щоб файл був зеленим. Розігрів лишається не як
+ * дубль тієї стелі, а тому що запас 12,6 с проти 20 с — 1,6×, тобто заручник
+ * машини: повільніший диск чи холодніший кеш повертають падіння, і воно
+ * читатиметься як флейк. З розігрівом перший тест триває одиниці мілісекунд,
+ * а 20-секундна стеля лишається стелею для ШТАТНОГО тесту — тобто далі ловить
+ * справжні зависання, замість того щоб бути розтягнутою під разовий старт.
+ *
+ * 120 с — із запасом над заміряним: гейт має ловити мертвий міст, а не
+ * повільну машину. Те саме число й той самий мотив, що в
+ * [`CONFTEST_SPAWN_TIMEOUT_MS`] нижче (холодний перший спавн `conftest`) —
+ * різниця лише в тому, що там ціну платить кожен тест-спавн, а тут вона
+ * одноразова на процес, тож виноситься в hook, а не в стелю тесту.
+ */
+const NATIVE_WARMUP_TIMEOUT_MS = 120_000
+
+/**
+ * Розігріває napi-міст ОДИН раз на файл: `loadNative()` + один справжній
+ * `runWasmConcern` (той самий wasm-компонент обслуговує ВСІ концерни файлу,
+ * тож одна компіляція покриває весь суїт).
+ *
+ * Саме hook, а не піднятий `timeout` цього файлу: вартість холодного старту
+ * стає явною й одноразовою, а кожен окремий тест лишається під спільною
+ * стелею монорепо.
+ */
+beforeAll(async () => {
+  await withTmpDir(async dir => {
+    await writeFile(join(dir, 'Page.vue'), '<template><div /></template>\n<script setup></script>\n')
+    loadNative().runWasmConcern(WASM_PATH, TFM_CONCERN_KEY, dir, ['Page.vue'])
+  })
+}, NATIVE_WARMUP_TIMEOUT_MS)
 
 describe('wasm-plugin parity — vue/tfm-translations (JS канон vs wasm plugin-lang-js)', () => {
   test('порушення: імпортує tf, але не оголошує getTr() → однакове violation з обох реалізацій', async () => {
@@ -2752,7 +2795,9 @@ describe('wasm-plugin parity — bun/layout T0-фікс через fix-міст 
       const before = withDefaultSeverity(
         loadNative().runWasmConcern(WASM_PATH, BUN_LAYOUT_CONCERN_KEY, dir, null).violations
       )
-      expect(before.map(v => v.message)).toEqual(['Відсутній bunfig.toml — створи з [install] linker = "hoisted" (bun.mdc)'])
+      expect(before.map(v => v.message)).toEqual([
+        'Відсутній bunfig.toml — створи з [install] linker = "hoisted" (bun.mdc)'
+      ])
 
       const plan = loadNative().runWasmConcernFix(WASM_PATH, BUN_LAYOUT_CONCERN_KEY, dir, before, {})
       expect(plan.edits).toEqual([{ type: 'write', path: 'bunfig.toml', content: '[install]\nlinker = "hoisted"\n' }])
@@ -4470,7 +4515,11 @@ describe('wasm-plugin — style/lint T0-фікс через fix-міст (exec-t
 
   /** Агрегована діагностика концерну — рівно те, що віддає `detect_style_lint` (жодного `file`). */
   const stylelintViolations = () => [
-    { reason: 'stylelint-violation', message: 'lint-style: stylelint — порушення (код 2, style.mdc)', severity: 'error' }
+    {
+      reason: 'stylelint-violation',
+      message: 'lint-style: stylelint — порушення (код 2, style.mdc)',
+      severity: 'error'
+    }
   ]
 
   test('дельта: host-diff синтезує write-edit ЛИШЕ на файли дельти — файл поза нею не чіпається', async () => {
@@ -5406,116 +5455,148 @@ async function runWasmFixCycle(key, dir) {
 const CONFTEST_SPAWN_TIMEOUT_MS = 120_000
 
 describe('wasm-plugin parity — §2.78 rego-детект шести концернів (conftest-канон vs host-import rego-engine)', () => {
-  test('js/vscode_extensions: бракує однієї рекомендації → ідентичні violations', async () => {
-    await withTmpDir(async dir => {
-      await writeFileDeep(dir, '.vscode/extensions.json', '{\n  "recommendations": ["dbaeumer.vscode-eslint"]\n}\n')
-      const { js, wasm } = await runSingleFilePolicyBoth(JS_VSCODE_EXTENSIONS_CONCERN_KEY, dir)
-      expect(wasm).toEqual(js)
-      expect(js).toHaveLength(1)
-      expect(js[0].message).toContain('oxc.oxc-vscode')
-      expect(js[0].file).toBe('.vscode/extensions.json')
-    })
-  }, CONFTEST_SPAWN_TIMEOUT_MS)
+  test(
+    'js/vscode_extensions: бракує однієї рекомендації → ідентичні violations',
+    async () => {
+      await withTmpDir(async dir => {
+        await writeFileDeep(dir, '.vscode/extensions.json', '{\n  "recommendations": ["dbaeumer.vscode-eslint"]\n}\n')
+        const { js, wasm } = await runSingleFilePolicyBoth(JS_VSCODE_EXTENSIONS_CONCERN_KEY, dir)
+        expect(wasm).toEqual(js)
+        expect(js).toHaveLength(1)
+        expect(js[0].message).toContain('oxc.oxc-vscode')
+        expect(js[0].file).toBe('.vscode/extensions.json')
+      })
+    },
+    CONFTEST_SPAWN_TIMEOUT_MS
+  )
 
-  test('js/vscode_extensions: файлу немає — обидві реалізації дають ту саму policy-file-missing (required: true)', async () => {
-    await withTmpDir(async dir => {
-      await writeFileDeep(dir, 'package.json', '{}\n')
-      const { js, wasm } = await runSingleFilePolicyBoth(JS_VSCODE_EXTENSIONS_CONCERN_KEY, dir)
-      expect(wasm).toEqual(js)
-      expect(js).toHaveLength(1)
-      expect(js[0].reason).toBe('policy-file-missing')
-    })
-  }, CONFTEST_SPAWN_TIMEOUT_MS)
+  test(
+    'js/vscode_extensions: файлу немає — обидві реалізації дають ту саму policy-file-missing (required: true)',
+    async () => {
+      await withTmpDir(async dir => {
+        await writeFileDeep(dir, 'package.json', '{}\n')
+        const { js, wasm } = await runSingleFilePolicyBoth(JS_VSCODE_EXTENSIONS_CONCERN_KEY, dir)
+        expect(wasm).toEqual(js)
+        expect(js).toHaveLength(1)
+        expect(js[0].reason).toBe('policy-file-missing')
+      })
+    },
+    CONFTEST_SPAWN_TIMEOUT_MS
+  )
 
-  test('style/vscode_extensions: файлу немає — БЕЗ required обидві мовчать (розходження concern.json тієї самої родини)', async () => {
-    await withTmpDir(async dir => {
-      await writeFileDeep(dir, 'package.json', '{}\n')
-      const { js, wasm } = await runSingleFilePolicyBoth(STYLE_VSCODE_EXTENSIONS_CONCERN_KEY, dir)
-      expect(wasm).toEqual(js)
-      expect(js).toEqual([])
-    })
-  }, CONFTEST_SPAWN_TIMEOUT_MS)
+  test(
+    'style/vscode_extensions: файлу немає — БЕЗ required обидві мовчать (розходження concern.json тієї самої родини)',
+    async () => {
+      await withTmpDir(async dir => {
+        await writeFileDeep(dir, 'package.json', '{}\n')
+        const { js, wasm } = await runSingleFilePolicyBoth(STYLE_VSCODE_EXTENSIONS_CONCERN_KEY, dir)
+        expect(wasm).toEqual(js)
+        expect(js).toEqual([])
+      })
+    },
+    CONFTEST_SPAWN_TIMEOUT_MS
+  )
 
-  test('js/package_json: type + engines + eslint-config нижче порогу → ідентичні violations', async () => {
-    await withTmpDir(async dir => {
-      await writeFileDeep(
-        dir,
-        'package.json',
-        JSON.stringify(
-          {
-            name: 'x',
-            type: 'commonjs',
-            engines: { node: '>=20', bun: '>=1.2' },
-            devDependencies: { '@nitra/eslint-config': '^3.1.0' }
-          },
-          null,
-          2
+  test(
+    'js/package_json: type + engines + eslint-config нижче порогу → ідентичні violations',
+    async () => {
+      await withTmpDir(async dir => {
+        await writeFileDeep(
+          dir,
+          'package.json',
+          JSON.stringify(
+            {
+              name: 'x',
+              type: 'commonjs',
+              engines: { node: '>=20', bun: '>=1.2' },
+              devDependencies: { '@nitra/eslint-config': '^3.1.0' }
+            },
+            null,
+            2
+          )
         )
-      )
-      const { js, wasm } = await runSingleFilePolicyBoth(JS_PACKAGE_JSON_CONCERN_KEY, dir)
-      expect(wasm).toEqual(js)
-      expect(js.length).toBeGreaterThanOrEqual(4)
-    })
-  }, CONFTEST_SPAWN_TIMEOUT_MS)
+        const { js, wasm } = await runSingleFilePolicyBoth(JS_PACKAGE_JSON_CONCERN_KEY, dir)
+        expect(wasm).toEqual(js)
+        expect(js.length).toBeGreaterThanOrEqual(4)
+      })
+    },
+    CONFTEST_SPAWN_TIMEOUT_MS
+  )
 
-  test('js/package_json: eslint-config ВИЩЕ порогу — обидві мовчать (detect — це `>=`, не рівність)', async () => {
-    await withTmpDir(async dir => {
-      await writeFileDeep(
-        dir,
-        'package.json',
-        JSON.stringify(
-          {
-            type: 'module',
-            engines: { node: '>=24', bun: '>=1.4' },
-            devDependencies: { '@nitra/eslint-config': '^3.20.0' }
-          },
-          null,
-          2
+  test(
+    'js/package_json: eslint-config ВИЩЕ порогу — обидві мовчать (detect — це `>=`, не рівність)',
+    async () => {
+      await withTmpDir(async dir => {
+        await writeFileDeep(
+          dir,
+          'package.json',
+          JSON.stringify(
+            {
+              type: 'module',
+              engines: { node: '>=24', bun: '>=1.4' },
+              devDependencies: { '@nitra/eslint-config': '^3.20.0' }
+            },
+            null,
+            2
+          )
         )
-      )
-      const { js, wasm } = await runSingleFilePolicyBoth(JS_PACKAGE_JSON_CONCERN_KEY, dir)
-      expect(wasm).toEqual(js)
-      expect(js).toEqual([])
-    })
-  }, CONFTEST_SPAWN_TIMEOUT_MS)
+        const { js, wasm } = await runSingleFilePolicyBoth(JS_PACKAGE_JSON_CONCERN_KEY, dir)
+        expect(wasm).toEqual(js)
+        expect(js).toEqual([])
+      })
+    },
+    CONFTEST_SPAWN_TIMEOUT_MS
+  )
 
-  test('npm-module/npm_package_json: files без "types" → ідентичні violations (і `.rego` компілюється під regorus після §2.78)', async () => {
-    await withTmpDir(async dir => {
-      await writeFileDeep(
-        dir,
-        'npm/package.json',
-        JSON.stringify({ types: './types/index.d.ts', files: ['dist'] }, null, 2)
-      )
-      const { js, wasm } = await runSingleFilePolicyBoth(NPM_PACKAGE_JSON_CONCERN_KEY, dir)
-      expect(wasm).toEqual(js)
-      expect(js).toHaveLength(1)
-      expect(js[0].message).toContain('types')
-      expect(js[0].file).toBe('npm/package.json')
-    })
-  }, CONFTEST_SPAWN_TIMEOUT_MS)
+  test(
+    'npm-module/npm_package_json: files без "types" → ідентичні violations (і `.rego` компілюється під regorus після §2.78)',
+    async () => {
+      await withTmpDir(async dir => {
+        await writeFileDeep(
+          dir,
+          'npm/package.json',
+          JSON.stringify({ types: './types/index.d.ts', files: ['dist'] }, null, 2)
+        )
+        const { js, wasm } = await runSingleFilePolicyBoth(NPM_PACKAGE_JSON_CONCERN_KEY, dir)
+        expect(wasm).toEqual(js)
+        expect(js).toHaveLength(1)
+        expect(js[0].message).toContain('types')
+        expect(js[0].file).toBe('npm/package.json')
+      })
+    },
+    CONFTEST_SPAWN_TIMEOUT_MS
+  )
 
-  test('npm-module/root_package_json: немає workspaces → ідентичні violations; є — обидві мовчать', async () => {
-    await withTmpDir(async dir => {
-      await writeFileDeep(dir, 'package.json', JSON.stringify({ name: 'root' }, null, 2))
-      const bad = await runSingleFilePolicyBoth(ROOT_PACKAGE_JSON_CONCERN_KEY, dir)
-      expect(bad.wasm).toEqual(bad.js)
-      expect(bad.js).toHaveLength(1)
+  test(
+    'npm-module/root_package_json: немає workspaces → ідентичні violations; є — обидві мовчать',
+    async () => {
+      await withTmpDir(async dir => {
+        await writeFileDeep(dir, 'package.json', JSON.stringify({ name: 'root' }, null, 2))
+        const bad = await runSingleFilePolicyBoth(ROOT_PACKAGE_JSON_CONCERN_KEY, dir)
+        expect(bad.wasm).toEqual(bad.js)
+        expect(bad.js).toHaveLength(1)
 
-      await writeFileDeep(dir, 'package.json', JSON.stringify({ name: 'root', workspaces: ['npm'] }, null, 2))
-      const good = await runSingleFilePolicyBoth(ROOT_PACKAGE_JSON_CONCERN_KEY, dir)
-      expect(good.wasm).toEqual(good.js)
-      expect(good.js).toEqual([])
-    })
-  }, CONFTEST_SPAWN_TIMEOUT_MS)
+        await writeFileDeep(dir, 'package.json', JSON.stringify({ name: 'root', workspaces: ['npm'] }, null, 2))
+        const good = await runSingleFilePolicyBoth(ROOT_PACKAGE_JSON_CONCERN_KEY, dir)
+        expect(good.wasm).toEqual(good.js)
+        expect(good.js).toEqual([])
+      })
+    },
+    CONFTEST_SPAWN_TIMEOUT_MS
+  )
 
-  test('style/package_json: чужий stylelint.extends + відсутній devDep → ідентичні violations', async () => {
-    await withTmpDir(async dir => {
-      await writeFileDeep(dir, 'package.json', JSON.stringify({ stylelint: { extends: 'wrong' } }, null, 2))
-      const { js, wasm } = await runSingleFilePolicyBoth(STYLE_PACKAGE_JSON_CONCERN_KEY, dir)
-      expect(wasm).toEqual(js)
-      expect(js).toHaveLength(2)
-    })
-  }, CONFTEST_SPAWN_TIMEOUT_MS)
+  test(
+    'style/package_json: чужий stylelint.extends + відсутній devDep → ідентичні violations',
+    async () => {
+      await withTmpDir(async dir => {
+        await writeFileDeep(dir, 'package.json', JSON.stringify({ stylelint: { extends: 'wrong' } }, null, 2))
+        const { js, wasm } = await runSingleFilePolicyBoth(STYLE_PACKAGE_JSON_CONCERN_KEY, dir)
+        expect(wasm).toEqual(js)
+        expect(js).toHaveLength(2)
+      })
+    },
+    CONFTEST_SPAWN_TIMEOUT_MS
+  )
 })
 
 describe('wasm-plugin parity — §2.78 T0-фікс через РЕАЛЬНИЙ napi-міст (детект гостем → runWasmConcernFix → applyPlanEdit → детект чистий)', () => {
