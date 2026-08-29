@@ -1119,7 +1119,53 @@ pub fn run_wasm_concern_fix(
         // із текстом «не заявлений у describe().concerns», хоч концерн був
         // заявлений — у другому списку.
         let contribution = plugin.describe().fix_contribution(&key).cloned();
-        let files = if target_files.is_empty() {
+        // ЯВНИЙ `fix-glob` — opt-in «fix-скоуп ширший за діагностики» (§2.87).
+        //
+        // До цієї зміни `fix-glob` впливав РІВНО на дві речі: гілку
+        // `target_files.is_empty()` нижче і скоуп host-diff знімків. Тобто
+        // концерн, чиї діагностики НЕСУТЬ `file` (переважна більшість),
+        // діставав `fix-request.files` рівно з тих файлів — і задекларований
+        // `fix-glob` МОВЧКИ ігнорувався. Це та сама вада класу §2.72, від
+        // якої `fix-glob` мав рятувати, лише в іншому місці: гість оголошує
+        // ширший fix-скоуп, хост його не дає, план виходить порожній або
+        // неповний, а JS-канон тихо фіксить удруге.
+        //
+        // Ще гірший підклас, який ця гілка закриває, — концерн «канонічного
+        // файлу бракує»: усі його діагностики несуть `file`, але ЖОДЕН із
+        // цих шляхів на диску не існує, тож [`read_source_files`] пропускає
+        // їх усі (`read_source_files_all_missing_returns_empty`) і гість
+        // отримує ПОРОЖНІЙ `files` при непорожніх `diagnostics` — рівно та
+        // двозначність #513, яку [`ambiguous_empty_fix_batch_err`] нібито
+        // закрив: гейт дивиться на `target_files` ДО читання, а не на
+        // фактичний батч. Гість не відрізняє «файлів немає» від «хост їх не
+        // передав» і мусить писати наосліп.
+        //
+        // Форма opt-in-у (а не «завжди full-scope для `scope: full`»)
+        // свідома: батч усього репо на КОЖЕН fix-виклик коштує обходу й
+        // читання, і платити його мають лише ті концерни, що самі це
+        // заявили. Для жодної чинної контрибуції поведінка не змінюється —
+        // `fix_glob` досі порожній усюди, крім storybook-пари §2.87.
+        //
+        // `target_files` тут НЕ втрачаються: файли з діагностик, які glob не
+        // покрив, дочитуються поверх (union зі збереженням порядку глоба),
+        // інакше вужчий `fix-glob` беззвучно з'їв би названий діагностикою
+        // файл — та сама вада, лише дзеркальна.
+        let explicit_fix_glob: Option<Vec<String>> = contribution
+            .as_ref()
+            .filter(|c| !c.fix_glob.is_empty())
+            .map(|c| c.fix_glob.clone());
+        let files = if let Some(glob) = explicit_fix_glob {
+            let mut batch = build_full_scope_files(&cwd_path, &glob)?;
+            let covered: std::collections::HashSet<String> =
+                batch.iter().map(|f| f.path.clone()).collect();
+            let missing: Vec<String> = target_files
+                .iter()
+                .filter(|f| !covered.contains(*f))
+                .cloned()
+                .collect();
+            batch.extend(read_source_files(&cwd_path, missing)?);
+            batch
+        } else if target_files.is_empty() {
             match &contribution {
                 Some(c) if c.scope == ConcernScope::Full => {
                     // `effective_fix_glob()` (мажор `4.0.0`, §2.84), НЕ

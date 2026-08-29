@@ -201,6 +201,33 @@ fn describe_declares_all_concerns_with_expected_scopes() {
          (detect.mjs, гілка `wasmEntry !== undefined`) і мовчки вимикає `main.mjs`"
     );
 
+    // §2.87 — ПЕРШИЙ реальний непорожній `fix-glob` цього гостя (поле
+    // існує з мажора `4.0.0`, але до §2.87 його не заявляв ніхто, тож і не
+    // було видно, що хост читає його лише в одній вузькій гілці).
+    // Обидва storybook-фікси рахують скоуп САМІ, тож порожній `fix_glob`
+    // тут означав би fix-батч із самих (відсутніх) шляхів діагностик.
+    for key in ["test/storybook-ci", "test/storybook-scaffold"] {
+        let c = manifest
+            .concerns
+            .iter()
+            .find(|c| c.key == key)
+            .unwrap_or_else(|| panic!("{key} серед контрибуцій"));
+        assert!(
+            !c.fix_glob.is_empty(),
+            "{key}: порожній fix_glob вимикає full-scope fix-батч у run_wasm_concern_fix"
+        );
+    }
+    let scaffold_fix_glob = &manifest
+        .concerns
+        .iter()
+        .find(|c| c.key == "test/storybook-scaffold")
+        .expect("test/storybook-scaffold")
+        .fix_glob;
+    assert!(
+        scaffold_fix_glob.iter().any(|g| g == "**/src/components/**"),
+        "scaffold: fix-скоуп мусить бути ШИРШИЙ за детект рівно на теку, яку питає detect_stories_glob"
+    );
+
     let licensee = manifest
         .concerns
         .iter()

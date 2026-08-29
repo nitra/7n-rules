@@ -3644,7 +3644,20 @@ fn build_manifest() -> Manifest {
                     "**/*.vue".to_string(),
                     "**/.storybook/**".to_string(),
                 ],
-                fix_glob: vec![],
+                // §2.87 — ПЕРШИЙ реальний споживач `fix-glob` (§2.84).
+                // Детект-глоб фіксу замало: [`detect_stories_glob`] питає
+                // «чи є `<pkg>/src/components/`», а детекту вміст цієї теки
+                // не потрібен. Розширювати ДЕТЕКТ заради фіксу — саме та
+                // вада, яку §2.72 записала в реєстр, тож розрив скоупів
+                // оголошений явно.
+                fix_glob: vec![
+                    ".n-rules.json".to_string(),
+                    ".n-cursor.json".to_string(),
+                    "**/package.json".to_string(),
+                    "**/*.vue".to_string(),
+                    "**/.storybook/**".to_string(),
+                    "**/src/components/**".to_string(),
+                ],
             },
             ConcernContribution {
                 key: CONCERN_STORYBOOK_CI.to_string(),
@@ -3657,7 +3670,20 @@ fn build_manifest() -> Manifest {
                     ".github/actions/setup-playwright-chromium/action.yml".to_string(),
                     ".github/workflows/lint-storybook.yml".to_string(),
                 ],
-                fix_glob: vec![],
+                // §2.87: скоуп той самий, що детекту (матриця workflow-а —
+                // фактичний список пакетів), але оголошений ЯВНО — саме
+                // непорожній `fix-glob` вмикає в хості full-scope
+                // fix-батч. Без нього гість дістав би два ВІДСУТНІ шляхи з
+                // діагностик, тобто порожній батч, і мусив би писати
+                // наосліп (доккомент секції §2.87).
+                fix_glob: vec![
+                    ".n-rules.json".to_string(),
+                    ".n-cursor.json".to_string(),
+                    "**/package.json".to_string(),
+                    "**/*.vue".to_string(),
+                    ".github/actions/setup-playwright-chromium/action.yml".to_string(),
+                    ".github/workflows/lint-storybook.yml".to_string(),
+                ],
             },
             // Батч 6: storybook-vitest-config (глоб — scope-детекція батчу 5
             // плюс самі конфіги) і три package_json rego-порти (лише
@@ -15227,6 +15253,429 @@ fn fix_style_tooling(request: &FixRequest) -> FixPlan {
     FixPlan { edits }
 }
 
+// =====================================================================
+// §2.87 — fix-половина storybook-пари (`test/storybook-ci`,
+// `test/storybook-scaffold`).
+//
+// # Гіпотеза «це шими над `createTemplateFixPattern`» — СПРОСТОВАНА
+//
+// Наявність `template/` у трійки storybook (ci/scaffold/vitest-config)
+// зовні читалась як родина `vscode_*`/`package_json` (§2.78/§2.80), тобто
+// три РЯДКИ в [`TEMPLATE_FIX_CONFIGS`]. Насправді `template/` тут — інший
+// вид артефакта: не `*.snippet.json` для deep-merge, а ГОТОВІ ФАЙЛИ
+// скафолда (`main.js`, `preview.js`, `action.yml`), що копіюються
+// verbatim або з однією токен-підстановкою. Жоден із трьох не імпортує
+// `createTemplateFixPattern` узагалі (звірено grep-ом по
+// `plugins/lang-js/rules/test/`), і жоден їхній таргет не є JSON-ом, який
+// можна змержити. Спільного рушія тут немає — кожен портується окремо.
+//
+// # Реальний блокер, який довелось зняти, — форма fix-batch-у хоста
+//
+// `run_wasm_concern_fix` будує `fix-request.files` з `file`-полів
+// діагностик. Для КОНЦЕРНУ КЛАСУ «канонічного файлу бракує» це фатально
+// вдвічі:
+//
+// 1. усі шляхи, які назвали діагностики, на диску ВІДСУТНІ, тож
+//    `read_source_files` пропускає їх усі й гість дістає ПОРОЖНІЙ `files`
+//    при непорожніх `diagnostics` — рівно двозначність #513, яку
+//    `ambiguous_empty_fix_batch_err` нібито закрив (гейт дивиться на
+//    `target_files` ДО читання, не на фактичний батч);
+// 2. обидва фікси рахують скоуп САМІ ([`collect_in_scope_vue_packages`]) —
+//    їм потрібне все дерево, а не два відсутні шляхи.
+//
+// Заявлений `fix-glob` цього не рятував: до §2.87 хост читав його ЛИШЕ у
+// гілці `target_files.is_empty()`, тобто для концерну з file-ними
+// діагностиками поле мовчки не працювало — та сама вада класу §2.72, від
+// якої `fix-glob` і мав рятувати. Зміна в `crates/rules-napi`: ЯВНИЙ
+// (непорожній) `fix-glob` тепер вмикає full-scope батч завжди, з union-ом
+// названих діагностиками файлів. Це перший реальний споживач поля.
+//
+// # `test/storybook-vitest-config` СВІДОМО не портовано
+//
+// Блокер тут не в скоупі (його зняв той самий `fix-glob`), а в самій
+// природі фіксу: він не ГЕНЕРУЄ файл із шаблону, а хірургічно РЕДАГУЄ
+// чужий `vitest.config.*` — oxc-parse, пошук `test.projects`, точкові
+// string-splice-и з підбором відступу під наявне форматування, повторний
+// parse і відкат при невалідному результаті, плюс витяг
+// `ObjectExpression`-літерала з шести template-модулів тим самим парсером.
+// Це не порт таблицею, а перенос ~400 рядків AST-хірургії, де byte-exact
+// parity вимірюється в пробілах усередині ЧУЖОГО файлу, і де будь-яка
+// розбіжність splice-офсету псує робочий конфіг консюмера мовчки. Такий
+// обсяг не має лягати в хвіст задачі, що вже несе host-зміну; концерн
+// лишається на JS-каноні (він робочий), а гість його fix НЕ оголошує —
+// half-wired заглушка тут заборонена (`guestFix` зупиняє `applyT0` на
+// першому непорожньому плані гостя).
+
+/// Токен матриці пакетів у `lint-storybook.yml.snippet.yml` — точний порт
+/// `PACKAGE_DIRS_TOKEN` (`fix-storybook-ci.mjs:21`).
+const STORYBOOK_CI_PACKAGE_DIRS_TOKEN: &str = "__STORYBOOK_CI_PACKAGE_DIRS__";
+
+/// Токен stories-глоба у scaffold-шаблонах — точний порт
+/// `STORIES_GLOB_TOKEN` (`fix-storybook-scaffold.mjs:14`).
+const STORYBOOK_STORIES_GLOB_TOKEN: &str = "__STORYBOOK_STORIES_GLOB__";
+
+/// Стандартний stories-глоб app-проєкта — точний порт `APP_STORIES_GLOB`
+/// (`storybook-scaffold/main.mjs:82`).
+const APP_STORIES_GLOB: &str = "../src/**/*.stories.@(js|ts)";
+
+/// `template/setup-playwright-chromium.action.yml` — verbatim.
+const PLAYWRIGHT_ACTION_TEMPLATE: &str = include_str!(
+    "../../../plugins/lang-js/rules/test/storybook-ci/template/setup-playwright-chromium.action.yml"
+);
+
+/// `template/lint-storybook.yml.snippet.yml` — із токеном матриці.
+const STORYBOOK_WORKFLOW_TEMPLATE: &str = include_str!(
+    "../../../plugins/lang-js/rules/test/storybook-ci/template/lint-storybook.yml.snippet.yml"
+);
+
+/// `template/main.js` бібліотеки — із токеном stories-глоба.
+const SCAFFOLD_MAIN_JS_TEMPLATE: &str =
+    include_str!("../../../plugins/lang-js/rules/test/storybook-scaffold/template/main.js");
+
+/// `template/app-main.js` — із токеном stories-глоба ([`APP_STORIES_GLOB`]).
+const SCAFFOLD_APP_MAIN_JS_TEMPLATE: &str =
+    include_str!("../../../plugins/lang-js/rules/test/storybook-scaffold/template/app-main.js");
+
+/// `template/preview.js` — verbatim.
+const SCAFFOLD_PREVIEW_JS_TEMPLATE: &str =
+    include_str!("../../../plugins/lang-js/rules/test/storybook-scaffold/template/preview.js");
+
+/// `template/app-preview.js` — verbatim.
+const SCAFFOLD_APP_PREVIEW_JS_TEMPLATE: &str =
+    include_str!("../../../plugins/lang-js/rules/test/storybook-scaffold/template/app-preview.js");
+
+/// `template/mocks/gql-sse.js` — verbatim.
+const SCAFFOLD_MOCKS_GQL_SSE_TEMPLATE: &str =
+    include_str!("../../../plugins/lang-js/rules/test/storybook-scaffold/template/mocks/gql-sse.js");
+
+/// `template/empty-vite.config.js` — verbatim.
+const SCAFFOLD_EMPTY_VITE_CONFIG_TEMPLATE: &str = include_str!(
+    "../../../plugins/lang-js/rules/test/storybook-scaffold/template/empty-vite.config.js"
+);
+
+/// `template/vitest.setup.js` — verbatim.
+const SCAFFOLD_VITEST_SETUP_TEMPLATE: &str =
+    include_str!("../../../plugins/lang-js/rules/test/storybook-scaffold/template/vitest.setup.js");
+
+/// `rootDir` із `diagnostic.data` (`{"rootDir": "..."}`), який кладуть
+/// [`check_package_scaffold`] і scope-детект.
+fn diagnostic_root_dir(diagnostic: &Diagnostic) -> Option<String> {
+    let raw = diagnostic.data.as_ref()?;
+    let value: serde_json::Value = serde_json::from_str(raw).ok()?;
+    value.get("rootDir")?.as_str().map(str::to_string)
+}
+
+/// Шлях, якого торкається одна правка плану — guest-бік WIT-варіанта
+/// `file-edit` метода не має (на host-боці це `FileEdit::path`).
+fn edit_path(edit: &FileEdit) -> &str {
+    match edit {
+        FileEdit::Write(w) => &w.path,
+        FileEdit::WriteBytes(w) => &w.path,
+        FileEdit::Delete(path) => path.as_str(),
+    }
+}
+
+/// Posix-join кореня пакета з відносним шляхом усередині нього
+/// (`rootDir === '.'` → без префікса) — дзеркало `resolvePkgDir` + `join`
+/// JS-канону, лише в relative-просторі `SourceFile::path`.
+fn pkg_join(root_dir: &str, rel: &str) -> String {
+    format!("{}{rel}", pkg_rel_prefix(root_dir))
+}
+
+/// Точний порт `renderPackageDirsYaml` (`fix-storybook-ci.mjs:41-43`) —
+/// по одному `- <rootDir>` на рядок із десятьма пробілами відступу
+/// (рівень елемента списку під `strategy.matrix.package:`).
+fn render_package_dirs_yaml(root_dirs: &[String]) -> String {
+    root_dirs
+        .iter()
+        .map(|dir| format!("          - {dir}"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Точний порт `renderStorybookWorkflow` (`fix-storybook-ci.mjs:52-58`):
+/// РЯДОК-токен (з його провідними пробілами, без переносу) заміщається
+/// згенерованою матрицею. JS робить це regex-ом
+/// `^[ \t]*TOKEN[ \t]*$` із прапорцем `m`; тут — порядковий обхід, бо
+/// `regex`-крейт без `multi_line` дав би інший матч, а вмикати його заради
+/// одного патерна зайве. Семантика збігається: у шаблоні токен-рядок один
+/// (звірено [`storybook_ci_workflow_token_line_is_unique`]).
+fn render_storybook_workflow(root_dirs: &[String]) -> String {
+    let matrix = render_package_dirs_yaml(root_dirs);
+    let mut out: Vec<String> = Vec::new();
+    let mut replaced = false;
+    for line in STORYBOOK_WORKFLOW_TEMPLATE.split('\n') {
+        let trimmed = line.trim_matches(|c| c == ' ' || c == '\t');
+        if !replaced && trimmed == STORYBOOK_CI_PACKAGE_DIRS_TOKEN {
+            out.push(matrix.clone());
+            replaced = true;
+        } else {
+            out.push(line.to_string());
+        }
+    }
+    out.join("\n")
+}
+
+/// fix-половина `test/storybook-ci` (§2.87) — порт
+/// `fix-storybook-ci.mjs`, обидва патерни.
+///
+/// Скоуп бере `fix-glob` контрибуції (той самий список, що детект-глоб):
+/// матриця `strategy.matrix.package` будується з ФАКТИЧНОГО списку пакетів
+/// у скоупі, інакше CI покрив би не всі Storybook-пакети репозиторію.
+/// Порожній список пакетів → workflow НЕ пишеться (порт гейта
+/// `rootDirs.length === 0`), але composite action пишеться однаково — він
+/// від скоупу не залежить.
+fn fix_storybook_ci(request: &FixRequest) -> FixPlan {
+    let has = |reason: &str| request.diagnostics.iter().any(|d| d.reason == reason);
+    let mut edits = Vec::new();
+
+    if has("missing-playwright-action") {
+        edits.push(FileEdit::Write(WriteFile {
+            path: PLAYWRIGHT_ACTION_REL.to_string(),
+            content: PLAYWRIGHT_ACTION_TEMPLATE.to_string(),
+        }));
+    }
+
+    if has("missing-storybook-workflow") {
+        let root_dirs: Vec<String> = collect_in_scope_vue_packages(&request.files)
+            .into_iter()
+            .map(|p| p.root_dir)
+            .collect();
+        if !root_dirs.is_empty() {
+            edits.push(FileEdit::Write(WriteFile {
+                path: STORYBOOK_WORKFLOW_REL.to_string(),
+                content: render_storybook_workflow(&root_dirs),
+            }));
+        }
+    }
+
+    FixPlan { edits }
+}
+
+/// Точний порт `hasFlatRootVueFiles` (`storybook-scaffold/main.mjs:94-101`)
+/// у batch-просторі: НЕрекурсивно — лише `.vue` безпосередньо в корені
+/// пакета.
+fn has_flat_root_vue_files(files: &[SourceFile], root_dir: &str) -> bool {
+    let prefix = pkg_rel_prefix(root_dir);
+    files.iter().any(|f| {
+        f.path.starts_with(&prefix)
+            && f.path.ends_with(".vue")
+            && !f.path[prefix.len()..].contains('/')
+    })
+}
+
+/// Точний порт `detectStoriesGlob` (`storybook-scaffold/main.mjs:113-118`).
+///
+/// `existsSync(src/components)` стає [`batch_dir_exists`] — та сама
+/// підміна, що вже зробив детект батчу 5, із тією ж задокументованою
+/// мікро-розбіжністю: каталог, у якому НЕМАЄ жодного файлу під
+/// `fix-glob`-ом, батчу невидимий. Заради саме цієї перевірки `fix-glob`
+/// scaffold-а ШИРШИЙ за детект-глоб (`**/src/components/**`): детекту
+/// вміст `src/components/` не потрібен, фіксу — потрібен. Це і є той
+/// розрив скоупів, заради якого §2.84 додала поле.
+fn detect_stories_glob(files: &[SourceFile], root_dir: &str) -> &'static str {
+    if has_flat_root_vue_files(files, root_dir) {
+        return "../*.stories.@(js|ts)";
+    }
+    if batch_dir_exists(files, &pkg_join(root_dir, "src/components")) {
+        "../src/components/**/*.stories.@(js|ts)"
+    } else {
+        "../src/**/*.stories.@(js|ts)"
+    }
+}
+
+/// Додає `Write`-правку, якщо шляху ще немає ні в плані, ні в батчі —
+/// дзеркало `if (!existsSync(abs))`-гейтів JS-канону для супутніх файлів
+/// (`mocks/gql-sse.js`, `empty-vite.config.js`), які НЕ мають затирати
+/// наявний користувацький вміст.
+fn push_write_if_absent(
+    edits: &mut Vec<FileEdit>,
+    files: &[SourceFile],
+    path: String,
+    content: &str,
+) {
+    if batch_file(files, &path).is_some() || edits.iter().any(|e| edit_path(e) == path) {
+        return;
+    }
+    edits.push(FileEdit::Write(WriteFile {
+        path,
+        content: content.to_string(),
+    }));
+}
+
+/// Додає безумовну `Write`-правку (канонічний файл відтворюється завжди),
+/// але не дублює шлях, уже наявний у плані.
+fn push_write(edits: &mut Vec<FileEdit>, path: String, content: String) {
+    if edits.iter().any(|e| edit_path(e) == path) {
+        return;
+    }
+    edits.push(FileEdit::Write(WriteFile { path, content }));
+}
+
+/// `package.json#scripts.storybook` → канонічне значення, зі збереженням
+/// документного порядку ключів ([`TmJson::Object`] — `Vec<(String, Json)>`)
+/// і форматуванням `JSON.stringify(pkg, null, 2) + '\n'` канону.
+///
+/// Полагоджений дефект канону: `JSON.parse` JS-фіксу валиться на
+/// `package.json` із коментарями чи trailing-комою, і `catch { continue }`
+/// мовчки пропускає пакет — концерн лишається червоним НАЗАВЖДИ, без
+/// жодного сліду в виводі. Тут вхід читає [`parse_jsonc_document`] (той
+/// самий JSONC-парсер, що §2.80 застосувала до `jsconfig.json`), тож
+/// толерантний до коментарів вхід фіксується, а не тихо пропускається.
+fn storybook_script_edit(source: &SourceFile) -> Option<FileEdit> {
+    let TmJson::Object(mut root) = parse_jsonc_document(&source.content)? else {
+        unreachable!("parse_jsonc_document повертає лише обʼєктний корінь")
+    };
+    let canonical = TmJson::Str(STORYBOOK_SCRIPT.to_string());
+
+    // `pkg.scripts = pkg.scripts && typeof … === 'object' ? … : {}` канону:
+    // не-обʼєктне `scripts` (рядок, масив, число) ЗАМІЩАЄТЬСЯ обʼєктом.
+    let mut scripts: Vec<(String, TmJson)> = match root.iter().find(|(k, _)| k == "scripts") {
+        Some((_, TmJson::Object(entries))) => entries.clone(),
+        _ => Vec::new(),
+    };
+    if scripts
+        .iter()
+        .any(|(k, v)| k == "storybook" && *v == canonical)
+    {
+        return None;
+    }
+    // Наявний ключ оновлюється НА МІСЦІ (порядок ключів консюмера
+    // зберігається), новий — дописується в хвіст, як `pkg.scripts.storybook =`
+    // у JS.
+    match scripts.iter_mut().find(|(k, _)| k == "storybook") {
+        Some(entry) => entry.1 = canonical,
+        None => scripts.push(("storybook".to_string(), canonical)),
+    }
+    match root.iter_mut().find(|(k, _)| k == "scripts") {
+        Some(entry) => entry.1 = TmJson::Object(scripts),
+        None => root.push(("scripts".to_string(), TmJson::Object(scripts))),
+    }
+
+    // [`json_to_pretty_string`] уже завершує вивід переносом — це і є
+    // `JSON.stringify(pkg, null, 2) + '\n'` канону, другий `\n` тут був би
+    // зайвим байтом і зламав би byte-exact parity.
+    let content = json_to_pretty_string(&TmJson::Object(root));
+    if content == source.content {
+        return None;
+    }
+    Some(FileEdit::Write(WriteFile {
+        path: source.path.clone(),
+        content,
+    }))
+}
+
+/// fix-половина `test/storybook-scaffold` (§2.87) — порт
+/// `fix-storybook-scaffold.mjs`, усі сім патернів.
+fn fix_storybook_scaffold(request: &FixRequest) -> FixPlan {
+    let files = &request.files;
+    let mut edits: Vec<FileEdit> = Vec::new();
+
+    let roots_for = |reason: &str| -> Vec<String> {
+        let mut out: Vec<String> = Vec::new();
+        for d in request.diagnostics.iter().filter(|d| d.reason == reason) {
+            if let Some(root) = diagnostic_root_dir(d) {
+                if !out.contains(&root) {
+                    out.push(root);
+                }
+            }
+        }
+        out
+    };
+
+    // `storybook-scaffold-main-js` — main.js + супутні mocks/empty-vite.
+    for root in roots_for("missing-main-js") {
+        let content = SCAFFOLD_MAIN_JS_TEMPLATE.replace(
+            STORYBOOK_STORIES_GLOB_TOKEN,
+            detect_stories_glob(files, &root),
+        );
+        push_write(&mut edits, pkg_join(&root, ".storybook/main.js"), content);
+        push_write_if_absent(
+            &mut edits,
+            files,
+            pkg_join(&root, ".storybook/mocks/gql-sse.js"),
+            SCAFFOLD_MOCKS_GQL_SSE_TEMPLATE,
+        );
+        push_write_if_absent(
+            &mut edits,
+            files,
+            pkg_join(&root, ".storybook/empty-vite.config.js"),
+            SCAFFOLD_EMPTY_VITE_CONFIG_TEMPLATE,
+        );
+    }
+
+    // `storybook-scaffold-empty-vite-config` — окремий патерн для випадку
+    // «main.js канонічний, видалено лише цей файл».
+    for root in roots_for("missing-empty-vite-config") {
+        push_write_if_absent(
+            &mut edits,
+            files,
+            pkg_join(&root, ".storybook/empty-vite.config.js"),
+            SCAFFOLD_EMPTY_VITE_CONFIG_TEMPLATE,
+        );
+    }
+
+    // `storybook-scaffold-preview-js`.
+    for root in roots_for("missing-preview-js") {
+        push_write(
+            &mut edits,
+            pkg_join(&root, ".storybook/preview.js"),
+            SCAFFOLD_PREVIEW_JS_TEMPLATE.to_string(),
+        );
+    }
+
+    // `storybook-scaffold-app-main-js` (хвиля 2a).
+    for root in roots_for("missing-app-main-js") {
+        let content =
+            SCAFFOLD_APP_MAIN_JS_TEMPLATE.replace(STORYBOOK_STORIES_GLOB_TOKEN, APP_STORIES_GLOB);
+        push_write(&mut edits, pkg_join(&root, ".storybook/main.js"), content);
+        push_write_if_absent(
+            &mut edits,
+            files,
+            pkg_join(&root, ".storybook/mocks/gql-sse.js"),
+            SCAFFOLD_MOCKS_GQL_SSE_TEMPLATE,
+        );
+    }
+
+    // `storybook-scaffold-app-preview-js` (хвиля 2a).
+    for root in roots_for("missing-app-preview-js") {
+        push_write(
+            &mut edits,
+            pkg_join(&root, ".storybook/preview.js"),
+            SCAFFOLD_APP_PREVIEW_JS_TEMPLATE.to_string(),
+        );
+    }
+
+    // `storybook-scaffold-vitest-setup-js`.
+    for root in roots_for("missing-vitest-setup-js") {
+        push_write(
+            &mut edits,
+            pkg_join(&root, ".storybook/vitest.setup.js"),
+            SCAFFOLD_VITEST_SETUP_TEMPLATE.to_string(),
+        );
+    }
+
+    // `storybook-scaffold-package-script` — єдиний патерн, що РЕДАГУЄ
+    // наявний файл, а не створює новий.
+    for d in request
+        .diagnostics
+        .iter()
+        .filter(|d| d.reason == "missing-storybook-script")
+    {
+        let Some(rel) = d.file.as_ref() else { continue };
+        let Some(source) = batch_file(files, rel) else {
+            continue;
+        };
+        if let Some(edit) = storybook_script_edit(source) {
+            if !edits.iter().any(|e| edit_path(e) == edit_path(&edit)) {
+                edits.push(edit);
+            }
+        }
+    }
+
+    FixPlan { edits }
+}
+
 /// Guest-реалізація world `plugin` — тридцять дев'ять контрибуцій ([`CONCERN_TFM`],
 /// [`CONCERN_GAP`], [`CONCERN_POOL_FORKS`], [`CONCERN_NO_PROCESS_CHDIR`],
 /// [`CONCERN_ADMIN_TABLE`], [`CONCERN_QUASAR_FIXES`], [`CONCERN_LOCATION`],
@@ -15514,6 +15963,11 @@ impl Guest for LangJs {
             // `style/tooling` — три FS-патерни без policy-шару взагалі.
             CONCERN_JSCONFIG => jsconfig_fix(&request),
             CONCERN_STYLE_TOOLING => fix_style_tooling(&request),
+            // §2.87: storybook-пара — обидва фікси рахують скоуп самі
+            // ([`collect_in_scope_vue_packages`]) і живляться ЯВНИМ
+            // `fix-glob` контрибуції (доккомент секції §2.87).
+            CONCERN_STORYBOOK_CI => fix_storybook_ci(&request),
+            CONCERN_STORYBOOK_SCAFFOLD => fix_storybook_scaffold(&request),
             key if template_fix_cfg(key).is_some() => match template_fix_cfg(key) {
                 Some(cfg) => template_merge_fix(cfg, &request),
                 None => FixPlan { edits: vec![] },
@@ -17429,6 +17883,267 @@ mod tests {
             ));
         }
         assert!(detect_storybook_hygiene(&files).is_empty());
+    }
+
+    // --- §2.87: fix-половина storybook-пари ---
+
+    /// Діагностика, яку [`check_package_scaffold`] кладе разом із
+    /// `data.rootDir`, — вхід обох fix-портів.
+    fn scaffold_diag(reason: &str, file: &str, root_dir: &str) -> Diagnostic {
+        Diagnostic {
+            reason: reason.to_string(),
+            message: String::new(),
+            file: Some(file.to_string()),
+            severity: Severity::Error,
+            data: Some(serde_json::json!({ "rootDir": root_dir }).to_string()),
+        }
+    }
+
+    fn sb_fix_request(concern: &str, files: Vec<SourceFile>, diagnostics: Vec<Diagnostic>) -> FixRequest {
+        FixRequest {
+            concern_id: concern.to_string(),
+            files,
+            diagnostics,
+        }
+    }
+
+    fn sb_written<'a>(plan: &'a FixPlan, path: &str) -> Option<&'a str> {
+        plan.edits.iter().find_map(|e| match e {
+            FileEdit::Write(w) if w.path == path => Some(w.content.as_str()),
+            _ => None,
+        })
+    }
+
+    /// Токен матриці у шаблоні workflow-а — РІВНО один рядок; на цьому
+    /// тримається порядковий (не regex-овий) порт `renderStorybookWorkflow`.
+    #[test]
+    fn storybook_ci_workflow_token_line_is_unique() {
+        let hits = STORYBOOK_WORKFLOW_TEMPLATE
+            .lines()
+            .filter(|l| l.trim() == STORYBOOK_CI_PACKAGE_DIRS_TOKEN)
+            .count();
+        assert_eq!(hits, 1, "шаблон мусить містити рівно один токен-рядок");
+    }
+
+    /// Матриця `strategy.matrix.package` будується з ФАКТИЧНОГО списку
+    /// пакетів у скоупі — саме заради цього fix-батч full-scope.
+    #[test]
+    fn fix_storybook_ci_renders_action_and_workflow_matrix() {
+        let plan = fix_storybook_ci(&sb_fix_request(
+            CONCERN_STORYBOOK_CI,
+            vue_library_files(3),
+            vec![
+                Diagnostic {
+                    reason: "missing-playwright-action".to_string(),
+                    message: String::new(),
+                    file: Some(PLAYWRIGHT_ACTION_REL.to_string()),
+                    severity: Severity::Error,
+                    data: None,
+                },
+                Diagnostic {
+                    reason: "missing-storybook-workflow".to_string(),
+                    message: String::new(),
+                    file: Some(STORYBOOK_WORKFLOW_REL.to_string()),
+                    severity: Severity::Error,
+                    data: None,
+                },
+            ],
+        ));
+
+        assert_eq!(
+            sb_written(&plan, PLAYWRIGHT_ACTION_REL),
+            Some(PLAYWRIGHT_ACTION_TEMPLATE),
+            "composite action — verbatim-копія шаблону"
+        );
+        let workflow = sb_written(&plan, STORYBOOK_WORKFLOW_REL).expect("workflow у плані");
+        assert!(
+            workflow.contains("          - packages/ui\n"),
+            "матриця мусить містити пакет у скоупі:\n{workflow}"
+        );
+        assert!(!workflow.contains(STORYBOOK_CI_PACKAGE_DIRS_TOKEN));
+    }
+
+    /// Порт гейта `rootDirs.length === 0`: без пакетів у скоупі workflow НЕ
+    /// пишеться (порожня матриця дала б невалідний YAML), але composite
+    /// action — пишеться, він від скоупу не залежить.
+    #[test]
+    fn fix_storybook_ci_skips_workflow_without_packages_in_scope() {
+        let plan = fix_storybook_ci(&sb_fix_request(
+            CONCERN_STORYBOOK_CI,
+            vec![source("package.json", "{\"name\":\"root\"}")],
+            vec![Diagnostic {
+                reason: "missing-storybook-workflow".to_string(),
+                message: String::new(),
+                file: Some(STORYBOOK_WORKFLOW_REL.to_string()),
+                severity: Severity::Error,
+                data: None,
+            }],
+        ));
+        assert!(plan.edits.is_empty());
+    }
+
+    /// `main.js` бібліотеки: stories-глоб звужується до `src/components/`,
+    /// а разом із ним створюються супутні `mocks/gql-sse.js` і
+    /// `empty-vite.config.js` (без них щойно відтворений `main.js`
+    /// неробочий).
+    #[test]
+    fn fix_storybook_scaffold_main_js_narrows_glob_and_adds_companions() {
+        let plan = fix_storybook_scaffold(&sb_fix_request(
+            CONCERN_STORYBOOK_SCAFFOLD,
+            vue_library_files(3),
+            vec![scaffold_diag(
+                "missing-main-js",
+                "packages/ui/.storybook/main.js",
+                "packages/ui",
+            )],
+        ));
+
+        let main_js = sb_written(&plan, "packages/ui/.storybook/main.js").expect("main.js у плані");
+        assert!(main_js.contains("'../src/components/**/*.stories.@(js|ts)'"), "{main_js}");
+        assert!(!main_js.contains(STORYBOOK_STORIES_GLOB_TOKEN));
+        assert!(sb_written(&plan, "packages/ui/.storybook/mocks/gql-sse.js").is_some());
+        assert!(sb_written(&plan, "packages/ui/.storybook/empty-vite.config.js").is_some());
+    }
+
+    /// Flat-root layout (пілотний консюмер `components/npm`): `.vue` лежать
+    /// прямо в корені пакета — глоб інший.
+    #[test]
+    fn fix_storybook_scaffold_detects_flat_root_layout() {
+        let mut files = vue_library_files(0);
+        for i in 0..3 {
+            files.push(source(
+                &format!("packages/ui/N{i}.vue"),
+                "<template><div/></template>\n",
+            ));
+        }
+        let plan = fix_storybook_scaffold(&sb_fix_request(
+            CONCERN_STORYBOOK_SCAFFOLD,
+            files,
+            vec![scaffold_diag(
+                "missing-main-js",
+                "packages/ui/.storybook/main.js",
+                "packages/ui",
+            )],
+        ));
+        let main_js = sb_written(&plan, "packages/ui/.storybook/main.js").expect("main.js у плані");
+        assert!(main_js.contains("'../*.stories.@(js|ts)'"), "{main_js}");
+    }
+
+    /// Супутні файли НЕ затираються, якщо вже є в батчі — дзеркало
+    /// `if (!existsSync(abs))` канону.
+    #[test]
+    fn fix_storybook_scaffold_keeps_existing_companions() {
+        let mut files = vue_library_files(3);
+        files.push(source(
+            "packages/ui/.storybook/mocks/gql-sse.js",
+            "// власний мок консюмера\n",
+        ));
+        let plan = fix_storybook_scaffold(&sb_fix_request(
+            CONCERN_STORYBOOK_SCAFFOLD,
+            files,
+            vec![scaffold_diag(
+                "missing-main-js",
+                "packages/ui/.storybook/main.js",
+                "packages/ui",
+            )],
+        ));
+        assert!(sb_written(&plan, "packages/ui/.storybook/mocks/gql-sse.js").is_none());
+    }
+
+    /// `scripts.storybook` дописується зі збереженням документного порядку
+    /// решти ключів і формату `JSON.stringify(pkg, null, 2) + '\n'`.
+    #[test]
+    fn fix_storybook_scaffold_sets_package_script() {
+        let files = vec![source(
+            "packages/ui/package.json",
+            "{\n  \"name\": \"ui\",\n  \"scripts\": {\n    \"build\": \"vite build\"\n  }\n}\n",
+        )];
+        let plan = fix_storybook_scaffold(&sb_fix_request(
+            CONCERN_STORYBOOK_SCAFFOLD,
+            files,
+            vec![scaffold_diag(
+                "missing-storybook-script",
+                "packages/ui/package.json",
+                "packages/ui",
+            )],
+        ));
+        assert_eq!(
+            sb_written(&plan, "packages/ui/package.json"),
+            Some(
+                "{\n  \"name\": \"ui\",\n  \"scripts\": {\n    \"build\": \"vite build\",\n    \
+                 \"storybook\": \"storybook dev -p 6006 --no-open\"\n  }\n}\n"
+            )
+        );
+    }
+
+    /// Полагоджений дефект канону: `package.json` із коментарями валив
+    /// `JSON.parse` JS-фіксу, і `catch { continue }` МОВЧКИ пропускав пакет
+    /// — концерн лишався червоним назавжди. Порт читає той самий вхід
+    /// JSONC-парсером і таки фіксить.
+    #[test]
+    fn fix_storybook_scaffold_survives_jsonc_package_json() {
+        let files = vec![source(
+            "packages/ui/package.json",
+            "{\n  // канонний коментар консюмера\n  \"name\": \"ui\"\n}\n",
+        )];
+        let plan = fix_storybook_scaffold(&sb_fix_request(
+            CONCERN_STORYBOOK_SCAFFOLD,
+            files,
+            vec![scaffold_diag(
+                "missing-storybook-script",
+                "packages/ui/package.json",
+                "packages/ui",
+            )],
+        ));
+        let written_pkg = sb_written(&plan, "packages/ui/package.json").expect("фікс не мовчить");
+        assert!(written_pkg.contains("\"storybook\": \"storybook dev -p 6006 --no-open\""));
+    }
+
+    /// Уже канонічний скрипт — жодної правки (гейт `=== STORYBOOK_SCRIPT`).
+    #[test]
+    fn fix_storybook_scaffold_noop_on_canonical_script() {
+        let files = vec![source(
+            "packages/ui/package.json",
+            "{\n  \"name\": \"ui\",\n  \"scripts\": {\n    \"storybook\": \"storybook dev -p 6006 \
+             --no-open\"\n  }\n}\n",
+        )];
+        let plan = fix_storybook_scaffold(&sb_fix_request(
+            CONCERN_STORYBOOK_SCAFFOLD,
+            files,
+            vec![scaffold_diag(
+                "missing-storybook-script",
+                "packages/ui/package.json",
+                "packages/ui",
+            )],
+        ));
+        assert!(plan.edits.is_empty());
+    }
+
+    /// app-гілка (хвиля 2a): фіксований глоб, без layout-детекції.
+    #[test]
+    fn fix_storybook_scaffold_app_branch_uses_fixed_glob() {
+        let plan = fix_storybook_scaffold(&sb_fix_request(
+            CONCERN_STORYBOOK_SCAFFOLD,
+            vue_library_files(3),
+            vec![
+                scaffold_diag(
+                    "missing-app-main-js",
+                    "packages/app/.storybook/main.js",
+                    "packages/app",
+                ),
+                scaffold_diag(
+                    "missing-app-preview-js",
+                    "packages/app/.storybook/preview.js",
+                    "packages/app",
+                ),
+            ],
+        ));
+        let main_js = sb_written(&plan, "packages/app/.storybook/main.js").expect("app main.js");
+        assert!(main_js.contains(APP_STORIES_GLOB), "{main_js}");
+        assert_eq!(
+            sb_written(&plan, "packages/app/.storybook/preview.js"),
+            Some(SCAFFOLD_APP_PREVIEW_JS_TEMPLATE)
+        );
     }
 
     #[test]

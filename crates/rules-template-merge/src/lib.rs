@@ -1651,6 +1651,33 @@ mod tests {
         assert!(is_subset(Some(&reparsed), &snippet));
     }
 
+    /// Регрес §2.87: [`parse_jsonc_document`] мусить зберігати ДОКУМЕНТНИЙ
+    /// порядок ключів. До фіксу (`jsonc-parser` без фічі `preserve_order`)
+    /// backing-мапою був `HashMap` із посіяним НАНОВО КОЖЕН ПРОЦЕС
+    /// `RandomState`, тож будь-яка повна регенерація JSON-таргета
+    /// (`fix_template_merge`-fallback, `jsconfig_fix`, `fix_style_tooling`)
+    /// перемішувала ключі у файлі консюмера — щоразу інакше. Тест на
+    /// достатній кількості ключів, щоб випадковий збіг був неймовірним.
+    #[test]
+    fn parse_jsonc_document_preserves_document_key_order() {
+        let src = r#"{"name":1,"version":2,"scripts":3,"dependencies":4,"exports":5,"files":6}"#;
+        let Some(Json::Object(entries)) = parse_jsonc_document(src) else {
+            panic!("обʼєктний корінь");
+        };
+        let keys: Vec<&str> = entries.iter().map(|(k, _)| k.as_str()).collect();
+        assert_eq!(
+            keys,
+            vec![
+                "name",
+                "version",
+                "scripts",
+                "dependencies",
+                "exports",
+                "files"
+            ]
+        );
+    }
+
     #[test]
     fn parse_jsonc_document_accepts_plain_json_object_root() {
         let parsed = parse_jsonc_document(r#"{"a":1,"b":[true,false,null,"x",1.5e10],"c":{}}"#)
