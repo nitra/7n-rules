@@ -1,6 +1,6 @@
 {
   "name": "@7n/rules-lang-rust",
-  "version": "0.17.2",
+  "version": "0.17.3",
   "description": "Плагін @7n/rules: Rust/Cargo-екосистема — taze-провайдер (Cargo.toml, cargo-edit)",
   "keywords": [
     "rust",

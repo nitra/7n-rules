@@ -1,5 +1,37 @@
 # Changelog
 
+## [1.114.0] - 2026-08-29
+
+### Changed
+
+- Шість концернів `lang-js` — `js/vscode_extensions`, `style/vscode_extensions` і четвірка `package_json` (`js/`, `npm-module/npm_`, `npm-module/root_`, `style/`) — тепер повністю обслуговує wasm-гість: і детект (rego через host-import `rego-engine`, §2.66), і T0-фікс. Для споживача це означає, що ці перевірки більше не спавнять `conftest` як підпроцес.
+
+`js/package_json --fix` перестав псувати вже коректний файл. Раніше будь-яке порушення концерну (напр. `"type"` чи `engines.node`) запускало deep-merge, який збивав `devDependencies["@nitra/eslint-config"]` назад на мінімальний поріг `^3.10.0` — навіть якщо там стояла новіша `^3.20.0`, яку сам детект вважає коректною. Тепер поріг трактується як мінімум: вища версія (і `workspace:`-протокол) лишається недоторканою, нижча — підтягується.
+
+Гейт `npm/tests/rego-regorus-verbs.test.mjs` доповнено записом `plugin-lang-js` серед консюмерів `rules-rego-engine` і поясненням, що текстовий скан на `%q` — лише один із двох гейтів класу: другий (прогін кожної вшитої політики через двигун) живе в `cargo test -p plugin-lang-js` і саме він знайшов третю пастку `regorus` — безтілий факт `f("літерал")`.
+
+Parity-покриття: 16 нових тестів у `wasm-plugin-parity.test.mjs` — вісім звіряють детект гостя з conftest-каноном біт-у-біт, вісім ганяють повний T0-цикл через РЕАЛЬНИЙ napi-міст (`runWasmConcern` → `runWasmConcernFix` → `applyPlanEdit` → повторний детект), включно з гейтом пастки §2.72 «глоб контрибуції годує й fix».
+
+Деталі — §2.78 `docs/plans/2026-08-05-open-questions-register.md`.
+- Гостьова трійка `vscode_extensions` (`php/vscode_extensions`, `python/vscode_extensions`, `rust/vscode_extensions`) портована у свої wasm-гості ЦІЛКОМ — і фікс (`vscode-ext-add`), і детект. Детект переїхав НЕ про запас: `detect.mjs::runConcernDetector` повністю заміняє policy-гілку, щойно концерн зʼявляється в `describe()`, тож порт самого лише фіксу мовчки вимкнув би перевірку. Rego виконується вшитий (`include_str!` того самого `.rego`, що читає conftest) через host-import `rego-engine` — у wasm-граф гостя `regorus` не входить.
+
+Три дефекти JS-канону полагоджено, а не відтворені заради парності: (1) JSONC-вхід — `.vscode/extensions.json` із `//`-коментарем канон або валив (conftest, строгий JSON), або мовчки не фіксив (`JSON.parse` у `try/catch`); гість читає JSONC через спільний `rules-template-merge`; (2) справді побитий вміст цілі більше не тихий — видима діагностика `policy-input-invalid`; (3) не-обʼєктний корінь (`[...]`) більше не веде до запису, у якому `recommendations` тихо губиться.
+
+Побічно: гейт `%q` (§2.76) розширено трьома плагінами — `regorus` не підтримує Go-верб `%q`, тож у трьох `.rego` він замінений на еквівалентний для рядків `\"%v\"` (текст повідомлення не змінився, `conftest verify` зелений).
+
+Деталі — §2.77 `docs/plans/2026-08-05-open-questions-register.md`. JS-канони не видалено (політика «спершу парність»).
+
+Тести: `cargo test -p plugin-lang-php` — 34 passed, `-p plugin-lang-python` — 80, `-p plugin-lang-rust` — 90 (по 11 нових на гостя); vitest — 172 passed у трьох parity-файлах (18 нових), `npm/tests/rego-regorus-verbs.test.mjs` — 14 passed; `cargo test -p rules-plugin-host` — 131 passed.
+- Ядрові «поодинокі» (розділ 4 плану міграції) — портовано нативно два концерни з чотирьох: `tauri/updater` (`fix_tauri_updater.rs` — чотири T0-патерни `fix-updater.mjs`: package.json, Cargo.toml, lib.rs, capabilities) і `text/cspell` (`fix_cspell_config.rs` — merge-запис `.cspell.json` із вшитим `include_str!` каноном template). `tauri/updater` у стіну сусіда `tauri/release` не впирається: ні YAML, ні спавну процесу; детектор уже native, тож read-only хелпери перевикористані, а не задубльовані.
+
+`doc-files/check` і `test/coverage` НЕ портовані свідомо — вони не T0-фікси взагалі, а fix-**воркери** LLM-драбини (`fix-worker.mjs`, без `fix-<concern>.mjs`). Ключ у `NATIVE_FIXES` створив би фіктивний T0-патерн і ЗАТІНИВ би єдиний робочий шлях. Для `doc-files/check` відсутність детермінованого фіксера — зафіксований інваріант: штамп свіжого CRC поверх старого тексту назавжди замаскував би дрейф доки.
+
+Дефекти JS-канону полагоджено, а не відтворено заради парності: (1) `tauri/updater` НІКОЛИ не сходився, коли залежність сиділа в `devDependencies` — детектор читає її як ефективну, а фікс писав канон завжди в `dependencies`, тож порушення поверталось нескінченно; тепер канон пишеться в ту саму секцію; (2) побитий `capabilities/*.json` канон ковтав мовчки (`return false`) — тепер гучна помилка з іменем файлу; (3) JSONC-вхід (`//`-коментарі) в `.cspell.json` і capability-файлах канон читав `JSON.parse` і мовчки не фіксив нічого; (4) не-обʼєктний корінь `.cspell.json` — тепер явний no-op замість тихої втрати даних.
+
+Деталі — §2.79 `docs/plans/2026-08-05-open-questions-register.md`. JS-канони не видалено (політика «спершу парність»).
+
+Тести: `cargo test -p rules-core --lib concerns::fix` — 131 passed (19 нових); vitest — 11 passed у двох нових `fix-*-native.test.mjs` через продакшн-шлях napi.
+
 ## [1.113.0] - 2026-08-29
 
 ### Changed
