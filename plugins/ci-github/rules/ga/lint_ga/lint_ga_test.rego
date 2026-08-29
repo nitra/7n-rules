@@ -150,3 +150,37 @@ test_data_template_drives_name if {
 	some msg in lint_ga.deny with input as canonical_input with data.template as drifted
 	contains(msg, "Custom")
 }
+
+# Джоба названа НЕ `lint-ga` → `job` undefined. Пінить ПОВНИЙ канонічний
+# набір deny для цього входу: рівно ті правила, що не залежать від `job`,
+# плюс «jobs.lint-ga відсутній». Гейт проти двох регресій: shorthand-форми
+# `job_uses_set`/`job_run_blob` (у regorus вона валила ВЕСЬ eval саме тут)
+# і випадкового «оживлення» job-залежних deny (runs-on/permissions/steps).
+missing_job_input := json.patch(canonical_input, [{
+	"op": "add",
+	"path": "/jobs",
+	"value": {"other": {"steps": [{"run": "echo x"}]}},
+}])
+
+test_deny_missing_job if {
+	deny := lint_ga.deny with input as missing_job_input with data.template as template_data
+	deny == {
+		"lint-ga.yml: jobs.lint-ga відсутній (ga.mdc)",
+		"lint-ga.yml: має бути uses: actions/checkout@v6 (ga.mdc)",
+		"lint-ga.yml: має бути uses: ./.github/actions/setup-bun-deps (ga.mdc)",
+		"lint-ga.yml: має бути uses: astral-sh/setup-uv@v8.0.0 (ga.mdc)",
+		"lint-ga.yml: має бути крок Install conftest (ga.mdc)",
+		"lint-ga.yml: має бути крок run: n-rules lint ga --no-fix (ga.mdc)",
+	}
+}
+
+# Гілки `on:` немає зовсім → `gha_on.push.*`/`gha_on.pull_request.branches`
+# undefined, і канон про них МОВЧИТЬ (сигналить лише `on.pull_request.paths`,
+# бо той читається через `object.get(…, [])`). Пінить саме цю асиметрію —
+# без неї порт під regorus давав три зайві deny.
+no_on_input := {"jobs": {"lint-ga": canonical_input.jobs["lint-ga"]}}
+
+test_missing_on_hook_denies_only_pr_paths if {
+	deny := lint_ga.deny with input as no_on_input with data.template as template_data
+	deny == {"lint-ga.yml: on.pull_request.paths має містити .github/actions/** і .github/workflows/** (ga.mdc)"}
+}

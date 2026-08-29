@@ -710,91 +710,6 @@ const LINT_SECURITY_YML_SNIPPET_YML: &str = include_str!(
 );
 
 
-/// Обхідний шлях regorus 0.11.0-специфічного бага в evaluator-і (підтверджено
-/// мінімальним репро поза цим крейтом): shorthand-форма multi-value rule
-/// head `s contains arr[_].field` дає `Err("not an object")`, коли ХОЧА Б
-/// ОДИН елемент масиву не має поля `field` (undefined mid-iteration) —
-/// LONGHAND-форма (`s contains v if { some x in arr; v := x.field }`) з ТИМ
-/// САМИМ входом працює коректно. РІВНО ОДИН рядок серед пʼяти вшитих
-/// `.rego`-джерел використовує саме цю крихку форму:
-/// `lint_ga.rego:17: job_uses_set contains job.steps[_].uses` (кроки БЕЗ
-/// `uses:`, напр. чисті `run:`-кроки, тригерять баг). Rego-текст НЕ можна
-/// правити (спільне джерело з живим JS-каноном, 55 `conftest verify`-тестів
-/// його стережуть) — обхід тут, на боці Rust, ПЕРЕД `set_input`: кожен
-/// `jobs.*.steps[]`-елемент отримує явний `"uses": ""`, якщо ключа не було.
-/// Застосовано УНІВЕРСАЛЬНО (усі пʼять namespace-ів, доккомент
-/// [`run_all_ga_rego`]), а не лише для `ga.lint_ga` — нейтрально для решти
-/// чотирьох: кожне звернення до `step.uses` там або індексує КОНКРЕТНИЙ,
-/// заздалегідь відомий крок (`step0.uses`), або йде через
-/// `object.get(step, "uses", "")`, який дає ТОЙ САМИЙ результат для «ключа
-/// немає» і «ключ є, значення `""`» — перевірено grep-ом по всіх пʼяти
-/// файлах на відсутність `not …\.uses`-подібних existence-перевірок, які
-/// відрізняли б «відсутній» від «порожній рядок».
-fn ensure_step_uses_key_present(root: &Json) -> Json {
-    let Json::Object(top) = root else {
-        return root.clone();
-    };
-    Json::Object(
-        top.iter()
-            .map(|(k, v)| {
-                if k == "jobs" {
-                    (k.clone(), normalize_jobs_steps(v))
-                } else {
-                    (k.clone(), v.clone())
-                }
-            })
-            .collect(),
-    )
-}
-
-fn normalize_jobs_steps(jobs: &Json) -> Json {
-    let Json::Object(entries) = jobs else {
-        return jobs.clone();
-    };
-    Json::Object(
-        entries
-            .iter()
-            .map(|(job_id, job)| (job_id.clone(), normalize_job_steps(job)))
-            .collect(),
-    )
-}
-
-fn normalize_job_steps(job: &Json) -> Json {
-    let Json::Object(entries) = job else {
-        return job.clone();
-    };
-    Json::Object(
-        entries
-            .iter()
-            .map(|(k, v)| {
-                if k == "steps" {
-                    (k.clone(), normalize_steps_array(v))
-                } else {
-                    (k.clone(), v.clone())
-                }
-            })
-            .collect(),
-    )
-}
-
-fn normalize_steps_array(steps: &Json) -> Json {
-    let Json::Array(items) = steps else {
-        return steps.clone();
-    };
-    Json::Array(items.iter().map(normalize_step_uses).collect())
-}
-
-fn normalize_step_uses(step: &Json) -> Json {
-    let Json::Object(fields) = step else {
-        return step.clone();
-    };
-    if fields.iter().any(|(k, _)| k == "uses") {
-        return step.clone();
-    }
-    let mut new_fields = fields.clone();
-    new_fields.push(("uses".to_string(), Json::Str(String::new())));
-    Json::Object(new_fields)
-}
 
 
 /// Парсить довільний вшитий шаблонний текст (YAML чи JSON — JSON є валідним
@@ -1506,7 +1421,7 @@ fn run_all_ga_rego(
         let Some(root) = parse_yaml_document(&file.content) else {
             continue;
         };
-        let input_json = json_to_string(&ensure_step_uses_key_present(&root));
+        let input_json = json_to_string(&root);
         match eval_deny_rule(rego_source, namespace, data_json, &input_json) {
             Ok(messages) => {
                 for msg in messages {
@@ -1533,7 +1448,7 @@ fn run_all_ga_rego(
         let Some(root) = parse_yaml_document(&file.content) else {
             continue;
         };
-        let input_json = json_to_string(&ensure_step_uses_key_present(&root));
+        let input_json = json_to_string(&root);
         let messages =
             match engine.eval_rule(&input_json, "data.ga.workflow_common.deny") {
                 Ok(messages) => messages,
@@ -1661,7 +1576,7 @@ fn next_non_empty_workflow_line(lines: &[&str], from: usize) -> usize {
     j
 }
 
-/// Точний відповідник `WITH_LINE_RE = /^\s*with:\s*$/u` — увесь (trim-ований)
+/// Точний відповідник `WITH_LINE_RE = /^\s*with:\s*$/u` — увесь обрізаний `trim`-ом
 /// рядок дорівнює `with:`.
 fn is_with_block_line(line: &str) -> bool {
     line.trim() == "with:"
@@ -2383,17 +2298,16 @@ fn detect_policy(files: &[SourceFile], cfg: &PolicyCfg) -> Vec<Diagnostic> {
     };
     let snippet = parse_embedded_template(cfg.snippet_source_name, cfg.snippet_raw);
     let data_json = wrap_template_data(snippet);
-    // [`ensure_step_uses_key_present`] — той самий захисний прийом, що
-    // [`run_all_ga_rego`] застосовує для ЧОТИРЬОХ ga-концернів вище
-    // (доккомент функції): `lint_ga.rego`/`lint_text.rego` (ЧЕТВЕРТА хвиля)
-    // читають `job.steps[_].uses` НЕЗАХИЩЕНИМ прямим доступом (на відміну
-    // від `object.get(step, "uses", "")` у решти `.rego` цієї хвилі) — крок
-    // без `uses` (наприклад `run`-лише крок) інакше валить ВЕСЬ
-    // `job_uses_set` comprehension у regorus. Безпечний no-op для
-    // концернів, чий `actual` НЕ має кореневого ключа `jobs` (обидва
-    // JSON-таргети третьої хвилі, `ga/zizmor_yml`).
-    let normalized = ensure_step_uses_key_present(&actual);
-    let input_json = json_to_string(&normalized);
+    // Вхід іде в regorus ЯК Є, без нормалізації кроків. Обхід
+    // `ensure_step_uses_key_present` (вшивав крокам без `uses:` явний
+    // `"uses": ""`, бо shorthand-голова `s contains arr[_].field` падала під
+    // regorus на undefined mid-iteration) прибрано: він існував рівно заради
+    // `lint_ga.rego` і `lint_text.rego`, а обидва переписано в longhand
+    // (#563 і §2.81 реєстру). Жоден вшитий `.rego` більше не читає
+    // `step.uses` НЕЗАХИЩЕНИМ прямим доступом — решта йде або через
+    // `object.get(step, "uses", "")`, або індексує КОНКРЕТНИЙ, заздалегідь
+    // відомий крок.
+    let input_json = json_to_string(&actual);
     match eval_deny_rule(cfg.rego_source, cfg.namespace, &data_json, &input_json) {
         Ok(messages) => messages
             .into_iter()
@@ -3051,12 +2965,7 @@ fn detect_service_deploy_workflow(files: &[SourceFile]) -> Vec<Diagnostic> {
             });
             continue;
         };
-        // Той самий захисний прийом, що [`run_all_ga_rego`]/[`detect_policy`]
-        // (доккомент [`ensure_step_uses_key_present`]) — нейтральний для
-        // ЦЬОГО пакета: єдине звернення до `step.uses` тут
-        // (`job_has_prep`) — рівність із літеральним шляхом, для якої
-        // «ключа немає» і «ключ є, значення `""`» нерозрізненні.
-        let input_json = json_to_string(&ensure_step_uses_key_present(&root));
+        let input_json = json_to_string(&root);
         match engine.eval_rule(
             &input_json,
             &format!("data.{SERVICE_DEPLOY_WORKFLOW_NAMESPACE}.deny"),
@@ -4180,7 +4089,7 @@ mod tests {
     /// Той самий прийом, що `ignored_dir_names_match_declarative_rule_gate`
     /// у `crates/plugin-lang-rust` — тут перевіряє не список значень, а що
     /// `data.<namespace>.deny` ВЗАГАЛІ обчислюється (не помилка компіляції/
-    /// eval) на кожному з пʼяти вшитих `.rego` — намespace-рядок,
+    /// eval) на кожному з пʼяти вшитих `.rego` — namespace-рядок,
     /// захардкоджений у [`run_all_ga_rego`]/[`build_workflow_common_engine`],
     /// має РЕАЛЬНО збігатися з `package ga.<name>` усередині вшитого файлу
     /// (не окрема Rust-копія, яка могла б розійтися).
@@ -4396,7 +4305,7 @@ mod tests {
     #[test]
     fn broken_policy_produces_visible_diagnostic_not_silence() {
         // Пряме порівняння СТАРОЇ (до правки 1) і НОВОЇ поведінки на ОДНІЙ і
-        // тій самій зламаній policy — доводить сáме твердження задачі: там,
+        // тій самій зламаній policy — доводить саме твердження задачі: там,
         // де стара гілка (`if let Ok(messages) = eval_deny_rule(...) { … }`,
         // без `else`) мовчки ковтала Err, нова (`match … Err((stage, err)) =>
         // push_rego_engine_error(...)`) дає РІВНО одну діагностику.
@@ -5256,7 +5165,7 @@ mod tests {
     /// розпізнати наявну кому й НЕ дописати другу (подвійна кома —
     /// синтаксично невалідний JSON, доккомент функції). Очікуваний вивід —
     /// БУКВАЛЬНО той самий, що без trailing-коми на вході (existing кома
-    /// стає роздільником замість synthетичної).
+    /// стає роздільником замість синтетичної).
     #[test]
     fn fix_vscode_settings_jsonc_trailing_comma_merges_without_double_comma() {
         let before = concat!(
@@ -5766,6 +5675,41 @@ mod tests {
         assert_policy_round_trip(CONCERN_LINT_GA, &LINT_GA_CFG, &LINT_GA_FIX_CFG);
     }
 
+    /// `lint-ga.yml` із джобою, названою НЕ `lint-ga` (`jobs["lint-ga"]`
+    /// undefined). Реєстр §2.81: раніше порт віддавав ОДНУ діагностику
+    /// `rego-engine-error` (`eval`, «item cannot be indexed») замість набору
+    /// deny — shorthand-голова `job_uses_set contains job.steps[_].uses` під
+    /// regorus падала на undefined корені, а не давала undefined. Очікуваний
+    /// набір звірено з ЖИВИМ `conftest test` на цій самій фікстурі
+    /// (біт-у-біт), той самий канон пінить `lint_ga_test.rego`
+    /// (`test_deny_missing_job`).
+    #[test]
+    fn lint_ga_missing_job_gives_canonical_denies_not_engine_error() {
+        let files = [sf(
+            ".github/workflows/lint-ga.yml",
+            "name: lint-ga\njobs:\n  other:\n    steps:\n      - run: echo x\n",
+        )];
+        let mut got: Vec<String> = detect_policy(&files, &LINT_GA_CFG)
+            .into_iter()
+            .inspect(|d| assert_eq!(d.reason, POLICY_DENY_REASON, "{}", d.message))
+            .map(|d| d.message)
+            .collect();
+        got.sort();
+        assert_eq!(
+            got,
+            vec![
+                "lint-ga.yml: jobs.lint-ga відсутній (ga.mdc)".to_string(),
+                "lint-ga.yml: name має бути \"Lint GA\" (ga.mdc)".to_string(),
+                "lint-ga.yml: on.pull_request.paths має містити .github/actions/** і .github/workflows/** (ga.mdc)".to_string(),
+                "lint-ga.yml: має бути uses: ./.github/actions/setup-bun-deps (ga.mdc)".to_string(),
+                "lint-ga.yml: має бути uses: actions/checkout@v6 (ga.mdc)".to_string(),
+                "lint-ga.yml: має бути uses: astral-sh/setup-uv@v8.0.0 (ga.mdc)".to_string(),
+                "lint-ga.yml: має бути крок Install conftest (ga.mdc)".to_string(),
+                "lint-ga.yml: має бути крок run: n-rules lint ga --no-fix (ga.mdc)".to_string(),
+            ]
+        );
+    }
+
     #[test]
     fn clean_ga_workflows_t0_round_trip_missing_file_is_clean() {
         assert_policy_round_trip(
@@ -5809,6 +5753,35 @@ mod tests {
             CONCERN_LINT_STYLE_YML,
             &LINT_STYLE_YML_CFG,
             &LINT_STYLE_YML_FIX_CFG,
+        );
+    }
+
+    /// `lint_text.rego` читає джобу напряму (`job := input.jobs.text`).
+    /// Workflow БЕЗ цієї джоби — реальний вхід (чужий `lint-text.yml`), і
+    /// shorthand-форма `job_uses_set contains job.steps[_].uses` валила
+    /// весь пакет у `rego-engine-error` («item cannot be indexed») замість
+    /// канонічного набору `deny`. Longhand у `.rego` це знімає; тест
+    /// стереже саме поведінку, а не форму запису: сім `policy-deny`
+    /// (звірено біт-у-біт із живим `conftest test`), жодної engine-помилки.
+    #[test]
+    fn detect_lint_text_without_text_job_is_policy_deny_not_engine_error() {
+        let files = [sf(
+            ".github/workflows/lint-text.yml",
+            "name: Lint Text\njobs:\n  other:\n    steps:\n      - run: echo x\n",
+        )];
+        let diagnostics = detect_policy(&files, &LINT_TEXT_CFG);
+        assert!(
+            diagnostics
+                .iter()
+                .all(|d| d.reason == POLICY_DENY_REASON),
+            "очікували лише policy-deny, отримали: {diagnostics:?}"
+        );
+        assert_eq!(diagnostics.len(), 7, "набір deny: {diagnostics:?}");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|d| d.message.contains("jobs.text відсутній")),
+            "набір deny: {diagnostics:?}"
         );
     }
 
@@ -5977,7 +5950,7 @@ mod tests {
             // Канонічний вхід водночас робить гейт СИЛЬНІШИМ: політика має
             // не лише еваліюватись, а й НЕ давати жодної `deny` на власному
             // каноні.
-            let input_json = json_to_string(&ensure_step_uses_key_present(&snippet));
+            let input_json = json_to_string(&snippet);
             let result = eval_deny_rule(cfg.rego_source, cfg.namespace, &data_json, &input_json);
             match result {
                 Ok(messages) => assert!(

@@ -1,6 +1,6 @@
 {
   "name": "@7n/rules",
-  "version": "1.118.0",
+  "version": "1.118.2",
   "description": "CLI еталонних правил і skills (префікс n-): синк у репозиторій, дельта-lint, конформність",
   "keywords": [
     "cli",
@@ -83,9 +83,9 @@
     "zod": "^4.4.3"
   },
   "optionalDependencies": {
-    "@7n/rules-darwin-arm64": "1.118.0",
-    "@7n/rules-linux-x64": "1.118.0",
-    "@7n/rules-win32-x64": "1.118.0",
+    "@7n/rules-darwin-arm64": "1.118.1",
+    "@7n/rules-linux-x64": "1.118.1",
+    "@7n/rules-win32-x64": "1.118.1",
     "@earendil-works/pi-ai": "0.80.10",
     "@earendil-works/pi-coding-agent": "0.80.10"
   },

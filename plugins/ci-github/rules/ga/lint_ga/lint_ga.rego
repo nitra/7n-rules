@@ -14,10 +14,20 @@ gha_on := object.get(input, "on", object.get(input, "true", {}))
 
 job := input.jobs["lint-ga"]
 
-job_uses_set contains job.steps[_].uses
+# LONGHAND-форма (`some step in job.steps`), а НЕ shorthand
+# `job_uses_set contains job.steps[_].uses` / `run := job.steps[_].run`:
+# під regorus (wasm-порт `crates/plugin-ci-github`) shorthand кидає помилку
+# eval («item cannot be indexed»), коли `job` undefined — тобто саме тоді,
+# коли `jobs["lint-ga"]` відсутній, — замість того щоб дати undefined і
+# пропустити керування канонічній deny «jobs.lint-ga відсутній».
+# Longhand під regorus дає ТУ САМУ семантику, що й OPA/conftest.
+job_uses_set contains u if {
+	some step in job.steps
+	u := step.uses
+}
 
-job_run_blob := concat("\n", [run |
-	run := job.steps[_].run
+job_run_blob := concat("\n", [step.run |
+	some step in job.steps
 ])
 
 expected_name := data.template.snippet.name
@@ -46,9 +56,9 @@ expected_uses_set contains u if {
 # Opt-in для runner-образу, у якому вже є uv та conftest. Мітка runner
 # залишається `ubuntu-latest` для сумісності, але workflow явно декларує
 # джерело tooling, щоб policy не приховувала залежність від custom image.
-preinstalled_ci_tools if object.get(object.get(job, "env", {}), "NITRA_CI_TOOLS", false) == true
+preinstalled_ci_tools if job.env.NITRA_CI_TOOLS == true
 
-preinstalled_ci_tools if object.get(object.get(job, "env", {}), "NITRA_CI_TOOLS", "false") == "true"
+preinstalled_ci_tools if job.env.NITRA_CI_TOOLS == "true"
 
 required_uses_set contains u if {
 	not preinstalled_ci_tools
@@ -70,23 +80,35 @@ expected_run_blob := concat("\n", [r |
 
 # ── deny rules ─────────────────────────────────────────────────────────────
 
+# Три deny нижче спершу ЗВʼЯЗУЮТЬ `actual := gha_on.<hook>.<key>` окремим
+# позитивним виразом, а вже потім негують helper. Це не косметика: у формі
+# `not helper(gha_on.push.branches, …)` undefined-аргумент (гілки `on:` немає)
+# в OPA робить УВЕСЬ вираз undefined (deny мовчить), а в regorus дає
+# `not undefined` == true (deny спрацьовує) — розбіжність порту. Позитивне
+# звʼязування падає однаково в обох двигунах, тож канон і порт збігаються.
+# (`actual_pr_paths` навмисно інший: `object.get(…, [])` — там канон САМЕ
+# СИГНАЛИТЬ про відсутній ключ.)
+
 deny contains msg if {
 	input.name != expected_name
 	msg := sprintf("lint-ga.yml: name має бути \"%v\" (ga.mdc)", [expected_name])
 }
 
 deny contains msg if {
-	not branches_superset_of(gha_on.push.branches, expected_push_branches)
+	actual := gha_on.push.branches
+	not branches_superset_of(actual, expected_push_branches)
 	msg := "lint-ga.yml: on.push.branches має містити dev і main (ga.mdc)"
 }
 
 deny contains msg if {
-	not branches_superset_of(gha_on.pull_request.branches, expected_pr_branches)
+	actual := gha_on.pull_request.branches
+	not branches_superset_of(actual, expected_pr_branches)
 	msg := "lint-ga.yml: on.pull_request.branches має містити dev і main (ga.mdc)"
 }
 
 deny contains msg if {
-	not paths_superset_of(gha_on.push.paths, expected_push_paths)
+	actual := gha_on.push.paths
+	not paths_superset_of(actual, expected_push_paths)
 	msg := "lint-ga.yml: on.push.paths має містити .github/actions/** і .github/workflows/** (ga.mdc)"
 }
 

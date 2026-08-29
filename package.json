@@ -43,9 +43,7 @@
   },
   "knip": {
     "ignore": [
-      "demo/stryker-vue-macros-ignorer.mjs",
-      "npm/rules/test/js/data/stryker_config/stryker.config.vue.baseline.mjs",
-      "npm/skills/fix/js/llm-worker.mjs"
+      "demo/stryker-vue-macros-ignorer.mjs"
     ]
   }
 }
