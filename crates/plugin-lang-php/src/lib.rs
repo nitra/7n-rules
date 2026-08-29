@@ -37,6 +37,8 @@
 //!   ([`fix_vscode_extensions`]). Портовані ОБИДВІ половини НАВМИСНО:
 //!   `detect.mjs` ПОВНІСТЮ заміняє policy-детект, щойно концерн зʼявляється
 //!   в `describe()`, тож порт самого лише фіксу МОВЧКИ вимкнув би детект.
+//!   §2.88 зняла JS-канон фіксу (`fix-vscode_extensions.mjs`) — цей крейт
+//!   тепер ЄДИНА реалізація обох половин концерну.
 //!
 //! Перша хвиля не портувала жодного T0-фіксера (`fixability: "config"` у
 //! трьох `concern.json`) — [`Guest::fix`] і далі повертає порожній план для
@@ -1234,8 +1236,12 @@ fn vscode_extensions_fix_applicable(diagnostics: &[Diagnostic]) -> bool {
     })
 }
 
-/// T0-фіксер `php/vscode_extensions` — точний порт
-/// `npm/scripts/lib/fix/vscode-ext-add.mjs`: union
+/// T0-фіксер `php/vscode_extensions` — від §2.88 ЄДИНА реалізація
+/// (`fix-vscode_extensions.mjs` знято; сам рушій
+/// `npm/scripts/lib/fix/vscode-ext-add.mjs` живий — його ще читають
+/// НЕпортовані `vscode_extensions`-концерни інших плагінів і ядра).
+///
+/// Точний порт того рушія: union
 /// `.vscode/extensions.json#recommendations` із канонічним снапшотом за
 /// РЯДКОВИМ значенням (не структурний deep-merge — цей рушій свідомо
 /// простіший за `template-deep-merge.mjs`). Наявні записи лишаються на
@@ -1438,11 +1444,15 @@ impl Guest for LangPhp {
     }
 
     /// ПЕРШИЙ реальний план цього крейта — `php/vscode_extensions`
-    /// ([`fix_vscode_extensions`], §2.77). JS-канон
-    /// (`fix-vscode_extensions.mjs` → `vscode-ext-add.mjs`) лишається чинним
-    /// за політикою «спершу парність»; гість має пріоритет
-    /// (`T0Pattern.guestFix`, `run-fix.mjs`). Решта концернів і далі
-    /// отримують сумісну заглушку — порожній план.
+    /// ([`fix_vscode_extensions`], §2.77) і, від §2.88, ЄДИНИЙ: JS-канон
+    /// `plugins/lang-php/rules/php/vscode_extensions/fix-vscode_extensions.mjs`
+    /// (тонкий re-export `vscode-ext-add.mjs`) ВИДАЛЕНО — політика «спершу
+    /// парність» на цьому плагіні завершена, fallback-у більше немає.
+    /// Практичний наслідок: порожній план тут — це відсутність фіксу, а не
+    /// «підхопить JS», тож кожна гілка `fix_vscode_extensions`, що повертає
+    /// `edits: vec![]`, мусить бути СВІДОМИМ no-op (доккомент там), не
+    /// пропуском «на потім». Решта концернів і далі отримують сумісну
+    /// заглушку — порожній план.
     fn fix(request: FixRequest) -> FixPlan {
         match request.concern_id.as_str() {
             CONCERN_VSCODE_EXTENSIONS => fix_vscode_extensions(&request),
