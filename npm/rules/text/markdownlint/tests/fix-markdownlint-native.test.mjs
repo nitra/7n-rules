@@ -5,11 +5,12 @@
  * → синтетичний `nativeFixPattern` → `runNativeConcernFix` (napi). Не пряме
  * звернення до Rust-функції (§2.47).
  *
- * Старий `fix-markdownlint.mjs` лишається на диску (характеризаційне
- * покриття `fix-markdownlint.test.mjs` лишається зеленим), але з
- * `text/markdownlint` у `NATIVE_FIXES` `loadT0Patterns` більше НІКОЛИ його
- * не імпортує (доккомент `loadT0Patterns`, `run-fix.mjs`) — цей файл тестує
- * ЖИВИЙ шлях.
+ * JS-канон `fix-markdownlint.mjs` ЗНЯТО (§2.89) разом зі своїм
+ * характеризаційним `fix-markdownlint.test.mjs` (єдиний кейс якого —
+ * «патерн реагує лише на reason markdownlint» — уже покритий native-тестом
+ * `markdownlint_fix_empty_plan_without_matching_violation`, `fix.rs`).
+ * Native — єдина реалізація фіксу; табличний гейт складу резолву —
+ * `npm/scripts/lib/lint-surface/tests/native-fix-single-source.test.mjs`.
  *
  * `markdownlint-cli2` резолвиться через `npx` з локального `node_modules/.bin`
  * репо — доступний без мережі (той самий пакет, що `text/markdownlint`

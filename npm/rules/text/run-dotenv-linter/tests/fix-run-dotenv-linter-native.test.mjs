@@ -6,9 +6,12 @@
  * звернення до Rust-функції (§2.47 — прямий виклик уже раз приховав реальний
  * баг мосту).
  *
- * `fix-run-dotenv-linter.mjs` (JS T0) лишається на диску — політика «спершу
- * парність», — але з ключем у `NATIVE_FIXES` `loadT0Patterns` більше НІКОЛИ
- * його не імпортує.
+ * JS-канон `fix-run-dotenv-linter.mjs` ЗНЯТО (§2.89) разом зі своїм
+ * характеризаційним тестом (єдиний кейс — «реагує лише на reason
+ * dotenv-linter» — покритий native-тестом
+ * `dotenv_fix_without_matching_violation_is_empty_plan`, `fix.rs`). Native —
+ * єдина реалізація фіксу; табличний гейт складу резолву —
+ * `npm/scripts/lib/lint-surface/tests/native-fix-single-source.test.mjs`.
  *
  * # Зовнішній тул — гучний skip, не тиха зелень
  *

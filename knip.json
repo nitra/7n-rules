@@ -79,7 +79,8 @@
         "github-actionlint",
         "v8r",
         "ajv",
-        "jscpd"
+        "jscpd",
+        "oxfmt"
       ]
     },
     "demo": {

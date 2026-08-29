@@ -6,7 +6,9 @@ resource: npm/rules/nginx-default-tpl/
 
 # npm/rules/nginx-default-tpl
 
-Немає файлової документації верхнього рівня: детектор концерну `template`
-портовано в `crates/rules-core/src/concerns/nginx_default_tpl_template.rs`
-(native, без `main.mjs`); T0-автофікс лишається в
-[`template/fix-template.mjs`](../template/docs/fix-template.md).
+Немає файлової документації верхнього рівня: концерн `template` цілком
+native — і детектор
+(`crates/rules-core/src/concerns/nginx_default_tpl_template.rs`, без
+`main.mjs`), і T0-автофікс
+(`crates/rules-core/src/concerns/fix.rs::nginx_default_tpl_template_fix`,
+JS-канон `fix-template.mjs` знято §2.89).

@@ -10,10 +10,9 @@
  * → синтетичний `nativeFixPattern` → `runNativeConcernFix` (napi), не пряме
  * звернення до Rust-функції (§2.47).
  *
- * `fix-template.mjs` лишається на диску (JS-канон не видаляється — спершу
- * парність), але з `nginx-default-tpl/template` у `NATIVE_FIXES`
- * `loadT0Patterns` більше НІКОЛИ його не імпортує (доккомент
- * `loadT0Patterns`, `run-fix.mjs`).
+ * JS-канон `fix-template.mjs` ЗНЯТО (§2.89): native — єдина реалізація фіксу,
+ * fallback-у більше немає (табличний гейт складу резолву —
+ * `npm/scripts/lib/lint-surface/tests/native-fix-single-source.test.mjs`).
  */
 import { describe, expect, test, vi } from 'vitest'
 import { existsSync, readFileSync } from 'node:fs'
