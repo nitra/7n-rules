@@ -13,54 +13,31 @@
  */
 import { existsSync, readFileSync } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { resolveCmd } from '@7n/rules/scripts/utils/resolve-cmd.mjs'
 import { spawnAsync } from '@7n/rules/scripts/utils/spawn-async.mjs'
 
 /**
- * Мінімальний валідний `deny.toml` — звірений проти реального `cargo deny init`
+ * Шлях до мінімального валідного `deny.toml` — звіреного проти реального `cargo deny init`
  * (cargo-deny 0.20.2): ті самі дефолтні значення (порожні `allow`-списки — deny-by-default
  * для licenses/bans, `warn` для bans/sources), лише без коментарів шаблону. `cargo deny check`
  * на цьому конфігу поводиться ідентично до щойно згенерованого `cargo deny init` — різниця
  * лише в тому, що дозволені ліцензії/пакети проєкту треба буде налаштувати вручну (як і з init).
+ *
+ * Вміст винесено в data-файл (той самий прийом, що `BASELINE_PATH`
+ * `fix-cargo_mutants_config.mjs`) — рівно тому, що ТОЙ САМИЙ скаффолд тепер має
+ * і wasm-порт (`fix_check`, `crates/plugin-lang-rust/src/lib.rs`, `include_str!`
+ * цього ж файлу). Дублювання літерала в двох мовах розійшлося б беззвучно:
+ * parity-тест звіряє байт-у-байт саме через спільне джерело.
  */
-const MINIMAL_DENY_TOML = `[graph]
-targets = []
-
-[advisories]
-ignore = []
-
-[licenses]
-allow = []
-confidence-threshold = 0.8
-
-[licenses.private]
-ignore = false
-
-[bans]
-multiple-versions = "warn"
-wildcards = "allow"
-highlight = "all"
-workspace-default-features = "allow"
-external-default-features = "allow"
-allow = []
-allow-workspace = false
-deny = []
-skip = []
-skip-tree = []
-
-[sources]
-unknown-registry = "warn"
-unknown-git = "warn"
-allow-registry = ["https://github.com/rust-lang/crates.io-index"]
-allow-git = []
-
-[sources.allow-org]
-github = []
-gitlab = []
-bitbucket = []
-`
+const MINIMAL_DENY_TOML_PATH = join(
+  dirname(fileURLToPath(import.meta.url)),
+  'data',
+  'check',
+  'deny.toml.minimal'
+)
 
 /**
  * Вміст файлу або null, якщо не читається.
@@ -128,7 +105,7 @@ export const patterns = [
 
       // cargo-deny (або cargo) недоступний — детермінований мінімальний скаффолд
       // замість no-op: без цього violation провалювався в LLM-ladder, який галюцинував [deny].
-      await writeFile(denyConfigPath, MINIMAL_DENY_TOML, 'utf8')
+      await writeFile(denyConfigPath, readFileSync(MINIMAL_DENY_TOML_PATH, 'utf8'), 'utf8')
       ctx.recordWrite?.(denyConfigPath)
       return {
         touchedFiles: [denyConfigPath],
