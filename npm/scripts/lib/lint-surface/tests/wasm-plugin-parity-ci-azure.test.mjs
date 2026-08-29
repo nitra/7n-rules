@@ -161,3 +161,74 @@ describe('wasm-plugin — azure-pipelines/vscode_extensions: T0-цикл чер�
     })
   })
 })
+
+const SERVICE_DEPLOY_PIPELINE_CONCERN = 'azure-pipelines/service_deploy_pipeline'
+
+/** Сервісний pipeline із lint-джобою, але без `plan` — форма, що дає deny. */
+const BROKEN_SERVICE_PIPELINE =
+  'trigger:\n  paths:\n    include:\n      - run/nexus/**\njobs:\n' +
+  '  - job: lint\n    steps:\n      - script: bunx n-rules lint js --path run/nexus --no-fix\n' +
+  '  - job: deploy\n    dependsOn:\n      - lint\n    steps:\n      - script: echo x\n'
+
+describe('wasm-plugin parity — azure-pipelines/service_deploy_pipeline (walkGlob rego-детект через РЕАЛЬНИЙ napi-міст)', () => {
+  test('сервісний pipeline без plan-джоби — policy-deny, атрибутована файлом', async () => {
+    await withTmpDir(async dir => {
+      await mkdir(join(dir, '.azurepipelines'), { recursive: true })
+      await writeFile(join(dir, '.azurepipelines', 'deploy-nexus.yml'), BROKEN_SERVICE_PIPELINE, 'utf8')
+
+      const result = loadNative().runWasmConcern(WASM_PATH, SERVICE_DEPLOY_PIPELINE_CONCERN, dir, null)
+      const violations = withDefaultSeverity(result.violations)
+      expect(violations.length).toBeGreaterThan(0)
+      expect(violations.some(v => v.message.includes('немає job `plan`'))).toBe(true)
+      for (const v of violations) {
+        expect(v.reason).toBe('policy-deny')
+        expect(v.file).toBe('.azurepipelines/deploy-nexus.yml')
+      }
+    })
+  })
+
+  test('pipeline без trigger.paths.include (repo-wide) — не сервісний, жодної violation', async () => {
+    await withTmpDir(async dir => {
+      await mkdir(join(dir, '.azurepipelines'), { recursive: true })
+      await writeFile(
+        join(dir, '.azurepipelines', 'ci.yml'),
+        'trigger:\n  - main\njobs:\n  - job: build\n    steps:\n      - script: echo x\n',
+        'utf8'
+      )
+      const result = loadNative().runWasmConcern(WASM_PATH, SERVICE_DEPLOY_PIPELINE_CONCERN, dir, null)
+      expect(withDefaultSeverity(result.violations)).toEqual([])
+    })
+  })
+
+  /**
+   * `!`-виключення walkGlob-у (`.azurepipelines/templates/**`) працює НАСКРІЗЬ:
+   * до цієї задачі `build_full_scope_files` (`crates/rules-napi`) віддавав `!`-патерн
+   * прямо в `globset`, де `!` — звичайний символ шляху, тож виключення мовчки не
+   * діяло. Файл-шаблон із формою, яка ДАЛА Б deny, не має давати жодної.
+   */
+  test('файл із .azurepipelines/templates/** виключений walkGlob-ом — жодної violation', async () => {
+    await withTmpDir(async dir => {
+      await mkdir(join(dir, '.azurepipelines', 'templates'), { recursive: true })
+      await writeFile(join(dir, '.azurepipelines', 'templates', 'deploy.yml'), BROKEN_SERVICE_PIPELINE, 'utf8')
+      const result = loadNative().runWasmConcern(WASM_PATH, SERVICE_DEPLOY_PIPELINE_CONCERN, dir, null)
+      expect(withDefaultSeverity(result.violations)).toEqual([])
+    })
+  })
+
+  /**
+   * Порт СВІДОМО без fix-половини (доккомент `crates/plugin-ci-azure/src/lib.rs`,
+   * розділ «ДРУГА хвиля»): гість віддає порожній план, `edits.length > 0` не
+   * проходить, і чинний `fix-service_deploy_pipeline.mjs` лишається єдиним
+   * фіксером. Якщо цей тест колись почервоніє — значить фікс портували, і
+   * `guestFix` тепер глушить JS-канон: перевір, чи порт ПОВНИЙ.
+   */
+  test('fix — порожній план (T0 лишається за JS-каноном)', async () => {
+    await withTmpDir(async dir => {
+      await mkdir(join(dir, '.azurepipelines'), { recursive: true })
+      await writeFile(join(dir, '.azurepipelines', 'deploy-nexus.yml'), BROKEN_SERVICE_PIPELINE, 'utf8')
+      const violations = loadNative().runWasmConcern(WASM_PATH, SERVICE_DEPLOY_PIPELINE_CONCERN, dir, null).violations
+      const plan = loadNative().runWasmConcernFix(WASM_PATH, SERVICE_DEPLOY_PIPELINE_CONCERN, dir, violations, {})
+      expect(plan.edits).toEqual([])
+    })
+  })
+})

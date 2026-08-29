@@ -44,9 +44,19 @@
 //! `docker/lint_pipeline_docker`, `k8s/lint_pipeline_k8s`,
 //! `security/lint_pipeline_security`, `style/lint_pipeline_style`,
 //! `text/lint_pipeline_text`, `ci_artifact/consume_azure`) — СВІДОМО поза
-//! обсягом цієї хвилі. Не чіпай їх у цьому крейті без нової задачі.
+//! обсягом ТІЄЇ хвилі. Не чіпай їх у цьому крейті без нової задачі.
 //! JS-канон УСІХ десяти лишається недоторканим — парність доводиться перед
 //! видаленням JS, не одночасно з ним.
+//!
+//! # ДРУГА хвиля (§2.81): `azure-pipelines/service_deploy_pipeline`
+//!
+//! Третій концерн крейта — і ПЕРШИЙ walkGlob (набір
+//! `.azurepipelines/**/*.yml` без `templates/**`, не один обовʼязковий
+//! таргет). Портовано ЛИШЕ detect: T0-фікс потребує реєстру ввімкнених
+//! правил, якого гість не має жодним каналом контракту — розгорнутий
+//! доккомент нижче, розділ «ДРУГА хвиля». `ci_artifact/consume_azure`
+//! лишається поза портом ПРИНЦИПОВО (host-side інтегратор слот-механізму,
+//! §2.81), а не «до наступної хвилі».
 //!
 //! # `%q` — пастка, перевірена ДО порту
 //!
@@ -491,6 +501,173 @@ fn detect_lint_pipeline(files: &[SourceFile]) -> Vec<Diagnostic> {
 }
 
 // =====================================================================
+// ДРУГА хвиля — `azure-pipelines/service_deploy_pipeline` (ПЕРШИЙ
+// walkGlob-концерн цього крейта: не ОДИН обовʼязковий таргет, а НАБІР
+// файлів `.azurepipelines/**/*.yml` мінус `templates/**`).
+//
+// # Портовано ЛИШЕ detect — fix свідомо лишається JS-каноном
+//
+// `fix-service_deploy_pipeline.mjs` кличе `relevantDomains(cwd, servicePath)`
+// (`npm/scripts/lib/lint-surface/ci-plan.mjs`), а та — `loadEnabledLintRules`
+// (резолв УСЬОГО graph-у плагінів + `.n-rules.json`) і
+// `collectPathScopedFiles` (обхід піддерева сервісу на диску). Гість не має
+// ні того, ні того: `capabilities.fs_read = []`, а реєстру ввімкнених
+// правил у контракті НЕМАЄ ЖОДНОГО host-каналу (`host-context` знає лише
+// `repo-root@1`/`scratch-dir@1`, `wit/world.wit`). Без цього списку не
+// побудувати ні `outputs`-мапінг нової `plan`-джоби, ні per-domain
+// `lint_<domain>`-джоби — тобто ЯДРО фіксу, а не його край.
+//
+// ЧАСТКОВИЙ порт тут був би ГІРШИМ за відсутність порту: `wasmFixPattern`
+// (`npm/scripts/lib/lint-surface/run-fix.mjs`) несе `guestFix: true` —
+// щойно гість повертає непорожній план і той застосовується, `applyT0`
+// ЗУПИНЯЄ подальші патерни концерну, тобто JS-канон із міграцією plan/lint
+// джоб не запустився б узагалі. Тож [`Guest::fix`] НЕ реєструє цей ключ:
+// порожній план → `edits.length > 0` не проходить → JS T0-фікс лишається
+// єдиним і повним (задокументований перехідний контракт `loadT0Patterns`:
+// «плагін із fix-заглушкою не має мовчки вимикати чинний JS T0-фікс»).
+//
+// # `!`-виключення walkGlob-у — фільтр ТУТ, не лише в глобі контрибуції
+//
+// `concern.json` цього концерну декларує
+// `walkGlob: [".azurepipelines/**/*.yml", "!.azurepipelines/templates/**"]`.
+// Хост будує full-scope batch через `globset` (`build_full_scope_files`,
+// `crates/rules-napi`), і `!`-заперечення там до цієї задачі не існувало як
+// поняття: `globset::Glob::new("!…")` компілює `!` як ЗВИЧАЙНИЙ символ
+// шляху, тож патерн не матчив нічого — і виключення мовчки не працювало
+// (файли `templates/` потрапляли б у batch і оцінювались як сервісні
+// pipeline-и). Хост полагоджено тією самою задачею
+// (`build_full_scope_files` тепер розуміє `!`-префікс), але гість НЕ
+// покладається на це: [`is_service_pipeline_path`] відсіює `templates/**`
+// САМ — і у full-batch-і, і в дельта-списку від JS-планувальника.
+// =====================================================================
+
+const CONCERN_SERVICE_DEPLOY_PIPELINE: &str = "azure-pipelines/service_deploy_pipeline";
+
+/// Позитивний патерн `walkGlob` концерну (`concern.json`) — дослівно.
+const SERVICE_DEPLOY_PIPELINE_GLOB: &str = ".azurepipelines/**/*.yml";
+
+/// Префікс, який `walkGlob` виключає `!`-патерном (`concern.json`).
+const SERVICE_DEPLOY_PIPELINE_EXCLUDED_PREFIX: &str = ".azurepipelines/templates/";
+
+const SERVICE_DEPLOY_PIPELINE_NAMESPACE: &str = "azure_pipelines.service_deploy_pipeline";
+
+const SERVICE_DEPLOY_PIPELINE_REGO: &str = include_str!(
+    "../../../plugins/ci-azure/rules/azure-pipelines/service_deploy_pipeline/service_deploy_pipeline.rego"
+);
+
+/// Чи шлях із batch-у підпадає під walkGlob концерну — позитивний патерн
+/// `.azurepipelines/**/*.yml` МІНУС `!.azurepipelines/templates/**`
+/// (доккомент розділу вище). `**` матчить будь-яку глибину, тож достатньо
+/// префікса й розширення.
+fn is_service_pipeline_path(path: &str) -> bool {
+    path.starts_with(".azurepipelines/")
+        && path.ends_with(".yml")
+        && !path.starts_with(SERVICE_DEPLOY_PIPELINE_EXCLUDED_PREFIX)
+}
+
+/// Один двигун на весь batch (policy компілюється РАЗ, `eval_rule` — у циклі
+/// по файлах) — той самий batch-контракт, що `plugin-ci-github`'s
+/// `build_workflow_common_engine`, і той самий, що ОДИН спавн
+/// `conftest test <files...>` канону.
+#[allow(unused_mut)] // доккомент над `eval_deny_rule`
+fn build_service_deploy_pipeline_engine() -> Result<RegoEngineHandle, (&'static str, String)> {
+    let mut engine = RegoEngineHandle::new();
+    engine
+        .add_policy(
+            &format!("{SERVICE_DEPLOY_PIPELINE_NAMESPACE}.rego"),
+            SERVICE_DEPLOY_PIPELINE_REGO,
+        )
+        .map_err(rego_error_stage_message)?;
+    Ok(engine)
+}
+
+/// Т0-детект `azure-pipelines/service_deploy_pipeline` — функціональний
+/// відповідник `evaluatePolicyConcern` (`policy-lint-adapter.mjs`, гілка
+/// rego) для walkGlob-набору: порожній набір НЕ дає `policy-file-missing`
+/// (`cfg.files.single` порожній — гілка `if (cfg.files.required &&
+/// cfg.files.single)` не спрацьовує), кожен файл набору оцінюється окремим
+/// `eval_rule` ТОГО САМОГО двигуна, кожен `deny`-рядок → ОДНА діагностика
+/// `policy-deny` з `file` цього файлу. `message` НЕ префіксується (rego
+/// цього пакета не вбудовує шлях — повідомлення починаються з імені джоби,
+/// атрибуцію несе `file`, точно як `add('policy-deny', d.message,
+/// toRel(d.filename))` канону).
+///
+/// Побитий YAML → видима `policy-input-invalid`, НЕ мовчазний skip: під
+/// `conftest` (канон) такий файл валив би батч помилкою парсера, а тут вхід
+/// парситься заздалегідь ([`parse_yaml_document`]) — мовчазний `continue`
+/// зробив би концерн зеленим на нечитабельному pipeline-і (той самий мотив,
+/// що [`POLICY_INPUT_INVALID_REASON`] у [`detect_lint_pipeline`]).
+#[allow(unused_mut)] // доккомент над `eval_deny_rule`
+fn detect_service_deploy_pipeline(files: &[SourceFile]) -> Vec<Diagnostic> {
+    let mut targets: Vec<&SourceFile> = files
+        .iter()
+        .filter(|f| is_service_pipeline_path(&f.path))
+        .collect();
+    if targets.is_empty() {
+        return Vec::new();
+    }
+    targets.sort_by(|a, b| a.path.cmp(&b.path));
+
+    let mut diagnostics = Vec::new();
+    let mut engine = match build_service_deploy_pipeline_engine() {
+        Ok(engine) => engine,
+        Err((stage, err)) => {
+            push_rego_engine_error(
+                &mut diagnostics,
+                None,
+                SERVICE_DEPLOY_PIPELINE_NAMESPACE,
+                stage,
+                &err,
+            );
+            return diagnostics;
+        }
+    };
+    for file in targets {
+        let Some(actual) = parse_yaml_document(&file.content) else {
+            diagnostics.push(Diagnostic {
+                reason: POLICY_INPUT_INVALID_REASON.to_string(),
+                message: format!(
+                    "{}: невалідний YAML — виправ синтаксис ({SERVICE_DEPLOY_PIPELINE_NAMESPACE})",
+                    file.path
+                ),
+                file: Some(file.path.clone()),
+                severity: Severity::Error,
+                data: None,
+            });
+            continue;
+        };
+        let input_json = json_to_string(&actual);
+        match engine.eval_rule(
+            &input_json,
+            &format!("data.{SERVICE_DEPLOY_PIPELINE_NAMESPACE}.deny"),
+        ) {
+            Ok(messages) => {
+                for message in messages {
+                    diagnostics.push(Diagnostic {
+                        reason: POLICY_DENY_REASON.to_string(),
+                        message,
+                        file: Some(file.path.clone()),
+                        severity: Severity::Error,
+                        data: None,
+                    });
+                }
+            }
+            Err(err) => {
+                let (stage, message) = rego_error_stage_message(err);
+                push_rego_engine_error(
+                    &mut diagnostics,
+                    Some(&file.path),
+                    SERVICE_DEPLOY_PIPELINE_NAMESPACE,
+                    stage,
+                    &message,
+                );
+            }
+        }
+    }
+    diagnostics
+}
+
+// =====================================================================
 // `azure-pipelines/vscode_extensions` — rego-детект (subset) + T0-фіксатор
 // (union-merge, точний порт `vscode-ext-add.mjs`).
 // =====================================================================
@@ -654,6 +831,21 @@ fn build_manifest() -> Manifest {
                 scope: ConcernScope::Full,
                 glob: vec![VSCODE_EXTENSIONS_TARGET.to_string()],
             },
+            // ДРУГА хвиля — ПЕРША `per-file` контрибуція цього гостя:
+            // `concern.json` не декларує `lint.scope`, тобто дельта-прогін
+            // дає лише змінені pipeline-файли, а `--full` хост добудовує
+            // глобом (`build_detect_batch_files`, §2.65). Глоб — обидва
+            // патерни walkGlob-у дослівно, включно з `!`-виключенням
+            // (`build_full_scope_files` розуміє його з цієї задачі);
+            // додатковий гість-фільтр — [`is_service_pipeline_path`].
+            ConcernContribution {
+                key: CONCERN_SERVICE_DEPLOY_PIPELINE.to_string(),
+                scope: ConcernScope::PerFile,
+                glob: vec![
+                    SERVICE_DEPLOY_PIPELINE_GLOB.to_string(),
+                    format!("!{SERVICE_DEPLOY_PIPELINE_EXCLUDED_PREFIX}**"),
+                ],
+            },
         ],
         ci_artifacts: vec![],
         capabilities: Capabilities {
@@ -685,6 +877,10 @@ impl Guest for CiAzure {
                 report_progress(total, total);
                 detect_vscode_extensions(&batch.files)
             }
+            CONCERN_SERVICE_DEPLOY_PIPELINE => {
+                report_progress(total, total);
+                detect_service_deploy_pipeline(&batch.files)
+            }
             _ => Vec::new(),
         };
         log(
@@ -697,6 +893,12 @@ impl Guest for CiAzure {
         diagnostics
     }
 
+    /// `azure-pipelines/service_deploy_pipeline` тут СВІДОМО відсутній —
+    /// його T0-фікс потребує реєстру ввімкнених правил, якого гість не має,
+    /// а частковий фікс вимкнув би JS-канон через `guestFix` (доккомент
+    /// розділу «ДРУГА хвиля» вище за текстом). Порожній план →
+    /// `edits.length > 0` не проходить → чинний
+    /// `fix-service_deploy_pipeline.mjs` лишається єдиним фіксером.
     fn fix(request: FixRequest) -> FixPlan {
         match request.concern_id.as_str() {
             CONCERN_VSCODE_EXTENSIONS => fix_vscode_extensions(&request),
@@ -883,18 +1085,27 @@ mod tests {
     // --- manifest / describe ---
 
     #[test]
-    fn build_manifest_declares_two_full_scope_concerns() {
+    fn build_manifest_declares_three_concerns() {
         let manifest = build_manifest();
         assert_eq!(manifest.id, "ci-azure/wasm-concerns");
         assert_eq!(manifest.world_version, "3.2.0");
         assert_eq!(manifest.domains, vec![Domain::Lint]);
-        assert_eq!(manifest.concerns.len(), 2);
+        assert_eq!(manifest.concerns.len(), 3);
         for c in &manifest.concerns {
-            assert_eq!(c.scope, ConcernScope::Full);
+            // Жодна контрибуція без глоба: хост інакше не має з чого
+            // побудувати batch `--full` (§2.65), а на fix-боці — ще й
+            // порожній план замість реальних правок (§2.72).
             assert!(!c.glob.is_empty());
         }
         let keys: Vec<&str> = manifest.concerns.iter().map(|c| c.key.as_str()).collect();
-        assert_eq!(keys, vec![CONCERN_LINT_PIPELINE, CONCERN_VSCODE_EXTENSIONS]);
+        assert_eq!(
+            keys,
+            vec![
+                CONCERN_LINT_PIPELINE,
+                CONCERN_VSCODE_EXTENSIONS,
+                CONCERN_SERVICE_DEPLOY_PIPELINE
+            ]
+        );
     }
 
     /// Anti-drift: `plugin.toml`'s `[[concerns]].key` мусить 1:1 збігатись із
@@ -925,4 +1136,139 @@ mod tests {
         assert_eq!(diagnostics[0].reason, REGO_ENGINE_ERROR_REASON);
         assert!(diagnostics[0].message.contains("boom"));
     }
+
+    // --- ДРУГА хвиля: azure-pipelines/service_deploy_pipeline (detect-порт) ---
+
+    /// Гейт §2.81 (той самий прийом, що
+    /// `vsi_shist_rego_polityk_evaliuiutsia_pid_regorus` у
+    /// `crates/plugin-lang-js`): КОЖНА вшита `.rego`-політика цього крейта
+    /// реально компілюється Й еваліюється під `regorus`, а не лише під
+    /// Go-шним `conftest` — гейт трьох відомих пасток міграції (`%q`,
+    /// builtin поза фітами — `walk`/`graph.reachable`, безтілий факт
+    /// `f("літерал")`) на чистому вході.
+    #[test]
+    fn vsi_vshyti_rego_polityky_evaliuiutsia_pid_regorus() {
+        let cases: [(&str, &str); 3] = [
+            (LINT_PIPELINE_REGO, LINT_PIPELINE_NAMESPACE),
+            (VSCODE_EXTENSIONS_REGO, VSCODE_EXTENSIONS_NAMESPACE),
+            (
+                SERVICE_DEPLOY_PIPELINE_REGO,
+                SERVICE_DEPLOY_PIPELINE_NAMESPACE,
+            ),
+        ];
+        for (rego, namespace) in cases {
+            let result = eval_deny_rule(rego, namespace, None, "{}");
+            assert!(
+                result.is_ok(),
+                "policy {namespace} не еваліюється під regorus: {:?}",
+                result.err()
+            );
+        }
+    }
+
+    /// walkGlob концерну — `.azurepipelines/**/*.yml` МІНУС
+    /// `!.azurepipelines/templates/**` (`concern.json`).
+    #[test]
+    fn service_deploy_pipeline_path_filter_excludes_templates() {
+        assert!(is_service_pipeline_path(".azurepipelines/deploy-nexus.yml"));
+        assert!(is_service_pipeline_path(
+            ".azurepipelines/nexus/deploy.yml"
+        ));
+        assert!(!is_service_pipeline_path(
+            ".azurepipelines/templates/steps.yml"
+        ));
+        assert!(!is_service_pipeline_path("azure-pipelines.yml"));
+    }
+
+    /// Сервісний pipeline (`trigger.paths.include`) без `plan`-джоби —
+    /// `policy-deny`, атрибутована ФАЙЛОМ.
+    #[test]
+    fn detect_service_deploy_pipeline_missing_plan_denies() {
+        let files = [wf(
+            ".azurepipelines/deploy-nexus.yml",
+            "trigger:\n  paths:\n    include:\n      - run/nexus/**\njobs:\n  - job: lint\n    steps:\n      - script: bunx n-rules lint js --path run/nexus --no-fix\n  - job: deploy\n    dependsOn:\n      - lint\n    steps:\n      - script: echo x\n",
+        )];
+        let diagnostics = detect_service_deploy_pipeline(&files);
+        assert!(
+            diagnostics
+                .iter()
+                .any(|d| d.message.contains("немає job `plan`")),
+            "{diagnostics:?}"
+        );
+        for d in &diagnostics {
+            assert_eq!(d.reason, POLICY_DENY_REASON);
+            assert_eq!(d.file.as_deref(), Some(".azurepipelines/deploy-nexus.yml"));
+        }
+    }
+
+    /// Pipeline БЕЗ `trigger.paths.include` (repo-wide) — не сервісний,
+    /// жодної `deny`.
+    #[test]
+    fn detect_service_deploy_pipeline_non_service_is_clean() {
+        let files = [wf(
+            ".azurepipelines/ci.yml",
+            "trigger:\n  - main\njobs:\n  - job: build\n    steps:\n      - script: echo x\n",
+        )];
+        assert!(detect_service_deploy_pipeline(&files).is_empty());
+    }
+
+    /// Файл із виключеної теки `templates/` НЕ оцінюється, навіть якщо
+    /// хост поклав його в batch (гість фільтрує сам — доккомент розділу).
+    #[test]
+    fn detect_service_deploy_pipeline_ignores_templates_dir() {
+        let files = [wf(
+            ".azurepipelines/templates/deploy.yml",
+            "trigger:\n  paths:\n    include:\n      - run/nexus/**\njobs:\n  - job: lint\n    steps:\n      - script: bunx n-rules lint js --path run/nexus\n",
+        )];
+        assert!(detect_service_deploy_pipeline(&files).is_empty());
+    }
+
+    /// Порожній набір — НЕ `policy-file-missing` (walkGlob-концерн без
+    /// `files.single`).
+    #[test]
+    fn detect_service_deploy_pipeline_empty_batch_is_silent() {
+        assert!(detect_service_deploy_pipeline(&[]).is_empty());
+    }
+
+    /// Побитий YAML — ГУЧНА `policy-input-invalid`, не мовчазний skip.
+    #[test]
+    fn detect_service_deploy_pipeline_broken_yaml_is_loud() {
+        let files = [wf(".azurepipelines/deploy.yml", "jobs: [a, b\n  - broken\n")];
+        let diagnostics = detect_service_deploy_pipeline(&files);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].reason, POLICY_INPUT_INVALID_REASON);
+    }
+
+    /// Контрибуція заявлена в `describe()` ОБОМА патернами walkGlob-у,
+    /// включно з `!`-виключенням.
+    #[test]
+    fn service_deploy_pipeline_contribution_declared() {
+        let manifest = build_manifest();
+        let contribution = manifest
+            .concerns
+            .iter()
+            .find(|c| c.key == CONCERN_SERVICE_DEPLOY_PIPELINE)
+            .expect("контрибуція має бути в describe()");
+        assert_eq!(contribution.scope, ConcernScope::PerFile);
+        assert_eq!(
+            contribution.glob,
+            vec![
+                ".azurepipelines/**/*.yml".to_string(),
+                "!.azurepipelines/templates/**".to_string()
+            ]
+        );
+    }
+
+    /// `fix()` цього концерну СВІДОМО порожній — гість не глушить JS-канон
+    /// (доккомент розділу «ДРУГА хвиля»).
+    #[test]
+    fn fix_service_deploy_pipeline_zalyshaietsia_za_js_kanonom() {
+        let plan = CiAzure::fix(FixRequest {
+            concern_id: CONCERN_SERVICE_DEPLOY_PIPELINE.to_string(),
+            files: vec![],
+            diagnostics: vec![],
+        });
+        assert!(plan.edits.is_empty());
+    }
+
 }
