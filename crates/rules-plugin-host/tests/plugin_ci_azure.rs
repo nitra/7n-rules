@@ -53,7 +53,7 @@ fn sf(path: &str, content: &str) -> SourceFile {
 }
 
 #[test]
-fn describe_returns_two_full_scope_concerns() {
+fn describe_returns_three_concerns() {
     let path = require_fixture();
     let plugin = host()
         .load(&path, PLUGIN_WORLD_VERSION)
@@ -61,10 +61,13 @@ fn describe_returns_two_full_scope_concerns() {
     let manifest = plugin.describe();
     assert_eq!(manifest.id, "ci-azure/wasm-concerns");
     assert_eq!(manifest.world_version, "3.2.0");
-    assert_eq!(manifest.concerns.len(), 2);
+    assert_eq!(manifest.concerns.len(), 3);
     let keys: Vec<&str> = manifest.concerns.iter().map(|c| c.key.as_str()).collect();
     assert!(keys.contains(&CONCERN_LINT_PIPELINE));
     assert!(keys.contains(&CONCERN_VSCODE_EXTENSIONS));
+    // ДРУГА хвиля — walkGlob-концерн (detect-порт; T0-фікс лишається за
+    // JS-каноном, доккомент `crates/plugin-ci-azure/src/lib.rs`).
+    assert!(keys.contains(&"azure-pipelines/service_deploy_pipeline"));
     assert!(!manifest.capabilities.network);
     assert!(manifest.capabilities.fs_read.is_empty());
 }

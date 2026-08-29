@@ -1424,10 +1424,16 @@ describe('wasm-плагін plugin-ci-github — четверта хвиля: T0
 })
 
 describe('wasm-плагін plugin-ci-github — describe()/розмір', () => {
-  test('describe() повертає manifest з сімнадцятьма full-scope концернами (четверта хвиля — дванадцять createTemplateFixPattern-концернів)', () => {
+  test('describe() повертає manifest з вісімнадцятьма концернами (пʼята хвиля — walkGlob ga/service_deploy_workflow)', () => {
     const manifest = loadNative().wasmPluginManifest(WASM_PATH)
     expect(manifest.id).toBe('ci-github/wasm-concerns')
-    expect(manifest.concerns).toHaveLength(17)
+    expect(manifest.concerns).toHaveLength(18)
+    // ПʼЯТА хвиля — ПЕРША `per-file`-контрибуція цього гостя (walkGlob-набір
+    // `.github/workflows/*.yml`, не один таргет).
+    const serviceDeploy = manifest.concerns.find(c => c.key === 'ga/service_deploy_workflow')
+    expect(serviceDeploy, 'ga/service_deploy_workflow contribution має бути в маніфесті').toBeDefined()
+    expect(serviceDeploy.scope).toBe('per-file')
+    expect(serviceDeploy.glob).toEqual(['.github/workflows/*.yml'])
     const toolchainCache = manifest.concerns.find(c => c.key === CONCERN_KEY)
     expect(toolchainCache.scope).toBe('full')
     const workflows = manifest.concerns.find(c => c.key === WORKFLOWS_CONCERN_KEY)
@@ -1461,5 +1467,72 @@ describe('wasm-плагін plugin-ci-github — describe()/розмір', () =>
     const { stat } = await import('node:fs/promises')
     const { size } = await stat(WASM_PATH)
     expect(size).toBeLessThanOrEqual(WASM_SIZE_BUDGET_BYTES)
+  })
+})
+
+const SERVICE_DEPLOY_WORKFLOW_CONCERN = 'ga/service_deploy_workflow'
+
+/** Сервісний workflow (dir-scoped glob у `on.push.paths`) із lint-джобою, але без `plan`. */
+const BROKEN_SERVICE_WORKFLOW = [
+  'on:',
+  '  push:',
+  "    paths:",
+  "      - 'run/nexus/**'",
+  'jobs:',
+  '  lint:',
+  '    steps:',
+  '      - run: bunx n-rules lint --path run/nexus --no-fix',
+  '  deploy:',
+  '    needs: lint',
+  '    steps:',
+  '      - run: echo x',
+  ''
+].join('\n')
+
+describe('wasm-plugin parity — ga/service_deploy_workflow (walkGlob rego-детект через РЕАЛЬНИЙ napi-міст)', () => {
+  test('сервісний workflow без plan-джоби — policy-deny, атрибутована файлом', async () => {
+    await withTmpDir(async dir => {
+      await mkdir(join(dir, '.github', 'workflows'), { recursive: true })
+      await writeFile(join(dir, '.github', 'workflows', 'deploy-nexus.yml'), BROKEN_SERVICE_WORKFLOW, 'utf8')
+
+      const result = loadNative().runWasmConcern(WASM_PATH, SERVICE_DEPLOY_WORKFLOW_CONCERN, dir, null)
+      const violations = withDefaultSeverity(result.violations)
+      expect(violations.length).toBeGreaterThan(0)
+      expect(violations.some(v => v.message.includes('немає job `plan`'))).toBe(true)
+      for (const v of violations) {
+        expect(v.reason).toBe('policy-deny')
+        expect(v.file).toBe('.github/workflows/deploy-nexus.yml')
+      }
+    })
+  })
+
+  test('workflow без dir-scoped глоба (не сервісний) — жодної violation', async () => {
+    await withTmpDir(async dir => {
+      await mkdir(join(dir, '.github', 'workflows'), { recursive: true })
+      await writeFile(
+        join(dir, '.github', 'workflows', 'lint.yml'),
+        "on:\n  push:\n    paths:\n      - '**/*.js'\njobs:\n  lint:\n    steps:\n      - run: bunx n-rules lint --no-fix\n",
+        'utf8'
+      )
+      const result = loadNative().runWasmConcern(WASM_PATH, SERVICE_DEPLOY_WORKFLOW_CONCERN, dir, null)
+      expect(withDefaultSeverity(result.violations)).toEqual([])
+    })
+  })
+
+  /**
+   * Порт СВІДОМО без fix-половини (доккомент `crates/plugin-ci-github/src/lib.rs`,
+   * розділ «ПʼЯТА хвиля»): гість віддає порожній план, `edits.length > 0` не
+   * проходить, і чинний `fix-service_deploy_workflow.mjs` лишається єдиним
+   * фіксером. Почервоніння цього тесту = фікс портували, і `guestFix` тепер
+   * глушить JS-канон — перевір, чи порт ПОВНИЙ.
+   */
+  test('fix — порожній план (T0 лишається за JS-каноном)', async () => {
+    await withTmpDir(async dir => {
+      await mkdir(join(dir, '.github', 'workflows'), { recursive: true })
+      await writeFile(join(dir, '.github', 'workflows', 'deploy-nexus.yml'), BROKEN_SERVICE_WORKFLOW, 'utf8')
+      const violations = loadNative().runWasmConcern(WASM_PATH, SERVICE_DEPLOY_WORKFLOW_CONCERN, dir, null).violations
+      const plan = loadNative().runWasmConcernFix(WASM_PATH, SERVICE_DEPLOY_WORKFLOW_CONCERN, dir, violations, {})
+      expect(plan.edits).toEqual([])
+    })
   })
 })

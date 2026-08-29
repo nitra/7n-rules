@@ -91,6 +91,25 @@
 //!
 //! Не чіпай їх у цьому крейті без нової задачі.
 //!
+//! `ci_artifact/consume` — окремий випадок: він поза портом ПРИНЦИПОВО, не
+//! «до наступної хвилі» (§2.81, розвідка). Концерн не перевіряє файли репо
+//! за політикою, а читає graph плагінів
+//! (`collectCiArtifactContributions` → `resolveSlotGraph`/
+//! `getSlotContributions`): валідує `ci.artifact@1` payload-и ІНШИХ
+//! плагінів, ловить domain-колізії й вантажить canonical-шаблони з їхніх
+//! тек. Гість не має жодного з цих входів (`capabilities.fs_read = []`,
+//! `host-context` знає лише `repo-root@1`/`scratch-dir@1`), а слот-типи
+//! `wit/deps/slots/ci-artifact.wit` описують **producer**-бік
+//! (`manifest.ci_artifacts` — що гість ВНОСИТЬ), не consumer-бік. Порт
+//! інвертував би шар: гість одного плагіна вирішував би за весь graph.
+//!
+//! # ПʼЯТА хвиля (§2.81): `ga/service_deploy_workflow`
+//!
+//! ПЕРШИЙ walkGlob-концерн крейта з окремим `ruleId/concernId`-ключем —
+//! портовано ЛИШЕ detect (розгорнутий доккомент нижче за текстом, розділ
+//! «ПʼЯТА хвиля»): T0-фікс потребує реєстру ввімкнених правил, якого гість
+//! не має жодним каналом контракту.
+//!
 //! # Текстовий, не YAML-AST аналіз — навмисне рішення канону, збережене тут
 //!
 //! JS-оригінал (доккомент модуля `main.mjs:11-15`) свідомо аналізує
@@ -2903,6 +2922,171 @@ fn fix_template_merge(request: &FixRequest, cfg: &TemplateFixCfg) -> FixPlan {
     }
 }
 
+// =====================================================================
+// ПʼЯТА хвиля — `ga/service_deploy_workflow` (ПЕРШИЙ walkGlob-концерн
+// цього крейта з ОКРЕМИМ `ruleId/concernId`-ключем: не один обовʼязковий
+// таргет, а НАБІР `.github/workflows/*.yml`).
+//
+// # Портовано ЛИШЕ detect — fix свідомо лишається JS-каноном
+//
+// `fix-service_deploy_workflow.mjs` кличе `relevantDomains(cwd, servicePath)`
+// (`npm/scripts/lib/lint-surface/ci-plan.mjs`), а та — `loadEnabledLintRules`
+// (резолв УСЬОГО graph-у плагінів + `.n-rules.json`) і
+// `collectPathScopedFiles` (обхід піддерева сервісу на диску). Гість не має
+// ні того, ні того: `capabilities.fs_read = []`, а реєстру ввімкнених
+// правил у контракті НЕМАЄ ЖОДНОГО host-каналу (`host-context` знає лише
+// `repo-root@1`/`scratch-dir@1`, `wit/world.wit`). Без списку доменів не
+// побудувати ні `outputs`-мапінг нової `plan`-джоби, ні per-domain
+// `lint-<domain>`-джоби — тобто ЯДРО фіксу, а не його край.
+//
+// ЧАСТКОВИЙ порт був би ГІРШИМ за відсутність порту: `wasmFixPattern`
+// (`npm/scripts/lib/lint-surface/run-fix.mjs`) несе `guestFix: true` —
+// щойно гість повертає непорожній план і той застосовується, `applyT0`
+// ЗУПИНЯЄ подальші патерни концерну, тобто JS-канон із міграцією plan/lint
+// джоб не запустився б узагалі. Тож [`Guest::fix`] НЕ реєструє цей ключ:
+// порожній план → `edits.length > 0` не проходить → чинний
+// `fix-service_deploy_workflow.mjs` лишається єдиним і повним фіксером
+// (задокументований перехідний контракт `loadT0Patterns`: «плагін із
+// fix-заглушкою не має мовчки вимикати чинний JS T0-фікс концерну»).
+//
+// # Це НЕ той самий рушій, що `azure-pipelines/service_deploy_pipeline`
+//
+// Два концерни — дзеркала за ЗАДУМОМ (коментарі обох `.rego` про це
+// кажуть), але не за реалізацією: GA несе `jobs` МАПОЮ і `needs`, Azure —
+// послідовністю `- job:` (на будь-якій глибині `stages`) і `dependsOn`,
+// повідомлення й helper-и різні. Спільний у них лише JS-хелпер-модуль
+// `ci-plan.mjs` (`relevantDomains`/`domainKey`/`parseNRulesCmd`) на
+// fix-боці — саме той, що обидва фікси й блокує. Тому тут — окремий
+// detect у кожному крейті, без спроби витягти «спільний рушій».
+// =====================================================================
+
+const CONCERN_SERVICE_DEPLOY_WORKFLOW: &str = "ga/service_deploy_workflow";
+
+/// `walkGlob` концерну (`concern.json`) дослівно.
+const SERVICE_DEPLOY_WORKFLOW_GLOB: &str = ".github/workflows/*.yml";
+
+const SERVICE_DEPLOY_WORKFLOW_NAMESPACE: &str = "ga.service_deploy_workflow";
+
+const SERVICE_DEPLOY_WORKFLOW_REGO: &str = include_str!(
+    "../../../plugins/ci-github/rules/ga/service_deploy_workflow/service_deploy_workflow.rego"
+);
+
+/// Чи шлях підпадає під `walkGlob` концерну: прямий (не вкладений) запис
+/// `.github/workflows/` із розширенням `.yml` — на відміну від
+/// [`is_workflow_dir_entry`] (`ga/workflows`, БУДЬ-ЯКЕ розширення), цей
+/// концерн декларує саме `*.yml` (`.yaml` — поза його walkGlob-ом, як і в
+/// каноні).
+fn is_service_deploy_workflow_path(path: &str) -> bool {
+    is_workflow_dir_entry(path) && path.ends_with(".yml")
+}
+
+/// Один двигун на весь batch (policy компілюється РАЗ, `eval_rule` — у
+/// циклі по файлах) — той самий batch-контракт, що
+/// [`build_workflow_common_engine`], і той самий, що ОДИН спавн
+/// `conftest test <files...>` канону.
+#[allow(unused_mut)] // доккомент над `eval_deny_rule`
+fn build_service_deploy_workflow_engine() -> Result<RegoEngineHandle, (&'static str, String)> {
+    let mut engine = RegoEngineHandle::new();
+    engine
+        .add_policy(
+            &format!("{SERVICE_DEPLOY_WORKFLOW_NAMESPACE}.rego"),
+            SERVICE_DEPLOY_WORKFLOW_REGO,
+        )
+        .map_err(rego_error_stage_message)?;
+    Ok(engine)
+}
+
+/// Т0-детект `ga/service_deploy_workflow` — функціональний відповідник
+/// `evaluatePolicyConcern` (`policy-lint-adapter.mjs`, гілка rego) для
+/// walkGlob-набору: порожній набір НЕ дає `policy-file-missing`
+/// (`cfg.files.single` порожній — гілка `if (cfg.files.required &&
+/// cfg.files.single)` не спрацьовує), кожен файл оцінюється окремим
+/// `eval_rule` ТОГО САМОГО двигуна, кожен `deny`-рядок → ОДНА діагностика
+/// `policy-deny` з `file` цього файлу. `message` НЕ префіксується Rust-боком
+/// (цей `.rego` не вбудовує шлях у `sprintf` — повідомлення починаються з
+/// імені джоби, а атрибуцію несе `file`, точно як
+/// `add('policy-deny', d.message, toRel(d.filename))` канону).
+///
+/// Побитий YAML → видима `policy-input-invalid`, НЕ мовчазний skip (той
+/// самий мотив, що [`POLICY_INPUT_INVALID_REASON`] у [`detect_policy`]):
+/// під `conftest` такий файл валив би батч помилкою парсера, тут вхід
+/// парситься заздалегідь, і мовчазний `continue` зробив би концерн зеленим
+/// на нечитабельному workflow.
+#[allow(unused_mut)] // доккомент над `eval_deny_rule`
+fn detect_service_deploy_workflow(files: &[SourceFile]) -> Vec<Diagnostic> {
+    let mut targets: Vec<&SourceFile> = files
+        .iter()
+        .filter(|f| is_service_deploy_workflow_path(&f.path))
+        .collect();
+    if targets.is_empty() {
+        return Vec::new();
+    }
+    targets.sort_by(|a, b| a.path.cmp(&b.path));
+
+    let mut diagnostics = Vec::new();
+    let mut engine = match build_service_deploy_workflow_engine() {
+        Ok(engine) => engine,
+        Err((stage, err)) => {
+            push_rego_engine_error(
+                &mut diagnostics,
+                None,
+                SERVICE_DEPLOY_WORKFLOW_NAMESPACE,
+                stage,
+                &err,
+            );
+            return diagnostics;
+        }
+    };
+    for file in targets {
+        let Some(root) = parse_yaml_document(&file.content) else {
+            diagnostics.push(Diagnostic {
+                reason: POLICY_INPUT_INVALID_REASON.to_string(),
+                message: format!(
+                    "{}: невалідний YAML — виправ синтаксис ({SERVICE_DEPLOY_WORKFLOW_NAMESPACE})",
+                    file.path
+                ),
+                file: Some(file.path.clone()),
+                severity: Severity::Error,
+                data: None,
+            });
+            continue;
+        };
+        // Той самий захисний прийом, що [`run_all_ga_rego`]/[`detect_policy`]
+        // (доккомент [`ensure_step_uses_key_present`]) — нейтральний для
+        // ЦЬОГО пакета: єдине звернення до `step.uses` тут
+        // (`job_has_prep`) — рівність із літеральним шляхом, для якої
+        // «ключа немає» і «ключ є, значення `""`» нерозрізненні.
+        let input_json = json_to_string(&ensure_step_uses_key_present(&root));
+        match engine.eval_rule(
+            &input_json,
+            &format!("data.{SERVICE_DEPLOY_WORKFLOW_NAMESPACE}.deny"),
+        ) {
+            Ok(messages) => {
+                for message in messages {
+                    diagnostics.push(Diagnostic {
+                        reason: POLICY_DENY_REASON.to_string(),
+                        message,
+                        file: Some(file.path.clone()),
+                        severity: Severity::Error,
+                        data: None,
+                    });
+                }
+            }
+            Err(err) => {
+                let (stage, message) = rego_error_stage_message(err);
+                push_rego_engine_error(
+                    &mut diagnostics,
+                    Some(&file.path),
+                    SERVICE_DEPLOY_WORKFLOW_NAMESPACE,
+                    stage,
+                    &message,
+                );
+            }
+        }
+    }
+    diagnostics
+}
+
 /// Чиста (без host-імпортів `log`/`report-progress`) конструктор
 /// маніфеста — винесений з [`Guest::describe`] окремо, щоб host-таргет
 /// unit-тести могли звірити форму маніфеста без реального wasmtime-хоста
@@ -3015,6 +3199,15 @@ fn build_manifest() -> Manifest {
                 scope: ConcernScope::Full,
                 glob: vec![NPM_MODULE_NPM_PUBLISH_YML_CFG.target_path.to_string()],
             },
+            // ПʼЯТА хвиля — ПЕРША `per-file` контрибуція цього гостя:
+            // `concern.json` не декларує `lint.scope`, тож дельта-прогін дає
+            // лише змінені workflow-файли, а `--full` хост добудовує глобом
+            // (`build_detect_batch_files`, §2.65).
+            ConcernContribution {
+                key: CONCERN_SERVICE_DEPLOY_WORKFLOW.to_string(),
+                scope: ConcernScope::PerFile,
+                glob: vec![SERVICE_DEPLOY_WORKFLOW_GLOB.to_string()],
+            },
         ],
         ci_artifacts: vec![],
         // Вміст файлів хост передає inline (host-побудований full-scope
@@ -3117,6 +3310,10 @@ impl Guest for CiGithub {
                 report_progress(total, total);
                 detect_template_check(&batch.files, &NPM_MODULE_NPM_PUBLISH_YML_CFG)
             }
+            CONCERN_SERVICE_DEPLOY_WORKFLOW => {
+                report_progress(total, total);
+                detect_service_deploy_workflow(&batch.files)
+            }
             _ => Vec::new(),
         };
         log(
@@ -3159,6 +3356,10 @@ impl Guest for CiGithub {
             }
             CONCERN_LINT_REPO_YML => fix_template_merge(&request, &LINT_REPO_YML_FIX_CFG),
             CONCERN_NPM_PUBLISH_YML => fix_template_merge(&request, &NPM_PUBLISH_YML_FIX_CFG),
+            // `ga/service_deploy_workflow` тут СВІДОМО відсутній — його
+            // T0-фікс потребує реєстру ввімкнених правил, якого гість не
+            // має, а частковий фікс вимкнув би JS-канон через `guestFix`
+            // (доккомент розділу «ПʼЯТА хвиля» вище за текстом).
             _ => FixPlan { edits: vec![] },
         }
     }
@@ -3597,7 +3798,7 @@ mod tests {
     fn build_manifest_declares_five_full_scope_concerns() {
         let manifest = build_manifest();
         assert_eq!(manifest.id, "ci-github/wasm-concerns");
-        assert_eq!(manifest.concerns.len(), 17);
+        assert_eq!(manifest.concerns.len(), 18);
         assert_eq!(manifest.concerns[0].key, CONCERN_TOOLCHAIN_CACHE);
         assert_eq!(manifest.concerns[0].scope, ConcernScope::Full);
         let workflows = manifest
@@ -5714,4 +5915,246 @@ mod tests {
     // вище (кожен явно передає CONCERN_*/*_CFG пару) плюс, крізь РЕАЛЬНИЙ
     // хост, `wasm-plugin-parity-ci-github.test.mjs` (napi-міст) — той самий
     // мотив, що решта гостя (доккомент модуля).
+
+    // --- ПʼЯТА хвиля: ga/service_deploy_workflow (detect-порт) ---
+
+    /// Гейт §2.81 (той самий прийом, що
+    /// `vsi_shist_rego_polityk_evaliuiutsia_pid_regorus` у
+    /// `crates/plugin-lang-js`): КОЖНА вшита `.rego`-політика цього крейта
+    /// реально компілюється Й еваліюється під `regorus`, а не лише під
+    /// Go-шним `conftest`. Гейт трьох відомих пасток міграції (`%q`
+    /// §2.68/§2.76, builtin поза фітами — `walk`/`graph.reachable` §2.69,
+    /// безтілий факт `f("літерал")`) на чистому вході, де жодна `deny` не
+    /// має спрацювати випадково. Попередній
+    /// `embedded_rego_policies_namespace_matches_rust_side_constant`
+    /// покривав ПʼЯТЬ із пʼятнадцяти джерел — цей бере ВСІ.
+    #[test]
+    fn vsi_vshyti_rego_polityky_evaliuiutsia_pid_regorus() {
+        let policy_cfgs: [&PolicyCfg; 13] = [
+            &VSCODE_EXTENSIONS_CFG,
+            &VSCODE_SETTINGS_CFG,
+            &LINT_SECURITY_YML_CFG,
+            &GIT_AI_CFG,
+            &LINT_GA_CFG,
+            &CLEAN_GA_WORKFLOWS_CFG,
+            &CLEAN_MERGED_BRANCH_CFG,
+            &LINT_DOCKER_YML_CFG,
+            &ZIZMOR_YML_CFG,
+            &LINT_K8S_YML_CFG,
+            &LINT_STYLE_YML_CFG,
+            &LINT_TEXT_CFG,
+            &ABIE_CLEAN_MERGED_IGNORE_BRANCHES_CFG,
+        ];
+        for cfg in policy_cfgs {
+            let snippet = parse_embedded_template(cfg.snippet_source_name, cfg.snippet_raw);
+            let data_json = wrap_template_data(snippet.clone());
+            // Вхід — ВЛАСНИЙ канонічний snippet політики, а не `{}`: частина
+            // вшитих `.rego` адресує конкретну джобу напряму
+            // (`job := input.jobs["lint-ga"]`, `lint_ga.rego:15`), і на
+            // ПОРОЖНЬОМУ вході regorus падає з `item cannot be indexed`
+            // замість «undefined» — тобто `{}` перевіряв би не політику, а
+            // її поведінку на вході, який продакшн-шлях ніколи не подає
+            // (`detect_policy` завжди має розпарсений target-файл).
+            // Канонічний вхід водночас робить гейт СИЛЬНІШИМ: політика має
+            // не лише еваліюватись, а й НЕ давати жодної `deny` на власному
+            // каноні.
+            let input_json = json_to_string(&ensure_step_uses_key_present(&snippet));
+            let result = eval_deny_rule(cfg.rego_source, cfg.namespace, &data_json, &input_json);
+            match result {
+                Ok(messages) => assert!(
+                    messages.is_empty(),
+                    "policy {} дає deny на власному каноні: {messages:?}",
+                    cfg.namespace
+                ),
+                Err(err) => panic!("policy {} не еваліюється під regorus: {err:?}", cfg.namespace),
+            }
+        }
+        // Два джерела поза таблицею `PolicyCfg`: батчевий `workflow_common`
+        // (свій двигун) і walkGlob-концерн ПʼЯТОЇ хвилі.
+        let templates = build_rego_templates();
+        assert!(
+            eval_deny_rule(
+                WORKFLOW_COMMON_REGO,
+                "ga.workflow_common",
+                &templates.workflow_common,
+                "{}"
+            )
+            .is_ok(),
+            "ga.workflow_common не еваліюється під regorus"
+        );
+        assert!(
+            eval_deny_rule(
+                SERVICE_DEPLOY_WORKFLOW_REGO,
+                SERVICE_DEPLOY_WORKFLOW_NAMESPACE,
+                "{}",
+                "{}"
+            )
+            .is_ok(),
+            "{SERVICE_DEPLOY_WORKFLOW_NAMESPACE} не еваліюється під regorus"
+        );
+    }
+
+    /// walkGlob концерну — `*.yml` у КОРЕНІ `.github/workflows/`
+    /// (`.yaml` і вкладені шляхи поза ним, як у `concern.json`).
+    #[test]
+    fn service_deploy_workflow_path_filter_matches_walk_glob() {
+        assert!(is_service_deploy_workflow_path(
+            ".github/workflows/deploy-nexus.yml"
+        ));
+        assert!(!is_service_deploy_workflow_path(
+            ".github/workflows/deploy-nexus.yaml"
+        ));
+        assert!(!is_service_deploy_workflow_path(
+            ".github/workflows/nested/deploy.yml"
+        ));
+        assert!(!is_service_deploy_workflow_path("azure-pipelines.yml"));
+    }
+
+    /// Канонічний сервісний workflow (форма з `template/`-сніпета концерну)
+    /// — жодної `deny`.
+    #[test]
+    fn detect_service_deploy_workflow_canonical_is_clean() {
+        let files = [sfw(
+            ".github/workflows/deploy-nexus.yml",
+            CANONICAL_SERVICE_WORKFLOW,
+        )];
+        assert!(detect_service_deploy_workflow(&files).is_empty());
+    }
+
+    /// Сервісний workflow (dir-scoped glob у `on.push.paths`) із lint-джобою,
+    /// але без `plan` — `policy-deny`, атрибутована ФАЙЛОМ (message не
+    /// префіксується Rust-боком, доккомент [`detect_service_deploy_workflow`]).
+    #[test]
+    fn detect_service_deploy_workflow_missing_plan_denies() {
+        let files = [sfw(
+            ".github/workflows/deploy-nexus.yml",
+            "on:\n  push:\n    paths:\n      - 'run/nexus/**'\njobs:\n  lint:\n    steps:\n      - run: bunx n-rules lint --path run/nexus --no-fix\n  deploy:\n    needs: lint\n    steps:\n      - run: echo x\n",
+        )];
+        let diagnostics = detect_service_deploy_workflow(&files);
+        assert!(
+            diagnostics
+                .iter()
+                .any(|d| d.message.contains("немає job `plan`")),
+            "{diagnostics:?}"
+        );
+        for d in &diagnostics {
+            assert_eq!(d.reason, POLICY_DENY_REASON);
+            assert_eq!(d.file.as_deref(), Some(".github/workflows/deploy-nexus.yml"));
+        }
+    }
+
+    /// НЕ-сервісний workflow (без dir-scoped glob у `on.push.paths`) —
+    /// `is_service_workflow` хибний, жодної `deny`.
+    #[test]
+    fn detect_service_deploy_workflow_non_service_is_clean() {
+        let files = [sfw(
+            ".github/workflows/lint.yml",
+            "on:\n  push:\n    paths:\n      - '**/*.js'\njobs:\n  lint:\n    steps:\n      - run: bunx n-rules lint --no-fix\n",
+        )];
+        assert!(detect_service_deploy_workflow(&files).is_empty());
+    }
+
+    /// Порожній набір файлів — НЕ `policy-file-missing` (walkGlob-концерн не
+    /// має `files.single`, доккомент [`detect_service_deploy_workflow`]).
+    #[test]
+    fn detect_service_deploy_workflow_empty_batch_is_silent() {
+        assert!(detect_service_deploy_workflow(&[]).is_empty());
+    }
+
+    /// Побитий YAML — ГУЧНА `policy-input-invalid`, не мовчазний skip.
+    #[test]
+    fn detect_service_deploy_workflow_broken_yaml_is_loud() {
+        let files = [sfw(".github/workflows/deploy.yml", "jobs: [a, b\n  - broken\n")];
+        let diagnostics = detect_service_deploy_workflow(&files);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].reason, POLICY_INPUT_INVALID_REASON);
+    }
+
+    /// Контрибуція концерну заявлена в `describe()` рівно тим глобом, що
+    /// `walkGlob` `concern.json` — інакше `--full` дав би гостю не той набір.
+    #[test]
+    fn service_deploy_workflow_contribution_declared() {
+        let manifest = build_manifest();
+        let contribution = manifest
+            .concerns
+            .iter()
+            .find(|c| c.key == CONCERN_SERVICE_DEPLOY_WORKFLOW)
+            .expect("контрибуція має бути в describe()");
+        assert_eq!(contribution.scope, ConcernScope::PerFile);
+        assert_eq!(
+            contribution.glob,
+            vec![SERVICE_DEPLOY_WORKFLOW_GLOB.to_string()]
+        );
+    }
+
+    /// `fix()` цього концерну СВІДОМО порожній — гість не глушить JS-канон
+    /// (доккомент розділу «ПʼЯТА хвиля»): непорожній план тут зупинив би
+    /// `applyT0` через `guestFix` і вимкнув повну міграцію workflow.
+    #[test]
+    fn fix_service_deploy_workflow_zalyshaietsia_za_js_kanonom() {
+        let plan = CiGithub::fix(FixRequest {
+            concern_id: CONCERN_SERVICE_DEPLOY_WORKFLOW.to_string(),
+            files: vec![],
+            diagnostics: vec![],
+        });
+        assert!(plan.edits.is_empty());
+    }
+
+    /// Канонічний сервісний deploy-workflow — та сама форма, що
+    /// `template/deploy-service.yml.snippet.yml` концерну.
+    const CANONICAL_SERVICE_WORKFLOW: &str = r#"name: Deploy nexus
+on:
+  push:
+    paths:
+      - 'run/nexus/**'
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      js: ${{ steps.plan.outputs.js }}
+      any: ${{ steps.plan.outputs.any }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-bun-deps
+      - id: plan
+        run: bunx n-rules ci plan --path run/nexus --github
+  lint-js:
+    needs: plan
+    if: needs.plan.outputs.js == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-bun-deps
+      - run: bunx n-rules lint js --path run/nexus --no-fix
+  test:
+    needs: plan
+    if: needs.plan.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-bun-deps
+      - run: bun test run/nexus
+  deploy:
+    needs:
+      - plan
+      - lint-js
+      - test
+    if: ${{ !cancelled() && needs.plan.result == 'success' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - run: echo deploy
+"#;
+
 }

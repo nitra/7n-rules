@@ -190,6 +190,17 @@ key = "npm-module/npm_publish_yml"
 scope = "full"
 glob = [".github/workflows/npm-publish.yml"]
 
+[[concerns]]
+# ПʼЯТА хвиля — ПЕРШИЙ walkGlob-концерн цього гостя з ОКРЕМИМ
+# `ruleId/concernId`-ключем (набір `.github/workflows/*.yml`, не один
+# таргет) і ПЕРША `per-file`-контрибуція. Портовано ЛИШЕ detect: T0-фікс
+# (`fix-service_deploy_workflow.mjs`) потребує реєстру ввімкнених правил
+# (`relevantDomains` → `loadEnabledLintRules`), якого гість не має жодним
+# каналом контракту — доккомент `src/lib.rs`, розділ «ПʼЯТА хвиля».
+key = "ga/service_deploy_workflow"
+scope = "per-file"
+glob = [".github/workflows/*.yml"]
+
 [capabilities]
 # Хост передає вміст файлів inline у `detect-batch` (host-побудований
 # full-scope batch за `glob` вище) — плагін не читає диск сам (той самий

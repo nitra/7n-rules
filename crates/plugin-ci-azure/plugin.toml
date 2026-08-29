@@ -51,6 +51,19 @@ key = "azure-pipelines/vscode_extensions"
 scope = "full"
 glob = [".vscode/extensions.json"]
 
+[[concerns]]
+# ДРУГА хвиля — ПЕРШИЙ walkGlob-концерн цього гостя (набір файлів, не один
+# обовʼязковий таргет) і ПЕРША `per-file`-контрибуція. Портовано ЛИШЕ
+# detect: T0-фікс (`fix-service_deploy_pipeline.mjs`) потребує реєстру
+# ввімкнених правил (`relevantDomains` → `loadEnabledLintRules`), якого
+# гість не має жодним каналом контракту — доккомент `src/lib.rs`, розділ
+# «ДРУГА хвиля». `!`-патерн — виключення `templates/**` (хост розуміє його
+# з цієї ж задачі, `build_full_scope_files`, `crates/rules-napi`); гість
+# дублює фільтр сам (`is_service_pipeline_path`).
+key = "azure-pipelines/service_deploy_pipeline"
+scope = "per-file"
+glob = [".azurepipelines/**/*.yml", "!.azurepipelines/templates/**"]
+
 [capabilities]
 # Хост передає вміст файлів inline у `detect-batch` (host-побудований
 # full-scope batch за `glob` вище) — плагін не читає диск сам (той самий

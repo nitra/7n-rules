@@ -594,19 +594,48 @@ fn read_source_files(cwd: &Path, files: Vec<String>) -> Vec<SourceFile> {
 /// ігнорувався для УСІХ full-scope wasm-концернів (задокументовано як
 /// відкладений дефект у `plugin-lang-js/src/lib.rs`, доккомент біля
 /// `run_wasm_concern`-порту).
+/// `!`-префікс патерна — ВИКЛЮЧЕННЯ, точно як у `concern.json`'s `walkGlob`
+/// (`resolveTargetFiles`, `npm/scripts/lib/resolve-target-files.mjs`) і як
+/// у решті glob-поверхонь репо. До цієї правки `!`-патерн потрапляв прямо в
+/// [`globset::Glob::new`], де `!` — ЗВИЧАЙНИЙ символ шляху: патерн не матчив
+/// нічого, виключення мовчки не діяло, і гість отримував у batch файли, які
+/// канон свідомо відсіює (`.azurepipelines/templates/**` для
+/// `azure-pipelines/service_deploy_pipeline` — перша контрибуція, що
+/// декларує `!`; до неї жоден гість `!`-патернів не мав, тож дефект був
+/// латентним). Мовчазне розширення detect-скоупу — рівно той клас тихої
+/// розбіжності з каноном, що §2.65/§2.72 робили гучним, тому семантика
+/// додана тут, у хості, а не обходиться в кожному гості окремо.
 fn build_full_scope_files(cwd: &Path, glob_patterns: &[String]) -> Vec<SourceFile> {
     let mut builder = globset::GlobSetBuilder::new();
+    let mut exclude_builder = globset::GlobSetBuilder::new();
+    let mut has_excludes = false;
     for pattern in glob_patterns {
-        if let Ok(glob) = globset::Glob::new(pattern) {
-            builder.add(glob);
+        match pattern.strip_prefix('!') {
+            Some(negated) => {
+                if let Ok(glob) = globset::Glob::new(negated) {
+                    exclude_builder.add(glob);
+                    has_excludes = true;
+                }
+            }
+            None => {
+                if let Ok(glob) = globset::Glob::new(pattern) {
+                    builder.add(glob);
+                }
+            }
         }
     }
     let Ok(set) = builder.build() else {
         return Vec::new();
     };
+    let excludes = if has_excludes {
+        exclude_builder.build().ok()
+    } else {
+        None
+    };
     let matched: Vec<String> = rules_core::concerns::cursor_ignore::walk_repo(cwd)
         .into_iter()
         .filter(|f| set.is_match(f))
+        .filter(|f| !excludes.as_ref().is_some_and(|ex| ex.is_match(f)))
         .collect();
     read_source_files(cwd, matched)
 }
@@ -1268,6 +1297,24 @@ mod tests {
         let files = build_full_scope_files(dir.path(), &["**/*.txt".to_string()]);
 
         assert_eq!(sorted_paths(&files), vec!["keep.txt", "vendor/skip.txt"]);
+    }
+
+    /// `!`-патерн контрибуції — ВИКЛЮЧЕННЯ, як у `walkGlob` `concern.json`
+    /// (перший споживач — `azure-pipelines/service_deploy_pipeline`,
+    /// `!.azurepipelines/templates/**`). До фіксу `!` йшов у
+    /// [`globset::Glob::new`] як звичайний символ шляху: патерн не матчив
+    /// нічого, виключення мовчки не діяло, і гість бачив у batch-і файли,
+    /// які канон свідомо відсіює.
+    #[test]
+    fn build_full_scope_files_treats_bang_pattern_as_exclusion() {
+        let dir = fixture_tree_with_vendor_dir();
+
+        let files = build_full_scope_files(
+            dir.path(),
+            &["**/*.txt".to_string(), "!vendor/**".to_string()],
+        );
+
+        assert_eq!(sorted_paths(&files), vec!["keep.txt"]);
     }
 
     /// Побитий JSON у `.n-rules.json` — tolerant-парсинг

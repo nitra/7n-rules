@@ -9387,6 +9387,155 @@ passed у двох нових `fix-*-native.test.mjs` через ПРОДАКШ�
 
 ---
 
+### 2.81. Трійка `ci-*`-«поодиноких»: портовано ДВА детекти, ЖОДНОГО фіксу — і це відповідь, а не половина роботи
+
+**Задача:** плагінна колія розділу 4 плану
+`docs/plans/2026-08-29-js-rust-migration-completion-plan.md` («Поодинокі»)
+— три концерни двох CI-плагінів: `ci-github/rules/ci_artifact/consume`,
+`ci-github/rules/ga/service_deploy_workflow`,
+`ci-azure/rules/azure-pipelines/service_deploy_pipeline`.
+
+**Результат:** портовано **detect-половину двох** (`ga/service_deploy_workflow`
+→ `crates/plugin-ci-github`, `azure-pipelines/service_deploy_pipeline` →
+`crates/plugin-ci-azure`); `ci_artifact/consume` — **не порт узагалі**.
+Жоден T0-фікс не портовано, і це не «не встигли»: обидва впираються в
+відсутню поверхню контракту, а частковий порт був би ГІРШИМ за його
+відсутність (нижче). Розвідка всіх трьох ПЕРЕД портом (порядок брифа)
+знову себе виправдала.
+
+#### `ci_artifact/consume` — не порт: це host-side інтегратор слот-механізму
+
+Концерн не перевіряє файли репо за політикою — він **читає graph плагінів**:
+`collectCiArtifactContributions` (`npm/scripts/lib/ci-artifact-collect.mjs`)
+кличе `resolveSlotGraph`/`getSlotContributions`, тобто резолвить УСІ
+встановлені плагіни, валідує їхні `ci.artifact@1` payload-и, ловить
+domain-колізії й вантажить canonical-шаблони з тек ІНШИХ плагінів
+(`loadCanonicalTemplate`). Гість не має жодного з цих входів:
+`capabilities.fs_read = []`, `host-context` знає лише
+`repo-root@1`/`scratch-dir@1`, а слот-типи в `wit/deps/slots/ci-artifact.wit`
+описують **producer**-бік (`manifest.ci_artifacts` — що гість ВНОСИТЬ), не
+consumer-бік (що гість МАЄ ПРОЧИТАТИ про інших). Порт інвертував би шар:
+wasm-гість одного плагіна вирішував би за весь graph. Той самий клас
+відповіді, що `doc-files/check`/`test/coverage` (§2.79) — «структурно не
+належить сюди», а не «важко».
+
+#### `service_deploy_*` — спільного рушія НЕМАЄ, спільна лише блокувальна залежність
+
+Бриф питав, чи не спільний у пари рушій. Ні. Дзеркальні вони лише за
+ЗАДУМОМ (коментарі обох `.rego` це проговорюють): GA несе `jobs` мапою й
+`needs`, Azure — послідовністю `- job:` на будь-якій глибині `stages` і
+`dependsOn`; helper-и, повідомлення й deny-набори різні; два окремі
+`.rego`-пакети й два окремі `fix-*.mjs`. Спільний у них РІВНО ОДИН
+модуль — `npm/scripts/lib/lint-surface/ci-plan.mjs` на fix-боці
+(`relevantDomains`/`domainKey`/`parseNRulesCmd`). І саме він обидва фікси й
+блокує.
+
+#### Чому fix НЕ портований: реєстру ввімкнених правил гість не бачить
+
+`relevantDomains(cwd, servicePath)` = `collectPathScopedFiles` (обхід
+піддерева сервісу на диску) + `loadEnabledLintRules` (резолв графа плагінів
+і `.n-rules.json`) + `computeActiveDomains`. Обидва входи гостю недоступні
+тим самим каналом, що й `ci_artifact/consume` вище. Без списку доменів не
+побудувати ні `outputs`-мапінг нової `plan`-джоби, ні per-domain
+`lint-<domain>`/`lint_<domain>` джоби — тобто ЯДРО фіксу, не його край.
+
+**Частковий порт тут — активна шкода, не половина користі.** `wasmFixPattern`
+(`npm/scripts/lib/lint-surface/run-fix.mjs`) несе `guestFix: true`: щойно
+гість повертає непорожній план і той застосовується, `applyT0` ЗУПИНЯЄ
+подальші патерни концерну. Гість, що вміє лише дописати `--no-fix` і
+`fetch-depth: 0`, вимкнув би JS-канон, який створює plan-джобу й мігрує
+легасі-lint — «зелено, бо зроблено менше». Тому `Guest::fix` обох гостей
+ЦИХ ключів НЕ реєструє: порожній план → гейт `edits.length > 0` не
+проходить → чинний `fix-*.mjs` лишається єдиним і повним фіксером
+(задокументований перехідний контракт `loadT0Patterns`). Парність
+зафіксована тестом у КОЖНОМУ parity-файлі («fix — порожній план»), який
+почервоніє, якщо хтось портує фікс частково.
+
+Клас блокера той самий, що `js/eslint` (§2.73), але дзеркальний: там
+контракт не вміє «fix-only контрибуція», тут — не вміє віддати гостю
+реєстр правил. Обидва — привід для окремого рішення про поверхню, не для
+хвилі по крейту.
+
+#### Що дав порт detect-половини
+
+Обидва концерни до цього йшли через `evaluatePolicyConcern` →
+`runConftestBatch`, тобто **спавн Go-бінарника `conftest`** на кожен батч.
+Тепер — `rego-engine` host-import (§2.66), один двигун на батч, `eval_rule`
+у циклі по файлах (той самий batch-контракт, що `ga.workflow_common`).
+Обидва — ПЕРШІ walkGlob-концерни своїх гостей і перші `scope: per-file`
+контрибуції в обох крейтах.
+
+#### Пастки regorus: жодна не спрацювала, але гейт тепер є в обох крейтах
+
+`walk()`, `graph.reachable`, `object.union_n`, `regex.find_all_string_submatch_n`,
+`sprintf` — обидві політики компілюються й еваліюються під regorus без
+жодної правки `.rego` (перевірено ще ДО порту, окремим пробником). Але
+гейта, який ганяє двигун по КОЖНІЙ вшитій політиці, у цих крейтах не було —
+заведено за зразком `plugin-lang-js`:
+`vsi_vshyti_rego_polityky_evaliuiutsia_pid_regorus` у обох. У `ci-github`
+він покриває всі **15** вшитих `.rego` (попередній
+`embedded_rego_policies_namespace_matches_rust_side_constant` брав пʼять).
+
+Гейт свідомо подає ВЛАСНИЙ канонічний snippet політики як `input`, а не
+`{}`, і вимагає НУЛЬ `deny` — бо на порожньому вході regorus падає там, де
+OPA дав би «undefined»: `lint_ga.rego:17` (`job := input.jobs["lint-ga"]`,
+далі `job.steps[_].uses`) дає `item cannot be indexed`. Це вивело на
+окремий дефект — нижче.
+
+#### Знайдений дефект (НЕ полагоджений цією задачею): `ga/lint_ga` на файлі без джоби `lint-ga`
+
+`.github/workflows/lint-ga.yml`, у якому джоба названа інакше, дає в порті
+ОДНУ діагностику `rego-engine-error` («має бути структурно недосяжно»)
+замість канонічної. Звірено з `conftest` на тій самій фікстурі: канон дає
+рівно `lint-ga.yml: jobs.lint-ga відсутній (ga.mdc)`. Тобто діагностика
+ГУЧНА (не тихий зелений), але НЕ ТА. Причина — regorus трактує звернення
+до полів undefined-правила як помилку, а не як undefined; обхід
+`ensure_step_uses_key_present` цей випадок не покриває (він про
+shorthand-head, а не про відсутній корінь). Не лагоджено тут свідомо:
+чинний обхід рівня Rust (вставити порожню `jobs["lint-ga"]`) РОЗІЙШОВСЯ б
+із conftest — той дає ОДНУ deny, а вставка порожньої джоби запалила б усі
+step-залежні. Правильне рішення — або longhand-переписування `lint_ga.rego`
+з повторним `conftest verify`, або апстрім-issue в regorus; окрема задача.
+
+#### Полагоджений дефект: `!`-патерн глоба контрибуції мовчки не працював
+
+`walkGlob` azure-концерну — `[".azurepipelines/**/*.yml",
+"!.azurepipelines/templates/**"]`. Хост будував full-scope batch через
+`globset::Glob::new(pattern)` (`build_full_scope_files`,
+`crates/rules-napi`), де `!` — ЗВИЧАЙНИЙ символ шляху: патерн не матчив
+нічого, виключення мовчки не діяло, і гість дістав би файли-шаблони, які
+канон свідомо відсіює. До цієї задачі жодна контрибуція `!` не декларувала,
+тож дефект був латентним. Полагоджено в ХОСТІ (`!`-префікс → окремий
+exclude-`GlobSet`), з юніт-тестом
+`build_full_scope_files_treats_bang_pattern_as_exclusion`; гість дублює
+фільтр сам (`is_service_pipeline_path`) — і для дельта-списку, що приходить
+не через glob. Той самий клас тихої розбіжності зі скоупом канону, що
+§2.65/§2.72 робили гучним.
+
+Друга, менша правка того ж класу: побитий YAML у walkGlob-наборі дає видиму
+`policy-input-invalid`, а не мовчазний `continue` (під conftest такий файл
+валив би батч; тут вхід парситься заздалегідь).
+
+**Розміри гостей** (`wasm32-wasip2 --release`, стеля 10 MiB):
+`plugin_ci_github.wasm` 1 624 940 → 1 644 634 (+19 694);
+`plugin_ci_azure.wasm` 248 759 → 268 093 (+19 334). Обидва прирости — сам
+текст `.rego` (`include_str!`), не нові залежності.
+
+**Тести:** `cargo test -p plugin-ci-github` — 152 passed (11 нових),
+`cargo test -p plugin-ci-azure` — 25 passed (8 нових),
+`cargo test -p rules-napi` — 24 passed (1 новий),
+`cargo test -p rules-plugin-host --test plugin_ci_azure --test plugin_ci_github`
+— 7 passed; vitest через РЕАЛЬНИЙ napi-міст (§2.47):
+`wasm-plugin-parity-ci-github` 49 passed (3 нових),
+`wasm-plugin-parity-ci-azure` 11 passed (4 нових);
+текстовий гейт `rego-regorus-verbs` — 14 passed (зелений).
+
+**JS-канони не видалено** — політика «спершу парність»; тут вона ще й
+не опційна: fix-половина обох концернів ЖИВЕ в JS і мусить лишитись, доки
+контракт не віддасть гостю реєстр правил.
+
+---
+
 ## Як користуватись
 
 Дійшовши кінця плану міграції, пройти реєстр згори вниз: розділи 1 і 6 — це
