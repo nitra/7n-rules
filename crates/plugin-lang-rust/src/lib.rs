@@ -149,6 +149,31 @@
 //! приховав би `cargo-deny-violation` кожного разу, коли clippy теж
 //! провалюється, хоча канон видає ОБИДВІ діагностики одночасно).
 //!
+//! # `rust/check` — Т0-фіксер ПОРТОВАНО (ДРУГИЙ порт класу exec-tool fix)
+//!
+//! ПʼЯТА хвиля додала [`fix_check`] — порт `fix-check.mjs`. Це ДРУГИЙ
+//! exec-tool-фіксер репозиторію після `python/ruff`
+//! (`crates/plugin-lang-python/src/lib.rs::fix_ruff`), і механіка та сама —
+//! **host-diff**, §2.64 реєстру (`docs/plans/2026-08-05-open-questions-register.md`):
+//! гість не має ні доступу до файлової системи, ні способу задекларувати
+//! «зовнішній процес змінив ось ці файли», тож хост
+//! (`crates/rules-napi/src/lib.rs::run_wasm_concern_fix` →
+//! `diff_snapshot_edits`) сам знімає знімок диска ДО і ПІСЛЯ виклику
+//! `fix()` за `ConcernContribution::glob` концерну й синтезує `Write`/
+//! `Delete`-edits із різниці.
+//!
+//! Наслідок, якого `python/ruff` не мав: glob `rust/check` довелось
+//! РОЗШИРИТИ до канонічного `**/*.rs`+`Cargo.toml`+`Cargo.lock` (плюс
+//! `deny.toml`) — коментар у [`build_manifest`] пояснює, чому вужчий
+//! detect-орієнтований glob зробив би fix мовчазним no-op-ом.
+//!
+//! На відміну від `fix_ruff` (порожній план завжди), тут ДВА канали й
+//! ГІБРИДНИЙ план: `cargo fmt --all` — чистий exec-tool (edits синтезує
+//! хост), `deny.toml` — або `cargo deny init` (теж host-diff), або
+//! декларативний [`FileEdit::Write`] зі скаффолдом, вшитим `include_str!`
+//! з того самого data-файлу, що читає JS-канон. Три мовчазні канали канону
+//! тут стали гучними — перелік у доккоменті [`fix_check`].
+//!
 //! # `rust/cargo_mutants_config` — дві СВІДОМІ поведінкові відмінності
 //!
 //! (a) **Немає in-detector self-gate `.n-rules.json`.** JS-канон читає
@@ -1297,14 +1322,25 @@ fn truncate_chars(text: &str, limit: usize) -> String {
 /// (`main.mjs`): stdout+stderr, trim, зріз до [`CHECK_DETAIL_LIMIT`], з
 /// провідним `\n` лише якщо непорожньо.
 fn check_step_message(label: &str, code: i32, stdout: &str, stderr: &str) -> String {
+    format!(
+        "lint-rust: {label} — помилка (код {code}, rust.mdc){}",
+        check_step_detail(stdout, stderr)
+    )
+}
+
+/// Хвіст повідомлення про провал кроку `cargo` — stdout+stderr, trim, зріз
+/// до [`CHECK_DETAIL_LIMIT`], з провідним `\n` ЛИШЕ якщо непорожньо (точний
+/// хвіст `runCargo`, `main.mjs`). Винесено з [`check_step_message`] окремо,
+/// бо той самий хвіст потрібен fix-каналу ([`fix_check`]), де немає ні
+/// `label`, ні форми «помилка (код N)».
+fn check_step_detail(stdout: &str, stderr: &str) -> String {
     let combined = format!("{stdout}{stderr}");
     let out = truncate_chars(combined.trim(), CHECK_DETAIL_LIMIT);
-    let suffix = if out.is_empty() {
+    if out.is_empty() {
         String::new()
     } else {
         format!("\n{out}")
-    };
-    format!("lint-rust: {label} — помилка (код {code}, rust.mdc){suffix}")
+    }
 }
 
 /// Спавнить `cargo <args>` через `exec-tool` — спільний нижній рівень усіх
@@ -1464,6 +1500,145 @@ fn detect_check(files: &[SourceFile]) -> Vec<Diagnostic> {
     );
 
     diagnostics
+}
+
+/// Шлях `deny.toml` у корені репозиторію — точний відповідник
+/// `join(ctx.cwd, 'deny.toml')` (`fix-check.mjs`). Host-diff і
+/// [`FixPlan::edits`] оперують posix-relative шляхами від `cwd`.
+const CHECK_DENY_CONFIG_PATH: &str = "deny.toml";
+
+/// Мінімальний детермінований `deny.toml`-скаффолд, вшитий `include_str!` з
+/// ТОГО САМОГО data-файлу, який читає JS-канон (`MINIMAL_DENY_TOML_PATH`,
+/// `plugins/lang-rust/rules/rust/check/data/check/deny.toml.minimal`) — той
+/// самий прийом і мотив, що [`CARGO_MUTANTS_CONFIG_BASELINE`]: два літерали
+/// в двох мовах розійшлися б беззвучно, спільне джерело робить парність
+/// байт-у-байт структурною, а не тестовою домовленістю. (Літерал жив у
+/// `fix-check.mjs`; винесення в data-файл — частина цього порту.)
+const CHECK_MINIMAL_DENY_TOML: &str =
+    include_str!("../../../plugins/lang-rust/rules/rust/check/data/check/deny.toml.minimal");
+
+/// Чистий (§2.33-стиль: без `exec_tool`/`log`, тестується напряму) розбір
+/// вхідних діагностик fix-запиту на два незалежні канали `fix-check.mjs`:
+/// `(потрібен cargo fmt --all, потрібен deny.toml)`. Точний відповідник
+/// двох `test`-предикатів JS-канону (`violations.some(v => v.reason ===
+/// 'cargo-fmt-violation')` і `… === 'deny-config-missing'`) — два ОКРЕМІ
+/// T0Pattern-и там, один виклик `fix()` тут.
+fn check_fix_channels(diagnostics: &[Diagnostic]) -> (bool, bool) {
+    let fmt = diagnostics
+        .iter()
+        .any(|d| d.reason == CHECK_CARGO_FMT_VIOLATION_REASON);
+    let deny = diagnostics
+        .iter()
+        .any(|d| d.reason == CHECK_DENY_CONFIG_MISSING_REASON);
+    (fmt, deny)
+}
+
+/// Т0-фіксер `rust/check` — ДРУГИЙ порт класу exec-tool fix у репозиторії
+/// (перший — `fix_ruff`, `crates/plugin-lang-python/src/lib.rs`; механіка —
+/// host-diff, §2.64 реєстру відкритих питань, доккомент
+/// `crates/rules-napi/src/lib.rs::diff_snapshot_edits`). Точний порт
+/// `fix-check.mjs` — ДВА незалежні канали ([`check_fix_channels`]):
+///
+/// 1. **`cargo-fmt-violation` → `cargo fmt --all`** — exec-tool: зовнішній
+///    процес САМ переписує `.rs`-файли на диску консюмера всередині цього
+///    виклику `fix()`, гість НЕ будує для них жодного edit-а. Синтез
+///    `Write`-edits — робота хоста (знімок glob-у концерну до/після), рівно
+///    як у `fix_ruff`. Саме тому [`build_manifest`] розширив glob
+///    `rust/check` до `**/*.rs` (доккомент там): вужчий glob попереднього
+///    стану («лише `Cargo.toml`+`deny.toml`») не побачив би жодної
+///    fmt-мутації, план лишився б порожнім, `guestFix`-пріоритет не
+///    спрацював би — і JS-канон прогнав би `cargo fmt --all` ВДРУГЕ.
+///    JS-канон окремо перелічує цілі (`git ls-files -z -- *.rs`) лише щоб
+///    самому порахувати діф; host-diff робить це ширше й точніше.
+/// 2. **`deny-config-missing` → `deny.toml`** — декларативний канал:
+///    `cargo deny --version` доступний ⇒ `cargo deny init` (канонічний
+///    повний шаблон, файл народжується на диску ⇒ його підбирає той самий
+///    host-diff); недоступний ⇒ [`CHECK_MINIMAL_DENY_TOML`] як звичайний
+///    [`FileEdit::Write`] у плані. Обидва шляхи закривають violation на T0
+///    без LLM-ladder — точний намір JS-канону.
+///
+/// # Полагоджені мовчазні канали канону (принцип «мовчазний skip — вада»)
+///
+/// - `resolveCmd('cargo')` повертає `null` ⇒ JS мовчки віддає
+///   `{ touchedFiles: [] }`: фікс не спрацював, у виводі — нічого. Тут
+///   `status: None` (тул не резолвиться) логується `LogLevel::Error`.
+/// - JS ІГНОРУЄ код виходу `cargo fmt --all` цілком (`await spawnAsync(...)`
+///   без перевірки): `cargo fmt`, що впав на нерозбірному файлі, виглядав як
+///   успішний no-op. Тут ненульовий код — `LogLevel::Error` зі stderr.
+/// - JS ІГНОРУЄ код виходу `cargo deny init` і перевіряє лише
+///   `existsSync(deny.toml)`. Гість файлової системи не має
+///   (`Capabilities::fs_read` порожній), тож проксі — код виходу: `Some(0)`
+///   ⇒ довіряємо init-у (його результат підбере host-diff), будь-що інше ⇒
+///   `LogLevel::Error` І детермінований скаффолд як edit. Розбіжність
+///   «init сказав 0, файлу немає» не тихне: наступний `detect_check` знову
+///   видасть `deny-config-missing`.
+fn fix_check(request: &FixRequest) -> FixPlan {
+    let (needs_fmt, needs_deny_config) = check_fix_channels(&request.diagnostics);
+    let mut edits = Vec::new();
+
+    // (1) exec-tool-канал: `cargo fmt --all` мутує диск сам, план лишається
+    // порожнім для цих файлів — їх синтезує host-diff.
+    if needs_fmt {
+        let result = exec_cargo(vec!["fmt".to_string(), "--all".to_string()]);
+        match result.status {
+            None => log(
+                LogLevel::Error,
+                "plugin-lang-rust: fix rust/check — `cargo` не резолвиться, `cargo fmt --all` \
+                 ПРОПУЩЕНО, а не виконано (Rust toolchain через rustup, rust.mdc)",
+            ),
+            Some(0) => {}
+            Some(code) => log(
+                LogLevel::Error,
+                &format!(
+                    "plugin-lang-rust: fix rust/check — `cargo fmt --all` провалився (код {code}); \
+                     форматування НЕ застосовано{}",
+                    check_step_detail(&result.stdout, &result.stderr)
+                ),
+            ),
+        }
+    }
+
+    // (2) декларативний канал `deny.toml`.
+    if needs_deny_config {
+        let version = exec_cargo(vec!["deny".to_string(), "--version".to_string()]);
+        let mut generated_by_init = false;
+        if version.status == Some(0) {
+            let init = exec_cargo(vec!["deny".to_string(), "init".to_string()]);
+            match init.status {
+                Some(0) => generated_by_init = true,
+                status => log(
+                    LogLevel::Error,
+                    &format!(
+                        "plugin-lang-rust: fix rust/check — `cargo deny init` провалився ({}); \
+                         записую детермінований мінімальний deny.toml{}",
+                        status
+                            .map(|code| format!("код {code}"))
+                            .unwrap_or_else(|| "процес не стартував".to_string()),
+                        check_step_detail(&init.stdout, &init.stderr)
+                    ),
+                ),
+            }
+        } else {
+            // НЕ помилка, а свідома гілка канону: без `cargo-deny` фікс
+            // усе одно закриває violation детермінованим скаффолдом
+            // (інакше `deny-config-missing` провалювався б у LLM-ladder,
+            // який галюцинував невалідну секцію `[deny]` — доккомент
+            // `fix-check.mjs`).
+            log(
+                LogLevel::Info,
+                "plugin-lang-rust: fix rust/check — `cargo deny` недоступний, deny.toml \
+                 генерується мінімальним детермінованим скаффолдом",
+            );
+        }
+        if !generated_by_init {
+            edits.push(FileEdit::Write(WriteFile {
+                path: CHECK_DENY_CONFIG_PATH.to_string(),
+                content: CHECK_MINIMAL_DENY_TOML.to_string(),
+            }));
+        }
+    }
+
+    FixPlan { edits }
 }
 
 // =====================================================================
@@ -2265,16 +2440,30 @@ fn build_manifest() -> Manifest {
                 scope: ConcernScope::Full,
                 glob: vec!["**/Cargo.toml".to_string()],
             },
-            // `rust/check` — WHOLE-BATCH, ШИРШИЙ за `concern.json`-глоб
-            // канону (`**/*.rs`, `Cargo.toml`, `Cargo.lock`, не читаються
-            // взагалі — реальний вердикт дає `exec-tool`-ланцюжок): лише
-            // ДВА root-only presence-сигнали (`Cargo.toml` — Rust-проєкт чи
-            // ні, `deny.toml` — чи спавнити `cargo deny`), доккомент модуля,
-            // розділ «ДРУГА ХВИЛЯ».
+            // `rust/check` — WHOLE-BATCH. Сам [`detect_check`] читає лише ДВА
+            // root-only presence-сигнали (`Cargo.toml` — Rust-проєкт чи ні,
+            // `deny.toml` — чи спавнити `cargo deny`; реальний вердикт дає
+            // `exec-tool`-ланцюжок), тож донедавна тут стояв рівно цей
+            // вузький glob. HOST-DIFF (§2.64) зробив glob НЕ лише
+            // detect-скоупом: `run_wasm_concern_fix` знімає знімок диска
+            // до/після `fix()` РІВНО за `contribution.glob`, а
+            // [`fix_check`]-канал `cargo fmt --all` мутує `**/*.rs`. З
+            // вузьким glob-ом жодна fmt-мутація не потрапила б у план —
+            // мовчазний «фікс нічого не зробив». Тому glob повернуто до
+            // канонічного (`concern.json`: `**/*.rs`, `Cargo.toml`,
+            // `Cargo.lock`) + `deny.toml` (ціль другого fix-каналу і
+            // presence-сигнал кроку 5 детектора). Ціна — хост читає вміст
+            // усіх `.rs` у detect-батч, якого детектор не торкається:
+            // свідомий обмін «гучно й дорожче» на «тихо й дешевше».
             ConcernContribution {
                 key: CONCERN_CHECK.to_string(),
                 scope: ConcernScope::Full,
-                glob: vec!["Cargo.toml".to_string(), "deny.toml".to_string()],
+                glob: vec![
+                    "**/*.rs".to_string(),
+                    "Cargo.toml".to_string(),
+                    "Cargo.lock".to_string(),
+                    "deny.toml".to_string(),
+                ],
             },
             // `rust/cargo_mutants_config` — WHOLE-BATCH: `**/Cargo.toml` +
             // `package.json` ([`resolve_all_cargo_manifests`]) +
@@ -2376,12 +2565,16 @@ impl Guest for LangRust {
     /// `rust/cargo_mutants_config` ([`fix_cargo_mutants_config`]); четверта —
     /// `rust/doc_comments` ([`fix_doc_comments`], доккомент модуля, розділ
     /// «Т0-фіксер ПОРТОВАНО») — JS-канон `fix-doc_comments.mjs` лишається
-    /// чинним (парність, не заміна цієї хвилі). Решта концернів і далі
-    /// отримують сумісну заглушку — порожній план.
+    /// чинним (парність, не заміна цієї хвилі). Пʼята додала `rust/check`
+    /// ([`fix_check`]) — ДРУГИЙ порт класу exec-tool fix у репозиторії
+    /// (host-diff, §2.64; перший — `python/ruff`), теж без заміни
+    /// JS-канону `fix-check.mjs`. Решта концернів і далі отримують сумісну
+    /// заглушку — порожній план.
     fn fix(request: FixRequest) -> FixPlan {
         match request.concern_id.as_str() {
             CONCERN_CARGO_MUTANTS_CONFIG => fix_cargo_mutants_config(&request),
             CONCERN_DOC_COMMENTS => fix_doc_comments(&request),
+            CONCERN_CHECK => fix_check(&request),
             _ => FixPlan { edits: vec![] },
         }
     }
@@ -2973,6 +3166,81 @@ mod tests {
         assert!(cargo_deny_unavailable_diagnostic(None).is_some());
     }
 
+    // --- §2.67: `rust/check` T0-фіксер (exec-tool, host-diff) ---
+    // `fix_check` цілком тестувати тут НЕ можна (кличе `exec_tool`/`log`,
+    // що абортують поза wasm-хостом) — юніт-тести беруть ЧИСТИЙ канал
+    // розбору діагностик і сам скаффолд; повний контур доводить
+    // `wasm-plugin-parity-rust.test.mjs` через РЕАЛЬНИЙ napi-міст.
+
+    #[test]
+    fn check_fix_channels_maps_each_reason_independently() {
+        assert_eq!(check_fix_channels(&[]), (false, false));
+        assert_eq!(
+            check_fix_channels(&[plain_violation(
+                CHECK_CARGO_FMT_VIOLATION_REASON,
+                "m".into()
+            )]),
+            (true, false)
+        );
+        assert_eq!(
+            check_fix_channels(&[plain_violation(
+                CHECK_DENY_CONFIG_MISSING_REASON,
+                "m".into()
+            )]),
+            (false, true)
+        );
+        assert_eq!(
+            check_fix_channels(&[
+                plain_violation(CHECK_CARGO_FMT_VIOLATION_REASON, "m".into()),
+                plain_violation(CHECK_DENY_CONFIG_MISSING_REASON, "m".into()),
+            ]),
+            (true, true)
+        );
+    }
+
+    #[test]
+    fn check_fix_channels_ignores_unrelated_reasons() {
+        // clippy НЕ автофіксимо (`--fix` потенційно небезпечний) — точний
+        // намір JS-канону, ці порушення йдуть у LLM-ladder.
+        let diagnostics = [
+            plain_violation(CHECK_CARGO_CLIPPY_VIOLATION_REASON, "m".into()),
+            plain_violation(CHECK_CARGO_DENY_VIOLATION_REASON, "m".into()),
+            plain_violation(CHECK_CARGO_DENY_UNAVAILABLE_REASON, "m".into()),
+            plain_violation(CHECK_CARGO_MISSING_REASON, "m".into()),
+        ];
+        assert_eq!(check_fix_channels(&diagnostics), (false, false));
+    }
+
+    #[test]
+    fn check_minimal_deny_toml_is_valid_shape() {
+        // Спільне джерело з JS-каноном (`include_str!` того самого
+        // data-файлу) — тест ловить порожній/обрізаний асет.
+        for section in [
+            "[graph]",
+            "[advisories]",
+            "[licenses]",
+            "[licenses.private]",
+            "[bans]",
+            "[sources]",
+            "[sources.allow-org]",
+        ] {
+            assert!(
+                CHECK_MINIMAL_DENY_TOML.contains(section),
+                "мінімальний deny.toml має містити {section}"
+            );
+        }
+        // У схемі cargo-deny секції `[deny]` НЕМАЄ — саме її галюцинував
+        // LLM-fix до появи цього скаффолда (доккомент `fix-check.mjs`).
+        assert!(!CHECK_MINIMAL_DENY_TOML.contains("\n[deny]"));
+        assert!(CHECK_MINIMAL_DENY_TOML.ends_with('\n'));
+    }
+
+    #[test]
+    fn check_step_detail_empty_without_output() {
+        assert_eq!(check_step_detail("", "  \n "), "");
+        assert_eq!(check_step_detail("boom", ""), "\nboom");
+    }
+
     #[test]
     fn cargo_deny_unavailable_diagnostic_action_check_old_code_was_silent() {
         // §2.33, перевірка дією: ДО фіксу `detect_check` мав
@@ -3511,9 +3779,18 @@ mod tests {
             .find(|c| c.key == CONCERN_CHECK)
             .expect("rust/check contribution має бути в маніфесті");
         assert_eq!(check.scope, ConcernScope::Full);
+        // `**/*.rs` тут НЕ для детектора (той читає лише два root-only
+        // presence-сигнали) — це скоуп host-diff для [`fix_check`]
+        // (`cargo fmt --all`), доккомент [`build_manifest`]. Звуження цього
+        // glob-у зробило б fix-канал мовчазним no-op-ом.
         assert_eq!(
             check.glob,
-            vec!["Cargo.toml".to_string(), "deny.toml".to_string()]
+            vec![
+                "**/*.rs".to_string(),
+                "Cargo.toml".to_string(),
+                "Cargo.lock".to_string(),
+                "deny.toml".to_string()
+            ]
         );
 
         let cargo_mutants_config = manifest
