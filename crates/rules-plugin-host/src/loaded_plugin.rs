@@ -3,6 +3,7 @@
 //! інстансів: найпростіший reuse, без крос-плагінного пулу — див.
 //! доккомент `PluginHost::load`).
 
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use wasmtime::Store;
@@ -25,15 +26,57 @@ pub struct LoadedPlugin {
     store: Store<HostState>,
     plugin: wit::Plugin,
     manifest: Manifest,
+    /// Корінь, від якого відкриті `capabilities.fs_read`-preopens цього
+    /// `Store` (`PluginHost::load_in_root`), або `None` — плагін
+    /// завантажений без кореня (`PluginHost::load`). Поле потрібне не лише
+    /// для гейта [`Self::ensure_fs_read_bound`]: `Store` створюється раз, а
+    /// корінь дерева приходить із КОЖНИМ napi-викликом окремо, тож
+    /// кешувальний шар (`crates/rules-napi`) звіряє цим акцесором, чи
+    /// закешований інстанс відкритий саме на потрібне дерево, і
+    /// перезавантажує плагін, коли ні (§2.95).
+    preopen_root: Option<PathBuf>,
 }
 
 impl LoadedPlugin {
-    pub(crate) fn new(store: Store<HostState>, plugin: wit::Plugin, manifest: Manifest) -> Self {
+    pub(crate) fn new(
+        store: Store<HostState>,
+        plugin: wit::Plugin,
+        manifest: Manifest,
+        preopen_root: Option<PathBuf>,
+    ) -> Self {
         Self {
             store,
             plugin,
             manifest,
+            preopen_root,
         }
+    }
+
+    /// Корінь, від якого відкриті preopens цього інстансу (доккомент поля
+    /// [`Self::preopen_root`]) — `None` для завантаження без кореня.
+    pub fn preopen_root(&self) -> Option<&Path> {
+        self.preopen_root.as_deref()
+    }
+
+    /// Гейт «заявлений `fs-read` без кореня» (§2.95): плагін із непорожнім
+    /// `capabilities.fs_read`, завантажений через `PluginHost::load` (без
+    /// кореня), не має ЖОДНОГО preopen-у — гість побачив би порожню
+    /// пісочницю й не відрізнив би її від «у дереві нічого немає».
+    /// Мовчазна деградація тут особливо підступна, бо саме так виглядав би
+    /// і старий дефект (preopen від cwd ХОСТ-ПРОЦЕСУ на чужому дереві:
+    /// шляхи резолвляться, вміст — не той), тож замість «якось працює»
+    /// виклик падає типізовано — у точці шкоди, а не при завантаженні:
+    /// `describe()` (маніфест, ensure-tool контур) кореня не потребує й
+    /// лишається робочим.
+    fn ensure_fs_read_bound(&self, function: &'static str) -> Result<(), PluginHostError> {
+        if self.manifest.capabilities.fs_read.is_empty() || self.preopen_root.is_some() {
+            return Ok(());
+        }
+        Err(PluginHostError::FsReadRootUnbound {
+            plugin_id: self.manifest.id.clone(),
+            paths: self.manifest.capabilities.fs_read.clone(),
+            function,
+        })
     }
 
     /// Маніфест плагіна, отриманий `describe()` один раз у
@@ -71,6 +114,7 @@ impl LoadedPlugin {
     /// концерну. Той самий `Store`/`Instance`, що й попередні виклики цього
     /// `LoadedPlugin` (reuse).
     pub fn detect(&mut self, batch: &DetectBatch) -> Result<Vec<Diagnostic>, PluginHostError> {
+        self.ensure_fs_read_bound("detect")?;
         let wit_batch = convert::detect_batch_to_wit(batch);
         self.reset_scratch();
         let result = self.plugin.call_detect(&mut self.store, &wit_batch);
@@ -109,6 +153,7 @@ impl LoadedPlugin {
     /// [`PluginHostError::InvalidContractData`] (не часткове застосування) —
     /// той самий контракт, що конверсія `diagnostic.data` у `detect`.
     pub fn fix(&mut self, request: &FixRequest) -> Result<FixPlan, PluginHostError> {
+        self.ensure_fs_read_bound("fix")?;
         let wit_request = convert::fix_request_to_wit(request);
         self.reset_scratch();
         let plan = self.plugin.call_fix(&mut self.store, &wit_request);

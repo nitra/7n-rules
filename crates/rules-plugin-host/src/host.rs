@@ -95,6 +95,55 @@ impl PluginHost {
         path: &Path,
         expected_world_version: &str,
     ) -> Result<LoadedPlugin, PluginHostError> {
+        self.load_impl(path, expected_world_version, None)
+    }
+
+    /// Те саме, що [`Self::load`], але з ЯВНИМ коренем, від якого
+    /// резолвляться `capabilities.fs_read`-preopens (§2.95 реєстру
+    /// відкритих питань).
+    ///
+    /// # Навіщо окремий вхід, а не `current_dir()`
+    ///
+    /// До цієї правки preopens резолвились від `std::env::current_dir()`
+    /// ХОСТ-ПРОЦЕСУ, тоді як корінь дерева, що лінтується, приходить окремим
+    /// параметром (`cwd` у `run_wasm_concern`/`run_wasm_concern_fix`
+    /// `crates/rules-napi`). Для `lint --path <інше-дерево>` ці два корені
+    /// розходяться, і гість читав би не те дерево — мовчки, бо назви
+    /// файлів у чужому дереві ті самі. Чинних споживачів `fs_read` немає
+    /// (усі маніфести лишають його порожнім), тож дефект був латентним:
+    /// його треба було зняти ДО першого споживача, інакше він проявився б
+    /// як тиха підміна кореня.
+    ///
+    /// `root` МУСИТЬ бути абсолютним ([`PluginHostError::RelativePreopenRoot`]):
+    /// відносний дорезолвився б `Path::join`-ом від cwd процесу — тобто
+    /// повернув би рівно ту саму ваду з іншого боку.
+    pub fn load_in_root(
+        &self,
+        path: &Path,
+        expected_world_version: &str,
+        root: &Path,
+    ) -> Result<LoadedPlugin, PluginHostError> {
+        if !root.is_absolute() {
+            return Err(PluginHostError::RelativePreopenRoot {
+                root: root.to_path_buf(),
+            });
+        }
+        self.load_impl(path, expected_world_version, Some(root))
+    }
+
+    /// Спільне тіло [`Self::load`]/[`Self::load_in_root`] — `preopen_root:
+    /// None` означає «корінь не заявлений»: preopens НЕ відкриваються
+    /// взагалі (жодного мовчазного fallback-у на cwd процесу), а плагін із
+    /// непорожнім `fs_read` лишається придатним лише до `describe()` —
+    /// перший же `detect`/`fix` падає
+    /// [`PluginHostError::FsReadRootUnbound`] (доккомент
+    /// `LoadedPlugin::ensure_fs_read_bound`).
+    fn load_impl(
+        &self,
+        path: &Path,
+        expected_world_version: &str,
+        preopen_root: Option<&Path>,
+    ) -> Result<LoadedPlugin, PluginHostError> {
         let bytes = std::fs::read(path).map_err(|err| PluginHostError::Load {
             path: path.to_path_buf(),
             source: anyhow::Error::new(err),
@@ -105,8 +154,10 @@ impl PluginHost {
                 source: err.into(),
             })?;
 
+        // Probe — завжди `Capabilities::default()` (порожній `fs_read`), тож
+        // корінь preopen-ів цій фазі не потрібен: `None`.
         let probe_manifest =
-            self.describe_with_capabilities(&component, &Capabilities::default())?;
+            self.describe_with_capabilities(&component, &Capabilities::default(), None)?;
         check_world_version(&probe_manifest.world_version, expected_world_version)?;
         // Маніфест — недовірений вхід рівно так само, як fix-план
         // (`LoadedPlugin::fix` → `validators::fix`). Мажор `4.0.0` (§2.84)
@@ -132,7 +183,7 @@ impl PluginHost {
         // `Store` реально містить запис про перший виклик (доккомент
         // `Self::load` вище: «перший виклик хоста після завантаження
         // компонента»), а не запис у відкинутому probe-`Store`.
-        let host_state = self.build_host_state(&probe_manifest.capabilities)?;
+        let host_state = self.build_host_state(&probe_manifest.capabilities, preopen_root)?;
         let mut store = Store::new(&self.engine, host_state);
         let plugin = wit::Plugin::instantiate(&mut store, &component, &self.linker)
             .map_err(|err| PluginHostError::Instantiate(err.into()))?;
@@ -145,7 +196,12 @@ impl PluginHost {
                 })?;
         let manifest = convert::manifest_from_wit(manifest);
 
-        Ok(LoadedPlugin::new(store, plugin, manifest))
+        Ok(LoadedPlugin::new(
+            store,
+            plugin,
+            manifest,
+            preopen_root.map(Path::to_path_buf),
+        ))
     }
 
     /// Фаза 1 інстанціації — див. доккомент [`Self::load`]: інстанціює
@@ -156,8 +212,9 @@ impl PluginHost {
         &self,
         component: &Component,
         capabilities: &Capabilities,
+        preopen_root: Option<&Path>,
     ) -> Result<Manifest, PluginHostError> {
-        let host_state = self.build_host_state(capabilities)?;
+        let host_state = self.build_host_state(capabilities, preopen_root)?;
         let mut store = Store::new(&self.engine, host_state);
         let plugin = wit::Plugin::instantiate(&mut store, component, &self.linker)
             .map_err(|err| PluginHostError::Instantiate(err.into()))?;
@@ -173,18 +230,32 @@ impl PluginHost {
 
     /// Будує `HostState` (WASI-контекст + наш host-стан) за
     /// `capabilities`: `fs_read`-шляхи — read-only preopens, резолвлені
-    /// відносно поточної робочої директорії хоста (та сама конвенція, що й
-    /// `SourceFile::path` — «posix-relative шлях від cwd»). Глоб-патерни в
-    /// `fs_read` НЕ розкриваються тут (v3.0-обмеження, задокументовано —
+    /// відносно `preopen_root` — КОРЕНЯ ДЕРЕВА, ЩО ЛІНТУЄТЬСЯ (та сама
+    /// конвенція, що й `SourceFile::path` — «posix-relative шлях від
+    /// `cwd`-параметра виклику»), а НЕ від `std::env::current_dir()`
+    /// хост-процесу (§2.95, доккомент [`Self::load_in_root`]). Глоб-патерни
+    /// в `fs_read` НЕ розкриваються тут (v3.0-обмеження, задокументовано —
     /// типовий концерн лишає `fs_read` порожнім, вміст файлів хост передає
     /// inline у `DetectBatch`/`FixRequest`; глоб-резолвинг — кандидат на
     /// майбутню оркестрацію, фаза 7).
-    fn build_host_state(&self, capabilities: &Capabilities) -> Result<HostState, PluginHostError> {
+    ///
+    /// `preopen_root: None` (завантаження без кореня — [`Self::load`]) НЕ
+    /// відкриває жодного preopen-у навіть за непорожнього `fs_read`:
+    /// мовчазний fallback на cwd процесу і був вадою. Гучність цього стану
+    /// забезпечує `LoadedPlugin` на першому ж `detect`/`fix`.
+    fn build_host_state(
+        &self,
+        capabilities: &Capabilities,
+        preopen_root: Option<&Path>,
+    ) -> Result<HostState, PluginHostError> {
         let mut builder = WasiCtxBuilder::new();
-        let cwd = std::env::current_dir()
-            .map_err(|err| PluginHostError::Instantiate(anyhow::Error::new(err)))?;
-        for rel in &capabilities.fs_read {
-            let host_path = cwd.join(rel);
+        for rel in preopen_root
+            .into_iter()
+            .flat_map(|_| capabilities.fs_read.iter())
+        {
+            let host_path = preopen_root
+                .expect("гілка ітерується лише коли корінь заявлений")
+                .join(rel);
             builder
                 // `FsPerms::ReadOnly` — wasmtime-wasi 48 звів колишню пару
                 // `DirPerms`/`FilePerms` в один enum (обидва прапорці все одно

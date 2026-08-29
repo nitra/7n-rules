@@ -489,16 +489,61 @@ thread_local! {
 }
 
 /// Бере плагін за шляхом із кешу (чи завантажує й кешує, якщо це перший
-/// виклик для цього шляху) і виконує `f` над ним.
+/// виклик для цього шляху) і виконує `f` над ним — БЕЗ кореня preopen-ів.
+///
+/// Вхід для викликів, які кореня не мають і не потребують
+/// ([`wasm_plugin_concerns`]/[`wasm_plugin_manifest`] — чистий
+/// `describe()`). Плагін із непорожнім `capabilities.fs-read`, узятий цим
+/// шляхом, лишається придатним лише до `describe()`: перший же
+/// `detect`/`fix` на ньому падає типізовано
+/// (`PluginHostError::FsReadRootUnbound`), а не читає порожню пісочницю
+/// мовчки. Виклики з деревом ходять через
+/// [`with_loaded_plugin_in_root`].
 fn with_loaded_plugin<T>(
     wasm_path: &str,
     f: impl FnOnce(&mut LoadedPlugin) -> Result<T>,
 ) -> Result<T> {
+    with_loaded_plugin_in_root(wasm_path, None, f)
+}
+
+/// Те саме, але з КОРЕНЕМ дерева, що лінтується (`cwd`-параметр
+/// [`run_wasm_concern`]/[`run_wasm_concern_fix`]) — від нього хост
+/// резолвить `capabilities.fs-read`-preopens (§2.95 реєстру відкритих
+/// питань).
+///
+/// # Чому кеш переживає зміну кореня, а інстанс — ні
+///
+/// `LOADED_PLUGINS` кешує інстанс per-path на процес (уникнення повторної
+/// компіляції компонента), але preopens фіксуються при створенні `Store` —
+/// підмінити їх постфактум, як `set_tool_resolver`/`set_repo_root`,
+/// неможливо. Тож коли закешований інстанс відкритий НЕ на те дерево, яке
+/// прийшло з викликом, плагін перезавантажується
+/// ([`preopen_root_satisfies`]). Ціна платиться ЛИШЕ плагінами з
+/// непорожнім `fs-read` (жоден чинний маніфест його не заявляє) — решта
+/// preopen-ів не має взагалі, тож для них корінь ні на що не впливає й
+/// кеш працює як раніше.
+fn with_loaded_plugin_in_root<T>(
+    wasm_path: &str,
+    root: Option<&Path>,
+    f: impl FnOnce(&mut LoadedPlugin) -> Result<T>,
+) -> Result<T> {
     LOADED_PLUGINS.with(|cache| {
         let mut cache = cache.borrow_mut();
-        if !cache.contains_key(wasm_path) {
+        let cached_fits = cache.get(wasm_path).is_some_and(|plugin| {
+            preopen_root_satisfies(
+                !plugin.describe().capabilities.fs_read.is_empty(),
+                plugin.preopen_root(),
+                root,
+            )
+        });
+        if !cached_fits {
             let loaded = PLUGIN_HOST
-                .with(|host| host.load(Path::new(wasm_path), PLUGIN_WORLD_VERSION))
+                .with(|host| match root {
+                    Some(root) => {
+                        host.load_in_root(Path::new(wasm_path), PLUGIN_WORLD_VERSION, root)
+                    }
+                    None => host.load(Path::new(wasm_path), PLUGIN_WORLD_VERSION),
+                })
                 .map_err(to_wasm_napi_err)?;
             cache.insert(wasm_path.to_string(), loaded);
         }
@@ -507,6 +552,56 @@ fn with_loaded_plugin<T>(
             .expect("щойно вставлено або вже було в кеші");
         f(plugin)
     })
+}
+
+/// Чи придатний закешований інстанс для виклику з коренем `wanted`
+/// (доккомент [`with_loaded_plugin_in_root`]).
+///
+/// Чиста функція — рішення тут одне на всі гілки кешу, і воно варте
+/// власних юніт-тестів: «підходить/не підходить» помилкове в бік `true`
+/// означає рівно ту ваду, яку §2.95 закриває (гість читає ІНШЕ дерево,
+/// мовчки), а помилкове в бік `false` — зайву перекомпіляцію компонента на
+/// кожен виклик.
+fn preopen_root_satisfies(
+    declares_fs_read: bool,
+    cached_root: Option<&Path>,
+    wanted_root: Option<&Path>,
+) -> bool {
+    // Порожній `fs-read` — жодного preopen-у не відкривається, тож корінь
+    // на поведінку гостя не впливає (типовий випадок: усі чинні маніфести).
+    if !declares_fs_read {
+        return true;
+    }
+    match (cached_root, wanted_root) {
+        // Корінь виклику невідомий (`describe()`-шлях) — інстанс лишається
+        // як є: гейт `FsReadRootUnbound` спрацює на `detect`/`fix`, якщо
+        // хтось спробує ним щось запустити.
+        (_, None) => true,
+        (Some(cached), Some(wanted)) => cached == wanted,
+        // Інстанс без preopen-ів, а дерево тепер відоме — перезавантажити.
+        (None, Some(_)) => false,
+    }
+}
+
+/// Абсолютний корінь дерева з `cwd`-параметра napi-виклику.
+///
+/// `cwd` приходить із JS і за конвенцією вже абсолютний, але хост вимагає
+/// абсолютний шлях типізовано (`PluginHostError::RelativePreopenRoot`) —
+/// тож відносний тут дорезолвлюється РІВНО так само, як його вже резолвить
+/// решта fix/detect-шляху (`cwd_path.join(file)` у [`read_source_files`]):
+/// від cwd процесу. Так preopens і батч файлів гарантовано дивляться в
+/// одне дерево, яким би не був вхід.
+fn absolute_root(cwd: &Path) -> Result<PathBuf> {
+    if cwd.is_absolute() {
+        return Ok(cwd.to_path_buf());
+    }
+    let base = std::env::current_dir().map_err(|err| {
+        Error::from_reason(format!(
+            "не вдалось визначити cwd процесу для резолву відносного кореня `{}`: {err}",
+            cwd.display()
+        ))
+    })?;
+    Ok(base.join(cwd))
 }
 
 /// Ключі концернів (contributions), задекларовані wasm-плагіном за шляхом —
@@ -1064,7 +1159,10 @@ pub fn run_wasm_concern_fix(
     }
 
     let resolver = build_tool_resolver(tool_paths);
-    let plan = with_loaded_plugin(&wasm_path, |plugin| {
+    // Корінь preopen-ів — те саме дерево, від якого резолвиться батч
+    // (§2.95, доккомент [`with_loaded_plugin_in_root`]).
+    let preopen_root = absolute_root(&cwd_path)?;
+    let plan = with_loaded_plugin_in_root(&wasm_path, Some(&preopen_root), |plugin| {
         // Full-scope fallback (задача порту T0-фіксера `js/check`, доккомент
         // `crates/plugin-lang-js/src/lib.rs`, секція «`js/check` — T0-фіксер
         // ПОРТОВАНО»): whole-batch концерни (`checkOxlintRc`/
@@ -1322,7 +1420,10 @@ pub fn run_wasm_concern(
 ) -> Result<serde_json::Value> {
     let cwd_path = PathBuf::from(&cwd);
     let resolver = build_tool_resolver(tool_paths);
-    let diagnostics = with_loaded_plugin(&wasm_path, |plugin| {
+    // Корінь preopen-ів — те саме дерево, від якого резолвиться batch
+    // (§2.95, доккомент [`with_loaded_plugin_in_root`]).
+    let preopen_root = absolute_root(&cwd_path)?;
+    let diagnostics = with_loaded_plugin_in_root(&wasm_path, Some(&preopen_root), |plugin| {
         let source_files = match files {
             Some(files) => read_source_files(&cwd_path, files)?,
             None => {
@@ -1360,6 +1461,80 @@ mod tests {
     //! по собі НЕ нова (доккомент функції вже це стверджував), тест лише
     //! робить твердження перевіреним, а не декларативним.
     use super::*;
+
+    // --- §2.95: корінь preopen-ів = дерево виклику, не cwd процесу ---
+    //
+    // Наскрізний доказ («гість читає САМЕ передане дерево») живе там, де
+    // є гість із непорожнім `fs-read`:
+    // `crates/rules-plugin-host/tests/fs_read_preopen_root.rs`. Тут —
+    // рішення кешу, яке той доказ робить дійсним і в napi-мосту, де
+    // інстанс переживає багато викликів із РІЗНИМИ коренями.
+
+    /// Типовий випадок (усі чинні маніфести): `fs-read` порожній —
+    /// preopen-ів немає, корінь ні на що не впливає, кеш не має
+    /// перезавантажувати компонент через зміну `cwd`.
+    #[test]
+    fn preopen_root_satisfies_ignores_root_when_no_fs_read_declared() {
+        assert!(preopen_root_satisfies(
+            false,
+            None,
+            Some(Path::new("/tree/one"))
+        ));
+        assert!(preopen_root_satisfies(
+            false,
+            Some(Path::new("/tree/one")),
+            Some(Path::new("/tree/two"))
+        ));
+    }
+
+    /// Червоний-зелений якір §2.95 на боці кешу: інстанс, відкритий на
+    /// ІНШЕ дерево, для плагіна з `fs-read` НЕ придатний — інакше
+    /// `lint --path <інше-дерево>` після першого ж виклику читав би
+    /// перше дерево, мовчки.
+    #[test]
+    fn preopen_root_satisfies_requires_exact_root_match_for_fs_read_plugin() {
+        assert!(preopen_root_satisfies(
+            true,
+            Some(Path::new("/tree/one")),
+            Some(Path::new("/tree/one"))
+        ));
+        assert!(!preopen_root_satisfies(
+            true,
+            Some(Path::new("/tree/one")),
+            Some(Path::new("/tree/two"))
+        ));
+        // Інстанс без preopen-ів (завантажений `describe()`-шляхом), а
+        // дерево тепер відоме — перезавантажити, не кликати гостя в
+        // порожній пісочниці.
+        assert!(!preopen_root_satisfies(
+            true,
+            None,
+            Some(Path::new("/tree/one"))
+        ));
+    }
+
+    /// `describe()`-шлях (`wasmPluginConcerns`/`wasmPluginManifest`) кореня
+    /// не має й не потребує — інстанс переюзається як є. Гучність тут
+    /// забезпечує не кеш, а сам хост: `detect`/`fix` на плагіні без
+    /// прив'язаного кореня падає `FsReadRootUnbound`.
+    #[test]
+    fn preopen_root_satisfies_keeps_instance_when_call_has_no_root() {
+        assert!(preopen_root_satisfies(true, Some(Path::new("/tree/one")), None));
+        assert!(preopen_root_satisfies(true, None, None));
+    }
+
+    /// Відносний `cwd` дорезолвлюється від cwd процесу — РІВНО як його вже
+    /// резолвить `read_source_files` (`cwd_path.join(file)`), тож preopens
+    /// і батч дивляться в одне дерево; абсолютний лишається як є.
+    #[test]
+    fn absolute_root_resolves_relative_cwd_the_same_way_batch_does() {
+        let absolute = PathBuf::from("/tree/one");
+        assert_eq!(absolute_root(&absolute).expect("абсолютний"), absolute);
+
+        let relative = PathBuf::from("sub/tree");
+        let expected = std::env::current_dir().expect("cwd процесу").join(&relative);
+        assert_eq!(absolute_root(&relative).expect("відносний"), expected);
+    }
 
     #[test]
     fn read_source_files_skips_missing_path_and_keeps_existing() {
