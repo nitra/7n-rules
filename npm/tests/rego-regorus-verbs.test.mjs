@@ -18,8 +18,7 @@
  *
  * Чому гейт НЕ глобальна заборона `%q` по всьому репо. Під `conftest` верб
  * цілком легальний, і політики, які `regorus` ніколи не бачить
- * (`npm/rules/**` ядра, `plugins/lang-php`, `plugins/lang-python`,
- * `plugins/lang-rust`), мають повне право його вживати. Глобальна заборона
+ * (`npm/rules/**` ядра), мають повне право його вживати. Глобальна заборона
  * червонила б їх на рівному місці — і її б вимкнули. Тому джерело істини —
  * ЯВНИЙ перелік [`REGORUS_POLICY_PLUGINS`] нижче.
  *
@@ -67,7 +66,11 @@ const REGORUS_POLICY_PLUGINS = {
   'ci-github': 'wasm-гість `crates/plugin-ci-github` рахує rego через host-import `rego-engine` (§2.66/§2.68)',
   'ci-azure': 'wasm-гість `crates/plugin-ci-azure` — той самий host-import із самого початку (§2.69)',
   'lang-js':
-    'wasm-гість `crates/plugin-lang-js` рахує rego через host-import `rego-engine` — шість політик родини `vscode_extensions`/`package_json` (§2.78; `%q` прибрано наперед, §2.76)'
+    'wasm-гість `crates/plugin-lang-js` рахує rego через host-import `rego-engine` — шість політик родини `vscode_extensions`/`package_json` (§2.78; `%q` прибрано наперед, §2.76)',
+  'lang-php': 'wasm-гість `crates/plugin-lang-php` рахує rego `php/vscode_extensions` через host-import `rego-engine` (§2.77)',
+  'lang-python':
+    'wasm-гість `crates/plugin-lang-python` рахує rego `python/vscode_extensions` через host-import `rego-engine` (§2.77)',
+  'lang-rust': 'wasm-гість `crates/plugin-lang-rust` рахує rego `rust/vscode_extensions` через host-import `rego-engine` (§2.77)'
 }
 
 /**
@@ -78,7 +81,14 @@ const REGORUS_POLICY_PLUGINS = {
 const NON_POLICY_REGO_ENGINE_CRATES = new Set(['rules-plugin-host', 'rules-rego-engine'])
 
 /** Крейти-гості, чия залежність `rules-rego-engine` вже покрита переліком вище. */
-const KNOWN_POLICY_REGO_ENGINE_CRATES = new Set(['plugin-ci-github', 'plugin-ci-azure', 'plugin-lang-js'])
+const KNOWN_POLICY_REGO_ENGINE_CRATES = new Set([
+  'plugin-ci-github',
+  'plugin-ci-azure',
+  'plugin-lang-js',
+  'plugin-lang-php',
+  'plugin-lang-python',
+  'plugin-lang-rust'
+])
 
 /**
  * Рекурсивно збирає `.rego`-файли теки.

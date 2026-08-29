@@ -11,5 +11,5 @@ import rego.v1
 deny contains msg if {
 	some rec in data.template.snippet.recommendations
 	not rec in {r | some r in object.get(input, "recommendations", [])}
-	msg := sprintf(".vscode/extensions.json: recommendations має містити %q (python.mdc)", [rec])
+	msg := sprintf(".vscode/extensions.json: recommendations має містити \"%v\" (python.mdc)", [rec])
 }

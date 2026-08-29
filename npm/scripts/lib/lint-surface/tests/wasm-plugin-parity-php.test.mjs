@@ -60,7 +60,7 @@
  * той самий урок, що конвертація `lang-rust`).
  */
 import { existsSync } from 'node:fs'
-import { chmod, mkdir, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { delimiter, join } from 'node:path'
 import { env } from 'node:process'
 import { pathToFileURL } from 'node:url'
@@ -73,7 +73,18 @@ import { createGoldenJs } from './wasm-parity-golden.mjs'
 import { WASM_SIZE_BUDGET_BYTES, WASM_SIZE_BUDGET_LABEL } from './wasm-size-budget.mjs'
 
 const ensureToolAsyncMock = vi.fn()
-vi.mock('@7n/rules/scripts/lib/ensure-tool.mjs', () => ({ ensureToolAsync: ensureToolAsyncMock }))
+// `mago` — керований тестом (спільний фейковий бінарник, доккомент модуля);
+// решта тулів делегується СПРАВЖНЬОМУ `ensureToolAsync`. Плоский мок усього
+// модуля ламав би rego-канон `php/vscode_extensions`: `runConftestBatch`
+// резолвить `conftest` тим самим викликом і отримував би `undefined`.
+vi.mock('@7n/rules/scripts/lib/ensure-tool.mjs', async importOriginal => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    ensureToolAsync: (name, ...rest) =>
+      name === 'mago' ? ensureToolAsyncMock(name, ...rest) : actual.ensureToolAsync(name, ...rest)
+  }
+})
 
 const REPO_ROOT = realRepoRoot()
 const WASM_PATH = join(REPO_ROOT, 'target', 'wasm32-wasip2', 'release', 'plugin_lang_php.wasm')
@@ -651,5 +662,186 @@ describe('wasm-plugin — size-budget (php/wasm-concerns, одна хвиля)',
     const { stat } = await import('node:fs/promises')
     const { size } = await stat(WASM_PATH)
     expect(size).toBeLessThanOrEqual(WASM_SIZE_BUDGET_BYTES)
+  })
+})
+
+// =====================================================================
+// `php/vscode_extensions` — policy-концерн (rego + snippet, без
+// `main.mjs`), портований у гостя ЦІЛКОМ: і детект, і T0-фікс (§2.77
+// реєстру `docs/plans/2026-08-05-open-questions-register.md`).
+//
+// Еталон тут — НЕ golden-знімок, а ЖИВИЙ канон: `evaluatePolicyConcern`
+// (`policy-lint-adapter.mjs`) спавнить справжній `conftest` із тим самим
+// `.rego` і тим самим `--data` зі снапшота — той самий прийом, що
+// [`runPolicyBoth`] у `wasm-plugin-parity.test.mjs` для rego-концернів
+// `lang-js`. Фікс-половина доводиться T0-циклом крізь РЕАЛЬНИЙ napi-міст
+// (detect → `runWasmConcernFix` → застосувати правки → detect чистий), той
+// самий прийом, що `wasm-plugin-parity-ci-github.test.mjs`.
+// =====================================================================
+
+const VSCODE_EXT_CONCERN_KEY = 'php/vscode_extensions'
+const VSCODE_EXT_TARGET = '.vscode/extensions.json'
+const VSCODE_EXT_CONCERN_DIR = join(REPO_ROOT, 'plugins', 'lang-php', 'rules', 'php', 'vscode_extensions')
+
+/**
+ * Канонічні розширення — читаються зі снапшота концерну, не дублюються
+ * літералом: змінять снапшот — тест піде за ним, а не почне брехати.
+ * @returns {Promise<string[]>} список канонічних id розширень
+ */
+async function vscodeExtCanonical() {
+  const raw = await readFile(join(VSCODE_EXT_CONCERN_DIR, 'template', 'extensions.json.snippet.json'), 'utf8')
+  return JSON.parse(raw).recommendations
+}
+
+/**
+ * `policy.missingMessage` з `concern.json` — той самий рядок, який канон
+ * кладе у `policy-file-missing` (дублювати його в тесті означало б
+ * перевіряти копію, а не контракт).
+ * @returns {Promise<{ files: object, missingMessage: string }>} policy-поверхня концерну
+ */
+async function vscodeExtPolicySurface() {
+  const raw = await readFile(join(VSCODE_EXT_CONCERN_DIR, 'concern.json'), 'utf8')
+  return JSON.parse(raw).policy
+}
+
+/**
+ * Порівнювані поля violation (контрактні, без `ruleId`/`concernId`, які
+ * wasm-міст проставляє сам).
+ * @param {{ reason: string, message: string, file?: string, severity?: string }} v violation будь-якого боку
+ * @returns {object} нормалізована форма для звірки
+ */
+function pickVscodeExtFields(v) {
+  return { reason: v.reason, message: v.message, file: v.file, severity: v.severity ?? 'error' }
+}
+
+/**
+ * Ганяє концерн через КАНОН (`evaluatePolicyConcern` → conftest) і через
+ * `runWasmConcern` (`files: null`, full-scope міст), повертаючи обидва
+ * набори violations для звірки.
+ * @param {string} dir абсолютний шлях tmp-дерева
+ * @returns {Promise<{ js: object[], wasm: object[] }>} результати обох реалізацій
+ */
+async function runVscodeExtBoth(dir) {
+  const { evaluatePolicyConcern } = await import('../policy-lint-adapter.mjs')
+  const policy = await vscodeExtPolicySurface()
+  const jsResult = await evaluatePolicyConcern(
+    { cwd: dir, ruleId: 'php', concernId: 'vscode_extensions' },
+    {
+      engine: 'rego',
+      policyDir: VSCODE_EXT_CONCERN_DIR,
+      files: policy.files,
+      missingMessage: policy.missingMessage
+    }
+  )
+  const wasmResult = loadNative().runWasmConcern(WASM_PATH, VSCODE_EXT_CONCERN_KEY, dir, null, {})
+  return {
+    js: jsResult.violations.map(v => pickVscodeExtFields(v)),
+    wasm: wasmResult.violations.map(v => pickVscodeExtFields(v))
+  }
+}
+
+/**
+ * Пише `.vscode/extensions.json` у tmp-дерево.
+ * @param {string} dir корінь tmp-дерева
+ * @param {string} content вміст файлу
+ * @returns {Promise<void>} завершення запису
+ */
+async function writeVscodeExtTarget(dir, content) {
+  await mkdir(join(dir, '.vscode'), { recursive: true })
+  await writeFile(join(dir, VSCODE_EXT_TARGET), content, 'utf8')
+}
+
+describe('wasm-plugin parity — php/vscode_extensions (rego-канон через conftest vs wasm plugin-lang-php)', () => {
+  test('файл відсутній — обидві реалізації дають той самий policy-file-missing', async () => {
+    await withTmpDir(async dir => {
+      const { js, wasm } = await runVscodeExtBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('policy-file-missing')
+      expect(js[0].file).toBe(VSCODE_EXT_TARGET)
+    })
+  })
+
+  test('порожній recommendations — ідентичні policy-deny по кожному канонічному розширенню', async () => {
+    await withTmpDir(async dir => {
+      await writeVscodeExtTarget(dir, JSON.stringify({ recommendations: [] }, null, 2))
+      const { js, wasm } = await runVscodeExtBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength((await vscodeExtCanonical()).length)
+      expect(js.every(v => v.reason === 'policy-deny')).toBe(true)
+    })
+  })
+
+  test('усі канонічні присутні (плюс сторонні) — тиша з обох реалізацій', async () => {
+    await withTmpDir(async dir => {
+      const recommendations = ['some.other-extension', ...(await vscodeExtCanonical())]
+      await writeVscodeExtTarget(dir, JSON.stringify({ recommendations }, null, 2))
+      const { js, wasm } = await runVscodeExtBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  /**
+   * ПОЛАГОДЖЕНИЙ ДЕФЕКТ КАНОНУ, не парність: `.vscode/*.json` із
+   * `//`-коментарем — цілком легальний JSONC для VS Code, але conftest (Go,
+   * строгий JSON) на ньому падає й канон не бачить `recommendations` узагалі.
+   * Гість читає JSONC (`parse_jsonc_document`, спільний
+   * `rules-template-merge`) — тиша там, де все канонічне вже на місці.
+   * Тест СВІДОМО звіряє гостя з очікуваним, а не з JS: підганяти його під
+   * гіршу поведінку канону означало б закріпити ваду.
+   */
+  test('JSONC-вхід із коментарем — гість читає файл (канон через conftest не вміє)', async () => {
+    await withTmpDir(async dir => {
+      const recommendations = await vscodeExtCanonical()
+      await writeVscodeExtTarget(
+        dir,
+        `{\n  // канон команди\n  "recommendations": ${JSON.stringify(recommendations)}\n}\n`
+      )
+      const wasm = loadNative()
+        .runWasmConcern(WASM_PATH, VSCODE_EXT_CONCERN_KEY, dir, null, {})
+        .violations.map(v => pickVscodeExtFields(v))
+      expect(wasm).toEqual([])
+    })
+  })
+
+  test('T0-цикл через fix-міст: файла немає — fix створює канон, повторний детект чистий', async () => {
+    await withTmpDir(async dir => {
+      const before = loadNative().runWasmConcern(WASM_PATH, VSCODE_EXT_CONCERN_KEY, dir, null, {}).violations
+      expect(before).toHaveLength(1)
+
+      const plan = loadNative().runWasmConcernFix(WASM_PATH, VSCODE_EXT_CONCERN_KEY, dir, before, {})
+      const edit = plan.edits.find(e => e.path === VSCODE_EXT_TARGET)
+      expect(edit).toBeDefined()
+      expect(JSON.parse(edit.content).recommendations).toEqual(await vscodeExtCanonical())
+
+      await writeVscodeExtTarget(dir, edit.content)
+      const { js, wasm } = await runVscodeExtBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  })
+
+  test('T0-цикл через fix-міст: локальні ключі й рекомендації переживають union-мерж', async () => {
+    await withTmpDir(async dir => {
+      await writeVscodeExtTarget(
+        dir,
+        JSON.stringify({ recommendations: ['local.ext'], unwantedRecommendations: ['bad.ext'] }, null, 2)
+      )
+      const before = loadNative().runWasmConcern(WASM_PATH, VSCODE_EXT_CONCERN_KEY, dir, null, {}).violations
+      expect(before.length).toBeGreaterThan(0)
+
+      const plan = loadNative().runWasmConcernFix(WASM_PATH, VSCODE_EXT_CONCERN_KEY, dir, before, {})
+      const edit = plan.edits.find(e => e.path === VSCODE_EXT_TARGET)
+      expect(edit).toBeDefined()
+      const merged = JSON.parse(edit.content)
+      expect(merged.recommendations).toEqual(['local.ext', ...(await vscodeExtCanonical())])
+      expect(merged.unwantedRecommendations).toEqual(['bad.ext'])
+
+      await writeVscodeExtTarget(dir, edit.content)
+      const { js, wasm } = await runVscodeExtBoth(dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
   })
 })
