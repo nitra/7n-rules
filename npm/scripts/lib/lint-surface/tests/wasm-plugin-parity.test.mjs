@@ -105,7 +105,6 @@ if (!existsSync(WASM_PATH)) {
   )
 }
 
-
 const TFM_CONCERN_KEY = 'vue/tfm-translations'
 const GAP_CONCERN_KEY = 'style/gap'
 const POOL_FORKS_CONCERN_KEY = 'test/vitest-config-pool-forks'
@@ -189,7 +188,6 @@ const PACKAGE_STRUCTURE_CONCERN_KEY = 'npm-module/package_structure'
 const DEP_POLICY_CONCERN_KEY = 'js/dep-policy'
 /** Реєстр предикатів — джерело правди анти-дрейф-тесту `RULE_PREDICATE_NAMES`. */
 const RULE_PREDICATES_PATH = join(REPO_ROOT, 'npm', 'scripts', 'lib', 'rule-predicates.mjs')
-
 
 // ---------------------------------------------------------------------
 // Шар еталонів ([`goldenJs`], `wasm-parity-golden.mjs`): JS-детектори
@@ -311,7 +309,10 @@ async function runFullScopeBoth(concernKey, ruleId, concernId, dir) {
  * справжні зависання, замість того щоб бути розтягнутою під разовий старт.
  *
  * 120 с — із запасом над заміряним: гейт має ловити мертвий міст, а не
- * повільну машину.
+ * повільну машину. Те саме число й той самий мотив, що в
+ * [`CONFTEST_SPAWN_TIMEOUT_MS`] нижче (холодний перший спавн `conftest`) —
+ * різниця лише в тому, що там ціну платить кожен тест-спавн, а тут вона
+ * одноразова на процес, тож виноситься в hook, а не в стелю тесту.
  */
 const NATIVE_WARMUP_TIMEOUT_MS = 120_000
 
@@ -2794,7 +2795,9 @@ describe('wasm-plugin parity — bun/layout T0-фікс через fix-міст 
       const before = withDefaultSeverity(
         loadNative().runWasmConcern(WASM_PATH, BUN_LAYOUT_CONCERN_KEY, dir, null).violations
       )
-      expect(before.map(v => v.message)).toEqual(['Відсутній bunfig.toml — створи з [install] linker = "hoisted" (bun.mdc)'])
+      expect(before.map(v => v.message)).toEqual([
+        'Відсутній bunfig.toml — створи з [install] linker = "hoisted" (bun.mdc)'
+      ])
 
       const plan = loadNative().runWasmConcernFix(WASM_PATH, BUN_LAYOUT_CONCERN_KEY, dir, before, {})
       expect(plan.edits).toEqual([{ type: 'write', path: 'bunfig.toml', content: '[install]\nlinker = "hoisted"\n' }])
@@ -4512,7 +4515,11 @@ describe('wasm-plugin — style/lint T0-фікс через fix-міст (exec-t
 
   /** Агрегована діагностика концерну — рівно те, що віддає `detect_style_lint` (жодного `file`). */
   const stylelintViolations = () => [
-    { reason: 'stylelint-violation', message: 'lint-style: stylelint — порушення (код 2, style.mdc)', severity: 'error' }
+    {
+      reason: 'stylelint-violation',
+      message: 'lint-style: stylelint — порушення (код 2, style.mdc)',
+      severity: 'error'
+    }
   ]
 
   test('дельта: host-diff синтезує write-edit ЛИШЕ на файли дельти — файл поза нею не чіпається', async () => {
@@ -5448,116 +5455,148 @@ async function runWasmFixCycle(key, dir) {
 const CONFTEST_SPAWN_TIMEOUT_MS = 120_000
 
 describe('wasm-plugin parity — §2.78 rego-детект шести концернів (conftest-канон vs host-import rego-engine)', () => {
-  test('js/vscode_extensions: бракує однієї рекомендації → ідентичні violations', async () => {
-    await withTmpDir(async dir => {
-      await writeFileDeep(dir, '.vscode/extensions.json', '{\n  "recommendations": ["dbaeumer.vscode-eslint"]\n}\n')
-      const { js, wasm } = await runSingleFilePolicyBoth(JS_VSCODE_EXTENSIONS_CONCERN_KEY, dir)
-      expect(wasm).toEqual(js)
-      expect(js).toHaveLength(1)
-      expect(js[0].message).toContain('oxc.oxc-vscode')
-      expect(js[0].file).toBe('.vscode/extensions.json')
-    })
-  }, CONFTEST_SPAWN_TIMEOUT_MS)
+  test(
+    'js/vscode_extensions: бракує однієї рекомендації → ідентичні violations',
+    async () => {
+      await withTmpDir(async dir => {
+        await writeFileDeep(dir, '.vscode/extensions.json', '{\n  "recommendations": ["dbaeumer.vscode-eslint"]\n}\n')
+        const { js, wasm } = await runSingleFilePolicyBoth(JS_VSCODE_EXTENSIONS_CONCERN_KEY, dir)
+        expect(wasm).toEqual(js)
+        expect(js).toHaveLength(1)
+        expect(js[0].message).toContain('oxc.oxc-vscode')
+        expect(js[0].file).toBe('.vscode/extensions.json')
+      })
+    },
+    CONFTEST_SPAWN_TIMEOUT_MS
+  )
 
-  test('js/vscode_extensions: файлу немає — обидві реалізації дають ту саму policy-file-missing (required: true)', async () => {
-    await withTmpDir(async dir => {
-      await writeFileDeep(dir, 'package.json', '{}\n')
-      const { js, wasm } = await runSingleFilePolicyBoth(JS_VSCODE_EXTENSIONS_CONCERN_KEY, dir)
-      expect(wasm).toEqual(js)
-      expect(js).toHaveLength(1)
-      expect(js[0].reason).toBe('policy-file-missing')
-    })
-  }, CONFTEST_SPAWN_TIMEOUT_MS)
+  test(
+    'js/vscode_extensions: файлу немає — обидві реалізації дають ту саму policy-file-missing (required: true)',
+    async () => {
+      await withTmpDir(async dir => {
+        await writeFileDeep(dir, 'package.json', '{}\n')
+        const { js, wasm } = await runSingleFilePolicyBoth(JS_VSCODE_EXTENSIONS_CONCERN_KEY, dir)
+        expect(wasm).toEqual(js)
+        expect(js).toHaveLength(1)
+        expect(js[0].reason).toBe('policy-file-missing')
+      })
+    },
+    CONFTEST_SPAWN_TIMEOUT_MS
+  )
 
-  test('style/vscode_extensions: файлу немає — БЕЗ required обидві мовчать (розходження concern.json тієї самої родини)', async () => {
-    await withTmpDir(async dir => {
-      await writeFileDeep(dir, 'package.json', '{}\n')
-      const { js, wasm } = await runSingleFilePolicyBoth(STYLE_VSCODE_EXTENSIONS_CONCERN_KEY, dir)
-      expect(wasm).toEqual(js)
-      expect(js).toEqual([])
-    })
-  }, CONFTEST_SPAWN_TIMEOUT_MS)
+  test(
+    'style/vscode_extensions: файлу немає — БЕЗ required обидві мовчать (розходження concern.json тієї самої родини)',
+    async () => {
+      await withTmpDir(async dir => {
+        await writeFileDeep(dir, 'package.json', '{}\n')
+        const { js, wasm } = await runSingleFilePolicyBoth(STYLE_VSCODE_EXTENSIONS_CONCERN_KEY, dir)
+        expect(wasm).toEqual(js)
+        expect(js).toEqual([])
+      })
+    },
+    CONFTEST_SPAWN_TIMEOUT_MS
+  )
 
-  test('js/package_json: type + engines + eslint-config нижче порогу → ідентичні violations', async () => {
-    await withTmpDir(async dir => {
-      await writeFileDeep(
-        dir,
-        'package.json',
-        JSON.stringify(
-          {
-            name: 'x',
-            type: 'commonjs',
-            engines: { node: '>=20', bun: '>=1.2' },
-            devDependencies: { '@nitra/eslint-config': '^3.1.0' }
-          },
-          null,
-          2
+  test(
+    'js/package_json: type + engines + eslint-config нижче порогу → ідентичні violations',
+    async () => {
+      await withTmpDir(async dir => {
+        await writeFileDeep(
+          dir,
+          'package.json',
+          JSON.stringify(
+            {
+              name: 'x',
+              type: 'commonjs',
+              engines: { node: '>=20', bun: '>=1.2' },
+              devDependencies: { '@nitra/eslint-config': '^3.1.0' }
+            },
+            null,
+            2
+          )
         )
-      )
-      const { js, wasm } = await runSingleFilePolicyBoth(JS_PACKAGE_JSON_CONCERN_KEY, dir)
-      expect(wasm).toEqual(js)
-      expect(js.length).toBeGreaterThanOrEqual(4)
-    })
-  }, CONFTEST_SPAWN_TIMEOUT_MS)
+        const { js, wasm } = await runSingleFilePolicyBoth(JS_PACKAGE_JSON_CONCERN_KEY, dir)
+        expect(wasm).toEqual(js)
+        expect(js.length).toBeGreaterThanOrEqual(4)
+      })
+    },
+    CONFTEST_SPAWN_TIMEOUT_MS
+  )
 
-  test('js/package_json: eslint-config ВИЩЕ порогу — обидві мовчать (detect — це `>=`, не рівність)', async () => {
-    await withTmpDir(async dir => {
-      await writeFileDeep(
-        dir,
-        'package.json',
-        JSON.stringify(
-          {
-            type: 'module',
-            engines: { node: '>=24', bun: '>=1.4' },
-            devDependencies: { '@nitra/eslint-config': '^3.20.0' }
-          },
-          null,
-          2
+  test(
+    'js/package_json: eslint-config ВИЩЕ порогу — обидві мовчать (detect — це `>=`, не рівність)',
+    async () => {
+      await withTmpDir(async dir => {
+        await writeFileDeep(
+          dir,
+          'package.json',
+          JSON.stringify(
+            {
+              type: 'module',
+              engines: { node: '>=24', bun: '>=1.4' },
+              devDependencies: { '@nitra/eslint-config': '^3.20.0' }
+            },
+            null,
+            2
+          )
         )
-      )
-      const { js, wasm } = await runSingleFilePolicyBoth(JS_PACKAGE_JSON_CONCERN_KEY, dir)
-      expect(wasm).toEqual(js)
-      expect(js).toEqual([])
-    })
-  }, CONFTEST_SPAWN_TIMEOUT_MS)
+        const { js, wasm } = await runSingleFilePolicyBoth(JS_PACKAGE_JSON_CONCERN_KEY, dir)
+        expect(wasm).toEqual(js)
+        expect(js).toEqual([])
+      })
+    },
+    CONFTEST_SPAWN_TIMEOUT_MS
+  )
 
-  test('npm-module/npm_package_json: files без "types" → ідентичні violations (і `.rego` компілюється під regorus після §2.78)', async () => {
-    await withTmpDir(async dir => {
-      await writeFileDeep(
-        dir,
-        'npm/package.json',
-        JSON.stringify({ types: './types/index.d.ts', files: ['dist'] }, null, 2)
-      )
-      const { js, wasm } = await runSingleFilePolicyBoth(NPM_PACKAGE_JSON_CONCERN_KEY, dir)
-      expect(wasm).toEqual(js)
-      expect(js).toHaveLength(1)
-      expect(js[0].message).toContain('types')
-      expect(js[0].file).toBe('npm/package.json')
-    })
-  }, CONFTEST_SPAWN_TIMEOUT_MS)
+  test(
+    'npm-module/npm_package_json: files без "types" → ідентичні violations (і `.rego` компілюється під regorus після §2.78)',
+    async () => {
+      await withTmpDir(async dir => {
+        await writeFileDeep(
+          dir,
+          'npm/package.json',
+          JSON.stringify({ types: './types/index.d.ts', files: ['dist'] }, null, 2)
+        )
+        const { js, wasm } = await runSingleFilePolicyBoth(NPM_PACKAGE_JSON_CONCERN_KEY, dir)
+        expect(wasm).toEqual(js)
+        expect(js).toHaveLength(1)
+        expect(js[0].message).toContain('types')
+        expect(js[0].file).toBe('npm/package.json')
+      })
+    },
+    CONFTEST_SPAWN_TIMEOUT_MS
+  )
 
-  test('npm-module/root_package_json: немає workspaces → ідентичні violations; є — обидві мовчать', async () => {
-    await withTmpDir(async dir => {
-      await writeFileDeep(dir, 'package.json', JSON.stringify({ name: 'root' }, null, 2))
-      const bad = await runSingleFilePolicyBoth(ROOT_PACKAGE_JSON_CONCERN_KEY, dir)
-      expect(bad.wasm).toEqual(bad.js)
-      expect(bad.js).toHaveLength(1)
+  test(
+    'npm-module/root_package_json: немає workspaces → ідентичні violations; є — обидві мовчать',
+    async () => {
+      await withTmpDir(async dir => {
+        await writeFileDeep(dir, 'package.json', JSON.stringify({ name: 'root' }, null, 2))
+        const bad = await runSingleFilePolicyBoth(ROOT_PACKAGE_JSON_CONCERN_KEY, dir)
+        expect(bad.wasm).toEqual(bad.js)
+        expect(bad.js).toHaveLength(1)
 
-      await writeFileDeep(dir, 'package.json', JSON.stringify({ name: 'root', workspaces: ['npm'] }, null, 2))
-      const good = await runSingleFilePolicyBoth(ROOT_PACKAGE_JSON_CONCERN_KEY, dir)
-      expect(good.wasm).toEqual(good.js)
-      expect(good.js).toEqual([])
-    })
-  }, CONFTEST_SPAWN_TIMEOUT_MS)
+        await writeFileDeep(dir, 'package.json', JSON.stringify({ name: 'root', workspaces: ['npm'] }, null, 2))
+        const good = await runSingleFilePolicyBoth(ROOT_PACKAGE_JSON_CONCERN_KEY, dir)
+        expect(good.wasm).toEqual(good.js)
+        expect(good.js).toEqual([])
+      })
+    },
+    CONFTEST_SPAWN_TIMEOUT_MS
+  )
 
-  test('style/package_json: чужий stylelint.extends + відсутній devDep → ідентичні violations', async () => {
-    await withTmpDir(async dir => {
-      await writeFileDeep(dir, 'package.json', JSON.stringify({ stylelint: { extends: 'wrong' } }, null, 2))
-      const { js, wasm } = await runSingleFilePolicyBoth(STYLE_PACKAGE_JSON_CONCERN_KEY, dir)
-      expect(wasm).toEqual(js)
-      expect(js).toHaveLength(2)
-    })
-  }, CONFTEST_SPAWN_TIMEOUT_MS)
+  test(
+    'style/package_json: чужий stylelint.extends + відсутній devDep → ідентичні violations',
+    async () => {
+      await withTmpDir(async dir => {
+        await writeFileDeep(dir, 'package.json', JSON.stringify({ stylelint: { extends: 'wrong' } }, null, 2))
+        const { js, wasm } = await runSingleFilePolicyBoth(STYLE_PACKAGE_JSON_CONCERN_KEY, dir)
+        expect(wasm).toEqual(js)
+        expect(js).toHaveLength(2)
+      })
+    },
+    CONFTEST_SPAWN_TIMEOUT_MS
+  )
 })
 
 describe('wasm-plugin parity — §2.78 T0-фікс через РЕАЛЬНИЙ napi-міст (детект гостем → runWasmConcernFix → applyPlanEdit → детект чистий)', () => {
