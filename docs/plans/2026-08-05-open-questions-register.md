@@ -10739,3 +10739,160 @@ entry-глоби воркспейса `plugins/ci-github` після знятт�
 `rules/*/*/fix-*.mjs` → два вцілілі канони, `rules/*/*/main.mjs` → один
 (`ci_artifact/consume`), `rules/**/*.test.mjs` → три тест-файли. Жодного
 мертвого глоба, правити нічого.
+
+---
+
+### 2.91. Зняття JS-канонів — `lang-rust` (4) + `lang-python` (3): зразок §2.88 на плагінах із КІЛЬКОМА концернами
+
+**Що зроблено.** Знято всі сім `fix-<concern>.mjs` двох плагінів:
+`rust/{doc_comments,check,cargo_mutants_config,vscode_extensions}` і
+`python/{doc_comments,ruff,vscode_extensions}` — рівно ті сім концернів,
+що мають гілку в `Guest::fix` гостей `crates/plugin-lang-rust` /
+`crates/plugin-lang-python`. Обидва гості тепер ЄДИНА реалізація фіксу
+своїх концернів; жоден канон не лишився «на потім».
+
+Канони-ДЖЕРЕЛА не чіпано: `.rego`, `concern.json`, `template/**` і два
+data-файли (`check/data/check/deny.toml.minimal`,
+`cargo_mutants_config/data/cargo_mutants_config/mutants.toml.baseline`) —
+їх гість `include_str!`-ить, тож і detect-парність через справжній
+`conftest`, і байт-у-байт звірка скаффолда лишились живими.
+
+**Порядкова звірка — жодна знахідка «канон робить більше» не підтвердилась.**
+
+- `rust/doc_comments`, `python/doc_comments` — точні порти; у гостей є
+  ДОДАТКОВИЙ guard ідемпотентності (`promote_plain_comment_line` не чіпає
+  вже піднятий рядок) і fail-safe пропуск застарілої `data`, чого канони
+  не мали. Обидві розбіжності на користь гостя й задокументовані хвилями
+  порту.
+- `rust/cargo_mutants_config` — гість бере цілі з `diagnostic.file`
+  замість повторного `resolveAllCargoManifests(cwd)`; результат той самий
+  (детект уже перелічив КОЖЕН відсутній таргет), а baseline вшито
+  `include_str!`-ом, тож гілки канону «шаблон зник із npm-пакета» більше
+  немає як класу — шаблону немає ⇒ крейт не компілюється.
+- `python/ruff` — канон був ЄДИНИМ місцем, де жив `test()`-предикат за
+  `reason`. У гостя такого предиката НЕМА і не має бути: `fix()`
+  диспатчиться за concern-id, а «нічого робити» вирішує префлайт
+  `prepare_python_run`. Звірено вичерпно за переліком reason-ів
+  `detect_ruff` (`ruff-check-violation`, `ruff-format-violation`,
+  `ruff-unavailable`, `uv-missing`): на двох останніх префлайт дає той
+  самий no-op, що й `test() === false`. Поведінкової дірки немає.
+- `*/vscode_extensions` — обидва були тим самим тонким re-export-ом
+  `vscode-ext-add.mjs`, що й пілотний php (§2.88, §2.77 портувала обидві
+  половини). Рушій `vscode-ext-add.mjs` живий — його читають НЕпортовані
+  `vscode_extensions`-концерни ядра.
+
+**`rust/check` — перевірено окремо, канон НЕ лишено.** §2.72 називала
+місце, де гість слабший: без ФС він використовує код виходу
+`cargo deny init` як проксі до `existsSync(deny.toml)`. Перевірка
+показала, що це НЕ привід тримати канон: `deny.toml` є у glob-і
+контрибуції `rust/check`, тож файл, народжений `cargo deny init`,
+підбирає host-diff; а розбіжність «init сказав 0, файлу немає» не тихне —
+наступний `detect_check` знову видає `deny-config-missing`. Канон же в
+цьому місці був ГІРШИЙ, а не кращий: він мовчки віддавав
+`{ touchedFiles: [] }` при `resolveCmd('cargo') === null` і цілком
+ігнорував код виходу `cargo fmt --all`; гість на обох робить
+`LogLevel::Error`.
+
+**Гейт — ТАБЛИЧНИЙ, і це головне уточнення зразка §2.88.** Пілот мав один
+концерн, тож гейт «на концерн» був природним. На чотирьох (rust) і трьох
+(python) така форма розсипалась би на сім майже однакових копій, з яких
+легко забути додати восьму при наступному порті. Тому на плагін —
+ОДИН тест, що проганяє `loadT0Patterns` (той самий резолвер, яким ходить
+прод) по ВСІХ ключах `Guest::fix` і звіряє одну таблицю:
+`{ concern: [true] }` для кожного. Таблиця в тесті — це `match` у
+`Guest::fix` у JS-формі; розходження видно з одного місця, а падіння
+називає САМЕ той концерн, що поїхав, і напрямок (`[]` — зник гість,
+`[true, false]` — повернувся канон). Обидва гейти доведено ЖИВИМИ:
+з тимчасово поверненими `fix-check.mjs` і `fix-ruff.mjs` обидва червоні.
+
+**Що НАСПРАВДІ зникло — і чим замінено.** Те саме, що в пілоті: не тест, а
+ПОВЕРХНЯ — третій шар `loadT0Patterns` (native → wasm(`guestFix`) →
+`fix-<concern>.mjs`), який глушив випадок «гість не резолвиться».
+Свідома ціна завершення міграції.
+
+**Крок 4 зразка («переписати характеризацію, а не видалити») тут уперше
+НЕ був формальністю.** У пілоті жодне твердження не трималось за
+видалений файл. Тут трималось чотири:
+
+1. `wasm-plugin-parity-rust.test.mjs`, describe «T0-цикл: детект гостем →
+   JS-фіксер → детект гостем чистий» (3 тести) — `apply()` брався з
+   каноном НАПРЯМУ. Два з трьох сценаріїв уже мали дослівних двійників у
+   сусідньому describe «через fix-міст» (правильна форма «гість =
+   очікуваний результат»). ТРЕТІЙ — `glob-workspaces (packages/*)`, §2.28
+   — двійника не мав і був ПЕРЕНЕСЕНИЙ у fix-міст-форму, а не викинутий:
+   тепер він пінує, що whole-batch-фікс гостя доносить baseline у КОЖЕН
+   розкритий каталог.
+2. `wasm-plugin-parity-python.test.mjs`, той самий describe (1 тест) —
+   двійник у fix-міст-формі вже був.
+3. Хвіст тесту «deny-config-missing без cargo-deny» звіряв скаффолд гостя
+   з ЖИВИМ каноном. Звірка не втрачена: тест і далі порівнює вміст edit-а
+   з тим самим data-файлом, який гість `include_str!`-ить, — тобто
+   з ДЖЕРЕЛОМ, а не з другою реалізацією.
+4. `wasm-fix-exec-tool-python-ruff.test.mjs`, «JS-fallback не
+   перезапускає ті самі кроки». Тест лишився (точний рахунок спавнів
+   `uv`), але його СЕНС зсунувся, і назву виправлено. Побічна знахідка:
+   він і РАНІШЕ не доводив того, що обіцяв, — `seedRuffConcern` будує
+   синтетичний concern-каталог у tmp, куди `fix-ruff.mjs` ніколи не
+   потрапляв, тож третій шар там не резолвився в принципі.
+
+**Лічильники тестів.**
+
+| | до | після |
+|---|---|---|
+| `cargo test -p plugin-lang-rust` | 90 | 90 |
+| `cargo test -p plugin-lang-python` | 80 | 80 |
+| `wasm-plugin-parity-rust.test.mjs` | 71 | 70 |
+| `wasm-plugin-parity-python.test.mjs` | 65 | 65 |
+| `wasm-fix-exec-tool-python-ruff.test.mjs` | 4 | 4 |
+| vitest `plugins/lang-rust` | 108 | 94 |
+| vitest `plugins/lang-python` | 88 | 83 |
+
+Зникло 19 JS-тестів, доданo 2. Кожен зниклий — характеризація САМОГО
+канону, і кожен має адресу в гостя:
+
+- rust `fix-doc_comments.test.mjs` (2: `promoteBlock`, `apply`) →
+  `fix_doc_comments_promotes_header_and_pub_doc_blocks`,
+  `…_preserves_indent_and_author_text`, `…_round_trip_with_detect_is_clean`;
+- rust `fix-cargo_mutants_config.test.mjs` (5) →
+  `fix_cargo_mutants_config_creates_root_baseline_when_missing`,
+  `…_writes_baseline_for_each_resolved_manifest`,
+  `…_skips_target_already_present_in_batch` + parity-тести детекту
+  (Tauri-маніфест, glob-workspaces). ЄДИНИЙ сценарій без прямого
+  спадкоємця — «`.cargo/` існує — не псує наявні файли всередині»: він
+  перевіряв `mkdir --recursive` JS-канону, а гість віддає ОДИН
+  `Write`-edit із точним шляхом, тож властивість стала структурною, а не
+  поведінковою;
+- rust `fix-check.test.mjs` (7) → `check_fix_channels_maps_each_reason_independently`,
+  `check_fix_channels_ignores_unrelated_reasons` (шість предикатних) і
+  parity-тест «детермінований скаффолд БАЙТ-У-БАЙТ» (сьомий);
+- python `fix-doc_comments.test.mjs` (2) → `build_docstring`-гілки
+  `fix_doc_comments_promotes_multiline_comment_block_to_docstring`,
+  `…_indent_follows_body_line_not_hardcoded`,
+  `…_falls_back_to_four_spaces_when_body_line_is_blank`;
+- python `fix-ruff.test.mjs` (3) — предикат за `reason`, якого в гостя
+  СВІДОМО немає (розбір вище); контур пінує
+  `wasm-fix-exec-tool-python-ruff.test.mjs` лічильником спавнів;
+- 4 parity-тести розібрані вище (3 rust + 1 python), з них 1 перенесено.
+
+**Побічне.** `knip.json` мав ДВА мертві глоби після зняття, а не один:
+`rules/*/*/fix-*.mjs` в обох воркспейсах (як у пілоті) — і, ЛИШЕ в
+`plugins/lang-python`, ще й `rules/**/*.test.mjs`: цей плагін після зняття
+не має в `rules/` жодного тесту взагалі. У `plugins/lang-rust` той самий
+глоб живий (`rules/rust/tests/applies.test.mjs`). Урок для наступних
+партій: після зняття прогнати `knip --workspace <плагін>` і прочитати
+«Configuration hints», а не лише грепнути `fix-*`.
+
+**Лічильники контрибуцій (крок 10 зразка) — для цих двох плагінів їх по
+ОДНОМУ**, обидва в самому крейті (`plugin_toml_concern_keys_match_describe`);
+окремих інтеграційних `rules-plugin-host --test plugin_lang_rust/python`
+не існує взагалі (на відміну від php). Контрибуції не мінялись, обидва
+крейтові суїти лишились 90/80.
+
+**Окремий борг, НЕ змішаний із цією хвилею.**
+`npm/scripts/utils/resolve-cargo-manifest.mjs` після зняття
+`fix-cargo_mutants_config.mjs` втратив останнього продакшн-споживача в
+монорепо — лишились лише власний тест і згадка в parity-коментарі. Knip
+його не бачить (його тест — entry), тож тихо він не червоніє. Це
+ОПУБЛІКОВАНА поверхня `@7n/rules/scripts/utils/…`, тож видалення —
+breaking-рішення, а не побічний ефект (той самий мотив, що
+`blue-oak.mjs`, §2.15).

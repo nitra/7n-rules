@@ -92,8 +92,6 @@ const APPLIES_MAIN_MJS_PATH = join(RUST_RULES_DIR, 'applies', 'main.mjs')
 const DOC_COMMENTS_MAIN_MJS_PATH = join(RUST_RULES_DIR, 'doc_comments', 'main.mjs')
 const WORKSPACE_ROOT_MAIN_MJS_PATH = join(RUST_RULES_DIR, 'workspace_root', 'main.mjs')
 const CHECK_MAIN_MJS_PATH = join(RUST_RULES_DIR, 'check', 'main.mjs')
-/** ЖИВИЙ (не еталонний) JS-канон T0-фіксера `rust/check` — парність fix-контуру. */
-const CHECK_FIX_MJS_PATH = join(RUST_RULES_DIR, 'check', 'fix-check.mjs')
 const CARGO_MUTANTS_CONFIG_MAIN_MJS_PATH = join(RUST_RULES_DIR, 'cargo_mutants_config', 'main.mjs')
 const WASM_COMPONENT_MAIN_MJS_PATH = join(RUST_RULES_DIR, 'wasm_component', 'main.mjs')
 
@@ -1010,100 +1008,6 @@ describe('wasm-plugin parity — rust/wasm_component (JS канон vs wasm plug
   })
 })
 
-// --- Замикання T0-циклів: гість → JS-фіксер → гість --------------------
-//
-// Не parity (порівнювати нема з чим): `Guest::fix` для обох цих концернів
-// свідомо віддає порожній план, фіксери лишаються JS. Але після зняття
-// JS-ДЕТЕКТОРІВ фіксери вперше живуть окремо від реалізації, що породжує
-// їхній вхід. Раніше петлю замикали власні тести концернів
-// (`checkFileDocComments(after)` / `runCheckIn` перед `applyT0`) — разом із
-// детекторами вони б зникли.
-//
-// Особливо важливо для `cargo_mutants_config`: його `test()` матчить
-// порушення за РЯДКОМ `mutants-config-missing`, який після зняття канону
-// живе окремою константою у фіксері й окремою — у гості. Розходження цих
-// двох рядків не зламало б жодного юніт-тесту, а фікс просто тихо
-// перестав би спрацьовувати. Саме це й ловить сценарій нижче.
-describe('rust/doc_comments + rust/cargo_mutants_config — T0-цикл: детект гостем → JS-фіксер → детект гостем чистий', () => {
-  test('doc_comments: обидва //-блоки підвищено, повторний детект мовчить', async () => {
-    await withTmpDir(async dir => {
-      const rel = 'src/a.rs'
-      await writeFileDeep(dir, rel, ['// намір файлу', '', '// робить X', 'pub fn go() {}', ''].join('\n'))
-
-      const before = withDefaultSeverity(
-        loadNative().runWasmConcern(WASM_PATH, DOC_COMMENTS_CONCERN_KEY, dir, [rel]).violations
-      )
-      expect(before).toHaveLength(2)
-      expect(before.every(v => v.data?.promotable)).toBe(true)
-
-      // eslint-disable-next-line no-unsanitized/method
-      const { patterns } = await import(
-        pathToFileURL(join(RUST_RULES_DIR, 'doc_comments', 'fix-doc_comments.mjs')).href
-      )
-      expect(patterns[0].test(before)).toBe(true)
-      await patterns[0].apply(before, { cwd: dir, recordWrite: () => {} })
-
-      const again = loadNative().runWasmConcern(WASM_PATH, DOC_COMMENTS_CONCERN_KEY, dir, [rel])
-      expect(again.violations).toEqual([])
-    })
-  })
-
-  test('cargo_mutants_config: baseline створено, повторний детект мовчить (пінує рядок reason)', async () => {
-    await withTmpDir(async dir => {
-      await writeFile(join(dir, 'Cargo.toml'), '[package]\nname = "x"\nversion = "0.1.0"\n', 'utf8')
-
-      const before = withDefaultSeverity(
-        loadNative().runWasmConcern(WASM_PATH, CARGO_MUTANTS_CONFIG_CONCERN_KEY, dir, null).violations
-      )
-      expect(before).toHaveLength(1)
-
-      // eslint-disable-next-line no-unsanitized/method
-      const { patterns } = await import(
-        pathToFileURL(join(RUST_RULES_DIR, 'cargo_mutants_config', 'fix-cargo_mutants_config.mjs')).href
-      )
-      // Саме ця перевірка розсипалась би при розходженні рядка `reason`
-      // між гостем і фіксером — юніт-тести обох боків лишились би зелені.
-      expect(patterns[0].test(before)).toBe(true)
-      await patterns[0].apply(before, { cwd: dir, recordWrite: () => {} })
-
-      const again = loadNative().runWasmConcern(WASM_PATH, CARGO_MUTANTS_CONFIG_CONCERN_KEY, dir, null)
-      expect(again.violations).toEqual([])
-    })
-  })
-
-  test('cargo_mutants_config: glob-workspaces (packages/*) — фіксер створює baseline у РОЗКРИТОМУ каталозі (§2.28)', async () => {
-    // Найпряміший доказ, що детектор (wasm-гість) і фіксер (JS,
-    // `resolveAllCargoManifests` з `resolve-cargo-manifest.mjs`) досі
-    // синхронні ПІСЛЯ §2.28: якби фіксер усе ще трактував `packages/*` як
-    // літеральний сегмент (стара поведінка), `resolveAllCargoManifests(cwd)`
-    // у `fix-cargo_mutants_config.mjs::apply` не знайшла б
-    // `packages/a/Cargo.toml`, baseline у `packages/a/.cargo/mutants.toml`
-    // не створився б, і повторний детект (`again` нижче) лишив би ту
-    // діагностику — тест впав би саме на цьому кроці, не на першому.
-    await withTmpDir(async dir => {
-      await writeFile(join(dir, 'Cargo.toml'), '[workspace]\n', 'utf8')
-      await writeFile(join(dir, 'package.json'), JSON.stringify({ workspaces: ['packages/*'] }), 'utf8')
-      await writeFileDeep(dir, 'packages/a/Cargo.toml', '[package]\nname = "a"\nversion = "0.1.0"\n')
-
-      const before = withDefaultSeverity(
-        loadNative().runWasmConcern(WASM_PATH, CARGO_MUTANTS_CONFIG_CONCERN_KEY, dir, null).violations
-      )
-      expect(before).toHaveLength(2)
-      expect(before.map(v => v.file).toSorted()).toEqual(['.cargo/mutants.toml', 'packages/a/.cargo/mutants.toml'])
-
-      // eslint-disable-next-line no-unsanitized/method
-      const { patterns } = await import(
-        pathToFileURL(join(RUST_RULES_DIR, 'cargo_mutants_config', 'fix-cargo_mutants_config.mjs')).href
-      )
-      expect(patterns[0].test(before)).toBe(true)
-      await patterns[0].apply(before, { cwd: dir, recordWrite: () => {} })
-
-      const again = loadNative().runWasmConcern(WASM_PATH, CARGO_MUTANTS_CONFIG_CONCERN_KEY, dir, null)
-      expect(again.violations).toEqual([])
-    })
-  })
-})
-
 // --- rust/doc_comments + rust/cargo_mutants_config: замикання T0-циклу --
 // через РЕАЛЬНИЙ napi-міст (§2.49 open-questions-register) ---------------
 //
@@ -1115,14 +1019,16 @@ describe('rust/doc_comments + rust/cargo_mutants_config — T0-цикл: дет�
 // (`run-fix.mjs::loadT0Patterns`) для обох ЗАВЖДИ веде через
 // `wasmFixPattern` → `runWasmConcernFix` napi-міст (`crates/rules-napi`).
 //
-// Describe-блок вище («T0-цикл: детект гостем → JS-фіксер → детект гостем
-// чистий») цей факт НЕ перевіряє: `apply()` там береться з
-// `fix-doc_comments.mjs`/`fix-cargo_mutants_config.mjs` (JS-канон,
-// транзитивний шар) НАПРЯМУ — `runWasmConcernFix` там жодного разу не
-// викликається. Guest-фікс (реальний код, що виконується в проді) лишається
-// НЕПЕРЕВІРЕНИМ через міст. Той самий клас прогалини, що PR #513 (`js/check`,
-// `wasm-plugin-parity.test.mjs`) — там повний цикл ІДЕ через
-// `loadNative().runWasmConcernFix`, тут — ні. Обидва концерни нижче НЕ
+// §2.91 (зняття JS-канонів `lang-rust`) видалила сусідній describe-блок
+// «T0-цикл: детект гостем → JS-фіксер → детект гостем чистий»: його `apply()`
+// брався з `fix-doc_comments.mjs`/`fix-cargo_mutants_config.mjs` НАПРЯМУ —
+// канонів, яких більше немає. Три його сценарії НЕ зникли, а переїхали СЮДИ,
+// у форму «гість = очікуваний результат»: `doc_comments` і базовий
+// `cargo_mutants_config` уже були тут дослівними двійниками, третій
+// (glob-workspaces `packages/*`, §2.28) допортовано нижче. Той самий клас
+// прогалини, що PR #513 (`js/check`, `wasm-plugin-parity.test.mjs`) — там
+// повний цикл ІДЕ через
+// `loadNative().runWasmConcernFix`. Обидва концерни нижче НЕ
 // whole-batch (кожна fixable діагностика несе `diagnostic.file` —
 // `workspace_root_file_violation`/per-file `Diagnostic` відповідно), тож
 // цикл НЕ проходить крізь full-scope fallback `run_wasm_concern_fix`
@@ -1169,6 +1075,43 @@ describe('rust/doc_comments + rust/cargo_mutants_config — T0-цикл чере
       const plan = loadNative().runWasmConcernFix(WASM_PATH, CARGO_MUTANTS_CONFIG_CONCERN_KEY, dir, before)
       expect(plan.edits).toHaveLength(1)
       expect(plan.edits[0]).toMatchObject({ type: 'write', path: '.cargo/mutants.toml' })
+      for (const edit of plan.edits) {
+        if (edit.type === 'write') {
+          await mkdir(join(dir, dirname(edit.path)), { recursive: true })
+          await writeFile(join(dir, edit.path), edit.content, 'utf8')
+        }
+      }
+
+      const again = loadNative().runWasmConcern(WASM_PATH, CARGO_MUTANTS_CONFIG_CONCERN_KEY, dir, null)
+      expect(again.violations).toEqual([])
+    })
+  })
+
+  // Порт сценарію, що жив у знятому JS-фіксерному блоці (§2.28 → §2.91).
+  // Там він доводив, що detect (гість) і fix (JS, `resolveAllCargoManifests`)
+  // однаково РОЗКРИВАЮТЬ glob `packages/*`: двоє незалежних резолверів мали
+  // шанс розійтись, і тоді гість видавав би діагностику, яку `--fix` не міг
+  // би закрити. Після зняття канону резолвер лишився ОДИН — [`fix_cargo_mutants_config`]
+  // бере цілі просто з `diagnostic.file` детекту. Твердження від цього не
+  // зайве, а сильніше: воно тепер пінує, що whole-batch-фікс гостя доносить
+  // baseline у КОЖЕН розкритий каталог (а не лише в корінь), і що повторний
+  // детект після цього мовчить.
+  test('cargo_mutants_config: glob-workspaces (packages/*) — fix-міст створює baseline у РОЗКРИТОМУ каталозі (§2.28)', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'Cargo.toml'), '[workspace]\n', 'utf8')
+      await writeFile(join(dir, 'package.json'), JSON.stringify({ workspaces: ['packages/*'] }), 'utf8')
+      await writeFileDeep(dir, 'packages/a/Cargo.toml', '[package]\nname = "a"\nversion = "0.1.0"\n')
+
+      const before = withDefaultSeverity(
+        loadNative().runWasmConcern(WASM_PATH, CARGO_MUTANTS_CONFIG_CONCERN_KEY, dir, null).violations
+      )
+      expect(before.map(v => v.file).toSorted()).toEqual(['.cargo/mutants.toml', 'packages/a/.cargo/mutants.toml'])
+
+      const plan = loadNative().runWasmConcernFix(WASM_PATH, CARGO_MUTANTS_CONFIG_CONCERN_KEY, dir, before)
+      expect(plan.edits.map(e => e.path).toSorted()).toEqual([
+        '.cargo/mutants.toml',
+        'packages/a/.cargo/mutants.toml'
+      ])
       for (const edit of plan.edits) {
         if (edit.type === 'write') {
           await mkdir(join(dir, dirname(edit.path)), { recursive: true })
@@ -1274,21 +1217,6 @@ describe('wasm-plugin — rust/check: T0-фіксер через fix-міст (e
       expect(await readFile(argvPath, 'utf8')).not.toContain('deny init')
       // Скаффолд декларативний: гість диска не торкався, файл ще не існує.
       expect(existsSync(join(dir, 'deny.toml'))).toBe(false)
-
-      // Парність із ЖИВИМ JS-каноном (`fix-check.mjs` не видалений): той
-      // самий скаффолд, той самий шлях.
-      const originalPath = env.PATH
-      try {
-        env.PATH = `${join(dir, 'fake-bin')}${delimiter}${originalPath ?? ''}`
-        // eslint-disable-next-line no-unsanitized/method
-        const { patterns } = await import(pathToFileURL(CHECK_FIX_MJS_PATH).href)
-        const denyPattern = patterns.find(p => p.id === 'rust-cargo-deny-init')
-        expect(denyPattern.test([violation('deny-config-missing')])).toBe(true)
-        await denyPattern.apply([violation('deny-config-missing')], { cwd: dir })
-      } finally {
-        env.PATH = originalPath
-      }
-      expect(await readFile(join(dir, 'deny.toml'), 'utf8')).toBe(write.content)
     })
   })
 
@@ -1582,4 +1510,65 @@ describe('wasm-plugin parity — rust/vscode_extensions (rego-канон чер�
       expect(js).toEqual([])
     })
   })
+})
+
+// =====================================================================
+// §2.91 — ЗНЯТТЯ JS-КАНОНІВ ФІКСУ: усі ЧОТИРИ `fix-<concern>.mjs`
+// `plugins/lang-rust` видалено (`doc_comments`, `check`,
+// `cargo_mutants_config`, `vscode_extensions`). `crates/plugin-lang-rust`
+// тепер ЄДИНА реалізація фіксу кожного з них.
+//
+// Форма гейта — зразок §2.88 (пілот `lang-php`), але ТАБЛИЧНА: пілот мав
+// один концерн, тут їх чотири, і гейт «на концерн» розсипався б на чотири
+// майже однакові копії, з яких легко забути додати пʼяту при наступному
+// порті. Таблиця нижче — це `match` у `Guest::fix`
+// (`crates/plugin-lang-rust/src/lib.rs`) у JS-формі: розходження між нею і
+// гостем має бути видно з одного місця.
+//
+// Перевіряється НЕ відсутність файлу, а СКЛАД резолву тим самим
+// `loadT0Patterns`, яким ходить прод (`run-fix.mjs`: native → wasm
+// (`guestFix`) → `fix-<concern>.mjs`). Третій шар був глушником випадку
+// «гість не резолвиться» (плагін не зібрано, розбіжність піна, хост без
+// wasm); тепер такого глушника немає, тож обидві регресії мовчазні:
+//
+// - ДВА патерни  → канон повернувся (подвійний фікс, пастка §2.72);
+// - НУЛЬ патернів → зник гість, тобто `--fix` МОВЧКИ перестав фіксити
+//   концерн, і він тихо поїхав би в дорогий LLM-ладдер.
+//
+// `existsSync` на видалених файлах ловив би лише перше з двох.
+// =====================================================================
+describe('§2.91 — lang-rust: фікс кожного концерну живе рівно в одному місці (JS-канони знято)', () => {
+  /** Ключі `match` у `Guest::fix` гостя `crates/plugin-lang-rust` — повний перелік. */
+  const GUEST_FIX_CONCERNS = ['cargo_mutants_config', 'check', 'doc_comments', 'vscode_extensions']
+
+  test(
+    'loadT0Patterns для КОЖНОГО концерну гостя віддає РІВНО ОДИН патерн, і той — guestFix',
+    async () => {
+      await withTmpDir(async dir => {
+        await writeFile(
+          join(dir, '.n-rules.json'),
+          JSON.stringify({ wasmPlugins: [{ name: 'lang-rust', path: WASM_PATH }] }),
+          'utf8'
+        )
+        const { loadT0Patterns } = await import('../run-fix.mjs')
+
+        /** @type {Record<string, boolean[]>} */
+        const resolved = {}
+        for (const concern of GUEST_FIX_CONCERNS) {
+          const patterns = await loadT0Patterns(join(RUST_RULES_DIR, concern), concern, 'rust', dir)
+          resolved[concern] = patterns.map(p => p.guestFix === true)
+        }
+
+        // Уся таблиця одним твердженням: падіння називає САМЕ той концерн,
+        // що розійшовся, і показує напрямок ([] чи [true, false]).
+        expect(resolved).toEqual({
+          cargo_mutants_config: [true],
+          check: [true],
+          doc_comments: [true],
+          vscode_extensions: [true]
+        })
+      })
+    },
+    120_000
+  )
 })

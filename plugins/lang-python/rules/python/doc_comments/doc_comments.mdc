@@ -20,5 +20,5 @@ docstring-и, то точніша дока і менше роботи локал
 - Решта — LLM-ladder за вмістом функції.
 
 Перевірка: детектор `detect_doc_comments` wasm-гостя `crates/plugin-lang-python`
-(концерн `python/doc_comments`). T0-фікс лишається JS —
-`plugins/lang-python/rules/python/doc_comments/fix-doc_comments.mjs`.
+(концерн `python/doc_comments`). T0-фікс — `fix_doc_comments` того самого
+гостя (єдина реалізація; JS-канон знято).

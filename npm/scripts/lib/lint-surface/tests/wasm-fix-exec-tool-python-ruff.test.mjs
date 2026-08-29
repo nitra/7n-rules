@@ -208,7 +208,14 @@ async function seedRuffConcern(dir) {
 ;(hasBuiltinPins ? describe : describe.skip)(
   'runFixPipeline — python/ruff (exec-tool клас, фейковий uv, продакшн-конвеєр)',
   () => {
-    test('T0 закриває concern wasm-фіксом; JS-fallback (fix-ruff.mjs) НЕ перезапускає ті самі кроки', async () => {
+    // §2.91 зняла JS-канон `fix-ruff.mjs` — з ним зник і третій шар
+    // `loadT0Patterns` (native → wasm(`guestFix`) → `fix-<concern>.mjs`).
+    // Твердження тесту від цього не змінилось (точний рахунок спавнів
+    // фейкового `uv`), але його СЕНС зсунувся: раніше воно доводило, що
+    // guestFix-пріоритет ЗУПИНЯЄ живий канон, тепер — що жоден шар більше
+    // не дублює кроки, які виконав гість. Композицію самого резолву пінує
+    // табличний гейт §2.91 (`wasm-plugin-parity-python.test.mjs`).
+    test('T0 закриває concern wasm-фіксом; ті самі кроки не спавняться вдруге', async () => {
       await withTmpDir(async dir => {
         await linkPackageRoot(dir)
         const { rulesDir } = await seedRuffConcern(dir)
@@ -228,12 +235,13 @@ async function seedRuffConcern(dir) {
           counterAbs
         })
 
-        // git-репо зі staged `.py`-файлом — JS-канон (`fix-ruff.mjs`) ганяє
-        // `git ls-files -z -- *.py`, щоб знайти цілі: без цього кроку тест
-        // «JS-fallback не перезапускається» був би зеленим ФАЛЬШИВО (не
-        // тому, що guestFix зупинив фолбек, а тому, що фолбек мовчки не
-        // знайшов би жодного файлу в НЕ-git tmp-каталозі й ніколи не спавнив
-        // би `uv` узагалі — лічильник збігся б випадково).
+        // git-репо зі staged `.py`-файлом. Мотив був у знятому JS-каноні
+        // (`fix-ruff.mjs` шукав цілі через `git ls-files -z -- *.py`, і в
+        // НЕ-git tmp-каталозі мовчки не знаходив жодної — лічильник спавнів
+        // збігся б ВИПАДКОВО, а не тому, що guestFix зупинив фолбек).
+        // Після §2.91 канону немає, і ця пастка разом із ним; крок лишено
+        // свідомо — він робить фікстуру ближчою до реального consumer-репо
+        // (git-дерево), нічого не коштує і не мовчить.
         spawnSync('git', ['init', '-q'], { cwd: dir })
         spawnSync('git', ['add', '-A'], { cwd: dir })
 

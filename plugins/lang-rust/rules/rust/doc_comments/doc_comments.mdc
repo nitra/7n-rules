@@ -18,4 +18,5 @@
 - Елементи зовсім без коментаря — дописує LLM-ladder.
 
 Перевірка: детектор `detect_doc_comments` wasm-гостя `crates/plugin-lang-rust`
-(концерн `rust/doc_comments`). T0-фікс лишається JS — `fix-doc_comments.mjs`.
+(концерн `rust/doc_comments`). T0-фікс — `fix_doc_comments` того самого гостя
+(єдина реалізація; JS-канон знято).
