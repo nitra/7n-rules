@@ -54,6 +54,19 @@
 //! семантика мержу й перелік полагоджених дефектів канону). Спільний
 //! JSONC-парс/серіалізацію бере крейт `rules-template-merge` (§2.71), а не
 //! друга копія в ядрі.
+//! # T6 — родина `createTemplateFixPattern` (§2.74)
+//!
+//! `rego/vscode_settings`, `text/vscode_settings`, `worktree/vscode_settings`,
+//! `worktree/zed_settings` і `text/oxfmtrc` — пʼять КОНФІГІВ на один рушій,
+//! а не пʼять реалізацій: JS-канон цих концернів — тонкі шими навколо
+//! `createTemplateFixPattern` (`npm/scripts/lib/fix/template-deep-merge.mjs`),
+//! тож і порт конфіг-подібний ([`super::fix_template_merge::TemplateFixCfg`]).
+//! Сама семантика мержу живе у спільному крейті `rules-template-merge`
+//! (§2.71), який беруть ОБИДВІ колії міграції — ядро тут і wasm-гості
+//! `ci-github`/`ci-azure`. Три свідомі відхилення від канону НА КРАЩЕ
+//! (JSONC-вхід більше не губиться, не-обʼєктний корінь більше не
+//! знищується, коментарі виживають) — доккомент
+//! [`super::fix_template_merge`].
 //!
 //! # Свідомо НЕ портовані T0-фікси (лишаються JS)
 //!
@@ -1157,7 +1170,9 @@ fn changelog_consistency_fix(cwd: &Path, violations: &[Violation]) -> Result<Fix
 /// що [`super::NATIVE_CONCERNS`]. Підмножина: не кожен native-детектор має
 /// native-фікс (T1 зрізу 4 — два пілоти; T2 зрізу 5 — ще чотири; T3 —
 /// перший exec-tool клас (`text/oxfmt`, `text/markdownlint`) плюс один
-/// структурний (`nginx-default-tpl/template`), PR-опис; `tauri/release`
+/// структурний (`nginx-default-tpl/template`), PR-опис; T5 — пʼять
+/// конфіг-подібних `createTemplateFixPattern`-концернів родини
+/// `vscode_*`/`zed_settings`/`oxfmtrc`; `tauri/release`
 /// і `image-avif/avif_generation` свідомо лишаються JS — доккомент модуля).
 pub const NATIVE_FIXES: &[&str] = &[
     "abie/env_dns",
@@ -1172,6 +1187,7 @@ pub const NATIVE_FIXES: &[&str] = &[
     "k8s/manifests",
     "nginx-default-tpl/template",
     "rego/vscode_extensions",
+    "rego/vscode_settings",
     "security/sample_secret",
     "tauri/cargo_mutants_config",
     "tauri/gitignore_target",
@@ -1179,7 +1195,11 @@ pub const NATIVE_FIXES: &[&str] = &[
     "tauri/vscode_extensions",
     "text/markdownlint",
     "text/oxfmt",
+    "text/oxfmtrc",
     "text/vscode_extensions",
+    "text/vscode_settings",
+    "worktree/vscode_settings",
+    "worktree/zed_settings",
 ];
 
 /// Будує [`FixPlan`] для native-fix-концерну за ключем `ruleId/concernId`.
@@ -1212,6 +1232,21 @@ pub fn run_concern_fix(
             Ok(super::fix_abie_security::sample_secret_fix(cwd, violations))
         }
         "nginx-default-tpl/template" => Ok(nginx_default_tpl_template_fix(cwd, violations)),
+        // Родина `createTemplateFixPattern` (§2.74) — пʼять конфігів на один
+        // рушій `rules-template-merge`, доккомент [`super::fix_template_merge`].
+        "rego/vscode_settings" => Ok(super::fix_template_merge::rego_vscode_settings_fix(
+            cwd, violations,
+        )),
+        "text/oxfmtrc" => Ok(super::fix_template_merge::text_oxfmtrc_fix(cwd, violations)),
+        "text/vscode_settings" => Ok(super::fix_template_merge::text_vscode_settings_fix(
+            cwd, violations,
+        )),
+        "worktree/vscode_settings" => Ok(super::fix_template_merge::worktree_vscode_settings_fix(
+            cwd, violations,
+        )),
+        "worktree/zed_settings" => Ok(super::fix_template_merge::worktree_zed_settings_fix(
+            cwd, violations,
+        )),
         "tauri/cargo_mutants_config" => Ok(tauri_cargo_mutants_config_fix(cwd, violations)),
         "tauri/gitignore_target" => Ok(tauri_gitignore_target_fix(cwd, violations)),
         "tauri/linux_deps" => Ok(tauri_linux_deps_fix(cwd, violations)),
@@ -1978,12 +2013,17 @@ mod tests {
                 "k8s/dremio_logging",
                 "k8s/manifests",
                 "nginx-default-tpl/template",
+                "rego/vscode_settings",
                 "security/sample_secret",
                 "tauri/cargo_mutants_config",
                 "tauri/gitignore_target",
                 "tauri/linux_deps",
                 "text/markdownlint",
                 "text/oxfmt",
+                "text/oxfmtrc",
+                "text/vscode_settings",
+                "worktree/vscode_settings",
+                "worktree/zed_settings",
             ]
         );
     }

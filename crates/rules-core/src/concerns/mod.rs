@@ -68,6 +68,10 @@ mod fix_env_dremio;
 /// `fix-manifests.mjs`. `pub` заради parity-гейтів, які звіряють кожен
 /// трансформер із JS-каноном окремо.
 pub mod fix_k8s_manifests;
+/// Native fix-поверхня родини `vscode_*`/`zed_settings`/`oxfmtrc` — пʼять
+/// конфігів [`fix_template_merge::TemplateFixCfg`] поверх одного рушія
+/// (крейт `rules-template-merge`, §2.74 реєстру відкритих питань).
+pub mod fix_template_merge;
 mod fix_vscode_extensions;
 mod forbidden_prettier;
 mod gha_workflow;
