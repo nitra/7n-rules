@@ -5,9 +5,15 @@
  * → синтетичний `nativeFixPattern` → `runNativeConcernFix` (napi). Не пряме
  * звернення до Rust-функції (§2.47).
  *
- * `fix-run-shellcheck.mjs` (JS T0) лишається на диску — політика «спершу
- * парність», — але з ключем у `NATIVE_FIXES` `loadT0Patterns` більше НІКОЛИ
- * його не імпортує.
+ * JS-канон `fix-run-shellcheck.mjs` ЗНЯТО (§2.89) разом із трьома тестовими
+ * файлами, що імпортували його експорти (`fix-run-shellcheck.test.mjs`,
+ * `run-shellcheck-fixer-helpers.test.mjs`, `text/tests/run-shellcheck-errors.test.mjs`):
+ * `listShellScriptPaths`/`runShellcheckText` жили ЛИШЕ в каноні й пішли з
+ * ним, а їхня поведінка покрита native-тестами `fix.rs`
+ * (`shellcheck_fix_*`: порожній план без violation, гучна помилка на
+ * відсутній `shellcheck`/`patch`, чисте дерево без `patch`, зупинка на
+ * `none were auto-fixable`, повний цикл diff→patch). Табличний гейт складу
+ * резолву — `npm/scripts/lib/lint-surface/tests/native-fix-single-source.test.mjs`.
  *
  * # Зовнішні тули — гучний skip, не тиха зелень
  *

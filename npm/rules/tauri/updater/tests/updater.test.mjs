@@ -11,7 +11,10 @@
  * Детектор (`lint`) — через `runConcernDetector` (dispatch-рівень), не пряма
  * функція: JS `main.mjs` видалений (фінальний PURE-батч ч.1 фази 5), concern
  * тепер живе лише в `crates/rules-core/src/concerns/tauri_updater.rs`.
- * T0-фіксер (`fix-updater.mjs`) лишається JS і тепер самодостатній.
+ * T0-фікс — теж native (`crates/rules-core/src/concerns/fix_tauri_updater.rs`,
+ * §2.79): JS-канон `fix-updater.mjs` знято §2.89. `applyT0` бере патерни з
+ * `loadT0Patterns` — того самого резолвера, яким ходить прод (`run-fix.mjs`),
+ * тож тести нижче ганяють РЕАЛЬНИЙ виконавець `--fix`.
  */
 import { describe, expect, test } from 'vitest'
 import { dirname, join } from 'node:path'
@@ -20,7 +23,7 @@ import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 
 import { runConcernDetector } from '../../../../scripts/lib/lint-surface/detect.mjs'
-import { patterns } from '../fix-updater.mjs'
+import { loadT0Patterns } from '../../../../scripts/lib/lint-surface/run-fix.mjs'
 
 /** Абсолютний шлях теки концерну (тека з `concern.json`, без main.mjs — native-порт). */
 const CONCERN_DIR = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -161,6 +164,9 @@ async function applyT0(violations, dir) {
       // no-op: тест не відстежує записи fix-pipeline
     }
   }
+  const patterns = await loadT0Patterns(CONCERN_DIR, 'updater', 'tauri', dir)
+  // Порожній резолв = `--fix` МОВЧКИ перестав фіксити концерн (§2.89).
+  expect(patterns).toHaveLength(1)
   for (const p of patterns) {
     if (p.test(violations)) await p.apply(violations, ctx)
   }

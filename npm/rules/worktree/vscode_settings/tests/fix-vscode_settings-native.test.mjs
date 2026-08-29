@@ -11,9 +11,10 @@
  * JS-канону (доккомент `fix_template_merge.rs`), а тести сусідніх чотирьох
  * концернів перевіряють лише власну проводку (target/snippet).
  *
- * JS-канон `fix-vscode_settings.mjs` лишається на диску (політика «спершу
- * парність») разом зі своїм тестом `fix-vscode_settings.test.mjs`, але з
- * ключем у `NATIVE_FIXES` `loadT0Patterns` більше НІКОЛИ його не імпортує.
+ * JS-канони пʼятірки ЗНЯТО (§2.89): native — єдина реалізація фіксу. Сусідній
+ * `fix-vscode_settings.test.mjs` (wiring target/snippet) не видалено, а
+ * ПЕРЕПИСАНО на `loadT0Patterns`. Табличний гейт складу резолву —
+ * `npm/scripts/lib/lint-surface/tests/native-fix-single-source.test.mjs`.
  */
 import { expect, test, vi } from 'vitest'
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'

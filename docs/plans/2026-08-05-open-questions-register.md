@@ -10498,6 +10498,120 @@ native → wasm (`guestFix`) → `fix-<concern>.mjs`, і третій шар б�
     де вони для СВОГО плагіна, — окремий крок, а не припущення.
 ---
 
+### 2.89. Зняття JS-канонів — партія ЯДРА (20 з 20) і табличний гейт замість двадцяти поодиноких
+
+**Що зроблено.** За зразком §2.88 знято УСІ 20 ядрових `fix-<concern>.mjs`,
+чий ключ уже в `NATIVE_FIXES` (`crates/rules-core/src/concerns/fix.rs`):
+`changelog/consistency`, `image-avif/avif_generation`, `image-compress/check`,
+`nginx-default-tpl/template`, `tauri/updater`, `text/cspell`,
+`text/markdownlint`, `text/oxfmt`, `text/run-dotenv-linter`,
+`text/run-shellcheck`, пʼятірка `vscode_extensions`
+(`doc-files`/`graphql`/`rego`/`tauri`/`text`) і пʼятірка
+`createTemplateFixPattern` (`rego`/`text`/`worktree` `vscode_settings`,
+`worktree/zed_settings`, `text/oxfmtrc`). Порожніх тек не лишилось; жоден
+ключ не пропущено — список збирався обходом `npm/rules/*/*/fix-*.mjs`, а не
+з памʼяті.
+
+**Що НЕ знято й це не недоробка.** `npm/rules/tauri/release/fix-release.mjs`
+— його ключа НЕМАЄ в `NATIVE_FIXES`: format-preserving YAML свідомо не
+портований (доккомент `fix.rs`), тож канон і далі ЄДИНИЙ виконавець фіксу.
+`fix-worker.mjs` (`doc-files/check`, `test/coverage`, `text/cspell-fix`) —
+не T0-фікси взагалі, а LLM-драбина. Джерела концернів (`.rego`,
+`concern.json`, `template/**`, `.mdc`) лишились на місці: їх `include_str!`-ить
+native і за ними будується детект.
+
+**Порядкова звірка канон↔native: розбіжностей НЕ на користь порту не
+знайдено.** Усі 20 портів мають задокументовані доккоментами `fix.rs`
+відхилення, і всі — на користь native: гучна помилка замість мовчазного
+no-op на нерозпізнаній мітці (`changelog/consistency`), єдиний канонічний
+резолвер опису замість двох розбіжних (там само), JSONC-вхід більше не
+губиться й не-обʼєктний корінь не знищується (родина
+`createTemplateFixPattern`, §2.74), гучна помилка на відсутній
+`shellcheck`/`patch`/`dotenv-linter` замість тихої зелені (§2.82). Жодної
+поведінки, яку канон мав би, а native не має, не виявлено.
+
+**Що НАСПРАВДІ зникло — і чому в ЯДРІ гейт §2.88 довелось подвоїти.**
+Зникла та сама поверхня, що в пілоті: третій шар `loadT0Patterns`
+(native → wasm → `fix-<concern>.mjs`) був глушником випадку «native не
+резолвиться». Але ядро відрізняється від wasm-плагінів формою резолву:
+для native-ключа `loadT0Patterns` повертається РАНО
+(`if (getNativeFixKeys().has(key)) return [nativeFixPattern(key, cwd)]`),
+тож повернутий на диск канон складу резолву НЕ змінює — «два патерни»
+структурно неможливі, а сам канон стає мертвим дублікатом, який дрейфує й
+воскресає рівно тоді, коли аддон не завантажиться. Тому гейт має ДВІ
+половини, а не одну:
+
+1. **склад резолву** тим самим `loadT0Patterns`, яким ходить прод — рівно
+   один патерн, і той `native-fix:<key>` з `guestFix`;
+2. **відсутність `fix-<concern>.mjs` на диску** — рівно те, чого перша
+   половина в ядрі побачити не може.
+
+**Гейт — один табличний на весь реєстр**
+(`npm/scripts/lib/lint-surface/tests/native-fix-single-source.test.mjs`,
+`test.each` по `listNativeFixes()`): 20 поодиноких гейтів були б і слабші, і
+дорожчі, а таблиця автоматично накриває КОЖЕН новий ключ наступних хвиль
+без правки тесту. 94 тести (31 ключ × 3 рядки + гвардія «реєстр
+непорожній»).
+
+**Гейт доведено ЖИВИМ, обидві половини окремо.** (а) Тимчасово повернутий
+`fix-oxfmt.mjs` → червона друга половина (`existsSync` → true).
+(б) Тимчасова підміна `getNativeFixKeys()` на порожню множину (симуляція
+«аддон/реєстр не резолвиться») → 32 червоні рядки: 30 ключів дали НУЛЬ
+патернів, а ключ із поверненим каноном дав `['text-oxfmt-write']` замість
+`['native-fix:text/oxfmt']`. Тобто перша половина ловить ОБИДВА напрямки
+деградації, а не лише зникнення.
+
+**Лічильники тестів: 188 → 266** на тому самому наборі файлів (26 → 21
+файлів). Зникло 16 тестів у шести файлах, і кожен має названу заміну:
+
+- `text/oxfmt/tests/oxfmt.test.mjs` (2) → `oxfmt_fix_writes_reformatted_content`,
+  `oxfmt_fix_empty_plan_without_matching_violation` (`fix.rs`);
+- `text/markdownlint/tests/fix-markdownlint.test.mjs` (1) →
+  `markdownlint_fix_empty_plan_without_matching_violation`;
+- `text/run-dotenv-linter/tests/fix-run-dotenv-linter.test.mjs` (1) →
+  `dotenv_fix_without_matching_violation_is_empty_plan`;
+- `text/run-shellcheck/tests/fix-run-shellcheck.test.mjs` (1),
+  `run-shellcheck-fixer-helpers.test.mjs` (5),
+  `text/tests/run-shellcheck-errors.test.mjs` (6) — усі три тестували
+  `listShellScriptPaths`/`runShellcheckText`, що жили ЛИШЕ в каноні; заміна
+  — сімʼя `shellcheck_fix_*` у `fix.rs` (порожній план без violation, гучна
+  помилка на відсутній `shellcheck` і на відсутній `patch`, чисте дерево без
+  `patch`, зупинка на `none were auto-fixable`, повний цикл diff→patch).
+
+**Чотири файли НЕ видалено, а ПЕРЕПИСАНО на `loadT0Patterns`** — саме той
+крок 4 зразка («переписати, а не видалити»), і він дав більше, ніж зберіг:
+`image-avif/avif_generation/tests/avif_generation.test.mjs` (22),
+`tauri/updater/tests/updater.test.mjs` (24),
+`text/cspell/tests/fix-cspell.test.mjs` (5),
+`worktree/vscode_settings/tests/fix-vscode_settings.test.mjs` (2) тепер
+ганяють РЕАЛЬНИЙ виконавець `--fix`, а не його колишнього JS-двійника.
+
+**Дві пастки переписування, обидві коштували червоного.** (1) `violations`
+для napi мусять нести `message` — форма `{ reason }` канону через міст не
+їде. (2) План кешується у `WeakMap` за IDENTITY масиву `violations`
+(`nativeFixPlanCache`), тож спільний літерал між кейсами віддає план
+ПОПЕРЕДНЬОГО дерева — фікстури мусять бути фабриками. Обидві — не
+специфіка цих файлів, а обовʼязковий крок будь-якого наступного
+переписування.
+
+**Одна свідома різниця форми, яку переписані тести зафіксували.**
+`test()` native-патерну — це «план непорожній», а не окремий предикат по
+`reason`: на КАНОНІЧНОМУ вмісті він тепер `false`, а не `true` з подальшим
+порожнім `touchedFiles`. Кінцевий стан диска той самий.
+
+**Побічне — `oxfmt` перестав бути видимим для knip.** Пакет і далі
+ПОТРІБЕН у рантаймі (native-фікс спавнить бінарь із `node_modules/.bin`),
+але жоден JS-файл npm-воркспейса його більше не імпортує, тож knip почав
+звітувати `Unused dependencies`. Додано в `ignoreDependencies` воркспейса
+`npm` — це декларація рантайм-бінаря, а не глушник. Entry-глоб
+`rules/*/*/fix-*.mjs` у ядрі мертвим НЕ став (його ще тримають
+`fix-worker.mjs` і `tauri/release`) — на відміну від `lang-php` §2.88.
+
+**Заразом прибрано дві осиротілі доки** — `image-avif/avif_generation/docs/main.md`
+і `tauri/updater/docs/main.md`: їхні `main.mjs` видалено ще у фазі 5, і
+після зняття fix-доки в теках лишався б самий `index.md` зі списком двох
+неіснуючих файлів. Теки знято цілком (`docgen-files-batch`-конвенція).
+
 ### 2.90. Зняття JS-канонів — партія `plugins/ci-github` (17 з 17), перший ТАБЛИЧНИЙ гейт складу резолву
 
 **Що зроблено.** Знято ВСІ сімнадцять `fix-<concern>.mjs` плагіна, чий

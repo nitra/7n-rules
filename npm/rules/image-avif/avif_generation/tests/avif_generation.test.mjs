@@ -12,8 +12,12 @@
  * `lint()`-прогін — через `runConcernDetector` (dispatch-рівень), не пряма
  * функція: JS `main.mjs` видалений (PURE-фінал фази 5), детектор тепер живе
  * лише в `crates/rules-core/src/concerns/image_avif_generation.rs`.
- * T0-фіксер (`fix-avif_generation.mjs`) лишається JS і самодостатній
- * (більше не імпортує з `main.mjs` — власна копія read-only скану).
+ * T0-фікс — теж native (`crates/rules-core/src/concerns/fix_image.rs`,
+ * §2.85): JS-канон `fix-avif_generation.mjs` знято §2.89. `applyT0` більше
+ * НЕ імпортує `patterns` із канону, а бере їх із `loadT0Patterns` — тим
+ * самим резолвером, яким ходить прод (`run-fix.mjs`). Це не косметика:
+ * тести цього файла тепер ганяють РЕАЛЬНИЙ виконавець `--fix`, а не його
+ * колишнього JS-двійника, і зникнення native-фікса вони помітять.
  */
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 import { existsSync } from 'node:fs'
@@ -23,7 +27,7 @@ import { env } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 import { runConcernDetector } from '../../../../scripts/lib/lint-surface/detect.mjs'
-import { patterns } from '../fix-avif_generation.mjs'
+import { loadT0Patterns } from '../../../../scripts/lib/lint-surface/run-fix.mjs'
 import { ensureDir, withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
 /** Абсолютний шлях теки концерну (тека з `concern.json`, без main.mjs — native-порт). */
@@ -52,6 +56,10 @@ async function applyT0(violations, dir) {
       // навмисний no-op: у тесті запис не відстежується
     }
   }
+  const patterns = await loadT0Patterns(CONCERN_DIR, 'avif_generation', 'image-avif', dir)
+  // Порожній резолв = `--fix` МОВЧКИ перестав фіксити концерн: падаємо голосно,
+  // а не «проходимо» з нульовою кількістю застосованих патернів.
+  expect(patterns).toHaveLength(1)
   for (const p of patterns) {
     if (p.test(violations)) await p.apply(violations, ctx)
   }

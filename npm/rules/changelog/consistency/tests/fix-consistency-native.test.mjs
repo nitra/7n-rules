@@ -6,10 +6,11 @@
  * звернення до Rust-функції (§2.47 — прямий виклик уже раз приховав
  * реальний баг мосту).
  *
- * `fix-consistency.mjs` лишається на диску (політика «спершу парність»), але
- * з `changelog/consistency` у `NATIVE_FIXES` `loadT0Patterns` повертає РІВНО
- * синтетичний native-fix pattern і більше НІКОЛИ його не імпортує — цей файл
- * тестує ЖИВИЙ шлях.
+ * JS-канон `fix-consistency.mjs` ЗНЯТО (§2.89): native — єдина реалізація
+ * фіксу цього концерну, fallback-у більше немає. `loadT0Patterns` повертає
+ * РІВНО синтетичний native-fix pattern; порожній резолв означав би, що
+ * `--fix` мовчки перестав фіксити концерн (табличний гейт —
+ * `npm/scripts/lib/lint-surface/tests/native-fix-single-source.test.mjs`).
  */
 import { describe, expect, test, vi } from 'vitest'
 import { execFileSync } from 'node:child_process'

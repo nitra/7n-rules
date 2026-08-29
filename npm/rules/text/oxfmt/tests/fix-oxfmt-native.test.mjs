@@ -5,13 +5,12 @@
  * `runNativeConcernFix` (napi). Не пряме звернення до Rust-функції (§2.47
  * — прямий виклик уже раз приховав реальний баг мосту).
  *
- * Старий `fix-oxfmt.mjs` (JS T0) лишається на диску — з `text/oxfmt` тепер у
- * `NATIVE_FIXES`, `loadT0Patterns` повертає РІВНО синтетичний native-fix
- * pattern і більше НІКОЛИ не імпортує `fix-oxfmt.mjs` (доккомент
- * `loadT0Patterns`, `run-fix.mjs`) — характеризаційне покриття
- * `oxfmt.test.mjs` (пряме тестування `fix-oxfmt.mjs`) лишається зеленим, але
- * тестує тепер уже мертвий для реального прогону код; цей файл — тест
- * ЖИВОГО шляху.
+ * JS-канон `fix-oxfmt.mjs` ЗНЯТО (§2.89) разом із `oxfmt.test.mjs`, який
+ * тестував уже мертвий для реального прогону код: обидва його кейси мають
+ * native-відповідники (`oxfmt_fix_writes_reformatted_content` і
+ * `oxfmt_fix_empty_plan_without_matching_violation`, `fix.rs`). Native —
+ * єдина реалізація фіксу; табличний гейт складу резолву —
+ * `npm/scripts/lib/lint-surface/tests/native-fix-single-source.test.mjs`.
  *
  * oxfmt стабільно доступний у PATH (homebrew/node_modules) — інтеграційний прогін,
  * той самий мотив, що `oxfmt.test.mjs`.
