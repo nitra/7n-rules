@@ -3828,22 +3828,42 @@ fn build_manifest() -> Manifest {
                 ],
             },
             // Зріз 5 контракту v3.1: `bun/licensee` — пілот `exec-tool`.
-            // Глоб звужений до ОДНОГО файлу: детектор читає з диска рівно
-            // `.licensee.json` (його наявність), решту вердикту дає
-            // спавнений тул (доккомент секції «Зріз 5»).
+            // Детектор читає з диска рівно `.licensee.json` (його
+            // наявність), решту вердикту дає спавнений тул (доккомент
+            // секції «Зріз 5»). `**/package.json` глоб додав ПОРТ
+            // T0-ФІКСЕРА ([`fix_bun_licensee`], патерн
+            // `bun-licensee-workspace-license-metadata`): щоб проставити
+            // `"license": "ISC"` власному workspace-пакету, гість мусить
+            // бачити його `package.json` у батчі — інакше `FixRequest`
+            // просто не несе файлу, який треба переписати. Детектор ці
+            // записи ІГНОРУЄ (перевіряє лише `.licensee.json`), тож
+            // розширення глоба не міняє жодної діагностики.
             ConcernContribution {
                 key: CONCERN_BUN_LICENSEE.to_string(),
                 scope: ConcernScope::Full,
-                glob: vec![LICENSEE_CONFIG_PATH.to_string()],
+                glob: vec![
+                    LICENSEE_CONFIG_PATH.to_string(),
+                    "**/package.json".to_string(),
+                ],
             },
-            // Зріз 6 контракту v3.1: `style/lint`. `scope: Full` при
-            // `per-file` у `concern.json` — свідомо (доккомент секції
-            // «Зріз 6», підрозділ «`scope` контрибуцій»): інакше `lint
-            // --full` мовчки не перевіряв би стилі взагалі. Глоб —
-            // дослівно `concern.json.lint.glob`.
+            // Зріз 6 контракту v3.1: `style/lint`. `scope: PerFile` —
+            // дослівно `concern.json.lint.scope`, глоб — дослівно
+            // `concern.json.lint.glob`.
+            //
+            // Тут БУЛО `Full` — свідомий обхід дефекту хоста, а не опис
+            // концерну: до §2.65 `per-file` контрибуція діставала в `lint
+            // --full` порожній batch і концерн мовчки звітував «чисто».
+            // §2.65 полагодила detect-бік (`build_detect_batch_files`
+            // будує batch glob-обходом і для `per-file`), а порт
+            // T0-фіксера ([`fix_style_lint`]) полагодив fix-бік
+            // (`run_wasm_concern_fix`, `crates/rules-napi`): обхід більше
+            // не потрібен, і тримати його ШКІДЛИВО — `Full` на fix-боці
+            // ІГНОРУЄ дельту запиту, тобто дельта-прогін ганяв би
+            // `stylelint --fix` по ВСЬОМУ репозиторію й переписував файли
+            // поза дельтою.
             ConcernContribution {
                 key: CONCERN_STYLE_LINT.to_string(),
-                scope: ConcernScope::Full,
+                scope: ConcernScope::PerFile,
                 glob: vec![STYLE_LINT_GLOB.to_string()],
             },
             // Зріз 6 контракту v3.1: `js/jscpd_duplicates`. Глоб ПОРОЖНІЙ —
@@ -11499,6 +11519,277 @@ fn detect_bun_licensee(files: &[SourceFile]) -> Vec<Diagnostic> {
     diagnostics
 }
 
+/// Канонічний SPDX-allowlist policy — дослівно `CANONICAL_SPDX`
+/// `fix-licensee.mjs`. Перші чотири — дефолт самого `licensee --init`,
+/// решта три (`ISC`, `BlueOak-1.0.0`, `0BSD`) — узгоджене розширення під
+/// реальні транзитивні ліцензії consumer-репо (bun.mdc).
+const LICENSEE_CANONICAL_SPDX: [&str; 7] = [
+    "MIT",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "Apache-2.0",
+    "ISC",
+    "BlueOak-1.0.0",
+    "0BSD",
+];
+
+/// Ліцензія, яку T0-фікс проставляє власним workspace-пакетам без поля
+/// `license` — дослівно `DEFAULT_OWN_LICENSE` JS-канону (bun.mdc).
+const LICENSEE_DEFAULT_OWN_LICENSE: &str = "ISC";
+
+/// Канонічний початковий `.licensee.json` — рівно те, що дає ланцюжок
+/// JS-канону «`bun x licensee --init --production --quiet`, далі
+/// `normalizeCanonicalSpdx`»: дефолтна policy тула плюс три канонічні
+/// SPDX. Вміст `--init` СТАТИЧНИЙ (перевірено емпірично: той самий файл у
+/// порожньому каталозі й у справжньому репо — тул не консультується ні з
+/// деревом залежностей, ні з lock-файлом), тому гість пише його
+/// декларативно, БЕЗ спавна.
+///
+/// Чому не `exec_tool` + host-diff, як `style/lint`: після `--init` канон
+/// ЧИТАЄ щойно створений файл і доливає в нього три SPDX — а гість читати
+/// диск не може (`capabilities.fs_read` порожній) і `cwd` поза коренем
+/// репо теж не дістане (host відхиляє escape-шлях). Спавн через host-diff
+/// дав би на диску сирий `--init`-файл БЕЗ канонічного розширення, тобто
+/// реальну втрату поведінки: ISC-залежності лишились би порушенням і
+/// поїхали б у LLM-ladder замість тихого T0. Декларативний запис знімає
+/// заразом мережевий `bunx`-крок із fix-контуру.
+const LICENSEE_CANONICAL_CONFIG: &str = r#"{
+  "licenses": {
+    "spdx": [
+      "MIT",
+      "BSD-2-Clause",
+      "BSD-3-Clause",
+      "Apache-2.0",
+      "ISC",
+      "BlueOak-1.0.0",
+      "0BSD"
+    ]
+  },
+  "packages": {
+    "optimist": "<=0.6.1"
+  },
+  "corrections": false
+}
+"#;
+
+/// Результат [`normalize_canonical_spdx`]. Окремий тип, а не
+/// `Option<String>`, рівно заради того, щоб сам розбір лишався ЧИСТОЮ
+/// функцією (без host-імпортів — вони абортують поза реальним хостом, тож
+/// інакше гілку `NotAnObject` не можна було б юніт-тестувати): гучний лог
+/// на невалідній формі робить [`fix_bun_licensee`], а не розбір. Той самий
+/// прийом, що `run_ruff_step` у `crates/plugin-lang-python`.
+enum SpdxNormalization {
+    /// Файл уже канонічний (нічого не бракує) або нечитаний — у канону
+    /// обидва випадки дають `false` (ідемпотентність).
+    Unchanged,
+    /// Корінь `.licensee.json` — не JSON-обʼєкт (канон тут вибухає
+    /// TypeError-ом, доккомент [`normalize_canonical_spdx`]).
+    NotAnObject,
+    /// Нормалізований вміст файлу.
+    Changed(String),
+}
+
+/// Порт `normalizeCanonicalSpdx` (`fix-licensee.mjs`): union наявного
+/// `licenses.spdx` із [`LICENSEE_CANONICAL_SPDX`] зі збереженням порядку й
+/// усіх користувацьких полів (`packages`, `corrections`, власні SPDX).
+/// `None` — файл уже канонічний (нічого не бракує) або нечитаний: у
+/// канону обидва випадки теж дають `false` (ідемпотентність).
+fn normalize_canonical_spdx(content: &str) -> SpdxNormalization {
+    let Some(config) = parse_json_ordered(content) else {
+        return SpdxNormalization::Unchanged;
+    };
+    let JsonOrdered::Object(entries) = &config else {
+        // Дефект канону, ПОЛАГОДЖЕНО: `config.licenses = …` на не-обʼєкті
+        // (число, масив, рядок у `.licensee.json`) — TypeError у strict
+        // ESM, тобто вибух усього fix-прогону концерну. Тут — окремий
+        // варіант, який [`fix_bun_licensee`] переводить у гучний лог.
+        return SpdxNormalization::NotAnObject;
+    };
+
+    let existing: Vec<String> = config
+        .get("licenses")
+        .and_then(|licenses| licenses.get("spdx"))
+        .map(|spdx| match spdx {
+            JsonOrdered::Array(items) => items
+                .iter()
+                .filter_map(|item| match item {
+                    JsonOrdered::Str(s) => Some(s.clone()),
+                    _ => None,
+                })
+                .collect(),
+            _ => Vec::new(),
+        })
+        .unwrap_or_default();
+    let missing: Vec<&str> = LICENSEE_CANONICAL_SPDX
+        .iter()
+        .copied()
+        .filter(|spdx| !existing.iter().any(|have| have == spdx))
+        .collect();
+    if missing.is_empty() {
+        return SpdxNormalization::Unchanged;
+    }
+
+    let mut spdx: Vec<JsonOrdered> = existing.into_iter().map(JsonOrdered::Str).collect();
+    spdx.extend(missing.iter().map(|s| JsonOrdered::Str((*s).to_string())));
+    // `{ ...config.licenses, spdx: [...] }` JS: наявний ключ ЛИШАЄТЬСЯ на
+    // своєму місці, відсутній — дописується в кінець.
+    let licenses = match config.get("licenses") {
+        Some(JsonOrdered::Object(fields)) => {
+            let mut next: Vec<(String, JsonOrdered)> = fields.clone();
+            match next.iter_mut().find(|(key, _)| key == "spdx") {
+                Some((_, value)) => *value = JsonOrdered::Array(spdx),
+                None => next.push(("spdx".to_string(), JsonOrdered::Array(spdx))),
+            }
+            JsonOrdered::Object(next)
+        }
+        _ => JsonOrdered::Object(vec![("spdx".to_string(), JsonOrdered::Array(spdx))]),
+    };
+
+    let mut next: Vec<(String, JsonOrdered)> = entries.clone();
+    match next.iter_mut().find(|(key, _)| key == "licenses") {
+        Some((_, value)) => *value = licenses,
+        None => next.push(("licenses".to_string(), licenses)),
+    }
+    SpdxNormalization::Changed(format!(
+        "{}\n",
+        js_json_stringify_pretty(&JsonOrdered::Object(next), 0)
+    ))
+}
+
+/// Порт патерна `bun-licensee-workspace-license-metadata`: додає
+/// `"license": "ISC"` власному пакету, який `licensee` підтвердив як
+/// `Invalid license metadata` і в якого поля `license` ще немає.
+/// `None` — не той пакет, поле вже є, або `package.json` нечитаний
+/// (канон: `continue` у трьох тих самих випадках).
+fn plan_own_package_license(content: &str, reported: &[String]) -> Option<String> {
+    let package = parse_json_ordered(content)?;
+    let JsonOrdered::Object(entries) = &package else {
+        return None;
+    };
+    let name = match package.get("name") {
+        Some(JsonOrdered::Str(name)) => name.clone(),
+        _ => return None,
+    };
+    if !reported.iter().any(|reported| *reported == name) {
+        return None;
+    }
+    // `Object.hasOwn(pkg, 'license')` канону — саме НАЯВНІСТЬ ключа, а не
+    // «значення істинне»: `"license": null` теж лишається недоторканим.
+    if entries.iter().any(|(key, _)| key == "license") {
+        return None;
+    }
+
+    let mut next = entries.clone();
+    next.push((
+        "license".to_string(),
+        JsonOrdered::Str(LICENSEE_DEFAULT_OWN_LICENSE.to_string()),
+    ));
+    Some(format!(
+        "{}\n",
+        js_json_stringify_pretty(&JsonOrdered::Object(next), 0)
+    ))
+}
+
+/// T0-фіксер `bun/licensee` — ПОРТОВАНО: усі три патерни `fix-licensee.mjs`
+/// у тому самому порядку.
+///
+/// 1. `bun-licensee-config-init` (`licensee-config-missing`) — запис
+///    [`LICENSEE_CANONICAL_CONFIG`] (доккомент константи пояснює, чому
+///    декларативно, а не спавном);
+/// 2. `bun-licensee-canonical-policy` (`license-violation`) —
+///    [`normalize_canonical_spdx`] над `.licensee.json` із батчу;
+/// 3. `bun-licensee-workspace-license-metadata`
+///    (`license-metadata-invalid` + `data.package`) —
+///    [`plan_own_package_license`] над кожним `package.json` батчу.
+///
+/// План ПОВНІСТЮ декларативний (жодного `exec_tool`), тож host-diff
+/// (§2.64) тут не задіяний — усі три патерни працюють із вмістом, який
+/// хост уже приніс у `FixRequest::files` (глоб контрибуції розширено
+/// `**/package.json` рівно заради патерна 3).
+///
+/// Обхід власних пакетів — корінь плюс [`resolve_all_js_roots`] (порт
+/// `resolveAllJsRoots`, зріз 1), тобто рівно `ownPackageDirs` канону:
+/// корінь плюс розкриті `workspaces`-глоби. Другий, вужчий гейт — той
+/// самий, що в канону: збіг `pkg.name` з іменем, яке `licensee` повідомив
+/// у `data.package` (сторонні пакети сюди не долітають — їхні блоки мають
+/// інший `Terms:` і дають `license-violation`, не
+/// `license-metadata-invalid`).
+fn fix_bun_licensee(request: &FixRequest) -> FixPlan {
+    let mut edits = Vec::new();
+
+    let config_missing = request
+        .diagnostics
+        .iter()
+        .any(|d| d.reason == "licensee-config-missing");
+    if config_missing {
+        edits.push(FileEdit::Write(WriteFile {
+            path: LICENSEE_CONFIG_PATH.to_string(),
+            content: LICENSEE_CANONICAL_CONFIG.to_string(),
+        }));
+    }
+
+    // Патерни 1 і 2 пишуть ОДИН файл. Детектор їх не змішує (нема
+    // `.licensee.json` → рання гілка `licensee-config-missing`, далі
+    // жодного `license-violation`), але покладатись на це в плані не
+    // можна: два `Write` на той самий шлях — не той контракт, який хост
+    // зобовʼязаний розводити.
+    let policy_violation = !config_missing
+        && request
+            .diagnostics
+            .iter()
+            .any(|d| d.reason == "license-violation");
+    if policy_violation {
+        if let Some(config) = batch_file(&request.files, LICENSEE_CONFIG_PATH) {
+            match normalize_canonical_spdx(&config.content) {
+                SpdxNormalization::Changed(content) => edits.push(FileEdit::Write(WriteFile {
+                    path: LICENSEE_CONFIG_PATH.to_string(),
+                    content,
+                })),
+                SpdxNormalization::NotAnObject => log(
+                    LogLevel::Error,
+                    "plugin-lang-js: fix(bun/licensee) — корінь `.licensee.json` не є \
+                     JSON-обʼєктом, канонічний SPDX-allowlist НЕ нормалізовано.",
+                ),
+                SpdxNormalization::Unchanged => {}
+            }
+        }
+    }
+
+    let reported: Vec<String> = request
+        .diagnostics
+        .iter()
+        .filter(|d| d.reason == "license-metadata-invalid")
+        .filter_map(|d| {
+            let data: serde_json::Value = serde_json::from_str(d.data.as_deref()?).ok()?;
+            data.get("package")?.as_str().map(str::to_string)
+        })
+        .collect();
+    if !reported.is_empty() {
+        // `ownPackageDirs` канону — `[...new Set([cwd, ...resolveAllJsRoots(cwd)])]`:
+        // САМ корінь плюс члени воркспейсу. Порожній рядок попереду —
+        // це той `cwd` (при непорожніх `workspaces` [`resolve_all_js_roots`]
+        // віддає ЛИШЕ членів), `dedup` — той самий `Set`.
+        let mut dirs = vec![String::new()];
+        dirs.extend(resolve_all_js_roots(&request.files));
+        dirs.dedup();
+        for dir in dirs {
+            let path = if dir.is_empty() {
+                "package.json".to_string()
+            } else {
+                format!("{dir}/package.json")
+            };
+            let Some(file) = batch_file(&request.files, &path) else {
+                continue;
+            };
+            if let Some(content) = plan_own_package_license(&file.content, &reported) {
+                edits.push(FileEdit::Write(WriteFile { path, content }));
+            }
+        }
+    }
+
+    FixPlan { edits }
+}
+
 // cspell:ignore jscpd stylelint
 // =====================================================================
 // Зріз 6 контракту v3.1 — решта дрібних обгорток на `exec-tool`:
@@ -11676,6 +11967,80 @@ fn detect_style_lint(files: &[SourceFile]) -> Vec<Diagnostic> {
         severity: Severity::Error,
         data: None,
     }]
+}
+
+/// T0-фіксер `style/lint` — ПОРТОВАНО (клас exec-tool, host-diff §2.64;
+/// прецедент — `fix_ruff`, `crates/plugin-lang-python`). Точний порт
+/// патерна `style-stylelint-fix` (`fix-lint.mjs`): зовнішній процес
+/// (`stylelint --fix <цілі>`) сам мутує файли НА ДИСКУ, синхронно,
+/// всередині [`exec_tool`]. Гість повертає ПОРОЖНІЙ план — edits синтезує
+/// хост (`run_wasm_concern_fix` → `diff_snapshot_edits`,
+/// `crates/rules-napi/src/lib.rs`), діфаючи знімок [`STYLE_LINT_GLOB`] до
+/// і після цього виклику.
+///
+/// # Звідки беруться цілі
+///
+/// `request.files` — рівно те, що `listStyleFiles` канону збирає двома
+/// різними шляхами: у дельта-прогоні це `ctx.files` (хост проводить її
+/// через `delta_files`), у `lint --full` — glob-обхід
+/// [`STYLE_LINT_GLOB`], який хост робить сам. Тобто окремої гілки «дельта
+/// чи повний режим» тут немає взагалі, і `git ls-files` канону
+/// (`spawnAsync('git', ['ls-files', …])`) не потрібен: обхід хоста вже
+/// поважає `.n-rules.json`-ignore і `cursor_ignore`, тоді як `git
+/// ls-files` бачив рівно tracked-підмножину. Розбіжність задокументована,
+/// не випадкова: untracked, але не зігнорований `.scss` канон у
+/// `--full` мовчки НЕ форматував.
+///
+/// # Дефект канону, який ПОЛАГОДЖЕНО, а не скопійовано
+///
+/// `fix-lint.mjs` на відсутній `stylelint` (`resolveStylelint` → `null`)
+/// повертає `{ touchedFiles: [] }` — тобто `--fix` тихо не робить нічого,
+/// і користувач бачить рівно те саме, що й при «нічого не треба
+/// виправляти». Тут це [`LogLevel::Error`] із явною причиною: тула немає —
+/// значить стилі НЕ виправлені, і про це треба сказати. Детектор того
+/// самого концерну вже сигналить цей стан окремою warn-діагностикою
+/// ([`STYLELINT_UNRESOLVED_REASON`]), тож fix-бік лишався єдиним тихим
+/// місцем.
+fn fix_style_lint(request: &FixRequest) -> FixPlan {
+    let targets: Vec<String> = request
+        .files
+        .iter()
+        .filter(|file| {
+            STYLE_EXTENSIONS
+                .iter()
+                .any(|extension| file.path.ends_with(extension))
+        })
+        .map(|file| file.path.clone())
+        .collect();
+    // Порт `if (files.length === 0) return { touchedFiles: [] }` канону.
+    if targets.is_empty() {
+        return FixPlan { edits: vec![] };
+    }
+
+    let mut args = vec!["--fix".to_string()];
+    args.extend(targets);
+    let result = exec_tool(&ToolRequest {
+        tool: STYLELINT_TOOL.to_string(),
+        args,
+        stdin: None,
+        // `None` — корінь репо, рівно `cwd: ctx.cwd` канону.
+        cwd: None,
+        env: vec![],
+        scratch_in: vec![],
+        scratch_out: vec![],
+    });
+    if result.status.is_none() {
+        log(
+            LogLevel::Error,
+            "plugin-lang-js: fix(style/lint) — `stylelint` не резолвиться \
+             (ні node_modules/.bin, ні PATH), жоден CSS/SCSS/Vue-файл НЕ виправлено. \
+             `stylelint` — залежність @7n/rules-lang-js; переустанови плагін.",
+        );
+    }
+    // Код виходу ІГНОРУЄТЬСЯ, як і в канону (`await spawnAsync(...)` без
+    // перевірки `exitCode`): `stylelint --fix` виходить ненульовим і тоді,
+    // коли частину порушень виправив, а частину лишив невиправною.
+    FixPlan { edits: vec![] }
 }
 
 /// Ключ контрибуції `js/jscpd_duplicates` (зріз 6 контракту v3.1 — перший
@@ -13398,10 +13763,14 @@ impl Guest for LangJs {
     /// [`fix_js_check`] — порт `fix-check.mjs`), `js-run/runtime`
     /// (доккомент біля [`fix_js_run_runtime`], порт `fix-runtime.mjs`) і
     /// `bun/layout` ([`fix_bun_layout`] — порт `fix-layout.mjs`, ПЕРШИЙ
-    /// реальний споживач `FileEdit::Delete` на КАТАЛОГ у цьому крейті) —
-    /// усі пʼять JS-канонів тут, на відміну від пілота, ЛИШАЮТЬСЯ як
-    /// JS-fallback; решта концернів — порожній план («нічого не чинити»,
-    /// сумісна заглушка — доккомент `wit/world.wit` біля `export fix`).
+    /// реальний споживач `FileEdit::Delete` на КАТАЛОГ у цьому крейті),
+    /// `bun/licensee` ([`fix_bun_licensee`] — порт `fix-licensee.mjs`, усі
+    /// три патерни) і `style/lint` ([`fix_style_lint`] — порт
+    /// `fix-lint.mjs`, ПЕРШИЙ у цьому крейті фіксер класу exec-tool:
+    /// порожній план, edits синтезує host-diff §2.64) — усі сім JS-канонів
+    /// тут, на відміну від пілота, ЛИШАЮТЬСЯ як JS-fallback; решта
+    /// концернів — порожній план («нічого не чинити», сумісна заглушка —
+    /// доккомент `wit/world.wit` біля `export fix`).
     fn fix(request: FixRequest) -> FixPlan {
         match request.concern_id.as_str() {
             CONCERN_NO_BUN_TEST_IMPORT => fix_no_bun_test_import(&request),
@@ -13409,6 +13778,8 @@ impl Guest for LangJs {
             CONCERN_JS_CHECK => fix_js_check(&request),
             CONCERN_JS_RUN_RUNTIME => fix_js_run_runtime(&request),
             CONCERN_BUN_LAYOUT => fix_bun_layout(&request),
+            CONCERN_BUN_LICENSEE => fix_bun_licensee(&request),
+            CONCERN_STYLE_LINT => fix_style_lint(&request),
             _ => FixPlan { edits: vec![] },
         }
     }
@@ -17135,6 +17506,216 @@ mod tests {
         assert_eq!(blocks[0].terms, "");
     }
 
+    // --- bun/licensee: T0-фіксер ---
+
+    /// Компактний конструктор діагностики для fix-тестів `bun/licensee`.
+    fn licensee_diagnostic(reason: &str, data: Option<&str>) -> Diagnostic {
+        Diagnostic {
+            reason: reason.to_string(),
+            message: "m".to_string(),
+            file: None,
+            severity: Severity::Error,
+            data: data.map(str::to_string),
+        }
+    }
+
+    fn licensee_fix_request(files: Vec<SourceFile>, diagnostics: Vec<Diagnostic>) -> FixRequest {
+        FixRequest {
+            concern_id: CONCERN_BUN_LICENSEE.to_string(),
+            files,
+            diagnostics,
+        }
+    }
+
+    #[test]
+    fn licensee_canonical_config_carries_all_seven_spdx() {
+        let config =
+            parse_json_ordered(LICENSEE_CANONICAL_CONFIG).expect("вшитий канон — валідний JSON");
+        let JsonOrdered::Array(spdx) = config
+            .get("licenses")
+            .and_then(|l| l.get("spdx"))
+            .expect("licenses.spdx є")
+        else {
+            panic!("licenses.spdx — масив");
+        };
+        let listed: Vec<&str> = spdx
+            .iter()
+            .map(|item| match item {
+                JsonOrdered::Str(s) => s.as_str(),
+                _ => panic!("елемент spdx — рядок"),
+            })
+            .collect();
+        assert_eq!(listed, LICENSEE_CANONICAL_SPDX);
+        // Ідемпотентність: вшитий канон уже нормалізований.
+        assert!(matches!(
+            normalize_canonical_spdx(LICENSEE_CANONICAL_CONFIG),
+            SpdxNormalization::Unchanged
+        ));
+    }
+
+    #[test]
+    fn fix_bun_licensee_writes_canonical_config_when_missing() {
+        let plan = fix_bun_licensee(&licensee_fix_request(
+            vec![],
+            vec![licensee_diagnostic("licensee-config-missing", None)],
+        ));
+        let FileEdit::Write(write) = &plan.edits[0] else {
+            panic!("очікується Write");
+        };
+        assert_eq!(plan.edits.len(), 1);
+        assert_eq!(write.path, ".licensee.json");
+        assert_eq!(write.content, LICENSEE_CANONICAL_CONFIG);
+    }
+
+    #[test]
+    fn normalize_canonical_spdx_preserves_user_fields_and_order() {
+        let content = "{\n  \"licenses\": {\n    \"spdx\": [\n      \"MIT\",\n      \
+                       \"MPL-2.0\"\n    ]\n  },\n  \"packages\": {\n    \
+                       \"legacy-pkg\": \"<=1.0.0\"\n  },\n  \"corrections\": true\n}\n";
+        let SpdxNormalization::Changed(next) = normalize_canonical_spdx(content) else {
+            panic!("бракує канонічних SPDX — очікується Changed");
+        };
+        let parsed = parse_json_ordered(&next).expect("результат — валідний JSON");
+        let JsonOrdered::Array(spdx) = parsed
+            .get("licenses")
+            .and_then(|l| l.get("spdx"))
+            .expect("licenses.spdx є")
+        else {
+            panic!("licenses.spdx — масив");
+        };
+        let listed: Vec<&str> = spdx
+            .iter()
+            .map(|item| match item {
+                JsonOrdered::Str(s) => s.as_str(),
+                _ => panic!("елемент spdx — рядок"),
+            })
+            .collect();
+        // Порядок: наявні (у своєму порядку) + відсутні канонічні.
+        assert_eq!(
+            listed,
+            vec![
+                "MIT",
+                "MPL-2.0",
+                "BSD-2-Clause",
+                "BSD-3-Clause",
+                "Apache-2.0",
+                "ISC",
+                "BlueOak-1.0.0",
+                "0BSD"
+            ]
+        );
+        assert!(matches!(parsed.get("corrections"), Some(JsonOrdered::Bool(true))));
+        assert!(parsed
+            .get("packages")
+            .and_then(|p| p.get("legacy-pkg"))
+            .is_some());
+        // Ключі кореня — у документному порядку, `licenses` лишився першим.
+        assert_eq!(parsed.entries()[0].0, "licenses");
+        // Ідемпотентність: другий прогін нічого не міняє.
+        assert!(matches!(
+            normalize_canonical_spdx(&next),
+            SpdxNormalization::Unchanged
+        ));
+    }
+
+    #[test]
+    fn normalize_canonical_spdx_skips_unparsable_and_flags_non_object() {
+        assert!(matches!(
+            normalize_canonical_spdx("{не json"),
+            SpdxNormalization::Unchanged
+        ));
+        // Канон на цьому вибухає TypeError-ом; гість віддає окремий
+        // варіант, який `fix_bun_licensee` переводить у гучний лог.
+        assert!(matches!(
+            normalize_canonical_spdx("[1, 2]"),
+            SpdxNormalization::NotAnObject
+        ));
+    }
+
+    #[test]
+    fn fix_bun_licensee_adds_license_only_to_reported_package_without_field() {
+        let files = vec![
+            SourceFile {
+                path: "package.json".to_string(),
+                content: "{\n  \"name\": \"root\",\n  \"version\": \"1.0.0\",\n  \
+                          \"workspaces\": [\"npm\", \"member-b\"]\n}\n"
+                    .to_string(),
+            },
+            // Член воркспейсу, у якого `license` уже є — не чіпаємо.
+            SourceFile {
+                path: "npm/package.json".to_string(),
+                content: "{\n  \"name\": \"member\",\n  \"license\": \"MIT\"\n}\n".to_string(),
+            },
+            // Член воркспейсу без `license`, але `licensee` про нього не
+            // звітував — теж не чіпаємо.
+            SourceFile {
+                path: "member-b/package.json".to_string(),
+                content: "{\n  \"name\": \"member-b\"\n}\n".to_string(),
+            },
+            // Не член воркспейсу — поза обходом `ownPackageDirs`, попри
+            // збіг імені (той самий гейт, що в канону).
+            SourceFile {
+                path: "other/package.json".to_string(),
+                content: "{\n  \"name\": \"outsider\"\n}\n".to_string(),
+            },
+        ];
+        let plan = fix_bun_licensee(&licensee_fix_request(
+            files,
+            vec![
+                licensee_diagnostic("license-metadata-invalid", Some("{\"package\":\"root\"}")),
+                licensee_diagnostic("license-metadata-invalid", Some("{\"package\":\"member\"}")),
+                licensee_diagnostic("license-metadata-invalid", Some("{\"package\":\"outsider\"}")),
+            ],
+        ));
+        assert_eq!(
+            plan.edits.len(),
+            1,
+            "лише root: у member вже є license, outsider поза воркспейсом: {:?}",
+            plan.edits
+        );
+        let FileEdit::Write(write) = &plan.edits[0] else {
+            panic!("очікується Write");
+        };
+        assert_eq!(write.path, "package.json");
+        assert_eq!(
+            write.content,
+            "{\n  \"name\": \"root\",\n  \"version\": \"1.0.0\",\n  \
+             \"workspaces\": [\n    \"npm\",\n    \"member-b\"\n  ],\n  \
+             \"license\": \"ISC\"\n}\n"
+        );
+    }
+
+    #[test]
+    fn fix_bun_licensee_normalizes_existing_config_on_license_violation() {
+        let files = vec![SourceFile {
+            path: ".licensee.json".to_string(),
+            content: "{\n  \"licenses\": {\n    \"spdx\": [\n      \"MIT\"\n    ]\n  }\n}\n"
+                .to_string(),
+        }];
+        let plan = fix_bun_licensee(&licensee_fix_request(
+            files,
+            vec![licensee_diagnostic("license-violation", None)],
+        ));
+        assert_eq!(plan.edits.len(), 1);
+        let FileEdit::Write(write) = &plan.edits[0] else {
+            panic!("очікується Write");
+        };
+        assert_eq!(write.path, ".licensee.json");
+        assert!(write.content.contains("BlueOak-1.0.0"));
+    }
+
+    #[test]
+    fn fix_bun_licensee_without_matching_diagnostics_is_empty() {
+        let plan = fix_bun_licensee(&licensee_fix_request(
+            vec![SourceFile {
+                path: ".licensee.json".to_string(),
+                content: LICENSEE_CANONICAL_CONFIG.to_string(),
+            }],
+            vec![licensee_diagnostic("licensee-tool-error", None)],
+        ));
+        assert!(plan.edits.is_empty());
+    }
+
     #[test]
     fn truncate_chars_cuts_on_char_boundary_not_bytes() {
         // Кирилиця — 2 байти на символ: байтовий зріз на 3 розрубав би
@@ -17168,7 +17749,10 @@ mod tests {
         // найбільший поодинокий зріз §3.5.5: дев'ять під-перевірок одного
         // ключа).
         assert_eq!(manifest.concerns.len(), 40);
-        for key in [CONCERN_TFM, CONCERN_DOC_COMMENTS] {
+        // `CONCERN_STYLE_LINT` — ТРЕТЯ per-file контрибуція: до порту
+        // T0-фіксера вона стояла `Full` як обхід дефекту хоста (§2.65,
+        // доккомент контрибуції в [`build_manifest`]).
+        for key in [CONCERN_TFM, CONCERN_DOC_COMMENTS, CONCERN_STYLE_LINT] {
             let contribution = manifest
                 .concerns
                 .iter()
@@ -17213,7 +17797,6 @@ mod tests {
             CONCERN_STRYKER_CONFIG,
             CONCERN_JS_CHECK,
             CONCERN_BUN_LICENSEE,
-            CONCERN_STYLE_LINT,
             CONCERN_JS_RUN_RUNTIME,
         ] {
             let contribution = manifest
@@ -17385,6 +17968,47 @@ mod tests {
                 .collect::<Vec<_>>(),
             "plugin.toml розійшовся з describe() по ci_artifacts"
         );
+
+        // `scope`/`glob` — до порту exec-tool-фіксерів звірялись ЛИШЕ
+        // ключі, тож маніфест-довідник міг тихо брехати про поведінку, від
+        // якої залежить хост (`scope` вирішує, чи будувати batch glob-ом і
+        // чи поважати дельту запиту на fix-боці). Саме така розбіжність і
+        // накопичилась у `style/lint`. Тепер вона гучна.
+        for contribution in &runtime.concerns {
+            let declared = manifest
+                .get("concerns")
+                .and_then(|v| v.as_array())
+                .expect("`concerns` — array of tables")
+                .iter()
+                .find(|c| c["key"].as_str() == Some(contribution.key.as_str()))
+                .expect("ключі вже звірені вище");
+            let declared_scope = declared["scope"].as_str().expect("`scope` — рядок");
+            let runtime_scope = match contribution.scope {
+                ConcernScope::Full => "full",
+                ConcernScope::PerFile => "per-file",
+            };
+            assert_eq!(
+                declared_scope, runtime_scope,
+                "plugin.toml розійшовся з describe() по scope концерну {}",
+                contribution.key
+            );
+            let declared_glob: Vec<&str> = declared
+                .get("glob")
+                .and_then(|v| v.as_array())
+                .map(|items| {
+                    items
+                        .iter()
+                        .map(|g| g.as_str().expect("елемент `glob` — рядок"))
+                        .collect()
+                })
+                .unwrap_or_default();
+            assert_eq!(
+                declared_glob,
+                contribution.glob.iter().map(String::as_str).collect::<Vec<_>>(),
+                "plugin.toml розійшовся з describe() по glob концерну {}",
+                contribution.key
+            );
+        }
     }
 
     // --- батч 7: `npm-module/*` + `js/dep-policy` ---

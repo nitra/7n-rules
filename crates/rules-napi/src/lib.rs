@@ -1015,8 +1015,35 @@ pub fn run_wasm_concern_fix(
                 // відповідь (`!delta.is_empty()`): «дельта є, але порожня»
                 // при непорожніх diagnostics — той самий нерозрізненний стан,
                 // що й відсутня дельта, тож він і далі падає голосно нижче.
+                // `delta_files: None` — НЕ «дельти немає, бо забули», а
+                // заявлений full-прогін: `wasmFixPattern`
+                // (`npm/scripts/lib/lint-surface/run-fix.mjs`) передає
+                // `item.files`, а в `lint --full` планувальник списку не
+                // будує взагалі, тож поле лишається `undefined` (це вже
+                // задокументована семантика — доккомент `wasmFixPattern`).
+                // Для `per-file`-контрибуції з НЕПОРОЖНІМ glob-ом хост має
+                // з чого зібрати batch сам — рівно тим самим обходом, що
+                // [`build_detect_batch_files`] робить на detect-боці для
+                // `per-file` у full-прогоні (§2.65). Без цієї гілки
+                // `per-file` exec-tool-фіксер (`style/lint`) у `--full`
+                // падав би `ambiguous_empty_fix_batch_err` при кожному
+                // прогоні, попри те що батч однозначно резолвиться.
+                // Двозначність §2.52 гілка НЕ повертає: `Some(delta)` з
+                // ПОРОЖНІМ списком при непорожніх diagnostics і далі падає
+                // голосно (нижче), бо «дельта є, але порожня» — це стан
+                // викликача, а не заявлений full-прогін.
                 _ => match delta_files.as_deref() {
                     Some(delta) if !delta.is_empty() => read_source_files(&cwd_path, delta.to_vec()),
+                    None if contribution
+                        .as_ref()
+                        .is_some_and(|c| !c.glob.is_empty()) =>
+                    {
+                        let glob = contribution
+                            .as_ref()
+                            .map(|c| c.glob.clone())
+                            .unwrap_or_default();
+                        build_full_scope_files(&cwd_path, &glob)
+                    }
                     _ => {
                         let scope_label = contribution
                             .as_ref()
@@ -1391,6 +1418,76 @@ mod tests {
         assert_eq!(edits[0]["type"], "write");
         assert_eq!(edits[0]["path"], "broken.marker");
         assert_eq!(edits[0]["content"], "FIXED content");
+    }
+
+    /// `per-file` контрибуція з непорожнім glob-ом і `delta_files: None`
+    /// (заявлений `lint --full`) — batch будується glob-обходом, а не
+    /// падає `ambiguous_empty_fix_batch_err`. Це fix-бічний двійник §2.65
+    /// (там ту саму асиметрію полагодили на detect-боці); живий споживач —
+    /// `style/lint` (`crates/plugin-lang-js`), чий exec-tool-фіксер інакше
+    /// червонив би КОЖЕН full-прогін. Доказ через вміст плану: guest
+    /// переписав знайдений на диску `broken.marker`, тобто файли справді
+    /// прийшли з обходу.
+    #[test]
+    fn run_wasm_concern_fix_per_file_concern_with_glob_builds_batch_when_delta_absent() {
+        let wasm_path = require_guest_fixture();
+        let dir = tempfile::tempdir().expect("tmp dir");
+        std::fs::write(dir.path().join("broken.marker"), "BROKEN content").expect("marker file");
+        let violations = serde_json::json!([
+            {
+                "reason": "guest-aggregate",
+                "message": "агрегована діагностика per-file концерну без file",
+                "severity": "warn"
+            }
+        ]);
+
+        let result = run_wasm_concern_fix(
+            wasm_path.to_string_lossy().to_string(),
+            "test/guest-detect-per-file-glob".to_string(),
+            dir.path().to_string_lossy().to_string(),
+            violations,
+            None,
+            None,
+        );
+
+        let plan = result.expect("per-file з glob-ом і без дельти — full-прогін, не двозначність");
+        let edits = plan["edits"].as_array().expect("edits — масив");
+        assert_eq!(edits.len(), 1, "glob-обхід мав знайти marker-файл: {plan:?}");
+        assert_eq!(edits[0]["path"], "broken.marker");
+        assert_eq!(edits[0]["content"], "FIXED content");
+    }
+
+    /// Двозначність §2.52 НЕ повернулась: `delta_files: Some([])`
+    /// (порожня дельта при непорожніх diagnostics) для того самого
+    /// `per-file` концерну з glob-ом і далі падає голосно — «дельта є, але
+    /// порожня» ≠ «заявлений full-прогін».
+    #[test]
+    fn run_wasm_concern_fix_per_file_concern_with_glob_still_errors_on_empty_delta() {
+        let wasm_path = require_guest_fixture();
+        let dir = tempfile::tempdir().expect("tmp dir");
+        std::fs::write(dir.path().join("broken.marker"), "BROKEN content").expect("marker file");
+        let violations = serde_json::json!([
+            {
+                "reason": "guest-aggregate",
+                "message": "агрегована діагностика per-file концерну без file",
+                "severity": "warn"
+            }
+        ]);
+
+        let result = run_wasm_concern_fix(
+            wasm_path.to_string_lossy().to_string(),
+            "test/guest-detect-per-file-glob".to_string(),
+            dir.path().to_string_lossy().to_string(),
+            violations,
+            None,
+            Some(vec![]),
+        );
+
+        let err = result.expect_err("порожня дельта при непорожніх diagnostics — гучна помилка");
+        assert!(
+            err.to_string().contains("test/guest-detect-per-file-glob"),
+            "помилка має називати концерн: {err}"
+        );
     }
 
     /// Регресія на file-scoped шлях (`test/no-bun-test-import`,

@@ -325,20 +325,25 @@ glob = ["**/*.{js,mjs,cjs,ts}"]
 # (який глоба не має взагалі, `{"lint": {"scope": "full"}}`): детектор читає
 # з диска рівно `.licensee.json`, решту вердикту дає спавнений тул — той
 # самий принцип «batch несе рівно те, що канон читає», що й батч 7.
+# `**/package.json` додав порт T0-фіксера (`fix_bun_licensee`, патерн
+# `bun-licensee-workspace-license-metadata`): щоб проставити власному
+# workspace-пакету `"license": "ISC"`, гість мусить бачити його
+# `package.json` у батчі. Детектор ці записи ігнорує.
 [[concerns]]
 key = "bun/licensee"
 scope = "full"
-glob = [".licensee.json"]
+glob = [".licensee.json", "**/package.json"]
 
-# Зріз 6 контракту v3.1. `scope = "full"` при `per-file` у `concern.json` —
-# свідома розбіжність: `scope` контрибуції читає ХОСТ і рівно для рішення
-# «чи будувати batch самому, коли JS не передав `files`». У `lint --full`
-# планувальник лишає `files: undefined` і для per-file концернів, тож
-# `per-file` тут означало б «стилі не перевіряються в повному режимі
-# взагалі» (секція «Зріз 6» у `src/lib.rs`).
+# Зріз 6 контракту v3.1. `scope = "per-file"` — дослівно `concern.json`.
+# Тут БУЛО `full` як обхід дефекту хоста (до §2.65 `per-file` діставав у
+# `lint --full` порожній batch і концерн мовчки звітував «чисто»). §2.65
+# полагодила detect-бік, порт T0-фіксера — fix-бік
+# (`run_wasm_concern_fix`), тож обхід знято: на fix-боці `full` ІГНОРУЄ
+# дельту запиту, тобто дельта-прогін ганяв би `stylelint --fix` по всьому
+# репозиторію (секція «Зріз 6» у `src/lib.rs`).
 [[concerns]]
 key = "style/lint"
-scope = "full"
+scope = "per-file"
 glob = ["**/*.{css,scss,vue}"]
 
 # Зріз 6 контракту v3.1. Глоб ПОРОЖНІЙ навмисно: канон не читає з диска

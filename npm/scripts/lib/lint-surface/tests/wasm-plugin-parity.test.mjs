@@ -4436,6 +4436,327 @@ describe('wasm-plugin parity — style/lint (JS канон vs wasm plugin-lang-j
   })
 })
 
+// --- T0-фіксер `style/lint`: перший у цьому крейті фікс класу exec-tool ---
+//
+// Гість не будує `FixPlan` узагалі — він спавнить `stylelint --fix`, який
+// сам мутує файли на диску, а edits синтезує ХОСТ, діфаючи знімок глоба
+// концерну до і після виклику `fix()` (host-diff, §2.64 реєстру;
+// прецедент — `python/ruff`, `wasm-fix-exec-tool-python-ruff.test.mjs`).
+// Тому весь цикл тут іде через РЕАЛЬНИЙ napi-міст (`runWasmConcernFix`), а
+// не через прямий виклик гостя: прямий виклик повернув би порожній план і
+// не довів би нічого (§2.47/§2.49).
+//
+// Тул — той самий фейк, що в detect-тестах вище: тіло задає тест, тож
+// «виправлення» детерміноване й не залежить від версії справжнього
+// `stylelint`.
+describe('wasm-plugin — style/lint T0-фікс через fix-міст (exec-tool + host-diff)', () => {
+  /** Фейковий `stylelint --fix`: переписує КОЖЕН переданий файл канонічним вмістом. */
+  const stylelintFixTool = '#!/bin/sh\nshift\nfor f in "$@"; do printf \'FIXED\\n\' > "$f"; done\nexit 0\n'
+
+  /**
+   * Кладе фейковий `stylelint` у `node_modules/.bin` (шлях схеми `npm:`) і
+   * повертає його абсолютний шлях — те, що для цієї схеми побудувала б
+   * `ensureDeclaredTools`.
+   * @param {string} dir абсолютний шлях tmp-каталогу
+   * @param {string} body тіло фейкового тула
+   * @returns {Promise<string>} абсолютний шлях фейка
+   */
+  async function installFakeStylelint(dir, body) {
+    const { mkdir } = await import('node:fs/promises')
+    const binDir = join(dir, 'node_modules', '.bin')
+    await mkdir(binDir, { recursive: true })
+    return writeFakeTool(join(binDir, 'stylelint'), body)
+  }
+
+  /** Агрегована діагностика концерну — рівно те, що віддає `detect_style_lint` (жодного `file`). */
+  const stylelintViolations = () => [
+    { reason: 'stylelint-violation', message: 'lint-style: stylelint — порушення (код 2, style.mdc)', severity: 'error' }
+  ]
+
+  test('дельта: host-diff синтезує write-edit ЛИШЕ на файли дельти — файл поза нею не чіпається', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'app.scss'), '.a {\n  color: red;\n}\n')
+      await writeFile(join(dir, 'other.scss'), '.b {\n  color: blue;\n}\n')
+      const toolPath = await installFakeStylelint(dir, stylelintFixTool)
+
+      const plan = loadNative().runWasmConcernFix(
+        WASM_PATH,
+        STYLE_LINT_CONCERN_KEY,
+        dir,
+        stylelintViolations(),
+        { stylelint: toolPath },
+        ['app.scss']
+      )
+
+      // Порожній план тут означав би регресію: гість НЕ повертає edits сам,
+      // тож непорожній план — доказ, що host-diff справді побачив мутацію.
+      expect(plan.edits).toEqual([{ type: 'write', path: 'app.scss', content: 'FIXED\n' }])
+      for (const edit of plan.edits) await applyPlanEdit(edit, dir, { cwd: dir, ruleId: 'style', concernId: 'lint' })
+      expect(await readFile(join(dir, 'app.scss'), 'utf8')).toBe('FIXED\n')
+      // Головне твердження: `per-file`-контрибуція звузила спавн до дельти.
+      // На `scope: full` (як було до порту) тул дістав би ОБИДВА файли й
+      // дельта-прогін переписав би репозиторій поза дельтою.
+      expect(await readFile(join(dir, 'other.scss'), 'utf8')).toBe('.b {\n  color: blue;\n}\n')
+    })
+  })
+
+  test('повний режим (deltaFiles: undefined) — хост будує batch глобом, фікс покриває всі стилі', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'app.scss'), '.a {\n  color: red;\n}\n')
+      await writeFile(join(dir, 'other.css'), '.b {\n  color: blue;\n}\n')
+      await writeFile(join(dir, 'main.mjs'), 'export const a = 1\n')
+      const toolPath = await installFakeStylelint(dir, stylelintFixTool)
+
+      const plan = loadNative().runWasmConcernFix(
+        WASM_PATH,
+        STYLE_LINT_CONCERN_KEY,
+        dir,
+        stylelintViolations(),
+        { stylelint: toolPath },
+        undefined
+      )
+
+      const paths = plan.edits.map(e => e.path).sort()
+      expect(paths).toEqual(['app.scss', 'other.css'])
+      // `.mjs` не в глобі концерну — host-diff його навіть не знімає.
+      expect(await readFile(join(dir, 'main.mjs'), 'utf8')).toBe('export const a = 1\n')
+    })
+  })
+
+  test('тул нічого не змінив (exit 0, без запису) — план порожній, JS-fallback лишається робочим', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'app.scss'), '.a {\n  color: red;\n}\n')
+      const toolPath = await installFakeStylelint(dir, '#!/bin/sh\nexit 0\n')
+
+      const plan = loadNative().runWasmConcernFix(
+        WASM_PATH,
+        STYLE_LINT_CONCERN_KEY,
+        dir,
+        stylelintViolations(),
+        { stylelint: toolPath },
+        ['app.scss']
+      )
+      expect(plan.edits).toEqual([])
+    })
+  })
+
+  test('дельта без жодного css/scss/vue — тул не спавниться, план порожній', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'main.mjs'), 'export const a = 1\n')
+      // Скрипт затер би будь-який файл, якби його взагалі запустили.
+      const toolPath = await installFakeStylelint(dir, stylelintFixTool)
+
+      const plan = loadNative().runWasmConcernFix(
+        WASM_PATH,
+        STYLE_LINT_CONCERN_KEY,
+        dir,
+        stylelintViolations(),
+        { stylelint: toolPath },
+        ['main.mjs']
+      )
+      expect(plan.edits).toEqual([])
+      expect(await readFile(join(dir, 'main.mjs'), 'utf8')).toBe('export const a = 1\n')
+    })
+  })
+})
+
+// --- T0-фіксер `bun/licensee`: три патерни, план ПОВНІСТЮ декларативний ---
+//
+// На відміну від `style/lint`, тут host-diff не задіяний: гість будує
+// `FixPlan` сам із вмісту, який хост уже приніс у `FixRequest::files`
+// (глоб контрибуції розширено `**/package.json` саме заради патерна 3).
+// Парність із живим каноном (`fix-licensee.mjs` НЕ видалено) звіряється
+// прямо: канон застосовується в одному tmp-дереві, план гостя — в іншому,
+// порівнюється підсумковий вміст файлів.
+//
+// Виняток — патерн 1 (`bun-licensee-config-init`): канон спавнить
+// `bunx licensee --init` (мережа + версія тула), і саме тому порт свідомо
+// пише канонічний вміст декларативно. Тут він звіряється з очікуваним
+// текстом, а не з прогоном канону.
+describe('wasm-plugin parity — bun/licensee T0-фікс (JS канон vs wasm-план через fix-міст)', () => {
+  const BUN_LICENSEE_CONCERN_KEY = 'bun/licensee'
+  const LICENSEE_FIX_MJS_PATH = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'bun', 'licensee', 'fix-licensee.mjs')
+  const fixCtx = dir => ({ cwd: dir, ruleId: 'bun', concernId: 'licensee' })
+
+  /**
+   * Застосовує план гостя у `dir` через той самий `applyPlanEdit`, що й
+   * продакшн fix-прогін.
+   * @param {string} dir абсолютний шлях tmp-каталогу
+   * @param {unknown[]} violations порушення концерну
+   * @returns {Promise<Array<{ type: string, path: string }>>} застосовані edits
+   */
+  async function applyGuestPlan(dir, violations) {
+    const plan = loadNative().runWasmConcernFix(WASM_PATH, BUN_LICENSEE_CONCERN_KEY, dir, violations, {}, undefined)
+    for (const edit of plan.edits) await applyPlanEdit(edit, dir, fixCtx(dir))
+    return plan.edits
+  }
+
+  /**
+   * Застосовує один патерн JS-канону в `dir`.
+   * @param {number} index індекс патерна в `fix-licensee.mjs`
+   * @param {string} dir абсолютний шлях tmp-каталогу
+   * @param {unknown[]} violations порушення концерну
+   * @returns {Promise<void>} нічого
+   */
+  async function applyCanonPattern(index, dir, violations) {
+    // eslint-disable-next-line no-unsanitized/method
+    const { patterns } = await import(pathToFileURL(LICENSEE_FIX_MJS_PATH).href)
+    await patterns[index].apply(violations, { cwd: dir })
+  }
+
+  /**
+   * Розкладає фікстуру (шлях → вміст) по каталогу, створюючи підкаталоги.
+   * @param {string} dir абсолютний шлях tmp-каталогу
+   * @param {Record<string, string>} fixture фікстура
+   * @returns {Promise<void>} нічого
+   */
+  async function seedFixture(dir, fixture) {
+    const { mkdir } = await import('node:fs/promises')
+    for (const [name, content] of Object.entries(fixture)) {
+      await mkdir(dirname(join(dir, name)), { recursive: true })
+      await writeFile(join(dir, name), content)
+    }
+  }
+
+  test('патерн 1 (немає .licensee.json): план пише канонічну policy з усіма сімома SPDX — без спавна тула', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'package.json'), '{\n  "name": "root"\n}\n')
+      const edits = await applyGuestPlan(dir, [
+        { reason: 'licensee-config-missing', message: 'lint-bun: licensee — немає .licensee.json', severity: 'error' }
+      ])
+
+      expect(edits.map(e => e.path)).toEqual(['.licensee.json'])
+      const config = JSON.parse(await readFile(join(dir, '.licensee.json'), 'utf8'))
+      expect(config.licenses.spdx).toEqual([
+        'MIT',
+        'BSD-2-Clause',
+        'BSD-3-Clause',
+        'Apache-2.0',
+        'ISC',
+        'BlueOak-1.0.0',
+        '0BSD'
+      ])
+      // Дефолт самого `licensee --init`, який канон зберігає після
+      // нормалізації — порт відтворює його дослівно.
+      expect(config.packages).toEqual({ optimist: '<=0.6.1' })
+      expect(config.corrections).toBe(false)
+    })
+  })
+
+  test('патерн 2 (license-violation): нормалізація .licensee.json байт-у-байт як у канону', async () => {
+    const fixture = {
+      'package.json': '{\n  "name": "root"\n}\n',
+      '.licensee.json': `${JSON.stringify(
+        {
+          licenses: { spdx: ['MIT', 'BSD-2-Clause', 'BSD-3-Clause', 'Apache-2.0', 'MPL-2.0'] },
+          packages: { 'legacy-pkg': '<=1.0.0' },
+          corrections: true
+        },
+        null,
+        2
+      )}\n`
+    }
+    const violations = [{ reason: 'license-violation', message: 'lint-bun: licensee — порушення', severity: 'error' }]
+
+    await withTmpDir(async guestDir => {
+      await seedFixture(guestDir, fixture)
+      await applyGuestPlan(guestDir, violations)
+      const guestConfig = await readFile(join(guestDir, '.licensee.json'), 'utf8')
+
+      await withTmpDir(async canonDir => {
+        await seedFixture(canonDir, fixture)
+        await applyCanonPattern(1, canonDir, violations)
+        expect(guestConfig).toBe(await readFile(join(canonDir, '.licensee.json'), 'utf8'))
+      })
+
+      const parsed = JSON.parse(guestConfig)
+      expect(parsed.licenses.spdx).toContain('BlueOak-1.0.0')
+      expect(parsed.packages).toEqual({ 'legacy-pkg': '<=1.0.0' })
+      expect(parsed.corrections).toBe(true)
+    })
+  })
+
+  test('патерн 2 ідемпотентний: уже канонічна policy — порожній план (як `changed === false` канону)', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'package.json'), '{\n  "name": "root"\n}\n')
+      await writeFile(
+        join(dir, '.licensee.json'),
+        `${JSON.stringify(
+          {
+            licenses: {
+              spdx: ['MIT', 'BSD-2-Clause', 'BSD-3-Clause', 'Apache-2.0', 'ISC', 'BlueOak-1.0.0', '0BSD']
+            }
+          },
+          null,
+          2
+        )}\n`
+      )
+      const edits = await applyGuestPlan(dir, [
+        { reason: 'license-violation', message: 'lint-bun: licensee — порушення', severity: 'error' }
+      ])
+      expect(edits).toEqual([])
+    })
+  })
+
+  test('патерн 3 (license-metadata-invalid): "license": "ISC" власним пакетам — байт-у-байт як у канону', async () => {
+    const fixture = {
+      'package.json': `${JSON.stringify({ name: 'root', version: '1.0.0', workspaces: ['npm'] }, null, 2)}\n`,
+      'npm/package.json': `${JSON.stringify({ name: '@scope/member', version: '2.0.0' }, null, 2)}\n`,
+      '.licensee.json': `${JSON.stringify({ licenses: { spdx: ['MIT'] } }, null, 2)}\n`
+    }
+    const violations = [
+      {
+        reason: 'license-metadata-invalid',
+        message: 'lint-bun: licensee — root: Invalid license metadata',
+        severity: 'error',
+        data: { package: 'root' }
+      },
+      {
+        reason: 'license-metadata-invalid',
+        message: 'lint-bun: licensee — @scope/member: Invalid license metadata',
+        severity: 'error',
+        data: { package: '@scope/member' }
+      }
+    ]
+
+    await withTmpDir(async guestDir => {
+      await seedFixture(guestDir, fixture)
+      const edits = await applyGuestPlan(guestDir, violations)
+      expect(edits.map(e => e.path).sort()).toEqual(['npm/package.json', 'package.json'])
+
+      await withTmpDir(async canonDir => {
+        await seedFixture(canonDir, fixture)
+        await applyCanonPattern(2, canonDir, violations)
+        for (const name of ['package.json', 'npm/package.json']) {
+          expect(await readFile(join(guestDir, name), 'utf8')).toBe(await readFile(join(canonDir, name), 'utf8'))
+        }
+      })
+
+      expect(JSON.parse(await readFile(join(guestDir, 'package.json'), 'utf8')).license).toBe('ISC')
+      expect(JSON.parse(await readFile(join(guestDir, 'npm', 'package.json'), 'utf8')).license).toBe('ISC')
+    })
+  })
+
+  test('патерн 3: пакет із наявним license і пакет поза воркспейсом не чіпаються — як у канону', async () => {
+    const fixture = {
+      'package.json': `${JSON.stringify({ name: 'root', workspaces: ['npm'], license: 'MIT' }, null, 2)}\n`,
+      'npm/package.json': `${JSON.stringify({ name: 'member' }, null, 2)}\n`,
+      'outside/package.json': `${JSON.stringify({ name: 'outsider' }, null, 2)}\n`
+    }
+    const violations = [
+      { reason: 'license-metadata-invalid', message: 'm', severity: 'error', data: { package: 'root' } },
+      { reason: 'license-metadata-invalid', message: 'm', severity: 'error', data: { package: 'outsider' } }
+    ]
+
+    await withTmpDir(async dir => {
+      await seedFixture(dir, fixture)
+      const edits = await applyGuestPlan(dir, violations)
+      expect(edits).toEqual([])
+      expect(JSON.parse(await readFile(join(dir, 'outside', 'package.json'), 'utf8')).license).toBeUndefined()
+    })
+  })
+})
+
 describe('wasm-plugin parity — js/jscpd_duplicates (JS канон vs wasm plugin-lang-js, спільний фейковий bunx)', () => {
   test('звіт із двома клонами → однакові violations (message/file/data) з обох реалізацій', async () => {
     await withTmpDir(async dir => {
