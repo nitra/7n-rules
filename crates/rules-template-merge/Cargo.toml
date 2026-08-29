@@ -1,0 +1,31 @@
+[package]
+name = "rules-template-merge"
+version = "0.1.0"
+edition = "2021"
+description = "Спільний двигун template-merge (deep-subset/deep-merge + хірургічний comment-preserving мерж JSONC/YAML) — одне джерело істини семантики для нативної колії (crates/rules-core) і для wasm-гостей (plugin-ci-github, plugin-ci-azure)"
+publish = false
+
+[features]
+# Дефолт — рівно те, що потрібно нативній колії: ядрова частина родини
+# `vscode_*`/`zed_settings` — виключно JSON/JSONC (заміряно перед
+# винесенням, доккомент `src/lib.rs`), тож `rules-core` бере крейт БЕЗ
+# `saphyr` і без жодної YAML-залежності.
+default = ["jsonc"]
+jsonc = ["dep:jsonc-parser"]
+# YAML-половина — лише гості `ci-github`/`ci-azure` (`.github/workflows/*.yml`).
+yaml = ["dep:saphyr"]
+
+[dependencies]
+# YAML — `saphyr` (YAML 1.2, а не Go-yaml 1.1, яким читає `conftest`);
+# `serde_yaml v0.9.34+deprecated` — свідомо уникнено. Той самий пін і той
+# самий мотив, що в `crates/plugin-ci-github/Cargo.toml`, звідки цей блок
+# винесено.
+saphyr = { version = "0.0", optional = true }
+# `jsonc-parser` (dprint, MIT) — справжня JSONC-підтримка (`//`/`/* */`-
+# коментарі, trailing comma). Без явних фітів крейт БЕЗдепний (усі його
+# залежності `optional`). `parse_to_ast` дає AST із байтовими `Range` на
+# кожному вузлі — коментарі НЕ входять у діапазон жодного вузла, тож
+# недоторкані діапазони вихідного тексту виживають структурно. Розгорнуте
+# обґрунтування вибору — `crates/plugin-ci-github/Cargo.toml`, звідки цей
+# блок винесено.
+jsonc-parser = { version = "0.33", default-features = false, optional = true }

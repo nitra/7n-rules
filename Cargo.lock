@@ -4930,9 +4930,9 @@ dependencies = [
 name = "plugin-ci-github"
 version = "0.1.0"
 dependencies = [
- "jsonc-parser",
  "regex",
  "rules-rego-engine",
+ "rules-template-merge",
  "saphyr",
  "toml",
  "wit-bindgen 0.60.0",
@@ -5701,6 +5701,14 @@ version = "0.1.0"
 dependencies = [
  "regex",
  "regorus",
+]
+
+[[package]]
+name = "rules-template-merge"
+version = "0.1.0"
+dependencies = [
+ "jsonc-parser",
+ "saphyr",
 ]
 
 [[package]]
