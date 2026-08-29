@@ -142,6 +142,30 @@
 //!
 //! Деталі рішення, скоуп знімку й доказ парності — реєстр §2.63 (і
 //! коригована §2.51).
+//!
+//! # `python/vscode_extensions` — гостьова половина родини `vscode-ext-add` (§2.77)
+//!
+//! Останній концерн `lang-python`, що лишався на JS цілком. Policy-концерн БЕЗ
+//! `main.mjs`: детект — порт `evaluatePolicyConcern`
+//! (`npm/scripts/lib/lint-surface/policy-lint-adapter.mjs`, гілка
+//! `engine: 'rego'`) на вшитому `include_str!` `.rego` через host-rego-двигун
+//! ([`detect_vscode_extensions`], [`RegoEngineHandle`]); фікс — порт
+//! `npm/scripts/lib/fix/vscode-ext-add.mjs` ([`fix_vscode_extensions`]).
+//!
+//! Портовані ОБИДВІ половини НАВМИСНО, не про запас: `detect.mjs`
+//! (`runConcernDetector`, гілка `if (wasmEntry !== undefined)`) ПОВНІСТЮ
+//! заміняє policy-детект, щойно концерн зʼявляється в `describe()` — порт
+//! самого лише фіксу МОВЧКИ вимкнув би детект.
+//!
+//! JS-канон (`concern.json` + `fix-vscode_extensions.mjs`) лишається чинним
+//! за політикою «спершу парність»; гість має пріоритет
+//! (`T0Pattern.guestFix`, `run-fix.mjs`).
+
+// Двигун JSONC-парсу й серіалізації — спільний крейт `rules-template-merge`
+// (§2.71): ту саму семантику читає нативна колія (`crates/rules-core`) і
+// решта гостей. Фіча `yaml` НЕ вмикається — цей концерн має лише
+// JSON-таргет.
+use rules_template_merge::{json_to_pretty_string, json_to_string, parse_jsonc_document, Json};
 
 wit_bindgen::generate!({
     path: "../rules-contract/wit",
@@ -2243,6 +2267,336 @@ fn detect_project(files: &[SourceFile]) -> Vec<Diagnostic> {
     )]
 }
 
+// =====================================================================
+// `python/vscode_extensions` — гостьова половина родини `vscode-ext-add`
+// (§2.77 реєстру `docs/plans/2026-08-05-open-questions-register.md`,
+// розділ §1 плану `docs/plans/2026-08-29-js-rust-migration-completion-plan.md`).
+//
+// Концерн НЕ має `main.mjs` — його JS-детект це `evaluatePolicyConcern`
+// (`npm/scripts/lib/lint-surface/policy-lint-adapter.mjs`, гілка
+// `engine: 'rego'`), а JS-фікс — один рядок
+// `export { patterns } from '@7n/rules/scripts/lib/fix/vscode-ext-add.mjs'`.
+// Портовані ОБИДВІ половини, і це не запас: `detect.mjs`
+// (`runConcernDetector`, гілка `if (wasmEntry !== undefined)`) ПОВНІСТЮ
+// заміняє policy-детект, щойно концерн зʼявляється в `describe()` —
+// оголосити його заради самого лише fix означало б МОВЧКИ вимкнути детект.
+//
+// Rego виконується РЕАЛЬНИЙ (той самий `.rego`-текст, що читає conftest у
+// JS-каноні), через двигун із [`RegoEngineHandle`] — вшитий `include_str!`,
+// не переписаний вручну: правило крихітне, але дві копії його семантики
+// розійшлися б тихо.
+// =====================================================================
+
+/// Ключ контрибуції `python/vscode_extensions` — точний відповідник
+/// `ruleId/concernId` теки `plugins/lang-python/rules/python/vscode_extensions`.
+const CONCERN_VSCODE_EXTENSIONS: &str = "python/vscode_extensions";
+
+/// Ціль концерну — posix-relative шлях від cwd (`policy.files.single`
+/// `concern.json`; `WriteFile::path` теж relative, розгортає його виконавець
+/// плану).
+const VSCODE_EXTENSIONS_TARGET: &str = ".vscode/extensions.json";
+
+/// rego-namespace — точний відповідник `package python.vscode_extensions`
+/// вшитого `.rego` (він же `--namespace` спавну conftest у `runConftestBatch`).
+const VSCODE_EXTENSIONS_NAMESPACE: &str = "python.vscode_extensions";
+
+/// `policy.missingMessage` з `concern.json` — дослівно (той самий рядок,
+/// який `evaluatePolicyConcern` кладе у `policy-file-missing`).
+const VSCODE_EXTENSIONS_MISSING_MESSAGE: &str = ".vscode/extensions.json не існує — створи з recommendations \"ms-python.python\" і \"charliermarsh.ruff\" (python.mdc)";
+
+/// Вшитий текст політики — джерело правди спільне з conftest-гілкою JS.
+const VSCODE_EXTENSIONS_REGO: &str = include_str!(
+    "../../../plugins/lang-python/rules/python/vscode_extensions/vscode_extensions.rego"
+);
+
+/// Шлях снапшота в дереві репо — лише для тексту паніки, якщо вшитий
+/// снапшот виявиться невалідним.
+const VSCODE_EXTENSIONS_SNIPPET_SOURCE: &str =
+    "plugins/lang-python/rules/python/vscode_extensions/template/extensions.json.snippet.json";
+
+/// Канонічний снапшот — і `--data` для rego-детекту, і джерело канону фіксу
+/// (той самий файл, що читає `vscode-ext-add.mjs` через `ctx.concernDir`).
+const VSCODE_EXTENSIONS_SNIPPET_JSON: &str = include_str!(
+    "../../../plugins/lang-python/rules/python/vscode_extensions/template/extensions.json.snippet.json"
+);
+
+/// `reason` — точний відповідник `'policy-file-missing'`
+/// (`policy-lint-adapter.mjs::evaluatePolicyConcern`, гілка «файл відсутній»).
+const POLICY_FILE_MISSING_REASON: &str = "policy-file-missing";
+
+/// `reason` — точний відповідник `'policy-deny'` (та сама функція,
+/// rego-гілка: КОЖЕН `deny`-рядок дає ОДНУ діагностику).
+const POLICY_DENY_REASON: &str = "policy-deny";
+
+/// `reason` БЕЗ канонічного відповідника: JS для `engine: 'rego'` не парсить
+/// вхід сам (conftest-субпроцес отримує ШЛЯХ і сам вирішує, як повідомити
+/// про синтаксичну помилку). Тут вхід парситься заздалегідь, тож справді
+/// побитий JSON дає ВИДИМУ діагностику замість мовчазного пропуску — той
+/// самий мотив, що [`REGO_ENGINE_ERROR_REASON`]. Той самий новий reason уже
+/// живе в `crates/plugin-ci-github/src/lib.rs` (§2.5x).
+const POLICY_INPUT_INVALID_REASON: &str = "policy-input-invalid";
+
+/// `reason` видимої діагностики, коли провалюється сам rego-виклик
+/// (compile/set_input/eval) — заміна мовчазного fail-open (зелено, бо нічого
+/// не перевірено — найгірший режим відмови лінтера).
+const REGO_ENGINE_ERROR_REASON: &str = "rego-engine-error";
+
+/// Єдине поле, яке рушій `vscode-ext-add` читає й пише.
+const VSCODE_RECOMMENDATIONS_KEY: &str = "recommendations";
+
+/// Дві альтернативи `REC_REQUIRE_RE`
+/// (`/recommendations має містити|extensions\.json/u`) — літеральні
+/// підрядки, регулярка тут не потрібна (жодного метасимвола, крім
+/// екранованої крапки).
+const VSCODE_REC_REQUIRE_NEEDLES: [&str; 2] = ["recommendations має містити", "extensions.json"];
+
+/// rego-двигун — ДВІ реалізації одного контракту під `cfg` (§2.66 реєстру,
+/// той самий поділ, що `crates/plugin-ci-github/src/lib.rs`):
+///
+/// - `wasm32` (продакшн) — згенерований `wit_bindgen`-хендл resource
+///   `rego-engine` (`crates/rules-contract/wit/world.wit`): `regorus`
+///   виконується на хості, гість несе лише тонкий Component Model виклик,
+///   тож у size-бюджет гостя rego не важить нічого;
+/// - будь-який інший таргет (нативні `cargo test`) —
+///   `rules_rego_engine::RegoEngine`, той самий крейт, що реалізує host-бік
+///   — regorus виконується in-process, БЕЗ перетину component-межі, тож
+///   юніт-тести цього файлу перевіряють детект напряму.
+#[cfg(target_arch = "wasm32")]
+type RegoEngineHandle = RegoEngine;
+#[cfg(not(target_arch = "wasm32"))]
+type RegoEngineHandle = rules_rego_engine::RegoEngine;
+
+/// `wit::RegoError` → `(stage, message)`.
+#[cfg(target_arch = "wasm32")]
+fn rego_error_stage_message(err: RegoError) -> (&'static str, String) {
+    let stage = match err.stage {
+        RegoStage::Compile => "compile",
+        RegoStage::Input => "set_input",
+        RegoStage::Eval => "eval",
+    };
+    (stage, err.message)
+}
+
+/// `rules_rego_engine::RegoError` → `(stage, message)`.
+#[cfg(not(target_arch = "wasm32"))]
+fn rego_error_stage_message(err: rules_rego_engine::RegoError) -> (&'static str, String) {
+    (err.stage.as_str(), err.message)
+}
+
+/// Один rego-виклик: новий [`RegoEngineHandle`], один `add_policy`, один
+/// `add_data_json` (шаблон-канон), один `eval_rule` — точний відповідник
+/// ОДНОГО спавну `conftest test <file> -p <policyDir> --namespace <ns>
+/// --data <tmp>` (`runConftestBatch`).
+#[allow(unused_mut)] // wasm32: resource-методи беруть `&self` — `mut` потрібен лише нативній гілці.
+fn eval_vscode_extensions_deny(input_json: &str) -> Result<Vec<String>, (&'static str, String)> {
+    let mut engine = RegoEngineHandle::new();
+    engine
+        .add_policy(
+            &format!("{VSCODE_EXTENSIONS_NAMESPACE}.rego"),
+            VSCODE_EXTENSIONS_REGO,
+        )
+        .map_err(rego_error_stage_message)?;
+    engine
+        .add_data_json(&vscode_extensions_data_json())
+        .map_err(rego_error_stage_message)?;
+    engine
+        .eval_rule(
+            input_json,
+            &format!("data.{VSCODE_EXTENSIONS_NAMESPACE}.deny"),
+        )
+        .map_err(rego_error_stage_message)
+}
+
+/// Розпарсений вшитий снапшот. Панікує на помилці: снапшот — артефакт ЦЬОГО
+/// крейта (не user-вхід), парс-помилка тут означає зламану збірку, не
+/// runtime-умову, яку варто деградувати (принцип «мовчазний skip — вада»).
+fn vscode_extensions_snippet() -> Json {
+    parse_jsonc_document(VSCODE_EXTENSIONS_SNIPPET_JSON).unwrap_or_else(|| {
+        panic!("вшитий снапшот {VSCODE_EXTENSIONS_SNIPPET_SOURCE} має бути валідним JSON/JSONC")
+    })
+}
+
+/// `{"template":{"snippet": …}}` — точна JSON-форма `--data`-файлу, який
+/// канон пише у `runConftestBatch` (`{ template: templateData }`).
+fn vscode_extensions_data_json() -> String {
+    json_to_string(&Json::Object(vec![(
+        "template".to_string(),
+        Json::Object(vec![("snippet".to_string(), vscode_extensions_snippet())]),
+    )]))
+}
+
+/// `obj[key]` як вектор рядків: не-обʼєкт, не-масив і не-рядкові елементи
+/// дають порожній/відфільтрований результат — той самий контракт, що
+/// `Array.isArray(parsed.recommendations) ? … : []` канону.
+fn vscode_string_array(value: &Json, key: &str) -> Vec<String> {
+    let Json::Object(entries) = value else {
+        return Vec::new();
+    };
+    entries
+        .iter()
+        .find(|(k, _)| k == key)
+        .and_then(|(_, v)| match v {
+            Json::Array(items) => Some(items),
+            _ => None,
+        })
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|i| match i {
+                    Json::Str(s) => Some(s.clone()),
+                    _ => None,
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Канонічні розширення зі вшитого снапшота — порожній список означає
+/// зламаний асет, не «нема чого перевіряти» (гучний `assert`, не
+/// `unwrap_or_default`).
+fn vscode_canonical_recommendations() -> Vec<String> {
+    let recs = vscode_string_array(&vscode_extensions_snippet(), VSCODE_RECOMMENDATIONS_KEY);
+    assert!(
+        !recs.is_empty(),
+        "вшитий снапшот {VSCODE_EXTENSIONS_SNIPPET_SOURCE} має непорожній «{VSCODE_RECOMMENDATIONS_KEY}»"
+    );
+    recs
+}
+
+/// Детект `python/vscode_extensions` — порт `evaluatePolicyConcern`
+/// (`engine: 'rego'`, `files.single` + `required: true`) для ЦЬОГО концерну:
+/// файла немає → `policy-file-missing`; є → JSONC-парс і rego.
+///
+/// **Полагоджений дефект канону:** ціль читається
+/// [`parse_jsonc_document`] — `.vscode/*.json` у конвенції VS Code часто
+/// містить `//`-коментарі, які conftest (Go, строгий JSON) не читає взагалі.
+/// Тут коментарі й trailing-кома більше не ламають детект.
+fn detect_vscode_extensions(files: &[SourceFile]) -> Vec<Diagnostic> {
+    let Some(source) = batch_file(files, VSCODE_EXTENSIONS_TARGET) else {
+        return vec![Diagnostic {
+            reason: POLICY_FILE_MISSING_REASON.to_string(),
+            message: VSCODE_EXTENSIONS_MISSING_MESSAGE.to_string(),
+            file: Some(VSCODE_EXTENSIONS_TARGET.to_string()),
+            severity: Severity::Error,
+            data: None,
+        }];
+    };
+    let Some(actual) = parse_jsonc_document(&source.content) else {
+        return vec![Diagnostic {
+            reason: POLICY_INPUT_INVALID_REASON.to_string(),
+            message: format!(
+                "{VSCODE_EXTENSIONS_TARGET}: невалідний JSON — виправ синтаксис \
+                 ({VSCODE_EXTENSIONS_NAMESPACE})"
+            ),
+            file: Some(VSCODE_EXTENSIONS_TARGET.to_string()),
+            severity: Severity::Error,
+            data: None,
+        }];
+    };
+    match eval_vscode_extensions_deny(&json_to_string(&actual)) {
+        Ok(messages) => messages
+            .into_iter()
+            .map(|message| Diagnostic {
+                reason: POLICY_DENY_REASON.to_string(),
+                message,
+                file: Some(VSCODE_EXTENSIONS_TARGET.to_string()),
+                severity: Severity::Error,
+                data: None,
+            })
+            .collect(),
+        Err((stage, err)) => vec![Diagnostic {
+            reason: REGO_ENGINE_ERROR_REASON.to_string(),
+            message: format!(
+                "{VSCODE_EXTENSIONS_TARGET}: rego-виклик policy-пакета \
+                 {VSCODE_EXTENSIONS_NAMESPACE} провалився на етапі {stage}: {err} — це має бути \
+                 структурно недосяжно; перевір недавні зміни в .rego чи версію regorus"
+            ),
+            file: Some(VSCODE_EXTENSIONS_TARGET.to_string()),
+            severity: Severity::Error,
+            data: Some(format!(
+                "{{\"kind\":\"rego-engine-error\",\"namespace\":\"{VSCODE_EXTENSIONS_NAMESPACE}\",\"stage\":\"{stage}\"}}"
+            )),
+        }],
+    }
+}
+
+/// Порт `T0Pattern.test` рушія `vscode-ext-add.mjs`: чи є серед violations
+/// хоч одна про `recommendations`/`.vscode/extensions.json`.
+fn vscode_extensions_fix_applicable(diagnostics: &[Diagnostic]) -> bool {
+    diagnostics.iter().any(|d| {
+        d.reason == POLICY_FILE_MISSING_REASON
+            || VSCODE_REC_REQUIRE_NEEDLES
+                .iter()
+                .any(|n| d.message.contains(n))
+    })
+}
+
+/// T0-фіксер `python/vscode_extensions` — точний порт
+/// `npm/scripts/lib/fix/vscode-ext-add.mjs`: union
+/// `.vscode/extensions.json#recommendations` із канонічним снапшотом за
+/// РЯДКОВИМ значенням (не структурний deep-merge — цей рушій свідомо
+/// простіший за `template-deep-merge.mjs`). Наявні записи лишаються на
+/// місці й у своєму порядку, канонічні відсутні дописуються в хвіст, решта
+/// файлу (`unwantedRecommendations`, будь-які локальні ключі) — недоторкана.
+/// Файла немає → створюється з самим `recommendations`; додавати нічого й
+/// файл існує → порожній план.
+///
+/// Запис — ПОВНА регенерація ([`json_to_pretty_string`], 2 пробіли +
+/// кінцевий `\n`), точний відповідник `JSON.stringify(parsed, null, 2) +
+/// '\n'`: коментарі вхідного JSONC запис НЕ переживають — чесна,
+/// задокументована межа простого рушія (втрачається ФОРМАТУВАННЯ, жоден
+/// ключ і жодна рекомендація не зникають).
+///
+/// Не-обʼєктний корінь і справді побитий вміст — явний no-op (канон робив
+/// `parsed.recommendations = …` на будь-якому результаті `JSON.parse`, і для
+/// масиву властивість тихо губилась при `JSON.stringify`).
+fn fix_vscode_extensions(request: &FixRequest) -> FixPlan {
+    if !vscode_extensions_fix_applicable(&request.diagnostics) {
+        return FixPlan { edits: vec![] };
+    }
+    let canonical = vscode_canonical_recommendations();
+
+    let existing = batch_file(&request.files, VSCODE_EXTENSIONS_TARGET);
+    let (mut entries, recs): (Vec<(String, Json)>, Vec<String>) = match existing {
+        None => (Vec::new(), Vec::new()),
+        Some(source) => match parse_jsonc_document(&source.content) {
+            Some(parsed @ Json::Object(_)) => {
+                let recs = vscode_string_array(&parsed, VSCODE_RECOMMENDATIONS_KEY);
+                let Json::Object(entries) = parsed else {
+                    unreachable!("щойно зматчений Json::Object")
+                };
+                (entries, recs)
+            }
+            _ => return FixPlan { edits: vec![] },
+        },
+    };
+
+    let to_add: Vec<&String> = canonical.iter().filter(|c| !recs.contains(c)).collect();
+    if to_add.is_empty() && existing.is_some() {
+        return FixPlan { edits: vec![] };
+    }
+
+    let mut new_recs: Vec<Json> = recs.into_iter().map(Json::Str).collect();
+    new_recs.extend(to_add.into_iter().cloned().map(Json::Str));
+    match entries
+        .iter_mut()
+        .find(|(k, _)| k == VSCODE_RECOMMENDATIONS_KEY)
+    {
+        Some(entry) => entry.1 = Json::Array(new_recs),
+        None => entries.push((
+            VSCODE_RECOMMENDATIONS_KEY.to_string(),
+            Json::Array(new_recs),
+        )),
+    }
+
+    FixPlan {
+        edits: vec![FileEdit::Write(WriteFile {
+            path: VSCODE_EXTENSIONS_TARGET.to_string(),
+            content: json_to_pretty_string(&Json::Object(entries)),
+        })],
+    }
+}
+
 /// Чистий (без host-імпортів `log`/`report-progress`) конструктор
 /// маніфеста — винесений з [`Guest::describe`] окремо, щоб host-таргет
 /// unit-тести могли звірити форму маніфеста без реального wasmtime-хоста
@@ -2311,6 +2665,16 @@ fn build_manifest() -> Manifest {
                 scope: ConcernScope::Full,
                 glob: vec!["pyproject.toml".to_string()],
             },
+            // Policy-концерн (rego + snippet, без `main.mjs`) — glob
+            // контрибуції РІВНО цільовий файл: він годує і detect
+            // (`build_detect_batch_files`), і fix (`build_full_scope_files`
+            // у `run_wasm_concern_fix`, §2.72) — вужчий glob дав би
+            // порожній batch і мовчазний no-op фіксу.
+            ConcernContribution {
+                key: CONCERN_VSCODE_EXTENSIONS.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec![".vscode/extensions.json".to_string()],
+            },
         ],
         ci_artifacts: vec![],
         // Вміст файлів хост передає inline (per-file чи host-побудований
@@ -2378,6 +2742,10 @@ impl Guest for LangPython {
                 report_progress(total, total);
                 detect_project(&batch.files)
             }
+            CONCERN_VSCODE_EXTENSIONS => {
+                report_progress(total, total);
+                detect_vscode_extensions(&batch.files)
+            }
             _ => Vec::new(),
         };
         log(
@@ -2406,6 +2774,7 @@ impl Guest for LangPython {
         match request.concern_id.as_str() {
             CONCERN_DOC_COMMENTS => fix_doc_comments(&request),
             CONCERN_RUFF => fix_ruff(&request),
+            CONCERN_VSCODE_EXTENSIONS => fix_vscode_extensions(&request),
             _ => FixPlan { edits: vec![] },
         }
     }
@@ -2846,11 +3215,12 @@ mod tests {
         assert_eq!(manifest.id, "python/wasm-concerns");
         assert_eq!(manifest.world_version, "3.1.0");
         assert_eq!(manifest.domains, vec![Domain::Lint]);
-        // Сім — увесь `lang-python`: `applies`/`tooling`/`doc_comments`
+        // Вісім — увесь `lang-python`: `applies`/`tooling`/`doc_comments`
         // (перша хвиля), `mypy`/`ruff` (друга), `workspace_root`/`project`
-        // (третя). Число росте лише разом із `describe()`, і розбіжність
-        // ловить анти-дрейф `plugin_toml_concern_keys_match_describe`.
-        assert_eq!(manifest.concerns.len(), 7);
+        // (третя), `vscode_extensions` (четверта, §2.77). Число росте лише
+        // разом із `describe()`, і розбіжність ловить анти-дрейф
+        // `plugin_toml_concern_keys_match_describe`.
+        assert_eq!(manifest.concerns.len(), 8);
         assert_eq!(manifest.tools, vec![UV_TOOL.to_string()]);
         assert!(manifest.ci_artifacts.is_empty());
 
@@ -2870,6 +3240,16 @@ mod tests {
             .expect("python/doc_comments contribution має бути в маніфесті");
         assert_eq!(doc_comments.scope, ConcernScope::PerFile);
         assert_eq!(doc_comments.glob, vec!["**/*.py".to_string()]);
+
+        // Glob policy-концерну — РІВНО цільовий файл: він годує і
+        // detect-batch, і fix-batch (`build_full_scope_files`, §2.72).
+        let vscode = manifest
+            .concerns
+            .iter()
+            .find(|c| c.key == CONCERN_VSCODE_EXTENSIONS)
+            .expect("python/vscode_extensions contribution має бути в маніфесті");
+        assert_eq!(vscode.scope, ConcernScope::Full);
+        assert_eq!(vscode.glob, vec![".vscode/extensions.json".to_string()]);
 
         assert!(manifest.capabilities.fs_read.is_empty());
         assert!(!manifest.capabilities.network);
@@ -3478,5 +3858,196 @@ mod tests {
             message,
             "lint-python: uv sync --frozen — помилка (код 2, python.mdc)"
         );
+    }
+
+    // --- python/vscode_extensions (§2.77) ---
+    //
+    // Rego тут виконується СПРАВЖНІЙ (`rules_rego_engine` in-process на
+    // host-таргеті, доккомент [`RegoEngineHandle`]) — той самий вшитий
+    // `.rego`, що читає conftest у JS-каноні, тож ці тести перевіряють не
+    // «ще одну копію правила», а реальний детект.
+
+    /// Канонічні розширення цього концерну — зі вшитого снапшота, щоб тест
+    /// не дублював список (снапшот змінюють — тест іде за ним).
+    fn canonical() -> Vec<String> {
+        vscode_canonical_recommendations()
+    }
+
+    fn vscode_request(files: Vec<SourceFile>, diagnostics: Vec<Diagnostic>) -> FixRequest {
+        FixRequest {
+            concern_id: CONCERN_VSCODE_EXTENSIONS.to_string(),
+            files,
+            diagnostics,
+        }
+    }
+
+    fn written_content(plan: &FixPlan) -> String {
+        assert_eq!(plan.edits.len(), 1, "очікували рівно один write");
+        match &plan.edits[0] {
+            FileEdit::Write(w) => {
+                assert_eq!(w.path, VSCODE_EXTENSIONS_TARGET);
+                w.content.clone()
+            }
+            other => panic!("очікували write, отримали {other:?}"),
+        }
+    }
+
+    fn written_recommendations(plan: &FixPlan) -> Vec<String> {
+        let parsed = parse_jsonc_document(&written_content(plan)).expect("вивід — валідний JSON");
+        vscode_string_array(&parsed, VSCODE_RECOMMENDATIONS_KEY)
+    }
+
+    #[test]
+    fn detect_vscode_extensions_missing_file_reports_policy_file_missing() {
+        let d = detect_vscode_extensions(&[]);
+        assert_eq!(d.len(), 1);
+        assert_eq!(d[0].reason, "policy-file-missing");
+        assert_eq!(d[0].message, VSCODE_EXTENSIONS_MISSING_MESSAGE);
+        assert_eq!(d[0].file.as_deref(), Some(VSCODE_EXTENSIONS_TARGET));
+    }
+
+    #[test]
+    fn detect_vscode_extensions_all_canonical_present_is_clean() {
+        let recs = canonical()
+            .iter()
+            .map(|r| format!("\"{r}\""))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let files = vec![sf(
+            VSCODE_EXTENSIONS_TARGET,
+            &format!("{{ \"recommendations\": [{recs}] }}"),
+        )];
+        assert!(detect_vscode_extensions(&files).is_empty());
+    }
+
+    #[test]
+    fn detect_vscode_extensions_empty_recommendations_denies_every_canonical() {
+        let files = vec![sf(VSCODE_EXTENSIONS_TARGET, "{ \"recommendations\": [] }")];
+        let d = detect_vscode_extensions(&files);
+        assert_eq!(d.len(), canonical().len());
+        assert!(d.iter().all(|v| v.reason == "policy-deny"));
+        for ext in canonical() {
+            assert!(
+                d.iter().any(|v| v.message.contains(&ext)),
+                "очікували deny про {ext}"
+            );
+        }
+    }
+
+    /// Полагоджений дефект канону: `.vscode/*.json` із `//`-коментарем —
+    /// легальний для VS Code, але conftest (Go, строгий JSON) його не читає.
+    /// Гість читає JSONC — детект бачить РЕАЛЬНИЙ `recommendations`.
+    #[test]
+    fn detect_vscode_extensions_jsonc_comment_is_read_not_rejected() {
+        let recs = canonical()
+            .iter()
+            .map(|r| format!("\"{r}\""))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let files = vec![sf(
+            VSCODE_EXTENSIONS_TARGET,
+            &format!("{{\n  // канон команди\n  \"recommendations\": [{recs}],\n}}\n"),
+        )];
+        assert!(detect_vscode_extensions(&files).is_empty());
+    }
+
+    /// Справді побитий вміст — ВИДИМА діагностика, не мовчазний пропуск.
+    #[test]
+    fn detect_vscode_extensions_broken_input_reports_policy_input_invalid() {
+        let files = vec![sf(VSCODE_EXTENSIONS_TARGET, "{ recommendations: [")];
+        let d = detect_vscode_extensions(&files);
+        assert_eq!(d.len(), 1);
+        assert_eq!(d[0].reason, "policy-input-invalid");
+    }
+
+    #[test]
+    fn fix_vscode_extensions_without_relevant_diagnostics_is_noop() {
+        let request = vscode_request(vec![], vec![]);
+        assert!(fix_vscode_extensions(&request).edits.is_empty());
+    }
+
+    #[test]
+    fn fix_vscode_extensions_missing_file_creates_recommendations_only() {
+        let diagnostics = detect_vscode_extensions(&[]);
+        let plan = fix_vscode_extensions(&vscode_request(vec![], diagnostics));
+        assert_eq!(written_recommendations(&plan), canonical());
+        assert!(written_content(&plan).ends_with("\n"));
+    }
+
+    /// Union за рядковим значенням: локальні ключі й локальні рекомендації
+    /// лишаються на місці й у своєму порядку, канонічні дописуються в хвіст.
+    #[test]
+    fn fix_vscode_extensions_preserves_local_fields_and_appends_canonical() {
+        let content = "{\n  \"recommendations\": [\"local.ext\"],\n  \
+                       \"unwantedRecommendations\": [\"bad.ext\"]\n}\n";
+        let files = vec![sf(VSCODE_EXTENSIONS_TARGET, content)];
+        let diagnostics = detect_vscode_extensions(&files);
+        assert!(!diagnostics.is_empty());
+        let plan = fix_vscode_extensions(&vscode_request(files, diagnostics));
+
+        let mut expected = vec!["local.ext".to_string()];
+        expected.extend(canonical());
+        assert_eq!(written_recommendations(&plan), expected);
+
+        let parsed = parse_jsonc_document(&written_content(&plan)).unwrap();
+        assert_eq!(
+            vscode_string_array(&parsed, "unwantedRecommendations"),
+            vec!["bad.ext".to_string()]
+        );
+    }
+
+    #[test]
+    fn fix_vscode_extensions_nothing_to_add_is_noop() {
+        let recs = canonical()
+            .iter()
+            .map(|r| format!("\"{r}\""))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let files = vec![sf(
+            VSCODE_EXTENSIONS_TARGET,
+            &format!("{{ \"recommendations\": [{recs}] }}"),
+        )];
+        // Детект тут чистий, тож фікс кличемо зі штучною діагностикою —
+        // перевіряємо саме гілку «додавати нічого й файл існує».
+        let diagnostics = vec![Diagnostic {
+            reason: "policy-deny".to_string(),
+            message: ".vscode/extensions.json: recommendations має містити \"x\"".to_string(),
+            file: Some(VSCODE_EXTENSIONS_TARGET.to_string()),
+            severity: Severity::Error,
+            data: None,
+        }];
+        assert!(fix_vscode_extensions(&vscode_request(files, diagnostics))
+            .edits
+            .is_empty());
+    }
+
+    /// Побитий вміст цілі → порожній план: детермінованому фіксу нема з чого
+    /// будувати мерж, а перезапис «канонічним» файлом знищив би дані
+    /// користувача (порушення при цьому лишається видимим у детекті).
+    #[test]
+    fn fix_vscode_extensions_broken_target_is_noop() {
+        let files = vec![sf(VSCODE_EXTENSIONS_TARGET, "{ recommendations: [")];
+        let diagnostics = detect_vscode_extensions(&files);
+        assert_eq!(diagnostics[0].reason, "policy-input-invalid");
+        assert!(fix_vscode_extensions(&vscode_request(files, diagnostics))
+            .edits
+            .is_empty());
+    }
+
+    /// Не-обʼєктний корінь — явний no-op (канон писав би `recommendations`
+    /// у масив, і властивість тихо губилась при `JSON.stringify`).
+    #[test]
+    fn fix_vscode_extensions_non_object_root_is_noop() {
+        let files = vec![sf(VSCODE_EXTENSIONS_TARGET, "[\"a\"]")];
+        let diagnostics = vec![Diagnostic {
+            reason: "policy-deny".to_string(),
+            message: ".vscode/extensions.json: recommendations має містити \"x\"".to_string(),
+            file: Some(VSCODE_EXTENSIONS_TARGET.to_string()),
+            severity: Severity::Error,
+            data: None,
+        }];
+        assert!(fix_vscode_extensions(&vscode_request(files, diagnostics))
+            .edits
+            .is_empty());
     }
 }

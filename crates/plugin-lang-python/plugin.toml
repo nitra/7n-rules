@@ -81,6 +81,16 @@ key = "python/project"
 scope = "full"
 glob = ["pyproject.toml"]
 
+[[concerns]]
+# Policy-концерн (`plugins/lang-python/rules/python/vscode_extensions/vscode_extensions.rego` + `template/extensions.json.snippet.json`, без
+# `main.mjs`) — портовані ОБИДВІ половини, детект і фікс: `detect.mjs`
+# (`runConcernDetector`) ПОВНІСТЮ заміняє policy-гілку, щойно концерн
+# зʼявляється в `describe()`. Glob — РІВНО цільовий файл: він годує і
+# detect-batch, і fix-batch (`build_full_scope_files`, §2.72).
+key = "python/vscode_extensions"
+scope = "full"
+glob = [".vscode/extensions.json"]
+
 [capabilities]
 # Хост передає вміст файлів inline у `detect-batch` (host-побудований
 # full-scope batch для `python/applies`/`python/tooling`, per-file batch для

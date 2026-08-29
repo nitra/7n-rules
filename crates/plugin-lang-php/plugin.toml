@@ -68,6 +68,16 @@ key = "php/mago_lint"
 scope = "per-file"
 glob = ["**/*.php", "composer.json"]
 
+[[concerns]]
+# Policy-концерн (`plugins/lang-php/rules/php/vscode_extensions/vscode_extensions.rego` + `template/extensions.json.snippet.json`, без
+# `main.mjs`) — портовані ОБИДВІ половини, детект і фікс: `detect.mjs`
+# (`runConcernDetector`) ПОВНІСТЮ заміняє policy-гілку, щойно концерн
+# зʼявляється в `describe()`. Glob — РІВНО цільовий файл: він годує і
+# detect-batch, і fix-batch (`build_full_scope_files`, §2.72).
+key = "php/vscode_extensions"
+scope = "full"
+glob = [".vscode/extensions.json"]
+
 [capabilities]
 # Хост передає вміст файлів inline у `detect-batch` (host-побудований
 # full-scope batch для `php/tooling`/`php/composer_manifest`/`php/project`,

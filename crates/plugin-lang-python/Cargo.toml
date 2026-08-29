@@ -56,6 +56,25 @@ basic-toml = "0.1"
 # врахований у probe-вимірі вище (той самий виклик мав і `#[derive]`-структури).
 serde = { version = "1", default-features = false, features = ["derive"] }
 
+# Двигун JSONC-парсу/серіалізації (`Json`/`parse_jsonc_document`/
+# `json_to_pretty_string`/`json_to_string`) для концерну
+# `python/vscode_extensions` — спільний крейт `rules-template-merge` (§2.71):
+# одна семантика на нативну колію (`crates/rules-core`) і на гостей, бо
+# родина `vscode_*` розсипана між ядром і плагінами й дві копії розійшлися б
+# ТИХО. Фіча `yaml` НЕ вмикається (дефолт `jsonc`) — цільовий файл цього
+# концерну лише `.vscode/extensions.json`, `saphyr` у граф не входить.
+rules-template-merge = { path = "../rules-template-merge" }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# §2.66: `regorus` виконується IN-PROCESS лише на host-таргеті (нативні
+# `cargo test` цього крейта) — той самий `rules-rego-engine`, що
+# `crates/rules-plugin-host` реалізує через host-import resource
+# `rego-engine` для wasm32 (доккомент `RegoEngineHandle`, `src/lib.rs`).
+# Cargo резолвить цю залежність ЛИШЕ на не-wasm32 таргеті — у
+# wasm32-wasip2 build graph цього ребра немає, тож у size-бюджет гостя
+# `regorus` не важить нічого.
+rules-rego-engine = { path = "../rules-rego-engine" }
+
 [dev-dependencies]
 # Anti-drift тест `plugin_toml_concern_keys_match_describe` (той самий
 # мотив, що `crates/plugin-lang-js/Cargo.toml`) — парсить `plugin.toml`

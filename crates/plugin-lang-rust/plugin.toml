@@ -78,6 +78,16 @@ key = "rust/wasm_component"
 scope = "per-file"
 glob = ["**/Cargo.toml"]
 
+[[concerns]]
+# Policy-концерн (`plugins/lang-rust/rules/rust/vscode_extensions/vscode_extensions.rego` + `template/extensions.json.snippet.json`, без
+# `main.mjs`) — портовані ОБИДВІ половини, детект і фікс: `detect.mjs`
+# (`runConcernDetector`) ПОВНІСТЮ заміняє policy-гілку, щойно концерн
+# зʼявляється в `describe()`. Glob — РІВНО цільовий файл: він годує і
+# detect-batch, і fix-batch (`build_full_scope_files`, §2.72).
+key = "rust/vscode_extensions"
+scope = "full"
+glob = [".vscode/extensions.json"]
+
 [capabilities]
 # Хост передає вміст файлів inline у `detect-batch` (host-побудований
 # full-scope batch для `rust/applies`/`rust/workspace_root`, per-file batch
