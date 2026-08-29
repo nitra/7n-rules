@@ -19,7 +19,11 @@
 #    `@storybook/addon-vitest` — виняток із цього правила: це test-tooling (плагін
 #    vitest-конфіга), а не Storybook-identity-маркер, тож root, а не npm/package.json.
 #
-# Перевірки, які потребують FS / cross-file контексту, лишаються у JS.
+# Дрейф, прибраний §2.78: тут стояв рядок «перевірки, які потребують FS /
+# cross-file контексту, лишаються у JS» — він описував `main.mjs`, якого в
+# цьому концерні НЕМАЄ (як і в решті чотирьох `*/package_json`): детект
+# повністю policy-rego. FS/cross-file контекст живе у `fix-package_json.mjs`,
+# тобто у ФІКСІ, а не в детекті.
 package bun.package_json
 
 import rego.v1

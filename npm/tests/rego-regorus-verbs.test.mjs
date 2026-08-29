@@ -36,6 +36,15 @@
  *  3. рядки-коментарі (`#`) зі скану виключені свідомо — `%q` у ci-azure й
  *     ci-github живе саме в доккоментах, що ПОЯСНЮЮТЬ цю заміну, і гейт, який
  *     червонить власну документацію, теж довго не проживе.
+ *
+ * Цей гейт ловить ОДНУ конкретну несумісність (`%q`), а не всі. Другий,
+ * взаємодоповнювальний, живе на боці гостя: `cargo test -p plugin-lang-js`
+ * (`vsi_shist_rego_polityk_evaliuiutsia_pid_regorus`) реально КОМПІЛЮЄ І
+ * ЕВАЛЮЄ кожну вшиту політику через `rules-rego-engine` in-process. Саме він
+ * знайшов третю пастку класу (§2.78): безтілий факт `f("літерал")` —
+ * легальний для Go-шного OPA/conftest, HARD-помилка компіляції в `regorus`.
+ * Формулювати її як текстовий скан безглуздо, а прогін двигуна ловить
+ * КОЖНУ таку несумісність, включно з ще не відомими.
  */
 import { describe, expect, test } from 'vitest'
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
@@ -58,7 +67,7 @@ const REGORUS_POLICY_PLUGINS = {
   'ci-github': 'wasm-гість `crates/plugin-ci-github` рахує rego через host-import `rego-engine` (§2.66/§2.68)',
   'ci-azure': 'wasm-гість `crates/plugin-ci-azure` — той самий host-import із самого початку (§2.69)',
   'lang-js':
-    'передумова порту родини `package_json`: маршрут іде через підключення `rego-engine` до `plugin-lang-js`, `%q` прибрано ДО того (§2.76)'
+    'wasm-гість `crates/plugin-lang-js` рахує rego через host-import `rego-engine` — шість політик родини `vscode_extensions`/`package_json` (§2.78; `%q` прибрано наперед, §2.76)'
 }
 
 /**
@@ -69,7 +78,7 @@ const REGORUS_POLICY_PLUGINS = {
 const NON_POLICY_REGO_ENGINE_CRATES = new Set(['rules-plugin-host', 'rules-rego-engine'])
 
 /** Крейти-гості, чия залежність `rules-rego-engine` вже покрита переліком вище. */
-const KNOWN_POLICY_REGO_ENGINE_CRATES = new Set(['plugin-ci-github', 'plugin-ci-azure'])
+const KNOWN_POLICY_REGO_ENGINE_CRATES = new Set(['plugin-ci-github', 'plugin-ci-azure', 'plugin-lang-js'])
 
 /**
  * Рекурсивно збирає `.rego`-файли теки.

@@ -1,8 +1,12 @@
 # Порт перевірок `package.json` (style.mdc).
 #
-# Канон надходить через --data: { "template": { "contains": ..., "snippet": ... } }
-# Структура --data сформована з template/package.json.{contains,snippet}.json.
-# FS-альтернативи (`.stylelintrc.*` файли) + `.stylelintignore` — у JS.
+# Канон надходить через --data: { "template": { "snippet": ... } }
+# Структура --data сформована з template/package.json.snippet.json.
+#
+# Дрейф, прибраний §2.78: заголовок обіцяв ще й слот `contains`
+# (`template/package.json.contains.json`), якого в теці `template/` немає,
+# і згадував «FS-альтернативи … — у JS», хоча `main.mjs` у цього концерну
+# НЕМАЄ — детект повністю policy-rego.
 #
 # Логіка, що ЛИШАЄТЬСЯ у rego (inverse — не виноситься у template):
 #  - `@nitra/stylelint-config` має бути у devDependencies (presence-check).

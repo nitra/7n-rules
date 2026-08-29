@@ -5272,6 +5272,376 @@ describe('wasm-plugin parity — js-run/runtime T0-фікс (JS-канон fix-r
   })
 })
 
+// =====================================================================
+// §2.78 — родина `vscode_extensions` (два концерни) + четвірка
+// `package_json`: ПЕРША хвиля `plugin-lang-js`, чий детект — вшита
+// `.rego`-політика через host-import `rego-engine` (§2.66), а не власний
+// Rust-сканер.
+//
+// Канон тут — НЕ `main.mjs` (його в цих шести немає взагалі), а rego через
+// `conftest` (`evaluatePolicyConcern`), тобто той самий виняток із
+// «еталонного» шару, що вже описаний угорі для трьох `*/package_json`
+// батчу 6 ([`runPolicyBoth`]). Різниця: там `files.walkGlob`, тут —
+// `files.single` (+ `required`/`missingMessage` у `js/vscode_extensions`),
+// тож потрібен окремий, узагальнений прогонщик [`runSingleFilePolicyBoth`].
+//
+// Фікс-половина ганяється РЕАЛЬНИМ napi-мостом
+// (`runWasmConcern` → `runWasmConcernFix` → `applyPlanEdit`), не прямим
+// викликом гостя: саме цей ланцюжок ловить пастку §2.72 («глоб контрибуції
+// годує й fix») — вузький глоб дав би порожній batch, порожній план і
+// мовчазний no-op, якого прямий виклик гостя не побачив би взагалі.
+// =====================================================================
+
+const JS_VSCODE_EXTENSIONS_CONCERN_KEY = 'js/vscode_extensions'
+const STYLE_VSCODE_EXTENSIONS_CONCERN_KEY = 'style/vscode_extensions'
+const JS_PACKAGE_JSON_CONCERN_KEY = 'js/package_json'
+const NPM_PACKAGE_JSON_CONCERN_KEY = 'npm-module/npm_package_json'
+const ROOT_PACKAGE_JSON_CONCERN_KEY = 'npm-module/root_package_json'
+const STYLE_PACKAGE_JSON_CONCERN_KEY = 'style/package_json'
+
+/**
+ * Шість концернів §2.78 із їхньою `policy.files`-семантикою — дзеркало
+ * `concern.json` кожного (свідомо продубльоване тут, а не прочитане з
+ * диска: тест мусить ЗАФІКСУВАТИ очікувану форму, а не успадкувати ту саму
+ * помилку, якщо `concern.json` колись поїде).
+ */
+const POLICY_CONCERNS_2_78 = [
+  {
+    key: JS_VSCODE_EXTENSIONS_CONCERN_KEY,
+    ruleId: 'js',
+    concernId: 'vscode_extensions',
+    files: { single: '.vscode/extensions.json', required: true },
+    missingMessage: '.vscode/extensions.json не існує — додай recommendations з js.mdc'
+  },
+  {
+    key: STYLE_VSCODE_EXTENSIONS_CONCERN_KEY,
+    ruleId: 'style',
+    concernId: 'vscode_extensions',
+    files: { single: '.vscode/extensions.json' }
+  },
+  {
+    key: JS_PACKAGE_JSON_CONCERN_KEY,
+    ruleId: 'js',
+    concernId: 'package_json',
+    files: { single: 'package.json' }
+  },
+  {
+    key: NPM_PACKAGE_JSON_CONCERN_KEY,
+    ruleId: 'npm-module',
+    concernId: 'npm_package_json',
+    files: { single: 'npm/package.json' }
+  },
+  {
+    key: ROOT_PACKAGE_JSON_CONCERN_KEY,
+    ruleId: 'npm-module',
+    concernId: 'root_package_json',
+    files: { single: 'package.json' }
+  },
+  {
+    key: STYLE_PACKAGE_JSON_CONCERN_KEY,
+    ruleId: 'style',
+    concernId: 'package_json',
+    files: { single: 'package.json' }
+  }
+]
+
+/** @param {string} key ключ концерну `ruleId/concernId` */
+const concern2_78 = key => POLICY_CONCERNS_2_78.find(c => c.key === key)
+
+/**
+ * Ганяє `files.single` rego-концерн через КАНОН (`evaluatePolicyConcern` —
+ * conftest із `--data` зі snippet-а концерну) і через `runWasmConcern`
+ * (`files: null`, full-scope міст — host сам будує batch за глобом
+ * контрибуції), повертаючи обидва `violations` у спільній формі.
+ * @param {string} key ключ концерну `ruleId/concernId`
+ * @param {string} dir абсолютний шлях tmp-дерева з фікстурами
+ * @returns {Promise<{ js: unknown[], wasm: unknown[] }>} результати обох реалізацій
+ */
+async function runSingleFilePolicyBoth(key, dir) {
+  const { evaluatePolicyConcern } = await import('../policy-lint-adapter.mjs')
+  const meta = concern2_78(key)
+  const jsResult = await evaluatePolicyConcern(
+    { cwd: dir, ruleId: meta.ruleId, concernId: meta.concernId },
+    {
+      engine: 'rego',
+      policyDir: join(REPO_ROOT, 'plugins', 'lang-js', 'rules', meta.ruleId, meta.concernId),
+      files: meta.files,
+      missingMessage: meta.missingMessage
+    }
+  )
+  const wasmResult = loadNative().runWasmConcern(WASM_PATH, key, dir, null)
+  return {
+    js: jsResult.violations.map(v => pickPolicyFields(v)).toSorted((a, b) => a.message.localeCompare(b.message)),
+    wasm: wasmResult.violations
+      .map(v => pickPolicyFields({ severity: 'error', ...v }))
+      .toSorted((a, b) => a.message.localeCompare(b.message))
+  }
+}
+
+/**
+ * Повний T0-цикл через РЕАЛЬНИЙ napi-міст: детект гостем → `runWasmConcernFix`
+ * → `applyPlanEdit` → повторний детект гостем.
+ * @param {string} key ключ концерну `ruleId/concernId`
+ * @param {string} dir абсолютний шлях tmp-дерева
+ * @returns {Promise<{ before: unknown[], edits: unknown[], after: unknown[] }>} стан до, план і стан після
+ */
+async function runWasmFixCycle(key, dir) {
+  const meta = concern2_78(key)
+  const before = withDefaultSeverity(loadNative().runWasmConcern(WASM_PATH, key, dir, null).violations)
+  const plan = loadNative().runWasmConcernFix(WASM_PATH, key, dir, before, {})
+  for (const edit of plan.edits) {
+    await applyPlanEdit(edit, dir, { cwd: dir, ruleId: meta.ruleId, concernId: meta.concernId })
+  }
+  const after = withDefaultSeverity(loadNative().runWasmConcern(WASM_PATH, key, dir, null).violations)
+  return { before, edits: plan.edits, after }
+}
+
+/**
+ * Таймаут тестів, що спавнять `conftest` (канонічна половина парності).
+ * Дефолтні 5 с не покривають ХОЛОДНИЙ перший спавн (резолв піна + запуск
+ * Go-бінарника) — саме він, а не сама оцінка policy, займає більшість часу;
+ * решта викликів у прогоні вкладається на порядок швидше. Явне число тут —
+ * щоб холодний старт не читався як «тест завис».
+ */
+const CONFTEST_SPAWN_TIMEOUT_MS = 120_000
+
+describe('wasm-plugin parity — §2.78 rego-детект шести концернів (conftest-канон vs host-import rego-engine)', () => {
+  test('js/vscode_extensions: бракує однієї рекомендації → ідентичні violations', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, '.vscode/extensions.json', '{\n  "recommendations": ["dbaeumer.vscode-eslint"]\n}\n')
+      const { js, wasm } = await runSingleFilePolicyBoth(JS_VSCODE_EXTENSIONS_CONCERN_KEY, dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].message).toContain('oxc.oxc-vscode')
+      expect(js[0].file).toBe('.vscode/extensions.json')
+    })
+  }, CONFTEST_SPAWN_TIMEOUT_MS)
+
+  test('js/vscode_extensions: файлу немає — обидві реалізації дають ту саму policy-file-missing (required: true)', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'package.json', '{}\n')
+      const { js, wasm } = await runSingleFilePolicyBoth(JS_VSCODE_EXTENSIONS_CONCERN_KEY, dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('policy-file-missing')
+    })
+  }, CONFTEST_SPAWN_TIMEOUT_MS)
+
+  test('style/vscode_extensions: файлу немає — БЕЗ required обидві мовчать (розходження concern.json тієї самої родини)', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'package.json', '{}\n')
+      const { js, wasm } = await runSingleFilePolicyBoth(STYLE_VSCODE_EXTENSIONS_CONCERN_KEY, dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  }, CONFTEST_SPAWN_TIMEOUT_MS)
+
+  test('js/package_json: type + engines + eslint-config нижче порогу → ідентичні violations', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(
+        dir,
+        'package.json',
+        JSON.stringify(
+          {
+            name: 'x',
+            type: 'commonjs',
+            engines: { node: '>=20', bun: '>=1.2' },
+            devDependencies: { '@nitra/eslint-config': '^3.1.0' }
+          },
+          null,
+          2
+        )
+      )
+      const { js, wasm } = await runSingleFilePolicyBoth(JS_PACKAGE_JSON_CONCERN_KEY, dir)
+      expect(wasm).toEqual(js)
+      expect(js.length).toBeGreaterThanOrEqual(4)
+    })
+  }, CONFTEST_SPAWN_TIMEOUT_MS)
+
+  test('js/package_json: eslint-config ВИЩЕ порогу — обидві мовчать (detect — це `>=`, не рівність)', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(
+        dir,
+        'package.json',
+        JSON.stringify(
+          {
+            type: 'module',
+            engines: { node: '>=24', bun: '>=1.4' },
+            devDependencies: { '@nitra/eslint-config': '^3.20.0' }
+          },
+          null,
+          2
+        )
+      )
+      const { js, wasm } = await runSingleFilePolicyBoth(JS_PACKAGE_JSON_CONCERN_KEY, dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  }, CONFTEST_SPAWN_TIMEOUT_MS)
+
+  test('npm-module/npm_package_json: files без "types" → ідентичні violations (і `.rego` компілюється під regorus після §2.78)', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(
+        dir,
+        'npm/package.json',
+        JSON.stringify({ types: './types/index.d.ts', files: ['dist'] }, null, 2)
+      )
+      const { js, wasm } = await runSingleFilePolicyBoth(NPM_PACKAGE_JSON_CONCERN_KEY, dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].message).toContain('types')
+      expect(js[0].file).toBe('npm/package.json')
+    })
+  }, CONFTEST_SPAWN_TIMEOUT_MS)
+
+  test('npm-module/root_package_json: немає workspaces → ідентичні violations; є — обидві мовчать', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'package.json', JSON.stringify({ name: 'root' }, null, 2))
+      const bad = await runSingleFilePolicyBoth(ROOT_PACKAGE_JSON_CONCERN_KEY, dir)
+      expect(bad.wasm).toEqual(bad.js)
+      expect(bad.js).toHaveLength(1)
+
+      await writeFileDeep(dir, 'package.json', JSON.stringify({ name: 'root', workspaces: ['npm'] }, null, 2))
+      const good = await runSingleFilePolicyBoth(ROOT_PACKAGE_JSON_CONCERN_KEY, dir)
+      expect(good.wasm).toEqual(good.js)
+      expect(good.js).toEqual([])
+    })
+  }, CONFTEST_SPAWN_TIMEOUT_MS)
+
+  test('style/package_json: чужий stylelint.extends + відсутній devDep → ідентичні violations', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'package.json', JSON.stringify({ stylelint: { extends: 'wrong' } }, null, 2))
+      const { js, wasm } = await runSingleFilePolicyBoth(STYLE_PACKAGE_JSON_CONCERN_KEY, dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(2)
+    })
+  }, CONFTEST_SPAWN_TIMEOUT_MS)
+})
+
+describe('wasm-plugin parity — §2.78 T0-фікс через РЕАЛЬНИЙ napi-міст (детект гостем → runWasmConcernFix → applyPlanEdit → детект чистий)', () => {
+  test('js/vscode_extensions: відсутній файл створюється, повторний детект мовчить', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'package.json', '{}\n')
+      const { before, edits, after } = await runWasmFixCycle(JS_VSCODE_EXTENSIONS_CONCERN_KEY, dir)
+      expect(before).toHaveLength(1)
+      expect(edits).toHaveLength(1)
+      expect(after).toEqual([])
+      expect(await readFile(join(dir, '.vscode/extensions.json'), 'utf8')).toBe(
+        '{\n  "recommendations": [\n    "dbaeumer.vscode-eslint",\n    "oxc.oxc-vscode"\n  ]\n}\n'
+      )
+    })
+  })
+
+  test('style/vscode_extensions: канонічне розширення дописується в ХВІСТ, чужі лишаються на місці', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, '.vscode/extensions.json', '{\n  "recommendations": ["local.only"]\n}\n')
+      const { edits, after } = await runWasmFixCycle(STYLE_VSCODE_EXTENSIONS_CONCERN_KEY, dir)
+      expect(edits).toHaveLength(1)
+      expect(after).toEqual([])
+      expect(await readFile(join(dir, '.vscode/extensions.json'), 'utf8')).toBe(
+        '{\n  "recommendations": [\n    "local.only",\n    "stylelint.vscode-stylelint"\n  ]\n}\n'
+      )
+    })
+  })
+
+  test('js/package_json: фікс НЕ збиває `@nitra/eslint-config` ^3.20.0 назад на поріг ^3.10.0 (полагоджена асиметрія канону)', async () => {
+    await withTmpDir(async dir => {
+      // Той самий вхід, на якому JS-канон (`createTemplateFixPattern`)
+      // мерджить лист ТОЧНОЮ рівністю і мовчки ПОГІРШУЄ файл.
+      await writeFileDeep(
+        dir,
+        'package.json',
+        JSON.stringify(
+          {
+            name: 'x',
+            type: 'commonjs',
+            engines: { node: '>=24', bun: '>=1.4' },
+            devDependencies: { '@nitra/eslint-config': '^3.20.0' }
+          },
+          null,
+          2
+        ) + '\n'
+      )
+      const { before, edits, after } = await runWasmFixCycle(JS_PACKAGE_JSON_CONCERN_KEY, dir)
+      expect(before.map(v => v.message)).toEqual(['package.json: "type" має бути "module" (js.mdc)'])
+      expect(edits).toHaveLength(1)
+      expect(after).toEqual([])
+      const written = JSON.parse(await readFile(join(dir, 'package.json'), 'utf8'))
+      expect(written.devDependencies['@nitra/eslint-config']).toBe('^3.20.0')
+      expect(written.type).toBe('module')
+    })
+  })
+
+  test('js/package_json: версія НИЖЧА за поріг — фікс підтягує її до канону', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(
+        dir,
+        'package.json',
+        JSON.stringify(
+          {
+            type: 'module',
+            engines: { node: '>=24', bun: '>=1.4' },
+            devDependencies: { '@nitra/eslint-config': '^3.1.0' }
+          },
+          null,
+          2
+        ) + '\n'
+      )
+      const { after } = await runWasmFixCycle(JS_PACKAGE_JSON_CONCERN_KEY, dir)
+      expect(after).toEqual([])
+      const written = JSON.parse(await readFile(join(dir, 'package.json'), 'utf8'))
+      expect(written.devDependencies['@nitra/eslint-config']).toBe('^3.10.0')
+    })
+  })
+
+  test('npm-module/root_package_json: workspaces дописується, порядок наявних ключів не тасується', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'package.json', '{\n  "zzz": 1,\n  "name": "root",\n  "aaa": 2\n}\n')
+      const { after } = await runWasmFixCycle(ROOT_PACKAGE_JSON_CONCERN_KEY, dir)
+      expect(after).toEqual([])
+      const text = await readFile(join(dir, 'package.json'), 'utf8')
+      expect(text.indexOf('"zzz"')).toBeLessThan(text.indexOf('"name"'))
+      expect(text.indexOf('"name"')).toBeLessThan(text.indexOf('"aaa"'))
+      expect(JSON.parse(text).workspaces).toEqual(['npm'])
+    })
+  })
+
+  test('npm-module/npm_package_json: "types" дописується у наявний масив files, повторний детект мовчить', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(
+        dir,
+        'npm/package.json',
+        JSON.stringify({ types: './types/index.d.ts', files: ['dist'] }, null, 2) + '\n'
+      )
+      const { after } = await runWasmFixCycle(NPM_PACKAGE_JSON_CONCERN_KEY, dir)
+      expect(after).toEqual([])
+      expect(JSON.parse(await readFile(join(dir, 'npm/package.json'), 'utf8')).files).toEqual(['dist', 'types'])
+    })
+  })
+
+  test('глоб контрибуції годує й fix (§2.72): план непорожній САМЕ через full-scope batch хоста, не через дельту', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'package.json', JSON.stringify({ stylelint: { extends: 'wrong' } }, null, 2) + '\n')
+      // `runWasmConcernFix` без шостого аргумента (дельти) — рівно
+      // продакшн-виклик full-scope концерну: batch будує хост за глобом.
+      const { edits } = await runWasmFixCycle(STYLE_PACKAGE_JSON_CONCERN_KEY, dir)
+      expect(edits).toHaveLength(1)
+      expect(JSON.parse(await readFile(join(dir, 'package.json'), 'utf8')).stylelint.extends).toBe(
+        '@nitra/stylelint-config'
+      )
+    })
+  })
+
+  test('побитий JSON у таргеті: план ПОРОЖНІЙ — файл не перезаписується сміттям, порушення лишається видимим', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, '.vscode/extensions.json', '{ це не json')
+      const { edits } = await runWasmFixCycle(JS_VSCODE_EXTENSIONS_CONCERN_KEY, dir)
+      expect(edits).toEqual([])
+      expect(await readFile(join(dir, '.vscode/extensions.json'), 'utf8')).toBe('{ це не json')
+    })
+  })
+})
+
 describe('wasm-plugin — size-budget (задача Q3, спека `docs/specs/2026-08-01-wasm-ast-strategy.md`, розділ «Рішення» п.2)', () => {
   test(`plugin_lang_js.wasm не перевищує бюджет ${WASM_SIZE_BUDGET_LABEL}`, async () => {
     const { stat } = await import('node:fs/promises')

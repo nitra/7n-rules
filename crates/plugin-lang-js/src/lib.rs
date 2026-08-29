@@ -228,6 +228,10 @@ use oxc_ast_visit::{
     Visit,
 };
 use oxc_parser::Parser;
+use rules_template_merge::{
+    is_subset, json_to_pretty_string, json_to_string as tm_json_to_string, merge_json_value,
+    parse_jsonc_document, try_surgical_merge, Format as TmFormat, Json as TmJson,
+};
 use oxc_span::{GetSpan, SourceType, Span};
 use oxc_syntax::scope::ScopeFlags;
 
@@ -3893,6 +3897,46 @@ fn build_manifest() -> Manifest {
                     "**/jsconfig.json".to_string(),
                     "**/k8s/**/*.{yaml,yml}".to_string(),
                 ],
+            },
+            // §2.78 — родина `vscode_extensions` + четвірка `package_json`
+            // (доккомент секції «§2.78» вище). Глоб КОЖНОГО — рівно
+            // `policy.files.single` свого `concern.json`, і це свідомо: після
+            // §2.72 той самий глоб годує не лише detect, а й `fix`
+            // (`run_wasm_concern_fix` будує batch через
+            // `build_full_scope_files(&cwd, &c.glob)`). Вужчий за таргет глоб
+            // тут беззвучно каструє фікс — гість не побачив би файлу, віддав
+            // порожній план, гейт `edits.length > 0` не пустив би його, і
+            // JS-канон тихо проганяв би фікс удруге. Ширший — теж не потрібен:
+            // жодна з шести політик не читає нічого, крім свого таргета.
+            ConcernContribution {
+                key: CONCERN_JS_VSCODE_EXTENSIONS.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec![VSCODE_EXTENSIONS_TARGET.to_string()],
+            },
+            ConcernContribution {
+                key: CONCERN_STYLE_VSCODE_EXTENSIONS.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec![VSCODE_EXTENSIONS_TARGET.to_string()],
+            },
+            ConcernContribution {
+                key: CONCERN_JS_PACKAGE_JSON.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec![ROOT_PACKAGE_JSON_TARGET.to_string()],
+            },
+            ConcernContribution {
+                key: CONCERN_NPM_PACKAGE_JSON.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec![NPM_PACKAGE_JSON_TARGET.to_string()],
+            },
+            ConcernContribution {
+                key: CONCERN_ROOT_PACKAGE_JSON.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec![ROOT_PACKAGE_JSON_TARGET.to_string()],
+            },
+            ConcernContribution {
+                key: CONCERN_STYLE_PACKAGE_JSON.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec![ROOT_PACKAGE_JSON_TARGET.to_string()],
             },
         ],
         ci_artifacts: vec![],
@@ -13522,6 +13566,716 @@ fn jsconfig_target_path(ws: &str) -> String {
     }
 }
 
+// =====================================================================
+// §2.78 — родина `vscode_extensions` + четвірка `package_json`:
+// rego-детект через host-import `rego-engine` + два template-рушії.
+//
+// Це ПЕРША хвиля цього гостя, чий детект — не власний Rust-сканер, а
+// вшита `.rego`-політика, оцінена `regorus`. Мотив — не смак: декларація
+// концерну в `describe().concerns` ПОВНІСТЮ затінює JS/policy-детект
+// (`npm/scripts/lib/lint-surface/detect.mjs`, `if (wasmEntry !== undefined)`),
+// тож порт fix БЕЗ порту detect мовчки вимкнув би перевірку — рівно той
+// тихий зелений, який §2.65 зробила гучним. Отже detect мусив переїхати
+// разом, а детект усіх шести концернів — rego.
+//
+// # Чому host-import, а не шість ручних Rust-портів policy
+//
+// §2.66 винесла `regorus` із wasm-гостя в ХОСТ (перший imported resource
+// контракту, `rego-engine`), а §2.69 показала, що новий гість дістає
+// rego-двигун БЕЗКОШТОВНО. Ручний Rust-переказ шести policy був би шостим
+// джерелом правди для тих самих правил (і §2.75 уже зафіксувала, чим це
+// закінчується: `.rego` з літеральним списком, який ніхто не звіряє зі
+// snippet-ом). Тут джерело правди лишається `.rego` — вшитий `include_str!`
+// НАПРЯМУ з `plugins/lang-js/rules/...`, без копії в крейті.
+//
+// # Дві відомі пастки regorus, які тут НЕ стрельнули
+//
+// 1. `%q` (§2.68/§2.76) — Go-верб, якого `regorus` не знає; з усіх
+//    `.rego` `lang-js` прибраний ЗАЗДАЛЕГІДЬ, а `lang-js` заведений у
+//    перелік regorus-консюмерів гейта `npm/tests/rego-regorus-verbs.test.mjs`.
+// 2. `walk()` (§2.69) — потребує фіту `"graph"` у `rules-rego-engine`;
+//    жодна з шести політик цієї хвилі `walk` не кличе, а сам фіт там уже є.
+//
+// # Порядок ключів
+//
+// `rules_template_merge::Json::Object` — `Vec<(String, Json)>`, тобто
+// ДОКУМЕНТНИЙ порядок (доккомент залежності в `Cargo.toml`). Це критично:
+// обидві колії серіалізують `package.json` через `JSON.stringify(obj, null, 2)`,
+// і `serde_json::Value` (BTreeMap, ключі відсортовані) перетасував би весь
+// файл на кожному фіксі. Окремий [`JsonOrdered`] цій родині не потрібен.
+// =====================================================================
+
+// ---------------------------------------------------------------------
+// rego-двигун — той самий `RegoEngineHandle`-мотив, що `plugin-ci-github`
+// (§2.66) і `plugin-ci-azure` (§2.69): wasm32 кличе host-import resource
+// `rego-engine`, будь-який інший таргет (нативні `cargo test`) кличе
+// `rules_rego_engine::RegoEngine` in-process.
+// ---------------------------------------------------------------------
+
+#[cfg(target_arch = "wasm32")]
+type RegoEngineHandle = RegoEngine;
+#[cfg(not(target_arch = "wasm32"))]
+type RegoEngineHandle = rules_rego_engine::RegoEngine;
+
+#[cfg(target_arch = "wasm32")]
+fn rego_error_stage_message(err: RegoError) -> (&'static str, String) {
+    let stage = match err.stage {
+        RegoStage::Compile => "compile",
+        RegoStage::Input => "set_input",
+        RegoStage::Eval => "eval",
+    };
+    (stage, err.message)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn rego_error_stage_message(err: rules_rego_engine::RegoError) -> (&'static str, String) {
+    (err.stage.as_str(), err.message)
+}
+
+/// Один rego-виклик: новий [`RegoEngineHandle`], один `add_policy`, один
+/// `add_data_json`, один `eval_rule` — точний відповідник ОДНОГО спавну
+/// `conftest test <file> -p <policyDir> --namespace <namespace> --data <tmp>`
+/// (`runConftestBatch`, той самий контракт, що
+/// `plugin-ci-azure::eval_deny_rule`). Усі шість політик цієї хвилі читають
+/// `data.template.snippet`, тож `data_json` тут — не `Option`.
+#[allow(unused_mut)] // wasm32: resource-хендл методи беруть `&self`, `mut` потрібен лише нативній гілці.
+fn eval_deny_rule(
+    rego_source: &str,
+    namespace: &str,
+    data_json: &str,
+    input_json: &str,
+) -> Result<Vec<String>, (&'static str, String)> {
+    let mut engine = RegoEngineHandle::new();
+    engine
+        .add_policy(&format!("{namespace}.rego"), rego_source)
+        .map_err(rego_error_stage_message)?;
+    engine
+        .add_data_json(data_json)
+        .map_err(rego_error_stage_message)?;
+    engine
+        .eval_rule(input_json, &format!("data.{namespace}.deny"))
+        .map_err(rego_error_stage_message)
+}
+
+/// `reason` діагностики про провал самого regorus-виклику — fail loud, НЕ
+/// мовчазний fail-open (той самий контракт, що
+/// `plugin-ci-github::push_rego_engine_error`).
+const REGO_ENGINE_ERROR_REASON: &str = "rego-engine-error";
+
+/// `reason`, яким policy-адаптер (`policy-lint-adapter.mjs`) позначає
+/// відсутній обовʼязковий `files.single`.
+const POLICY_FILE_MISSING_REASON: &str = "policy-file-missing";
+
+/// `reason` діагностики «таргет є, але не парситься» — гілки, якої в
+/// JS-каноні НЕМАЄ: там `conftest` на побитому JSON віддає помилку процесу,
+/// і концерн лишається без вердикту. Мовчазний skip — вада, тож тут це
+/// видима діагностика (той самий мотив і той самий тег, що
+/// `plugin-ci-azure::POLICY_INPUT_INVALID_REASON`).
+const POLICY_INPUT_INVALID_REASON: &str = "policy-input-invalid";
+
+/// Видима діагностика про провал rego-виклику (compile/set_input/eval).
+fn push_rego_engine_error(
+    diagnostics: &mut Vec<Diagnostic>,
+    file: &str,
+    namespace: &str,
+    rego_source_name: &str,
+    stage: &str,
+    err: &str,
+) {
+    diagnostics.push(Diagnostic {
+        reason: REGO_ENGINE_ERROR_REASON.to_string(),
+        message: format!(
+            "{file}: regorus-виклик policy-пакета {namespace} ({rego_source_name}) провалився \
+             на етапі {stage}: {err} — це має бути структурно недосяжно (живий rego \
+             верифікований conftest verify-тестами); якщо бачиш це в реальному прогоні, \
+             перевір недавні зміни в .rego чи версію regorus"
+        ),
+        file: Some(file.to_string()),
+        severity: Severity::Error,
+        data: Some(format!(
+            "{{\"kind\":\"rego-engine-error\",\"namespace\":\"{namespace}\",\"stage\":\"{stage}\"}}"
+        )),
+    });
+}
+
+/// Обгортає розпарсений snippet у `{"template":{"snippet": …}}` — точна
+/// JSON-форма, яку канон пише у `--data <tmpfile>` (`runConftestBatch`
+/// серіалізує `{ template: templateData }`, а `resolveConcernTemplateData`
+/// дає `{ snippet: … }` для `template/<basename>.snippet.json`).
+fn wrap_template_data(snippet: TmJson) -> String {
+    tm_json_to_string(&TmJson::Object(vec![(
+        "template".to_string(),
+        TmJson::Object(vec![("snippet".to_string(), snippet)]),
+    )]))
+}
+
+/// Розбирає вшитий snippet концерну. `panic` — це інваріант ЗБІРКИ, не
+/// рантайм-умова: snippet приїхав через `include_str!`, тож «невалідний
+/// JSON» тут означає зламаний файл у репозиторії, і мовчазна деградація
+/// сховала б це від усіх (той самий контракт, що
+/// `rules_core::concerns::fix_template_merge::parse_embedded_snippet`).
+fn parse_embedded_snippet(source_name: &str, raw: &str) -> TmJson {
+    parse_jsonc_document(raw)
+        .unwrap_or_else(|| panic!("вшитий snippet {source_name} — валідний JSON-обʼєкт"))
+}
+
+// ---------------------------------------------------------------------
+// Спільний rego-детект шести концернів.
+// ---------------------------------------------------------------------
+
+/// Статична конфігурація rego-детекту одного концерну — усе, чим шість
+/// концернів відрізняються один від одного.
+struct PolicyCfg {
+    /// `ruleId/concernId` — ключ контрибуції.
+    key: &'static str,
+    /// `policy.files.single` — posix-relative шлях таргета від кореня репо.
+    target: &'static str,
+    /// `${ruleId.replaceAll('-','_')}.${concernId}` — namespace, який
+    /// будує `evaluatePolicyConcern`; він же `package` вшитого `.rego`.
+    namespace: &'static str,
+    /// Шлях `.rego` у дереві репо — для тексту помилки.
+    rego_source_name: &'static str,
+    /// Текст `.rego`-політики концерну (`include_str!` НАПРЯМУ з
+    /// `plugins/lang-js/rules/...` — джерело правди лишається Rego).
+    rego: &'static str,
+    /// Шлях snippet-а у дереві репо — для тексту помилки.
+    snippet_source_name: &'static str,
+    /// Текст `template/<basename>.snippet.json` концерну.
+    snippet_raw: &'static str,
+    /// `policy.missingMessage`, якщо `policy.files.required == true`;
+    /// `None` — концерн НЕ вимагає файлу, і його відсутність не дає жодної
+    /// діагностики (точний порт `files.length === 0` гілки
+    /// `evaluatePolicyConcern`).
+    missing_message: Option<&'static str>,
+}
+
+/// Спільний T0-детект policy-концерну — точний функціональний відповідник
+/// `evaluatePolicyConcern` (`policy-lint-adapter.mjs`) для `engine: 'rego'`
+/// з `files.single`.
+///
+/// # Одне свідоме відхилення від канону (НА КРАЩЕ)
+///
+/// Таргет читається [`parse_jsonc_document`] (реальний JSONC: `//`,
+/// `/* */`, trailing-кома), а не строгим JSON-парсером `conftest`. Для
+/// `.vscode/extensions.json` це не косметика: VS Code сам пише туди
+/// коментарі, і канон на такому файлі не давав вердикту взагалі. Побитий
+/// (СПРАВДІ невалідний) вміст чи не-обʼєктний корінь дає ВИДИМУ
+/// діагностику [`POLICY_INPUT_INVALID_REASON`], а не тишу.
+fn detect_policy(cfg: &PolicyCfg, files: &[SourceFile]) -> Vec<Diagnostic> {
+    let Some(source) = batch_file(files, cfg.target) else {
+        // `resolveTargetFiles` дав порожній список: `required` → одна
+        // діагностика, інакше — тиша (обидві гілки канону).
+        return match cfg.missing_message {
+            Some(message) => vec![Diagnostic {
+                reason: POLICY_FILE_MISSING_REASON.to_string(),
+                message: message.to_string(),
+                file: Some(cfg.target.to_string()),
+                severity: Severity::Error,
+                data: None,
+            }],
+            None => Vec::new(),
+        };
+    };
+    let Some(actual) = parse_jsonc_document(&source.content) else {
+        return vec![Diagnostic {
+            reason: POLICY_INPUT_INVALID_REASON.to_string(),
+            message: format!(
+                "{}: невалідний JSON/JSONC або не-обʼєктний корінь — виправ синтаксис ({})",
+                cfg.target, cfg.namespace
+            ),
+            file: Some(cfg.target.to_string()),
+            severity: Severity::Error,
+            data: None,
+        }];
+    };
+    let snippet = parse_embedded_snippet(cfg.snippet_source_name, cfg.snippet_raw);
+    let data_json = wrap_template_data(snippet);
+    let input_json = tm_json_to_string(&actual);
+    match eval_deny_rule(cfg.rego, cfg.namespace, &data_json, &input_json) {
+        Ok(mut messages) => {
+            // `conftest` віддає `deny`-множину відсортованою (Go-шний
+            // `sort.Strings` у виводі), `regorus` — теж множина, але
+            // порядок ітерації свій; явний sort робить вивід
+            // детермінованим і рівним канонному.
+            messages.sort();
+            messages
+                .into_iter()
+                .map(|message| Diagnostic {
+                    reason: POLICY_DENY_REASON.to_string(),
+                    message,
+                    file: Some(cfg.target.to_string()),
+                    severity: Severity::Error,
+                    data: None,
+                })
+                .collect()
+        }
+        Err((stage, err)) => {
+            let mut diagnostics = Vec::new();
+            push_rego_engine_error(
+                &mut diagnostics,
+                cfg.target,
+                cfg.namespace,
+                cfg.rego_source_name,
+                stage,
+                &err,
+            );
+            diagnostics
+        }
+    }
+}
+
+/// Знаходить конфіг за ключем концерну (`None` — ключ не з цієї родини).
+fn policy_cfg(key: &str) -> Option<&'static PolicyCfg> {
+    POLICY_CONFIGS.iter().find(|c| c.key == key)
+}
+
+// ---------------------------------------------------------------------
+// Концерни родини `vscode_extensions` (два) і четвірка `package_json`.
+// ---------------------------------------------------------------------
+
+/// Ключ контрибуції `js/vscode_extensions` (§2.78).
+const CONCERN_JS_VSCODE_EXTENSIONS: &str = "js/vscode_extensions";
+/// Ключ контрибуції `style/vscode_extensions` (§2.78).
+const CONCERN_STYLE_VSCODE_EXTENSIONS: &str = "style/vscode_extensions";
+/// Ключ контрибуції `js/package_json` (§2.78).
+const CONCERN_JS_PACKAGE_JSON: &str = "js/package_json";
+/// Ключ контрибуції `npm-module/npm_package_json` (§2.78).
+const CONCERN_NPM_PACKAGE_JSON: &str = "npm-module/npm_package_json";
+/// Ключ контрибуції `npm-module/root_package_json` (§2.78).
+const CONCERN_ROOT_PACKAGE_JSON: &str = "npm-module/root_package_json";
+/// Ключ контрибуції `style/package_json` (§2.78).
+const CONCERN_STYLE_PACKAGE_JSON: &str = "style/package_json";
+
+/// Спільний таргет обох `vscode_extensions`-концернів.
+const VSCODE_EXTENSIONS_TARGET: &str = ".vscode/extensions.json";
+/// Таргет `js/package_json`, `npm-module/root_package_json`, `style/package_json`.
+const ROOT_PACKAGE_JSON_TARGET: &str = "package.json";
+/// Таргет `npm-module/npm_package_json`.
+const NPM_PACKAGE_JSON_TARGET: &str = "npm/package.json";
+
+/// Шість policy-конфігів цієї хвилі — по одному на концерн.
+const POLICY_CONFIGS: &[PolicyCfg] = &[
+    PolicyCfg {
+        key: CONCERN_JS_VSCODE_EXTENSIONS,
+        target: VSCODE_EXTENSIONS_TARGET,
+        namespace: "js.vscode_extensions",
+        rego_source_name: "plugins/lang-js/rules/js/vscode_extensions/vscode_extensions.rego",
+        rego: include_str!(
+            "../../../plugins/lang-js/rules/js/vscode_extensions/vscode_extensions.rego"
+        ),
+        snippet_source_name:
+            "plugins/lang-js/rules/js/vscode_extensions/template/extensions.json.snippet.json",
+        snippet_raw: include_str!(
+            "../../../plugins/lang-js/rules/js/vscode_extensions/template/extensions.json.snippet.json"
+        ),
+        // `concern.json`: `files.required = true` + `missingMessage`.
+        missing_message: Some(
+            ".vscode/extensions.json не існує — додай recommendations з js.mdc",
+        ),
+    },
+    PolicyCfg {
+        key: CONCERN_STYLE_VSCODE_EXTENSIONS,
+        target: VSCODE_EXTENSIONS_TARGET,
+        namespace: "style.vscode_extensions",
+        rego_source_name: "plugins/lang-js/rules/style/vscode_extensions/vscode_extensions.rego",
+        rego: include_str!(
+            "../../../plugins/lang-js/rules/style/vscode_extensions/vscode_extensions.rego"
+        ),
+        snippet_source_name:
+            "plugins/lang-js/rules/style/vscode_extensions/template/extensions.json.snippet.json",
+        snippet_raw: include_str!(
+            "../../../plugins/lang-js/rules/style/vscode_extensions/template/extensions.json.snippet.json"
+        ),
+        // `concern.json` НЕ має `required` — відсутній файл не дає діагностики.
+        missing_message: None,
+    },
+    PolicyCfg {
+        key: CONCERN_JS_PACKAGE_JSON,
+        target: ROOT_PACKAGE_JSON_TARGET,
+        namespace: "js.package_json",
+        rego_source_name: "plugins/lang-js/rules/js/package_json/package_json.rego",
+        rego: include_str!("../../../plugins/lang-js/rules/js/package_json/package_json.rego"),
+        snippet_source_name:
+            "plugins/lang-js/rules/js/package_json/template/package.json.snippet.json",
+        snippet_raw: include_str!(
+            "../../../plugins/lang-js/rules/js/package_json/template/package.json.snippet.json"
+        ),
+        missing_message: None,
+    },
+    PolicyCfg {
+        key: CONCERN_NPM_PACKAGE_JSON,
+        target: NPM_PACKAGE_JSON_TARGET,
+        namespace: "npm_module.npm_package_json",
+        rego_source_name:
+            "plugins/lang-js/rules/npm-module/npm_package_json/npm_package_json.rego",
+        rego: include_str!(
+            "../../../plugins/lang-js/rules/npm-module/npm_package_json/npm_package_json.rego"
+        ),
+        snippet_source_name:
+            "plugins/lang-js/rules/npm-module/npm_package_json/template/package.json.snippet.json",
+        snippet_raw: include_str!(
+            "../../../plugins/lang-js/rules/npm-module/npm_package_json/template/package.json.snippet.json"
+        ),
+        missing_message: None,
+    },
+    PolicyCfg {
+        key: CONCERN_ROOT_PACKAGE_JSON,
+        target: ROOT_PACKAGE_JSON_TARGET,
+        namespace: "npm_module.root_package_json",
+        rego_source_name:
+            "plugins/lang-js/rules/npm-module/root_package_json/root_package_json.rego",
+        rego: include_str!(
+            "../../../plugins/lang-js/rules/npm-module/root_package_json/root_package_json.rego"
+        ),
+        snippet_source_name:
+            "plugins/lang-js/rules/npm-module/root_package_json/template/package.json.snippet.json",
+        snippet_raw: include_str!(
+            "../../../plugins/lang-js/rules/npm-module/root_package_json/template/package.json.snippet.json"
+        ),
+        missing_message: None,
+    },
+    PolicyCfg {
+        key: CONCERN_STYLE_PACKAGE_JSON,
+        target: ROOT_PACKAGE_JSON_TARGET,
+        namespace: "style.package_json",
+        rego_source_name: "plugins/lang-js/rules/style/package_json/package_json.rego",
+        rego: include_str!("../../../plugins/lang-js/rules/style/package_json/package_json.rego"),
+        snippet_source_name:
+            "plugins/lang-js/rules/style/package_json/template/package.json.snippet.json",
+        snippet_raw: include_str!(
+            "../../../plugins/lang-js/rules/style/package_json/template/package.json.snippet.json"
+        ),
+        missing_message: None,
+    },
+];
+
+// ---------------------------------------------------------------------
+// Рушій 1 — `vscode-ext-add` (union `recommendations` за РЯДКОВИМ значенням).
+// ---------------------------------------------------------------------
+
+/// Дві альтернативи `REC_REQUIRE_RE`
+/// (`/recommendations має містити|extensions\.json/u`) — літеральні
+/// підрядки, регулярка тут не потрібна.
+const REC_REQUIRE_NEEDLES: [&str; 2] = ["recommendations має містити", "extensions.json"];
+
+/// Ключ `recommendations` — єдине поле, яке рушій читає й пише.
+const RECOMMENDATIONS_KEY: &str = "recommendations";
+
+/// `obj[key]` як вектор рядків — той самий контракт, що
+/// `Array.isArray(parsed.recommendations) ? … : []` канону.
+fn recommendations_of(value: &TmJson) -> Vec<String> {
+    value
+        .get(RECOMMENDATIONS_KEY)
+        .and_then(TmJson::as_array)
+        .map(|arr| {
+            arr.iter()
+                .filter_map(TmJson::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// T0-фіксер обох `vscode_extensions`-концернів — точний порт
+/// `npm/scripts/lib/fix/vscode-ext-add.mjs`: union
+/// `.vscode/extensions.json#recommendations` із канонічним
+/// `template/extensions.json.snippet.json#recommendations` за РЯДКОВИМ
+/// значенням (не структурний deep-merge — це свідомо ІНШИЙ, простіший
+/// рушій, ніж [`template_merge_fix`]).
+///
+/// Запис — ПОВНА регенерація ([`json_to_pretty_string`], 2 пробіли +
+/// кінцевий `\n`), точний відповідник `JSON.stringify(parsed, null, 2) +
+/// '\n'` канону: коментарі вхідного JSONC запис НЕ переживають, і це
+/// задокументована межа рушія (канон губить їх так само), не тиха
+/// регресія — жоден ключ і жодна рекомендація при цьому не зникають.
+///
+/// # Полагоджені дефекти канону (не відтворені заради парності)
+///
+/// 1. **JSONC-вхід.** Канон читав таргет `JSON.parse` → виняток → мовчазний
+///    `return { touchedFiles: [] }` на цілком легальному для VS Code файлі
+///    з `//`-коментарями. Тут читання йде [`parse_jsonc_document`].
+/// 2. **Не-обʼєктний корінь.** Канон робив `parsed.recommendations = …` на
+///    будь-якому результаті `JSON.parse`: для масиву властивість губилась
+///    при `JSON.stringify`, для скаляра — кидало. Тут це явний no-op.
+fn vscode_extensions_fix(cfg: &PolicyCfg, request: &FixRequest) -> FixPlan {
+    let empty = FixPlan { edits: vec![] };
+    let applicable = request.diagnostics.iter().any(|d| {
+        d.reason == POLICY_FILE_MISSING_REASON
+            || REC_REQUIRE_NEEDLES.iter().any(|n| d.message.contains(n))
+    });
+    if !applicable {
+        return empty;
+    }
+    let snippet = parse_embedded_snippet(cfg.snippet_source_name, cfg.snippet_raw);
+    let canonical = recommendations_of(&snippet);
+    assert!(
+        !canonical.is_empty(),
+        "вшитий снапшот {} має непорожній «{RECOMMENDATIONS_KEY}»",
+        cfg.snippet_source_name
+    );
+
+    let existing = batch_file(&request.files, cfg.target);
+    let (mut entries, recs): (Vec<(String, TmJson)>, Vec<String>) = match existing {
+        None => (Vec::new(), Vec::new()),
+        Some(source) => match parse_jsonc_document(&source.content) {
+            Some(parsed) => {
+                let recs = recommendations_of(&parsed);
+                let TmJson::Object(entries) = parsed else {
+                    unreachable!("parse_jsonc_document повертає лише обʼєктний корінь")
+                };
+                (entries, recs)
+            }
+            // Побитий вміст або не-обʼєктний корінь: детермінованому фіксу
+            // нема з чого будувати мерж, а перезаписати сміття «канонічним»
+            // файлом означало б знищити дані користувача — порушення при
+            // цьому лишається видимим у звіті лінту.
+            None => return empty,
+        },
+    };
+
+    let to_add: Vec<&String> = canonical.iter().filter(|c| !recs.contains(c)).collect();
+    if to_add.is_empty() && existing.is_some() {
+        return empty;
+    }
+    let mut new_recs: Vec<TmJson> = recs.into_iter().map(TmJson::Str).collect();
+    new_recs.extend(to_add.into_iter().cloned().map(TmJson::Str));
+    match entries.iter_mut().find(|(k, _)| k == RECOMMENDATIONS_KEY) {
+        Some(entry) => entry.1 = TmJson::Array(new_recs),
+        None => entries.push((RECOMMENDATIONS_KEY.to_string(), TmJson::Array(new_recs))),
+    }
+    FixPlan {
+        edits: vec![FileEdit::Write(WriteFile {
+            path: cfg.target.to_string(),
+            content: json_to_pretty_string(&TmJson::Object(entries)),
+        })],
+    }
+}
+
+// ---------------------------------------------------------------------
+// Рушій 2 — `createTemplateFixPattern` (deep-merge snippet → target).
+// ---------------------------------------------------------------------
+
+/// Листок snippet-а, чиє канонічне значення — МІНІМАЛЬНИЙ поріг, а не точне
+/// значення: детект приймає будь-яку версію `>= порогу`, тож і мерж мусить
+/// лишати вищу версію на місці.
+///
+/// # Це полагоджений баг канону, а не оптимізація
+///
+/// `js/package_json.rego` вимагає `devDependencies["@nitra/eslint-config"]`
+/// **≥ порогу зі snippet-а** (`eslint_config_meets_min`), а
+/// `createTemplateFixPattern` мерджить листя ТОЧНОЮ рівністю
+/// (`mergeJsonValue`: `return snippet`). Наслідок у каноні: будь-яке
+/// порушення концерну (напр. `engines.node < 24`) запускає merge, який
+/// мовчки ЗБИВАЄ вже коректний `^3.20.0` назад на `^3.10.0` — тобто
+/// «виправлення» ПОГІРШУЄ файл і при цьому не гасить порушення, через яке
+/// його викликали. Порт цього дефекту біт-у-біт не відтворює: видима зміна
+/// поведінки тут — НА КРАЩЕ, і зафіксована тестом
+/// [`js_package_json_fix_ne_znyzhuie_vyshchu_versiiu_eslint_config`].
+struct MinVersionLeaf {
+    /// Ключ секції верхнього рівня (`devDependencies`).
+    section: &'static str,
+    /// Ключ листка всередині секції (`@nitra/eslint-config`).
+    name: &'static str,
+}
+
+/// Статична конфігурація одного `createTemplateFixPattern`-концерну.
+struct TemplateFixCfg {
+    /// `ruleId/concernId` — ключ контрибуції.
+    key: &'static str,
+    /// Posix-relative шлях цільового файлу.
+    target: &'static str,
+    /// Шлях snippet-а у дереві репо — для тексту помилки.
+    snippet_source_name: &'static str,
+    /// БАЙТ-У-БАЙТ текст `template/<basename>.snippet.json`: на відсутньому
+    /// таргеті копіюється verbatim, точно як
+    /// `writeFileSync(absTarget, rawSnippet, 'utf8')` канону.
+    snippet_raw: &'static str,
+    /// Листя-пороги ([`MinVersionLeaf`]) — порожньо для всіх, крім
+    /// `js/package_json`.
+    min_version_leaves: &'static [MinVersionLeaf],
+}
+
+/// Чотири конфіги рушія `template-deep-merge` цієї хвилі.
+///
+/// `bun/package_json` сюди СВІДОМО не входить: він іншого класу (deny-мапа
+/// замість snippet-а, видалення замість мержу, cross-file переписування
+/// чужих `package.json`/workflow-yml) і винесений в окрему задачу.
+const TEMPLATE_FIX_CONFIGS: &[TemplateFixCfg] = &[
+    TemplateFixCfg {
+        key: CONCERN_JS_PACKAGE_JSON,
+        target: ROOT_PACKAGE_JSON_TARGET,
+        snippet_source_name:
+            "plugins/lang-js/rules/js/package_json/template/package.json.snippet.json",
+        snippet_raw: include_str!(
+            "../../../plugins/lang-js/rules/js/package_json/template/package.json.snippet.json"
+        ),
+        min_version_leaves: &[MinVersionLeaf {
+            section: "devDependencies",
+            name: "@nitra/eslint-config",
+        }],
+    },
+    TemplateFixCfg {
+        key: CONCERN_NPM_PACKAGE_JSON,
+        target: NPM_PACKAGE_JSON_TARGET,
+        snippet_source_name:
+            "plugins/lang-js/rules/npm-module/npm_package_json/template/package.json.snippet.json",
+        snippet_raw: include_str!(
+            "../../../plugins/lang-js/rules/npm-module/npm_package_json/template/package.json.snippet.json"
+        ),
+        min_version_leaves: &[],
+    },
+    TemplateFixCfg {
+        key: CONCERN_ROOT_PACKAGE_JSON,
+        target: ROOT_PACKAGE_JSON_TARGET,
+        snippet_source_name:
+            "plugins/lang-js/rules/npm-module/root_package_json/template/package.json.snippet.json",
+        snippet_raw: include_str!(
+            "../../../plugins/lang-js/rules/npm-module/root_package_json/template/package.json.snippet.json"
+        ),
+        min_version_leaves: &[],
+    },
+    TemplateFixCfg {
+        key: CONCERN_STYLE_PACKAGE_JSON,
+        target: ROOT_PACKAGE_JSON_TARGET,
+        snippet_source_name:
+            "plugins/lang-js/rules/style/package_json/template/package.json.snippet.json",
+        snippet_raw: include_str!(
+            "../../../plugins/lang-js/rules/style/package_json/template/package.json.snippet.json"
+        ),
+        min_version_leaves: &[],
+    },
+];
+
+/// Знаходить конфіг template-фіксу за ключем концерну.
+fn template_fix_cfg(key: &str) -> Option<&'static TemplateFixCfg> {
+    TEMPLATE_FIX_CONFIGS.iter().find(|c| c.key == key)
+}
+
+/// Точний порт rego-хелпера `split_to_numbers` (`js/package_json.rego`):
+/// `regex.split("\D+", spec)` → відкидання порожніх → `to_number`.
+/// `u64`-парсинг замість `to_number` достатній: усі токени тут — цифрові
+/// прогони, нецифрове в них потрапити не може за побудовою.
+fn split_to_numbers(spec: &str) -> Vec<u64> {
+    spec.split(|c: char| !c.is_ascii_digit())
+        .filter(|t| !t.is_empty())
+        .filter_map(|t| t.parse::<u64>().ok())
+        .collect()
+}
+
+/// Точний порт rego-хелпера `eslint_config_meets_min`: `workspace:`-протокол
+/// задовольняє поріг завжди; інакше — лексикографічне порівняння
+/// major.minor.patch (`semver_gte`), і обидві сторони мусять дати ≥3 числа.
+fn version_meets_min(range: &str, min_range: &str) -> bool {
+    if range.trim().starts_with("workspace:") {
+        return true;
+    }
+    let actual = split_to_numbers(range);
+    let min = split_to_numbers(min_range);
+    if actual.len() < 3 || min.len() < 3 {
+        return false;
+    }
+    actual[..3] >= min[..3]
+}
+
+/// Замінює у snippet-і листя-пороги ([`MinVersionLeaf`]) на ФАКТИЧНЕ
+/// значення таргета, коли воно вже задовольняє поріг — рівно та сама
+/// перевірка, яку робить detect. Далі мерж бачить листок, що вже збігається,
+/// і не чіпає його; коли ж фактичне значення порогу НЕ задовольняє (або
+/// відсутнє), snippet лишається як є, і мерж підтягує його до канону.
+fn apply_min_version_leaves(
+    snippet: TmJson,
+    actual: &TmJson,
+    leaves: &[MinVersionLeaf],
+) -> TmJson {
+    let TmJson::Object(mut entries) = snippet else {
+        return snippet;
+    };
+    for leaf in leaves {
+        let Some(actual_range) = actual
+            .get(leaf.section)
+            .and_then(|s| s.get(leaf.name))
+            .and_then(TmJson::as_str)
+        else {
+            continue;
+        };
+        let Some((_, TmJson::Object(section))) =
+            entries.iter_mut().find(|(k, _)| k == leaf.section)
+        else {
+            continue;
+        };
+        let Some(entry) = section.iter_mut().find(|(k, _)| k == leaf.name) else {
+            continue;
+        };
+        let Some(min_range) = entry.1.as_str() else {
+            continue;
+        };
+        if version_meets_min(actual_range, min_range) {
+            entry.1 = TmJson::Str(actual_range.to_string());
+        }
+    }
+    TmJson::Object(entries)
+}
+
+/// T0-фіксер чотирьох `package_json`-концернів — точний порт
+/// `createTemplateFixPattern(...).apply` (`template-deep-merge.mjs`) для
+/// JSON-таргета, поверх СПІЛЬНОГО двигуна `rules-template-merge` (§2.71):
+/// та сама семантика мержу, що на нативній колії, за побудовою.
+///
+/// Послідовність: жодної діагностики про `cfg.target` → порожній план (порт
+/// `violations.every(v => v.file !== targetPath)`); файлу немає в батчі →
+/// snippet копіюється verbatim; файл є, але не парситься як JSONC-обʼєкт →
+/// порожній план; файл уже задовольняє snippet ([`is_subset`]) → порожній
+/// план (idempotent, без reformat); інакше — хірургічний
+/// comment-preserving splice із fallback-ом на повну регенерацію.
+///
+/// Три свідомі відхилення від JS-канону — ті самі, що вже задокументовані
+/// нативною половиною (`rules_core::concerns::fix_template_merge`): JSONC-вхід
+/// більше не втрачається, не-обʼєктний корінь більше не знищується,
+/// коментарі й форматування виживають. Четверте, специфічне саме для цієї
+/// хвилі, — [`MinVersionLeaf`].
+fn template_merge_fix(cfg: &TemplateFixCfg, request: &FixRequest) -> FixPlan {
+    let empty = FixPlan { edits: vec![] };
+    if !request
+        .diagnostics
+        .iter()
+        .any(|d| d.file.as_deref() == Some(cfg.target))
+    {
+        return empty;
+    }
+    let Some(source) = batch_file(&request.files, cfg.target) else {
+        // Файлу немає → копіюємо snippet як є: мерджити немає з чим (той
+        // самий контракт, що `prevText === null` у каноні).
+        return FixPlan {
+            edits: vec![FileEdit::Write(WriteFile {
+                path: cfg.target.to_string(),
+                content: cfg.snippet_raw.to_string(),
+            })],
+        };
+    };
+    let Some(actual) = parse_jsonc_document(&source.content) else {
+        return empty; // побитий синтаксис або не-обʼєктний корінь — не чіпаємо
+    };
+    let snippet = apply_min_version_leaves(
+        parse_embedded_snippet(cfg.snippet_source_name, cfg.snippet_raw),
+        &actual,
+        cfg.min_version_leaves,
+    );
+    if is_subset(Some(&actual), &snippet) {
+        return empty;
+    }
+    let content = try_surgical_merge(&source.content, &snippet, TmFormat::Jsonc)
+        .unwrap_or_else(|| json_to_pretty_string(&merge_json_value(Some(&actual), &snippet)));
+    if content == source.content {
+        return empty;
+    }
+    FixPlan {
+        edits: vec![FileEdit::Write(WriteFile {
+            path: cfg.target.to_string(),
+            content,
+        })],
+    }
+}
+
 /// Guest-реалізація world `plugin` — тридцять дев'ять контрибуцій ([`CONCERN_TFM`],
 /// [`CONCERN_GAP`], [`CONCERN_POOL_FORKS`], [`CONCERN_NO_PROCESS_CHDIR`],
 /// [`CONCERN_ADMIN_TABLE`], [`CONCERN_QUASAR_FIXES`], [`CONCERN_LOCATION`],
@@ -13724,6 +14478,15 @@ impl Guest for LangJs {
                 report_progress(total, total);
                 detect_js_run_runtime(&batch.files)
             }
+            // §2.78 — шість rego-детектів на одному [`detect_policy`]
+            // (host-import `rego-engine`, доккомент секції «§2.78»).
+            key if policy_cfg(key).is_some() => {
+                report_progress(total, total);
+                detect_policy(
+                    policy_cfg(key).expect("щойно перевірений guard"),
+                    &batch.files,
+                )
+            }
             // PER-FILE (зріз 4): кожен файл — свій крок прогресу, як
             // дефолтна `CONCERN_TFM`-гілка нижче.
             CONCERN_DOC_COMMENTS => {
@@ -13780,6 +14543,21 @@ impl Guest for LangJs {
             CONCERN_BUN_LAYOUT => fix_bun_layout(&request),
             CONCERN_BUN_LICENSEE => fix_bun_licensee(&request),
             CONCERN_STYLE_LINT => fix_style_lint(&request),
+            // §2.78: два `vscode_extensions`-концерни — рушій
+            // `vscode-ext-add` (union рядків), чотири `package_json` —
+            // рушій `createTemplateFixPattern` (deep-merge). Обидва
+            // диспатчаться таблицями конфігів, не окремими гілками на
+            // концерн.
+            CONCERN_JS_VSCODE_EXTENSIONS | CONCERN_STYLE_VSCODE_EXTENSIONS => {
+                match policy_cfg(request.concern_id.as_str()) {
+                    Some(cfg) => vscode_extensions_fix(cfg, &request),
+                    None => FixPlan { edits: vec![] },
+                }
+            }
+            key if template_fix_cfg(key).is_some() => match template_fix_cfg(key) {
+                Some(cfg) => template_merge_fix(cfg, &request),
+                None => FixPlan { edits: vec![] },
+            },
             _ => FixPlan { edits: vec![] },
         }
     }
@@ -17727,7 +18505,7 @@ mod tests {
     }
 
     #[test]
-    fn build_manifest_declares_all_forty_concerns_with_expected_scopes() {
+    fn build_manifest_declares_all_concerns_with_expected_scopes() {
         let manifest = build_manifest();
         // Задача Q4 батч 4: `CONCERN_REDIS_IMPORTS`/`CONCERN_MSSQL_DEPS`/
         // `CONCERN_BUN_DB_SAFETY` тепер У контрибуції (AST-порти, де-скоуп
@@ -17747,8 +18525,10 @@ mod tests {
         // зріз 6 — `style/lint` і `js/jscpd_duplicates` (доккомент секції
         // «Зріз 6»), зріз 7 — `js-run/runtime` (доккомент секції «Зріз 7»,
         // найбільший поодинокий зріз §3.5.5: дев'ять під-перевірок одного
-        // ключа).
-        assert_eq!(manifest.concerns.len(), 40);
+        // ключа), §2.78 — шість rego-детектів родини `vscode_extensions`
+        // (два) і четвірки `package_json` (доккомент секції «§2.78»,
+        // ПЕРША хвиля цього гостя на host-import `rego-engine`).
+        assert_eq!(manifest.concerns.len(), 46);
         // `CONCERN_STYLE_LINT` — ТРЕТЯ per-file контрибуція: до порту
         // T0-фіксера вона стояла `Full` як обхід дефекту хоста (§2.65,
         // доккомент контрибуції в [`build_manifest`]).
@@ -20553,5 +21333,566 @@ plugins: [VueMacros({}), AutoImport({ imports: ['vue'] })] }\n";
              {canonical_path:?} — T0-фіксер (`fix-runtime.mjs`) і гість мають вшивати/читати \
              ІДЕНТИЧНИЙ канон"
         );
+    }
+
+    // =================================================================
+    // §2.78 — родина `vscode_extensions` + четвірка `package_json`.
+    //
+    // Нативні тести кличуть `regorus` IN-PROCESS через
+    // `rules_rego_engine::RegoEngine` (`cfg(not(target_arch = "wasm32"))`,
+    // доккомент секції «§2.78»), тобто перевіряють РІВНО ту саму
+    // rego-семантику, що продакшн-wasm отримає через host-import.
+    // =================================================================
+
+    /// Діагностика policy-deny на заданому таргеті — вхід T0-фіксерів.
+    fn policy_deny(file: &str, message: &str) -> Diagnostic {
+        Diagnostic {
+            reason: POLICY_DENY_REASON.to_string(),
+            message: message.to_string(),
+            file: Some(file.to_string()),
+            severity: Severity::Error,
+            data: None,
+        }
+    }
+
+    fn cfg_of(key: &str) -> &'static PolicyCfg {
+        policy_cfg(key).expect("конфіг концерну §2.78")
+    }
+
+    fn written(plan: FixPlan) -> (String, String) {
+        assert_eq!(plan.edits.len(), 1, "очікували рівно один write");
+        match plan.edits.into_iter().next().expect("щойно перевірений write") {
+            FileEdit::Write(w) => (w.path, w.content),
+            FileEdit::Delete { .. } => panic!("очікували Write, отримали Delete"),
+        }
+    }
+
+    /// Кожен із шести концернів §2.78 задекларований у `describe()` рівно з
+    /// тим глобом, що дорівнює його таргету — гейт пастки §2.72 («вузький
+    /// detect-glob беззвучно каструє fix»), сформульований як інваріант, а
+    /// не як прогін.
+    #[test]
+    fn hlob_kozhnoho_kontsernu_2_78_dorivniuie_ioho_targetu() {
+        let manifest = build_manifest();
+        for cfg in POLICY_CONFIGS {
+            let contribution = manifest
+                .concerns
+                .iter()
+                .find(|c| c.key == cfg.key)
+                .unwrap_or_else(|| panic!("контрибуція {} має бути в describe()", cfg.key));
+            assert_eq!(
+                contribution.glob,
+                vec![cfg.target.to_string()],
+                "глоб {} мусить дорівнювати його таргету — інакше fix отримає порожній batch",
+                cfg.key
+            );
+        }
+    }
+
+    /// Кожен template-фікс-конфіг має policy-конфіг із ТИМ САМИМ таргетом:
+    /// розходження двох таблиць було б тихим (detect бачив би один файл, fix
+    /// писав би в інший).
+    #[test]
+    fn template_fix_konfihy_uzghodzheni_z_policy_konfihamy() {
+        for fix_cfg in TEMPLATE_FIX_CONFIGS {
+            let policy = cfg_of(fix_cfg.key);
+            assert_eq!(policy.target, fix_cfg.target, "{}", fix_cfg.key);
+            assert_eq!(
+                policy.snippet_raw, fix_cfg.snippet_raw,
+                "{}: detect і fix мусять читати ОДИН snippet",
+                fix_cfg.key
+            );
+        }
+    }
+
+    /// Вшиті `.rego` шести концернів реально КОМПІЛЮЮТЬСЯ І ЕВАЛЮЮТЬСЯ під
+    /// `regorus` (а не лише під Go-шним `conftest`) — гейт обох відомих
+    /// пасток міграції (`%q` §2.68/§2.76, відсутні builtin-и §2.69) на
+    /// чистому вході, де жодна `deny` не має спрацювати випадково.
+    #[test]
+    fn vsi_shist_rego_polityk_evaliuiutsia_pid_regorus() {
+        for cfg in POLICY_CONFIGS {
+            let snippet = parse_embedded_snippet(cfg.snippet_source_name, cfg.snippet_raw);
+            let data_json = wrap_template_data(snippet);
+            let result = eval_deny_rule(cfg.rego, cfg.namespace, &data_json, "{}");
+            assert!(
+                result.is_ok(),
+                "policy {} ({}) не еваліюється під regorus: {:?}",
+                cfg.namespace,
+                cfg.rego_source_name,
+                result.err()
+            );
+        }
+    }
+
+    /// Вшиті snippet-и — валідні JSON-обʼєкти (інваріант `include_str!`).
+    #[test]
+    fn vshyti_snippety_2_78_parsiatsia() {
+        for cfg in POLICY_CONFIGS {
+            assert!(
+                matches!(
+                    parse_jsonc_document(cfg.snippet_raw),
+                    Some(TmJson::Object(_))
+                ),
+                "{}",
+                cfg.snippet_source_name
+            );
+        }
+    }
+
+    // --- detect: js/vscode_extensions ---
+
+    #[test]
+    fn detect_js_vscode_extensions_vymahaie_obydvi_rekomendatsii() {
+        let cfg = cfg_of(CONCERN_JS_VSCODE_EXTENSIONS);
+        let files = vec![source(
+            VSCODE_EXTENSIONS_TARGET,
+            r#"{ "recommendations": ["dbaeumer.vscode-eslint"] }"#,
+        )];
+        let diagnostics = detect_policy(cfg, &files);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].reason, POLICY_DENY_REASON);
+        assert!(diagnostics[0].message.contains("oxc.oxc-vscode"));
+        assert_eq!(diagnostics[0].file.as_deref(), Some(VSCODE_EXTENSIONS_TARGET));
+    }
+
+    #[test]
+    fn detect_js_vscode_extensions_movchyt_koly_vse_ie() {
+        let cfg = cfg_of(CONCERN_JS_VSCODE_EXTENSIONS);
+        let files = vec![source(
+            VSCODE_EXTENSIONS_TARGET,
+            r#"{ "recommendations": ["dbaeumer.vscode-eslint", "oxc.oxc-vscode"] }"#,
+        )];
+        assert!(detect_policy(cfg, &files).is_empty());
+    }
+
+    /// `files.required = true` + `missingMessage` — відсутній таргет дає
+    /// РІВНО одну `policy-file-missing` (порт гілки `files.length === 0`).
+    #[test]
+    fn detect_js_vscode_extensions_vidsutnii_fail_daie_file_missing() {
+        let cfg = cfg_of(CONCERN_JS_VSCODE_EXTENSIONS);
+        let diagnostics = detect_policy(cfg, &[]);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].reason, POLICY_FILE_MISSING_REASON);
+        assert!(diagnostics[0].message.contains("не існує"));
+    }
+
+    /// `style/vscode_extensions` НЕ має `required` — відсутній таргет дає
+    /// тишу, не діагностику (розходження двох `concern.json` тієї самої
+    /// родини — саме те, що конфіг-таблиця мусить зберігати).
+    #[test]
+    fn detect_style_vscode_extensions_vidsutnii_fail_daie_tyshu() {
+        let cfg = cfg_of(CONCERN_STYLE_VSCODE_EXTENSIONS);
+        assert!(detect_policy(cfg, &[]).is_empty());
+    }
+
+    /// JSONC-вхід (`//`-коментар + trailing-кома) — канон валив його
+    /// `JSON.parse` і МОВЧКИ не давав вердикту; порт бачить реальний
+    /// `recommendations`.
+    #[test]
+    fn detect_vscode_extensions_chytaie_jsonc() {
+        let cfg = cfg_of(CONCERN_JS_VSCODE_EXTENSIONS);
+        let files = vec![source(
+            VSCODE_EXTENSIONS_TARGET,
+            "{\n  // канонічні розширення\n  \"recommendations\": [\n    \"dbaeumer.vscode-eslint\",\n    \"oxc.oxc-vscode\",\n  ],\n}\n",
+        )];
+        assert!(detect_policy(cfg, &files).is_empty());
+    }
+
+    /// СПРАВДІ побитий вміст — ВИДИМА діагностика, не тиша.
+    #[test]
+    fn detect_policy_pobytyi_vkhid_daie_vydymu_diahnostyku() {
+        let cfg = cfg_of(CONCERN_JS_VSCODE_EXTENSIONS);
+        let files = vec![source(VSCODE_EXTENSIONS_TARGET, "{ це не json")];
+        let diagnostics = detect_policy(cfg, &files);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].reason, POLICY_INPUT_INVALID_REASON);
+    }
+
+    // --- detect: js/package_json ---
+
+    #[test]
+    fn detect_js_package_json_lovyt_type_engines_i_eslint_config() {
+        let cfg = cfg_of(CONCERN_JS_PACKAGE_JSON);
+        let files = vec![source(
+            ROOT_PACKAGE_JSON_TARGET,
+            r#"{"name":"x","type":"commonjs","engines":{"node":">=20","bun":">=1.2"},"devDependencies":{"@nitra/eslint-config":"^3.1.0"}}"#,
+        )];
+        let messages: Vec<String> = detect_policy(cfg, &files)
+            .into_iter()
+            .map(|d| d.message)
+            .collect();
+        assert!(messages.iter().any(|m| m.contains("\"type\"")), "{messages:?}");
+        assert!(
+            messages.iter().any(|m| m.contains("engines.node")),
+            "{messages:?}"
+        );
+        assert!(
+            messages.iter().any(|m| m.contains("engines.bun")),
+            "{messages:?}"
+        );
+        assert!(
+            messages.iter().any(|m| m.contains("@nitra/eslint-config")),
+            "{messages:?}"
+        );
+    }
+
+    /// `@nitra/eslint-config` ВИЩЕ порогу — detect мовчить про нього
+    /// (`eslint_config_meets_min` — саме `>=`, не рівність). Це та половина
+    /// асиметрії, яку fix ламав.
+    #[test]
+    fn detect_js_package_json_vyshcha_versiia_eslint_config_ne_porushennia() {
+        let cfg = cfg_of(CONCERN_JS_PACKAGE_JSON);
+        let files = vec![source(
+            ROOT_PACKAGE_JSON_TARGET,
+            r#"{"type":"module","engines":{"node":">=24","bun":">=1.4"},"devDependencies":{"@nitra/eslint-config":"^3.20.0"}}"#,
+        )];
+        assert!(detect_policy(cfg, &files).is_empty());
+    }
+
+    /// `workspace:`-протокол задовольняє поріг завжди — окрема гілка rego,
+    /// яку [`version_meets_min`] мусить відтворювати для фікс-боку.
+    #[test]
+    fn version_meets_min_vidtvoriuie_rego_helper() {
+        assert!(version_meets_min("workspace:*", "^3.10.0"));
+        assert!(version_meets_min("^3.20.0", "^3.10.0"));
+        assert!(version_meets_min("^3.10.0", "^3.10.0"));
+        assert!(version_meets_min("^4.0.0", "^3.10.0"));
+        assert!(!version_meets_min("^3.9.9", "^3.10.0"));
+        assert!(!version_meets_min("^3.10", "^3.10.0"), "менше трьох чисел");
+        assert!(!version_meets_min("", "^3.10.0"));
+    }
+
+    // --- detect: npm-module + style ---
+
+    #[test]
+    fn detect_npm_package_json_vymahaie_files_types() {
+        let cfg = cfg_of(CONCERN_NPM_PACKAGE_JSON);
+        let files = vec![source(
+            NPM_PACKAGE_JSON_TARGET,
+            r#"{"types":"./types/index.d.ts","files":["dist"]}"#,
+        )];
+        let diagnostics = detect_policy(cfg, &files);
+        assert!(
+            diagnostics.iter().any(|d| d.message.contains("\"types\"")
+                || d.message.contains("має містити \"types\"")),
+            "{diagnostics:?}"
+        );
+        assert!(diagnostics
+            .iter()
+            .all(|d| d.file.as_deref() == Some(NPM_PACKAGE_JSON_TARGET)));
+    }
+
+    #[test]
+    fn detect_root_package_json_vymahaie_workspaces_npm() {
+        let cfg = cfg_of(CONCERN_ROOT_PACKAGE_JSON);
+        let bad = vec![source(ROOT_PACKAGE_JSON_TARGET, r#"{"name":"root"}"#)];
+        assert_eq!(detect_policy(cfg, &bad).len(), 1);
+        let good = vec![source(
+            ROOT_PACKAGE_JSON_TARGET,
+            r#"{"name":"root","workspaces":["npm"]}"#,
+        )];
+        assert!(detect_policy(cfg, &good).is_empty());
+    }
+
+    #[test]
+    fn detect_style_package_json_vymahaie_stylelint_config() {
+        let cfg = cfg_of(CONCERN_STYLE_PACKAGE_JSON);
+        let bad = vec![source(ROOT_PACKAGE_JSON_TARGET, r#"{"name":"x"}"#)];
+        let diagnostics = detect_policy(cfg, &bad);
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].message.contains("@nitra/stylelint-config"));
+        let good = vec![source(
+            ROOT_PACKAGE_JSON_TARGET,
+            r#"{"devDependencies":{"@nitra/stylelint-config":"^1.0.0"}}"#,
+        )];
+        assert!(detect_policy(cfg, &good).is_empty());
+    }
+
+    // --- fix: vscode_extensions ---
+
+    #[test]
+    fn fix_vscode_extensions_dopysuie_vidsutni_rekomendatsii_v_khvist() {
+        let cfg = cfg_of(CONCERN_JS_VSCODE_EXTENSIONS);
+        let request = FixRequest {
+            concern_id: CONCERN_JS_VSCODE_EXTENSIONS.to_string(),
+            files: vec![source(
+                VSCODE_EXTENSIONS_TARGET,
+                "{\n  \"recommendations\": [\n    \"local.only\"\n  ]\n}\n",
+            )],
+            diagnostics: vec![policy_deny(
+                VSCODE_EXTENSIONS_TARGET,
+                ".vscode/extensions.json: recommendations має містити \"oxc.oxc-vscode\" (js.mdc)",
+            )],
+        };
+        let plan = vscode_extensions_fix(cfg, &request);
+        let (path, content) = written(plan);
+        assert_eq!(path, VSCODE_EXTENSIONS_TARGET);
+        assert_eq!(
+            content,
+            "{\n  \"recommendations\": [\n    \"local.only\",\n    \"dbaeumer.vscode-eslint\",\n    \"oxc.oxc-vscode\"\n  ]\n}\n"
+        );
+    }
+
+    /// Відсутній таргет + `policy-file-missing` → файл створюється.
+    #[test]
+    fn fix_vscode_extensions_stvoriuie_vidsutnii_fail() {
+        let cfg = cfg_of(CONCERN_STYLE_VSCODE_EXTENSIONS);
+        let request = FixRequest {
+            concern_id: CONCERN_STYLE_VSCODE_EXTENSIONS.to_string(),
+            files: vec![],
+            diagnostics: vec![Diagnostic {
+                reason: POLICY_FILE_MISSING_REASON.to_string(),
+                message: ".vscode/extensions.json не існує".to_string(),
+                file: Some(VSCODE_EXTENSIONS_TARGET.to_string()),
+                severity: Severity::Error,
+                data: None,
+            }],
+        };
+        let (_, content) = written(vscode_extensions_fix(cfg, &request));
+        assert_eq!(
+            content,
+            "{\n  \"recommendations\": [\n    \"stylelint.vscode-stylelint\"\n  ]\n}\n"
+        );
+    }
+
+    /// Ідемпотентність: усе на місці → порожній план (жодного зайвого
+    /// переформатування файлу).
+    #[test]
+    fn fix_vscode_extensions_idempotentnyi() {
+        let cfg = cfg_of(CONCERN_JS_VSCODE_EXTENSIONS);
+        let request = FixRequest {
+            concern_id: CONCERN_JS_VSCODE_EXTENSIONS.to_string(),
+            files: vec![source(
+                VSCODE_EXTENSIONS_TARGET,
+                r#"{"recommendations":["dbaeumer.vscode-eslint","oxc.oxc-vscode"]}"#,
+            )],
+            diagnostics: vec![policy_deny(VSCODE_EXTENSIONS_TARGET, "extensions.json")],
+        };
+        assert!(vscode_extensions_fix(cfg, &request).edits.is_empty());
+    }
+
+    /// Побитий вміст — порожній план (не перезаписуємо сміття «канонічним»
+    /// файлом; порушення лишається видимим у звіті).
+    #[test]
+    fn fix_vscode_extensions_ne_chipaie_pobytyi_fail() {
+        let cfg = cfg_of(CONCERN_JS_VSCODE_EXTENSIONS);
+        let request = FixRequest {
+            concern_id: CONCERN_JS_VSCODE_EXTENSIONS.to_string(),
+            files: vec![source(VSCODE_EXTENSIONS_TARGET, "[1,2,3]")],
+            diagnostics: vec![policy_deny(VSCODE_EXTENSIONS_TARGET, "extensions.json")],
+        };
+        assert!(vscode_extensions_fix(cfg, &request).edits.is_empty());
+    }
+
+    /// Повний T0-цикл: детект → фікс → детект чистий.
+    #[test]
+    fn vscode_extensions_t0_tsykl_zamykaietsia() {
+        let cfg = cfg_of(CONCERN_JS_VSCODE_EXTENSIONS);
+        let before = vec![source(VSCODE_EXTENSIONS_TARGET, "{}\n")];
+        let diagnostics = detect_policy(cfg, &before);
+        assert_eq!(diagnostics.len(), 2);
+        let request = FixRequest {
+            concern_id: CONCERN_JS_VSCODE_EXTENSIONS.to_string(),
+            files: before,
+            diagnostics,
+        };
+        let (_, content) = written(vscode_extensions_fix(cfg, &request));
+        let after = vec![source(VSCODE_EXTENSIONS_TARGET, &content)];
+        assert!(detect_policy(cfg, &after).is_empty());
+    }
+
+    // --- fix: template-deep-merge ---
+
+    /// ГОЛОВНИЙ гейт §2.78: detect/fix-асиметрія `js/package_json`.
+    ///
+    /// Канон на цьому вході мерджить лист `@nitra/eslint-config` ТОЧНОЮ
+    /// рівністю і збиває `^3.20.0` назад на `^3.10.0`. Порт цього не робить:
+    /// фактична версія вже задовольняє поріг, тож лишається на місці, а
+    /// правиться рівно те, через що концерн червоний.
+    #[test]
+    fn js_package_json_fix_ne_znyzhuie_vyshchu_versiiu_eslint_config() {
+        let cfg = template_fix_cfg(CONCERN_JS_PACKAGE_JSON).expect("конфіг");
+        let before = r#"{
+  "name": "x",
+  "type": "commonjs",
+  "devDependencies": {
+    "@nitra/eslint-config": "^3.20.0"
+  }
+}
+"#;
+        let request = FixRequest {
+            concern_id: CONCERN_JS_PACKAGE_JSON.to_string(),
+            files: vec![source(ROOT_PACKAGE_JSON_TARGET, before)],
+            diagnostics: vec![policy_deny(
+                ROOT_PACKAGE_JSON_TARGET,
+                "package.json: \"type\" має бути \"module\" (js.mdc)",
+            )],
+        };
+        let (_, content) = written(template_merge_fix(cfg, &request));
+        assert!(
+            content.contains("\"@nitra/eslint-config\": \"^3.20.0\""),
+            "версію збито назад на поріг — рівно той дефект канону, який порт лагодить:\n{content}"
+        );
+        assert!(content.contains("\"type\": \"module\""), "{content}");
+    }
+
+    /// Друга половина того самого: версія НИЖЧА за поріг — тоді мерж
+    /// ЗОБОВʼЯЗАНИЙ підтягнути її до канону.
+    #[test]
+    fn js_package_json_fix_pidtiahuie_nyzhchu_versiiu_do_porohu() {
+        let cfg = template_fix_cfg(CONCERN_JS_PACKAGE_JSON).expect("конфіг");
+        let request = FixRequest {
+            concern_id: CONCERN_JS_PACKAGE_JSON.to_string(),
+            files: vec![source(
+                ROOT_PACKAGE_JSON_TARGET,
+                "{\n  \"type\": \"module\",\n  \"devDependencies\": {\n    \"@nitra/eslint-config\": \"^3.1.0\"\n  }\n}\n",
+            )],
+            diagnostics: vec![policy_deny(ROOT_PACKAGE_JSON_TARGET, "package.json")],
+        };
+        let (_, content) = written(template_merge_fix(cfg, &request));
+        assert!(
+            content.contains("\"@nitra/eslint-config\": \"^3.10.0\""),
+            "{content}"
+        );
+    }
+
+    /// `workspace:`-протокол теж задовольняє поріг — і теж не збивається.
+    #[test]
+    fn js_package_json_fix_ne_chipaie_workspace_protokol() {
+        let cfg = template_fix_cfg(CONCERN_JS_PACKAGE_JSON).expect("конфіг");
+        let request = FixRequest {
+            concern_id: CONCERN_JS_PACKAGE_JSON.to_string(),
+            files: vec![source(
+                ROOT_PACKAGE_JSON_TARGET,
+                "{\n  \"type\": \"commonjs\",\n  \"devDependencies\": {\n    \"@nitra/eslint-config\": \"workspace:*\"\n  }\n}\n",
+            )],
+            diagnostics: vec![policy_deny(ROOT_PACKAGE_JSON_TARGET, "package.json")],
+        };
+        let (_, content) = written(template_merge_fix(cfg, &request));
+        assert!(content.contains("\"workspace:*\""), "{content}");
+    }
+
+    /// Порядок ключів документа зберігається (не сортується) — інакше кожен
+    /// фікс перетасував би весь `package.json`.
+    #[test]
+    fn template_merge_fix_zberihaie_poriadok_kliuchiv() {
+        let cfg = template_fix_cfg(CONCERN_ROOT_PACKAGE_JSON).expect("конфіг");
+        let request = FixRequest {
+            concern_id: CONCERN_ROOT_PACKAGE_JSON.to_string(),
+            files: vec![source(
+                ROOT_PACKAGE_JSON_TARGET,
+                "{\n  \"zzz\": 1,\n  \"name\": \"root\",\n  \"aaa\": 2\n}\n",
+            )],
+            diagnostics: vec![policy_deny(ROOT_PACKAGE_JSON_TARGET, "package.json")],
+        };
+        let (_, content) = written(template_merge_fix(cfg, &request));
+        let zzz = content.find("\"zzz\"").expect("zzz");
+        let name = content.find("\"name\"").expect("name");
+        let aaa = content.find("\"aaa\"").expect("aaa");
+        assert!(zzz < name && name < aaa, "порядок перетасовано:\n{content}");
+        assert!(content.contains("\"workspaces\""), "{content}");
+    }
+
+    /// Ідемпотентність: snippet уже задовольняється → порожній план, БЕЗ
+    /// переформатування (компактний однорядковий файл лишається компактним).
+    #[test]
+    fn template_merge_fix_idempotentnyi_bez_reformatu() {
+        let cfg = template_fix_cfg(CONCERN_STYLE_PACKAGE_JSON).expect("конфіг");
+        let request = FixRequest {
+            concern_id: CONCERN_STYLE_PACKAGE_JSON.to_string(),
+            files: vec![source(
+                ROOT_PACKAGE_JSON_TARGET,
+                r#"{"stylelint":{"extends":"@nitra/stylelint-config"}}"#,
+            )],
+            diagnostics: vec![policy_deny(ROOT_PACKAGE_JSON_TARGET, "package.json")],
+        };
+        assert!(template_merge_fix(cfg, &request).edits.is_empty());
+    }
+
+    /// Немає діагностики про таргет → порожній план (порт
+    /// `violations.every(v => v.file !== targetPath)`).
+    #[test]
+    fn template_merge_fix_bez_diahnostyky_pro_target_movchyt() {
+        let cfg = template_fix_cfg(CONCERN_NPM_PACKAGE_JSON).expect("конфіг");
+        let request = FixRequest {
+            concern_id: CONCERN_NPM_PACKAGE_JSON.to_string(),
+            files: vec![source(NPM_PACKAGE_JSON_TARGET, "{}")],
+            diagnostics: vec![policy_deny("other/package.json", "щось інше")],
+        };
+        assert!(template_merge_fix(cfg, &request).edits.is_empty());
+    }
+
+    /// Файлу немає в батчі → snippet копіюється БАЙТ-У-БАЙТ (порт
+    /// `writeFileSync(absTarget, rawSnippet)`).
+    #[test]
+    fn template_merge_fix_kopiiuie_snippet_verbatim_na_vidsutnii_fail() {
+        let cfg = template_fix_cfg(CONCERN_NPM_PACKAGE_JSON).expect("конфіг");
+        let request = FixRequest {
+            concern_id: CONCERN_NPM_PACKAGE_JSON.to_string(),
+            files: vec![],
+            diagnostics: vec![policy_deny(NPM_PACKAGE_JSON_TARGET, "npm/package.json")],
+        };
+        let (path, content) = written(template_merge_fix(cfg, &request));
+        assert_eq!(path, NPM_PACKAGE_JSON_TARGET);
+        assert_eq!(content, cfg.snippet_raw);
+    }
+
+    /// Побитий/не-обʼєктний вміст — не чіпаємо (дані користувача важливіші
+    /// за «канонічний» перезапис; порушення лишається видимим).
+    #[test]
+    fn template_merge_fix_ne_chipaie_pobytyi_fail() {
+        let cfg = template_fix_cfg(CONCERN_ROOT_PACKAGE_JSON).expect("конфіг");
+        let request = FixRequest {
+            concern_id: CONCERN_ROOT_PACKAGE_JSON.to_string(),
+            files: vec![source(ROOT_PACKAGE_JSON_TARGET, "[1, 2]")],
+            diagnostics: vec![policy_deny(ROOT_PACKAGE_JSON_TARGET, "package.json")],
+        };
+        assert!(template_merge_fix(cfg, &request).edits.is_empty());
+    }
+
+    /// Повний T0-цикл кожного з чотирьох `package_json`-концернів: детект →
+    /// фікс → детект чистий. Саме це доводить, що фікс гасить РІВНО те, що
+    /// світить детект (а не «щось пише і йде»).
+    #[test]
+    fn package_json_t0_tsykl_zamykaietsia_dlia_vsikh_chotyrokh() {
+        let starts: &[(&str, &str)] = &[
+            (
+                CONCERN_JS_PACKAGE_JSON,
+                r#"{"name":"x","type":"commonjs","engines":{"node":">=24","bun":">=1.4"}}"#,
+            ),
+            (CONCERN_NPM_PACKAGE_JSON, r#"{"types":"./types/index.d.ts","files":["dist"]}"#),
+            (CONCERN_ROOT_PACKAGE_JSON, r#"{"name":"root"}"#),
+            // `stylelint.extends` розійшовся з каноном — саме та половина
+            // `style/package_json`, що КЕРУЄТЬСЯ snippet-ом. Друга половина
+            // (`@nitra/stylelint-config` у devDependencies) — inverse-правило
+            // без template-значення, і template-фікс її задовольнити не може
+            // НІ в каноні, ні тут (snippet її просто не містить): цикл
+            // замикається лише для snippet-керованих порушень, і фікстура це
+            // фіксує явно, а не ховає.
+            (
+                CONCERN_STYLE_PACKAGE_JSON,
+                r#"{"devDependencies":{"@nitra/stylelint-config":"^1.0.0"},"stylelint":{"extends":"wrong"}}"#,
+            ),
+        ];
+        for (key, before) in starts {
+            let policy = cfg_of(key);
+            let fix_cfg = template_fix_cfg(key).expect("конфіг");
+            let files = vec![source(policy.target, before)];
+            let diagnostics = detect_policy(policy, &files);
+            assert!(!diagnostics.is_empty(), "{key}: очікували порушення");
+            let request = FixRequest {
+                concern_id: (*key).to_string(),
+                files,
+                diagnostics,
+            };
+            let plan = template_merge_fix(fix_cfg, &request);
+            let (_, content) = written(plan);
+            let after = vec![source(policy.target, &content)];
+            assert!(
+                detect_policy(policy, &after).is_empty(),
+                "{key}: після фіксу детект мусить мовчати, отримали:\n{content}"
+            );
+        }
     }
 }

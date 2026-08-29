@@ -31,7 +31,7 @@ ci_artifacts = []
 # `style/lint`); дефолтна `pinned:` (github-реліз) чекає на `js-run/runtime`
 # зрізу 7. Усі три споживаються через `exec-tool`.
 tools = ["path:bun", "npm:stylelint", "path:bunx"]
-# Тридцять три контрибуції концернів (задача N2 + Q1 батч 1 + Q2 батч 2 +
+# Сорок шість контрибуцій концернів (задача N2 + Q1 батч 1 + Q2 батч 2 +
 # Q3 + Q4 батч 4 + storybook-батч 5 + батчі 6–9, передумова full-scope
 # мосту): scope/glob дзеркалять `plugins/lang-js/rules/**/concern.json` цих
 # самих концернів із двома свідомими винятками — глоби storybook-сімейства
@@ -372,6 +372,41 @@ glob = [
   "**/jsconfig.json",
   "**/k8s/**/*.{yaml,yml}",
 ]
+
+# §2.78 — родина `vscode_extensions` + четвірка `package_json`: ПЕРША хвиля
+# цього гостя, чий детект — вшита `.rego`-політика, оцінена через host-import
+# `rego-engine` (§2.66), а не власний Rust-сканер. Глоб кожного концерну —
+# рівно його `policy.files.single`: після §2.72 той самий глоб годує і
+# `detect`, і `fix`, тож вужчий за таргет глоб беззвучно каструє фікс.
+[[concerns]]
+key = "js/vscode_extensions"
+scope = "full"
+glob = [".vscode/extensions.json"]
+
+[[concerns]]
+key = "style/vscode_extensions"
+scope = "full"
+glob = [".vscode/extensions.json"]
+
+[[concerns]]
+key = "js/package_json"
+scope = "full"
+glob = ["package.json"]
+
+[[concerns]]
+key = "npm-module/npm_package_json"
+scope = "full"
+glob = ["npm/package.json"]
+
+[[concerns]]
+key = "npm-module/root_package_json"
+scope = "full"
+glob = ["package.json"]
+
+[[concerns]]
+key = "style/package_json"
+scope = "full"
+glob = ["package.json"]
 
 [capabilities]
 # Хост передає вміст файлів inline у `detect-batch`/`fix-request` (як

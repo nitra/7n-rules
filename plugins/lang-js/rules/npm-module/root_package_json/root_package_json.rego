@@ -4,8 +4,11 @@
 # Структура --data сформована з template/package.json.snippet.json.
 # Snippet-array subset-of: кожне значення з template-масиву має бути у input-масиві.
 # Решта кореневих `package.json`-перевірок (заборонені поля, devDeps лише @nitra/*)
-# — у `bun.package_json`. FS-перевірки (наявність каталогу `npm/`, `npm/package.json`)
-# — у JS.
+# — у `bun.package_json`.
+#
+# Дрейф, прибраний §2.78: тут стояв рядок про «FS-перевірки (наявність
+# каталогу `npm/`, `npm/package.json`) — у JS» — він описував `main.mjs`,
+# якого в цього концерну НЕМАЄ: детект повністю policy-rego.
 package npm_module.root_package_json
 
 import rego.v1
