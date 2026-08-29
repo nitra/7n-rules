@@ -19,6 +19,8 @@ use rules_contract::detect::{DetectBatch, SourceFile};
 use rules_contract::fix::{FileEdit, FixRequest};
 use rules_plugin_host::{PluginHost, ToolResolver};
 
+mod common;
+
 const PLUGIN_WORLD_VERSION: &str = "4.0.0";
 const CONCERN_LINT_PIPELINE: &str = "azure-pipelines/lint_pipeline";
 const CONCERN_VSCODE_EXTENSIONS: &str = "azure-pipelines/vscode_extensions";
@@ -31,14 +33,12 @@ fn fixture_wasm_path() -> PathBuf {
 }
 
 fn require_fixture() -> PathBuf {
-    let path = fixture_wasm_path();
-    assert!(
-        path.is_file(),
-        "wasm-компонент plugin-ci-azure не зібраний: {} відсутній.\n\
-         Зберіть його командою: bash crates/plugin-ci-azure/build.sh",
-        path.display(),
-    );
-    path
+    common::require_fresh_fixture(
+        &fixture_wasm_path(),
+        "wasm-компонент plugin-ci-azure",
+        "plugin-ci-azure",
+        "bash crates/plugin-ci-azure/build.sh",
+    )
 }
 
 fn host() -> PluginHost {

@@ -33,6 +33,8 @@ use std::path::PathBuf;
 use rules_contract::detect::{DetectBatch, SourceFile};
 use rules_plugin_host::{PluginHost, ToolResolver};
 
+mod common;
+
 const PLUGIN_WORLD_VERSION: &str = "4.0.0";
 const CONCERN_WORKFLOWS: &str = "ga/workflows";
 
@@ -45,14 +47,12 @@ fn fixture_wasm_path() -> PathBuf {
 }
 
 fn require_fixture() -> PathBuf {
-    let path = fixture_wasm_path();
-    assert!(
-        path.is_file(),
-        "wasm-компонент plugin-ci-github не зібраний: {} відсутній.\n\
-         Зберіть його командою: bash crates/plugin-ci-github/build.sh",
-        path.display(),
-    );
-    path
+    common::require_fresh_fixture(
+        &fixture_wasm_path(),
+        "wasm-компонент plugin-ci-github",
+        "plugin-ci-github",
+        "bash crates/plugin-ci-github/build.sh",
+    )
 }
 
 /// Порожній резолвер — жоден тул не резолвиться, тож КОЖЕН `exec-tool`
