@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.4.5] - 2026-08-29
+
+### Changed
+
+- `ga/service_deploy_workflow`: детект концерну тепер обслуговує wasm-гість `crates/plugin-ci-github` — вшитий `.rego` через host-import `rego-engine` замість субпроцесу `conftest`; перший walkGlob-концерн цього гостя (`.github/workflows/*.yml`). T0-фікс (`fix-service_deploy_workflow.mjs`) свідомо лишається в JS: він потребує реєстру ввімкнених правил (`relevantDomains`), якого гість не має, а частковий фікс вимкнув би JS-канон через `guestFix`. Побитий YAML тепер дає видиму діагностику замість мовчазного пропуску (§2.81)
+
 ## [2.4.4] - 2026-08-29
 
 ### Changed

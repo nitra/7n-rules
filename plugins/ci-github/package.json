@@ -1,6 +1,6 @@
 {
   "name": "@7n/rules-ci-github",
-  "version": "2.4.4",
+  "version": "2.4.5",
   "description": "Плагін @7n/rules: канон GitHub Actions (.github/workflows) — обов'язкові workflow, zizmor, VS Code",
   "keywords": [
     "github-actions",
