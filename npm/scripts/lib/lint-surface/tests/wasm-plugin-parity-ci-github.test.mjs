@@ -1287,7 +1287,7 @@ describe('wasm-плагін plugin-ci-github — четверта хвиля: T0
   ]
 
   for (const { key, path } of FOURTH_WAVE) {
-    test(`${key}: файл відсутній — fix копіює snippet, повторний детект чистий`, async () => {
+    test(`${key}: файл відсутній — fix копіює snippet, повторний детект чистий, повторний fix — no-op`, async () => {
       await withTmpDir(async dir => {
         const before = loadNative().runWasmConcern(WASM_PATH, key, dir, null, {}).violations
         expect(before).toHaveLength(1)
@@ -1302,6 +1302,19 @@ describe('wasm-плагін plugin-ci-github — четверта хвиля: T0
 
         const after = loadNative().runWasmConcern(WASM_PATH, key, dir, null, {}).violations
         expect(after).toEqual([])
+
+        // Ідемпотентність на канонічному вмісті — те саме твердження, що
+        // ніс знятий §2.90 JS-канон («канонічний вміст → idempotent,
+        // touchedFiles порожній», `tests/fix-<concern>.test.mjs`), у новій
+        // формі: діагностика СИНТЕТИЧНА (повторний детект уже чистий, тож
+        // реальної немає), і гість мусить віддати ПОРОЖНІЙ план — гілка
+        // `is_subset` [`fix_template_merge`], не reformat. Без цього кроку
+        // зняття канону тихо забрало б дванадцять перевірок ідемпотентності.
+        const synthetic = [
+          { ruleId: key.split('/')[0], concernId: key.split('/')[1], reason: 'policy-deny', message: 'x', file: path }
+        ]
+        const idempotent = loadNative().runWasmConcernFix(WASM_PATH, key, dir, synthetic, {})
+        expect(idempotent.edits, `${key}: канонічний вміст мав дати порожній план`).toEqual([])
       })
     })
   }
@@ -1370,6 +1383,26 @@ describe('wasm-плагін plugin-ci-github — четверта хвиля: T0
         {}
       ).violations
       expect(after).toEqual([])
+
+      // Ідемпотентність — та сама заміна знятому JS-канону, що в циклі
+      // одинадцяти вище (доккомент там).
+      const synthetic = [
+        {
+          ruleId: 'abie',
+          concernId: 'clean_merged_ignore_branches',
+          reason: 'policy-deny',
+          message: 'x',
+          file: '.github/workflows/clean-merged-branch.yml'
+        }
+      ]
+      const idempotent = loadNative().runWasmConcernFix(
+        WASM_PATH,
+        'abie/clean_merged_ignore_branches',
+        dir,
+        synthetic,
+        {}
+      )
+      expect(idempotent.edits).toEqual([])
     })
   })
 
@@ -1534,5 +1567,108 @@ describe('wasm-plugin parity — ga/service_deploy_workflow (walkGlob rego-де�
       const plan = loadNative().runWasmConcernFix(WASM_PATH, SERVICE_DEPLOY_WORKFLOW_CONCERN, dir, violations, {})
       expect(plan.edits).toEqual([])
     })
+  })
+})
+
+// =====================================================================
+// §2.90 — ЗНЯТТЯ JS-КАНОНІВ ФІКСУ: сімнадцять `fix-<concern>.mjs`
+// видалено з `plugins/ci-github` (борг «спершу парність» закрито для
+// цього плагіна повністю; зразок — §2.88, пілот на `plugins/lang-php`).
+//
+// Разом із каноном зникає не тест, а ПОВЕРХНЯ: `loadT0Patterns`
+// (`run-fix.mjs`) резолвить фіксери у порядку native → wasm (`guestFix`)
+// → `fix-<concern>.mjs`, і третій шар був глушником випадку «гість не
+// резолвиться» (плагін не зібрано, розбіжність піна, хост без wasm).
+// Глушника більше немає — концерн деградує з «автофікс» у «повідомили й
+// віддали в LLM-ладдер». Саме це диктує форму гейта: перевіряється не
+// відсутність файлу, а СКЛАД резолву тим самим резолвером, яким ходить
+// прод:
+//
+// - два патерни  → канон повернувся (подвійний фікс, пастка §2.72);
+// - нуль патернів → зник ГІСТЬ, тобто `--fix` МОВЧКИ перестав фіксити
+//   концерн, і він тихо поїхав би в дорогий LLM-ладдер.
+//
+// `existsSync` на видаленому файлі ловив би лише перше з двох.
+//
+// Гейт ТАБЛИЧНИЙ (усі сімнадцять ключів в одному тесті), а не сімнадцять
+// окремих: він СИЛЬНІШИЙ за суму окремих, бо другим твердженням звіряє
+// саму таблицю з ЖИВИМ маніфестом гостя — концерн, доданий до гостя й не
+// внесений сюди, валить гейт, а не тихо лишається неперевіреним.
+// `ga/service_deploy_workflow` СВІДОМО поза таблицею — його T0-фікс
+// лишився за JS (§2.81: потребує графа ввімкнених правил, каналу до
+// якого гість не має); `ci_artifact/consume` — узагалі не концерн цього
+// гостя (в маніфесті його немає).
+//
+// Це заразом ЄДИНІ тести цього файлу, що йдуть через `loadT0Patterns` —
+// решта кличе `runWasmConcernFix` напряму й цю поверхню обходить.
+// =====================================================================
+
+/**
+ * Сімнадцять концернів `plugins/ci-github`, чий T0-фікс живе ВИКЛЮЧНО в
+ * гості `crates/plugin-ci-github` (`Guest::fix`, гілки `match`) — рівно
+ * ті, чий `fix-<concern>.mjs` знято §2.90.
+ * @type {Array<{ ruleId: string, concern: string }>}
+ */
+const FIX_ONLY_IN_GUEST = [
+  { ruleId: 'abie', concern: 'clean_merged_ignore_branches' },
+  { ruleId: 'docker', concern: 'lint_docker_yml' },
+  { ruleId: 'ga', concern: 'clean_ga_workflows' },
+  { ruleId: 'ga', concern: 'clean_merged_branch' },
+  { ruleId: 'ga', concern: 'git_ai' },
+  { ruleId: 'ga', concern: 'lint_ga' },
+  { ruleId: 'ga', concern: 'lint_repo_yml' },
+  { ruleId: 'ga', concern: 'vscode_extensions' },
+  { ruleId: 'ga', concern: 'vscode_settings' },
+  { ruleId: 'ga', concern: 'workflows' },
+  { ruleId: 'ga', concern: 'zizmor_yml' },
+  { ruleId: 'k8s', concern: 'lint_k8s_yml' },
+  { ruleId: 'npm-module', concern: 'npm_publish_yml' },
+  { ruleId: 'rust', concern: 'toolchain_cache' },
+  { ruleId: 'security', concern: 'lint_security_yml' },
+  { ruleId: 'style', concern: 'lint_style_yml' },
+  { ruleId: 'text', concern: 'lint_text' }
+]
+
+/** Концерни гостя, чий T0-фікс СВІДОМО лишився за JS-каноном (§2.81). */
+const FIX_STAYS_IN_JS = new Set([SERVICE_DEPLOY_WORKFLOW_CONCERN])
+
+describe('§2.90 — plugins/ci-github: фікс кожного портованого концерну живе рівно в одному місці (JS-канони знято)', () => {
+  test(
+    'loadT0Patterns на КОЖНОМУ з сімнадцяти віддає РІВНО ОДИН патерн, і той — guestFix (ані канону, ані порожнечі)',
+    async () => {
+      await withTmpDir(async dir => {
+        await writeFile(
+          join(dir, '.n-rules.json'),
+          JSON.stringify({ wasmPlugins: [{ name: 'ci-github', path: WASM_PATH }] }),
+          'utf8'
+        )
+        const { loadT0Patterns } = await import('../run-fix.mjs')
+        /** @type {Record<string, boolean[]>} */
+        const actual = {}
+        for (const { ruleId, concern } of FIX_ONLY_IN_GUEST) {
+          const concernDir = join(REPO_ROOT, 'plugins', 'ci-github', 'rules', ruleId, concern)
+          const patterns = await loadT0Patterns(concernDir, concern, ruleId, dir)
+          actual[`${ruleId}/${concern}`] = patterns.map(p => p.guestFix === true)
+        }
+        const expected = Object.fromEntries(
+          FIX_ONLY_IN_GUEST.map(({ ruleId, concern }) => [`${ruleId}/${concern}`, [true]])
+        )
+        expect(actual).toEqual(expected)
+      })
+    },
+    180_000
+  )
+
+  test('таблиця не відстала від гостя: кожен концерн маніфеста або в таблиці, або у свідомому JS-виключенні', () => {
+    const manifest = loadNative().wasmPluginManifest(WASM_PATH)
+    const covered = new Set(FIX_ONLY_IN_GUEST.map(({ ruleId, concern }) => `${ruleId}/${concern}`))
+    expect(covered.size).toBe(17)
+    const uncovered = manifest.concerns
+      .map(c => c.key)
+      .filter(key => !covered.has(key) && !FIX_STAYS_IN_JS.has(key))
+    expect(
+      uncovered,
+      'новий концерн гостя треба або внести у FIX_ONLY_IN_GUEST, або свідомо пояснити у FIX_STAYS_IN_JS'
+    ).toEqual([])
   })
 })

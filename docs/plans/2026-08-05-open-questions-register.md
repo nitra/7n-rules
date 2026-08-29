@@ -10496,3 +10496,132 @@ native → wasm (`guestFix`) → `fix-<concern>.mjs`, і третій шар б�
     `wasm-plugins.test.mjs` і `wasm-builtin-pins.test.mjs` про php не
     знають взагалі — чотири місця §2.86 стосувались `lang-js`. Перевірити,
     де вони для СВОГО плагіна, — окремий крок, а не припущення.
+---
+
+### 2.90. Зняття JS-канонів — партія `plugins/ci-github` (17 з 17), перший ТАБЛИЧНИЙ гейт складу резолву
+
+**Що зроблено.** Знято ВСІ сімнадцять `fix-<concern>.mjs` плагіна, чий
+фікс уже живе в гості `crates/plugin-ci-github`:
+`abie/clean_merged_ignore_branches`, `docker/lint_docker_yml`,
+`ga/clean_ga_workflows`, `ga/clean_merged_branch`, `ga/git_ai`,
+`ga/lint_ga`, `ga/lint_repo_yml`, `ga/vscode_extensions`,
+`ga/vscode_settings`, `ga/workflows`, `ga/zizmor_yml`,
+`k8s/lint_k8s_yml`, `npm-module/npm_publish_yml`, `rust/toolchain_cache`,
+`security/lint_security_yml`, `style/lint_style_yml`, `text/lint_text`.
+Разом із ними — сімнадцять тек `docs/` (у кожній РІВНО `fix-<concern>.md`
++ `index.md`, тож знято теку цілком — §2.88, крок 7) і чотирнадцять
+характеризаційних тест-файлів. Борг «спершу парність» у цьому плагіні
+закрито повністю; лишились `ga/service_deploy_workflow` і
+`ci_artifact/consume` — їхні фікси СВІДОМО на JS (§2.81: потребують графа
+ввімкнених правил, каналу до якого гість не має).
+
+**Список зібрано обходом, не пошуком літералів.** Ключі фіксу в гості
+задані `CONCERN_*`-константами (`fn fix`, `match` на
+`request.concern_id`), тож grep рядкових літералів дав би хибний нуль.
+Звірка йшла по `Guest::fix` → `TEMPLATE_FIX_CONFIGS`-родині
+(`*_FIX_CFG`) і `PolicyCfg`; `fix_only_concerns` у цього гостя порожній —
+усі 18 контрибуцій у `concerns`.
+
+**Порядкова звірка — розбіжностей проти гостя не знайдено.** Пʼятнадцять
+із сімнадцяти канонів — ТОНКІ: чотирнадцять — один
+`createTemplateFixPattern({ id, targetPath })` над спільним рушієм
+`template-deep-merge.mjs` (гість: `fix_template_merge`/`TemplateFixCfg`,
+той самий `target_path`/`snippet_raw` з `PolicyCfg` концерну), один —
+re-export `vscode-ext-add.mjs` (гість: `fix_vscode_extensions`, той самий
+рушій, що вже звірено §2.88 у `lang-php`). Два «товсті» —
+`ga/workflows` (три текстові трансформери) і `rust/toolchain_cache` (два)
+— мають у гості порядкові порти з іменними посиланнями на JS-символи
+(`add_persist_credentials` ← `addPersistCredentials`, `remove_paths_globs`
+← `removePathsGlobs`, `prefix_bunx_n_command` ← `prefixBunxNCursor`,
+`insert_rust_cache` ← `insertRustCache`, `add_cache_workspaces` ←
+`addCacheWorkspaces`). ЄДИНА розбіжність — вже задокументована хвилею
+порту й архітектурна, не поведінкова: JS реєстрував трансформери як
+ОКРЕМІ `T0Pattern` (кожен через `applyToFiles`, з перечитуванням файлу з
+диска між викликами), а `wasmFixPattern` синтезує РІВНО ОДИН `T0Pattern`
+на весь концерн, тож гість компонує трансформери послідовно на ОДНОМУ
+буфері. Наслідок — гість може дофіксити в адресованому файлі те, що канон
+відклав би до наступного проходу; збіжність та сама, зайвих правок у
+неадресованих файлах немає (файл потрапляє в план лише за реальною зміною).
+
+**Гейт — ОДИН табличний на всі сімнадцять, а не сімнадцять окремих.**
+`§2.90 — plugins/ci-github: фікс кожного портованого концерну живе рівно
+в одному місці` (`wasm-plugin-parity-ci-github.test.mjs`). Перше
+твердження: `loadT0Patterns` — той самий резолвер, яким ходить прод — на
+кожному з сімнадцяти ключів дає РІВНО ОДИН патерн, і той `guestFix`.
+Порівняння йде цілою мапою `ключ → [guestFix?]` проти очікуваної, тож
+падіння показує ВСІ зламані ключі одразу, а не перший. Два патерни =
+канон повернувся (подвійний фікс, §2.72); нуль = зник гість, тобто
+`--fix` МОВЧКИ перестав фіксити концерн. `existsSync` ловив би лише
+перше. Друге твердження робить табличну форму СИЛЬНІШОЮ за суму окремих:
+таблиця звіряється з ЖИВИМ маніфестом гостя (`wasmPluginManifest`) —
+концерн, доданий у гість і не внесений у таблицю, валить гейт, а не
+лишається тихо неперевіреним; свідоме виключення одне й іменоване
+(`FIX_STAYS_IN_JS` = `ga/service_deploy_workflow`).
+
+**Гейт доведено ЖИВИМ.** Порядок був зворотний до пілота й дешевший:
+гейт додано ДО видалення — і він упав по всіх сімнадцяти ключах
+(`[true, false]` замість `[true]` скрізь). Після видалення — зелений.
+Це заразом ЄДИНІ тести цього файлу, що йдуть через `loadT0Patterns`;
+решта кличе `runWasmConcernFix` напряму й цю поверхню обходить.
+
+**Лічильники тестів — і що зробила кожна цифра.**
+`wasm-plugin-parity-ci-github.test.mjs`: 49 → 51 (+2 гейти §2.90).
+`cargo test -p plugin-ci-github`: 154 → 154.
+`plugins/ci-github` (`npx vitest run rules`): 60 → 17, тобто **−43**.
+Це найбільша цифра звіту, і кожен зниклий тест має адресу:
+
+- 24 = дванадцять тонких template-концернів × 2. Перший з пари («файл
+  відсутній → створюється зі snippet») дослівно вже жив у гостьовому
+  T0-циклі ЧЕТВЕРТОЇ хвилі того самого parity-файлу. Другий
+  («канонічний вміст → idempotent, `touchedFiles` порожній») guest-side
+  НЕ був покритий поконцернно — його ВІДНОВЛЕНО в новій формі: у той
+  самий цикл (і в окремий тест `abie/…`, що поза циклом) додано
+  твердження «повторний `runWasmConcernFix` із синтетичною діагностикою
+  на канонічному вмісті → ПОРОЖНІЙ план» (гілка `is_subset`
+  `fix_template_merge`). Це assertions у наявних тестах, тому лічильник
+  parity-файлу від них не виріс.
+- 15 = `ga/workflows/tests/fix-workflows.test.mjs`. Дзеркалиться в
+  крейті 1:1 і поіменно: `prefix_bunx_n_command_*` (4),
+  `add_persist_credentials_*` (5), `remove_paths_globs_*` (3),
+  `fix_workflows_*` (інтеграція patterns, включно з
+  `fix_workflows_ignores_foreign_reason` ← JS «test=false коли нема
+  відповідного `data.kind`»).
+- 4 = `rust/toolchain_cache/tests/fix-toolchain_cache.test.mjs`. Два
+  трансформерні → `insert_rust_cache_*`/`add_cache_workspaces_*`; два
+  round-trip анти-дрейфу reason-кодів →
+  `fix_toolchain_cache_missing_cache_round_trip_with_detect_is_clean` і
+  `…_missing_workspaces_round_trip_with_detect_is_clean`.
+
+Жодного покриття, що існувало ЛИШЕ в JS, не втрачено.
+
+**Що НЕ знято.** `.rego`, `concern.json`, `template/**`, `.mdc` — джерела,
+які гість вшиває `include_str!`-ом; detect-парність лишається живою.
+Рушії `template-deep-merge.mjs` і `vscode-ext-add.mjs` теж лишаються — їх
+читають НЕпортовані концерни `lang-js`/`lang-rust`/`lang-python`/ядра і
+слот `plugins/ci-github/slots/ci-artifact-consumer.mjs`.
+
+**Доккоменти, що обіцяли fallback.** Модульний доккомент
+`crates/plugin-ci-github/src/lib.rs` отримав розділ «§2.90 — цей крейт
+ЄДИНА реалізація фіксу сімнадцяти концернів»: читання «порожній план →
+підхопить JS» відтоді неправдиве скрізь, крім
+`ga/service_deploy_workflow`, і кожна гілка, що віддає порожній план,
+мусить бути СВІДОМИМ no-op. Прибрано локальну неправду «`fix-toolchain_cache.mjs`
+(лишається JS-каноном)». Три `.mdc` більше не обіцяють користувачу
+неіснуючий файл: `n-rust.mdc` і `toolchain_cache.mdc` («Автофікс
+(`fix-toolchain_cache.mjs`, T0…)» → «Автофікс (wasm-гість
+`crates/plugin-ci-github`, T0…)»), `conftest.mdc` («T0-автофікс —
+`fix-workflows.mjs` поруч» → гість).
+
+**Лічильники контрибуцій.** Не рухались і не мали: 18 концернів як було
+(`manifest.concerns.len() == 18` у крейті, той самий асерт у
+parity-файлі). Для ЦЬОГО плагіна їх два, обидва «свої»:
+`plugin_toml_concern_keys_match_describe` у крейті й
+`describe()/розмір` у parity-файлі — `wasm-plugins.test.mjs` і
+`wasm-builtin-pins.test.mjs` про `ci-github` не знають узагалі (та сама
+перевірка, що §2.88 наказувала робити явно, а не припущенням).
+
+**Побічне — `knip.json` цього разу ЧИСТИЙ.** На відміну від `lang-php`,
+entry-глоби воркспейса `plugins/ci-github` після зняття матчать не нуль:
+`rules/*/*/fix-*.mjs` → два вцілілі канони, `rules/*/*/main.mjs` → один
+(`ci_artifact/consume`), `rules/**/*.test.mjs` → три тест-файли. Жодного
+мертвого глоба, правити нічого.
