@@ -29,10 +29,19 @@ gha_on := object.get(input, "on", object.get(input, "true", {}))
 
 job := input.jobs.text
 
-job_uses_set contains job.steps[_].uses
+# LONGHAND, а не shorthand `job_uses_set contains job.steps[_].uses`:
+# shorthand-форма падає під regorus з «item cannot be indexed», коли `job`
+# undefined (у workflow немає джоби `text`) або коли крок не має `uses:` —
+# замість канонічного набору `deny` порт віддавав одну `rego-engine-error`.
+# Під OPA обидві форми еквівалентні; longhand — спільний знаменник.
+job_uses_set contains u if {
+	some step in job.steps
+	u := step.uses
+}
 
-job_run_blob := concat("\n", [run |
-	run := job.steps[_].run
+job_run_blob := concat("\n", [object.get(step, "run", "") |
+	some step in job.steps
+	object.get(step, "run", "") != ""
 ])
 
 expected_uses_set contains u if {
@@ -41,10 +50,9 @@ expected_uses_set contains u if {
 	u != ""
 }
 
-expected_run_substrings contains r if {
+expected_run_substrings contains object.get(step, "run", "") if {
 	some step in data.template.snippet.jobs.text.steps
-	r := object.get(step, "run", "")
-	r != ""
+	object.get(step, "run", "") != ""
 }
 
 deny contains msg if {
@@ -52,18 +60,25 @@ deny contains msg if {
 	msg := sprintf("lint-text.yml: name має бути \"%v\" (text.mdc)", [expected_name])
 }
 
+# Актуальне значення звʼязується ОКРЕМИМ позитивним виразом перед `not`:
+# при undefined-аргументі regorus рахує `not helper(undefined, …)` істиною
+# (зайвий deny), тоді як OPA лишає весь body undefined і deny мовчить.
+# Звʼязування вирівнює обидва рушії на OPA-семантиці.
 deny contains msg if {
-	not branches_superset_of(gha_on.push.branches, expected_push_branches)
+	actual_push_branches := gha_on.push.branches
+	not branches_superset_of(actual_push_branches, expected_push_branches)
 	msg := "lint-text.yml: on.push.branches має містити dev і main (text.mdc)"
 }
 
 deny contains msg if {
-	not branches_superset_of(gha_on.pull_request.branches, expected_pr_branches)
+	actual_pr_branches := gha_on.pull_request.branches
+	not branches_superset_of(actual_pr_branches, expected_pr_branches)
 	msg := "lint-text.yml: on.pull_request.branches має містити dev і main (text.mdc)"
 }
 
 deny contains msg if {
-	not paths_superset_of(gha_on.push.paths, expected_push_paths)
+	actual_push_paths := gha_on.push.paths
+	not paths_superset_of(actual_push_paths, expected_push_paths)
 	msg := "lint-text.yml: on.push.paths має містити очікувані glob-и (text.mdc)"
 }
 

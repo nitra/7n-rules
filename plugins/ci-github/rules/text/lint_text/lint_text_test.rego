@@ -90,6 +90,27 @@ test_deny_missing_required_pr_path if {
 	contains(msg, "pull_request.paths")
 }
 
+# Workflow БЕЗ джоби `text` — `job` undefined. Канон: `jobs.text відсутній`
+# плюс похідні deny (uses/run/pull_request.paths), і ЖОДНОГО deny про
+# `on.push.*` (undefined-аргумент лишає body undefined). Longhand-форма
+# `job_uses_set` і звʼязування актуальних значень перед `not` тримають
+# regorus на цій самій семантиці.
+test_deny_missing_text_job if {
+	bad := {"name": "Lint Text", "jobs": {"other": {"steps": [{"run": "echo x"}]}}}
+	msgs := lint_text.deny with input as bad with data.template as template_data
+	count(msgs) == 7
+	some msg in msgs
+	contains(msg, "jobs.text відсутній")
+}
+
+test_missing_text_job_is_silent_on_push_branches if {
+	bad := {"name": "Lint Text", "jobs": {"other": {"steps": [{"run": "echo x"}]}}}
+	msgs := lint_text.deny with input as bad with data.template as template_data
+	every msg in msgs {
+		not contains(msg, "on.push")
+	}
+}
+
 test_data_template_drives_name if {
 	drifted := {"snippet": object.union(template_data.snippet, {"name": "Other"})}
 	some msg in lint_text.deny with input as canonical_input with data.template as drifted

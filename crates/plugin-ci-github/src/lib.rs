@@ -716,18 +716,16 @@ const LINT_SECURITY_YML_SNIPPET_YML: &str = include_str!(
 /// ОДИН елемент масиву не має поля `field` (undefined mid-iteration) —
 /// LONGHAND-форма (`s contains v if { some x in arr; v := x.field }`) з ТИМ
 /// САМИМ входом працює коректно. Серед вшитих `.rego`-джерел цю крихку
-/// форму сьогодні використовує РІВНО ОДИН рядок —
-/// `text/lint_text/lint_text.rego:32: job_uses_set contains job.steps[_].uses`
-/// (кроки БЕЗ `uses:`, напр. чисті `run:`-кроки, тригерять баг).
-/// `lint_ga.rego` цю форму БІЛЬШЕ НЕ використовує: там її переписано в
-/// longhand (§2.81 реєстру) — shorthand ЩЕ Й ламався інакше, коли
-/// `jobs["lint-ga"]` взагалі відсутній (undefined корінь → `eval`-помилка
-/// замість канонічного набору deny), а цього обходу той випадок НЕ покривав.
-/// Правити rego МОЖНА (спільне джерело з живим JS-каноном), але ціна —
-/// повний `conftest verify` + диференційна звірка виходу порту з conftest,
-/// тож для `lint_text` обхід поки лишається тут, на боці Rust, ПЕРЕД
-/// `set_input`: кожен `jobs.*.steps[]`-елемент отримує явний `"uses": ""`,
-/// якщо ключа не було.
+/// форму СЬОГОДНІ НЕ використовує ЖОДЕН рядок: `lint_ga.rego` переписано в
+/// longhand у #563, `lint_text.rego` — тим самим прийомом (§2.81 реєстру,
+/// доккомент [`detect_lint_text_without_text_job_is_policy_deny_not_engine_error`]).
+/// В обох випадках shorthand ламався ЩЕ Й інакше, ніж описано вище: коли
+/// цільова джоба взагалі відсутня (undefined корінь → `eval`-помилка замість
+/// канонічного набору deny), а цього обходу той випадок НЕ покривав.
+/// Правити rego МОЖНА (спільне джерело з живим JS-каноном), ціна — повний
+/// `conftest verify` + диференційна звірка виходу порту з conftest; обидві
+/// сплачено. Обхід лишається тут як безпечна сітка ПЕРЕД `set_input`: кожен
+/// `jobs.*.steps[]`-елемент отримує явний `"uses": ""`, якщо ключа не було.
 /// Застосовано УНІВЕРСАЛЬНО (усі пʼять namespace-ів, доккомент
 /// [`run_all_ga_rego`]), а не лише для `ga.lint_ga` — нейтрально для решти
 /// чотирьох: кожне звернення до `step.uses` там або індексує КОНКРЕТНИЙ,
@@ -2391,12 +2389,12 @@ fn detect_policy(files: &[SourceFile], cfg: &PolicyCfg) -> Vec<Diagnostic> {
     let data_json = wrap_template_data(snippet);
     // [`ensure_step_uses_key_present`] — той самий захисний прийом, що
     // [`run_all_ga_rego`] застосовує для ЧОТИРЬОХ ga-концернів вище
-    // (доккомент функції): `lint_text.rego` (ЧЕТВЕРТА хвиля; `lint_ga.rego`
-    // переписано в longhand і він більше не залежить від цього)
-    // читає `job.steps[_].uses` НЕЗАХИЩЕНИМ прямим доступом (на відміну
-    // від `object.get(step, "uses", "")` у решти `.rego` цієї хвилі) — крок
-    // без `uses` (наприклад `run`-лише крок) інакше валить ВЕСЬ
-    // `job_uses_set` comprehension у regorus. Безпечний no-op для
+    // (доккомент функції): жоден вшитий `.rego` вже НЕ читає
+    // `job.steps[_].uses` НЕЗАХИЩЕНИМ прямим доступом — і `lint_ga.rego`
+    // (#563), і `lint_text.rego` (§2.81) переписано в longhand; крок
+    // без `uses` (наприклад `run`-лише крок) інакше валив ВЕСЬ
+    // `job_uses_set` comprehension у regorus. Виклик лишається спільним для
+    // всієї таблиці `PolicyCfg`. Безпечний no-op для
     // концернів, чий `actual` НЕ має кореневого ключа `jobs` (обидва
     // JSON-таргети третьої хвилі, `ga/zizmor_yml`).
     let normalized = ensure_step_uses_key_present(&actual);
@@ -5851,6 +5849,35 @@ mod tests {
             CONCERN_LINT_STYLE_YML,
             &LINT_STYLE_YML_CFG,
             &LINT_STYLE_YML_FIX_CFG,
+        );
+    }
+
+    /// `lint_text.rego` читає джобу напряму (`job := input.jobs.text`).
+    /// Workflow БЕЗ цієї джоби — реальний вхід (чужий `lint-text.yml`), і
+    /// shorthand-форма `job_uses_set contains job.steps[_].uses` валила
+    /// весь пакет у `rego-engine-error` («item cannot be indexed») замість
+    /// канонічного набору `deny`. Longhand у `.rego` це знімає; тест
+    /// стереже саме поведінку, а не форму запису: сім `policy-deny`
+    /// (звірено біт-у-біт із живим `conftest test`), жодної engine-помилки.
+    #[test]
+    fn detect_lint_text_without_text_job_is_policy_deny_not_engine_error() {
+        let files = [sf(
+            ".github/workflows/lint-text.yml",
+            "name: Lint Text\njobs:\n  other:\n    steps:\n      - run: echo x\n",
+        )];
+        let diagnostics = detect_policy(&files, &LINT_TEXT_CFG);
+        assert!(
+            diagnostics
+                .iter()
+                .all(|d| d.reason == POLICY_DENY_REASON),
+            "очікували лише policy-deny, отримали: {diagnostics:?}"
+        );
+        assert_eq!(diagnostics.len(), 7, "набір deny: {diagnostics:?}");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|d| d.message.contains("jobs.text відсутній")),
+            "набір deny: {diagnostics:?}"
         );
     }
 
