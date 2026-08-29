@@ -204,7 +204,12 @@ fn missing_shellcheck_hint() -> String {
 
 /// Список shell-скриптів для full-режиму — порт `listShellScriptPaths`
 /// (`main.mjs:73-92`, секція «Full-режим» доккоменту модуля).
-fn list_shell_script_paths(
+///
+/// `pub(crate)`, бо той самий список потрібен T0-фіксу цього ж концерну
+/// (`concerns::fix::text_run_shellcheck_fix`, §2.82): JS-канон мав дві
+/// копії — `listShellScriptPaths` жила і в `main.mjs`, і (після його
+/// видалення) у `fix-run-shellcheck.mjs`; native-бік тримає ОДНУ.
+pub(crate) fn list_shell_script_paths(
     cwd: &Path,
     resolve_tool: &dyn Fn(&str) -> Option<PathBuf>,
 ) -> Result<Vec<String>, RulesError> {

@@ -923,6 +923,372 @@ fn text_markdownlint_fix_with(
     Ok(FixPlan { edits })
 }
 
+// ── exec-tool клас, хвиля §2.82: text/run-dotenv-linter + text/run-shellcheck ─
+
+/// Знімок «до» для набору relative-шляхів — той самий `new Map(abs.map(a =>
+/// [a, readOrNull(a)]))`, що повторюється в кожному exec-tool T0-патерні
+/// (`fix-run-dotenv-linter.mjs`, `fix-run-shellcheck.mjs`, `fix-oxfmt.mjs`).
+/// Нечитабельний файл (немає / не-UTF-8) → `None`, як `readOrNull`.
+fn snapshot_before(cwd: &Path, files: &[String]) -> Vec<(String, Option<String>)> {
+    files
+        .iter()
+        .map(|f| (f.clone(), std::fs::read_to_string(cwd.join(f)).ok()))
+        .collect()
+}
+
+/// Порівнює знімок «до» з поточним станом диска і планує `write` лише для
+/// файлів, чий вміст справді змінився — спільне тіло хвоста всіх exec-tool
+/// фіксів (`touchedFiles = abs.filter(a => readOrNull(a) !== before.get(a))`).
+///
+/// Файл, який ПІСЛЯ прогону не читається як UTF-8 (`None`), у план не
+/// потрапляє: [`WriteFile::content`] — `String`, байтового каналу контракт
+/// не має (той самий блокер, що тримає `image-compress`/`image-avif` у JS).
+/// Для обох тулів цієї хвилі це недосяжний стан: і `dotenv-linter fix`, і
+/// `shellcheck -f diff`+`patch` працюють з текстом.
+fn plan_writes_for_changed(cwd: &Path, before: Vec<(String, Option<String>)>) -> Vec<FileEdit> {
+    let mut edits = Vec::new();
+    for (file, before_content) in before {
+        let after = std::fs::read_to_string(cwd.join(&file)).ok();
+        if after != before_content {
+            if let Some(content) = after {
+                edits.push(FileEdit::Write(WriteFile {
+                    path: file,
+                    content,
+                }));
+            }
+        }
+    }
+    edits
+}
+
+/// `reason` violation-у `text/run-dotenv-linter` —
+/// [`super::text_run_dotenv_linter`] `REASON`, він же
+/// `fix-run-dotenv-linter.mjs:patterns[0].test`.
+const DOTENV_LINTER_REASON: &str = "dotenv-linter";
+
+/// Каталоги/файли, виключені з рекурсивного прогону `dotenv-linter` —
+/// дзеркало `EXCLUDED_PATHS` детектора й `fix-run-dotenv-linter.mjs:20`.
+const DOTENV_EXCLUDED: [&str; 2] = ["node_modules", ".envrc"];
+
+/// `.env*`-файли дерева — порт `listEnvFiles`
+/// (`fix-run-dotenv-linter.mjs:118-133`).
+///
+/// # Розбіжність з каноном (свідома, на користь): обхід не заходить у `node_modules`
+///
+/// JS робить `readdirSync(cwd, { recursive: true })` — тобто ПОВНІСТЮ
+/// вичитує `node_modules` (десятки тисяч записів у типовому репо) і лише
+/// потім відкидає їх фільтром. Тут `node_modules` відсікається як цілий
+/// каталог на вході — результат той самий до елемента, ціна на порядки
+/// менша. Решта фільтра — буквальна: basename починається з `.env`, але не
+/// `.envrc` (direnv shell-синтаксис, не `key=value`) і не `*.bak`.
+fn list_env_files(cwd: &Path) -> Vec<String> {
+    let mut out = std::collections::BTreeSet::new();
+    list_env_files_dir(cwd, cwd, &mut out);
+    out.into_iter().collect()
+}
+
+/// Рекурсивний крок [`list_env_files`]. Недоступний каталог мовчки
+/// пропускається — JS-канон на невдалому `readdirSync` теж повертає `[]`.
+fn list_env_files_dir(root: &Path, dir: &Path, out: &mut std::collections::BTreeSet<String>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let Ok(file_type) = entry.file_type() else {
+            continue;
+        };
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if file_type.is_dir() {
+            if name == "node_modules" {
+                continue;
+            }
+            list_env_files_dir(root, &entry.path(), out);
+            continue;
+        }
+        if !file_type.is_file() {
+            continue;
+        }
+        if !name.starts_with(".env") || name == ".envrc" || name.ends_with(".bak") {
+            continue;
+        }
+        if let Ok(rel) = entry.path().strip_prefix(root) {
+            out.insert(
+                rel.components()
+                    .map(|c| c.as_os_str().to_string_lossy())
+                    .collect::<Vec<_>>()
+                    .join("/"),
+            );
+        }
+    }
+}
+
+/// T0-фікс `text/run-dotenv-linter` — порт `patterns[0]`
+/// (`fix-run-dotenv-linter.mjs:136-158`): один прогін
+/// `dotenv-linter fix --no-backup --quiet -r --exclude node_modules
+/// --exclude .envrc .`, тоді write для кожного `.env*`, чий вміст змінився.
+/// `standalone: true` у каноні — тул сам ре-аналізує, per-violation дані не
+/// потрібні, тож застосовність = «є хоч одна violation `dotenv-linter`».
+///
+/// # Полагоджений дефект канону 1: відсутній тул — МОВЧАЗНИЙ no-op
+///
+/// `runDotenvLinter` при `resolveCmd('dotenv-linter') === null` друкує
+/// підказки в stderr і повертає `1` — а `patterns[0].apply` цей код
+/// ІГНОРУЄ цілком (`await runDotenvLinter(ctx.cwd, false)` без
+/// присвоєння) і віддає `{ touchedFiles: [] }`. Для рушія `--fix` це
+/// нерозрізнюване від «усе вже гаразд»: детектор червоний саме тому, що
+/// тула немає, фікс «відпрацював успішно, нічого не змінив», користувач
+/// бачить незмінне порушення без причини. Той самий клас, що
+/// `resolveCmd('cargo') === null` у `tauri`-контурі. Native:
+/// [`RulesError::Concern`] з install-підказкою з
+/// [`crate::tool_registry::install_hint_for`].
+///
+/// Розбіжність із [`text_oxfmt_fix`] (там відсутній тул → порожній план)
+/// свідома: `fix-oxfmt.mjs` робить ЯВНИЙ ранній `return { touchedFiles: []
+/// }` до будь-якого спавна, тобто «нічого не роблю» — задокументоване
+/// рішення канону; тут канон навпаки готує помилку (`return 1`) і
+/// втрачає її по дорозі — це вада, а не рішення.
+///
+/// # Полагоджений дефект канону 2: ненульовий код `dotenv-linter fix` губився
+///
+/// `await spawnAsync(bin, ['fix', ...])` — результат не читається взагалі
+/// (`try/catch` ловить лише невдалий СПАВН, не ненульовий exit). `fix`
+/// повертає 0 і на нефіксабельних попередженнях, і на синтаксичному смітті
+/// у `.env` — тобто ненульовий код тут означає справжній збій тула
+/// (криві аргументи, немає прав на запис). Native підіймає його
+/// [`RulesError::Concern`] разом зі stderr тула.
+fn text_run_dotenv_linter_fix(cwd: &Path, violations: &[Violation]) -> Result<FixPlan, RulesError> {
+    text_run_dotenv_linter_fix_with(cwd, violations, &resolve_cmd)
+}
+
+/// Тіло фіксу з інжектованим резолвом тула — той самий мотив ін'єкції, що
+/// [`text_oxfmt_fix_with`] і детектор [`super::text_run_dotenv_linter`].
+fn text_run_dotenv_linter_fix_with(
+    cwd: &Path,
+    violations: &[Violation],
+    resolve_tool: &dyn Fn(&str) -> Option<std::path::PathBuf>,
+) -> Result<FixPlan, RulesError> {
+    if !violations.iter().any(|v| v.reason == DOTENV_LINTER_REASON) {
+        return Ok(FixPlan::default());
+    }
+
+    let Some(bin) = resolve_tool("dotenv-linter") else {
+        let hint = crate::tool_registry::install_hint_for("dotenv-linter")
+            .unwrap_or_else(|| "dotenv-linter не знайдено в PATH.".to_string());
+        return Err(RulesError::Concern(format!(
+            "text/run-dotenv-linter: {hint}"
+        )));
+    };
+
+    let files = list_env_files(cwd);
+    if files.is_empty() {
+        return Ok(FixPlan::default());
+    }
+    let before = snapshot_before(cwd, &files);
+
+    let mut command = Command::new(&bin);
+    command
+        .current_dir(cwd)
+        .args(["fix", "--no-backup", "--quiet", "-r"]);
+    for excluded in DOTENV_EXCLUDED {
+        command.arg("--exclude").arg(excluded);
+    }
+    command.arg(".");
+    let output = command.output().map_err(|error| {
+        RulesError::Concern(format!(
+            "text/run-dotenv-linter: не вдалося запустити `dotenv-linter fix`: {error}"
+        ))
+    })?;
+    if !output.status.success() {
+        return Err(RulesError::Concern(format!(
+            "text/run-dotenv-linter: `dotenv-linter fix` завершився з кодом {}: {}",
+            output
+                .status
+                .code()
+                .map_or_else(|| "signal".to_string(), |c| c.to_string()),
+            String::from_utf8_lossy(&output.stderr).trim()
+        )));
+    }
+
+    Ok(FixPlan {
+        edits: plan_writes_for_changed(cwd, before),
+    })
+}
+
+/// `reason` violation-у `text/run-shellcheck` —
+/// [`super::text_run_shellcheck`] `LINT_REASON`, він же
+/// `fix-run-shellcheck.mjs:patterns[0].test`.
+const SHELLCHECK_REASON: &str = "shellcheck";
+
+/// Підрядок у stderr ShellCheck, коли зауваження є, але авто-виправлень до
+/// них немає — порт `NON_AUTOFIXABLE_HINT` (`fix-run-shellcheck.mjs:32`).
+const SHELLCHECK_NON_AUTOFIXABLE: &str = "none were auto-fixable";
+
+/// Максимум ітерацій `diff`+`patch` на один файл — порт
+/// `MAX_FIX_ROUNDS_PER_FILE` (`fix-run-shellcheck.mjs:35`), захист від
+/// зациклення, коли патч не збігає стан до нерухомої точки.
+const SHELLCHECK_MAX_FIX_ROUNDS: usize = 32;
+
+/// T0-фікс `text/run-shellcheck` — порт `patterns[0]`
+/// (`fix-run-shellcheck.mjs:255-277`) разом із `runShellcheckText(cwd,
+/// false)`: для КОЖНОГО `*.sh` дерева (той самий full-rescan, що й у
+/// [`text_markdownlint_fix`] — не лише `violation.file`) цикл
+/// `shellcheck -f diff <file>` → `patch -p1`, до нерухомої точки або
+/// [`SHELLCHECK_MAX_FIX_ROUNDS`]; тоді write для змінених файлів.
+///
+/// # Полагоджений дефект канону 1: відсутній `shellcheck`/`patch` — МОВЧАЗНИЙ no-op
+///
+/// Точно той самий канал, що описаний у [`text_run_dotenv_linter_fix`]:
+/// `runShellcheckText` повертає `1` і за відсутнього `shellcheck`, і за
+/// відсутнього `patch` (окрема гілка з власною підказкою), а
+/// `patterns[0].apply` цей код відкидає й рапортує успішний no-op.
+/// Native: [`RulesError::Concern`] з install-підказкою.
+///
+/// # Полагоджений дефект канону 2: невдалий `patch` теж губився
+///
+/// `applyShellcheckDiff` при ненульовому `patch -p1` друкує його вивід і
+/// повертає `1`; `autofixOneFile` → `runShellcheckText` віддають цю `1`
+/// нагору — і `apply()` її ігнорує. Тобто «diff від shellcheck не
+/// приклався» (конфлікт, зіпсований hunk, файл змінили паралельно)
+/// оберталося тим самим тихим «нічого не змінено». Native: помилка з
+/// іменем файлу і виводом `patch`.
+///
+/// # Свідомо НЕ портовано: фінальний `runFinalShellcheck`
+///
+/// Канон після циклу фіксів робить ще один повний прогін `shellcheck` по
+/// всіх файлах — і теж викидає його код (`apply()` не дивиться на
+/// результат `runShellcheckText`). У fix-домені цей прогін не породжує
+/// жодного edit-у: єдиний його ефект — stdout/stderr користувачу і
+/// відкинутий код. Залишковий стан перевіряє re-detect
+/// ([`super::text_run_shellcheck`]) одразу після застосування плану, тож
+/// порт його не повторює — це прибраний мертвий виклик зовнішнього
+/// процесу, не втрачена перевірка.
+fn text_run_shellcheck_fix(cwd: &Path, violations: &[Violation]) -> Result<FixPlan, RulesError> {
+    text_run_shellcheck_fix_with(cwd, violations, &resolve_cmd)
+}
+
+/// Тіло фіксу з інжектованим резолвом тулів (`shellcheck`, `patch`, `git`
+/// усередині [`super::text_run_shellcheck::list_shell_script_paths`]).
+fn text_run_shellcheck_fix_with(
+    cwd: &Path,
+    violations: &[Violation],
+    resolve_tool: &dyn Fn(&str) -> Option<std::path::PathBuf>,
+) -> Result<FixPlan, RulesError> {
+    if !violations.iter().any(|v| v.reason == SHELLCHECK_REASON) {
+        return Ok(FixPlan::default());
+    }
+
+    let Some(shellcheck) = resolve_tool("shellcheck") else {
+        let hint = crate::tool_registry::install_hint_for("shellcheck")
+            .unwrap_or_else(|| "shellcheck не знайдено в PATH.".to_string());
+        return Err(RulesError::Concern(format!("text/run-shellcheck: {hint}")));
+    };
+    let Some(patch_bin) = resolve_tool("patch") else {
+        return Err(RulesError::Concern(
+            "text/run-shellcheck: `patch` не знайдено в PATH — потрібен для застосування \
+             `shellcheck -f diff` (Debian/Ubuntu: sudo apt-get install -y patch; на macOS \
+             зазвичай уже є)."
+                .to_string(),
+        ));
+    };
+
+    let files = super::text_run_shellcheck::list_shell_script_paths(cwd, resolve_tool)?;
+    if files.is_empty() {
+        return Ok(FixPlan::default());
+    }
+    let before = snapshot_before(cwd, &files);
+
+    for rel in &files {
+        shellcheck_autofix_one_file(&shellcheck, &patch_bin, cwd, rel)?;
+    }
+
+    Ok(FixPlan {
+        edits: plan_writes_for_changed(cwd, before),
+    })
+}
+
+/// Цикл `shellcheck -f diff` + `patch -p1` для одного файла — порт
+/// `autofixOneFile` (`fix-run-shellcheck.mjs:180-196`). Зупинка: exit 0,
+/// `none were auto-fixable` у stderr, або порожній stdout
+/// (`shouldStopAutofixLoop`).
+fn shellcheck_autofix_one_file(
+    shellcheck: &Path,
+    patch_bin: &Path,
+    cwd: &Path,
+    rel: &str,
+) -> Result<(), RulesError> {
+    for _round in 0..SHELLCHECK_MAX_FIX_ROUNDS {
+        let output = Command::new(shellcheck)
+            .current_dir(cwd)
+            .args(["-f", "diff", rel])
+            .output()
+            .map_err(|error| {
+                RulesError::Concern(format!(
+                    "text/run-shellcheck: не вдалося запустити `shellcheck -f diff {rel}`: {error}"
+                ))
+            })?;
+        if output.status.success() {
+            return Ok(());
+        }
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        if stderr.contains(SHELLCHECK_NON_AUTOFIXABLE) {
+            return Ok(());
+        }
+        let diff = String::from_utf8_lossy(&output.stdout).into_owned();
+        if diff.trim().is_empty() {
+            return Ok(());
+        }
+        apply_shellcheck_diff(patch_bin, cwd, rel, &diff)?;
+    }
+    Ok(())
+}
+
+/// `patch -p1 < diff` у корені `cwd` — порт `applyShellcheckDiff`
+/// (`fix-run-shellcheck.mjs:207-224`). Ненульовий код `patch` (і невдалий
+/// спавн, і невдалий запис у stdin) → [`RulesError::Concern`] з виводом
+/// `patch`, а не тихе «нічого не змінено» (доккомент
+/// [`text_run_shellcheck_fix`], дефект 2).
+fn apply_shellcheck_diff(
+    patch_bin: &Path,
+    cwd: &Path,
+    rel: &str,
+    diff: &str,
+) -> Result<(), RulesError> {
+    use std::io::Write as _;
+    use std::process::Stdio;
+
+    let fail = |detail: String| {
+        RulesError::Concern(format!(
+            "text/run-shellcheck: patch не застосував diff для {rel}: {detail}"
+        ))
+    };
+
+    let mut child = Command::new(patch_bin)
+        .current_dir(cwd)
+        .arg("-p1")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|error| fail(format!("не вдалося запустити `patch`: {error}")))?;
+    child
+        .stdin
+        .take()
+        .ok_or_else(|| fail("stdin `patch` недоступний".to_string()))?
+        .write_all(diff.as_bytes())
+        .map_err(|error| fail(format!("не вдалося передати diff у stdin: {error}")))?;
+    let output = child
+        .wait_with_output()
+        .map_err(|error| fail(format!("`patch` не завершився: {error}")))?;
+    if output.status.success() {
+        return Ok(());
+    }
+    Err(fail(format!(
+        "{} {}",
+        String::from_utf8_lossy(&output.stderr).trim(),
+        String::from_utf8_lossy(&output.stdout).trim()
+    )))
+}
+
 // ── nginx-default-tpl/template (хвиля T3, структурний клас) ─────────────────
 
 /// Знаходить `default.tpl.conf` під `root` (виключно cursor-ignore
@@ -1204,7 +1570,8 @@ fn changelog_consistency_fix(cwd: &Path, violations: &[Violation]) -> Result<Fix
 /// перший exec-tool клас (`text/oxfmt`, `text/markdownlint`) плюс один
 /// структурний (`nginx-default-tpl/template`), PR-опис; T5 — пʼять
 /// конфіг-подібних `createTemplateFixPattern`-концернів родини
-/// `vscode_*`/`zed_settings`/`oxfmtrc`; `tauri/release`
+/// `vscode_*`/`zed_settings`/`oxfmtrc`; §2.82 — ще два exec-tool
+/// (`text/run-dotenv-linter`, `text/run-shellcheck`); `tauri/release`
 /// і `image-avif/avif_generation` свідомо лишаються JS — доккомент модуля).
 pub const NATIVE_FIXES: &[&str] = &[
     "abie/env_dns",
@@ -1230,6 +1597,8 @@ pub const NATIVE_FIXES: &[&str] = &[
     "text/markdownlint",
     "text/oxfmt",
     "text/oxfmtrc",
+    "text/run-dotenv-linter",
+    "text/run-shellcheck",
     "text/vscode_extensions",
     "text/vscode_settings",
     "worktree/vscode_settings",
@@ -1288,6 +1657,8 @@ pub fn run_concern_fix(
         "text/cspell" => Ok(super::fix_cspell_config::cspell_config_fix(cwd, violations)),
         "text/markdownlint" => text_markdownlint_fix(cwd, violations),
         "text/oxfmt" => text_oxfmt_fix(cwd, violations),
+        "text/run-dotenv-linter" => text_run_dotenv_linter_fix(cwd, violations),
+        "text/run-shellcheck" => text_run_shellcheck_fix(cwd, violations),
         // Родина `vscode_extensions` — ОДИН рушій на пʼять концернів
         // (доккомент [`super::fix_vscode_extensions`]); ключ передається
         // далі як селектор вшитого канонічного снапшота.
@@ -2063,6 +2434,8 @@ mod tests {
                 "text/markdownlint",
                 "text/oxfmt",
                 "text/oxfmtrc",
+                "text/run-dotenv-linter",
+                "text/run-shellcheck",
                 "text/vscode_extensions",
                 "text/vscode_settings",
                 "worktree/vscode_settings",
@@ -2419,6 +2792,349 @@ mod tests {
                 FileEdit::Write(w) => assert_eq!(w.path, ".vscode/extensions.json"),
                 FileEdit::Delete { .. } => panic!("{key}: очікували write"),
             }
+        }
+    }
+
+    // ── exec-tool хвиля §2.82: text/run-dotenv-linter + text/run-shellcheck ──
+
+    /// Виконуваний shell-стаб із заданим тілом — усі тести цієї секції
+    /// стоять на СТАБАХ, а не на реальних `dotenv-linter`/`shellcheck`:
+    /// перевіряються канали (відсутній тул, ненульовий код, невдалий
+    /// `patch`), а не поведінка самих тулів. Реальні тули покриті
+    /// vitest-інтеграцією (`fix-*-native.test.mjs`), яка гучно скіпається,
+    /// якщо тула немає.
+    #[cfg(unix)]
+    fn fake_exec(dir: &std::path::Path, name: &str, body: &str) -> std::path::PathBuf {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::create_dir_all(dir).unwrap();
+        let bin = dir.join(name);
+        std::fs::write(&bin, format!("#!/bin/sh\n{body}\n")).unwrap();
+        std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).unwrap();
+        bin
+    }
+
+    /// Резолвер, який нічого не знаходить.
+    fn resolver_none(_tool: &str) -> Option<std::path::PathBuf> {
+        None
+    }
+
+    // --- text/run-dotenv-linter ---
+
+    /// Немає violation `dotenv-linter` → порожній план, і резолв тула навіть
+    /// не пробується (інакше `resolver_none` дав би `Err`).
+    #[test]
+    fn dotenv_fix_without_matching_violation_is_empty_plan() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let plan =
+            text_run_dotenv_linter_fix_with(tmp.path(), &[violation("other", None, None)], &|t| {
+                resolver_none(t)
+            })
+            .unwrap();
+        assert!(plan.edits.is_empty());
+    }
+
+    /// Дефект канону 1: відсутній `dotenv-linter` давав МОВЧАЗНИЙ
+    /// `{ touchedFiles: [] }`. Native — гучна помилка з install-підказкою.
+    #[test]
+    fn dotenv_fix_missing_tool_is_loud_error() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let error = text_run_dotenv_linter_fix_with(
+            tmp.path(),
+            &[violation("dotenv-linter", None, None)],
+            &|t| resolver_none(t),
+        )
+        .unwrap_err();
+        let text = error.to_string();
+        assert!(text.contains("text/run-dotenv-linter"), "{text}");
+        assert!(text.contains("dotenv-linter"), "{text}");
+    }
+
+    /// Дефект канону 2: ненульовий код `dotenv-linter fix` губився цілком.
+    /// Native — помилка з кодом і stderr тула.
+    #[cfg(unix)]
+    #[test]
+    fn dotenv_fix_nonzero_exit_is_loud_error() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let bins = tempfile::TempDir::new().unwrap();
+        std::fs::write(tmp.path().join(".env"), "A=1\n").unwrap();
+        let bin = fake_exec(bins.path(), "dotenv-linter", "echo 'boom' >&2\nexit 3");
+        let error = text_run_dotenv_linter_fix_with(
+            tmp.path(),
+            &[violation("dotenv-linter", None, None)],
+            &|_| Some(bin.clone()),
+        )
+        .unwrap_err();
+        let text = error.to_string();
+        assert!(text.contains("кодом 3"), "{text}");
+        assert!(text.contains("boom"), "{text}");
+    }
+
+    /// Змінений тулом `.env` потрапляє у план як `write` з НОВИМ вмістом;
+    /// незмінений сусід — ні.
+    #[cfg(unix)]
+    #[test]
+    fn dotenv_fix_plans_write_only_for_changed_files() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let bins = tempfile::TempDir::new().unwrap();
+        std::fs::write(tmp.path().join(".env"), "b=2\n").unwrap();
+        std::fs::write(tmp.path().join(".env.example"), "A=1\n").unwrap();
+        let bin = fake_exec(
+            bins.path(),
+            "dotenv-linter",
+            "printf 'B=2\\n' > .env\nexit 0",
+        );
+        let plan = text_run_dotenv_linter_fix_with(
+            tmp.path(),
+            &[violation("dotenv-linter", None, None)],
+            &|_| Some(bin.clone()),
+        )
+        .unwrap();
+        assert_eq!(plan.edits.len(), 1, "{plan:?}");
+        match &plan.edits[0] {
+            FileEdit::Write(w) => {
+                assert_eq!(w.path, ".env");
+                assert_eq!(w.content, "B=2\n");
+            }
+            FileEdit::Delete { .. } => panic!("очікували write"),
+        }
+    }
+
+    /// Дерево без жодного `.env*` → порожній план ще ДО спавна (стаб, що
+    /// завалив би прогін ненульовим кодом, не викликається взагалі).
+    #[cfg(unix)]
+    #[test]
+    fn dotenv_fix_without_env_files_is_empty_plan_without_spawn() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let bins = tempfile::TempDir::new().unwrap();
+        let bin = fake_exec(bins.path(), "dotenv-linter", "exit 3");
+        let plan = text_run_dotenv_linter_fix_with(
+            tmp.path(),
+            &[violation("dotenv-linter", None, None)],
+            &|_| Some(bin.clone()),
+        )
+        .unwrap();
+        assert!(plan.edits.is_empty());
+    }
+
+    /// Фільтр [`list_env_files`]: `.envrc` (direnv), `*.bak` і `node_modules`
+    /// поза списком; вкладені `.env.*` — усередині.
+    #[test]
+    fn list_env_files_filters_envrc_bak_and_node_modules() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        std::fs::create_dir_all(root.join("node_modules/pkg")).unwrap();
+        std::fs::create_dir_all(root.join("apps/api")).unwrap();
+        for (rel, body) in [
+            (".env", "A=1\n"),
+            (".env.local", "A=1\n"),
+            (".envrc", "use flake\n"),
+            (".env.bak", "A=1\n"),
+            ("node_modules/pkg/.env", "A=1\n"),
+            ("apps/api/.env.production", "A=1\n"),
+            ("apps/api/notenv", "A=1\n"),
+        ] {
+            std::fs::write(root.join(rel), body).unwrap();
+        }
+        assert_eq!(
+            list_env_files(root),
+            vec![
+                ".env".to_string(),
+                ".env.local".to_string(),
+                "apps/api/.env.production".to_string(),
+            ]
+        );
+    }
+
+    // --- text/run-shellcheck ---
+
+    /// Немає violation `shellcheck` → порожній план без резолву тулів.
+    #[test]
+    fn shellcheck_fix_without_matching_violation_is_empty_plan() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let plan =
+            text_run_shellcheck_fix_with(tmp.path(), &[violation("other", None, None)], &|t| {
+                resolver_none(t)
+            })
+            .unwrap();
+        assert!(plan.edits.is_empty());
+    }
+
+    /// Дефект канону 1, гілка `shellcheck`: відсутній тул → гучна помилка,
+    /// не тихий no-op.
+    #[test]
+    fn shellcheck_fix_missing_tool_is_loud_error() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let error = text_run_shellcheck_fix_with(
+            tmp.path(),
+            &[violation("shellcheck", None, None)],
+            &|t| resolver_none(t),
+        )
+        .unwrap_err();
+        let text = error.to_string();
+        assert!(text.contains("text/run-shellcheck"), "{text}");
+        assert!(text.contains("shellcheck"), "{text}");
+    }
+
+    /// Дефект канону 1, гілка `patch`: тул для застосування дифу відсутній —
+    /// теж гучна помилка з окремим текстом.
+    #[cfg(unix)]
+    #[test]
+    fn shellcheck_fix_missing_patch_is_loud_error() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let bins = tempfile::TempDir::new().unwrap();
+        let sc = fake_exec(bins.path(), "shellcheck", "exit 0");
+        let error = text_run_shellcheck_fix_with(
+            tmp.path(),
+            &[violation("shellcheck", None, None)],
+            &|tool| (tool == "shellcheck").then(|| sc.clone()),
+        )
+        .unwrap_err();
+        let text = error.to_string();
+        assert!(text.contains("`patch` не знайдено"), "{text}");
+    }
+
+    /// Чистий `shellcheck` (exit 0) → жодного `patch`, порожній план (стаб
+    /// `patch` завалив би тест ненульовим кодом, якби його покликали).
+    #[cfg(unix)]
+    #[test]
+    fn shellcheck_fix_clean_tree_plans_nothing() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let bins = tempfile::TempDir::new().unwrap();
+        std::fs::write(tmp.path().join("ok.sh"), "#!/bin/sh\necho ok\n").unwrap();
+        let sc = fake_exec(bins.path(), "shellcheck", "exit 0");
+        let patch = fake_exec(bins.path(), "patch", "exit 1");
+        let plan = text_run_shellcheck_fix_with(
+            tmp.path(),
+            &[violation("shellcheck", None, None)],
+            &|tool| match tool {
+                "shellcheck" => Some(sc.clone()),
+                "patch" => Some(patch.clone()),
+                _ => None,
+            },
+        )
+        .unwrap();
+        assert!(plan.edits.is_empty(), "{plan:?}");
+    }
+
+    /// `none were auto-fixable` у stderr зупиняє цикл так само, як exit 0 —
+    /// порт `shouldStopAutofixLoop` (`patch` знову «зламаний» стаб).
+    #[cfg(unix)]
+    #[test]
+    fn shellcheck_fix_non_autofixable_stops_loop() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let bins = tempfile::TempDir::new().unwrap();
+        std::fs::write(tmp.path().join("warn.sh"), "#!/bin/sh\necho ok\n").unwrap();
+        let sc = fake_exec(
+            bins.path(),
+            "shellcheck",
+            "echo 'In warn.sh line 2: ... none were auto-fixable' >&2\nexit 1",
+        );
+        let patch = fake_exec(bins.path(), "patch", "exit 1");
+        let plan = text_run_shellcheck_fix_with(
+            tmp.path(),
+            &[violation("shellcheck", None, None)],
+            &|tool| match tool {
+                "shellcheck" => Some(sc.clone()),
+                "patch" => Some(patch.clone()),
+                _ => None,
+            },
+        )
+        .unwrap();
+        assert!(plan.edits.is_empty(), "{plan:?}");
+    }
+
+    /// Повний цикл: `shellcheck -f diff` (стаб, один раунд) → РЕАЛЬНИЙ
+    /// `patch -p1` → план з новим вмістом файла. `patch` — базовий POSIX-тул
+    /// (macOS/Linux); якщо його раптом нема, тест ГУЧНО падає, а не мовчки
+    /// скіпається.
+    #[cfg(unix)]
+    #[test]
+    fn shellcheck_fix_applies_diff_and_plans_write() {
+        let patch = resolve_cmd("patch")
+            .expect("`patch` відсутній у PATH — базовий POSIX-тул, потрібен цьому тесту (не skip)");
+        let tmp = tempfile::TempDir::new().unwrap();
+        let bins = tempfile::TempDir::new().unwrap();
+        std::fs::write(tmp.path().join("x.sh"), "#!/bin/sh\necho $foo\n").unwrap();
+
+        let diff = bins.path().join("x.diff");
+        std::fs::write(
+            &diff,
+            "--- a/x.sh\n+++ b/x.sh\n@@ -1,2 +1,2 @@\n #!/bin/sh\n-echo $foo\n+echo \"$foo\"\n",
+        )
+        .unwrap();
+        let state = bins.path().join("round");
+        let sc = fake_exec(
+            bins.path(),
+            "shellcheck",
+            &format!(
+                "if [ -f {state} ]; then exit 0; fi\n: > {state}\ncat {diff}\nexit 1",
+                state = state.display(),
+                diff = diff.display()
+            ),
+        );
+
+        let plan = text_run_shellcheck_fix_with(
+            tmp.path(),
+            &[violation("shellcheck", None, None)],
+            &|tool| match tool {
+                "shellcheck" => Some(sc.clone()),
+                "patch" => Some(patch.clone()),
+                _ => None,
+            },
+        )
+        .unwrap();
+        assert_eq!(plan.edits.len(), 1, "{plan:?}");
+        match &plan.edits[0] {
+            FileEdit::Write(w) => {
+                assert_eq!(w.path, "x.sh");
+                assert_eq!(w.content, "#!/bin/sh\necho \"$foo\"\n");
+            }
+            FileEdit::Delete { .. } => panic!("очікували write"),
+        }
+    }
+
+    /// Дефект канону 2: ненульовий `patch` губився разом із кодом
+    /// `runShellcheckText`. Native — помилка з іменем файлу і виводом
+    /// `patch`.
+    #[cfg(unix)]
+    #[test]
+    fn shellcheck_fix_failed_patch_is_loud_error() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let bins = tempfile::TempDir::new().unwrap();
+        std::fs::write(tmp.path().join("x.sh"), "#!/bin/sh\necho $foo\n").unwrap();
+        let sc = fake_exec(
+            bins.path(),
+            "shellcheck",
+            "printf -- '--- a/x.sh\\n+++ b/x.sh\\n'\nexit 1",
+        );
+        let patch = fake_exec(bins.path(), "patch", "echo 'malformed patch' >&2\nexit 2");
+        let error = text_run_shellcheck_fix_with(
+            tmp.path(),
+            &[violation("shellcheck", None, None)],
+            &|tool| match tool {
+                "shellcheck" => Some(sc.clone()),
+                "patch" => Some(patch.clone()),
+                _ => None,
+            },
+        )
+        .unwrap_err();
+        let text = error.to_string();
+        assert!(text.contains("x.sh"), "{text}");
+        assert!(text.contains("malformed patch"), "{text}");
+    }
+
+    /// Обидва ключі §2.82 диспатчаться продакшн-шляхом (`run_concern_fix`),
+    /// не прямим викликом — той самий інваріант, що й у решти реєстру.
+    #[test]
+    fn run_concern_fix_dispatches_exec_tool_wave_keys() {
+        assert!(NATIVE_FIXES.contains(&"text/run-dotenv-linter"));
+        assert!(NATIVE_FIXES.contains(&"text/run-shellcheck"));
+        let tmp = tempfile::TempDir::new().unwrap();
+        // Без відповідних violations — порожній план і жодного звернення до
+        // PATH (гілка застосовності стоїть ПЕРЕД резолвом тула).
+        for key in ["text/run-dotenv-linter", "text/run-shellcheck"] {
+            let plan = run_concern_fix(key, tmp.path(), &[violation("other", None, None)]).unwrap();
+            assert!(plan.edits.is_empty(), "{key}");
         }
     }
 }
