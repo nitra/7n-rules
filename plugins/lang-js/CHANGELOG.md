@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.31.0] - 2026-08-29
+
+### Changed
+
+- Пʼять концернів плагіна переїхали у wasm-гостя: `style/vscode_settings`, `js/jscpd_config`, `npm-module/emit_types_config` (детект — rego через host-import `rego-engine`, фікс — спільний двигун `rules-template-merge`, по одному запису в наявних таблицях `POLICY_CONFIGS`/`TEMPLATE_FIX_CONFIGS`), `js-run/jsconfig` (власний рушій фіксу, причина нижче) і `style/tooling` (детект переїхав батчем 8 — тепер і три FS-патерни фіксу). Родину `vscode_*`/`zed_settings` закрито повністю: `style/vscode_settings` був останнім із 15.
+
+**`js-run/jsconfig` — перший `files.walkGlob`-концерн гостя.** Через нього `PolicyCfg` дістав форму `PolicyFiles` (`Single { target, missing_message }` | `WalkGlob { globs, basename }`), а `detect_policy` став багатофайловим: кожен `jsconfig.json` дерева міряється окремо й несе свій `file`. Фікс у нього ВЛАСНИЙ, не `createTemplateFixPattern`: `.rego` порівнює top-level масиви як множини на РІВНІСТЬ, а спільний двигун мерджить масиви union-ом — зайвий `include`-елемент пережив би фікс, детект лишався б червоним назавжди, а `--fix` щоразу звітував би «виправлено».
+
+**Полагоджено три дефекти канону, а не відтворено.**
+1. `js/jscpd_config`: rego вимагає `minLines >= 25`, а deep-merge писав точну рівність — будь-яке інше порушення концерну мовчки збивало вже суворіший `minLines: 40` до `25`. Механізм порогових листків узагальнено (`MinVersionLeaf` → `MinLeaf` з `kind: SemverRange | Number`) і покрив обидва випадки — версійний і числовий.
+2. `js-run/jsconfig`: JSONC-вхід (легальні для VS Code `//`-коментарі) валив `JSON.parse` канону, і фікс мовчки робив `continue` — «спрацював», нічого не змінивши.
+3. `style/tooling`: детект вважає `"stylelint"` наявним лише як `Object | Array`, фікс виходив на будь-якому truthy — на рядковому значенні концерн не сходився ніколи. Гейт у порті — той самий предикат, що в детекті; `package.json` при цьому не регенерується цілком, а правиться хірургічно.
+
+**`test/stryker_config` НЕ портовано — і це відповідь, не пропуск.** Увесь його T0 тримається на повторному прогоні `planStrykerActions(cwd)`, а `FixRequest::files` хост будує з `file`-полів переданих violations; full-scope fallback спрацьовує лише коли ЖОДНА діагностика не назвала файл, а `stryker-config-missing` свій файл несе. Гість дістав би батч із самих відсутніх таргетів і не побачив би дерева, з якого будується план. Оголосити концерн лише заради fix не можна — ключ у реєстрі гостя затінює JS-гілку детекту й вимкнув би єдиний робочий автофікс. Розблокування — задача на host-міст.
+
+Розмір гостя: 2 392 755 → 2 406 564 байти (+13 809, +0,58 %; 22,95 % бюджету 10 MiB).
+
+Тести: `cargo test -p plugin-lang-js` — 462 passed (14 нових; прогін regorus тепер покриває ВСІ десять вшитих політик, а не шість); `cargo test -p rules-plugin-host --test plugin_lang_js` — 86 passed; `wasm-plugin-parity.test.mjs` — 305 passed (13 нових). Деталі — §2.80 `docs/plans/2026-08-05-open-questions-register.md`. JS-канони не видалено (політика «спершу парність»).
+
 ## [0.30.0] - 2026-08-29
 
 ### Changed
