@@ -1,5 +1,34 @@
 # Changelog
 
+## [1.110.0] - 2026-08-29
+
+### Added
+
+- ШОСТИЙ first-party wasm-гість — `crates/plugin-ci-azure` (`ci-azure/wasm-concerns`, `n-rules:plugin@3.2.0`), перший гість, заведений ПІСЛЯ підняття стелі розміру до 10 MiB і винесення `regorus` з wasm-гостя в хост (§2.55/§2.66): rego-двигун дістається БЕЗКОШТОВНО через host-import resource `rego-engine` з самого початку, без прямої `regorus`-залежності в `wasm32-wasip2` build graph.
+
+Перша хвиля порту — два з десяти концернів `plugins/ci-azure/rules/`, представники ОБОХ форм: `azure-pipelines/lint_pipeline` (чистий rego-детект, без T0-фіксатора) і `azure-pipelines/vscode_extensions` (rego-детект + T0-фіксатор, той самий спільний рушій `vscode-ext-add.mjs`, що `ga/vscode_extensions` у `plugin-ci-github`). JS-канон усіх десяти концернів лишається недоторканим.
+
+Знайдено й задокументовано нову пастку `regorus` (поверх `%q` з §2.66): built-in `walk()` потребує фіту `"graph"` у `rules-rego-engine` — без нього policy з `walk()` компілюється, але падає на еваluації з оманливою помилкою "unsafe variable", яка виглядає як баг Rego-безпеки, а насправді — відсутній builtin. Фікс — один рядок у спільному `crates/rules-rego-engine/Cargo.toml` (чисто адитивний фіт, безпечний для решти консюмерів).
+
+Розмір гостя (release, `wasm32-wasip2`): порожній 63 266 Б → +174 735 Б (перший концерн, каркас) → +10 758 Б (другий концерн, майже безкоштовний reuse) = 248 759 Б підсумково — на порядок менше за `plugin-ci-github` (1 571 007 Б, 5 концернів).
+
+Парність доведена через РЕАЛЬНИЙ napi-міст (критерій §2.47): `wasm-plugin-parity-ci-azure.test.mjs` — 7 passed. Golden-тест на `PluginHost` — `crates/rules-plugin-host/tests/plugin_ci_azure.rs` — 5 passed. Юніт-тести гостя — `cargo test -p plugin-ci-azure` — 16 passed. `cargo test -p rules-rego-engine` — 7 passed (5 наявних + 2 нових регресійних гейти на `walk()`/`graph.reachable` — доккомент crates/rules-rego-engine/src/lib.rs). `cargo test -p plugin-ci-github` — 156 passed (без регресій від спільного фіту). `conftest verify --policy plugins/ci-azure/rules` — 54 passed, 0 failures.
+
+Деталі, вибір концернів, покроковий розмір, обидві rego-пастки — §2.68 `docs/plans/2026-08-05-open-questions-register.md`.
+- `crates/plugin-ci-github` — родина `template-deep-merge` доперенесена цілком: усі дванадцять останніх JS-шимів (`abie/clean_merged_ignore_branches`, `docker/lint_docker_yml`, `ga/clean_ga_workflows`, `ga/clean_merged_branch`, `ga/git_ai`, `ga/lint_ga`, `ga/lint_repo_yml`, `ga/zizmor_yml`, `k8s/lint_k8s_yml`, `npm-module/npm_publish_yml`, `style/lint_style_yml`, `text/lint_text`) тепер мають wasm-детект (regorus для десяти, структурний `checkSnippet`-порт для двох без `.rego`) і wasm-фікс (той самий `fix_template_merge`, що третя хвиля); guest — 1 602 445 Б (15,3% стелі 10 MiB). Попутно виправлено `%q` (regorus не підтримує Go-verb) у шести `.rego`-файлах і знайдено реальний баг канону — незахищений `job.steps[_].uses` у `lint_ga.rego`/`lint_text.rego` валив увесь `job_uses_set` на кроці без `uses`.
+
+### Fixed
+
+- `--full` більше не бреше про чистоту `per-file` wasm-концернів. `run_wasm_concern` (`crates/rules-napi/src/lib.rs`) будував batch за задекларованим glob-ом контрибуції ЛИШЕ для `scope: full`, а `per-file`-концерн у full-прогоні (`files: None` — саме те, що передає планувальник для КОЖНОГО концерну в `--full`) діставав ПОРОЖНІЙ batch: гість бачив нуль файлів, повертав нуль діагностик, концерн звітував «чисто» — мовчки, без помилки чи попередження. Так у `--full` не перевірялись дев'ять контрибуцій у чотирьох гостях: `vue/tfm-translations`, `js/doc_comments`, `python/doc_comments`, `python/mypy`, `python/ruff`, `rust/doc_comments`, `rust/wasm_component`, `php/mago_fmt`, `php/mago_lint`.
+
+Тепер хост будує batch за glob-ом НЕЗАЛЕЖНО від `scope` (`build_detect_batch_files`): для детекту це безпечно — він read-only, а `--full` для `per-file`-концерну означає рівно «перевір кожен файл під його glob-ом», те саме, що завжди робив JS-канон. Асиметрія з fix-контуром лишається свідомою: там glob-обхід виправляв би файли поза дельтою запиту, тому дельту й далі несе окремий аргумент `delta_files`. Стан, у якому batch побудувати НЕМОЖЛИВО (концерн не заявлений у `describe().concerns` або `per-file` без жодного glob-патерну), тепер падає типізованою помилкою з поясненням і підказкою — дзеркало `ambiguous_empty_fix_batch_err` на detect-боці; порожній glob у `scope: full` лишається легітимним заявленим наміром (`js/jscpd_duplicates`).
+
+Разом із цим `python/mypy`/`python/ruff` додали до glob-а контрибуції `pyproject.toml`, а `php/mago_fmt`/`php/mago_lint` — `composer.json`: у full-прогоні «якорі» (`concern.json.lint.anchors`) до batch-у не потрапляють — їх знає лише JS-планувальник дельти, а WIT-контрибуція поля `anchors` не має, тож без цього кроку ті чотири детектори й далі мовчки виходили б у `Skip`, лише вже з непорожнім batch-ем.
+
+Тести: `cargo test -p rules-napi` — 21 passed (було 13, +8), новий `wasm-detect-full-per-file.test.mjs` — 7 passed, по одному представнику з кожного з п'яти гостей крізь РЕАЛЬНИЙ napi-міст. Червоність доведено дією ДО фіксу: 3 з 4 нових napi-тестів і 6 із 7 bridge-тестів падали саме мовчазним `{"violations": []}`. Parity-гейти всіх п'яти гостей — 452 passed, детект/фікс-контур — 131 passed, без регресій.
+
+Деталі — §2.65 `docs/plans/2026-08-05-open-questions-register.md`.
+
 ## [1.109.0] - 2026-08-28
 
 ### Added

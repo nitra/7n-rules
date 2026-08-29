@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.4.4] - 2026-08-29
+
+### Changed
+
+- feat(rules-core): native-фікси T3 — text/oxfmt, text/markdownlint, nginx-default-tpl/template (§2.67) (#536)
+
 ## [2.4.3] - 2026-08-28
 
 ### Changed
