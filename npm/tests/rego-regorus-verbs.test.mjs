@@ -110,19 +110,24 @@ describe('гейт `%q` у rego-політиках під regorus', () => {
     expect(collectRegoFiles(dir).length, `у ${dir} немає жодного .rego`).toBeGreaterThan(0)
   })
 
-  test.each(plugins)('%s: жодного `%%q` — regorus такого не вміє', name => {
-    const dir = join(root, 'plugins', name, 'rules')
-    const hits = collectRegoFiles(dir).flatMap(file => findForbiddenVerb(file, root))
-    expect(
-      hits,
-      [
-        `\`%q\` у політиках плагіна \`${name}\`, які виконує regorus (${REGORUS_POLICY_PLUGINS[name]}).`,
-        'regorus не підтримує цей Go-верб — це помилка РАНТАЙМУ, не попередження.',
-        'Заміна, еквівалентна біт-у-біт для рядкового аргументу: `%q` → `\\"%v\\"`.',
-        ...hits
-      ].join('\n')
-    ).toEqual([])
-  })
+  // Звичайний цикл, а НЕ `test.each`: його printf-шаблон рендерив `%%q` як
+  // «% undefinedq» — гейт, чия власна назва зіпсована рівно тим символом,
+  // який він шукає, підриває саму мету «сигналити яскраво».
+  for (const name of plugins) {
+    test(`${name}: жодного \`%q\` — regorus такого не вміє`, () => {
+      const dir = join(root, 'plugins', name, 'rules')
+      const hits = collectRegoFiles(dir).flatMap(file => findForbiddenVerb(file, root))
+      expect(
+        hits,
+        [
+          `\`%q\` у політиках плагіна \`${name}\`, які виконує regorus (${REGORUS_POLICY_PLUGINS[name]}).`,
+          'regorus не підтримує цей Go-верб — це помилка РАНТАЙМУ, не попередження.',
+          'Заміна, еквівалентна біт-у-біт для рядкового аргументу: `%q` → `\\"%v\\"`.',
+          ...hits
+        ].join('\n')
+      ).toEqual([])
+    })
+  }
 
   test('новий консюмер `rules-rego-engine` не проскакує повз перелік', () => {
     const cratesDir = join(root, 'crates')
