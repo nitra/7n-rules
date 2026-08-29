@@ -2,7 +2,17 @@
 #
 # Канон надходить через --data: { "template": { "snippet": ... } }
 # Структура --data сформована з template/package.json.snippet.json
-# (canonical `type` + `scripts.lint-js` + `devDependencies.@nitra/eslint-config` як мін-поріг).
+# (canonical `type` + `devDependencies.@nitra/eslint-config` як мін-поріг).
+#
+# Дрейф, прибраний §2.78: заголовок обіцяв ще й `scripts.lint-js`, і нижче
+# стояло правило, що ітерувало `data.template.snippet.scripts`. Ключа
+# `scripts` у snippet-і НЕМАЄ (і ніколи не було), тож те правило було МЕРТВЕ:
+# `some _, _ in <undefined>` не дає жодної ітерації, і перевірка мовчки не
+# виконувалась. Разом із ним пішов його єдиний хелпер `normalize_script`.
+# Правило НЕ відновлено, а видалено: відновлення означало б додати
+# `scripts.lint-js` у snippet, тобто ввести НОВУ обовʼязкову вимогу для всіх
+# споживчих репозиторіїв (і змусити T0-фікс дописувати цей скрипт усюди) —
+# окреме продуктове рішення, не побічний ефект порту.
 #
 # Мінімальна версія `@nitra/eslint-config` — ЄДИНЕ джерело в snippet
 # (`devDependencies.@nitra/eslint-config`); rego лише парсить поріг і робить semver-порівняння.
@@ -23,15 +33,6 @@ deny contains msg if {
 	actual := object.get(input, key, null)
 	actual != expected_value
 	msg := sprintf("package.json: \"%s\" має бути \"%v\" (js.mdc)", [key, expected_value])
-}
-
-# ── deny: scripts (nested) — exact match із normalize ──────────────────
-
-deny contains msg if {
-	some script_name, expected in data.template.snippet.scripts
-	actual := object.get(object.get(input, "scripts", {}), script_name, "")
-	normalize_script(actual) != expected
-	msg := sprintf("package.json: scripts.%s має бути \"%v\" (js.mdc)", [script_name, expected])
 }
 
 # ── deny: engines.node >= 24 (inverse, у rego) ──────────────────────────
@@ -84,8 +85,6 @@ eslint_min_range := object.get(object.get(data.template.snippet, "devDependencie
 
 # Поріг для повідомлення без діапазонних префіксів (напр. "3.10.0").
 eslint_min_display := trim_left(eslint_min_range, "^~>=v ")
-
-normalize_script(s) := regex.replace(trim_space(s), `\s+`, " ")
 
 engines_node_meets(spec) if {
 	major := first_major(spec)

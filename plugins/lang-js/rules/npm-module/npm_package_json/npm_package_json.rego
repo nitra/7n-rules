@@ -18,7 +18,9 @@
 #    concern-а (`createTemplateFixPattern`, deep-merge усього `template.snippet`
 #    у target) канонічні devDeps у кожен package.json не домерджує.
 #
-# FS-перевірки (наявність файлу зі шляху `types`, скан tarball на тест-патерни) — у JS.
+# Дрейф, прибраний §2.78: тут стояв рядок про «FS-перевірки … — у JS»
+# (наявність файлу зі шляху `types`, скан tarball) — він описував `main.mjs`,
+# якого в цього концерну НЕМАЄ: детект повністю policy-rego.
 package npm_module.npm_package_json
 
 import rego.v1
@@ -114,6 +116,12 @@ deny contains msg if {
 
 # ── helpers ────────────────────────────────────────────────────────────────
 
-valid_types_field("./types/index.d.ts")
+# Явна форма `t == "..."` замість безтілого факту `valid_types_field("...")`:
+# останній легальний для Go-шного OPA/conftest, але `regorus` (Rust) відхиляє
+# його HARD-помилкою КОМПІЛЯЦІЇ («rule must have a body or assignment») — та
+# сама категорія пастки, що `%q` (§2.68/§2.76) і відсутній builtin `walk`
+# (§2.69), знайдена §2.78 при переїзді цього концерну на host-import
+# `rego-engine`. Семантика під обома двигунами тотожна.
+valid_types_field(t) if t == "./types/index.d.ts"
 
 valid_types_field(t) if regex.match(`^\./types/.+\.d\.(ts|mts)$`, t)
