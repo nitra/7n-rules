@@ -38,7 +38,7 @@
  *
  * Цей гейт ловить ОДНУ конкретну несумісність (`%q`), а не всі. Другий,
  * взаємодоповнювальний, живе на боці гостя: `cargo test -p plugin-lang-js`
- * (`vsi_shist_rego_polityk_evaliuiutsia_pid_regorus`) реально КОМПІЛЮЄ І
+ * (`vsi_rego_polityky_evaliuiutsia_pid_regorus`) реально КОМПІЛЮЄ І
  * ЕВАЛЮЄ кожну вшиту політику через `rules-rego-engine` in-process. Саме він
  * знайшов третю пастку класу (§2.78): безтілий факт `f("літерал")` —
  * легальний для Go-шного OPA/conftest, HARD-помилка компіляції в `regorus`.

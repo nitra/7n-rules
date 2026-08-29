@@ -113,7 +113,7 @@ fn host() -> PluginHost {
 }
 
 #[test]
-fn describe_declares_all_forty_concerns_with_expected_scopes() {
+fn describe_declares_all_concerns_with_expected_scopes() {
     let path = require_fixture();
     let plugin = host()
         .load(&path, PLUGIN_WORLD_VERSION)
@@ -153,7 +153,18 @@ fn describe_declares_all_forty_concerns_with_expected_scopes() {
     // (дев'ять під-перевірок одного ключа, секція «Зріз 7» там само). Тулів
     // він НЕ додає: вимір показав, що `runConftestBatch` JS-канону
     // вакуумний, тож ні `pinned:conftest`, ні `scratch-in` не потрібні.
-    assert_eq!(manifest.concerns.len(), 40);
+    // §2.78 додає шість rego-детектів на host-import `rego-engine` — родину
+    // `vscode_extensions` (два) і четвірку `package_json` (секція «§2.78»
+    // там само). §2.80 додає ще чотири того самого класу:
+    // `style/vscode_settings` (останній незакритий член родини
+    // `vscode_*`/`zed_settings`), `js/jscpd_config`,
+    // `npm-module/emit_types_config` і `js-run/jsconfig` — ЄДИНИЙ
+    // `files.walkGlob`-концерн гостя (секція «§2.80» там само).
+    //
+    // Число нижче — анти-дрейф-гейт маніфесту, і §2.78 його оновити
+    // ЗАБУЛА: тест лишався червоним на 46 vs 40, поки §2.80 цього не
+    // помітила. Оновлюючи контрибуції, оновлюй і його.
+    assert_eq!(manifest.concerns.len(), 50);
     assert_eq!(
         manifest.tools,
         vec![

@@ -9739,6 +9739,122 @@ WIT — `string`, не `list<u8>`) і що саме сталося б далі. 
 
 ---
 
+### 2.80. `plugin-lang-js`: закрито родину `vscode_*` і портовано пʼять із шести конфіг-подібних концернів; шостий (`test/stryker_config` fix) блокує форма host-мосту
+
+**Задача:** fix-половина розділу «шість концернів `plugin-lang-js`» плану
+`docs/plans/2026-08-29-js-rust-migration-completion-plan.md`:
+`style/vscode_settings`, `js-run/jsconfig`, `js/jscpd_config`,
+`npm-module/emit_types_config`, `style/tooling`, `test/stryker_config`.
+
+**Результат:** портовано пʼять. Родину `vscode_*`/`zed_settings` ЗАКРИТО
+повністю — `style/vscode_settings` був останнім із 15 незакритих членів
+(решта переїхали §2.77/§2.78). Маніфест гостя: 46 → 50 контрибуцій,
+компонент 2 392 755 → 2 406 564 Б (+13 809, 22,95 % стелі 10 MiB).
+
+#### Портовано
+
+- **`style/vscode_settings`**, **`js/jscpd_config`**,
+  **`npm-module/emit_types_config`** — по ОДНОМУ запису в двох наявних
+  таблицях `crates/plugin-lang-js/src/lib.rs` (`POLICY_CONFIGS` — rego-детект
+  через host-import `rego-engine`, `TEMPLATE_FIX_CONFIGS` — фікс на спільному
+  двигуні `rules-template-merge`). Жодного нового рушія.
+- **`js-run/jsconfig`** — ЄДИНИЙ `files.walkGlob`-концерн гостя. Через нього
+  `PolicyCfg::target: &str` став `PolicyCfg::files: PolicyFiles`
+  (`Single { target, missing_message }` | `WalkGlob { globs, basename }`), а
+  `detect_policy` — багатофайловим. Фікс — власний (`jsconfig_fix`), причина
+  нижче.
+- **`style/tooling`** — детект переїхав ще батчем 8; тут добудовано
+  fix-половину (`fix_style_tooling`): три FS-патерни `fix-tooling.mjs`, без
+  policy-шару.
+
+#### `js-run/jsconfig` — чому власний рушій, а не запис у `TEMPLATE_FIX_CONFIGS`
+
+`jsconfig.rego` порівнює top-level масиви як МНОЖИНИ на РІВНІСТЬ
+(`{x | some x in input[field]} != {x | some x in expected}`), не як subset.
+Спільний двигун (`merge_json_value`) мерджить масиви UNION-ом — семантика,
+що точно відповідає subset-детектам решти концернів, але для цього
+означала б, що зайвий елемент користувача (`include: ["src/**/*",
+"legacy/**/*"]`) переживе фікс і детект лишиться червоним НАЗАВЖДИ, а
+`--fix` щоразу звітуватиме «виправлено». Тому масив тут ЗАМІНЮЄТЬСЯ — рівно
+як у `fix-jsconfig.mjs`. Це той рідкісний випадок, коли «поодинокий»
+концерн справді поодинокий, і зафіксовано він тестом
+`jsconfig_fix_zaminiuie_masyv_a_ne_merdzhyt_unionom`.
+
+#### `test/stryker_config` — НЕ портовано, і це відповідь, а не пропуск
+
+Детект переїхав зрізом 1 контракту v3.1; fix лишається в JS
+(`fix-stryker_config.mjs`, незмінний). Блокер не в бюджеті задачі, а у формі
+host-мосту, і зріз 1 його вже назвав: увесь T0 концерну тримається на
+ПОВТОРНОМУ прогоні планувальника (`planStrykerActions(cwd)` у `apply`), а
+`FixRequest::files` хост будує з `file`-полів переданих violations
+(`rules-napi::run_wasm_concern_fix`). Full-scope fallback на глоб
+контрибуції спрацьовує ЛИШЕ коли ЖОДНА діагностика не назвала файл — а
+`stryker-config-missing` свій файл несе. Тобто гість дістав би батч із самих
+(відсутніх) цільових файлів і не побачив би ні `package.json` воркспейсів,
+ні `vitest.config.mjs`, ні `src/**/*.vue`, з яких план і будується.
+Оголосити концерн лише заради fix не можна: ключ у реєстрі гостя ЗАТІНЮЄ
+JS-гілку (`detect.mjs`, `if (wasmEntry !== undefined)`) — вимкнувся б єдиний
+робочий автофікс. Розблокування — окрема задача на host-міст (дати
+`fix-request` full-scope batch і тоді, коли діагностики мають `file`), не на
+плагін.
+
+#### Дефекти канону, полагоджені (не відтворені заради парності)
+
+1. **`minLines` збивався НАЗАД на поріг.** `js/jscpd_config.rego` вимагає
+   `minLines` як число `>= 25` (`is_valid_min_lines`), а
+   `createTemplateFixPattern` мерджить листя ТОЧНОЮ рівністю: будь-яке інше
+   порушення концерну запускало merge, який мовчки знижував уже суворіший
+   `minLines: 40` до `25` — «виправлення» ПОГІРШУВАЛО файл. Це та сама вада,
+   яку §2.78 знайшла на `@nitra/eslint-config`, лише числова; механізм
+   `MinVersionLeaf` узагальнено до `MinLeaf { section: Option, name, kind }`
+   і покрив обидві.
+2. **`jsconfig.json` із коментарями.** Файл VS Code, `//` у ньому легальні
+   (TS-сервер читає його як JSONC), а канон читав `JSON.parse` у `try` і на
+   винятку робив `continue`: фікс «спрацьовував», нічого не змінивши. Тепер
+   `parse_jsonc_document`. Коментарі повної регенерації не переживають — та
+   сама задокументована межа, що §2.78.
+3. **`"stylelint": "рядок"` у `package.json`.** Детект `style/tooling`
+   вважає конфіг наявним лише для `Object | Array`, а канонний фікс виходив
+   на будь-якому TRUTHY (`if (pkg.stylelint) return`): на рядковому значенні
+   фікс мовчки не робив нічого, порушення лишалось, концерн не сходився
+   ніколи. Гейт у порті — ТОЙ САМИЙ предикат, що в детекті. Бонусом
+   `package.json` більше не регенерується цілком: спершу хірургічна вставка
+   (`try_surgical_merge`), і форматування/коментарі виживають.
+
+#### Два анти-дрейф-гейти, які §2.78 забула оновити (знайдено цією задачею)
+
+- `crates/rules-plugin-host/tests/plugin_lang_js.rs` — `manifest.concerns.len()`
+  очікував 40 при фактичних 46, тобто тест був ЧЕРВОНИЙ на `main`;
+- `npm/scripts/lib/lint-surface/tests/wasm-plugins.test.mjs` — `first.size`/
+  `second.size` те саме 40.
+
+Обидва оновлено до 50 і забезпечені коментарем «оновлюючи контрибуції,
+оновлюй і це число». Урок ширший за задачу: додавання контрибуцій торкається
+ТРЬОХ лічильників (guest-тест, host-golden, JS-мапа) — і два з них живуть в
+інших крейтах/пакетах, тож локально зелений `cargo test -p plugin-lang-js`
+нічого про них не каже.
+
+#### Пастка сортування, що зробила б parity-тест флейкі
+
+`runSingleFilePolicyBoth` сортував violations ЛИШЕ за `message`. Для
+`walkGlob`-концерну текст deny-я однаковий для кожного таргета
+(`jsconfig.json: …` — префікс не містить шляху), тож два різні файли давали
+однакові ключі сортування, і порядок між JS і wasm збігався випадково.
+Сортування замінено на «файл, потім повідомлення» (`byFileThenMessage`) —
+для `files.single`-концернів це no-op.
+
+**Тести:** `cargo test -p plugin-lang-js` — 462 passed (14 нових, серед них
+`vsi_rego_polityky_evaliuiutsia_pid_regorus` тепер ганяє regorus по ВСІХ
+десяти вшитих політиках); `cargo test -p rules-plugin-host --test
+plugin_lang_js` — 86 passed; vitest `wasm-plugin-parity.test.mjs` — 305
+passed (13 нових: 7 rego-парності проти `conftest`-канону і 6 T0-циклів
+через РЕАЛЬНИЙ napi-міст); `rego-regorus-verbs.test.mjs` — 14 passed;
+`wasm-plugins.test.mjs` — 35 passed.
+
+**JS-канони не видалено** — політика «спершу парність».
+
+---
+
 ## Як користуватись
 
 Дійшовши кінця плану міграції, пройти реєстр згори вниз: розділи 1 і 6 — це
