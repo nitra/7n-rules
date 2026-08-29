@@ -16,7 +16,7 @@ use napi::bindgen_prelude::Function;
 use napi::{Error, Result};
 use napi_derive::napi;
 use rules_contract::detect::{DetectBatch, SourceFile};
-use rules_contract::manifest::ConcernScope;
+use rules_contract::manifest::{ConcernContribution, ConcernScope};
 use rules_contract::version::PLUGIN_WORLD_VERSION;
 use rules_core::RulesError;
 use rules_plugin_host::{LoadedPlugin, PluginHost, PluginHostError, ToolResolver};
@@ -611,6 +611,106 @@ fn build_full_scope_files(cwd: &Path, glob_patterns: &[String]) -> Vec<SourceFil
     read_source_files(cwd, matched)
 }
 
+/// Типізована помилка «нерозвʼязний detect-batch full-прогону» —
+/// [`build_detect_batch_files`] кличе її, коли виклик НЕ дав явного `files`
+/// (full-прогін), а контрибуція концерну не дає з чого побудувати batch:
+/// або її взагалі немає у `describe().concerns`, або вона `per-file` БЕЗ
+/// жодного glob-патерну.
+///
+/// # Чому помилка, а не мовчазний `Vec::new()` (§2.65)
+///
+/// Мовчазний порожній batch тут — рівно та вада, яку
+/// [`ambiguous_empty_fix_batch_err`] (§2.52) зробила гучною на fix-боці, лише
+/// на detect-боці й тому вдвічі підступніша: гість отримує нуль файлів,
+/// повертає нуль діагностик, і концерн звітує «чисто» — прогін ЗЕЛЕНИЙ, хоча
+/// не перевірено нічого. До §2.65 сюди мовчки провалювався КОЖЕН
+/// `per-file`-концерн у `--full` (девʼять контрибуцій у чотирьох гостях):
+/// гілка `_ => Vec::new()` не розрізняла «нема що читати» і «хост не зумів
+/// побудувати список».
+///
+/// # Що НЕ є цим станом
+///
+/// - `per-file` з непорожнім glob-ом — штатний full-прогін
+///   ([`build_full_scope_files`], та сама гілка, що `scope: Full`);
+/// - `scope: Full` з ПОРОЖНІМ glob-ом — свідома декларація «канон не читає
+///   з диска нічого перед спавном» (`js/jscpd_duplicates`,
+///   `crates/plugin-lang-js/plugin.toml`): порожній batch там — заявлений
+///   намір гостя, не прогалина хоста;
+/// - glob, що не зматчив жодного файлу в конкретному репо — чесна відповідь
+///   «таких файлів тут немає», не двозначність.
+fn unresolvable_detect_batch_err(key: &str, scope_label: &str, cause: &str) -> Error {
+    Error::from_reason(format!(
+        "runWasmConcern: концерн `{key}` (scope: {scope_label}) — виклик БЕЗ явного списку \
+         `files` (full-прогін, `--full`), і хост не може побудувати detect-batch: {cause}. \
+         Порожній batch тут був би мовчазною брехнею про чистоту: гість не побачив би жодного \
+         файлу, повернув би нуль діагностик, а концерн звітував би «чисто» (та сама вада, що \
+         на fix-боці зробила гучною ambiguous_empty_fix_batch_err). Полагодити можна двома \
+         способами: задекларувати `glob` контрибуції (`plugin.toml` + `build_manifest()` \
+         плагіна) або передати явний список файлів четвертим аргументом runWasmConcern. \
+         Див. доккомент build_detect_batch_files (crates/rules-napi/src/lib.rs) і §2.65 \
+         docs/plans/2026-08-05-open-questions-register.md."
+    ))
+}
+
+/// Batch full-прогону детекту (`files: None`) — резолв за задекларованою
+/// контрибуцією концерну, СПІЛЬНИЙ для `scope: Full` і `scope: per-file`
+/// (§2.65).
+///
+/// # Чому `per-file` резолвиться так само, як `full` (а на fix-боці — НІ)
+///
+/// `--full` для `per-file`-концерну означає рівно «перевір КОЖЕН файл, який
+/// підпадає під glob цього концерну» — саме це JS-канон і робив завжди
+/// (`ctx.files === undefined` → детектор обходить репо сам). Розширення
+/// batch-у за межі дельти тут БЕЗПЕЧНЕ, бо detect — read-only: він нічого не
+/// пише, лише звітує. На fix-боці той самий glob-обхід був би НЕбезпечним
+/// (він виправляв би файли поза дельтою запиту — доккомент
+/// [`ambiguous_empty_fix_batch_err`], розділ «Чому не мовчазний `Vec::new()`
+/// і не full-scope glob-обхід»), тому там дельту несе окремий аргумент
+/// `delta_files` (§2.53). Асиметрія двох сигнатур — свідома й ось у чому
+/// саме: detect добудовує batch, fix — вимагає дельту.
+///
+/// # Межа: `glob` контрибуції МУСИТЬ покривати й «якорі» концерну
+///
+/// Дельта-планувальник (`rules_core::lint_plan::plan_concern_for_delta`)
+/// доклада́є до per-file batch-у `concern.json.lint.anchors` (`pyproject.toml`
+/// для `python/mypy`/`python/ruff`, `composer.json` для `php/mago_*`) — але
+/// хост їх НЕ знає: WIT-контрибуція несе лише `key`/`scope`/`glob`
+/// (`wit/world.wit`, `record concern-contribution`). Тому гість, чий детектор
+/// вимагає якір у батчі (`batch_file(files, "pyproject.toml")`), МУСИТЬ
+/// внести цей якір у власний `glob` контрибуції — інакше full-прогін дасть
+/// йому .py-файли без `pyproject.toml`, і детектор чесно, але хибно
+/// «пропустить» концерн. §2.65 зробила саме це для чотирьох tool-детекторів;
+/// anti-drift тест кожного гостя звіряє `plugin.toml` з `build_manifest()`.
+fn build_detect_batch_files(
+    cwd: &Path,
+    key: &str,
+    contribution: Option<&ConcernContribution>,
+) -> Result<Vec<SourceFile>> {
+    let Some(contribution) = contribution else {
+        return Err(unresolvable_detect_batch_err(
+            key,
+            "не заявлений у describe().concerns",
+            "плагін узагалі не декларує контрибуцію з таким ключем, тож ні glob, ні scope \
+             хосту невідомі",
+        ));
+    };
+    if !contribution.glob.is_empty() {
+        return Ok(build_full_scope_files(cwd, &contribution.glob));
+    }
+    if contribution.scope == ConcernScope::Full {
+        // Заявлений намір гостя (`js/jscpd_duplicates`), не прогалина —
+        // доккомент [`unresolvable_detect_batch_err`], розділ «Що НЕ є цим
+        // станом».
+        return Ok(Vec::new());
+    }
+    Err(unresolvable_detect_batch_err(
+        key,
+        &format!("{:?}", contribution.scope),
+        "контрибуція `per-file` не декларує жодного glob-патерну, тож хост не має з чого \
+         зібрати повний список файлів",
+    ))
+}
+
 /// Синтезує `FileEdit`-и з різниці "до/після" знімків диска — host-side
 /// захист для **exec-tool-фіксерів**: гість спавнить зовнішній процес
 /// (`ruff`, `eslint`, `cargo fix` тощо), який сам мутує файли на диску
@@ -751,12 +851,12 @@ fn ambiguous_empty_fix_batch_err(key: &str, scope_label: &str, diagnostics_count
 /// - `key` — `ruleId/concernId`, передається як `detect-batch.concern-id`.
 /// - `cwd` — абсолютний корінь consumer-репо (звідки резолвляться `files`).
 /// - `files` — `Some(...)` → posix-relative шляхи файлів для детекції
-///   (per-file dispatch, [`read_source_files`]); `None` → full-scope: хост
+///   (per-file dispatch, [`read_source_files`]); `None` → full-прогін: хост
 ///   сам будує batch за `ConcernContribution::glob` задекларованого
-///   концерну ([`build_full_scope_files`]) — концерн БЕЗ `scope: Full` (чи
-///   не задекларований у `manifest.concerns` узагалі) отримує порожній
-///   batch (той самий skip-not-crash дух, що решта контракту: невідповідна
-///   контрибуція не панікує, просто нічого не аналізує).
+///   концерну ([`build_detect_batch_files`]) — НЕЗАЛЕЖНО від
+///   `scope` (§2.65: до фіксу `per-file`-концерн діставав тут порожній
+///   batch і мовчки звітував «чисто» в `--full`), а нерозвʼязна
+///   контрибуція падає типізованою помилкою, не тишею.
 /// - `tool_paths` — опційна мапа «ім'я тула → абсолютний шлях» (задача N1,
 ///   рішення Д спеки): JS-бік будує її через ensure-tool контур із
 ///   `manifest.tools` ([`wasm_plugin_manifest`]) ДО цього виклику;
@@ -1034,12 +1134,7 @@ pub fn run_wasm_concern(
                     .iter()
                     .find(|c| c.key == key)
                     .cloned();
-                match contribution {
-                    Some(c) if c.scope == ConcernScope::Full => {
-                        build_full_scope_files(&cwd_path, &c.glob)
-                    }
-                    _ => Vec::new(),
-                }
+                build_detect_batch_files(&cwd_path, &key, contribution.as_ref())?
             }
         };
         let batch = DetectBatch {
@@ -1475,5 +1570,181 @@ mod tests {
             err.to_string().contains("delta_files"),
             "повідомлення має підказати штатний шлях: {err}"
         );
+    }
+
+    // --- run_wasm_concern: full-прогін `per-file`-концерну (§2.65) ---
+    //
+    // ДО фіксу гілка `files: None` будувала batch ЛИШЕ для `scope: Full`, а
+    // для `per-file` віддавала `Vec::new()` — гість діставав нуль файлів,
+    // повертав нуль діагностик, і концерн у `--full` звітував «чисто»
+    // мовчки. Обидва тести нижче ганяють РЕАЛЬНИЙ `run_wasm_concern` проти
+    // зібраної guest-фікстури (той самий міст, що продакшн-виклик
+    // `detect.mjs`), не ізольований guest-виклик.
+
+    /// Червоно-зелений якір фіксу: `per-file`-концерн З glob-ом
+    /// (`test/guest-detect-per-file-glob`, `**/*.marker`) у full-прогоні
+    /// (`files: None`) МАЄ побачити реальні файли з диска. Непорожній
+    /// результат саме з іменем файлу доводить обхід, а не просто «виклик не
+    /// впав»; `noise.txt` поруч доводить, що обхід відфільтровано glob-ом.
+    /// До §2.65 цей самий виклик повертав `{"violations": []}`.
+    #[test]
+    fn run_wasm_concern_full_run_resolves_per_file_concern_by_glob() {
+        let wasm_path = require_guest_fixture();
+        let cwd = tempfile::tempdir().expect("tmp dir");
+        std::fs::write(cwd.path().join("a.marker"), "BROKEN").expect("a.marker");
+        std::fs::write(cwd.path().join("noise.txt"), "поза glob-ом").expect("noise.txt");
+
+        let result = run_wasm_concern(
+            wasm_path.to_string_lossy().to_string(),
+            "test/guest-detect-per-file-glob".to_string(),
+            cwd.path().to_string_lossy().to_string(),
+            None,
+            None,
+        )
+        .expect("full-прогін per-file концерну має будувати batch, а не падати");
+
+        let violations = result["violations"]
+            .as_array()
+            .expect("`violations` — масив")
+            .clone();
+        assert_eq!(
+            violations.len(),
+            1,
+            "гість echo-ить по одній діагностиці на файл батчу — маємо побачити РІВНО a.marker: {violations:?}"
+        );
+        assert_eq!(violations[0]["file"].as_str(), Some("a.marker"));
+    }
+
+    /// Друга половина того самого фіксу: `per-file` БЕЗ glob-а
+    /// (`test/guest-echo`) хост побудувати не може — і тепер каже це вголос
+    /// замість мовчазного «чисто». Дзеркало
+    /// [`run_wasm_concern_fix_errors_loudly_on_ambiguous_empty_batch`] на
+    /// detect-боці.
+    #[test]
+    fn run_wasm_concern_full_run_errors_loudly_when_batch_unresolvable() {
+        let wasm_path = require_guest_fixture();
+        let cwd = tempfile::tempdir().expect("tmp dir");
+        std::fs::write(cwd.path().join("a.marker"), "BROKEN").expect("a.marker");
+
+        let err = run_wasm_concern(
+            wasm_path.to_string_lossy().to_string(),
+            "test/guest-echo".to_string(),
+            cwd.path().to_string_lossy().to_string(),
+            None,
+            None,
+        )
+        .expect_err("per-file концерн без glob-а у full-прогоні МАЄ падати, не мовчати");
+
+        let message = err.to_string();
+        assert!(
+            message.contains("test/guest-echo"),
+            "повідомлення має називати конкретний концерн: {message}"
+        );
+        assert!(
+            message.contains("glob"),
+            "повідомлення має пояснювати причину (нема glob-а): {message}"
+        );
+    }
+
+    /// Той самий виклик для концерну, якого плагін узагалі не декларує —
+    /// теж гучно (раніше: порожній batch і «чисто»).
+    #[test]
+    fn run_wasm_concern_full_run_errors_loudly_on_unknown_concern() {
+        let wasm_path = require_guest_fixture();
+        let cwd = tempfile::tempdir().expect("tmp dir");
+
+        let err = run_wasm_concern(
+            wasm_path.to_string_lossy().to_string(),
+            "test/no-such-concern".to_string(),
+            cwd.path().to_string_lossy().to_string(),
+            None,
+            None,
+        )
+        .expect_err("незадекларований концерн у full-прогоні МАЄ падати, не мовчати");
+
+        assert!(
+            err.to_string().contains("test/no-such-concern"),
+            "повідомлення має називати конкретний ключ: {err}"
+        );
+    }
+
+    /// Регресія на full-scope шлях: `scope: Full` із НЕПОРОЖНІМ glob-ом
+    /// резолвиться рівно як до фіксу (той самий [`build_full_scope_files`]).
+    #[test]
+    fn run_wasm_concern_full_scope_concern_unchanged() {
+        let wasm_path = require_guest_fixture();
+        let cwd = tempfile::tempdir().expect("tmp dir");
+        std::fs::write(cwd.path().join("a.marker"), "BROKEN").expect("a.marker");
+
+        let result = run_wasm_concern(
+            wasm_path.to_string_lossy().to_string(),
+            "test/guest-fix-full-scope".to_string(),
+            cwd.path().to_string_lossy().to_string(),
+            None,
+            None,
+        )
+        .expect("full-scope концерн має резолвитись, як і до §2.65");
+
+        assert_eq!(result["violations"].as_array().map(Vec::len), Some(1));
+    }
+
+    // --- build_detect_batch_files: одиниця резолву (§2.65) ---
+
+    /// Хелпер контрибуції для тестів нижче.
+    fn contribution(key: &str, scope: ConcernScope, glob: &[&str]) -> ConcernContribution {
+        ConcernContribution {
+            key: key.to_string(),
+            scope,
+            glob: glob.iter().map(|g| (*g).to_string()).collect(),
+        }
+    }
+
+    /// `per-file` з glob-ом резолвиться ТИМ САМИМ обходом, що `full`
+    /// (включно з `.n-rules.json:ignore` — [`build_full_scope_files`]).
+    #[test]
+    fn build_detect_batch_files_per_file_walks_glob() {
+        let dir = fixture_tree_with_vendor_dir();
+        let c = contribution("demo/per-file", ConcernScope::PerFile, &["**/*.txt"]);
+
+        let files =
+            build_detect_batch_files(dir.path(), &c.key, Some(&c)).expect("glob є — batch будується");
+
+        assert_eq!(sorted_paths(&files), vec!["keep.txt", "vendor/skip.txt"]);
+    }
+
+    /// `scope: Full` з ПОРОЖНІМ glob-ом — заявлений намір гостя
+    /// (`js/jscpd_duplicates`), не помилка.
+    #[test]
+    fn build_detect_batch_files_full_scope_empty_glob_stays_empty() {
+        let dir = fixture_tree_with_vendor_dir();
+        let c = contribution("demo/full-no-glob", ConcernScope::Full, &[]);
+
+        let files = build_detect_batch_files(dir.path(), &c.key, Some(&c))
+            .expect("порожній glob full-scope концерну — не помилка");
+
+        assert!(files.is_empty());
+    }
+
+    /// `per-file` з порожнім glob-ом — двозначність, і вона гучна.
+    #[test]
+    fn build_detect_batch_files_per_file_empty_glob_is_loud() {
+        let dir = fixture_tree_with_vendor_dir();
+        let c = contribution("demo/per-file-no-glob", ConcernScope::PerFile, &[]);
+
+        let err = build_detect_batch_files(dir.path(), &c.key, Some(&c))
+            .expect_err("per-file без glob-а — нерозвʼязний batch");
+
+        assert!(err.to_string().contains("demo/per-file-no-glob"));
+    }
+
+    /// Контрибуції немає взагалі — теж гучно.
+    #[test]
+    fn build_detect_batch_files_missing_contribution_is_loud() {
+        let dir = fixture_tree_with_vendor_dir();
+
+        let err = build_detect_batch_files(dir.path(), "demo/unknown", None)
+            .expect_err("невідомий концерн — нерозвʼязний batch");
+
+        assert!(err.to_string().contains("demo/unknown"));
     }
 }

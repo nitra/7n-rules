@@ -46,17 +46,21 @@ scope = "per-file"
 glob = ["**/*.py"]
 
 [[concerns]]
-# `pyproject.toml` до delta-batch-у приносить `lint.anchors` відповідного
+# `pyproject.toml` до DELTA-batch-у приносить `lint.anchors` відповідного
 # `concern.json` (JS-планувальник, plan_concern_for_delta), НЕ цей glob —
 # доккомент `src/lib.rs` перед `build_manifest`, розділ «Per-file + якорі».
+# У FULL-прогоні (`--full`) якорів немає — batch будує хост рівно з цього
+# glob-а (`crates/rules-napi::build_detect_batch_files`, §2.65), тож
+# `pyproject.toml` тут ЯВНО: без нього `prepare_python_run` мовчки
+# повертав би `Skip` на кожному full-прогоні.
 key = "python/mypy"
 scope = "per-file"
-glob = ["**/*.py"]
+glob = ["**/*.py", "pyproject.toml"]
 
 [[concerns]]
 key = "python/ruff"
 scope = "per-file"
-glob = ["**/*.py"]
+glob = ["**/*.py", "pyproject.toml"]
 
 [[concerns]]
 # Друга хвиля (доккомент `src/lib.rs`) — єдиний концерн крейта, що бачить

@@ -238,16 +238,20 @@ export async function runConcernDetector(concern, ctx) {
   const wasmEntry = wasmConcernMap.get(nativeKey)
   if (wasmEntry !== undefined) {
     try {
-      // `ctx.files ?? null` (не `?? []`) — обидва мають різну семантику для
-      // full-scope концернів (задача N2, передумова full-scope мосту):
-      // `undefined` тут означає «дельта-планувальник (`run-detectors.mjs
-      // ::buildFullPlan`/`planConcernForDelta`) не має явного списку файлів
-      // для цього concern-а» — napi-міст (`run_wasm_concern`,
-      // `crates/rules-napi`) розрізняє `None` («host сам будує full-scope
-      // batch за задекларованим glob-ом») від `Some([])` («явно порожній
-      // batch»), тож підміна на `[]` тут зробила б full-scope концерни
-      // мовчки порожніми замість того, щоб дати host-у побудувати batch
-      // самостійно.
+      // `ctx.files ?? null` (не `?? []`) — обидва мають різну семантику
+      // (задача N2, передумова full-scope мосту): `undefined` тут означає
+      // «планувальник (`run-detectors.mjs::buildFullPlan`/
+      // `planConcernForDelta`) не має явного списку файлів для цього
+      // concern-а» — napi-міст (`run_wasm_concern`, `crates/rules-napi`)
+      // розрізняє `None` («host сам будує batch за задекларованим glob-ом
+      // контрибуції — для `scope: full` І для `scope: per-file` однаково,
+      // §2.65») від `Some([])` («явно порожній batch»), тож підміна на `[]`
+      // тут зробила б повний прогін мовчки порожнім замість того, щоб дати
+      // host-у побудувати batch самостійно. Контрибуція, за якою batch
+      // побудувати НЕМОЖЛИВО (немає в `describe().concerns` або `per-file`
+      // без glob-а), тепер дає типізовану помилку napi — її ловить
+      // skip-not-crash нижче й ГУЧНО попереджає, замість мовчазного
+      // «чисто».
       const raw = loadNative().runWasmConcern(
         wasmEntry.wasmPath,
         nativeKey,

@@ -121,10 +121,23 @@ world plugin {
     key: string,
     scope: concern-scope,
     /// Glob-патерни (posix, `**`/`*` — той самий синтаксис, що
-    /// `concern.json.lint.glob`), за якими хост фільтрує whole-repo обхід
-    /// для `scope: full`. Порожній — типовий дефолт для `per-file`
-    /// (JS-оркестрація вже має власний `concern.json.lint.glob` для
-    /// планування дельти, тут дублювати нема потреби).
+    /// `concern.json.lint.glob`), за якими хост фільтрує whole-repo обхід,
+    /// коли виклик не дав явного `files` — для `scope: full` І для
+    /// `scope: per-file` однаково (§2.65
+    /// `docs/plans/2026-08-05-open-questions-register.md`: доти `per-file`
+    /// діставав у `--full` порожній batch і мовчки звітував «чисто»).
+    ///
+    /// Тому для `per-file` це поле НЕ декоративне: воно МУСИТЬ покривати й
+    /// «якорі» концерну (`concern.json.lint.anchors` — `pyproject.toml`,
+    /// `composer.json`), бо у full-прогоні їх ніхто інший у batch не
+    /// покладе (запис `concern-contribution` поля `anchors` не має, а
+    /// JS-планувальник у цьому режимі списку не будує взагалі).
+    ///
+    /// Порожній glob лишається легітимним ЛИШЕ для `scope: full` — як
+    /// заявлений намір «канон не читає з диска нічого» (`js/jscpd_duplicates`,
+    /// `crates/plugin-lang-js/plugin.toml`); порожній у `per-file` хост
+    /// відхиляє типізованою помилкою
+    /// (`crates/rules-napi::build_detect_batch_files`).
     glob: list<string>,
   }
 

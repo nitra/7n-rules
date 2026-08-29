@@ -254,15 +254,14 @@ async function seedRuffConcern(dir) {
             // (`buildLintPlan`, `mode: 'scopedDelta'`) заповнює `item.files`
             // (ціль + якір `pyproject.toml`, доккомент [`seedRuffConcern`]).
             // `full: true` лишає `item.files` НЕВИЗНАЧЕНИМ для per-file
-            // концернів (native `buildLintPlan`, `mode: 'full'`) — той самий
-            // `files: None`, що `run_wasm_concern`/`run_wasm_concern_fix`
-            // (`crates/rules-napi/src/lib.rs`) резолвлять у ПОРОЖНІЙ batch
-            // для НЕ-`Full`-scope концерну (`python/ruff` — `per-file`):
-            // preflight [`prepare_python_run`] бачить батч без
-            // `pyproject.toml` і виходить у `Skip` — той самий гейт, що і
-            // прямий napi-виклик вище без явної дельти. Не помилка
-            // host-diff-інфраструктури цього кроку — існуюча межа
-            // `per-file`-диспетчу в `full`-режимі, поза обсягом пілота.
+            // концернів (native `buildLintPlan`, `mode: 'full'`). ДЕТЕКТ
+            // такий виклик тепер обробляє (§2.65: `run_wasm_concern` будує
+            // batch за glob-ом контрибуції — для `python/ruff` він містить
+            // і `**/*.py`, і якір `pyproject.toml`), а от ФІКС — ні:
+            // `run_wasm_concern_fix` свідомо НЕ розширює batch glob-ом для
+            // `per-file` (виправляв би файли поза дельтою запиту) і вимагає
+            // явну дельту `delta_files` (§2.53). Тому цей пайплайн-тест
+            // лишається delta-режимним: він про fix-контур.
             rules: [RULE_ID],
             files: [PY_REL],
             log: () => {
