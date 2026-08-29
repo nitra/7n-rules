@@ -4043,12 +4043,28 @@ fn build_manifest() -> Manifest {
         // `node_modules/.bin` консюмера з фолбеком на `PATH`). Схема
         // `pinned:` (github-реліз) у цьому компоненті поки не вживана — її
         // споживач `js-run/runtime` (`pinned:conftest`, зріз 7).
+        // §2.86 додала `path:tee` — єдиний тул, чий споживач не детектор, а
+        // фіксер: `js/eslint` кладе ним механічно виправлений вміст на диск
+        // ДО спавну лінтерів (доккомент секції «§2.86»). `bunx` того самого
+        // концерну вже є у списку ([`JSCPD_TOOL`]) — декларації тулів це
+        // множина, не мапа «концерн → тул».
         tools: vec![
             LICENSEE_TOOL.to_string(),
             STYLELINT_TOOL.to_string(),
             JSCPD_TOOL.to_string(),
+            TEE_TOOL.to_string(),
         ],
-        fix_only_concerns: vec![],
+        // §2.86 — перший (і поки єдиний) запис ДРУГОГО списку контрибуцій
+        // мажора `4.0.0`: `js/eslint` віддає гостю ЛИШЕ fix, а detect
+        // лишається за `main.mjs` («вічний JS», доккомент секції «§2.86»).
+        // Ключ у цьому списку НЕ шедоуїть detect — `detect.mjs` читає лише
+        // `concerns`.
+        fix_only_concerns: vec![ConcernContribution {
+            key: CONCERN_JS_ESLINT.to_string(),
+            scope: ConcernScope::PerFile,
+            glob: vec![JS_ESLINT_GLOB.to_string()],
+            fix_glob: vec![],
+        }],
     }
 }
 
@@ -11998,6 +12014,12 @@ fn fix_bun_licensee(request: &FixRequest) -> FixPlan {
 // `js-run/jsconfig/*.rego` для `pinned:conftest`) і перший споживач схеми
 // `pinned:` у цьому компоненті. `js/eslint` і `js/knip` — вічний JS
 // (рішення Є спеки), жодна поверхня цього не змінює.
+//
+// Уточнення §2.86: «вічний JS» стосується ДЕТЕКТУ. T0-ФІКС `js/eslint`
+// портовано — через `fix_only_concerns` мажора `4.0.0` (секція «§2.86»
+// нижче), яка й існує рівно для того, щоб віддати fix, не чіпаючи детект.
+// `js/knip` лишається вічним JS цілком: його канон — programmatic API
+// пакета, а не CLI.
 // =====================================================================
 
 /// Ключ контрибуції `style/lint` (зріз 6 контракту v3.1).
@@ -12167,6 +12189,273 @@ fn fix_style_lint(request: &FixRequest) -> FixPlan {
     // Код виходу ІГНОРУЄТЬСЯ, як і в канону (`await spawnAsync(...)` без
     // перевірки `exitCode`): `stylelint --fix` виходить ненульовим і тоді,
     // коли частину порушень виправив, а частину лишив невиправною.
+    FixPlan { edits: vec![] }
+}
+
+// =====================================================================
+// §2.86 — `js/eslint`: ПЕРШИЙ споживач `fix-only-concerns` (мажор `4.0.0`,
+// §2.84). Портовано РІВНО fix; detect лишається «вічним JS».
+//
+// # Чому fix-only, а не звичайна контрибуція
+//
+// Detect цього концерну стоїть на programmatic API `eslint` (JS-модуль
+// у процесі, не CLI) і на LLM-контурі `agent-fix` — рішення Є спеки
+// `docs/specs/2026-08-01-plugin-contract-v31-surfaces.md` називає його
+// «вічним JS», і жодна поверхня цього не змінює. До мажора `4.0.0`
+// оголосити ключ у `describe().concerns` заради самого лише фіксу було
+// НЕМОЖЛИВО без тихої шкоди: `detect.mjs` (гілка `wasmEntry !== undefined`)
+// ПОВНІСТЮ заміняє `main.mjs` гостем, тобто порт заради фіксу мовчки
+// вимкнув би детект — рівно той тихий зелений, який закрила §2.65. Тому
+// ключ живе у ДРУГОМУ списку маніфеста (`fix_only_concerns`): fix-контур
+// (`loadT0Patterns` → `wasmFixPattern`) читає обидві мапи, `detect.mjs` —
+// лише першу.
+//
+// # Клас фіксера — exec-tool + host-diff (§2.64), як `style/lint`
+//
+// Обидва T0-патерни канону (`fix-eslint.mjs`) портовані ОБИДВА, і це не
+// педантизм: `T0Pattern.guestFix` зупиняє `applyT0` на першому
+// непорожньому плані гостя, тож частковий порт МОВЧКИ вимкнув би
+// невіддану половину JS-канону (пастка, через яку §2.81 свідомо НЕ
+// портувала два CI-концерни). Гість не будує `FixPlan` узагалі — усі три
+// його кроки мутують диск через `exec-tool`, а edits синтезує хост,
+// діфаючи знімок глоба контрибуції до і після `fix()`.
+//
+// # Порядок кроків ПЕРЕВЕРНУТО відносно канону — свідомо
+//
+// Канон: `oxlint --fix` → `eslint --fix` → механічні заміни, причому
+// механічний патерн ЧИТАЄ файл із диска ВЖЕ ПІСЛЯ лінтерів
+// (`readOrNull(abs)`), тобто рядки, пораховані детектором, можуть бути
+// зсунуті — і канон тоді свою заміну мовчки пропускає («файл змінився з
+// моменту detect-у — не гадаємо», його ж доккомент).
+//
+// Гість читати диск ПІСЛЯ `exec-tool` не може в принципі: контракт не має
+// імпорту читання файлу, `scratch-out` збирає лише scratch-каталог, а
+// `fix-request.files` — знімок, зроблений хостом ДО `fix()`. Тому порядок
+// перевернуто: механічні заміни рахуються з `fix-request.files` (рівно той
+// вміст, на якому детектор порахував `data.line` — зсув неможливий за
+// побудовою), лягають на диск ПЕРШИМИ, і вже по них ідуть `oxlint --fix` і
+// `eslint --fix`. Це СТРОГО точніше за канон: зникає його тихий пропуск, а
+// лінтери бачать уже виправлений код.
+//
+// Ціна перевороту — запис механічної правки МУСИТЬ статись усередині
+// `fix()`, до спавну лінтерів, тобто через `exec-tool`, а не через
+// `FixPlan` (план хост застосовує вже ПІСЛЯ повернення з `fix()`). Звідси
+// [`TEE_TOOL`]: `tee -- <file>` зі stdin — найпростіший спосіб покласти
+// готовий вміст на диск у межах наявного контракту. Альтернатива —
+// віддати механічну правку планом, а лінтери НЕ пускати на ці файли —
+// відкинута: `diff_snapshot_edits` не дублює шляхи, які гість назвав сам
+// (`already_covered`), тож план гостя переміг би диск і АНУЛЮВАВ би
+// правки лінтерів на тому самому файлі; а виключення таких файлів зі
+// спавну відклало б їхній autofix у (дорогий) LLM-ладдер. Обидва варіанти
+// гірші за один задекларований `path:`-тул.
+// =====================================================================
+
+/// Ключ fix-only контрибуції `js/eslint` (§2.86) — ЄДИНИЙ запис
+/// `manifest.fix_only_concerns` цього компонента.
+const CONCERN_JS_ESLINT: &str = "js/eslint";
+
+/// Глоб fix-only контрибуції — дослівно `lint.glob` із `concern.json`
+/// концерну. Він же скоуп знімків host-diff
+/// (`ConcernContribution::effective_fix_glob` → порожній `fix_glob` падає
+/// назад на цей). Власного `fix-glob` тут НЕ треба: скоуп фіксу — дельта
+/// ЗАПИТУ (файли, у яких детектор знайшов порушення), а не інший статичний
+/// глоб, тож §2.72 («вузький detect-glob каструє fix») цього концерну не
+/// стосується.
+const JS_ESLINT_GLOB: &str = "**/*.{js,mjs,cjs,jsx,ts,tsx,vue}";
+
+/// Розширення, які канон вважає JS-подібними — дослівний порт `JS_EXT_RE`
+/// (`plugins/lang-js/rules/js/eslint/main.mjs`), що його `filterJsFiles`
+/// застосовує і на detect-, і на fix-боці.
+const JS_ESLINT_EXTENSIONS: [&str; 7] = [".mjs", ".cjs", ".js", ".jsx", ".ts", ".tsx", ".vue"];
+
+/// Декларація тула лінтерів — та сама `path:bunx`, що вже несе
+/// `js/jscpd_duplicates` ([`JSCPD_TOOL`]): канон теж кличе саме
+/// `bunx oxlint` / `bunx eslint`. Свідомо ТОЙ САМИЙ рядок, а не другий
+/// запис у `manifest.tools`: список тулів — множина декларацій, не мапа
+/// «концерн → тул».
+const ESLINT_TOOL: &str = "path:bunx";
+
+/// Декларація тула запису — `tee` з `PATH`. Потрібен рівно для одного:
+/// покласти механічно виправлений вміст на диск ДО спавну лінтерів
+/// (доккомент секції). Не резолвиться — механічні заміни не застосовані,
+/// і про це треба сказати вголос, а не мовчки пропустити.
+const TEE_TOOL: &str = "path:tee";
+
+/// Одна «механічна» текстова заміна — порт запису `MECHANICAL_TEXT_FIXES`
+/// (`fix-eslint.mjs`). `reasons` — обидва формати, якими те саме правило
+/// приходить від двох тулів: eslint (`ruleId`, `plugin/rule`) і oxlint
+/// (`d.code`, `plugin(rule)`).
+struct MechanicalTextFix {
+    reasons: [&'static str; 2],
+    needle: &'static str,
+    replacement: &'static str,
+}
+
+/// Реєстр механічних замін — сьогодні рівно один запис, як і в канону.
+/// `Number.isInteger` не ловить значення поза `Number.MIN/MAX_SAFE_INTEGER`;
+/// `oxlint --fix`/`eslint --fix` цього правила НЕ покривають (у самих тулах
+/// воно suggestion-only), а заміна імені методу на позначеному рядку
+/// однозначна без AST.
+const MECHANICAL_TEXT_FIXES: [MechanicalTextFix; 1] = [MechanicalTextFix {
+    reasons: [
+        "unicorn/prefer-number-is-safe-integer",
+        "unicorn(prefer-number-is-safe-integer)",
+    ],
+    needle: "Number.isInteger",
+    replacement: "Number.isSafeInteger",
+}];
+
+/// Механічна заміна для `reason` діагностики — порт `mechanicalFixFor`.
+fn mechanical_fix_for(reason: &str) -> Option<&'static MechanicalTextFix> {
+    MECHANICAL_TEXT_FIXES
+        .iter()
+        .find(|fix| fix.reasons.contains(&reason))
+}
+
+/// `data.line` діагностики (1-indexed) — те, що `main.mjs` кладе у
+/// `data: { line, tool }`. `None` — поля немає чи воно не число: канон у
+/// такому разі теж нічого не робить (`v.data?.line` у `test`/`apply`).
+fn js_eslint_diagnostic_line(diagnostic: &Diagnostic) -> Option<usize> {
+    let value: serde_json::Value = serde_json::from_str(diagnostic.data.as_deref()?).ok()?;
+    usize::try_from(value.get("line")?.as_u64()?).ok()
+}
+
+/// Чи шлях JS-подібний — порт `filterJsFiles`.
+fn is_js_like_path(path: &str) -> bool {
+    JS_ESLINT_EXTENSIONS
+        .iter()
+        .any(|extension| path.ends_with(extension))
+}
+
+/// Крок 1 фіксера: механічні текстові заміни по рядках, які назвав
+/// детектор, з вмісту `fix-request.files` — і запис результату на диск
+/// через [`TEE_TOOL`] (чому саме так — доккомент секції).
+/// Повертає шляхи, які реально переписано.
+fn apply_js_eslint_mechanical_fixes(request: &FixRequest, targets: &[String]) -> Vec<String> {
+    let mut written = Vec::new();
+    for path in targets {
+        let Some(source) = request.files.iter().find(|file| &file.path == path) else {
+            // Хост не приніс вміст цього файлу (видалений між detect і fix)
+            // — канон тут теж мовчки пропускає (`readOrNull` → `null`).
+            continue;
+        };
+        let mut lines: Vec<String> = source.content.split('\n').map(str::to_string).collect();
+        let mut changed = false;
+        for diagnostic in &request.diagnostics {
+            if diagnostic.file.as_deref() != Some(path.as_str()) {
+                continue;
+            }
+            let Some(fix) = mechanical_fix_for(&diagnostic.reason) else {
+                continue;
+            };
+            let Some(line_no) = js_eslint_diagnostic_line(diagnostic) else {
+                continue;
+            };
+            let Some(index) = line_no.checked_sub(1) else {
+                continue;
+            };
+            let Some(line) = lines.get_mut(index) else {
+                continue;
+            };
+            // Порт «рядок без збігу очікуваного шаблону — пропускаємо, не
+            // гадаємо»: тут він лишається лише як strict-гвардія, бо вміст
+            // — рівно той, на якому рахувався `data.line`.
+            if !line.contains(fix.needle) {
+                continue;
+            }
+            let next = line.replace(fix.needle, fix.replacement);
+            if &next != line {
+                *line = next;
+                changed = true;
+            }
+        }
+        if !changed {
+            continue;
+        }
+        let result = exec_tool(&ToolRequest {
+            tool: TEE_TOOL.to_string(),
+            args: vec!["--".to_string(), path.clone()],
+            stdin: Some(lines.join("\n")),
+            // `None` — корінь репо: `path` posix-relative саме від нього.
+            cwd: None,
+            env: vec![],
+            scratch_in: vec![],
+            scratch_out: vec![],
+        });
+        if result.status == Some(0) {
+            written.push(path.clone());
+        } else {
+            log(
+                LogLevel::Error,
+                &format!(
+                    "plugin-lang-js: fix(js/eslint) — запис механічної заміни у `{path}` через \
+                     `tee` НЕ вдався (status {:?}): {}. Файл лишився невиправленим.",
+                    result.status,
+                    result.stderr.trim()
+                ),
+            );
+        }
+    }
+    written
+}
+
+/// Один спавн лінтера у fix-режимі через `bunx` — `oxlint --fix` /
+/// `eslint --fix`. Код виходу ІГНОРУЄТЬСЯ (як і в канону: обидва лінтери
+/// виходять ненульовим, коли лишились невиправні порушення), а от
+/// «процес не стартував» — гучна помилка: канон тут best-effort мовчав.
+fn run_js_eslint_linter_fix(linter: &str, targets: &[String]) {
+    let mut args = vec![linter.to_string(), "--fix".to_string()];
+    args.extend(targets.iter().cloned());
+    let result = exec_tool(&ToolRequest {
+        tool: ESLINT_TOOL.to_string(),
+        args,
+        stdin: None,
+        cwd: None,
+        env: vec![],
+        scratch_in: vec![],
+        scratch_out: vec![],
+    });
+    if result.status.is_none() {
+        log(
+            LogLevel::Error,
+            &format!(
+                "plugin-lang-js: fix(js/eslint) — `bunx` не резолвиться, `{linter} --fix` НЕ \
+                 виконано, жоден файл цим лінтером не виправлено."
+            ),
+        );
+    }
+}
+
+/// T0-фіксер `js/eslint` — порт ОБОХ патернів `fix-eslint.mjs`
+/// (`js-eslint-autofix` разом із `js-eslint-mechanical-text-fix`), клас
+/// exec-tool із host-diff. Гість повертає ПОРОЖНІЙ план: усі edits синтезує хост,
+/// діфаючи знімок [`JS_ESLINT_GLOB`] до і після виклику.
+///
+/// Цілі беруться з `diagnostics[].file` (`[...new Set(violations.map(v =>
+/// v.file))]` канону), а не з `request.files`: у `lint --full` хост
+/// приносить у `files` ВЕСЬ глоб, і спавн лінтерів по ньому розійшовся б із
+/// каноном, який навіть у повному прогоні фіксить рівно ті файли, де
+/// детектор щось знайшов.
+fn fix_js_eslint(request: &FixRequest) -> FixPlan {
+    let mut targets: Vec<String> = Vec::new();
+    for diagnostic in &request.diagnostics {
+        let Some(path) = diagnostic.file.as_deref() else {
+            continue;
+        };
+        if !is_js_like_path(path) || targets.iter().any(|t| t == path) {
+            continue;
+        }
+        targets.push(path.to_string());
+    }
+    // Порт `if (jsFiles.length === 0) return { touchedFiles: [] }`.
+    if targets.is_empty() {
+        return FixPlan { edits: vec![] };
+    }
+
+    apply_js_eslint_mechanical_fixes(request, &targets);
+    run_js_eslint_linter_fix("oxlint", &targets);
+    run_js_eslint_linter_fix("eslint", &targets);
+
     FixPlan { edits: vec![] }
 }
 
@@ -15205,6 +15494,10 @@ impl Guest for LangJs {
             CONCERN_BUN_LAYOUT => fix_bun_layout(&request),
             CONCERN_BUN_LICENSEE => fix_bun_licensee(&request),
             CONCERN_STYLE_LINT => fix_style_lint(&request),
+            // §2.86 — ЄДИНИЙ концерн, чий ключ приходить сюди з
+            // `fix_only_concerns`, а не з `concerns`: гість дає лише fix,
+            // detect лишається за `main.mjs` (доккомент секції «§2.86»).
+            CONCERN_JS_ESLINT => fix_js_eslint(&request),
             // §2.78: два `vscode_extensions`-концерни — рушій
             // `vscode-ext-add` (union рядків), чотири `package_json` —
             // рушій `createTemplateFixPattern` (deep-merge). Обидва
@@ -19375,6 +19668,33 @@ mod tests {
         assert_eq!(
             declared, runtime_keys,
             "plugin.toml розійшовся з describe() по concerns — синхронізуй маніфест-довідник"
+        );
+
+        // Другий список контрибуцій (мажор `4.0.0`, §2.84; перший запис —
+        // §2.86). Гейт окремий і ТАК САМО точний: ключ, що переїхав із
+        // `concerns` у `fix_only_concerns` (чи навпаки), міняє те, чи
+        // шедоуїться detect — найтихіша з можливих регресій, і збіг лише за
+        // сумарною кількістю її б не спіймав.
+        let mut declared_fix_only: Vec<&str> = manifest
+            .get("fix_only_concerns")
+            .and_then(|v| v.as_array())
+            .expect(
+                "`fix_only_concerns` мусить бути top-level array of tables — якщо він стоїть \
+                 ПІСЛЯ заголовка `[[concerns]]`, TOML читає його як поле останнього концерну",
+            )
+            .iter()
+            .map(|c| c["key"].as_str().expect("`key` — рядок"))
+            .collect();
+        declared_fix_only.sort_unstable();
+        let mut runtime_fix_only: Vec<&str> = runtime
+            .fix_only_concerns
+            .iter()
+            .map(|c| c.key.as_str())
+            .collect();
+        runtime_fix_only.sort_unstable();
+        assert_eq!(
+            declared_fix_only, runtime_fix_only,
+            "plugin.toml розійшовся з describe() по fix_only_concerns"
         );
 
         // `tools` шукається В КОРЕНІ таблиці — сам пошук тут і є перевіркою

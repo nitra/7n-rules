@@ -5982,3 +5982,279 @@ describe('wasm-plugin — size-budget (задача Q3, спека `docs/specs/2
 // AST-порти через той самий `oxc_parser`, концерни В контрибуції `describe()`
 // (production-шлях shadowing-у існує, тому byte-exact parity — обов'язковий
 // гейт, як для решти концернів).
+
+// --- §2.86: `js/eslint` — ПЕРШИЙ споживач `fix-only-concerns` -------------
+//
+// Два твердження, і друге важливіше за перше:
+//
+// 1. fix РЕАЛЬНО їде в гостя — повний T0-цикл через справжній napi-міст
+//    (`runWasmConcernFix`, §2.47/§2.49: прямий виклик гостя тут не довів би
+//    нічого, бо гість повертає ПОРОЖНІЙ план, а edits синтезує host-diff);
+// 2. detect НЕ зашедоуєно — `main.mjs` концерну і далі виконується.
+//
+// Друге — весь сенс мажора `4.0.0`: ключ у `describe().concerns` вимкнув би
+// `main.mjs` МОВЧКИ (`detect.mjs`, гілка `wasmEntry !== undefined`).
+//
+// Тули — фейки, як у `style/lint`: справжні `oxlint`/`eslint` зробили б
+// «однаково недетерміновано» замість «однаково». `tee` — навпаки,
+// НЕ фейк: він і є та поверхня, якою гість кладе механічну заміну на диск,
+// тож підміна його скриптом сховала б рівно те, що тест доводить.
+const JS_ESLINT_CONCERN_KEY = 'js/eslint'
+
+/** Реальний `tee` — `path:`-схема резолвить його по PATH так само. */
+const REAL_TEE_PATH = ['/usr/bin/tee', '/bin/tee'].find(candidate => existsSync(candidate)) ?? '/usr/bin/tee'
+
+/**
+ * Фейковий `bunx`: `$1` — ім'я лінтера (`oxlint`/`eslint`), `$2` —
+ * `--fix`, решта — файли. Дописує маркер у КОЖЕН переданий файл, тож
+ * підсумковий вміст свідчить і про факт спавну, і про ПОРЯДОК кроків
+ * гостя.
+ */
+const FAKE_BUNX_LINTERS = '#!/bin/sh\nlinter="$1"\nshift 2\nfor f in "$@"; do printf \'// %s\\n\' "$linter" >> "$f"; done\nexit 0\n'
+
+/** Діагностика механічного правила — рівно та форма, що її дає `main.mjs` (`data: { line, tool }`). */
+const mechanicalDiagnostic = (file, line) => ({
+  reason: 'unicorn/prefer-number-is-safe-integer',
+  message: 'Prefer `Number.isSafeInteger()` (eslint)',
+  file,
+  severity: 'error',
+  data: { line, tool: 'eslint' }
+})
+
+/** Звичайна (немеханічна) діагностика того ж концерну. */
+const plainDiagnostic = file => ({
+  reason: 'no-unused-vars',
+  message: "'x' is defined but never used (eslint)",
+  file,
+  severity: 'error',
+  data: { line: 1, tool: 'eslint' }
+})
+
+/**
+ * Кладе фейковий `bunx` у tmp-дерево й повертає `toolPaths`, який для схем
+ * `path:bunx`/`path:tee` побудувала б `ensureDeclaredTools`.
+ * @param {string} dir абсолютний шлях tmp-каталогу
+ * @param {string} body тіло фейкового `bunx`
+ * @returns {Promise<Record<string, string>>} мапа `toolPaths`
+ */
+async function installEslintTools(dir, body = FAKE_BUNX_LINTERS) {
+  const { mkdir } = await import('node:fs/promises')
+  const binDir = join(dir, 'fake-bin')
+  await mkdir(binDir, { recursive: true })
+  const bunx = await writeFakeTool(join(binDir, 'bunx'), body)
+  return { bunx, tee: REAL_TEE_PATH }
+}
+
+describe('wasm-plugin — js/eslint T0-фікс через fix-міст (fix-only контрибуція, exec-tool + host-diff)', () => {
+  test('обидва патерни канону: механічна заміна лягає ПЕРЕД лінтерами, host-diff синтезує write', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'a.mjs'), 'export const ok = x => Number.isInteger(x)\n')
+      await writeFile(join(dir, 'untouched.mjs'), 'export const b = 1\n')
+      const toolPaths = await installEslintTools(dir)
+
+      const plan = loadNative().runWasmConcernFix(
+        WASM_PATH,
+        JS_ESLINT_CONCERN_KEY,
+        dir,
+        [mechanicalDiagnostic('a.mjs', 1)],
+        toolPaths,
+        ['a.mjs']
+      )
+
+      // Порядок маркерів — і є доказ послідовності кроків гостя:
+      // `tee` (механічна заміна) → `oxlint --fix` → `eslint --fix`.
+      const expected = 'export const ok = x => Number.isSafeInteger(x)\n// oxlint\n// eslint\n'
+      expect(plan.edits).toEqual([{ type: 'write', path: 'a.mjs', content: expected }])
+      for (const edit of plan.edits)
+        await applyPlanEdit(edit, dir, { cwd: dir, ruleId: 'js', concernId: 'eslint' })
+      expect(await readFile(join(dir, 'a.mjs'), 'utf8')).toBe(expected)
+      // `per-file` контрибуція звузила спавн до дельти: файл поза нею не чіпається.
+      expect(await readFile(join(dir, 'untouched.mjs'), 'utf8')).toBe('export const b = 1\n')
+    })
+  })
+
+  test('немеханічне порушення: гість спавнить лише лінтери, механічного запису немає', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'a.mjs'), 'export const ok = x => Number.isInteger(x)\n')
+      const toolPaths = await installEslintTools(dir)
+
+      const plan = loadNative().runWasmConcernFix(
+        WASM_PATH,
+        JS_ESLINT_CONCERN_KEY,
+        dir,
+        [plainDiagnostic('a.mjs')],
+        toolPaths,
+        ['a.mjs']
+      )
+
+      // `Number.isInteger` лишився: механічна заміна прив'язана до reason-у
+      // діагностики, а не до вмісту рядка (порт `mechanicalFixFor`).
+      expect(plan.edits).toEqual([
+        { type: 'write', path: 'a.mjs', content: 'export const ok = x => Number.isInteger(x)\n// oxlint\n// eslint\n' }
+      ])
+    })
+  })
+
+  test('лінтери нічого не змінили — план порожній, JS-fallback лишається робочим', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'a.mjs'), 'export const b = 1\n')
+      const toolPaths = await installEslintTools(dir, '#!/bin/sh\nexit 0\n')
+
+      const plan = loadNative().runWasmConcernFix(
+        WASM_PATH,
+        JS_ESLINT_CONCERN_KEY,
+        dir,
+        [plainDiagnostic('a.mjs')],
+        toolPaths,
+        ['a.mjs']
+      )
+      expect(plan.edits).toEqual([])
+    })
+  })
+
+  test('жодна діагностика не називає JS-файл — тули не спавняться, план порожній', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'a.mjs'), 'export const b = 1\n')
+      // Скрипт затер би будь-який файл, якби його взагалі запустили.
+      const toolPaths = await installEslintTools(dir)
+
+      const plan = loadNative().runWasmConcernFix(
+        WASM_PATH,
+        JS_ESLINT_CONCERN_KEY,
+        dir,
+        [{ ...plainDiagnostic('README.md') }],
+        toolPaths,
+        ['a.mjs']
+      )
+      expect(plan.edits).toEqual([])
+      expect(await readFile(join(dir, 'a.mjs'), 'utf8')).toBe('export const b = 1\n')
+    })
+  })
+
+  /**
+   * `tee` не резолвиться — механічна заміна НЕ застосована (гість каже це
+   * `LogLevel::Error`), але лінтери все одно відпрацювали. Тест фіксує саме
+   * деградацію, а не «все одно зелено»: у плані видно, що `Number.isInteger`
+   * лишився.
+   */
+  test('tee не резолвиться — механічна заміна відпадає, лінтери працюють далі', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'a.mjs'), 'export const ok = x => Number.isInteger(x)\n')
+      const { bunx } = await installEslintTools(dir)
+
+      const plan = loadNative().runWasmConcernFix(
+        WASM_PATH,
+        JS_ESLINT_CONCERN_KEY,
+        dir,
+        [mechanicalDiagnostic('a.mjs', 1)],
+        { bunx },
+        ['a.mjs']
+      )
+      expect(plan.edits).toEqual([
+        { type: 'write', path: 'a.mjs', content: 'export const ok = x => Number.isInteger(x)\n// oxlint\n// eslint\n' }
+      ])
+    })
+  })
+
+  /**
+   * Повний прогін (`deltaFiles: undefined`): batch хост будує сам глобом
+   * контрибуції — гілка, яка до полагодження `Manifest::fix_contribution`
+   * (`crates/rules-napi`) падала `ambiguous_empty_fix_batch_err`, бо
+   * контрибуцію шукали ЛИШЕ у `describe().concerns`. Цілі при цьому
+   * лишаються з діагностик, як у канону, — `b.mjs` без порушень не
+   * чіпається.
+   */
+  test('повний режим: контрибуція резолвиться з fix_only_concerns, цілі — з діагностик', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'a.mjs'), 'export const ok = x => Number.isInteger(x)\n')
+      await writeFile(join(dir, 'b.mjs'), 'export const b = 1\n')
+      const toolPaths = await installEslintTools(dir)
+
+      const plan = loadNative().runWasmConcernFix(
+        WASM_PATH,
+        JS_ESLINT_CONCERN_KEY,
+        dir,
+        [mechanicalDiagnostic('a.mjs', 1)],
+        toolPaths,
+        undefined
+      )
+
+      expect(plan.edits).toEqual([
+        {
+          type: 'write',
+          path: 'a.mjs',
+          content: 'export const ok = x => Number.isSafeInteger(x)\n// oxlint\n// eslint\n'
+        }
+      ])
+      expect(await readFile(join(dir, 'b.mjs'), 'utf8')).toBe('export const b = 1\n')
+    })
+  })
+})
+
+// --- §2.86: доказ, що detect НЕ зашедоуєно -------------------------------
+//
+// Твердження перевіряється тим самим шляхом, яким ходить прод —
+// `runConcernDetector` (`detect.mjs`), із РЕАЛЬНИМ wasm-плагіном у
+// `.n-rules.json`. Концерн підставляється stub-ом `main.mjs`, що віддає
+// маркерне порушення: якщо гілка `wasmEntry !== undefined` спрацює, stub
+// не виконається взагалі й маркера не буде.
+//
+// Контроль (другий тест) — ТОЙ САМИЙ stub під ключем `vue/tfm-translations`,
+// який у `concerns` Є: там stub мусить бути зашедоуєний. Без контролю
+// перший тест доводив би лише «stub виконався», а не «саме fix-only список
+// шедоуїнг не вмикає».
+describe('wasm-plugin — js/eslint: fix-only контрибуція НЕ шедоуїть detect (§2.86)', () => {
+  const SENTINEL_REASON = 'stub-main-mjs-executed'
+  const STUB_MAIN_MJS =
+    'export async function lint(ctx) {\n' +
+    `  return { violations: [{ reason: '${SENTINEL_REASON}', message: 'stub', file: ctx.files?.[0] ?? null }] }\n` +
+    '}\n'
+
+  /**
+   * Готує stub `main.mjs` для заданого концерну й ганяє `runConcernDetector`
+   * — той самий шлях, яким ходить прод.
+   * @param {string} dir абсолютний шлях tmp-репо (уже з `.n-rules.json` і `a.mjs`)
+   * @param {string} ruleId id правила
+   * @param {string} concernId id концерну
+   * @returns {Promise<{ violations: Array<{ reason: string }> }>} результат детектора
+   */
+  async function detectWithStubMain(dir, ruleId, concernId) {
+    const { mkdir } = await import('node:fs/promises')
+    const concernDir = join(dir, `concern-${ruleId}-${concernId}`)
+    await mkdir(concernDir, { recursive: true })
+    await writeFile(join(concernDir, 'main.mjs'), STUB_MAIN_MJS, 'utf8')
+    const { runConcernDetector } = await import('../detect.mjs')
+    return runConcernDetector({ dir: concernDir }, { cwd: dir, ruleId, concernId, files: ['a.mjs'] })
+  }
+
+  /**
+   * Обидва твердження — в ОДНОМУ tmp-репо навмисно: `resolveWasmConcernMap`
+   * мемоізується за `cwd`, а перший резолв інстанціює ВСІ builtin-компоненти
+   * (`npm/wasm-plugins/builtin-pins.json`) і резолвить їхні тули — секунди,
+   * не мілісекунди. Окремі каталоги платили б цю ціну двічі й упирались у
+   * дефолтний таймаут vitest.
+   *
+   * Контрольне твердження (друге) — не декорація: без нього перше доводило б
+   * лише «stub виконався», а не «саме fix-only список шедоуїнг НЕ вмикає».
+   */
+  test(
+    'main.mjs концерну виконується (js/eslint), а концерн зі списку `concerns` свій main.mjs ТАКИ втрачає',
+    async () => {
+      await withTmpDir(async dir => {
+        await writeFile(
+          join(dir, '.n-rules.json'),
+          JSON.stringify({ wasmPlugins: [{ name: 'lang-js', path: WASM_PATH }] }),
+          'utf8'
+        )
+        await writeFile(join(dir, 'a.mjs'), 'export const b = 1\n', 'utf8')
+
+        const fixOnly = await detectWithStubMain(dir, 'js', 'eslint')
+        expect(fixOnly.violations.map(v => v.reason)).toEqual([SENTINEL_REASON])
+
+        const shadowed = await detectWithStubMain(dir, 'vue', 'tfm-translations')
+        expect(shadowed.violations.map(v => v.reason)).not.toContain(SENTINEL_REASON)
+      })
+    },
+    120_000
+  )
+})
