@@ -221,3 +221,178 @@ fn slots_package_resolves_with_ci_artifact_interface() {
         "descriptor має бути WIT record-ом"
     );
 }
+
+// --- Структурний additive-гейт (§2.83): імен НЕДОСТАТНЬО ------------------
+//
+// `every_v30_world_item_survives_in_current_world` вище звіряє лише ІМЕНА
+// bare-імпортів/експортів. Замір (задача «форма типів контракту»)
+// показав, що цього мало: три різні зміни ФОРМИ типів лишали набір імен
+// незмінним, гейт світився зеленим — і при цьому ЖОДЕН уже піно́ваний гість
+// не інстанціювався поточним хостом. Виміряні відмови wasmtime:
+//
+// | зміна форми                                    | помилка інстанціації           |
+// |------------------------------------------------|--------------------------------|
+// | новий case у `variant file-edit`                 | type-checking export func `fix`: type mismatch for field edits: expected variant of 3 cases, found 2 cases |
+// | нове поле в `record concern-contribution`        | type-checking export func `describe`: type mismatch for field concerns: expected record of 4 fields, found 3 fields |
+// | нове поле в `record manifest`                    | type-checking export func `describe`: expected record of 9 fields, found 8 fields |
+//
+// Component Model НЕ має width-subtyping для record-ів і НЕ приймає variant
+// із меншим числом case-ів там, де хост очікує більше: будь-яка зміна форми
+// типу, що перетинає межу гість↔хост, — MAJOR, не мінор. Цей тест тримає це
+// твердження механічно: кожен іменований тип замороженого world v3.0 має
+// існувати в поточному world-і з ТОЧНО ТІЄЮ Ж структурою (не «сумісною», не
+// «розширеною» — тією ж).
+//
+// Падіння означає «зміна вимагає major-бампу `n-rules:plugin`», а не
+// «оновіть фікстуру».
+
+/// Канонічний рендер типу для порівняння між ДВОМА різними `Resolve`
+/// (індекси арен у них різні, тож `Debug` непридатний).
+///
+/// Іменований тип, що належить самому world-у `plugin`, рендериться ІМЕНЕМ
+/// (його власну структуру звіряє окремий запис мапи); усе інше —
+/// розкривається структурно, тож дрейф типів сусіднього пакета
+/// (`n-rules:slots`, `ci-artifact-descriptor`) теж ловиться.
+fn render_type(resolve: &Resolve, world: wit_parser::WorldId, ty: &wit_parser::Type) -> String {
+    match ty {
+        wit_parser::Type::Id(id) => {
+            let def = &resolve.types[*id];
+            let own_world = matches!(def.owner, wit_parser::TypeOwner::World(w) if w == world);
+            match (&def.name, own_world) {
+                (Some(name), true) => name.clone(),
+                _ => render_typedef(resolve, world, def),
+            }
+        }
+        primitive => format!("{primitive:?}").to_lowercase(),
+    }
+}
+
+/// Канонічний рендер ТІЛА типу — те, що Component Model реально звіряє при
+/// інстанціації: набір і порядок полів record-а, case-ів variant/enum-а,
+/// елементів list/option/result/tuple.
+fn render_typedef(
+    resolve: &Resolve,
+    world: wit_parser::WorldId,
+    def: &wit_parser::TypeDef,
+) -> String {
+    use wit_parser::TypeDefKind;
+    let r = |t: &wit_parser::Type| render_type(resolve, world, t);
+    match &def.kind {
+        TypeDefKind::Record(rec) => {
+            let fields: Vec<String> = rec
+                .fields
+                .iter()
+                .map(|f| format!("{}: {}", f.name, r(&f.ty)))
+                .collect();
+            format!("record {{ {} }}", fields.join(", "))
+        }
+        TypeDefKind::Variant(var) => {
+            let cases: Vec<String> = var
+                .cases
+                .iter()
+                .map(|c| match &c.ty {
+                    Some(t) => format!("{}({})", c.name, r(t)),
+                    None => c.name.clone(),
+                })
+                .collect();
+            format!("variant {{ {} }}", cases.join(", "))
+        }
+        TypeDefKind::Enum(en) => {
+            let cases: Vec<&str> = en.cases.iter().map(|c| c.name.as_str()).collect();
+            format!("enum {{ {} }}", cases.join(", "))
+        }
+        TypeDefKind::Flags(fl) => {
+            let names: Vec<&str> = fl.flags.iter().map(|f| f.name.as_str()).collect();
+            format!("flags {{ {} }}", names.join(", "))
+        }
+        TypeDefKind::Tuple(tup) => {
+            let items: Vec<String> = tup.types.iter().map(r).collect();
+            format!("tuple<{}>", items.join(", "))
+        }
+        TypeDefKind::Option(t) => format!("option<{}>", r(t)),
+        TypeDefKind::List(t) => format!("list<{}>", r(t)),
+        TypeDefKind::Result(res) => format!(
+            "result<{}, {}>",
+            res.ok.as_ref().map(&r).unwrap_or_else(|| "_".to_string()),
+            res.err.as_ref().map(&r).unwrap_or_else(|| "_".to_string())
+        ),
+        // Аліас (`use ... .{descriptor as ci-artifact-descriptor}`) —
+        // розкривається у структуру цілі: дрейф `n-rules:slots` теж ловиться.
+        TypeDefKind::Type(t) => r(t),
+        TypeDefKind::Resource => "resource".to_string(),
+        TypeDefKind::Handle(_) => "handle".to_string(),
+        // Свідомо гучно: нова категорія типів у контракті мусить приїхати
+        // сюди явним рішенням, а не мовчки випасти з гейта.
+        other => panic!(
+            "render_typedef: незнана категорія типу {other:?} — додайте гілку, \
+             інакше структурний гейт мовчки перестане її покривати"
+        ),
+    }
+}
+
+/// Мапа «ім'я типу world-а `plugin` → канонічна структура».
+fn world_type_shapes(dir: PathBuf) -> std::collections::BTreeMap<String, String> {
+    let mut resolve = Resolve::new();
+    let (pkg_id, _) = resolve.push_dir(dir).expect("wit/ парситься");
+    let world_id = *resolve.packages[pkg_id]
+        .worlds
+        .get("plugin")
+        .expect("world `plugin` існує");
+    // Типи, оголошені в тілі world-а, приїжджають у `imports` як
+    // `WorldItem::Type` під `WorldKey::Name` — окремого поля `types` у
+    // `wit_parser::World` немає.
+    let world = &resolve.worlds[world_id];
+    world
+        .imports
+        .iter()
+        .chain(world.exports.iter())
+        .filter_map(|(key, item)| match (key, item) {
+            (wit_parser::WorldKey::Name(name), WorldItem::Type { id, .. }) => Some((
+                name.clone(),
+                render_typedef(&resolve, world_id, &resolve.types[*id]),
+            )),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Кожен іменований тип замороженого world v3.0 присутній у поточному
+/// world-і з ІДЕНТИЧНОЮ структурою — доккомент блоку вище пояснює, чому
+/// «розширена» структура тут НЕ сумісна.
+#[test]
+fn every_v30_type_keeps_its_exact_shape_in_current_world() {
+    let frozen = world_type_shapes(frozen_v30_wit_dir());
+    let current = world_type_shapes(wit_dir());
+
+    // Гейт мусить реально покривати типи межі гість↔хост, а не порожню мапу.
+    for required in [
+        "manifest",
+        "concern-contribution",
+        "file-edit",
+        "diagnostic",
+    ] {
+        assert!(
+            frozen.contains_key(required),
+            "фікстура v3.0 має містити тип `{required}` — інакше гейт його не покриває \
+             (наявні: {:?})",
+            frozen.keys().collect::<Vec<_>>()
+        );
+    }
+
+    for (name, frozen_shape) in &frozen {
+        match current.get(name) {
+            None => panic!(
+                "тип `{name}` був у world v3.0 і зник із поточного — зміна НЕ additive, \
+                 потрібен major-бамп `n-rules:plugin`"
+            ),
+            Some(current_shape) => assert_eq!(
+                current_shape, frozen_shape,
+                "форма типу `{name}` змінилась відносно замороженого world v3.0. \
+                 Component Model не має width-subtyping: уже піно́ваний гість НЕ \
+                 інстанціюється (виміряно — `expected record of N fields, found N-1 fields` / \
+                 `expected variant of N cases, found N-1 cases`). Це MAJOR-зміна \
+                 `n-rules:plugin`, а не мінор; фікстуру НЕ оновлювати"
+            ),
+        }
+    }
+}

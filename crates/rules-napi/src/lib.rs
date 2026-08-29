@@ -552,21 +552,88 @@ pub fn wasm_plugin_manifest(wasm_path: String) -> Result<serde_json::Value> {
     })
 }
 
+/// Типізована помилка «патерн glob-а контрибуції невалідний».
+///
+/// # Чому помилка, а не мовчазний пропуск (той самий клас, що §2.65/§2.72)
+///
+/// До цієї правки обидві гілки нижче стояли як `if let Ok(glob) = …` БЕЗ
+/// `else`: невалідний патерн просто зникав із набору. Наслідок залежить від
+/// того, який саме патерн зник, і жоден із варіантів не видно в логах:
+/// зник include — концерн отримує МЕНШЕ файлів (або нуль, і тоді звітує
+/// «чисто», не перевіривши нічого); зник exclude — БІЛЬШЕ, тобто гість
+/// бачить файли, які канон свідомо відсіює. Обидва — тиха розбіжність із
+/// каноном, рівно та, що §2.65 (`--full` мовчки не перевіряв per-file
+/// концерни) і §2.72 (вузький glob беззвучно каструє fix) робили гучною.
+///
+/// `plugin.toml` і `build_manifest()` гостя — єдине джерело цих патернів,
+/// тож помилка називає патерн дослівно: правити треба там.
+fn invalid_contribution_glob_err(pattern: &str, err: &globset::Error) -> Error {
+    Error::from_reason(format!(
+        "runWasmConcern: патерн `{pattern}` у glob-і контрибуції концерну невалідний ({err}). \
+         Раніше такий патерн мовчки випадав із набору — і скоуп концерну тихо \
+         розходився з каноном в один чи інший бік (менше файлів → «чисто», не \
+         перевіривши нічого; менше виключень → гість бачить те, що канон відсіює). \
+         Патерни оголошує плагін: `plugin.toml` + `build_manifest()` відповідного \
+         крейта. Див. §2.65/§2.72 docs/plans/2026-08-05-open-questions-register.md."
+    ))
+}
+
+/// Типізована помилка «файл у batch-і не UTF-8» (§2.83 реєстру відкритих
+/// питань) — [`read_source_files`] кличе її замість колишнього
+/// `String::from_utf8_lossy`.
+///
+/// # Чому відмова, а не lossy-конверсія (§2.65: тихий скіп — вада)
+///
+/// `source-file.content` у WIT — `string`, тобто **валідний UTF-8**: байтів
+/// контракт не транспортує взагалі. Lossy-конверсія мовчки підміняла кожен
+/// невалідний байт на `U+FFFD` (`EF BF BD`) — і поки цей рядок їхав лише в
+/// `detect`, наслідком був хибний вердикт. Але той самий
+/// [`read_source_files`] годує ОБИДВА знімки host-diff-у
+/// (`before_snapshot`/`after_snapshot` у [`run_wasm_concern_fix`]), а
+/// [`diff_snapshot_edits`] синтезує з них `FileEdit::Write` — тобто для
+/// файлу, що потрапив у glob контрибуції і був змінений exec-tool-ом,
+/// хост записав би на диск НЕ те, що там лежить, а покалічений lossy-рядок:
+/// 12 байтів PNG-сигнатури перетворюються на 18 байтів мозаїки, файл
+/// знищено. Регрес — `read_source_files_rejects_non_utf8_file` і
+/// `host_diff_snapshot_rejects_non_utf8_file` нижче.
+///
+/// Сьогодні жодна контрибуція бінарного глоба не має
+/// (`crates/plugin-*/plugin.toml` — лише `*.yml`/`*.vue`/`*.test.mjs` тощо),
+/// тож ця відмова не змінює жодного чинного прогону: вона стріляє рівно
+/// тоді, коли новий концерн заявить glob, що зачіпає бінарник — і скаже це
+/// вголос, замість зіпсувати файл.
+fn non_utf8_source_file_err(rel: &str, err: &std::string::FromUtf8Error) -> Error {
+    Error::from_reason(format!(
+        "runWasmConcern: файл `{rel}` не є валідним UTF-8 ({err}), а `source-file.content` \
+         контракту `n-rules:plugin` — `string`, не `list<u8>`: байти через цю межу не їдуть. \
+         Раніше тут стояв `String::from_utf8_lossy`, який мовчки підміняв невалідні байти на \
+         U+FFFD — і той самий покалічений вміст ішов у знімки host-diff, з яких синтезується \
+         `FileEdit::Write`, тобто фікс ПЕРЕЗАПИСАВ БИ бінарний файл мозаїкою. Полагодити можна \
+         двома способами: звузити `glob` контрибуції концерну (`plugin.toml` + `build_manifest()` \
+         плагіна), щоб він не зачіпав нетекстові файли, або передати явний список файлів. \
+         Див. доккомент non_utf8_source_file_err (crates/rules-napi/src/lib.rs) і §2.83 \
+         docs/plans/2026-08-05-open-questions-register.md."
+    ))
+}
+
 /// Читає `SourceFile` для explicit-переданого списку файлів (per-file
-/// диспатч, чи будь-який виклик, де caller уже знає, які файли передати) —
-/// utf8-lossy; відсутній/нечитаний файл пропускається — та сама поведінка,
-/// що дав би звичайний filesystem-обхід.
-fn read_source_files(cwd: &Path, files: Vec<String>) -> Vec<SourceFile> {
-    files
-        .into_iter()
-        .filter_map(|rel| {
-            let abs = cwd.join(&rel);
-            std::fs::read(&abs).ok().map(|bytes| SourceFile {
-                path: rel,
-                content: String::from_utf8_lossy(&bytes).into_owned(),
-            })
-        })
-        .collect()
+/// диспатч, чи будь-який виклик, де caller уже знає, які файли передати).
+/// Відсутній/нечитаний файл пропускається — та сама поведінка, що дав би
+/// звичайний filesystem-обхід; а от файл, що існує й прочитався, але НЕ є
+/// валідним UTF-8, — гучна відмова ([`non_utf8_source_file_err`]), не
+/// lossy-підміна байтів.
+fn read_source_files(cwd: &Path, files: Vec<String>) -> Result<Vec<SourceFile>> {
+    let mut out = Vec::new();
+    for rel in files {
+        let abs = cwd.join(&rel);
+        let Ok(bytes) = std::fs::read(&abs) else {
+            continue;
+        };
+        let content =
+            String::from_utf8(bytes).map_err(|err| non_utf8_source_file_err(&rel, &err))?;
+        out.push(SourceFile { path: rel, content });
+    }
+    Ok(out)
 }
 
 /// Full-scope батч (задача N2, передумова full-scope мосту): коли виклик не
@@ -605,27 +672,27 @@ fn read_source_files(cwd: &Path, files: Vec<String>) -> Vec<SourceFile> {
 /// латентним). Мовчазне розширення detect-скоупу — рівно той клас тихої
 /// розбіжності з каноном, що §2.65/§2.72 робили гучним, тому семантика
 /// додана тут, у хості, а не обходиться в кожному гості окремо.
-fn build_full_scope_files(cwd: &Path, glob_patterns: &[String]) -> Vec<SourceFile> {
+fn build_full_scope_files(cwd: &Path, glob_patterns: &[String]) -> Result<Vec<SourceFile>> {
     let mut builder = globset::GlobSetBuilder::new();
     let mut exclude_builder = globset::GlobSetBuilder::new();
     let mut has_excludes = false;
     for pattern in glob_patterns {
         match pattern.strip_prefix('!') {
             Some(negated) => {
-                if let Ok(glob) = globset::Glob::new(negated) {
-                    exclude_builder.add(glob);
-                    has_excludes = true;
-                }
+                let glob = globset::Glob::new(negated)
+                    .map_err(|e| invalid_contribution_glob_err(pattern, &e))?;
+                exclude_builder.add(glob);
+                has_excludes = true;
             }
             None => {
-                if let Ok(glob) = globset::Glob::new(pattern) {
-                    builder.add(glob);
-                }
+                let glob = globset::Glob::new(pattern)
+                    .map_err(|e| invalid_contribution_glob_err(pattern, &e))?;
+                builder.add(glob);
             }
         }
     }
     let Ok(set) = builder.build() else {
-        return Vec::new();
+        return Ok(Vec::new());
     };
     let excludes = if has_excludes {
         exclude_builder.build().ok()
@@ -724,7 +791,7 @@ fn build_detect_batch_files(
         ));
     };
     if !contribution.glob.is_empty() {
-        return Ok(build_full_scope_files(cwd, &contribution.glob));
+        return build_full_scope_files(cwd, &contribution.glob);
     }
     if contribution.scope == ConcernScope::Full {
         // Заявлений намір гостя (`js/jscpd_duplicates`), не прогалина —
@@ -1028,7 +1095,7 @@ pub fn run_wasm_concern_fix(
         let files = if target_files.is_empty() {
             match &contribution {
                 Some(c) if c.scope == ConcernScope::Full => {
-                    build_full_scope_files(&cwd_path, &c.glob)
+                    build_full_scope_files(&cwd_path, &c.glob)?
                 }
                 _ if diagnostics.is_empty() => Vec::new(),
                 // Явна дельта викликача (`delta_files`) — рішення (б)
@@ -1062,16 +1129,15 @@ pub fn run_wasm_concern_fix(
                 // голосно (нижче), бо «дельта є, але порожня» — це стан
                 // викликача, а не заявлений full-прогін.
                 _ => match delta_files.as_deref() {
-                    Some(delta) if !delta.is_empty() => read_source_files(&cwd_path, delta.to_vec()),
-                    None if contribution
-                        .as_ref()
-                        .is_some_and(|c| !c.glob.is_empty()) =>
-                    {
+                    Some(delta) if !delta.is_empty() => {
+                        read_source_files(&cwd_path, delta.to_vec())?
+                    }
+                    None if contribution.as_ref().is_some_and(|c| !c.glob.is_empty()) => {
                         let glob = contribution
                             .as_ref()
                             .map(|c| c.glob.clone())
                             .unwrap_or_default();
-                        build_full_scope_files(&cwd_path, &glob)
+                        build_full_scope_files(&cwd_path, &glob)?
                     }
                     _ => {
                         let scope_label = contribution
@@ -1087,7 +1153,7 @@ pub fn run_wasm_concern_fix(
                 },
             }
         } else {
-            read_source_files(&cwd_path, target_files.clone())
+            read_source_files(&cwd_path, target_files.clone())?
         };
         plugin.set_tool_resolver(resolver);
         // Слот `repo-root@1` host-контексту (доккомент `wit/world.wit` біля
@@ -1114,14 +1180,13 @@ pub fn run_wasm_concern_fix(
         // деградує до стану ДО цієї зміни, без нового захисту, але й без
         // регресії.
         let diff_glob: Option<&[String]> = contribution.as_ref().map(|c| c.glob.as_slice());
-        let before_snapshot: HashMap<String, String> = diff_glob
-            .map(|glob| {
-                build_full_scope_files(&cwd_path, glob)
-                    .into_iter()
-                    .map(|f| (f.path, f.content))
-                    .collect()
-            })
-            .unwrap_or_default();
+        let before_snapshot: HashMap<String, String> = match diff_glob {
+            Some(glob) => build_full_scope_files(&cwd_path, glob)?
+                .into_iter()
+                .map(|f| (f.path, f.content))
+                .collect(),
+            None => HashMap::new(),
+        };
 
         let mut plan = plugin
             .fix(&FixRequest {
@@ -1137,7 +1202,7 @@ pub fn run_wasm_concern_fix(
         // порожній, план лишається РІВНО тим, що повернув гість (жодної
         // зміни для вже портованих концернів, напр. `js/doc_comments`).
         if let Some(glob) = diff_glob {
-            let after_snapshot: HashMap<String, String> = build_full_scope_files(&cwd_path, glob)
+            let after_snapshot: HashMap<String, String> = build_full_scope_files(&cwd_path, glob)?
                 .into_iter()
                 .map(|f| (f.path, f.content))
                 .collect();
@@ -1182,7 +1247,7 @@ pub fn run_wasm_concern(
     let resolver = build_tool_resolver(tool_paths);
     let diagnostics = with_loaded_plugin(&wasm_path, |plugin| {
         let source_files = match files {
-            Some(files) => read_source_files(&cwd_path, files),
+            Some(files) => read_source_files(&cwd_path, files)?,
             None => {
                 let contribution = plugin
                     .describe()
@@ -1234,7 +1299,8 @@ mod tests {
                 "pyproject.toml".to_string(),
                 "no-such-anchor.toml".to_string(),
             ],
-        );
+        )
+        .expect("усі файли фікстури — валідний UTF-8");
 
         assert_eq!(files.len(), 1);
         assert_eq!(files[0].path, "pyproject.toml");
@@ -1244,7 +1310,8 @@ mod tests {
     #[test]
     fn read_source_files_all_missing_returns_empty() {
         let dir = tempfile::tempdir().expect("tmp dir");
-        let files = read_source_files(dir.path(), vec!["missing.py".to_string()]);
+        let files = read_source_files(dir.path(), vec!["missing.py".to_string()])
+            .expect("відсутній файл — пропуск, не помилка");
         assert!(files.is_empty());
     }
 
@@ -1283,7 +1350,8 @@ mod tests {
         std::fs::write(dir.path().join(".n-rules.json"), r#"{"ignore":["vendor"]}"#)
             .expect(".n-rules.json");
 
-        let files = build_full_scope_files(dir.path(), &["**/*.txt".to_string()]);
+        let files = build_full_scope_files(dir.path(), &["**/*.txt".to_string()])
+            .expect("усі файли фікстури — валідний UTF-8");
 
         assert_eq!(sorted_paths(&files), vec!["keep.txt"]);
     }
@@ -1294,7 +1362,8 @@ mod tests {
     fn build_full_scope_files_without_config_matches_everything() {
         let dir = fixture_tree_with_vendor_dir();
 
-        let files = build_full_scope_files(dir.path(), &["**/*.txt".to_string()]);
+        let files = build_full_scope_files(dir.path(), &["**/*.txt".to_string()])
+            .expect("усі файли фікстури — валідний UTF-8");
 
         assert_eq!(sorted_paths(&files), vec!["keep.txt", "vendor/skip.txt"]);
     }
@@ -1312,9 +1381,46 @@ mod tests {
         let files = build_full_scope_files(
             dir.path(),
             &["**/*.txt".to_string(), "!vendor/**".to_string()],
-        );
+        )
+        .expect("усі файли фікстури — валідний UTF-8");
 
         assert_eq!(sorted_paths(&files), vec!["keep.txt"]);
+    }
+
+    /// Невалідний патерн у glob-і контрибуції — ГУЧНА відмова, не мовчазний
+    /// пропуск. До §2.83 обидві гілки стояли як `if let Ok(glob) = …` без
+    /// `else`, тож зіпсований патерн просто зникав із набору, а скоуп
+    /// концерну тихо розходився з каноном (той самий клас, що §2.65/§2.72).
+    /// Перевіряються ОБИДВІ гілки — include і `!`-exclude — бо кожна мала
+    /// власний мовчазний `if let`.
+    #[test]
+    fn build_full_scope_files_rejects_invalid_glob_pattern_loudly() {
+        let dir = fixture_tree_with_vendor_dir();
+
+        for pattern in ["**/*.{txt", "!**/*.{txt"] {
+            let err = build_full_scope_files(dir.path(), &[pattern.to_string()])
+                .expect_err("невалідний патерн мусить впасти, а не зникнути з набору");
+            let text = err.to_string();
+            assert!(
+                text.contains(pattern),
+                "помилка мусить називати патерн: {text}"
+            );
+        }
+    }
+
+    /// Валідний патерн поруч із невалідним НЕ рятує: набір або повний, або
+    /// помилка. Інакше «часткове» звуження скоупу лишалось би тихим — рівно
+    /// те, що ця правка й закриває.
+    #[test]
+    fn build_full_scope_files_rejects_invalid_pattern_even_among_valid_ones() {
+        let dir = fixture_tree_with_vendor_dir();
+
+        let err = build_full_scope_files(
+            dir.path(),
+            &["**/*.txt".to_string(), "**/*.{md".to_string()],
+        )
+        .expect_err("один зіпсований патерн валить увесь набір");
+        assert!(err.to_string().contains("**/*.{md"));
     }
 
     /// Побитий JSON у `.n-rules.json` — tolerant-парсинг
@@ -1326,7 +1432,8 @@ mod tests {
         let dir = fixture_tree_with_vendor_dir();
         std::fs::write(dir.path().join(".n-rules.json"), "{ not: json").expect(".n-rules.json");
 
-        let files = build_full_scope_files(dir.path(), &["**/*.txt".to_string()]);
+        let files = build_full_scope_files(dir.path(), &["**/*.txt".to_string()])
+            .expect("усі файли фікстури — валідний UTF-8");
 
         assert_eq!(sorted_paths(&files), vec!["keep.txt", "vendor/skip.txt"]);
     }
@@ -1345,7 +1452,8 @@ mod tests {
         )
         .expect(".n-rules.json");
 
-        let files = build_full_scope_files(dir.path(), &["**/*.txt".to_string()]);
+        let files = build_full_scope_files(dir.path(), &["**/*.txt".to_string()])
+            .expect("усі файли фікстури — валідний UTF-8");
 
         assert_eq!(sorted_paths(&files), vec!["keep.txt", "vendor/skip.txt"]);
     }
@@ -1499,7 +1607,11 @@ mod tests {
 
         let plan = result.expect("per-file з glob-ом і без дельти — full-прогін, не двозначність");
         let edits = plan["edits"].as_array().expect("edits — масив");
-        assert_eq!(edits.len(), 1, "glob-обхід мав знайти marker-файл: {plan:?}");
+        assert_eq!(
+            edits.len(),
+            1,
+            "glob-обхід мав знайти marker-файл: {plan:?}"
+        );
         assert_eq!(edits[0]["path"], "broken.marker");
         assert_eq!(edits[0]["content"], "FIXED content");
     }
@@ -1850,8 +1962,8 @@ mod tests {
         let dir = fixture_tree_with_vendor_dir();
         let c = contribution("demo/per-file", ConcernScope::PerFile, &["**/*.txt"]);
 
-        let files =
-            build_detect_batch_files(dir.path(), &c.key, Some(&c)).expect("glob є — batch будується");
+        let files = build_detect_batch_files(dir.path(), &c.key, Some(&c))
+            .expect("glob є — batch будується");
 
         assert_eq!(sorted_paths(&files), vec!["keep.txt", "vendor/skip.txt"]);
     }
@@ -1890,5 +2002,67 @@ mod tests {
             .expect_err("невідомий концерн — нерозвʼязний batch");
 
         assert!(err.to_string().contains("demo/unknown"));
+    }
+
+    // --- не-UTF8 файл у batch-і: гучна відмова, не lossy-калічення (§2.83) --
+    //
+    // Доккомент [`non_utf8_source_file_err`] пояснює клас вади: до фіксу
+    // `String::from_utf8_lossy` мовчки підміняв кожен невалідний байт на
+    // U+FFFD, і той самий покалічений рядок ішов у ОБИДВА знімки host-diff
+    // (`before_snapshot`/`after_snapshot`), з яких [`diff_snapshot_edits`]
+    // синтезує `FileEdit::Write` — фікс переписав би бінарний файл мозаїкою.
+    // Заміряно: 12 байтів PNG-сигнатури → 18 байтів `EF BF BD`-мозаїки.
+
+    /// Байти, що НЕ є валідним UTF-8, — сигнатура PNG плюс `FF FE`.
+    const NON_UTF8_BYTES: &[u8] = &[
+        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0xFF, 0xFE, 0x00, 0x41,
+    ];
+
+    /// Явний список файлів (per-file диспатч): не-UTF8 файл — типізована
+    /// помилка з назвою файлу, а не мовчазний `SourceFile` з U+FFFD.
+    #[test]
+    fn read_source_files_rejects_non_utf8_file() {
+        let dir = tempfile::tempdir().expect("tmp dir");
+        std::fs::write(dir.path().join("logo.png"), NON_UTF8_BYTES).expect("запис бінарника");
+
+        let err = read_source_files(dir.path(), vec!["logo.png".to_string()])
+            .expect_err("не-UTF8 файл мусить відмовляти гучно, а не калічитись lossy-конверсією");
+
+        let text = err.to_string();
+        assert!(text.contains("logo.png"), "{text}");
+        assert!(text.contains("UTF-8"), "{text}");
+    }
+
+    /// Той самий шлях, яким живиться host-diff fix-контуру
+    /// ([`run_wasm_concern_fix`], `before_snapshot`/`after_snapshot`):
+    /// бінарник, що потрапив у glob контрибуції, зупиняє прогін гучно —
+    /// саме тут раніше народжувався `FileEdit::Write` з покаліченим вмістом,
+    /// який знищив би файл на диску.
+    #[test]
+    fn host_diff_snapshot_rejects_non_utf8_file() {
+        let dir = tempfile::tempdir().expect("tmp dir");
+        std::fs::write(dir.path().join("keep.txt"), "текст").expect("запис текстового");
+        std::fs::write(dir.path().join("logo.png"), NON_UTF8_BYTES).expect("запис бінарника");
+
+        let err = build_full_scope_files(dir.path(), &["**/*".to_string()])
+            .expect_err("бінарник у glob-і знімку host-diff мусить відмовляти гучно");
+
+        assert!(err.to_string().contains("logo.png"), "{err}");
+    }
+
+    /// Межа фіксу: текстовий файл із багатобайтовими символами (кирилиця,
+    /// емодзі) — валідний UTF-8 і проходить БЕЗ змін, байт-у-байт. Інакше
+    /// «гучна відмова» перетворилась би на відмову від нормальної роботи.
+    #[test]
+    fn read_source_files_keeps_multibyte_utf8_intact() {
+        let dir = tempfile::tempdir().expect("tmp dir");
+        let content = "кирилиця, емодзі 🙂, ще й ß\n";
+        std::fs::write(dir.path().join("text.md"), content).expect("запис тексту");
+
+        let files = read_source_files(dir.path(), vec!["text.md".to_string()])
+            .expect("валідний UTF-8 не мав відмовити");
+
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].content, content);
     }
 }
