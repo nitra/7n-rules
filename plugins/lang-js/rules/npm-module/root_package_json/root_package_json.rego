@@ -24,5 +24,5 @@ deny contains msg if {
 	actual_set := {v | some v in input[field]}
 	some required in expected_values
 	not required in actual_set
-	msg := sprintf("package.json: %s має містити %q (npm-module.mdc)", [field, required])
+	msg := sprintf("package.json: %s має містити \"%v\" (npm-module.mdc)", [field, required])
 }

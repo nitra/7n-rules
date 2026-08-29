@@ -19,7 +19,7 @@ deny contains msg if {
 	some leaf_key, expected_value in expected_inner
 	actual := object.get(cfg, leaf_key, null)
 	actual != expected_value
-	msg := sprintf("package.json: %s.%s має бути %q (style.mdc)", [section, leaf_key, expected_value])
+	msg := sprintf("package.json: %s.%s має бути \"%v\" (style.mdc)", [section, leaf_key, expected_value])
 }
 
 # ── deny: @nitra/stylelint-config у devDependencies (inverse) ────────────

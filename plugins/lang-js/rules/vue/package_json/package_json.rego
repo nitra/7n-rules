@@ -33,7 +33,7 @@ deny contains msg if {
 	vite_in_dev_dependencies
 	not vite_major_at_least_8
 	vite_range := input.devDependencies.vite
-	msg := sprintf("Vue-пакет: vite має бути >= 8 (зараз %q) (vue.mdc)", [vite_range])
+	msg := sprintf("Vue-пакет: vite має бути >= 8 (зараз \"%v\") (vue.mdc)", [vite_range])
 }
 
 deny contains msg if {
@@ -42,7 +42,7 @@ deny contains msg if {
 	vite_major_at_least_8
 	not vite_at_least_8_1
 	vite_range := input.devDependencies.vite
-	msg := sprintf("Vue-пакет: vite має бути >= 8.1 (зараз %q) (vue.mdc)", [vite_range])
+	msg := sprintf("Vue-пакет: vite має бути >= 8.1 (зараз \"%v\") (vue.mdc)", [vite_range])
 }
 
 deny contains msg if {
