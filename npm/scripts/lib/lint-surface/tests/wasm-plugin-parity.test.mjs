@@ -83,7 +83,7 @@
  */
 import { existsSync } from 'node:fs'
 import { chmod, readFile, writeFile } from 'node:fs/promises'
-import { delimiter, dirname, join } from 'node:path'
+import { delimiter, dirname, join, sep } from 'node:path'
 import { env } from 'node:process'
 import { pathToFileURL } from 'node:url'
 
@@ -152,30 +152,22 @@ const STRYKER_CONFIG_CONCERN_KEY = 'test/stryker_config'
 // `crates/plugin-lang-js/src/lib.rs` (вшитий канон oxlint + рефакторинг
 // рішення Ґ, через який `knip.json` став спостережуваним порушенням).
 const JS_CHECK_CONCERN_KEY = 'js/check'
-// T0-фіксер `js/check` (`fix-check.mjs`) — JS-канон детектора (`main.mjs`)
-// УЖЕ видалено (доккомент модуля, «ЕТАЛОН, НЕ ЖИВИЙ КАНОН» — case видалення
-// разом із портом детекту), тож violations для fix-parity беруться НЕ з
-// `goldenJs`, а напряму з `runWasmConcern` (доведена парність детекту
-// [`runJsCheckBoth`] вище робить це коректним джерелом — той самий шлях, яким
-// `applyT0` реально живиться в проді, бо JS-детектора для `js/check` більше
-// немає). Фіксер (`fix-check.mjs`) НЕ видалено — лишається живим каноном,
-// як `fix-doc_comments.mjs` для зрізу 4 нижче.
-const JS_CHECK_DIR = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'js', 'check')
-const JS_CHECK_FIX_MJS_PATH = join(JS_CHECK_DIR, 'fix-check.mjs')
+// T0-фіксер `js/check` — JS-канон детектора (`main.mjs`) УЖЕ видалено
+// (доккомент модуля, «ЕТАЛОН, НЕ ЖИВИЙ КАНОН» — case видалення разом із
+// портом детекту), тож violations для fix-тестів беруться НЕ з `goldenJs`,
+// а напряму з `runWasmConcern` (доведена парність детекту [`runJsCheckBoth`]
+// вище робить це коректним джерелом — той самий шлях, яким `applyT0`
+// реально живиться в проді). §2.93 зняла й канон ФІКСУ (`fix-check.mjs` +
+// `eslint-config.mjs`), тож шлях до нього більше не потрібен нікому.
 // T0-фіксер `js-run/runtime` (`js-run-jsconfig-create`, доккомент біля
 // `fix_js_run_runtime` у `crates/plugin-lang-js/src/lib.rs`) — той самий
 // full-scope fallback шлях `run_wasm_concern_fix`, що `js/check` (жодна
 // діагностика цього концерну не несе `file`), тож пряме тестування гостя
 // цю гілку НЕ доводить (§2.47/§2.49 реєстру) — describe нижче ганяє
 // РЕАЛЬНИЙ napi-міст (`runWasmConcern` → `runWasmConcernFix`).
-const JS_RUN_RUNTIME_FIX_DIR = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'js-run', 'runtime')
-const JS_RUN_RUNTIME_FIX_MJS_PATH = join(JS_RUN_RUNTIME_FIX_DIR, 'fix-runtime.mjs')
 // Зріз 4 контракту v3.1: `js/doc_comments` — секція «Зріз 4» у
-// `crates/plugin-lang-js/src/lib.rs`. На відміну від решти зрізів, тут у
-// парі беруть участь ДВА JS-модулі: детектор і T0-фіксер (він лишається
-// каноном-fallback-ом, не видаляється як у пілоті `test/no-bun-test-import`).
-const DOC_COMMENTS_DIR = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'js', 'doc_comments')
-const DOC_COMMENTS_FIX_MJS_PATH = join(DOC_COMMENTS_DIR, 'fix-doc_comments.mjs')
+// `crates/plugin-lang-js/src/lib.rs`. Детектор лишається еталонним JS-шаром
+// (`goldenJs`), фіксер §2.93 знято — очікуваний текст T0 тепер літерал.
 const DOC_COMMENTS_CONCERN_KEY = 'js/doc_comments'
 const BUN_LAYOUT_CONCERN_KEY = 'bun/layout'
 const STYLE_TOOLING_CONCERN_KEY = 'style/tooling'
@@ -3633,6 +3625,21 @@ const readOxlintCanonical = async () => {
   )
 }
 
+/**
+ * Канон knip із пакета — той самий файл, що гість вшиває
+ * `KNIP_CANONICAL_JSON` (`include_str!`). §2.93: раніше «очікуваним»
+ * вмістом для fix-тестів був вивід знятого `fix-check.mjs`, який цей файл
+ * копіював; тепер очікуване читається з ДЖЕРЕЛА напряму.
+ * @returns {Promise<string>} вміст `knip-canonical.json`.
+ */
+const readKnipCanonical = async () => {
+  const { readFile } = await import('node:fs/promises')
+  return readFile(
+    join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'js', 'tooling', 'data', 'tooling', 'knip-canonical.json'),
+    'utf8'
+  )
+}
+
 describe('wasm-plugin parity — js/check (JS канон vs wasm plugin-lang-js, зріз 2 контракту v3.1)', () => {
   const runJsCheckBoth = dir => runFullScopeBoth(JS_CHECK_CONCERN_KEY, 'js', 'check', dir)
 
@@ -3873,12 +3880,14 @@ describe('wasm-plugin parity — js/check (JS канон vs wasm plugin-lang-js,
   })
 })
 
-// Зріз 2 контракту v3.1: `js/check` — T0-фіксер (`fix-check.mjs`) parity.
-// Три можливі цільові шляхи ([`JS_CHECK_TARGET_PATHS`]) — `snapshot`/
-// `restore` пара (мотив [`runDocCommentsFixBoth`]: JS-патерни пишуть на
-// РЕАЛЬНИЙ диск, тож перед wasm-планом стан треба повернути до «before»,
-// інакше wasm побачить уже змінені JS-фіксером файли).
-describe('wasm-plugin parity — js/check T0-фікс (JS-канон fix-check.mjs vs wasm plugin-lang-js)', () => {
+// Зріз 2 контракту v3.1: `js/check` — T0-фіксер. §2.93 зняла JS-канон
+// (`fix-check.mjs` + `eslint-config.mjs`), тож набір нижче ПЕРЕПИСАНО зі
+// «звірки двох реалізацій» на «гість = ОЧІКУВАНИЙ результат» (крок 4
+// зразка §2.88): `expect(wasm).toEqual(js)` більше немає, а кожне
+// твердження про вміст, яке раніше висіло на JS-знімку, тепер висить на
+// плані гостя. Жодного твердження при цьому не зникло — вони лише
+// перестали бути транзитивними через канон.
+describe('wasm-plugin — js/check T0-фікс (гість plugin-lang-js — ЄДИНИЙ виконавець, §2.93)', () => {
   const JS_CHECK_TARGET_PATHS = ['eslint.config.js', 'eslint.config.mjs', '.oxlintrc.json', 'knip.json']
 
   /**
@@ -3901,50 +3910,19 @@ describe('wasm-plugin parity — js/check T0-фікс (JS-канон fix-check.m
   }
 
   /**
-   * Повертає цільові файли до знятого знімку — видаляє те, чого не було,
-   * перезаписує те, що було.
-   * @param {string} dir абсолютний шлях tmp-каталогу
-   * @param {Record<string, string|null>} snapshot знімок [`snapshotJsCheckTargets`]
-   */
-  async function restoreJsCheckTargets(dir, snapshot) {
-    const { writeFile: write, rm } = await import('node:fs/promises')
-    for (const rel of JS_CHECK_TARGET_PATHS) {
-      const abs = join(dir, rel)
-      if (snapshot[rel] === null) {
-        await rm(abs, { force: true })
-      } else {
-        await write(abs, snapshot[rel], 'utf8')
-      }
-    }
-  }
-
-  /**
-   * Parity T0-фікса `js/check`: violations беруться напряму з `runWasmConcern`
-   * (доккомент модуля біля [`JS_CHECK_FIX_MJS_PATH`] пояснює, чому НЕ з
-   * `goldenJs` — JS-детектора для `js/check` вже немає), подаються і в усі
-   * три `patterns` `fix-check.mjs` (пише на РЕАЛЬНИЙ диск tmp-каталогу — той
-   * самий канон, що лишається fallback-ом), і в `runWasmConcernFix`
-   * (повертає план). Порівнюється фінальний вміст усіх трьох можливих
-   * цільових шляхів.
+   * T0-фікс `js/check` гостем: violations беруться напряму з
+   * `runWasmConcern` (JS-детектора для `js/check` вже немає), подаються в
+   * `runWasmConcernFix`, і план накладається на знімок «до». Повертає
+   * фінальний вміст усіх чотирьох можливих цільових шляхів.
    * @param {string} dir абсолютний шлях tmp-каталогу з уже записаними фікстурами
-   * @returns {Promise<{ js: Record<string, string|null>, wasm: Record<string, string|null>, violations: unknown[] }>}
-   *   фінальні знімки обох реалізацій і violations, якими обидві живились
+   * @returns {Promise<{ wasm: Record<string, string|null>, violations: unknown[] }>}
+   *   фінальний знімок і violations, якими фікс живився
    */
-  async function runJsCheckFixBoth(dir) {
+  async function runJsCheckFix(dir) {
     const before = await snapshotJsCheckTargets(dir)
     const violations = withDefaultSeverity(
       loadNative().runWasmConcern(WASM_PATH, JS_CHECK_CONCERN_KEY, dir, null).violations
     )
-
-    // eslint-disable-next-line no-unsanitized/method
-    const { patterns } = await import(pathToFileURL(JS_CHECK_FIX_MJS_PATH).href)
-    for (const pattern of patterns) {
-      if (pattern.test(violations)) {
-        await pattern.apply(violations, { cwd: dir, ruleId: 'js', concernId: 'check' })
-      }
-    }
-    const jsAfter = await snapshotJsCheckTargets(dir)
-    await restoreJsCheckTargets(dir, before)
 
     const plan = loadNative().runWasmConcernFix(WASM_PATH, JS_CHECK_CONCERN_KEY, dir, violations, {})
     const wasmAfter = { ...before }
@@ -3954,21 +3932,26 @@ describe('wasm-plugin parity — js/check T0-фікс (JS-канон fix-check.m
       }
     }
 
-    return { js: jsAfter, wasm: wasmAfter, violations }
+    return { wasm: wasmAfter, violations }
   }
 
-  test('порожній репо — T0 створює eslint.config.js, .oxlintrc.json і knip.json ідентично', async () => {
+  test('порожній репо — T0 створює eslint.config.js, .oxlintrc.json і knip.json', async () => {
     await withTmpDir(async dir => {
-      const { js, wasm, violations } = await runJsCheckFixBoth(dir)
+      const { wasm, violations } = await runJsCheckFix(dir)
       expect(violations.map(v => v.reason)).toEqual(['eslint-config-missing', 'oxlintrc-missing', 'knip-missing'])
-      expect(wasm).toEqual(js)
-      expect(js['eslint.config.js']).toContain("import { getConfig } from '@nitra/eslint-config'")
-      expect(js['.oxlintrc.json']).not.toBeNull()
-      expect(js['knip.json']).not.toBeNull()
+      expect(wasm['eslint.config.js']).toContain("import { getConfig } from '@nitra/eslint-config'")
+      expect(wasm['.oxlintrc.json']).not.toBeNull()
+      expect(wasm['knip.json']).not.toBeNull()
+      // Канонічні асети вшито в гостя `include_str!`-ом — фікс мусить дати
+      // РІВНО їх, а не «щось непорожнє» (анти-дрейф джерела).
+      expect(wasm['knip.json']).toBe(await readKnipCanonical())
+      expect(JSON.parse(wasm['.oxlintrc.json']).rules.eqeqeq).toEqual(
+        JSON.parse(await readOxlintCanonical()).rules.eqeqeq
+      )
     })
   })
 
-  test('`.oxlintrc.json` із вирізаним правилом — T0-merge доповнює правило ідентично й зберігає зайве', async () => {
+  test('`.oxlintrc.json` із вирізаним правилом — T0-merge доповнює правило й зберігає зайве', async () => {
     await withTmpDir(async dir => {
       const canonical = JSON.parse(await readOxlintCanonical())
       delete canonical.rules.eqeqeq
@@ -3976,12 +3959,14 @@ describe('wasm-plugin parity — js/check T0-фікс (JS-канон fix-check.m
       await writeFileDeep(dir, 'eslint.config.js', eslintConfigWith("{ node: ['.'] }"))
       await writeFileDeep(dir, '.oxlintrc.json', JSON.stringify(canonical, null, 2))
       await writeFileDeep(dir, 'knip.json', '{}\n')
-      const { js, wasm, violations } = await runJsCheckFixBoth(dir)
+      const { wasm, violations } = await runJsCheckFix(dir)
       expect(violations.some(v => v.reason === 'oxlintrc-drift')).toBe(true)
-      expect(wasm).toEqual(js)
-      const merged = JSON.parse(js['.oxlintrc.json'])
+      const merged = JSON.parse(wasm['.oxlintrc.json'])
       expect(merged.rules.eqeqeq).toEqual(['deny', 'always', { null: 'ignore' }])
       expect(merged.rules['project-specific/no-foo']).toBe('error')
+      // Merge — точковий: сусідні цілі не рухаються.
+      expect(wasm['eslint.config.js']).toBe(eslintConfigWith("{ node: ['.'] }"))
+      expect(wasm['knip.json']).toBe('{}\n')
     })
   })
 
@@ -3990,10 +3975,11 @@ describe('wasm-plugin parity — js/check T0-фікс (JS-канон fix-check.m
       await writeFileDeep(dir, 'eslint.config.js', eslintConfigWith("{ node: ['.'] }"))
       await writeFileDeep(dir, '.oxlintrc.json', await readOxlintCanonical())
       await writeFileDeep(dir, 'knip.json', '{}\n')
-      const { js, wasm, violations } = await runJsCheckFixBoth(dir)
+      const { wasm, violations } = await runJsCheckFix(dir)
       expect(violations).toEqual([])
-      expect(wasm).toEqual(js)
-      expect(js['eslint.config.js']).toBe(eslintConfigWith("{ node: ['.'] }"))
+      expect(wasm['eslint.config.js']).toBe(eslintConfigWith("{ node: ['.'] }"))
+      expect(wasm['.oxlintrc.json']).toBe(await readOxlintCanonical())
+      expect(wasm['knip.json']).toBe('{}\n')
     })
   })
 
@@ -4017,24 +4003,22 @@ describe('wasm-plugin parity — js/check T0-фікс (JS-канон fix-check.m
       )
       await writeFileDeep(dir, '.oxlintrc.json', await readOxlintCanonical())
       await writeFileDeep(dir, 'knip.json', '{}\n')
-      const { js, wasm, violations } = await runJsCheckFixBoth(dir)
+      const { wasm, violations } = await runJsCheckFix(dir)
       expect(violations.some(v => v.reason === 'eslint-config-vue-workspace')).toBe(true)
-      expect(wasm).toEqual(js)
-      expect(js['eslint.config.js']).toContain('// custom header')
-      expect(js['eslint.config.js']).toContain("vue: ['app']")
-      expect(js['eslint.config.js']).not.toContain("node: ['app']")
+      expect(wasm['eslint.config.js']).toContain('// custom header')
+      expect(wasm['eslint.config.js']).toContain("vue: ['app']")
+      expect(wasm['eslint.config.js']).not.toContain("node: ['app']")
     })
   })
 
-  test('`knip.json` уже присутній — T0 не перезаписує чужий вміст в жодній реалізації', async () => {
+  test('`knip.json` уже присутній — T0 не перезаписує чужий вміст', async () => {
     await withTmpDir(async dir => {
       await writeFileDeep(dir, 'eslint.config.js', eslintConfigWith("{ node: ['.'] }"))
       await writeFileDeep(dir, '.oxlintrc.json', await readOxlintCanonical())
       await writeFileDeep(dir, 'knip.json', '{"custom":true}\n')
-      const { js, wasm, violations } = await runJsCheckFixBoth(dir)
+      const { wasm, violations } = await runJsCheckFix(dir)
       expect(violations).toEqual([])
-      expect(wasm).toEqual(js)
-      expect(js['knip.json']).toBe('{"custom":true}\n')
+      expect(wasm['knip.json']).toBe('{"custom":true}\n')
     })
   })
 })
@@ -4078,34 +4062,23 @@ describe('wasm-plugin parity — js/doc_comments (JS канон vs wasm plugin-l
   }
 
   /**
-   * Parity T0-фікса: ТІ САМІ violations (з еталона — [`goldenJs`]) подаються
-   * і в JS-патерн `fix-doc_comments.mjs` (пише на диск; цей файл ЛИШАЄТЬСЯ
-   * каноном, не видаляється), і в `runWasmConcernFix` (віддає план) —
-   * порівнюється ФІНАЛЬНИЙ вміст файлу. Це і є місце, де забута зворотна
-   * конверсія UTF-16 → байти дала б різні тексти.
+   * T0-фікс гостем: ТІ САМІ violations (з еталона — [`goldenJs`]) подаються
+   * у `runWasmConcernFix`, повертається ФІНАЛЬНИЙ вміст файлу. §2.93:
+   * раніше сюди ж подавався JS-патерн `fix-doc_comments.mjs` і два тексти
+   * порівнювались; канон знято, і очікуваний текст тепер записаний
+   * ЛІТЕРАЛОМ у кожному тесті — саме те місце, де забута зворотна
+   * конверсія UTF-16 → байти дала б інший текст.
    * @param {string} dir абсолютний шлях tmp-каталогу
    * @param {string} fileName posix-relative ім'я файлу у `dir`
-   * @returns {Promise<{ js: string, wasm: string, violations: unknown[] }>} вміст після обох фіксів
+   * @returns {Promise<{ wasm: string, violations: unknown[] }>} вміст після фіксу
    */
-  async function runDocCommentsFixBoth(dir, fileName) {
+  async function runDocCommentsFix(dir, fileName) {
     const { readFile: read } = await import('node:fs/promises')
-    const abs = join(dir, fileName)
-    const original = await read(abs, 'utf8')
-
+    const original = await read(join(dir, fileName), 'utf8')
     const violations = await goldenJs(DOC_COMMENTS_CONCERN_KEY, dir, () => computeDocCommentsViolations(dir, fileName))
-
-    // eslint-disable-next-line no-unsanitized/method
-    const { patterns } = await import(pathToFileURL(DOC_COMMENTS_FIX_MJS_PATH).href)
-    let jsFixed = original
-    if (patterns[0].test(violations)) {
-      await patterns[0].apply(violations, { cwd: dir, ruleId: 'js', concernId: 'doc_comments' })
-      jsFixed = await read(abs, 'utf8')
-      await writeFile(abs, original, 'utf8')
-    }
-
     const plan = loadNative().runWasmConcernFix(WASM_PATH, DOC_COMMENTS_CONCERN_KEY, dir, violations, {})
     const write = plan.edits.find(e => e.type === 'write' && e.path === fileName)
-    return { js: jsFixed, wasm: write ? write.content : original, violations }
+    return { wasm: write ? write.content : original, violations }
   }
 
   test('файл без експортів — обидві реалізації мовчать', async () => {
@@ -4227,72 +4200,62 @@ describe('wasm-plugin parity — js/doc_comments (JS канон vs wasm plugin-l
     })
   })
 
-  test('T0-фікс: ASCII-блок підвищується однаково JS-патерном фікса і wasm-планом', async () => {
+  test('T0-фікс: ASCII-блок підвищується до JSDoc', async () => {
     await withTmpDir(async dir => {
       await writeFileDeep(dir, 'src/a.mjs', '// Overview of module\n// second line\nexport const a = 1\n')
-      const { js, wasm } = await runDocCommentsFixBoth(dir, 'src/a.mjs')
-      expect(wasm).toBe(js)
-      expect(js).toBe('/**\n * Overview of module\n * second line\n */\nexport const a = 1\n')
+      const { wasm } = await runDocCommentsFix(dir, 'src/a.mjs')
+      expect(wasm).toBe('/**\n * Overview of module\n * second line\n */\nexport const a = 1\n')
     })
   })
 
   // Дзеркало головної detect-фікстури на боці fix: тут падає забута
   // ЗВОРОТНА конверсія (UTF-16 з `data` → байти для зрізу UTF-8-рядка).
-  test('T0-фікс: не-ASCII вміст — JS-патерн фікса і wasm-план дають БАЙТ-У-БАЙТ той самий текст', async () => {
+  test('T0-фікс: не-ASCII вміст — БАЙТ-У-БАЙТ очікуваний текст (зворотна конверсія UTF-16 → байти)', async () => {
     await withTmpDir(async dir => {
       await writeFileDeep(
         dir,
         'src/файл.mjs',
         "// Огляд файлу 😀\nconst внутрішнє = '😀'\n// опис експорту 😀\nexport function робити() {}\n"
       )
-      const { js, wasm } = await runDocCommentsFixBoth(dir, 'src/файл.mjs')
-      expect(wasm).toBe(js)
-      expect(js).toBe(
+      const { wasm } = await runDocCommentsFix(dir, 'src/файл.mjs')
+      expect(wasm).toBe(
         "/** Огляд файлу 😀 */\nconst внутрішнє = '😀'\n/** опис експорту 😀 */\nexport function робити() {}\n"
       )
     })
   })
 
-  test('T0-фікс: кілька блоків в одному файлі — однаковий результат (заміна з кінця)', async () => {
+  test('T0-фікс: кілька блоків в одному файлі — усі підвищені (заміна з кінця)', async () => {
     await withTmpDir(async dir => {
       await writeFileDeep(
         dir,
         'src/файл.mjs',
         '// Огляд 😀\nconst х = 1\n// перший експорт\nexport const а = 1\n// другий експорт 😀\nexport const б = 2\n'
       )
-      const { js, wasm } = await runDocCommentsFixBoth(dir, 'src/файл.mjs')
-      expect(wasm).toBe(js)
-      expect(js).toBe(
+      const { wasm } = await runDocCommentsFix(dir, 'src/файл.mjs')
+      expect(wasm).toBe(
         '/** Огляд 😀 */\nconst х = 1\n/** перший експорт */\nexport const а = 1\n/** другий експорт 😀 */\nexport const б = 2\n'
       )
     })
   })
 
-  // Guard ідемпотентності (`LINE_COMMENT_LINE_RE` у `fix-doc_comments.mjs` і
-  // `is_line_comment_block` у гості): у продакшн-конвеєрі `applyT0` ганяє
-  // ОБИДВА патерни одним масивом violations, тож JS-фіксер отримує вже
-  // несвіжі офсети після wasm-плану. Без guard-а він різав би підвищений
-  // `/** … */` посередині.
-  test('T0-фікс: несвіжі офсети після wasm-плану — JS-патерн фікса лишає файл недоторканим', async () => {
+  // Guard ідемпотентності (`is_line_comment_block` у гості). §2.93 зняла
+  // JS-канон, тож сценарій «несвіжі офсети» більше не про другий патерн
+  // `applyT0`, а про ПОВТОРНИЙ виклик самого гостя тими самими
+  // (застарілими після першого запису) violations — рівно те, що робить
+  // `--fix` на дереві, яке хтось уже полагодив. Без guard-а гість різав би
+  // підвищений `/** … */` посередині.
+  test('T0-фікс: несвіжі офсети — повторний план гостя ПОРОЖНІЙ, файл недоторканий', async () => {
     await withTmpDir(async dir => {
       const rel = 'src/файл.mjs'
       await writeFileDeep(dir, rel, "// Огляд файлу 😀\nconst внутрішнє = '😀'\n// опис 😀\nexport const а = 1\n")
-      const { wasm, violations } = await runDocCommentsFixBoth(dir, rel)
+      const { wasm, violations } = await runDocCommentsFix(dir, rel)
 
-      // Емулюємо `applyT0`: wasm-план уже застосовано, ті самі violations
-      // подаються далі в JS-патерн.
       await writeFile(join(dir, rel), wasm, 'utf8')
-      // eslint-disable-next-line no-unsanitized/method
-      const { patterns } = await import(pathToFileURL(DOC_COMMENTS_FIX_MJS_PATH).href)
-      if (patterns[0].test(violations)) {
-        await patterns[0].apply(violations, { cwd: dir, ruleId: 'js', concernId: 'doc_comments' })
-      }
-      const { readFile: read } = await import('node:fs/promises')
-      expect(await read(join(dir, rel), 'utf8')).toBe(wasm)
-
-      // …і повторний wasm-план на вже підвищеному файлі теж порожній.
       const plan = loadNative().runWasmConcernFix(WASM_PATH, DOC_COMMENTS_CONCERN_KEY, dir, violations, {})
       expect(plan.edits).toEqual([])
+
+      const { readFile: read } = await import('node:fs/promises')
+      expect(await read(join(dir, rel), 'utf8')).toBe(wasm)
     })
   })
 })
@@ -4572,7 +4535,9 @@ describe('wasm-plugin — style/lint T0-фікс через fix-міст (exec-t
     })
   })
 
-  test('тул нічого не змінив (exit 0, без запису) — план порожній, JS-fallback лишається робочим', async () => {
+  // §2.93: порожній план тут — СВІДОМИЙ no-op, а не «підхопить JS-канон»:
+  // `fix-lint.mjs` знято, третього шару `loadT0Patterns` більше немає.
+  test('тул нічого не змінив (exit 0, без запису) — план порожній (свідомий no-op)', async () => {
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'app.scss'), '.a {\n  color: red;\n}\n')
       const toolPath = await installFakeStylelint(dir, '#!/bin/sh\nexit 0\n')
@@ -4614,17 +4579,15 @@ describe('wasm-plugin — style/lint T0-фікс через fix-міст (exec-t
 // На відміну від `style/lint`, тут host-diff не задіяний: гість будує
 // `FixPlan` сам із вмісту, який хост уже приніс у `FixRequest::files`
 // (глоб контрибуції розширено `**/package.json` саме заради патерна 3).
-// Парність із живим каноном (`fix-licensee.mjs` НЕ видалено) звіряється
-// прямо: канон застосовується в одному tmp-дереві, план гостя — в іншому,
-// порівнюється підсумковий вміст файлів.
-//
-// Виняток — патерн 1 (`bun-licensee-config-init`): канон спавнить
-// `bunx licensee --init` (мережа + версія тула), і саме тому порт свідомо
-// пише канонічний вміст декларативно. Тут він звіряється з очікуваним
-// текстом, а не з прогоном канону.
-describe('wasm-plugin parity — bun/licensee T0-фікс (JS канон vs wasm-план через fix-міст)', () => {
+// §2.93 зняла JS-канон (`fix-licensee.mjs`), тож два тести, що раніше
+// звіряли підсумковий вміст із прогоном канону в сусідньому tmp-дереві,
+// ПЕРЕПИСАНО на очікуваний текст ЛІТЕРАЛОМ (крок 4 зразка §2.88) — так
+// само, як від початку був сформульований патерн 1
+// (`bun-licensee-config-init`): канон там спавнив `bunx licensee --init`
+// (мережа + версія тула), і саме тому порт пише канонічний вміст
+// декларативно.
+describe('wasm-plugin — bun/licensee T0-фікс (гість — ЄДИНИЙ виконавець, §2.93)', () => {
   const BUN_LICENSEE_CONCERN_KEY = 'bun/licensee'
-  const LICENSEE_FIX_MJS_PATH = join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'bun', 'licensee', 'fix-licensee.mjs')
   const fixCtx = dir => ({ cwd: dir, ruleId: 'bun', concernId: 'licensee' })
 
   /**
@@ -4638,19 +4601,6 @@ describe('wasm-plugin parity — bun/licensee T0-фікс (JS канон vs wasm
     const plan = loadNative().runWasmConcernFix(WASM_PATH, BUN_LICENSEE_CONCERN_KEY, dir, violations, {}, undefined)
     for (const edit of plan.edits) await applyPlanEdit(edit, dir, fixCtx(dir))
     return plan.edits
-  }
-
-  /**
-   * Застосовує один патерн JS-канону в `dir`.
-   * @param {number} index індекс патерна в `fix-licensee.mjs`
-   * @param {string} dir абсолютний шлях tmp-каталогу
-   * @param {unknown[]} violations порушення концерну
-   * @returns {Promise<void>} нічого
-   */
-  async function applyCanonPattern(index, dir, violations) {
-    // eslint-disable-next-line no-unsanitized/method
-    const { patterns } = await import(pathToFileURL(LICENSEE_FIX_MJS_PATH).href)
-    await patterns[index].apply(violations, { cwd: dir })
   }
 
   /**
@@ -4692,7 +4642,7 @@ describe('wasm-plugin parity — bun/licensee T0-фікс (JS канон vs wasm
     })
   })
 
-  test('патерн 2 (license-violation): нормалізація .licensee.json байт-у-байт як у канону', async () => {
+  test('патерн 2 (license-violation): нормалізація .licensee.json — union SPDX, локальні ключі цілі', async () => {
     const fixture = {
       'package.json': '{\n  "name": "root"\n}\n',
       '.licensee.json': `${JSON.stringify(
@@ -4712,16 +4662,23 @@ describe('wasm-plugin parity — bun/licensee T0-фікс (JS канон vs wasm
       await applyGuestPlan(guestDir, violations)
       const guestConfig = await readFile(join(guestDir, '.licensee.json'), 'utf8')
 
-      await withTmpDir(async canonDir => {
-        await seedFixture(canonDir, fixture)
-        await applyCanonPattern(1, canonDir, violations)
-        expect(guestConfig).toBe(await readFile(join(canonDir, '.licensee.json'), 'utf8'))
-      })
-
-      const parsed = JSON.parse(guestConfig)
-      expect(parsed.licenses.spdx).toContain('BlueOak-1.0.0')
-      expect(parsed.packages).toEqual({ 'legacy-pkg': '<=1.0.0' })
-      expect(parsed.corrections).toBe(true)
+      // Очікуване — ЛІТЕРАЛОМ, а не «те саме, що канон»: union зберігає
+      // порядок наявних (включно з локальним `MPL-2.0`) і дописує
+      // відсутні канонічні у хвіст; форматування — `JSON.stringify(…, 2)`
+      // + завершальний перевід рядка.
+      expect(guestConfig).toBe(
+        `${JSON.stringify(
+          {
+            licenses: {
+              spdx: ['MIT', 'BSD-2-Clause', 'BSD-3-Clause', 'Apache-2.0', 'MPL-2.0', 'ISC', 'BlueOak-1.0.0', '0BSD']
+            },
+            packages: { 'legacy-pkg': '<=1.0.0' },
+            corrections: true
+          },
+          null,
+          2
+        )}\n`
+      )
     })
   })
 
@@ -4747,7 +4704,7 @@ describe('wasm-plugin parity — bun/licensee T0-фікс (JS канон vs wasm
     })
   })
 
-  test('патерн 3 (license-metadata-invalid): "license": "ISC" власним пакетам — байт-у-байт як у канону', async () => {
+  test('патерн 3 (license-metadata-invalid): "license": "ISC" власним пакетам, решта полів і порядок цілі', async () => {
     const fixture = {
       'package.json': `${JSON.stringify({ name: 'root', version: '1.0.0', workspaces: ['npm'] }, null, 2)}\n`,
       'npm/package.json': `${JSON.stringify({ name: '@scope/member', version: '2.0.0' }, null, 2)}\n`,
@@ -4773,20 +4730,18 @@ describe('wasm-plugin parity — bun/licensee T0-фікс (JS канон vs wasm
       const edits = await applyGuestPlan(guestDir, violations)
       expect(edits.map(e => e.path).sort()).toEqual(['npm/package.json', 'package.json'])
 
-      await withTmpDir(async canonDir => {
-        await seedFixture(canonDir, fixture)
-        await applyCanonPattern(2, canonDir, violations)
-        for (const name of ['package.json', 'npm/package.json']) {
-          expect(await readFile(join(guestDir, name), 'utf8')).toBe(await readFile(join(canonDir, name), 'utf8'))
-        }
-      })
-
-      expect(JSON.parse(await readFile(join(guestDir, 'package.json'), 'utf8')).license).toBe('ISC')
-      expect(JSON.parse(await readFile(join(guestDir, 'npm', 'package.json'), 'utf8')).license).toBe('ISC')
+      // Очікуване — ЛІТЕРАЛОМ: `license` дописується у ХВІСТ, наявні поля
+      // й їхній порядок не рухаються, форматування те саме.
+      expect(await readFile(join(guestDir, 'package.json'), 'utf8')).toBe(
+        `${JSON.stringify({ name: 'root', version: '1.0.0', workspaces: ['npm'], license: 'ISC' }, null, 2)}\n`
+      )
+      expect(await readFile(join(guestDir, 'npm', 'package.json'), 'utf8')).toBe(
+        `${JSON.stringify({ name: '@scope/member', version: '2.0.0', license: 'ISC' }, null, 2)}\n`
+      )
     })
   })
 
-  test('патерн 3: пакет із наявним license і пакет поза воркспейсом не чіпаються — як у канону', async () => {
+  test('патерн 3: пакет із наявним license і пакет поза воркспейсом не чіпаються', async () => {
     const fixture = {
       'package.json': `${JSON.stringify({ name: 'root', workspaces: ['npm'], license: 'MIT' }, null, 2)}\n`,
       'npm/package.json': `${JSON.stringify({ name: 'member' }, null, 2)}\n`,
@@ -5187,15 +5142,25 @@ describe('wasm-plugin parity — js-run/runtime (JS канон vs wasm plugin-la
   })
 })
 
-// T0-фіксер `js-run/runtime` (`js-run-jsconfig-create`, доккомент біля
-// `JS_RUN_RUNTIME_FIX_MJS_PATH` вище) — той самий snapshot/restore-мотив, що
-// `js/check T0-фікс` ([`snapshotJsCheckTargets`]/[`restoreJsCheckTargets`]):
-// JS-патерн пише на РЕАЛЬНИЙ диск tmp-каталогу, тож перед wasm-планом стан
-// треба повернути до «before», інакше wasm побачить уже змінені JS-фіксером
-// файли. На відміну від `js/check` (фіксований набір із чотирьох можливих
-// шляхів), цільові шляхи тут залежать від workspace-ів конкретного сценарію
-// — параметризовано явним списком, а не константою.
-describe('wasm-plugin parity — js-run/runtime T0-фікс (JS-канон fix-runtime.mjs vs wasm plugin-lang-js, через napi-міст)', () => {
+// T0-фіксер `js-run/runtime` (`js-run-jsconfig-create`). §2.93 зняла
+// JS-канон `fix-runtime.mjs`, тож snapshot/restore-пара більше не потрібна
+// (відновлювати диск між двома реалізаціями нема від чого) — лишився
+// знімок «до», на який накладається план гостя. Цільові шляхи залежать від
+// workspace-ів конкретного сценарію, тож параметризовані явним списком.
+describe('wasm-plugin — js-run/runtime T0-фікс (гість — ЄДИНИЙ виконавець, §2.93)', () => {
+  /**
+   * Канонічний `jsconfig.json` із дерева правил — той самий файл, що гість
+   * вшиває `JSCONFIG_CANONICAL_JSON` (`include_str!`).
+   * @returns {Promise<string>} вміст snippet-а
+   */
+  const readJsconfigCanonical = async () => {
+    const { readFile: read } = await import('node:fs/promises')
+    return read(
+      join(REPO_ROOT, 'plugins', 'lang-js', 'rules', 'js-run', 'jsconfig', 'template', 'jsconfig.json.snippet.json'),
+      'utf8'
+    )
+  }
+
   /**
    * Знімок вмісту заданих файлів tmp-дерева — `null` для відсутнього (той
    * самий контракт, що `snapshotJsCheckTargets`).
@@ -5217,51 +5182,20 @@ describe('wasm-plugin parity — js-run/runtime T0-фікс (JS-канон fix-r
   }
 
   /**
-   * Повертає задані файли до знятого знімку (той самий контракт, що
-   * `restoreJsCheckTargets`).
-   * @param {string} dir абсолютний шлях tmp-каталогу
-   * @param {string[]} relPaths repo-relative шляхи (той самий список, що [`snapshotTargets`])
-   * @param {Record<string, string|null>} snapshot знімок [`snapshotTargets`]
-   */
-  async function restoreTargets(dir, relPaths, snapshot) {
-    const { writeFile: write, rm } = await import('node:fs/promises')
-    for (const rel of relPaths) {
-      const abs = join(dir, rel)
-      if (snapshot[rel] === null) {
-        await rm(abs, { force: true })
-      } else {
-        await write(abs, snapshot[rel], 'utf8')
-      }
-    }
-  }
-
-  /**
-   * Parity T0-фікса `js-run/runtime`: violations беруться напряму з
+   * T0-фікс `js-run/runtime` гостем: violations беруться напряму з
    * `runWasmConcern` (whole-batch full-scope, той самий шлях, що
-   * [`runJsRunRuntimeBoth`] вище), подаються і в `fix-runtime.mjs` (пише на
-   * РЕАЛЬНИЙ диск — той самий канон, що лишається fallback-ом), і в
-   * `runWasmConcernFix` (повертає план). Порівнюється фінальний вміст усіх
-   * `targetPaths`.
+   * [`runJsRunRuntimeBoth`] вище), подаються в `runWasmConcernFix`, план
+   * накладається на знімок «до».
    * @param {string} dir абсолютний шлях tmp-каталогу з уже записаними фікстурами
    * @param {string[]} targetPaths repo-relative шляхи `<ws>/jsconfig.json`, які сценарій очікує торкнутись
-   * @returns {Promise<{ js: Record<string, string|null>, wasm: Record<string, string|null>, violations: unknown[] }>}
-   *   фінальні знімки обох реалізацій і violations, якими обидві живились
+   * @returns {Promise<{ wasm: Record<string, string|null>, violations: unknown[] }>}
+   *   фінальний знімок і violations, якими фікс живився
    */
-  async function runJsRunRuntimeFixBoth(dir, targetPaths) {
+  async function runJsRunRuntimeFix(dir, targetPaths) {
     const before = await snapshotTargets(dir, targetPaths)
     const violations = withDefaultSeverity(
       loadNative().runWasmConcern(WASM_PATH, JS_RUN_RUNTIME_CONCERN_KEY, dir, null).violations
     )
-
-    // eslint-disable-next-line no-unsanitized/method
-    const { patterns } = await import(pathToFileURL(JS_RUN_RUNTIME_FIX_MJS_PATH).href)
-    for (const pattern of patterns) {
-      if (pattern.test(violations)) {
-        await pattern.apply(violations, { cwd: dir, ruleId: 'js-run', concernId: 'runtime' })
-      }
-    }
-    const jsAfter = await snapshotTargets(dir, targetPaths)
-    await restoreTargets(dir, targetPaths, before)
 
     const plan = loadNative().runWasmConcernFix(WASM_PATH, JS_RUN_RUNTIME_CONCERN_KEY, dir, violations, {})
     const wasmAfter = { ...before }
@@ -5271,23 +5205,25 @@ describe('wasm-plugin parity — js-run/runtime T0-фікс (JS-канон fix-r
       }
     }
 
-    return { js: jsAfter, wasm: wasmAfter, violations }
+    return { wasm: wasmAfter, violations }
   }
 
-  test('один workspace без jsconfig.json — обидві реалізації створюють ІДЕНТИЧНИЙ канонічний файл', async () => {
+  test('один workspace без jsconfig.json — створюється канонічний файл', async () => {
     await withTmpDir(async dir => {
       await writeWorkspaceRoot(dir)
       await writeApiFile(dir, 'src/index.mjs', 'export const app = 1\n')
-      const { js, wasm, violations } = await runJsRunRuntimeFixBoth(dir, ['api/jsconfig.json'])
+      const { wasm, violations } = await runJsRunRuntimeFix(dir, ['api/jsconfig.json'])
       expect(violations).toHaveLength(1)
       expect(violations[0].message).toContain('є каталог src/, але немає jsconfig.json')
-      expect(wasm).toEqual(js)
-      expect(js['api/jsconfig.json']).not.toBeNull()
-      expect(js['api/jsconfig.json']).toContain('"include": ["src/**/*"]')
+      // Очікуване — сам канонічний snippet концерну `js-run/jsconfig`, який
+      // гість вшиває `include_str!`-ом (`JSCONFIG_CANONICAL_JSON`), а не
+      // «щось непорожнє».
+      expect(wasm['api/jsconfig.json']).toBe(await readJsconfigCanonical())
+      expect(wasm['api/jsconfig.json']).toContain('"include": ["src/**/*"]')
     })
   })
 
-  test('кілька workspace-ів без jsconfig.json одночасно — обидві реалізації створюють файл для КОЖНОГО', async () => {
+  test('кілька workspace-ів без jsconfig.json одночасно — файл створюється для КОЖНОГО', async () => {
     await withTmpDir(async dir => {
       const { mkdir } = await import('node:fs/promises')
       await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'root', workspaces: ['api', 'worker'] }))
@@ -5301,22 +5237,21 @@ describe('wasm-plugin parity — js-run/runtime T0-фікс (JS-канон fix-r
       await writeFile(join(dir, 'worker', 'src', 'index.mjs'), 'export const w = 1\n')
 
       const targetPaths = ['api/jsconfig.json', 'worker/jsconfig.json']
-      const { js, wasm, violations } = await runJsRunRuntimeFixBoth(dir, targetPaths)
+      const { wasm, violations } = await runJsRunRuntimeFix(dir, targetPaths)
       expect(violations).toHaveLength(2)
-      expect(wasm).toEqual(js)
-      for (const path of targetPaths) expect(js[path]).not.toBeNull()
+      const canonical = await readJsconfigCanonical()
+      for (const path of targetPaths) expect(wasm[path]).toBe(canonical)
     })
   })
 
-  test('jsconfig.json уже існує — обидві реалізації НЕ перезаписують чужий вміст (violations порожні)', async () => {
+  test('jsconfig.json уже існує — чужий вміст НЕ перезаписується (violations порожні)', async () => {
     await withTmpDir(async dir => {
       await writeWorkspaceRoot(dir)
       await writeApiFile(dir, 'src/index.mjs', 'export const app = 1\n')
       await writeApiFile(dir, 'jsconfig.json', '{"custom":true}\n')
-      const { js, wasm, violations } = await runJsRunRuntimeFixBoth(dir, ['api/jsconfig.json'])
+      const { wasm, violations } = await runJsRunRuntimeFix(dir, ['api/jsconfig.json'])
       expect(violations).toEqual([])
-      expect(wasm).toEqual(js)
-      expect(js['api/jsconfig.json']).toBe('{"custom":true}\n')
+      expect(wasm['api/jsconfig.json']).toBe('{"custom":true}\n')
     })
   })
 })
@@ -6329,5 +6264,176 @@ describe('wasm-plugin parity — §2.87 storybook-пара T0-фікс чере�
       const again = loadNative().runWasmConcern(WASM_PATH, STORYBOOK_SCAFFOLD_CONCERN_KEY, dir, null)
       expect(again.violations).toEqual([])
     })
+  })
+})
+
+// =====================================================================
+// §2.93 — ЗНЯТТЯ JS-КАНОНІВ ФІКСУ: девʼятнадцять `fix-<concern>.mjs` видалено
+// з `plugins/lang-js` (борг «спершу парність»; зразок — §2.88, пілот на
+// `plugins/lang-php`, табличні форми — §2.89/§2.90).
+//
+// Разом із каноном зникає не тест, а ПОВЕРХНЯ: `loadT0Patterns`
+// (`run-fix.mjs`) резолвить фіксери у порядку native → wasm (`guestFix`)
+// → `fix-<concern>.mjs`, і третій шар був глушником випадку «гість не
+// резолвиться» (плагін не зібрано, розбіжність піна, хост без wasm).
+// Глушника більше немає — концерн деградує з «автофікс» у «повідомили й
+// віддали в LLM-ладдер». Саме це диктує форму гейта: перевіряється не
+// відсутність файлу, а СКЛАД резолву тим самим резолвером, яким ходить
+// прод:
+//
+// - два патерни  → канон повернувся (подвійний фікс, пастка §2.72);
+// - нуль патернів → зник ГІСТЬ, тобто `--fix` МОВЧКИ перестав фіксити
+//   концерн, і він тихо поїхав би в дорогий LLM-ладдер.
+//
+// `existsSync` на видаленому файлі ловив би лише перше з двох.
+//
+// ЧОМУ ТУТ ТРИ ТВЕРДЖЕННЯ, А НЕ ДВА, ЯК У §2.90. Там другим твердженням
+// таблиця звірялась із ЖИВИМ маніфестом у бік «кожен концерн маніфеста
+// або в таблиці, або у свідомому виключенні»; у `ci-github` це працювало,
+// бо ВСІ вісімнадцять концернів гостя мали фікс. У `lang-js` фікс має
+// меншість із пʼятдесяти — решта суто детект-концерни, і той самий бік
+// звірки дав би тридцять «виключень», тобто шум замість гейта. Тому
+// живих джерел два, кожне зі свого боку:
+//
+// - твердження 2 — з боку ГОСТЯ: кожен ключ таблиці мусить бути в живому
+//   маніфесті (`concerns` ∪ `fix_only_concerns`); перейменований чи
+//   знятий у гості ключ валить гейт, а не тихо проходить через
+//   «нуль патернів» разом із рештою;
+// - твердження 3 — з боку ДИСКА: набір уцілілих `fix-*.mjs` плагіна
+//   мусить дорівнювати рівно чотирьом ІМЕНОВАНИМ винятками. Новий канон для
+//   портованого концерну (чи повернений старий) валить гейт навіть якщо
+//   його ключа в таблиці немає — саме та дірка, яку сама лише таблиця
+//   лишає відкритою.
+//
+// Це заразом ЄДИНІ тести цього файлу, що йдуть через `loadT0Patterns` —
+// решта кличе `runWasmConcernFix` напряму й цю поверхню обходить.
+// =====================================================================
+
+/** Корінь `rules/` плагіна `lang-js` — спільний для трьох тверджень гейта. */
+const LANG_JS_RULES_DIR = join(REPO_ROOT, 'plugins', 'lang-js', 'rules')
+
+/**
+ * Девʼятнадцять концернів `plugins/lang-js`, чий T0-фікс живе ВИКЛЮЧНО в
+ * гості `crates/plugin-lang-js` — рівно ті, чий `fix-<concern>.mjs` знято
+ * §2.93. Список зібрано обходом `Guest::fix` (гілки `match` на
+ * `CONCERN_*`), `POLICY_CONFIGS`, `TEMPLATE_FIX_CONFIGS` і
+ * `fix_only_concerns`, не пошуком рядкових літералів.
+ * @type {Array<{ ruleId: string, concern: string }>}
+ */
+const FIX_ONLY_IN_GUEST = [
+  { ruleId: 'bun', concern: 'layout' },
+  { ruleId: 'bun', concern: 'licensee' },
+  { ruleId: 'js', concern: 'check' },
+  { ruleId: 'js', concern: 'doc_comments' },
+  { ruleId: 'js', concern: 'jscpd_config' },
+  { ruleId: 'js', concern: 'package_json' },
+  { ruleId: 'js', concern: 'vscode_extensions' },
+  { ruleId: 'js-run', concern: 'jsconfig' },
+  { ruleId: 'js-run', concern: 'runtime' },
+  { ruleId: 'npm-module', concern: 'emit_types_config' },
+  { ruleId: 'npm-module', concern: 'npm_package_json' },
+  { ruleId: 'npm-module', concern: 'root_package_json' },
+  { ruleId: 'style', concern: 'lint' },
+  { ruleId: 'style', concern: 'package_json' },
+  { ruleId: 'style', concern: 'tooling' },
+  { ruleId: 'style', concern: 'vscode_extensions' },
+  { ruleId: 'style', concern: 'vscode_settings' },
+  { ruleId: 'test', concern: 'storybook-ci' },
+  { ruleId: 'test', concern: 'storybook-scaffold' }
+]
+
+/**
+ * Чотири вцілілі `fix-<concern>.mjs` плагіна — кожен зі СВОЄЮ причиною, і
+ * жодна з них не «ще не дійшли руки». Ключі — шлях відносно
+ * `plugins/lang-js/rules/`.
+ * @type {Record<string, string>}
+ */
+const FIX_STAYS_IN_JS = {
+  // §2.93 — ЄДИНИЙ канон партії, який зупинила ПОРЯДКОВА звірка, а не
+  // відома незавершеність порту: канон гейтить на `bunx` лише `oxlint`, а
+  // `eslint --fix` кличе programmatic API (`new ESLint({ cwd, fix: true })`
+  // + `ESLint.outputFixes`), тобто працює й БЕЗ `bunx`. Гість кличе обидва
+  // лінтери через `ESLINT_TOOL = "path:bunx"`, тож на дереві без `bunx`
+  // гість голосно каже про це й НЕ фіксить нічого. Гість повертає порожній
+  // план (клас host-diff), тож `guestFix`-брейк `applyT0` канон не глушить
+  // — драбина «гість, а якщо він нічого не зробив, канон» тут жива й
+  // потрібна.
+  'js/eslint/fix-eslint.mjs':
+    '§2.93 — канон робить те, чого гість НЕ робить: `eslint --fix` через programmatic API, ' +
+    'без залежності від `bunx` (гість гейтить обидва лінтери на `path:bunx`)',
+  'bun/package_json/fix-package_json.mjs':
+    '§2.92 — концерн свідомо НЕ портований: fix-глоб масштабу `**/*` упирається ' +
+    'у тип межі `source-file.content: string` (124 MiB на виклик при 1 MiB корисного)',
+  'test/storybook-vitest-config/fix-storybook-vitest-config.mjs':
+    '§2.87 — не портований: хірургічне string-splice редагування чужого `vitest.config.*`',
+  'test/stryker_config/fix-stryker_config.mjs':
+    'зріз 1 контракту v3.1 — портовано лише detect-половину; fix потребує ПОВТОРНОГО ' +
+    'планування по дереву (`planStrykerActions`), а napi-міст будує `FixRequest::files` ' +
+    'лише з полів `file` переданих violations (доккомент секції в `crates/plugin-lang-js/src/lib.rs`)'
+}
+
+describe('§2.93 — plugins/lang-js: фікс кожного портованого концерну живе рівно в одному місці (JS-канони знято)', () => {
+  test(
+    'loadT0Patterns на КОЖНОМУ з девʼятнадцяти віддає РІВНО ОДИН патерн, і той — guestFix (ані канону, ані порожнечі)',
+    async () => {
+      await withTmpDir(async dir => {
+        await writeFile(
+          join(dir, '.n-rules.json'),
+          JSON.stringify({ wasmPlugins: [{ name: 'lang-js', path: WASM_PATH }] }),
+          'utf8'
+        )
+        const { loadT0Patterns } = await import('../run-fix.mjs')
+        /** @type {Record<string, boolean[]>} */
+        const actual = {}
+        for (const { ruleId, concern } of FIX_ONLY_IN_GUEST) {
+          const concernDir = join(LANG_JS_RULES_DIR, ruleId, concern)
+          const patterns = await loadT0Patterns(concernDir, concern, ruleId, dir)
+          actual[`${ruleId}/${concern}`] = patterns.map(p => p.guestFix === true)
+        }
+        const expected = Object.fromEntries(
+          FIX_ONLY_IN_GUEST.map(({ ruleId, concern }) => [`${ruleId}/${concern}`, [true]])
+        )
+        expect(actual).toEqual(expected)
+      })
+    },
+    180_000
+  )
+
+  test('таблиця не відстала від гостя: кожен її ключ є у ЖИВОМУ маніфесті (concerns ∪ fix_only_concerns)', () => {
+    const manifest = loadNative().wasmPluginManifest(WASM_PATH)
+    const declared = new Set([
+      ...manifest.concerns.map(c => c.key),
+      ...(manifest.fix_only_concerns ?? []).map(c => c.key)
+    ])
+    expect(FIX_ONLY_IN_GUEST).toHaveLength(19)
+    const missing = FIX_ONLY_IN_GUEST.map(({ ruleId, concern }) => `${ruleId}/${concern}`).filter(
+      key => !declared.has(key)
+    )
+    expect(
+      missing,
+      'ключ таблиці зник із маніфеста гостя — або перейменований (онови таблицю), ' +
+        'або контрибуцію знято, і концерн лишився БЕЗ жодного фіксера'
+    ).toEqual([])
+    // `js/eslint` — ЄДИНИЙ ключ, що приходить із ДРУГОГО списку (§2.86):
+    // гість дає лише fix, detect лишається за `main.mjs`. Твердження явне,
+    // щоб перенесення ключа між списками не пройшло тихо.
+    expect((manifest.fix_only_concerns ?? []).map(c => c.key)).toEqual(['js/eslint'])
+  })
+
+  test('на диску не лишилось жодного зайвого fix-канону: рівно чотири іменовані винятки', async () => {
+    const { glob } = await import('node:fs/promises')
+    /** @type {string[]} */
+    const found = []
+    for await (const entry of glob('*/*/fix-*.mjs', { cwd: LANG_JS_RULES_DIR })) {
+      const normalized = entry.split(sep).join('/')
+      // `fix-worker.mjs` — не T0-фікс, а LLM-драбина (той самий виняток, що §2.89).
+      if (normalized.endsWith('/fix-worker.mjs')) continue
+      found.push(normalized)
+    }
+    expect(
+      found.toSorted(),
+      'новий (чи повернений) `fix-<concern>.mjs` у lang-js — або портуй фікс і знеси канон, ' +
+        'або внеси у FIX_STAYS_IN_JS з ПРИЧИНОЮ'
+    ).toEqual(Object.keys(FIX_STAYS_IN_JS).toSorted())
   })
 })

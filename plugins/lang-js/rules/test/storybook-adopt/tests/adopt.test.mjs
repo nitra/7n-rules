@@ -21,7 +21,7 @@ import {
   renderMocksGqlSse,
   renderPreviewJs,
   renderVitestSetupJs
-} from '../../storybook-scaffold/fix-storybook-scaffold.mjs'
+} from '../../storybook-scaffold/render.mjs'
 import { buildStrykerConfig } from '../../storybook-vitest-config/fix-storybook-vitest-config.mjs'
 import { diagnosePackage, formatReport, runAdopt, SECTION, STATUS } from '../main.mjs'
 
