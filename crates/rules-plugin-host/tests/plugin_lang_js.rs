@@ -46,6 +46,8 @@ use rules_contract::diagnostic::Severity;
 use rules_contract::manifest::{ConcernScope, Domain};
 use rules_plugin_host::{PluginHost, ToolResolver};
 
+mod common;
+
 const PLUGIN_WORLD_VERSION: &str = "4.0.0";
 const CONCERN_TFM: &str = "vue/tfm-translations";
 const CONCERN_GAP: &str = "style/gap";
@@ -95,14 +97,12 @@ fn fixture_wasm_path() -> PathBuf {
 }
 
 fn require_fixture() -> PathBuf {
-    let path = fixture_wasm_path();
-    assert!(
-        path.is_file(),
-        "wasm-компонент plugin-lang-js не зібраний: {} відсутній.\n\
-         Зберіть його командою: bash crates/plugin-lang-js/build.sh",
-        path.display(),
-    );
-    path
+    common::require_fresh_fixture(
+        &fixture_wasm_path(),
+        "wasm-компонент plugin-lang-js",
+        "plugin-lang-js",
+        "bash crates/plugin-lang-js/build.sh",
+    )
 }
 
 /// v3.0 плагін не декларує зовнішніх tools — порожній резолвер (кожен

@@ -48,6 +48,8 @@ use std::path::PathBuf;
 use rules_contract::detect::{DetectBatch, SourceFile};
 use rules_plugin_host::{PluginHost, ToolResolver};
 
+mod common;
+
 const PLUGIN_WORLD_VERSION: &str = "4.0.0";
 const CONCERN_PROJECT: &str = "php/project";
 const CONCERN_MAGO_FMT: &str = "php/mago_fmt";
@@ -62,14 +64,12 @@ fn fixture_wasm_path() -> PathBuf {
 }
 
 fn require_fixture() -> PathBuf {
-    let path = fixture_wasm_path();
-    assert!(
-        path.is_file(),
-        "wasm-компонент plugin-lang-php не зібраний: {} відсутній.\n\
-         Зберіть його командою: bash crates/plugin-lang-php/build.sh",
-        path.display(),
-    );
-    path
+    common::require_fresh_fixture(
+        &fixture_wasm_path(),
+        "wasm-компонент plugin-lang-php",
+        "plugin-lang-php",
+        "bash crates/plugin-lang-php/build.sh",
+    )
 }
 
 /// Порожній резолвер — жоден тул не резолвиться (кожен `exec-tool`-виклик

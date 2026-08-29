@@ -16,6 +16,8 @@ use rules_contract::diagnostic::Severity;
 use rules_contract::fix::FixRequest;
 use rules_plugin_host::{PluginHost, PluginHostError, ToolResolver};
 
+mod common;
+
 /// Версія world, під яку зібрана фікстура (`crates/test-plugin-guest`
 /// заявляє `world_version: "4.0.0"` — `Manifest`, `src/lib.rs`).
 const PLUGIN_WORLD_VERSION: &str = "4.0.0";
@@ -49,17 +51,16 @@ fn fixture_wasm_path() -> PathBuf {
         .join("../../target/wasm32-wasip2/release/test_plugin_guest.wasm")
 }
 
-/// Падає з чіткою інструкцією збірки, якщо фікстура відсутня — жодного
-/// мовчазного `#[ignore]`/skip (задача I2, п.3).
+/// Падає з чіткою інструкцією збірки, якщо фікстура відсутня чи застаріла —
+/// жодного мовчазного `#[ignore]`/skip (задача I2, п.3), і жодної мовчазної
+/// звірки зі СТАРИМ артефактом ([`common::require_fresh_fixture`]).
 fn require_fixture() -> PathBuf {
-    let path = fixture_wasm_path();
-    assert!(
-        path.is_file(),
-        "guest-фікстура contract-test-kit не зібрана: {} відсутній.\n\
-         Зберіть її командою: bash crates/test-plugin-guest/build.sh",
-        path.display(),
-    );
-    path
+    common::require_fresh_fixture(
+        &fixture_wasm_path(),
+        "guest-фікстура contract-test-kit",
+        "test-plugin-guest",
+        "bash crates/test-plugin-guest/build.sh",
+    )
 }
 
 /// Хост із порожнім [`ToolResolver`] — більшість тестів цього файлу не
