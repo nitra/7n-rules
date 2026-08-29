@@ -9,6 +9,7 @@ members = [
   "crates/rules-cli",
   "crates/rules-contract",
   "crates/rules-rego-engine",
+  "crates/rules-template-merge",
   "crates/rules-plugin-host",
   "crates/test-plugin-guest",
   "crates/plugin-lang-js",
@@ -128,6 +129,25 @@ strip = true
 # він дешевий і без даунсайду, а виміряний розмір і далі звітується для
 # майбутнього рішення про спліт.
 [profile.release.package."plugin-ci-github"]
+opt-level = "z"
+codegen-units = 1
+strip = true
+
+# `rules-template-merge` — спільний двигун template-merge (§1 плану
+# завершення міграції), який ЛІНКУЄТЬСЯ В ГОСТЯ, а не живе на хості (на
+# відміну від `rules-rego-engine`, §2.66). Без цього блоку крейт збирався б
+# із дефолтним release-профілем (`opt-level = 3`, `codegen-units = 16`, без
+# `strip`) усередині wasm-компонента: виміряно на винесенні — +190 398 байт
+# (+11,9 %) до `plugin_ci_github.wasm` на ЧИСТОМУ переносі коду, без жодної
+# зміни семантики. Ті самі три важелі, що у трьох гостей вище, знімають
+# більшість цього приросту: 1 602 445 → 1 625 251 байт, тобто лишається
+# +22 806 (+1,4 %) — ціна самої crate-межі (без workspace-LTO cross-crate
+# інлайнінгу немає). Звуження `pub`-поверхні до 14 символів, які реально
+# вживає гість, дало ще лише −311 байт — тобто приріст структурний, не від
+# мертвого коду. 1,6 MiB від 10 MiB-бюджету (§2.55); якщо колись впремося —
+# `lto = "thin"`/`"fat"` лишаються відомим резервом (−3,8 %/−10,8 %,
+# доккомент блоку `plugin-lang-js` вище).
+[profile.release.package."rules-template-merge"]
 opt-level = "z"
 codegen-units = 1
 strip = true

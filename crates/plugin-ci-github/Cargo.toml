@@ -79,7 +79,13 @@ regex = { version = "1", features = ["unicode-perl"] }
 # (доккомент розділу «Хірургічний comment-preserving merge») перевикористані
 # буквально — коментарі виживають СТРУКТУРНО (недоторкані діапазони поза
 # вузлами), не спеціальним кодом, який їх шукає.
-jsonc-parser = { version = "0.33", default-features = false }
+# Двигун template-merge винесено у спільний крейт `rules-template-merge`
+# (§1 плану завершення міграції): семантика мержу — одна на обидві колії,
+# бо родина `vscode_*` розсипана між ядром і плагінами, а дві копії
+# розійшлися б ТИХО. Фіча `yaml` — саме тут: `.github/workflows/*.yml`
+# (ядру вона не потрібна, доккомент `rules-template-merge/src/lib.rs`).
+# `jsonc-parser`/`saphyr` тепер приходять транзитивно через нього.
+rules-template-merge = { path = "../rules-template-merge", features = ["yaml"] }
 # НАВМИСНО жодної іншої залежності — той самий мотив, що
 # `crates/plugin-lang-php` (найлегший з чотирьох попередніх гостей): ЄДИНИЙ
 # портований концерн (`rust/toolchain_cache`) не потребує YAML-парсера
