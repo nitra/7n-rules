@@ -408,6 +408,32 @@ key = "style/package_json"
 scope = "full"
 glob = ["package.json"]
 
+# §2.80 — той самий rego-детект на решті конфіг-подібних концернів:
+# `style/vscode_settings` (ОСТАННІЙ незакритий член родини
+# `vscode_*`/`zed_settings`), `js/jscpd_config`,
+# `npm-module/emit_types_config` і `js-run/jsconfig`. Перші три —
+# `policy.files.single`, тож глоб = таргет; `js-run/jsconfig` —
+# `files.walkGlob`, єдиний багатофайловий policy-концерн цього гостя.
+[[concerns]]
+key = "style/vscode_settings"
+scope = "full"
+glob = [".vscode/settings.json"]
+
+[[concerns]]
+key = "js/jscpd_config"
+scope = "full"
+glob = [".jscpd.json"]
+
+[[concerns]]
+key = "npm-module/emit_types_config"
+scope = "full"
+glob = ["npm/tsconfig.emit-types.json"]
+
+[[concerns]]
+key = "js-run/jsconfig"
+scope = "full"
+glob = ["**/jsconfig.json"]
+
 [capabilities]
 # Хост передає вміст файлів inline у `detect-batch`/`fix-request` (як
 # per-file, так і host-побудований full-scope batch) — плагін не читає диск

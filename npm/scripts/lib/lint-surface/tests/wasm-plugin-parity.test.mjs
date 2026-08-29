@@ -5394,8 +5394,65 @@ const POLICY_CONCERNS_2_78 = [
   }
 ]
 
+const STYLE_VSCODE_SETTINGS_CONCERN_KEY = 'style/vscode_settings'
+const JSCPD_CONFIG_CONCERN_KEY = 'js/jscpd_config'
+const EMIT_TYPES_CONFIG_CONCERN_KEY = 'npm-module/emit_types_config'
+const JSCONFIG_CONCERN_KEY = 'js-run/jsconfig'
+
+/**
+ * §2.80 — решта конфіг-подібних концернів. Форма запису та сама, що
+ * [`POLICY_CONCERNS_2_78`]; `files: null` означає «канон цього концерну —
+ * НЕ policy-адаптер» (`style/tooling` має власний `main.mjs`, тож
+ * `runSingleFilePolicyBoth` до нього не застосовний — його гейт нижче лише
+ * T0-цикл через реальний napi-міст).
+ */
+const POLICY_CONCERNS_2_80 = [
+  {
+    key: STYLE_VSCODE_SETTINGS_CONCERN_KEY,
+    ruleId: 'style',
+    concernId: 'vscode_settings',
+    files: { single: '.vscode/settings.json' }
+  },
+  {
+    key: JSCPD_CONFIG_CONCERN_KEY,
+    ruleId: 'js',
+    concernId: 'jscpd_config',
+    files: { single: '.jscpd.json', required: true },
+    missingMessage: '.jscpd.json не існує — створи з полями згідно js.mdc'
+  },
+  {
+    key: EMIT_TYPES_CONFIG_CONCERN_KEY,
+    ruleId: 'npm-module',
+    concernId: 'emit_types_config',
+    files: { single: 'npm/tsconfig.emit-types.json' }
+  },
+  {
+    key: JSCONFIG_CONCERN_KEY,
+    ruleId: 'js-run',
+    concernId: 'jsconfig',
+    // ЄДИНИЙ `walkGlob`-концерн цього гостя — саме він доводить, що
+    // багатофайлова форма `policy.files` портована, а не звужена до `single`.
+    files: { walkGlob: '**/jsconfig.json' }
+  },
+  { key: STYLE_TOOLING_CONCERN_KEY, ruleId: 'style', concernId: 'tooling', files: null }
+]
+
 /** @param {string} key ключ концерну `ruleId/concernId` */
-const concern2_78 = key => POLICY_CONCERNS_2_78.find(c => c.key === key)
+const concern2_78 = key => [...POLICY_CONCERNS_2_78, ...POLICY_CONCERNS_2_80].find(c => c.key === key)
+
+/**
+ * Порядок порівняння violations двох реалізацій. Ключ — ФАЙЛ, потім
+ * повідомлення: у багатофайлових (`walkGlob`) концернів текст deny-я той
+ * самий для кожного таргета (`js-run/jsconfig` іменує файл лише в префіксі
+ * `jsconfig.json:`), тож сортування самим лише повідомленням лишало б
+ * порядок нестабільним і робило б тест флейкі-зеленим/червоним без жодної
+ * зміни коду.
+ * @param {{ file?: string, message: string }} a перша violation
+ * @param {{ file?: string, message: string }} b друга violation
+ * @returns {number} результат порівняння
+ */
+const byFileThenMessage = (a, b) =>
+  (a.file ?? '').localeCompare(b.file ?? '') || a.message.localeCompare(b.message)
 
 /**
  * Ганяє `files.single` rego-концерн через КАНОН (`evaluatePolicyConcern` —
@@ -5420,10 +5477,10 @@ async function runSingleFilePolicyBoth(key, dir) {
   )
   const wasmResult = loadNative().runWasmConcern(WASM_PATH, key, dir, null)
   return {
-    js: jsResult.violations.map(v => pickPolicyFields(v)).toSorted((a, b) => a.message.localeCompare(b.message)),
+    js: jsResult.violations.map(v => pickPolicyFields(v)).toSorted(byFileThenMessage),
     wasm: wasmResult.violations
       .map(v => pickPolicyFields({ severity: 'error', ...v }))
-      .toSorted((a, b) => a.message.localeCompare(b.message))
+      .toSorted(byFileThenMessage)
   }
 }
 
@@ -5719,6 +5776,195 @@ describe('wasm-plugin parity — §2.78 T0-фікс через РЕАЛЬНИЙ 
       const { edits } = await runWasmFixCycle(JS_VSCODE_EXTENSIONS_CONCERN_KEY, dir)
       expect(edits).toEqual([])
       expect(await readFile(join(dir, '.vscode/extensions.json'), 'utf8')).toBe('{ це не json')
+    })
+  })
+})
+
+// =====================================================================
+// §2.80 — решта конфіг-подібних концернів `plugin-lang-js`.
+//
+// Чотири з пʼяти — той самий rego-канон через `conftest`
+// ([`runSingleFilePolicyBoth`]), тож і шар парності той самий. Дві
+// відмінності від §2.78, які саме тут і перевіряються:
+//
+//  - `js-run/jsconfig` — `files.walkGlob`, тобто БАГАТОФАЙЛОВИЙ концерн:
+//    канон обходить дерево й міряє кожен `jsconfig.json` окремо, і порт
+//    мусить дати ті самі violations із тими самими `file`;
+//  - `style/tooling` — канон НЕ policy-адаптер, а власний `main.mjs`
+//    (детект портовано ще батчем 8); §2.80 добудовує лише fix-половину,
+//    тому його гейт — T0-цикл через реальний napi-міст.
+// =====================================================================
+
+describe('wasm-plugin parity — §2.80 rego-детект (conftest-канон vs host-import rego-engine)', () => {
+  test('style/vscode_settings: чуже значення css.validate → ідентичні violations', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, '.vscode/settings.json', '{\n  "css.validate": true\n}\n')
+      const { js, wasm } = await runSingleFilePolicyBoth(STYLE_VSCODE_SETTINGS_CONCERN_KEY, dir)
+      expect(wasm).toEqual(js)
+      expect(js.length).toBeGreaterThanOrEqual(1)
+      expect(js[0].file).toBe('.vscode/settings.json')
+    })
+  }, CONFTEST_SPAWN_TIMEOUT_MS)
+
+  test('style/vscode_settings: файлу немає — БЕЗ required обидві мовчать', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'package.json', '{}\n')
+      const { js, wasm } = await runSingleFilePolicyBoth(STYLE_VSCODE_SETTINGS_CONCERN_KEY, dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  }, CONFTEST_SPAWN_TIMEOUT_MS)
+
+  test('js/jscpd_config: minLines ВИЩЕ порогу — обидві мовчать про нього (detect — це `>=`, не рівність)', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(
+        dir,
+        '.jscpd.json',
+        JSON.stringify(
+          {
+            gitignore: true,
+            exitCode: 1,
+            reporters: ['console'],
+            minLines: 40,
+            ignore: ['.claude/worktrees/**', '**/dist/**', '**/CHANGELOG.md']
+          },
+          null,
+          2
+        )
+      )
+      const { js, wasm } = await runSingleFilePolicyBoth(JSCPD_CONFIG_CONCERN_KEY, dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  }, CONFTEST_SPAWN_TIMEOUT_MS)
+
+  test('js/jscpd_config: файлу немає — обидві дають ту саму policy-file-missing (required: true)', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'package.json', '{}\n')
+      const { js, wasm } = await runSingleFilePolicyBoth(JSCPD_CONFIG_CONCERN_KEY, dir)
+      expect(wasm).toEqual(js)
+      expect(js).toHaveLength(1)
+      expect(js[0].reason).toBe('policy-file-missing')
+    })
+  }, CONFTEST_SPAWN_TIMEOUT_MS)
+
+  test('npm-module/emit_types_config: чуже значення leaf-а → ідентичні violations', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(
+        dir,
+        'npm/tsconfig.emit-types.json',
+        JSON.stringify({ compilerOptions: { allowJs: false } }, null, 2)
+      )
+      const { js, wasm } = await runSingleFilePolicyBoth(EMIT_TYPES_CONFIG_CONCERN_KEY, dir)
+      expect(wasm).toEqual(js)
+      expect(js.length).toBeGreaterThanOrEqual(1)
+      expect(js[0].file).toBe('npm/tsconfig.emit-types.json')
+    })
+  }, CONFTEST_SPAWN_TIMEOUT_MS)
+
+  test('js-run/jsconfig (walkGlob): КОЖЕН jsconfig.json дерева міряється окремо — ідентичні violations із тими самими file', async () => {
+    await withTmpDir(async dir => {
+      // Кореневий файл тут не випадковий: `**/jsconfig.json` мусить
+      // матчити і його (gitignore-семантика канону vs `globset` хоста).
+      await writeFileDeep(dir, 'jsconfig.json', JSON.stringify({ compilerOptions: { target: 'es2020' } }, null, 2))
+      await writeFileDeep(dir, 'packages/b/jsconfig.json', JSON.stringify({ include: ['lib/**/*'] }, null, 2))
+      const { js, wasm } = await runSingleFilePolicyBoth(JSCONFIG_CONCERN_KEY, dir)
+      expect(wasm).toEqual(js)
+      const files = [...new Set(js.map(v => v.file))].toSorted()
+      expect(files).toEqual(['jsconfig.json', 'packages/b/jsconfig.json'])
+    })
+  }, CONFTEST_SPAWN_TIMEOUT_MS)
+
+  test('js-run/jsconfig: жодного jsconfig.json — обидві мовчать (walkGlob не має required-гілки)', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'package.json', '{}\n')
+      const { js, wasm } = await runSingleFilePolicyBoth(JSCONFIG_CONCERN_KEY, dir)
+      expect(wasm).toEqual(js)
+      expect(js).toEqual([])
+    })
+  }, CONFTEST_SPAWN_TIMEOUT_MS)
+})
+
+describe('wasm-plugin parity — §2.80 T0-фікс через РЕАЛЬНИЙ napi-міст', () => {
+  test('style/vscode_settings: канонічні поля дописуються, локальні лишаються, повторний детект мовчить', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, '.vscode/settings.json', '{\n  "editor.tabSize": 2,\n  "css.validate": true\n}\n')
+      const { edits, after } = await runWasmFixCycle(STYLE_VSCODE_SETTINGS_CONCERN_KEY, dir)
+      expect(edits).toHaveLength(1)
+      expect(after).toEqual([])
+      const written = JSON.parse(await readFile(join(dir, '.vscode/settings.json'), 'utf8'))
+      expect(written['editor.tabSize']).toBe(2)
+      expect(written['css.validate']).toBe(false)
+      expect(written['scss.validate']).toBe(false)
+    })
+  })
+
+  test('js/jscpd_config: фікс НЕ збиває minLines 40 назад на поріг 25 (полагоджена асиметрія канону)', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(
+        dir,
+        '.jscpd.json',
+        JSON.stringify({ gitignore: false, exitCode: 1, reporters: ['console'], minLines: 40 }, null, 2) + '\n'
+      )
+      const { before, edits, after } = await runWasmFixCycle(JSCPD_CONFIG_CONCERN_KEY, dir)
+      expect(before.length).toBeGreaterThan(0)
+      expect(edits).toHaveLength(1)
+      expect(after).toEqual([])
+      const written = JSON.parse(await readFile(join(dir, '.jscpd.json'), 'utf8'))
+      expect(written.minLines).toBe(40)
+      expect(written.gitignore).toBe(true)
+    })
+  })
+
+  test('js/jscpd_config: відсутній файл створюється ВЕРБАТИМ зі снапшота, повторний детект мовчить', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'package.json', '{}\n')
+      const { edits, after } = await runWasmFixCycle(JSCPD_CONFIG_CONCERN_KEY, dir)
+      expect(edits).toHaveLength(1)
+      expect(after).toEqual([])
+      expect(JSON.parse(await readFile(join(dir, '.jscpd.json'), 'utf8')).minLines).toBe(25)
+    })
+  })
+
+  test('npm-module/emit_types_config: leaf підтягується до канону, повторний детект мовчить', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(
+        dir,
+        'npm/tsconfig.emit-types.json',
+        JSON.stringify({ compilerOptions: { allowJs: false, strict: true } }, null, 2) + '\n'
+      )
+      const { after } = await runWasmFixCycle(EMIT_TYPES_CONFIG_CONCERN_KEY, dir)
+      expect(after).toEqual([])
+      const written = JSON.parse(await readFile(join(dir, 'npm/tsconfig.emit-types.json'), 'utf8'))
+      expect(written.compilerOptions.allowJs).toBe(true)
+      expect(written.compilerOptions.strict).toBe(true)
+    })
+  })
+
+  test('js-run/jsconfig: фікс править ОБИДВА файли дерева одним планом, повторний детект мовчить', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'jsconfig.json', JSON.stringify({ compilerOptions: { target: 'es2020' } }, null, 2))
+      await writeFileDeep(dir, 'packages/b/jsconfig.json', JSON.stringify({ include: ['lib/**/*'] }, null, 2))
+      const { edits, after } = await runWasmFixCycle(JSCONFIG_CONCERN_KEY, dir)
+      expect(edits).toHaveLength(2)
+      expect(after).toEqual([])
+      // `include` ЗАМІНЮЄТЬСЯ (rego порівнює множини на рівність), а не
+      // мерджиться union-ом — інакше концерн лишався б червоним назавжди.
+      expect(JSON.parse(await readFile(join(dir, 'packages/b/jsconfig.json'), 'utf8')).include).toEqual(['src/**/*'])
+    })
+  })
+
+  test('style/tooling: детект гостем → фікс гостем → детект чистий (глоб контрибуції годує й fix, §2.72)', async () => {
+    await withTmpDir(async dir => {
+      await writeFileDeep(dir, 'package.json', '{\n  "name": "x"\n}\n')
+      const { before, edits, after } = await runWasmFixCycle(STYLE_TOOLING_CONCERN_KEY, dir)
+      expect(before).toHaveLength(2)
+      expect(edits).toHaveLength(2)
+      expect(after).toEqual([])
+      expect(await readFile(join(dir, '.stylelintignore'), 'utf8')).toContain('dist/')
+      expect(JSON.parse(await readFile(join(dir, 'package.json'), 'utf8')).stylelint.extends).toBe(
+        '@nitra/stylelint-config'
+      )
     })
   })
 })
