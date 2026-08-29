@@ -68,6 +68,7 @@ mod fix_env_dremio;
 /// `fix-manifests.mjs`. `pub` заради parity-гейтів, які звіряють кожен
 /// трансформер із JS-каноном окремо.
 pub mod fix_k8s_manifests;
+mod fix_vscode_extensions;
 mod forbidden_prettier;
 mod gha_workflow;
 mod glob_compat;

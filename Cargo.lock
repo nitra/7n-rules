@@ -5619,6 +5619,7 @@ dependencies = [
  "n7n-llm-lib",
  "regex",
  "rules-contract",
+ "rules-template-merge",
  "serde",
  "serde_json",
  "serde_yaml",
