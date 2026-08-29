@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.111.0] - 2026-08-29
+
+### Added
+
+- wasm-фікс `rust/check` — ДРУГИЙ порт класу exec-tool fix у гостя (після `python/ruff`, §2.64 host-diff): `plugin-lang-rust` тепер сам виконує `cargo fmt --all` (edits синтезує host-diff зі знімка диска) і генерує `deny.toml` — `cargo deny init` там, де `cargo-deny` є, інакше детермінований мінімальний скаффолд декларативним edit-ом. Glob контрибуції `rust/check` розширено до канонічного (`**/*.rs`, `Cargo.toml`, `Cargo.lock`, `deny.toml`) — без цього host-diff не бачив би жодної fmt-мутації. Три мовчазні канали JS-канону стали гучними: нерезолвний `cargo`, ненульовий код `cargo fmt --all` і провал `cargo deny init` тепер логуються як помилка замість тихого no-op. JS-канон `fix-check.mjs` лишається на диску (парність, не заміна)
+- Native fix ядра (T4, exec-tool): портовано T0-фіксер changelog/consistency у crates/rules-core — план створення change-файлу будує Rust (reuse change_file + канонічного resolve_auto_change_message детектора), git спавниться лише заради опису; полагоджено два дефекти JS-канону — мовчазний no-op при нерозпізнаній мітці воркспейсу тепер гучна помилка, а розбіжність між autoChangeMessage фіксера і resolveAutoChangeMessage детектора зникла. image-compress/check лишається JS (бінарний вміст не виражається String-only WriteFile::content), text/cspell-fix уже нативний як fix-воркер (crates/rules-fix) — деталі й пропозиція FileEdit::WriteBytes у §2.70 реєстру
+
+### Changed
+
+- Двигун template-merge винесено з `crates/plugin-ci-github` у спільний крейт `crates/rules-template-merge` — одне джерело істини семантики мержу для ОБОХ колiй міграції (нативної `rules-core` і wasm-гостей). Рефакторинг без зміни поведінки: 172 тести `plugin-ci-github` до = 143 + 29 після, розкладені за тим, що вони перевіряють.
+
+Мотив — родина `vscode_*`/`zed_settings` розсипана між колiями: девʼять концернів у ядрі (`npm/rules/**`), шість у плагінах. Дублювався б не код, а семантика (`identity_key`, `contained_in`, порядок ключів, поведінка на масивах обʼєктів), і розходження копій було б ТИХИМ — обидві компілюються, обидві зелені, а `.vscode/settings.json` після ядрового й після плагінного концерну виходить різний.
+
+Feature-гейт `jsonc` (default) / `yaml`: заміряно, що ядрова частина родини — виключно JSON/JSONC (`.vscode/extensions.json`, `.vscode/settings.json`, `.zed/settings.json`), тож `rules-core` братиме крейт БЕЗ `saphyr`. `is_yaml: bool` замінено на `Format`, чий варіант `Yaml` існує лише під фітом `yaml` — виклик YAML-шляху в jsonc-only збірці не компілюється, замість того щоб тихо повернути `None`.
+
+Розмір `plugin_ci_github.wasm`: 1 602 445 → 1 624 940 Б (+1,4 %) — ціна crate-межі без workspace-LTO. Без per-package release-профілю для нового крейта приріст був би +190 398 Б (+11,9 %) на чистому переносі коду.
+- Fix-бік wasm-мосту (`runWasmConcernFix`, `crates/rules-napi`) навчився будувати batch для `per-file`-концерну у ПОВНОМУ прогоні: `deltaFiles: undefined` — це заявлений `lint --full` (планувальник у цьому режимі списку не будує), тож хост робить той самий glob-обхід контрибуції, що `build_detect_batch_files` уже робить на detect-боці (§2.65). Доти exec-tool-фіксер `per-file`-концерну падав би `ambiguous_empty_fix_batch_err` при КОЖНОМУ `--full`, попри однозначно резолвний батч. Двозначність §2.52 не повернулась: `deltaFiles: []` (дельта є, але порожня) при непорожніх violations і далі падає гучно.
+
+Це передумова порту T0-фіксера `style/lint` у wasm-гість `lang-js` — деталі й знайдений через нього дефект (`scope: full` на fix-боці ігнорує дельту запиту, тобто дельта-прогін ганяв би `stylelint --fix` по всьому репозиторію) — §2.73 `docs/plans/2026-08-05-open-questions-register.md`.
+
+Тести: `cargo test -p rules-napi --lib run_wasm_concern_fix` — 9 passed (два нові: `per-file` з глобом і без дельти будує batch; порожня дельта і далі помилка). `cargo test -p rules-plugin-host` — 86 passed. `wasm-plugin-parity.test.mjs` — 276 passed.
+
 ## [1.110.0] - 2026-08-29
 
 ### Added

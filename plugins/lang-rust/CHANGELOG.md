@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.17.2] - 2026-08-29
+
+### Changed
+
+- `rust/check`: мінімальний скаффолд `deny.toml` винесено з літерала `fix-check.mjs` у data-файл `rules/rust/check/data/check/deny.toml.minimal` — той самий асет тепер вшиває wasm-порт фіксера (`include_str!`, `crates/plugin-lang-rust`), тож дві реалізації не можуть розійтися беззвучно. Поведінка фіксера не змінилась
+
 ## [0.17.1] - 2026-08-27
 
 ### Changed
