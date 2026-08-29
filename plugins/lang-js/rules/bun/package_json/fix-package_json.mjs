@@ -10,6 +10,25 @@
  * lint_js_yml/lint_style_yml). Скрипт видаляється лише якщо ВСІ його виклики вдалось
  * переписати (файли, де виклик не розпізнано — залишаємо як є, скрипт теж лишається,
  * щоб не зламати консьюмера мовчки).
+ *
+ * ## Атомарність: спершу ПЛАН, потім запис
+ *
+ * Цей фікс пише у ЧУЖІ файли репозиторію консюмера (workflow yml, вкладені
+ * package.json), тож напівзастосований результат тут коштує дорожче за звичайний.
+ * Тому весь прохід розділено на дві фази — рівно як native-фікси ядра
+ * (`crates/rules-core/src/concerns/fix.rs`), що рахують план і віддають його хосту:
+ *
+ *   1. **План (read-only).** Скануємо репо, зʼясовуємо, ЯКІ скрипти взагалі можна
+ *      видалити (жодного нерозпізнаного виклику), рахуємо повний перелік видалень і
+ *      весь новий вміст кожного файлу — у памʼяті, без жодного `writeFileSync`.
+ *   2. **Застосування.** Якщо видаляти нічого — не пишемо НІЧОГО (раніше чужі workflow
+ *      вже були переписані, а мутація `pkg.scripts` мовчки викидалась). Інакше пишемо
+ *      весь план цілком.
+ *
+ * Наслідок: виклики переписуються ВИКЛЮЧНО для тих скриптів, які цей самий прохід
+ * реально видаляє. Заблокований скрипт лишається — і його виклики теж лишаються
+ * недоторканими; про кожен такий блок повідомляємо гучно (`console.error` + message),
+ * а не мовчазним успіхом.
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -22,6 +41,8 @@ const WORKFLOW_YML_RE = /^\.github\/workflows\/.*\.ya?ml$/u
 const LOCKFILE_RE = /(^|\/)(bun\.lockb?|package-lock\.json|yarn\.lock|pnpm-lock\.yaml)$/u
 const PACKAGE_MANAGER_SCRIPT_PREFIX_RE = /\b(?:(?:bun|yarn|pnpm)(?:\s+run)?|npm\s+run)\s+/gu
 const SCRIPT_NAME_CONTINUATION_RE = /[\w-]/u
+/** Перший ключ обʼєкта з власним відступом — джерело правди про стиль файлу. */
+const FIRST_KEY_INDENT_RE = /\n([ \t]+)"/u
 
 // `lint-<suffix>` → rule-id канонічного `n-rules lint <rule-id>`; bare `lint` → без rule-id.
 const SURFACE_MAP = { image: 'image-compress' }
@@ -63,17 +84,35 @@ function invocationRanges(content, scriptName) {
 }
 
 /**
- * Читає JSON-файл template-а з deny-полями концерну; відсутній/невалідний → {}.
- * @param {string} path абсолютний шлях
+ * Читає JSON-файл template-а з deny-полями концерну.
+ *
+ * Fail-loud: відсутній, нечитний чи не-обʼєктний шаблон раніше деградував у `{}` —
+ * тобто фікс тихо звітував успіх, не видаливши жодного забороненого поля. Шаблон
+ * їде в пакеті поруч із концерном, тож його відсутність — зламана інсталяція, а не
+ * штатний стан; сигналимо помилкою (той самий контракт, що
+ * `fix-storybook-vitest-config.mjs` для свого template-а).
+ * @param {string|undefined} concernDir абсолютний шлях теки концерну (`ctx.concernDir`)
  * @returns {Record<string, string>} мапа `field -> reason`
+ * @throws {Error} якщо `concernDir` не передано, шаблон відсутній або не парситься
  */
-function readDenyTemplate(path) {
-  if (!existsSync(path)) return {}
-  try {
-    return JSON.parse(readFileSync(path, 'utf8'))
-  } catch {
-    return {}
+function readDenyTemplate(concernDir) {
+  if (!concernDir) {
+    throw new Error('bun/package_json: ctx.concernDir не передано — deny-template концерну не резолвиться')
   }
+  const path = join(concernDir, 'template', 'package.json.deny.json')
+  if (!existsSync(path)) {
+    throw new Error(`bun/package_json: deny-template відсутній (${path}) — канон заборонених полів недоступний`)
+  }
+  let parsed
+  try {
+    parsed = JSON.parse(readFileSync(path, 'utf8'))
+  } catch (error) {
+    throw new Error(`bun/package_json: deny-template не парситься (${path}): ${error.message}`)
+  }
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error(`bun/package_json: deny-template має бути JSON-обʼєктом (${path})`)
+  }
+  return parsed
 }
 
 /**
@@ -147,113 +186,147 @@ function rewriteUsages(content, scriptName, isWorkflow) {
 }
 
 /**
- * Для кожного lint-скрипта шукає й переписує його виклики по всіх кандидатах.
- * `workflow`/`package-json` — переписуємо на канонічний `bunx n-rules lint`; `other`
- * (Makefile, README, довільний shell) — лише детектуємо, без canonical-заміщення для
- * довільного формату скрипт НЕ видаляємо (блокуючий, а не мовчки проігнорований, збіг).
- * @param {string[]} scriptNames кандидати на видалення (`lint`, `lint-js`, …)
- * @param {Array<{ abs: string, kind: FileKind }>} candidateFiles файли-кандидати з категорією
- * @param {(absPath: string) => void} recordWrite реєстрація запису для rollback
- * @returns {{ safeToRemove: Set<string>, touchedFiles: string[] }} скрипти без залишкових
- *   викликів (безпечно видалити) і список фактично змінених файлів
+ * Читає файл, повертаючи `null` замість кидання (нечитний кандидат просто випадає
+ * з розгляду — і з детекту викликів, і з плану переписів).
+ * @param {string} abs абсолютний шлях
+ * @returns {string|null} вміст або null
  */
-function adaptUsages(scriptNames, candidateFiles, recordWrite) {
-  const unresolved = new Set()
-  const touchedFiles = []
-  const sortedNames = scriptNames.toSorted((a, b) => b.length - a.length)
-
-  for (const { abs, kind } of candidateFiles) {
-    if (kind === 'other') continue
-    const isWorkflow = kind === 'workflow'
-    let content
-    try {
-      content = readFileSync(abs, 'utf8')
-    } catch {
-      continue
-    }
-    let next = content
-    // Найдовші імена першими (defense-in-depth поряд із right-boundary lookahead) —
-    // `lint-js` перепишеться до того, як коротший `lint` встигне зачепити його префікс.
-    for (const name of sortedNames) next = rewriteUsages(next, name, isWorkflow).content
-    if (next === content) continue
-    recordWrite?.(abs)
-    writeFileSync(abs, next)
-    touchedFiles.push(abs)
+function readTextOrNull(abs) {
+  try {
+    return readFileSync(abs, 'utf8')
+  } catch {
+    return null
   }
-
-  // Другий прохід (після переписів) — чи лишився десь виклик, який ми не розпізнали
-  // (`other`-формат або невідомий package-manager-синтаксис); такий скрипт НЕ видаляємо.
-  for (const { abs } of candidateFiles) {
-    let content
-    try {
-      content = readFileSync(abs, 'utf8')
-    } catch {
-      continue
-    }
-    for (const name of scriptNames) {
-      if (invocationRanges(content, name).length > 0) unresolved.add(name)
-    }
-  }
-
-  return { safeToRemove: new Set(scriptNames.filter(n => !unresolved.has(n))), touchedFiles }
 }
 
 /**
- * Адаптує виклики lint-скриптів в ІНШИХ скриптах ТОГО Ж package.json (напр. `precommit`:
- * `bun run lint-js && bun test`) — цей файл не потрапляє у зовнішній `findUsageCandidateFiles`,
- * бо він же ціль видалення. Мутує `pkg.scripts` на місці.
- * @param {object} pkg розпарсений package.json (мутується)
+ * Імена скриптів від найдовшого до найкоротшого — `lint-js` має переписатись раніше,
+ * ніж коротший `lint` встигне зачепити його префікс (defense-in-depth поряд із
+ * right-boundary-перевіркою в {@link invocationRanges}).
+ * @param {Iterable<string>} names імена скриптів
+ * @returns {string[]} відсортовані імена
+ */
+const byLengthDesc = names => [...names].toSorted((a, b) => b.length - a.length)
+
+/**
+ * READ-ONLY-фаза: які з lint-скриптів мають виклик у файлі формату, для якого немає
+ * canonical-заміщення (`other` — Makefile, README, довільний shell). Такий скрипт
+ * видаляти не можна, тож і його виклики переписувати нема за що.
  * @param {string[]} scriptNames кандидати на видалення
- * @returns {Set<string>} імена, для яких лишився нерозпізнаний виклик у власних скриптах
+ * @param {Array<{ abs: string, kind: FileKind }>} candidateFiles файли-кандидати
+ * @returns {Set<string>} імена, заблоковані нерозпізнаним викликом
  */
-function adaptOwnScripts(pkg, scriptNames) {
-  const unresolved = new Set()
-  if (!pkg.scripts || typeof pkg.scripts !== 'object') return unresolved
-
-  const sorted = scriptNames.toSorted((a, b) => b.length - a.length)
-  const otherEntries = Object.entries(pkg.scripts).filter(
-    ([key, value]) => !scriptNames.includes(key) && typeof value === 'string'
-  )
-
-  for (const [key, value] of otherEntries) {
-    let next = value
-    for (const name of sorted) next = rewriteUsages(next, name, false).content
-    if (next !== value) pkg.scripts[key] = next
-  }
-  // Пере-перевірка після мутації: чи лишився десь нерозпізнаний виклик.
-  for (const [key] of otherEntries) {
-    const current = pkg.scripts[key]
-    if (typeof current !== 'string') continue
+function findBlockedScripts(scriptNames, candidateFiles) {
+  const blocked = new Set()
+  if (scriptNames.length === 0) return blocked
+  for (const { abs, kind } of candidateFiles) {
+    if (kind !== 'other') continue
+    const content = readTextOrNull(abs)
+    if (content === null) continue
     for (const name of scriptNames) {
-      if (invocationRanges(current, name).length > 0) unresolved.add(name)
+      if (invocationRanges(content, name).length > 0) blocked.add(name)
     }
   }
-  return unresolved
+  return blocked
 }
 
 /**
- * Видаляє заборонені top-level поля й `scripts.lint*` (лише ті, чиї виклики вже адаптовано)
- * з `package.json`.
- * @param {object} pkg розпарсений package.json
- * @param {Record<string, string>} denyFields канон заборонених top-level полів
- * @param {Set<string>} safeToRemove скрипти без залишкових зовнішніх викликів
- * @returns {string[]} список видалених ключів (для message)
+ * Визначає стиль наявного JSON-файлу, щоб перезапис не переформатовував чужий файл:
+ * відступ першого ключа й наявність кінцевого переводу рядка.
+ * @param {string} raw вихідний текст файлу
+ * @returns {{ indent: string|number, trailingNewline: string }} стиль для `JSON.stringify`
  */
-function stripDenied(pkg, denyFields, safeToRemove) {
-  const removed = []
-  for (const field of Object.keys(denyFields)) {
-    if (!Object.hasOwn(pkg, field)) continue
-    delete pkg[field]
-    removed.push(field)
+function detectJsonFormat(raw) {
+  const match = FIRST_KEY_INDENT_RE.exec(raw)
+  let trailingNewline = ''
+  if (raw.endsWith('\r\n')) trailingNewline = '\r\n'
+  else if (raw.endsWith('\n')) trailingNewline = '\n'
+  return { indent: match ? match[1] : 2, trailingNewline }
+}
+
+/**
+ * Серіалізує package.json, зберігаючи форматування вихідного файлу.
+ * @param {object} pkg обʼєкт для запису
+ * @param {string} raw вихідний текст файлу (джерело стилю)
+ * @returns {string} текст для запису
+ */
+function serializePkg(pkg, raw) {
+  const { indent, trailingNewline } = detectJsonFormat(raw)
+  return `${JSON.stringify(pkg, null, indent)}${trailingNewline}`
+}
+
+/**
+ * @typedef {object} FixPlan
+ * @property {Array<{ abs: string, content: string }>} edits повний вміст кожного файлу, який треба записати
+ * @property {string[]} removed видалені ключі цільового package.json (для message)
+ * @property {string[]} blocked lint-скрипти, які лишились через нерозпізнаний виклик
+ * @property {string|null} note діагностика, коли план порахувати не вдалось
+ */
+
+/**
+ * READ-ONLY: рахує ПОВНИЙ план фіксу одного package.json — жодного запису на диск.
+ * @param {string} cwd абсолютний корінь репо
+ * @param {string} rel posix-відносний шлях цільового package.json
+ * @param {Record<string, string>} denyFields канон заборонених top-level полів
+ * @returns {Promise<FixPlan>} план (порожні `edits` = писати нічого)
+ */
+async function computePlan(cwd, rel, denyFields) {
+  /** @type {FixPlan} */
+  const empty = { edits: [], removed: [], blocked: [], note: null }
+  const abs = join(cwd, rel)
+  const raw = readTextOrNull(abs)
+  if (raw === null) return { ...empty, note: `${rel}: не читається — пропускаю` }
+  let pkg
+  try {
+    pkg = JSON.parse(raw)
+  } catch (error) {
+    return { ...empty, note: `${rel}: не парситься як JSON (${error.message}) — пропускаю` }
   }
-  if (pkg.scripts && typeof pkg.scripts === 'object') {
-    for (const name of Object.keys(pkg.scripts)) {
-      if (!LINT_SCRIPT_RE.test(name) || !safeToRemove.has(name)) continue
-      delete pkg.scripts[name]
-      removed.push(`scripts.${name}`)
+
+  const hasScripts = pkg.scripts !== null && typeof pkg.scripts === 'object'
+  const lintScriptNames = hasScripts ? Object.keys(pkg.scripts).filter(n => LINT_SCRIPT_RE.test(n)) : []
+  const candidateFiles = lintScriptNames.length > 0 ? await findUsageCandidateFiles(cwd, abs) : []
+  const blocked = findBlockedScripts(lintScriptNames, candidateFiles)
+
+  const removedFields = Object.keys(denyFields).filter(field => Object.hasOwn(pkg, field))
+  const removedScripts = lintScriptNames.filter(name => !blocked.has(name))
+  const removed = [...removedFields, ...removedScripts.map(name => `scripts.${name}`)]
+
+  // Гейт атомарності: видаляти нічого — отже й переписувати чужі виклики нема за що.
+  if (removed.length === 0) return { ...empty, blocked: [...blocked] }
+
+  // ── План правок (усе ще в памʼяті) ──
+  const removing = byLengthDesc(removedScripts)
+  const nextPkg = structuredClone(pkg)
+  if (removing.length > 0 && nextPkg.scripts !== null && typeof nextPkg.scripts === 'object') {
+    // Виклики видаленого скрипта всередині ІНШИХ скриптів того ж файлу (напр. `precommit`:
+    // `bun run lint-js && bun test`) — цей файл не потрапляє у `findUsageCandidateFiles`,
+    // бо він же ціль видалення.
+    for (const [key, value] of Object.entries(nextPkg.scripts)) {
+      if (removedScripts.includes(key) || typeof value !== 'string') continue
+      let next = value
+      for (const name of removing) next = rewriteUsages(next, name, false).content
+      if (next !== value) nextPkg.scripts[key] = next
     }
   }
-  return removed
+  for (const field of removedFields) delete nextPkg[field]
+  for (const name of removedScripts) delete nextPkg.scripts[name]
+
+  const edits = [{ abs, content: serializePkg(nextPkg, raw) }]
+
+  // Зовнішні виклики — ВИКЛЮЧНО для скриптів, які цей самий план реально видаляє.
+  if (removing.length > 0) {
+    for (const { abs: candidateAbs, kind } of candidateFiles) {
+      if (kind === 'other') continue
+      const content = readTextOrNull(candidateAbs)
+      if (content === null) continue
+      let next = content
+      for (const name of removing) next = rewriteUsages(next, name, kind === 'workflow').content
+      if (next !== content) edits.push({ abs: candidateAbs, content: next })
+    }
+  }
+
+  return { edits, removed, blocked: [...blocked], note: null }
 }
 
 /** @type {import('@7n/rules/scripts/lib/lint-surface/types.mjs').T0Pattern[]} */
@@ -262,50 +335,35 @@ export const patterns = [
     id: 'bun-package_json-strip-denied',
     test: violations => violations.some(v => v.reason === 'policy-deny' && v.file),
     apply: async (violations, ctx) => {
-      const denyFields = readDenyTemplate(join(ctx.concernDir ?? '', 'template', 'package.json.deny.json'))
+      const denyFields = readDenyTemplate(ctx.concernDir)
       const files = [...new Set(violations.filter(v => v.file).map(v => v.file))]
       const touchedFiles = []
       const messages = []
 
       for (const rel of files) {
-        const abs = join(ctx.cwd, rel)
-        let pkg
-        try {
-          pkg = JSON.parse(readFileSync(abs, 'utf8'))
-        } catch {
-          continue
+        const plan = await computePlan(ctx.cwd, rel, denyFields)
+
+        if (plan.note) messages.push(plan.note)
+        if (plan.blocked.length > 0) {
+          const text =
+            `${rel}: не видаляю scripts.${plan.blocked.join(', scripts.')} — знайдено нерозпізнаний ` +
+            'виклик деінде; виклики цих скриптів лишились недоторканими'
+          console.error(`❌ bun/package_json: ${text}`)
+          messages.push(text)
         }
+        if (plan.edits.length === 0) continue
 
-        const lintScriptNames =
-          pkg.scripts && typeof pkg.scripts === 'object'
-            ? Object.keys(pkg.scripts).filter(n => LINT_SCRIPT_RE.test(n))
-            : []
-
-        let safeToRemove = new Set(lintScriptNames)
-        if (lintScriptNames.length > 0) {
-          const ownUnresolved = adaptOwnScripts(pkg, lintScriptNames)
-          const candidateFiles = await findUsageCandidateFiles(ctx.cwd, abs)
-          const adapted = adaptUsages(lintScriptNames, candidateFiles, ctx.recordWrite)
-          safeToRemove = new Set([...adapted.safeToRemove].filter(n => !ownUnresolved.has(n)))
-          touchedFiles.push(...adapted.touchedFiles)
-          const skipped = lintScriptNames.filter(n => !safeToRemove.has(n))
-          if (skipped.length > 0) {
-            messages.push(
-              `${rel}: не видаляю scripts.${skipped.join(', scripts.')} — знайдено нерозпізнаний виклик деінде`
-            )
-          }
+        // Фаза застосування: план порахований цілком, пишемо його цілком.
+        for (const edit of plan.edits) {
+          ctx.recordWrite?.(edit.abs)
+          writeFileSync(edit.abs, edit.content)
+          touchedFiles.push(edit.abs)
         }
-
-        const removed = stripDenied(pkg, denyFields, safeToRemove)
-        if (removed.length === 0) continue
-
-        ctx.recordWrite?.(abs)
-        writeFileSync(abs, `${JSON.stringify(pkg, null, 2)}\n`)
-        touchedFiles.push(abs)
-        messages.push(`${rel}: -${removed.join(', -')}`)
+        messages.push(`${rel}: -${plan.removed.join(', -')}`)
       }
 
-      return touchedFiles.length > 0 ? { touchedFiles, message: messages.join('; ') } : { touchedFiles: [] }
+      const message = messages.join('; ')
+      return message.length > 0 ? { touchedFiles, message } : { touchedFiles }
     }
   }
 ]
