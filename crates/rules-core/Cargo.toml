@@ -18,12 +18,12 @@ thiserror = "1"
 # той, що документує `rules-contract/src/lib.rs` («лише в один бік»); крейт —
 # чистий serde-DTO шар без WIT-кодогенерації і wasm-рушія.
 rules-contract = { path = "../rules-contract" }
-# Спільний двигун template-merge (§2.71) — `Json`, справжній JSONC-парс
-# (`//`/`/* */`-коментарі, trailing-кома) і pretty-серіалізатор, якими
-# стоїть родина `vscode_*`/`zed_settings` на ОБОХ колiях міграції. Фіча
-# `yaml` СВІДОМО не вмикається: ядрова частина родини — виключно
-# JSON/JSONC-таргети (`docs/plans/2026-08-29-js-rust-migration-completion-plan.md`
-# §1), тож ядро не платить за `saphyr` нічим.
+# Спільний двигун template-merge (§2.71) — одне джерело істини семантики
+# мержу для ОБОХ колiй міграції: ядрові концерни родини
+# `vscode_*`/`zed_settings`/`oxfmtrc` (`concerns/fix_template_merge.rs`) і
+# wasm-гості `ci-github`/`ci-azure`. Дефолтна фіча `jsonc` — рівно те, що
+# потрібно ядру: ядрова частина родини це виключно JSON/JSONC-таргети, тож
+# фіча `yaml` (і `saphyr` за нею) сюди СВІДОМО не тягнеться.
 rules-template-merge = { path = "../rules-template-merge" }
 # Пін 0.86 синхронно з mt-rust (Р4 спеки). default-features=false: лише
 # локальні commit-graph запити (merge-base, rev-parse) — без мережевих

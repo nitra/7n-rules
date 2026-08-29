@@ -39,7 +39,7 @@
 
 ## Залишок, згрупований за формою
 
-### 1. Родина `vscode_*`/`zed_settings` — 15 концернів
+### 1. Родина `vscode_*`/`zed_settings` — 15 концернів (+1: `text/oxfmtrc`)
 
 `doc-files/vscode_extensions`, `graphql/vscode_extensions`,
 `js/vscode_extensions`, `php/vscode_extensions`, `python/vscode_extensions`,
@@ -63,6 +63,23 @@
 | **разом** | **9** | **6** |
 
 Тобто на нативній колії — **більша** частина родини, не менша.
+
+**Поправка після порту (§2.74).** Двох виправлень потребує сам цей
+перелік — обидва знайдені під час ядрового порту:
+
+- **`text/oxfmtrc` належить сюди, а не в розділ 4.** Він числився серед
+  «поодиноких», але його `fix-oxfmtrc.mjs` — такий самий однорядковий шим
+  над `createTemplateFixPattern`, а таргет (`.oxfmtrc.json`) — такий самий
+  JSON. Портувався разом із рештою й коштував рівно однієї константи
+  конфігу. Тобто ядрова половина рушія `template-deep-merge` — **пʼять**
+  концернів, а не чотири, і родина загалом — 16, а не 15.
+- **`nginx-default-tpl/vscode_extensions` і `nginx-default-tpl/vscode_settings`
+  сюди НЕ належать** — попри назви. Обидва — `engine: "rego"` +
+  `files.single` + `required: true`, БЕЗ теки `template/` і БЕЗ
+  `fix-*.mjs`: детект-онлі rego-політики. `fixability: "config"` у них
+  означає «правиться редагуванням конфігу руками», не «має автофікс».
+  Жодного з двох рушіїв родини вони не торкаються; порт їхніх
+  ДЕТЕКТОРІВ — питання rego-колії, не цієї родини.
 
 **Ядрова частина родини — виключно JSON/JSONC.** Цільові файли всіх девʼяти
 ядрових концернів: `.vscode/extensions.json`, `.vscode/settings.json`,
@@ -195,13 +212,15 @@ glob контрибуції — вже не лише detect-скоуп. `run_was
 гейт `edits.length > 0` не пускає, і JS-канон тихо проганяє тул удруге.
 WIT не має окремого fix-глоба; дешевий вихід — поле `fix-glob`.
 
-### 4. Поодинокі — 13 концернів
+### 4. Поодинокі — 12 концернів
 
 `azure-pipelines/service_deploy_pipeline`, `ci_artifact/consume`,
 `doc-files/check`, `ga/service_deploy_workflow`, `js-run/jsconfig`,
 `js/jscpd_config`, `npm-module/emit_types_config`, `style/tooling`,
-`tauri/updater`, `test/coverage`, `test/stryker_config`, `text/cspell`,
-`text/oxfmtrc`
+`tauri/updater`, `test/coverage`, `test/stryker_config`, `text/cspell`
+
+(`text/oxfmtrc` числився тут тринадцятим — насправді він на рушії
+`template-deep-merge` і портований разом із родиною розділу 1, §2.74.)
 
 Спільної форми немає — кожен окремо. Це природний «хвіст», який варто
 брати останнім, коли рушії й інфраструктура вже усталились.

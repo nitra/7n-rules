@@ -996,6 +996,12 @@ fn already_has_trailing_comma(content: &str, pos: usize) -> bool {
 /// block-стилі). `open` — очікуваний відкриваючий байт (`b'{'` для обʼєкта,
 /// `b'['` для масиву) — розрізняти два випадки одним викликом безпечно, бо
 /// [`MNode::Object`] не може фізично починатись з `[`, і навпаки.
+///
+/// Гейт `feature = "yaml"` — обидва виклики цієї функції під ним
+/// (`surgical_merge_object`/`surgical_merge_array`): flow-стиль це YAML-
+/// специфіка, у JSONC-only збірці (`rules-core`) гілка не існує взагалі.
+/// Без гейта та збірка отримувала б `dead_code`-варнінг — тобто шум замість
+/// сигналу.
 #[cfg(feature = "yaml")]
 fn is_flow_container(content: &str, span: (usize, usize), open: u8) -> bool {
     content.as_bytes().get(span.0) == Some(&open)
@@ -1024,6 +1030,8 @@ fn is_flow_container(content: &str, span: (usize, usize), open: u8) -> bool {
 /// [`already_has_trailing_comma`], лише скануючи НАЗАД від точки вставки —
 /// дзеркальний напрямок, бо flow-вставка завжди відбувається ПЕРЕД
 /// закриваючим токеном, не ПІСЛЯ останнього елемента).
+///
+/// Гейт `feature = "yaml"` — той самий мотив, що [`is_flow_container`].
 #[cfg(feature = "yaml")]
 fn flow_insert_point(content: &str, span: (usize, usize)) -> (usize, &'static str) {
     let close_at = span.1;
