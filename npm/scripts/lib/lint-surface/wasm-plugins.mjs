@@ -1,10 +1,10 @@
 /**
- * Резолвер wasm-плагінів plugin contract v3 (`n-rules:plugin@3.0.0`, задача K
+ * Резолвер wasm-плагінів plugin contract (`n-rules:plugin@4.0.0`, задача K
  * фази 6 + N1, спека `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md`
  * §3.3/§3.4) — читає секцію `wasmPlugins` з `.n-rules.json` консюмер-репо, для
  * кожного запису питає napi-міст `wasmPluginManifest()` (`crates/rules-napi`)
  * і будує мапу «ключ концерну (`ruleId/concernId`) → `{ wasmPath, toolPaths }`»
- * (значення — НЕ голий рядок шляху, доккомент [`buildWasmConcernMap`] нижче).
+ * (значення — НЕ голий рядок шляху, доккомент [`buildWasmConcernMaps`] нижче).
  *
  * **Run-tool контур (задача N1, рішення Д спеки)**: `manifest.tools` —
  * задекларовані зовнішні tool-залежності плагіна (напр. `"shellcheck@^0.9"`,
@@ -543,7 +543,8 @@ async function ensureDeclaredTools(pluginName, declaredTools, ensureToolFn, reso
 }
 
 /**
- * Будує мапу «ключ концерну → [`WasmConcernMapEntry`]» — один прохід по
+ * Будує ДВІ мапи «ключ концерну → [`WasmConcernMapEntry`]» (детект-контрибуції
+ * і fix-only, мажор `4.0.0`) — один прохід по
  * записах builtin-таблиці (найнижчий пріоритет) і конфігу консюмера, злитих
  * за `name` через [`mergeWithBuiltinEntries`] (доккомент модуля): resolve
  * шляху (builtin-файл/dev/`url`-retrieval) → `wasmPluginManifest()` (повний
@@ -552,10 +553,11 @@ async function ensureDeclaredTools(pluginName, declaredTools, ensureToolFn, reso
  * (доккомент модуля).
  * @param {string} cwd абсолютний корінь consumer-репо
  * @param {{fetchFn: typeof fetch, cacheDir: string, env: Record<string, string | undefined>, ensureToolFn: (toolId: string) => Promise<string>, resolveCmdFn: (cmd: string) => string | null, nativeFn: typeof loadNative, builtinPinsDir: string}} ctx ін'єктовані залежності
- * @returns {Promise<Map<string, WasmConcernMapEntry>>} ключ концерну → `{ wasmPath, toolPaths }`
+ * @returns {Promise<{map: Map<string, WasmConcernMapEntry>, fixOnlyMap: Map<string, WasmConcernMapEntry>}>} `map` — контрибуції `concerns` (детект+fix), `fixOnlyMap` — `fixOnlyConcerns` (лише fix)
  */
-async function buildWasmConcernMap(cwd, ctx) {
+async function buildWasmConcernMaps(cwd, ctx) {
   const map = new Map()
+  const fixOnlyMap = new Map()
   const entries = mergeWithBuiltinEntries(readBuiltinPinsConfig(ctx.builtinPinsDir), readWasmPluginsConfig(cwd))
   for (const entry of entries) {
     const wasmPath = await resolveEntryPath(entry, { cwd, ...ctx })
@@ -574,18 +576,40 @@ async function buildWasmConcernMap(cwd, ctx) {
       ctx.resolveCmdFn,
       cwd
     )
-    // `manifest.concerns` — масив структурованих контрибуцій `{ key, scope, glob }`
-    // (задача N2, передумова full-scope мосту, доккомент `wit/world.wit`
-    // `record concern-contribution`), не голі рядки — мапа концернів індексується
-    // за `.key`, `scope`/`glob` тут не потрібні (їх читає `run_wasm_concern`
-    // (napi) напряму з `describe()`, коли виклик не передав `files`).
+    // `manifest.concerns` — масив структурованих контрибуцій
+    // `{ key, scope, glob, fixGlob }` (задача N2 + мажор 4.0.0, доккомент
+    // `wit/world.wit` `record concern-contribution`), не голі рядки — мапи
+    // індексуються за `.key`, решта полів тут не потрібна (їх читає
+    // `run_wasm_concern`/`run_wasm_concern_fix` (napi) напряму з `describe()`).
     for (const contribution of manifest.concerns ?? []) map.set(contribution.key, { wasmPath, toolPaths })
+    // `manifest.fixOnlyConcerns` — ДРУГИЙ список (мажор `4.0.0`, §2.84):
+    // плагін дає для цих ключів лише `fix`, детект лишається за чинною
+    // реалізацією. Окрема мапа, а не прапорець у спільній: місце виклику
+    // детекту (`detect.mjs`) фізично не бачить fix-only ключів, тож
+    // «забути фільтр» тут неможливо — саме заради цього контракт і несе
+    // два поля замість одного з предикатом.
+    // Поле — snake_case: napi віддає `describe()` як є, серіалізований serde
+    // (`serde_json::to_value(plugin.describe())`, `wasm_plugin_manifest`), без
+    // camelCase-конверсії — так само, як уже читаються `concerns`/`tools`.
+    if (!Array.isArray(manifest.fix_only_concerns)) {
+      // Плагін контракту 4.x ЗАВЖДИ несе це поле (serde серіалізує його
+      // безумовно). Відсутність = маніфест не з цього контракту; мовчазний
+      // `?? []` тут приховав би саме той стан, який треба показати.
+      console.warn(
+        `⚠️ wasm-плагін "${entry.name}": маніфест без поля fix_only_concerns — fix-only контрибуції ` +
+          'проігноровано (очікується контракт n-rules:plugin@4.x)'
+      )
+    } else {
+      for (const contribution of manifest.fix_only_concerns)
+        fixOnlyMap.set(contribution.key, { wasmPath, toolPaths })
+    }
   }
-  return map
+  return { map, fixOnlyMap }
 }
 
 /**
- * Лениво резолвить мапу «ключ концерну → [`WasmConcernMapEntry`]» з секції
+ * Лениво резолвить мапу «ключ концерну → [`WasmConcernMapEntry`]» (детект +
+ * fix) з секції
  * `wasmPlugins` (доккомент модуля). Плагін з відсутнім/битим `.wasm`, недосяжним
  * `url`, sha256-mismatch чи `describe()`, що кидає — пропускається з
  * `console.warn`, не валить резолв решти плагінів.
@@ -602,7 +626,38 @@ async function buildWasmConcernMap(cwd, ctx) {
  *   щоб локальна wasm-збірка в робочому дереві не підмішувала builtin-контрибуції в контрольовані сценарії)
  * @returns {Promise<Map<string, WasmConcernMapEntry>>} ключ концерну (`ruleId/concernId`) → `{ wasmPath, toolPaths }`
  */
-export function resolveWasmConcernMap(cwd, opts = {}) {
+export async function resolveWasmConcernMap(cwd, opts = {}) {
+  return (await resolveWasmConcernMaps(cwd, opts)).map
+}
+
+/**
+ * Мапа концернів, для яких плагін дає ЛИШЕ `fix` (`manifest.fixOnlyConcerns`,
+ * мажор контракту `4.0.0`, §2.84) — та сама форма значення, що
+ * [`resolveWasmConcernMap`], але СПОЖИВАЄ її лише fix-контур
+ * (`loadT0Patterns`, `run-fix.mjs`).
+ *
+ * Ключ звідси НЕ вмикає detect-шедоуїнг: `detect.mjs` цієї мапи не читає
+ * взагалі, тож `main.mjs`/policy-детект концерну лишається чинним. Це і є
+ * вся суть другого списку — до `4.0.0` єдиним способом дістати wasm-фікс
+ * було оголосити концерн у `concerns`, що мовчки вимикало його детект.
+ * @param {string} cwd абсолютний корінь consumer-репо
+ * @param {Parameters<typeof resolveWasmConcernMap>[1]} [opts] ті самі ін'єкції, що {@link resolveWasmConcernMap}
+ * @returns {Promise<Map<string, WasmConcernMapEntry>>} ключ концерну → `{ wasmPath, toolPaths }`
+ */
+export async function resolveWasmFixOnlyConcernMap(cwd, opts = {}) {
+  return (await resolveWasmConcernMaps(cwd, opts)).fixOnlyMap
+}
+
+/**
+ * Спільний ленивий резолв ОБОХ мап за один прохід по плагінах — окремі
+ * `resolveWasmConcernMap`/`resolveWasmFixOnlyConcernMap` лише вибирають
+ * половину результату. Один кеш-проміс на обидві: другий прохід означав би
+ * повторний retrieval і повторний `describe()` кожного плагіна.
+ * @param {string} cwd абсолютний корінь consumer-репо
+ * @param {Parameters<typeof resolveWasmConcernMap>[1]} [opts] ін'єкції для тестів
+ * @returns {Promise<{map: Map<string, WasmConcernMapEntry>, fixOnlyMap: Map<string, WasmConcernMapEntry>}>} обидві мапи
+ */
+function resolveWasmConcernMaps(cwd, opts = {}) {
   if (wasmConcernMapPromise !== null) return wasmConcernMapPromise
   const env = opts.env ?? process.env
   const ctx = {
@@ -614,7 +669,7 @@ export function resolveWasmConcernMap(cwd, opts = {}) {
     nativeFn: opts.nativeFn ?? loadNative,
     builtinPinsDir: opts.builtinPinsDir ?? WASM_PLUGINS_DIR
   }
-  wasmConcernMapPromise = buildWasmConcernMap(cwd, ctx)
+  wasmConcernMapPromise = buildWasmConcernMaps(cwd, ctx)
   return wasmConcernMapPromise
 }
 

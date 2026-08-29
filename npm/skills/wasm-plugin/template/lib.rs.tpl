@@ -1,4 +1,4 @@
-//! Шаблон wasm-компонента `n-rules:plugin@3.0.0` (скіл `wasm-plugin`,
+//! Шаблон wasm-компонента `n-rules:plugin@4.0.0` (скіл `wasm-plugin`,
 //! `npm/skills/wasm-plugin/SKILL.md`) — замінити перед реалізацією:
 //! - `__WIT_PATH__` (нижче, у `wit_bindgen::generate!`) на реальний шлях до
 //!   `wit/` пакета `n-rules:plugin` (first-party: `../rules-contract/wit`;
@@ -49,7 +49,7 @@ fn build_manifest() -> Manifest {
     Manifest {
         id: "__PLUGIN_ID__".to_string(),
         version: "0.1.0".to_string(),
-        world_version: "3.0.0".to_string(),
+        world_version: "4.0.0".to_string(),
         domains: vec![Domain::Lint],
         concerns: vec![ConcernContribution {
             key: CONCERN_KEY.to_string(),
@@ -63,6 +63,7 @@ fn build_manifest() -> Manifest {
             // `wit/world.wit` `record concern-contribution`).
             scope: ConcernScope::PerFile,
             glob: vec![],
+            fix_glob: vec![],
         }],
         ci_artifacts: vec![],
         capabilities: Capabilities {
@@ -72,6 +73,7 @@ fn build_manifest() -> Manifest {
             network: false,
         },
         tools: vec![],
+        fix_only_concerns: vec![],
     }
 }
 

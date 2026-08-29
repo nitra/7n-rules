@@ -8,7 +8,7 @@
 
 use rules_contract::detect::{DetectBatch, SourceFile};
 use rules_contract::diagnostic::{Diagnostic, Severity};
-use rules_contract::fix::{FileEdit, FixPlan, FixRequest, WriteFile};
+use rules_contract::fix::{FileEdit, FixPlan, FixRequest, WriteBytesFile, WriteFile};
 use rules_contract::manifest::{Capabilities, ConcernContribution, ConcernScope, Domain, Manifest};
 use rules_contract::slots::ci_artifact::{
     CiArtifactDescriptor, CiArtifactFormat, CiArtifactMergeStrategy, CiArtifactMode,
@@ -92,6 +92,12 @@ fn concern_contribution_from_wit(contribution: wit::ConcernContribution) -> Conc
         key: contribution.key,
         scope: concern_scope_from_wit(contribution.scope),
         glob: contribution.glob,
+        // Мажор `4.0.0` (§2.84): порожній `fix-glob` тут НЕ нормалізується
+        // у `glob` — fallback живе рівно в одному місці
+        // (`ConcernContribution::effective_fix_glob`), тож DTO зберігає те,
+        // що гість реально задекларував. Нормалізація на цій межі стерла б
+        // різницю «розділив скоупи» / «не розділяв» уже на вході.
+        fix_glob: contribution.fix_glob,
     }
 }
 
@@ -117,6 +123,14 @@ pub(crate) fn manifest_from_wit(manifest: wit::Manifest) -> Manifest {
         domains: manifest.domains.into_iter().map(domain_from_wit).collect(),
         concerns: manifest
             .concerns
+            .into_iter()
+            .map(concern_contribution_from_wit)
+            .collect(),
+        // Мажор `4.0.0` (§2.84): другий, окремий список контрибуцій —
+        // «лише fix, детект лишається за чинною реалізацією» (доккомент
+        // `wit/world.wit` біля `manifest.fix-only-concerns`).
+        fix_only_concerns: manifest
+            .fix_only_concerns
             .into_iter()
             .map(concern_contribution_from_wit)
             .collect(),
@@ -211,6 +225,14 @@ fn file_edit_from_wit(edit: wit::FileEdit) -> FileEdit {
             content: write.content,
         }),
         wit::FileEdit::Delete(path) => FileEdit::Delete { path },
+        // Мажор `4.0.0` (§2.84): байти з canonical ABI (`list<u8>`) їдуть
+        // у DTO як `Vec<u8>` без жодного перекодування — base64
+        // зʼявляється лише на наступній межі, napi→JS (доккомент
+        // `rules_contract::fix`).
+        wit::FileEdit::WriteBytes(write) => FileEdit::WriteBytes(WriteBytesFile {
+            path: write.path,
+            content: write.content,
+        }),
     }
 }
 

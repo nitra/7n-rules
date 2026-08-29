@@ -2,7 +2,7 @@
 name = "rules-plugin-host"
 version = "0.1.0"
 edition = "2021"
-description = "Embedded wasmtime-хост для n-rules:plugin@3.2.0 (crates/rules-contract): завантаження wasm-компонентів, WASI preopens за capabilities, вузький публічний trait поверх Component Model, host-import rego-engine (crates/rules-rego-engine)"
+description = "Embedded wasmtime-хост для n-rules:plugin@4.0.0 (crates/rules-contract): завантаження wasm-компонентів, WASI preopens за capabilities, вузький публічний trait поверх Component Model, host-import rego-engine (crates/rules-rego-engine)"
 license = "Apache-2.0"
 
 [lib]

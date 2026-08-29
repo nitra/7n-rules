@@ -35,7 +35,7 @@
 
 id = "ci-github/wasm-concerns"
 version = "0.3.0"
-world_version = "3.1.0"
+world_version = "4.0.0"
 domains = ["lint"]
 # Top-level поля маніфеста — ОБОВʼЯЗКОВО перед першим `[[concerns]]`: після
 # array-of-tables заголовка TOML відніс би їх до останнього елемента масиву,

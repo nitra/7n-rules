@@ -1,4 +1,4 @@
-//! `rules-plugin-host` — embedded wasmtime-хост для `n-rules:plugin@3.2.0`
+//! `rules-plugin-host` — embedded wasmtime-хост для `n-rules:plugin@4.0.0`
 //! (задача I2 фази 6, спека
 //! `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md`).
 //!

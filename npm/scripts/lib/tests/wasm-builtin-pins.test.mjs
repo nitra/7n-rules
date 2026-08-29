@@ -109,7 +109,20 @@ const EXPECTED_LANG_JS_CONCERNS = [
   'bun/licensee',
   'style/lint',
   'js/jscpd_duplicates',
-  'js-run/runtime'
+  'js-run/runtime',
+  // Хвилі §2.77/§2.78/§2.80 — родина конфіг-концернів через host-import
+  // rego-engine. Той самий клас розсинхрону, що вже описаний вище: список
+  // наздоганяє `plugin.toml`, який лишається джерелом правди.
+  'js/jscpd_config',
+  'js/package_json',
+  'js/vscode_extensions',
+  'js-run/jsconfig',
+  'npm-module/emit_types_config',
+  'npm-module/npm_package_json',
+  'npm-module/root_package_json',
+  'style/package_json',
+  'style/vscode_extensions',
+  'style/vscode_settings'
 ]
 
 /** Валідний sha256-hex — той самий канон, що `SHA256_HEX_RE` у `wasm-plugins.mjs` (module-scope, без пере-компіляції на кожен виклик). */

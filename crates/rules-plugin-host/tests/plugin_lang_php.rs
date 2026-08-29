@@ -48,7 +48,7 @@ use std::path::PathBuf;
 use rules_contract::detect::{DetectBatch, SourceFile};
 use rules_plugin_host::{PluginHost, ToolResolver};
 
-const PLUGIN_WORLD_VERSION: &str = "3.1.0";
+const PLUGIN_WORLD_VERSION: &str = "4.0.0";
 const CONCERN_PROJECT: &str = "php/project";
 const CONCERN_MAGO_FMT: &str = "php/mago_fmt";
 const CONCERN_MAGO_LINT: &str = "php/mago_lint";

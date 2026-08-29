@@ -42,6 +42,30 @@ pub struct ConcernContribution {
     pub scope: ConcernScope,
     #[serde(default)]
     pub glob: Vec<String>,
+    /// Glob-и, за якими хост будує batch **саме для `fix`** (мажор `4.0.0`,
+    /// §2.84, WIT `concern-contribution.fix-glob`). Порожній список —
+    /// свідомий дефолт «fix ділить скоуп із детектом»: хост падає назад на
+    /// [`Self::glob`], тобто рівно поведінка `3.x`.
+    ///
+    /// Мотив (§2.72): скоуп детекту й скоуп фіксу — різні величини, і поки
+    /// glob був один, єдиним обхідним шляхом було РОЗШИРЕННЯ detect-скоупу
+    /// заради fix-скоупу — вада, записана в реєстр тією ж §2.72.
+    #[serde(default)]
+    pub fix_glob: Vec<String>,
+}
+
+impl ConcernContribution {
+    /// Ефективний glob для `fix`-шляху: [`Self::fix_glob`], якщо він
+    /// непорожній, інакше [`Self::glob`] (доккомент поля). ЄДИНА точка, де
+    /// цей fallback живе — щоб «забув перевірити `fix_glob`» у новому місці
+    /// виклику було неможливо написати.
+    pub fn effective_fix_glob(&self) -> &[String] {
+        if self.fix_glob.is_empty() {
+            &self.glob
+        } else {
+            &self.fix_glob
+        }
+    }
 }
 
 /// Capability-декларація маніфеста (рішення Е спеки): scope `fs_read` —
@@ -76,6 +100,17 @@ pub struct Manifest {
     /// щоб хост міг самостійно побудувати full-scope batch.
     #[serde(default)]
     pub concerns: Vec<ConcernContribution>,
+    /// Концерни, для яких плагін дає ЛИШЕ `fix`, а детект лишається за
+    /// чинною реалізацією (`main.mjs`/policy/native) — мажор `4.0.0`, §2.84
+    /// (WIT `manifest.fix-only-concerns`).
+    ///
+    /// Окремий список, а не прапорець у [`ConcernContribution`]: «fix-only»
+    /// — окремий ВИД контрибуції, не атрибут scope-контрибуції (доккомент
+    /// `wit/world.wit`). Ключ у ОБОХ списках одночасно — контрактна
+    /// помилка, яку хост відхиляє гучно
+    /// ([`crate::validators::manifest::validate_manifest`]).
+    #[serde(default)]
+    pub fix_only_concerns: Vec<ConcernContribution>,
     /// Contribution-и слоту `ci.artifact@1`.
     #[serde(default)]
     pub ci_artifacts: Vec<CiArtifactDescriptor>,
@@ -102,7 +137,9 @@ mod tests {
                 key: "sample/concern".to_string(),
                 scope: ConcernScope::PerFile,
                 glob: vec!["**/*.rs".to_string()],
+                fix_glob: vec![],
             }],
+            fix_only_concerns: vec![],
             ci_artifacts: vec![CiArtifactDescriptor {
                 target_capability: "ci:github".to_string(),
                 artifact_id: "lint-demo".to_string(),
@@ -141,6 +178,44 @@ mod tests {
         assert!(manifest.capabilities.fs_read.is_empty());
         assert!(!manifest.capabilities.network);
         assert!(manifest.domains.is_empty());
+    }
+
+    /// Порожній `fix_glob` означає «fix ділить скоуп із детектом» — хост
+    /// падає назад на `glob`; непорожній — заміняє його цілком (не
+    /// доповнює: обʼєднання двох списків зробило б fix-скоуп надмножиною
+    /// detect-скоупу, тобто повернуло б рівно ту ваду §2.72, від якої поле
+    /// й рятує).
+    #[test]
+    fn effective_fix_glob_falls_back_to_detect_glob_when_empty() {
+        let shared = ConcernContribution {
+            key: "rust/check".to_string(),
+            scope: ConcernScope::Full,
+            glob: vec!["Cargo.toml".to_string()],
+            fix_glob: vec![],
+        };
+        assert_eq!(shared.effective_fix_glob(), ["Cargo.toml".to_string()]);
+
+        let split = ConcernContribution {
+            fix_glob: vec!["src/**/*.rs".to_string()],
+            ..shared
+        };
+        assert_eq!(split.effective_fix_glob(), ["src/**/*.rs".to_string()]);
+    }
+
+    /// Обидва нових поля мажора `4.0.0` мають serde-дефолти: маніфест,
+    /// серіалізований до бампу (чи руками написаний `plugin.toml`-довідник),
+    /// читається без них.
+    #[test]
+    fn new_major_four_fields_default_to_empty() {
+        let raw = serde_json::json!({
+            "id": "x",
+            "version": "0.1.0",
+            "world_version": "4.0.0",
+            "concerns": [{ "key": "a/b", "scope": "per-file", "glob": ["**/*.rs"] }],
+        });
+        let manifest: Manifest = serde_json::from_value(raw).unwrap();
+        assert!(manifest.fix_only_concerns.is_empty());
+        assert!(manifest.concerns[0].fix_glob.is_empty());
     }
 
     /// Схема генерується без паніки і містить назву типу — мінімальний

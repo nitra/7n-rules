@@ -21,6 +21,14 @@ fn frozen_v30_wit_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/wit-v30")
 }
 
+/// Заморожений знімок world v4.0 — БАЗА чинного мажора (§2.84). Знятий у
+/// момент major-бампу; тримає інваріант «мінор лінії `4.x` лишається
+/// additive» уперед, тоді як v3.0-фікстура лишається історичним свідченням
+/// того, що мажор реально стався (доккомент блоку `--- Мажор 4.0.0 ---`).
+fn frozen_v40_wit_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/wit-v40")
+}
+
 /// Імена bare-функцій (не інтерфейсів) world-а — той рівень, на якому
 /// Component Model звіряє імпорти гостя з тим, що дає `Linker` хоста.
 fn world_function_names(dir: PathBuf) -> (Vec<String>, Vec<String>) {
@@ -53,7 +61,7 @@ fn wit_directory_parses_without_errors() {
         .expect("wit/ має парситись без помилок");
 }
 
-/// Пакет `n-rules:plugin@3.2.0` резолвиться і містить world `plugin`.
+/// Пакет `n-rules:plugin@4.0.0` резолвиться і містить world `plugin`.
 #[test]
 fn plugin_package_and_world_resolve() {
     let mut resolve = Resolve::new();
@@ -63,7 +71,7 @@ fn plugin_package_and_world_resolve() {
     assert_eq!(pkg.name.name, "plugin");
     assert_eq!(
         pkg.name.version.as_ref().map(|v| v.to_string()).as_deref(),
-        Some("3.2.0")
+        Some("4.0.0")
     );
 
     let world_id = *pkg
@@ -72,6 +80,31 @@ fn plugin_package_and_world_resolve() {
         .expect("пакет n-rules:plugin має містити world `plugin`");
     let world = &resolve.worlds[world_id];
     assert_eq!(world.name, "plugin");
+}
+
+/// [`rules_contract::version::PLUGIN_WORLD_VERSION`] — те, що хост очікує
+/// від гостя, а `package n-rules:plugin@…` — те, проти чого гість реально
+/// збирається. Дві правди про одну версію, і до мажора `4.0.0` вони
+/// РОЗІЙШЛИСЬ: константа лишалась `"3.1.0"`, коли пакет уже був `3.2.0`.
+/// Наслідків не було (negotiation major-only), але саме такий мовчазний
+/// дрейф ховає версію контракту від людини — тож тепер він механічно
+/// неможливий.
+#[test]
+fn plugin_world_version_matches_wit_package() {
+    let mut resolve = Resolve::new();
+    let (pkg_id, _) = resolve.push_dir(wit_dir()).expect("wit/ парситься");
+    let package_version = resolve.packages[pkg_id]
+        .name
+        .version
+        .as_ref()
+        .map(|v| v.to_string())
+        .expect("пакет n-rules:plugin мусить нести версію");
+    assert_eq!(
+        rules_contract::version::PLUGIN_WORLD_VERSION,
+        package_version,
+        "константа PLUGIN_WORLD_VERSION розійшлась із `package n-rules:plugin@…` — \
+         хост очікував би від гостя не ту версію, проти якої той збирається"
+    );
 }
 
 /// `describe`/`detect`/`fix` — обов'язкові export-и world `plugin` (спека
@@ -225,7 +258,7 @@ fn slots_package_resolves_with_ci_artifact_interface() {
 // --- Структурний additive-гейт (§2.83): імен НЕДОСТАТНЬО ------------------
 //
 // `every_v30_world_item_survives_in_current_world` вище звіряє лише ІМЕНА
-// bare-імпортів/експортів. Замір (задача «форма типів контракту»)
+// bare-імпортів/експортів. Замір (задача «форма типів контракту», §2.83)
 // показав, що цього мало: три різні зміни ФОРМИ типів лишали набір імен
 // незмінним, гейт світився зеленим — і при цьому ЖОДЕН уже піно́ваний гість
 // не інстанціювався поточним хостом. Виміряні відмови wasmtime:
@@ -238,13 +271,33 @@ fn slots_package_resolves_with_ci_artifact_interface() {
 //
 // Component Model НЕ має width-subtyping для record-ів і НЕ приймає variant
 // із меншим числом case-ів там, де хост очікує більше: будь-яка зміна форми
-// типу, що перетинає межу гість↔хост, — MAJOR, не мінор. Цей тест тримає це
-// твердження механічно: кожен іменований тип замороженого world v3.0 має
-// існувати в поточному world-і з ТОЧНО ТІЄЮ Ж структурою (не «сумісною», не
-// «розширеною» — тією ж).
+// типу, що перетинає межу гість↔хост, — MAJOR, не мінор.
 //
-// Падіння означає «зміна вимагає major-бампу `n-rules:plugin`», а не
-// «оновіть фікстуру».
+// --- Що сталося з цим гейтом на мажорі `4.0.0` (§2.84) --------------------
+//
+// Гейт стеріг інваріант «форма типів v3.0 не змінюється НІКОЛИ» — і мажор
+// `4.0.0` порушив його свідомо, рівно тими трьома змінами, які §2.83
+// заміряла. «Полагодити» падіння оновленням v3.0-фікстури означало б
+// викинути гейт: після такого оновлення він доводив би лише «поточний world
+// дорівнює сам собі».
+//
+// Тому гейт РОЗДІЛЕНО на два, за двома різними твердженнями, які він
+// плутав в одному:
+//
+// 1. `v30_shapes_drifted_exactly_where_major_four_declares` — історичне
+//    твердження: відносно v3.0 форма змінилась РІВНО у трьох названих
+//    типах, і major при цьому бампнуто. Четверта тиха зміна форми (чи
+//    зміна форми БЕЗ major-бампу) валить цей тест — тобто заміряний факт
+//    §2.83 лишається під охороною, а не переїжджає в прозу.
+// 2. `every_v40_type_keeps_its_exact_shape_in_current_world` — те саме
+//    твердження, що стеріг старий гейт, але відносно НОВОЇ бази
+//    (`tests/fixtures/wit-v40/`): мінор лінії `4.x` мусить лишити форму
+//    типів незмінною. Сьогодні він тавтологічно зелений (фікстура — знімок
+//    цього ж world); змістовним він стає з першою ж правкою world після
+//    бампу, і саме тому заводиться ЗАРАЗ, а не «коли знадобиться».
+//
+// Падіння будь-якого з двох означає «зміна вимагає major-бампу
+// `n-rules:plugin`», а не «оновіть фікстуру».
 
 /// Канонічний рендер типу для порівняння між ДВОМА різними `Resolve`
 /// (індекси арен у них різні, тож `Debug` непридатний).
@@ -356,11 +409,28 @@ fn world_type_shapes(dir: PathBuf) -> std::collections::BTreeMap<String, String>
         .collect()
 }
 
-/// Кожен іменований тип замороженого world v3.0 присутній у поточному
-/// world-і з ІДЕНТИЧНОЮ структурою — доккомент блоку вище пояснює, чому
-/// «розширена» структура тут НЕ сумісна.
+/// Major-компонента версії пакета `n-rules:plugin` у переданій `wit`-теці.
+fn world_major(dir: PathBuf) -> u64 {
+    let mut resolve = Resolve::new();
+    let (pkg_id, _) = resolve.push_dir(dir).expect("wit/ парситься");
+    resolve.packages[pkg_id]
+        .name
+        .version
+        .as_ref()
+        .expect("пакет n-rules:plugin мусить нести версію")
+        .major
+}
+
+/// **Історичний гейт мажора `4.0.0`** (доккомент блоку вище, п.1): відносно
+/// замороженого v3.0 форма змінилась РІВНО у трьох типах, які цей мажор
+/// назвав — і major при цьому реально бампнуто.
+///
+/// Тест навмисно двобічний. `assert_eq!` на МНОЖИНІ типів, що дрейфували,
+/// ловить четверту тиху зміну форми (вона розширить множину) І «випадкове»
+/// повернення форми назад (звузить); окрема перевірка major-компоненти
+/// ловить зміну форми БЕЗ бампу. Жодне з двох не мовчить.
 #[test]
-fn every_v30_type_keeps_its_exact_shape_in_current_world() {
+fn v30_shapes_drifted_exactly_where_major_four_declares() {
     let frozen = world_type_shapes(frozen_v30_wit_dir());
     let current = world_type_shapes(wit_dir());
 
@@ -379,18 +449,81 @@ fn every_v30_type_keeps_its_exact_shape_in_current_world() {
         );
     }
 
+    for name in frozen.keys() {
+        assert!(
+            current.contains_key(name),
+            "тип `{name}` був у world v3.0 і ЗНИК із поточного. Мажор `4.0.0` міняв форму \
+             трьох типів, а не видаляв типи — видалення тут не задекларовано жодним рішенням"
+        );
+    }
+
+    let drifted: std::collections::BTreeSet<&str> = frozen
+        .iter()
+        .filter(|(name, shape)| current.get(*name) != Some(*shape))
+        .map(|(name, _)| name.as_str())
+        .collect();
+    let declared: std::collections::BTreeSet<&str> =
+        ["concern-contribution", "file-edit", "manifest"]
+            .into_iter()
+            .collect();
+    assert_eq!(
+        drifted, declared,
+        "множина типів, чия форма розійшлась із замороженим world v3.0, не збігається з тією, \
+         яку задекларував мажор `4.0.0` (доккомент `wit/world.wit`, версійний блок). Зайвий тип \
+         тут = ЧЕТВЕРТА зміна форми, що приїхала мовчки: Component Model не має width-subtyping, \
+         тож вона так само ламає інстанціацію вже пінованих гостей і так само вимагає бампу \
+         major. Фікстуру `wit-v30/` НЕ оновлювати — вона історичний знімок, а не дзеркало \
+         поточного world"
+    );
+
+    assert!(
+        world_major(wit_dir()) > world_major(frozen_v30_wit_dir()),
+        "форма типів розійшлась із v3.0, але major-компонента `n-rules:plugin` не бампнута — \
+         рівно той мовчазний breaking-реліз, який цей гейт має робити неможливим"
+    );
+}
+
+/// **Additive-гейт лінії `4.x`** (доккомент блоку вище, п.2): кожен
+/// іменований тип замороженого world v4.0 присутній у поточному world-і з
+/// ІДЕНТИЧНОЮ структурою.
+///
+/// Це те саме твердження, що стеріг домажорний
+/// `every_v30_type_keeps_its_exact_shape_in_current_world`, лише з новою
+/// базою. Сьогодні він зелений тавтологічно (фікстура знята з цього ж
+/// world) — і це нормально: гейт заводиться в момент бампу саме для того,
+/// щоб перша ж правка world після нього не проїхала мовчки.
+#[test]
+fn every_v40_type_keeps_its_exact_shape_in_current_world() {
+    let frozen = world_type_shapes(frozen_v40_wit_dir());
+    let current = world_type_shapes(wit_dir());
+
+    for required in [
+        "manifest",
+        "concern-contribution",
+        "file-edit",
+        "write-bytes-file",
+        "diagnostic",
+    ] {
+        assert!(
+            frozen.contains_key(required),
+            "фікстура v4.0 має містити тип `{required}` — інакше гейт його не покриває \
+             (наявні: {:?})",
+            frozen.keys().collect::<Vec<_>>()
+        );
+    }
+
     for (name, frozen_shape) in &frozen {
         match current.get(name) {
             None => panic!(
-                "тип `{name}` був у world v3.0 і зник із поточного — зміна НЕ additive, \
+                "тип `{name}` був у world v4.0 і зник із поточного — зміна НЕ additive, \
                  потрібен major-бамп `n-rules:plugin`"
             ),
             Some(current_shape) => assert_eq!(
                 current_shape, frozen_shape,
-                "форма типу `{name}` змінилась відносно замороженого world v3.0. \
+                "форма типу `{name}` змінилась відносно замороженого world v4.0. \
                  Component Model не має width-subtyping: уже піно́ваний гість НЕ \
-                 інстанціюється (виміряно — `expected record of N fields, found N-1 fields` / \
-                 `expected variant of N cases, found N-1 cases`). Це MAJOR-зміна \
+                 інстанціюється (виміряно §2.83 — `expected record of N fields, found N-1 \
+                 fields` / `expected variant of N cases, found N-1 cases`). Це MAJOR-зміна \
                  `n-rules:plugin`, а не мінор; фікстуру НЕ оновлювати"
             ),
         }

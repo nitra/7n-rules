@@ -1,4 +1,4 @@
-//! wasm-компонент `n-rules:plugin@3.1.0` — `rust/wasm-concerns`, ТРЕТІЙ
+//! wasm-компонент `n-rules:plugin@4.0.0` — `rust/wasm-concerns`, ТРЕТІЙ
 //! first-party wasm-гість репозиторію (перший — `crates/plugin-lang-js`,
 //! другий — `crates/plugin-lang-python`, доккомент того `src/lib.rs`
 //! пояснює саму форму), створений за тим самим флоу скіла
@@ -2775,23 +2775,26 @@ fn build_manifest() -> Manifest {
     Manifest {
         id: "rust/wasm-concerns".to_string(),
         version: "0.1.0".to_string(),
-        world_version: "3.1.0".to_string(),
+        world_version: "4.0.0".to_string(),
         domains: vec![Domain::Lint],
         concerns: vec![
             ConcernContribution {
                 key: CONCERN_APPLIES.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec!["**/Cargo.toml".to_string()],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_DOC_COMMENTS.to_string(),
                 scope: ConcernScope::PerFile,
                 glob: vec!["**/*.rs".to_string()],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_WORKSPACE_ROOT.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec!["**/Cargo.toml".to_string()],
+                fix_glob: vec![],
             },
             // `rust/check` — WHOLE-BATCH. Сам [`detect_check`] читає лише ДВА
             // root-only presence-сигнали (`Cargo.toml` — Rust-проєкт чи ні,
@@ -2817,6 +2820,7 @@ fn build_manifest() -> Manifest {
                     "Cargo.lock".to_string(),
                     "deny.toml".to_string(),
                 ],
+                fix_glob: vec![],
             },
             // `rust/cargo_mutants_config` — WHOLE-BATCH: `**/Cargo.toml` +
             // `package.json` ([`resolve_all_cargo_manifests`]) +
@@ -2829,6 +2833,7 @@ fn build_manifest() -> Manifest {
                     "package.json".to_string(),
                     "**/.cargo/mutants.toml".to_string(),
                 ],
+                fix_glob: vec![],
             },
             // `rust/wasm_component` — PER-FILE, той самий глоб, що
             // `concern.json` (`**/Cargo.toml`) — власний цільовий файл
@@ -2838,6 +2843,7 @@ fn build_manifest() -> Manifest {
                 key: CONCERN_WASM_COMPONENT.to_string(),
                 scope: ConcernScope::PerFile,
                 glob: vec!["**/Cargo.toml".to_string()],
+                fix_glob: vec![],
             },
             // Policy-концерн (rego + snippet, без `main.mjs`) — glob
             // контрибуції РІВНО цільовий файл: він годує і detect
@@ -2848,6 +2854,7 @@ fn build_manifest() -> Manifest {
                 key: CONCERN_VSCODE_EXTENSIONS.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec![".vscode/extensions.json".to_string()],
+                fix_glob: vec![],
             },
         ],
         ci_artifacts: vec![],
@@ -2861,10 +2868,11 @@ fn build_manifest() -> Manifest {
         // `rust/check` — ПІЛОТ `exec-tool` цього крейта (доккомент модуля,
         // розділ «ДРУГА ХВИЛЯ»), одна декларація [`CHECK_TOOL`].
         tools: vec![CHECK_TOOL.to_string()],
+        fix_only_concerns: vec![],
     }
 }
 
-/// Guest-реалізація `n-rules:plugin@3.1.0` для `rust/wasm-concerns` — три
+/// Guest-реалізація `n-rules:plugin@4.0.0` для `rust/wasm-concerns` — три
 /// контрибуції першої хвилі (доккомент модуля).
 struct LangRust;
 
@@ -3824,7 +3832,7 @@ mod tests {
                 assert!(!write.content.contains("additional_cargo_test_args"));
                 assert!(!write.content.contains("exclude_globs"));
             }
-            FileEdit::Delete(_) => panic!("очікували write-edit"),
+            other => panic!("очікували write-edit, отримали {other:?}"),
         }
     }
 
@@ -3847,7 +3855,7 @@ mod tests {
             .iter()
             .map(|edit| match edit {
                 FileEdit::Write(write) => write.path.as_str(),
-                FileEdit::Delete(_) => panic!("очікували лише write-edits"),
+                other => panic!("очікували лише write-edits, отримали {other:?}"),
             })
             .collect();
         written.sort_unstable();
@@ -4131,7 +4139,7 @@ mod tests {
     fn build_manifest_declares_all_concerns_with_expected_scopes() {
         let manifest = build_manifest();
         assert_eq!(manifest.id, "rust/wasm-concerns");
-        assert_eq!(manifest.world_version, "3.1.0");
+        assert_eq!(manifest.world_version, "4.0.0");
         assert_eq!(manifest.domains, vec![Domain::Lint]);
         // Сім — шість концернів попередніх хвиль плюс
         // `rust/vscode_extensions` (§2.77).

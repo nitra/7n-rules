@@ -1,0 +1,31 @@
+// ЗАМОРОЖЕНИЙ знімок пакета `n-rules:slots@1.0.0` — частина фікстури
+// `wit-v40/` (доккомент `world.wit` поряд). Проза зрізана з тих самих
+// міркувань.
+package n-rules:slots@1.0.0;
+
+interface ci-artifact {
+  enum format {
+    yaml,
+  }
+
+  enum mode {
+    required-file,
+    patch-existing,
+  }
+
+  enum merge-strategy {
+    deep-subset,
+    contains-step,
+  }
+
+  record descriptor {
+    target-capability: string,
+    artifact-id: string,
+    target-path: string,
+    format: format,
+    mode: mode,
+    template: string,
+    merge-strategy: merge-strategy,
+    fix: bool,
+  }
+}

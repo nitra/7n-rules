@@ -10,14 +10,30 @@
 /// Версія world `n-rules:plugin` (`wit/world.wit`) — те, що плагін заявляє
 /// у `manifest.world-version` при `describe()`.
 ///
-/// `3.1.0` — зріз 5 контракту v3.1 (`import exec-tool` + slot
-/// `scratch-dir@1`, рішення Ж спеки
-/// `docs/specs/2026-08-01-plugin-contract-v31-surfaces.md`). Negotiation
-/// лишається MAJOR-only (`PluginHost::load` → `check_world_version`), тож
-/// v3.0-плагін, який заявляє `"3.0.0"`, приймається цим хостом без змін —
-/// саме це й робить мінор additive-сумісним на рівні негоціації, а не лише
-/// на рівні лінкування імпортів.
-pub const PLUGIN_WORLD_VERSION: &str = "3.1.0";
+/// `4.0.0` — МАЖОР (§2.84 реєстру відкритих питань
+/// `docs/plans/2026-08-05-open-questions-register.md`): три зміни ФОРМИ
+/// типів межі гість↔хост (`write-bytes` у `variant file-edit`, `fix-glob` у
+/// `record concern-contribution`, `fix-only-concerns` у `record manifest`).
+/// Component Model не має width-subtyping — §2.83 виміряла, що кожна з них
+/// поодинці ламає інстанціацію вже пінованого гостя (доккомент
+/// `wit/world.wit`, версійний блок `4.0.0`), тож усі три поїхали одним
+/// бампом.
+///
+/// Negotiation лишається MAJOR-only (`PluginHost::load` →
+/// `check_world_version`) — і саме тому цей бамп ламає ВСІХ гостей
+/// одномоментно: плагін, що заявляє будь-яку `3.x`, цим хостом більше НЕ
+/// приймається. Це не деградація, а «плагін не вантажиться»: проміжного
+/// стану «хост `4.0.0`, гість `3.2.0`» бути не може навіть на один коміт
+/// (усі шість first-party гостей + фікстури + шаблон скіла переведені тією
+/// самою задачею).
+///
+/// До `4.0.0` тут стояло `"3.1.0"`, тоді як WIT-пакет уже був `3.2.0` —
+/// дрейф без наслідків (negotiation major-only, `3` == `3`), але саме
+/// такий, що ховає версію контракту від людини. Гейт
+/// `plugin_world_version_matches_wit_package` (`tests/wit_parity.rs`)
+/// тепер тримає цю константу й `package n-rules:plugin@…` синхронними
+/// механічно.
+pub const PLUGIN_WORLD_VERSION: &str = "4.0.0";
 
 /// Версія пакета `n-rules:slots` (`wit/deps/slots/ci-artifact.wit`) —
 /// незалежний цикл версіонування від `PLUGIN_WORLD_VERSION` (рішення Л:
@@ -29,8 +45,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn plugin_world_version_is_three_one_zero() {
-        assert_eq!(PLUGIN_WORLD_VERSION, "3.1.0");
+    fn plugin_world_version_is_four_zero_zero() {
+        assert_eq!(PLUGIN_WORLD_VERSION, "4.0.0");
     }
 
     #[test]

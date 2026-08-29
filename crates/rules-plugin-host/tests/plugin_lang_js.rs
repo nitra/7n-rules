@@ -46,7 +46,7 @@ use rules_contract::diagnostic::Severity;
 use rules_contract::manifest::{ConcernScope, Domain};
 use rules_plugin_host::{PluginHost, ToolResolver};
 
-const PLUGIN_WORLD_VERSION: &str = "3.1.0";
+const PLUGIN_WORLD_VERSION: &str = "4.0.0";
 const CONCERN_TFM: &str = "vue/tfm-translations";
 const CONCERN_GAP: &str = "style/gap";
 const CONCERN_POOL_FORKS: &str = "test/vitest-config-pool-forks";

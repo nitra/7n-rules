@@ -44,7 +44,7 @@ use rules_contract::diagnostic::Severity;
 use rules_contract::manifest::Domain;
 use rules_plugin_host::{PluginHost, ToolResolver};
 
-const PLUGIN_WORLD_VERSION: &str = "3.0.0";
+const PLUGIN_WORLD_VERSION: &str = "4.0.0";
 const CRATE_NAME: &str = "wasm-plugin-skill-smoke-fixture";
 const PLUGIN_ID: &str = "skill-smoke/marker-fixture";
 const CONCERN_ID: &str = "skill-smoke/forbidden-marker";
@@ -142,7 +142,7 @@ fn scaffold_and_build() -> (tempfile::TempDir, PathBuf) {
 /// Наскрізний прогін: scaffold → build → describe/detect через реальний
 /// [`PluginHost`] — доводить, що інструкції скіла (шаблони +
 /// `template/build.sh`) дають робочий wasm-компонент, сумісний з
-/// `n-rules:plugin@3.0.0`. Смок-фікстура не декларує зовнішніх tools —
+/// `n-rules:plugin@4.0.0`. Смок-фікстура не декларує зовнішніх tools —
 /// порожній резолвер.
 #[test]
 fn scaffold_build_and_detect_pipeline_is_functional() {

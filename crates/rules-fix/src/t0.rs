@@ -11,8 +11,8 @@
 //!
 //! # Переклад `FixPlan` → `EditPlan`
 //!
-//! Контракт native-фіксів ([`rules_contract::fix::FileEdit`]) має дві
-//! операції, план — три, і мапінг нетривіальний рівно у двох місцях:
+//! Контракт native-фіксів ([`rules_contract::fix::FileEdit`]) має три
+//! операції, план — три, і мапінг нетривіальний рівно у трьох місцях:
 //!
 //! - `Write` на НАЯВНИЙ файл — основний шлях 7 із 10 `NATIVE_FIXES`
 //!   (читають файл → трансформують → пишуть повний новий вміст ТОГО Ж
@@ -31,6 +31,24 @@
 //!   перевіряє `exists(".firebase")`, лишився б червоним на порожній теці.
 //!   Прибирання тек — поза журналом свідомо: журнал несе вміст (файли з
 //!   pre-image), а порожня тека вмісту не має.
+//! - `WriteBytes` (мажор контракту `4.0.0`, §2.84) — **не виражається цим
+//!   планом узагалі**, і це відмова, а не пропуск. `EditPlan` цієї петлі —
+//!   ТЕКСТОВИЙ: `FileEditPlan::Create::content` — `String`, `Anchored`
+//!   рахує рядкові якорі, журнал зберігає pre-image текстом. Байти сюди не
+//!   лягають ніяк, а «покласти майже» (lossy-конверсія у `String`) —
+//!   рівно той сценарій, що вже задокументований на detect-боці як
+//!   знищення файлу (`crates/rules-napi::non_utf8_source_file_err`: 12
+//!   байтів PNG-сигнатури → 18 байтів мозаїки).
+//!
+//!   Тому міст ЗБИРАЄ такі edit-и й валить `prepare` типізованою помилкою
+//!   (не `plan`: його сигнатура повертає `EditPlan` без каналу помилки).
+//!   Мовчазний skip тут був би найгіршим із варіантів: фікс «відпрацював
+//!   би» без єдиної правки, детектор лишився б червоним, і ніщо не
+//!   пояснило б чому. Сьогодні жоден із `NATIVE_FIXES` `WriteBytes` не
+//!   повертає, тож ця гілка не змінює жодного чинного прогону — вона
+//!   стріляє рівно тоді, коли перший бінарний фіксер (`image-compress`,
+//!   `image-avif`) приїде в цю петлю, і скаже вголос, ЩО саме треба
+//!   доробити: байтовий варіант `FileEditPlan` у `llm_lib`.
 //!
 //! # Місце в петлі
 //!
@@ -119,10 +137,15 @@ fn sweep_empty_dirs(root: &Path) {
 }
 
 /// Переклад плану native-фікса в декларативний [`EditPlan`] + перелік
-/// тек-коренів, які треба прибрати після commit (розгорнуті `Delete`-теки).
-fn to_edit_plan(cwd: &Path, edits: &[FileEdit]) -> (EditPlan, Vec<PathBuf>) {
+/// тек-коренів, які треба прибрати після commit (розгорнуті `Delete`-теки)
+/// + перелік edit-ів, які цим планом НЕ виражаються (`WriteBytes` —
+/// доккомент модуля). Третій елемент непорожній ⇒ `prepare` мусить
+/// відмовити: мовчки застосувати «все, крім них» означало б відзвітувати
+/// успіх, не зробивши того, заради чого фікс кликали.
+fn to_edit_plan(cwd: &Path, edits: &[FileEdit]) -> (EditPlan, Vec<PathBuf>, Vec<String>) {
     let mut files = Vec::new();
     let mut dir_roots = Vec::new();
+    let mut unsupported = Vec::new();
     for edit in edits {
         match edit {
             FileEdit::Write(write) => {
@@ -164,9 +187,12 @@ fn to_edit_plan(cwd: &Path, edits: &[FileEdit]) -> (EditPlan, Vec<PathBuf>) {
                 // Відсутній шлях — мета вже досягнута, у план не потрапляє
                 // (Delete на відсутній файл — Err валідації, а не no-op).
             }
+            // Байтовий запис — доккомент модуля: текстовий `EditPlan` його
+            // не виражає, тож збираємо для гучної відмови у `prepare`.
+            FileEdit::WriteBytes(write) => unsupported.push(write.path.clone()),
         }
     }
-    (EditPlan { files }, dir_roots)
+    (EditPlan { files }, dir_roots, unsupported)
 }
 
 /// Стан між `prepare` і `commit`: guard (несе pre-images і editLog) і
@@ -192,15 +218,25 @@ pub fn build_t0_step(key: &str, cwd: &Path, files: Option<&[String]>) -> Option<
     // Тека-корені розгорнутих Delete-тек: рахуються у фазі плану, потрібні
     // після commit — той самий життєвий цикл, що й у PreparedState.
     let dir_roots: Arc<Mutex<Vec<PathBuf>>> = Arc::new(Mutex::new(Vec::new()));
+    // Шляхи `WriteBytes`-edit-ів, які текстовий `EditPlan` не виражає — той
+    // самий життєвий цикл «порахували у фазі плану, спожили пізніше», що й
+    // `dir_roots`, але спожити їх треба у `prepare` (доккомент модуля).
+    let unsupported: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
     let state: PreparedState = Arc::new(Mutex::new(None));
 
     let plan_fn = {
-        let (key, cwd, dir_roots) = (key.clone(), cwd.clone(), Arc::clone(&dir_roots));
+        let (key, cwd, dir_roots, unsupported) = (
+            key.clone(),
+            cwd.clone(),
+            Arc::clone(&dir_roots),
+            Arc::clone(&unsupported),
+        );
         Arc::new(move || {
             let key = key.clone();
             let cwd = cwd.clone();
             let files = files.clone();
             let dir_roots = Arc::clone(&dir_roots);
+            let unsupported = Arc::clone(&unsupported);
             let fut: BoxFuture<'static, EditPlan> = Box::pin(async move {
                 // Детектор напряму, не через `detect::run_canonical`:
                 // native-фікс приймає `rules_core::diagnostics::Violation`.
@@ -213,8 +249,9 @@ pub fn build_t0_step(key: &str, cwd: &Path, files: Option<&[String]>) -> Option<
                 let Ok(plan) = run_concern_fix(&key, &cwd, &violations) else {
                     return EditPlan::empty();
                 };
-                let (edit_plan, roots) = to_edit_plan(&cwd, &plan.edits);
+                let (edit_plan, roots, unsupported_paths) = to_edit_plan(&cwd, &plan.edits);
                 *lock_ok(&dir_roots) = roots;
+                *lock_ok(&unsupported) = unsupported_paths;
                 edit_plan
             });
             fut
@@ -222,11 +259,33 @@ pub fn build_t0_step(key: &str, cwd: &Path, files: Option<&[String]>) -> Option<
     };
 
     let prepare_fn = {
-        let (cwd, state) = (cwd.clone(), Arc::clone(&state));
+        let (cwd, state, unsupported, key) = (
+            cwd.clone(),
+            Arc::clone(&state),
+            Arc::clone(&unsupported),
+            key.clone(),
+        );
         Arc::new(move |plan: EditPlan| {
             let cwd = cwd.clone();
             let state = Arc::clone(&state);
+            let unsupported = Arc::clone(&unsupported);
+            let key = key.clone();
             let fut: BoxFuture<'static, Result<PreparedPlan, String>> = Box::pin(async move {
+                // Гучна відмова замість часткового застосування (доккомент
+                // модуля, `WriteBytes`).
+                let unsupported_paths = std::mem::take(&mut *lock_ok(&unsupported));
+                if !unsupported_paths.is_empty() {
+                    return Err(format!(
+                        "t0 `{key}`: native-фікс повернув {} байтових edit-ів ({}), які \
+                         декларативний EditPlan цієї петлі не виражає — його `Create::content` \
+                         і pre-image журналу ТЕКСТОВІ. Застосувати «все, крім них» означало б \
+                         відзвітувати успіх, не зробивши фікс; lossy-конверсія байтів у рядок \
+                         знищила б файл. Потрібен байтовий варіант FileEditPlan у llm_lib — \
+                         доккомент crates/rules-fix/src/t0.rs",
+                        unsupported_paths.len(),
+                        unsupported_paths.join(", ")
+                    ));
+                }
                 let mut guard = WriteGuard::new(cwd.clone());
                 let prepared = prepare_edit_plan(&mut guard, &cwd, &plan)?;
                 let pre_images = collect_pre_images(&guard, &cwd, &plan);
@@ -377,7 +436,8 @@ mod tests {
                 path: ".fire".into(),
             },
         ];
-        let (plan, dir_roots) = to_edit_plan(cwd, &edits);
+        let (plan, dir_roots, unsupported) = to_edit_plan(cwd, &edits);
+        assert!(unsupported.is_empty(), "текстові edit-и не бувають байтовими");
 
         let kinds: Vec<&str> = plan
             .files

@@ -1,7 +1,7 @@
 ---
 name: n-wasm-plugin
 description: >-
-  Авторинг плагінів contract v3 (wasm-компонент, n-rules:plugin@3.0.0) — scaffold нового guest-крейта, реалізація концерну, golden-тести через rules-plugin-host, publish (url+sha256 пін для wasmPlugins)
+  Авторинг плагінів contract v3 (wasm-компонент, n-rules:plugin@4.0.0) — scaffold нового guest-крейта, реалізація концерну, golden-тести через rules-plugin-host, publish (url+sha256 пін для wasmPlugins)
 version: '1.0'
 ---
 
@@ -9,7 +9,7 @@ version: '1.0'
 
 ## Мета
 
-Провести LLM-агента через повний цикл створення плагіна `n-rules:plugin@3.0.0`
+Провести LLM-агента через повний цикл створення плагіна `n-rules:plugin@4.0.0`
 (спека `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md`, рішення
 І): **scaffold** нового guest-крейта → **реалізація** одного концерну →
 **golden-тести** через реальний `rules-plugin-host` → **publish** (пін
@@ -20,7 +20,7 @@ version: '1.0'
 крок 1 (scaffold) і Cargo-специфіка кроку 4 (publish) прив'язані до Rust.
 
 **Джерело правди контракту** — `crates/rules-contract/wit/world.wit`
-(world `plugin`, пакет `n-rules:plugin@3.0.0`). Якщо цей файл і цей SKILL.md
+(world `plugin`, пакет `n-rules:plugin@4.0.0`). Якщо цей файл і цей SKILL.md
 розійшлись — вір `.wit`, і онови цей документ.
 
 ## Передумови
@@ -58,7 +58,7 @@ version: '1.0'
 | `__WIT_PATH__` | лише `lib.rs.tpl` — шлях у `wit_bindgen::generate!({ path: … })`, дивись нижче |
 
 Шаблон декларує контрибуцію концерну як `ConcernContribution { key, scope,
-glob }` (WIT `record concern-contribution`, `manifest.concerns:
+glob, fix_glob }` (WIT `record concern-contribution`, `manifest.concerns:
 list<concern-contribution>` — НЕ голий рядок): `key` = `__CONCERN_ID__`,
 `scope` за замовчуванням `ConcernScope::PerFile` з порожнім `glob` (типовий
 дефолт — виклик сам передає підмножину файлів у `DetectBatch`). Заміни
@@ -244,6 +244,31 @@ pipeline-смок у `wasm-fix-e2e.test.mjs`. Якщо план виходить
 контракту: один guest-крейт МОЖЕ нести кілька контрибуцій. Патерн (зразок —
 `crates/plugin-lang-js` — два концерни, і `crates/test-plugin-guest` — три
 тест-хуки):
+
+### Концерн ЛИШЕ для фіксу (`fix_only_concerns`, контракт `4.0.0`)
+
+Якщо плагін має дати фікс, але детект концерну має лишитись за чинною
+JS/policy-реалізацією, ключ іде в `Manifest::fix_only_concerns`, а НЕ в
+`concerns`. Різниця не косметична: будь-який ключ у `concerns` вмикає
+detect-шедоуїнг — `npm/scripts/lib/lint-surface/detect.mjs` ПОВНІСТЮ заміняє
+`main.mjs`/policy-детект концерну викликом `detect()` плагіна. До контракту
+`4.0.0` способу «лише fix» не існувало взагалі, і оголошення концерну заради
+фіксу мовчки вимикало його детект.
+
+Ключ РІВНО в одному зі списків: маніфест, що називає його в обох, хост
+відхиляє на завантаженні (`rules_contract::validators::manifest`) — два
+взаємно виключних наміри, які хост не вгадує.
+
+### Окремий скоуп фіксу (`fix_glob`, контракт `4.0.0`)
+
+`ConcernContribution.fix_glob` — глоби, за якими хост будує batch і знімки
+host-diff саме для `fix`. Порожній список = «fix ділить скоуп із детектом»
+(fallback на `glob`), і для більшості концернів так і треба.
+
+Заповнюй його, коли скоуп фіксу ШИРШИЙ за скоуп детекту — типово для
+exec-tool-фіксерів: детект читає маніфест (`Cargo.toml`), а тул мутує
+`src/**`. Без `fix_glob` єдиним виходом було розширити detect-glob заради
+фіксу, тобто змусити детект читати зайве; з ним обидва скоупи чесні.
 
 1. `Manifest::concerns` — список із кількох `ConcernContribution` (кожен свій
    `key`/`scope`/`glob`), не один елемент.

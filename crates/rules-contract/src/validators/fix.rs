@@ -11,9 +11,26 @@
 //!   `ci.artifact@1` (переюз, не дублювання);
 //! - **ліміти розміру**: кількість edit-ів ([`MAX_FIX_PLAN_EDITS`]), розмір
 //!   вмісту одного write ([`MAX_FIX_EDIT_CONTENT_BYTES`]) і сумарний розмір
-//!   плану ([`MAX_FIX_PLAN_TOTAL_BYTES`]) — `FixPlan` v3.0 переносить ПОВНИЙ
+//!   плану ([`MAX_FIX_PLAN_TOTAL_BYTES`]) — `FixPlan` переносить ПОВНИЙ
 //!   новий вміст файлу, тож без лімітів зіпсований/зловмисний плагін міг би
 //!   змусити хост тримати в пам'яті й писати на диск довільні обсяги.
+//!
+//! # Бінарні edit-и йдуть під ТИМИ САМИМИ лімітами (мажор `4.0.0`, §2.84)
+//!
+//! [`FileEdit::WriteBytes`] рахується тією ж міркою, що текстовий
+//! [`FileEdit::Write`]: `content.len()` — і там, і там БАЙТИ (у `Write` це
+//! довжина UTF-8-представлення `String`, у `WriteBytes` — довжина `Vec<u8>`),
+//! тож жодної конверсії одиниць тут немає й окремої константи не заведено.
+//!
+//! Окремий, більший ліміт для бінарників розглянуто й ВІДХИЛЕНО: 4 МіБ на
+//! файл — це вже з великим запасом більше за будь-яке зображення, яке
+//! lint-концерн має право переписати (перші споживачі — `image-compress`/
+//! `image-avif`, вихід яких МЕНШИЙ за вхід за визначенням), а другий ліміт
+//! означав би другу межу, яку треба тримати в голові, і питання «під який
+//! з них потрапляє цей edit» у кожному місці виклику. Якщо колись
+//! з'явиться легітимний споживач, якому 4 МіБ мало, правильний хід —
+//! підняти спільну константу свідомо, а не завести бінарникам власну
+//! «тіньову» межу.
 //!
 //! Помилки акумулюються в одному виклику (не early-return на першій) — той
 //! самий контракт, що [`super::ci_artifact::validate_ci_artifact_payload`].
@@ -39,6 +56,9 @@ fn edit_path_and_len(edit: &FileEdit) -> (&str, usize) {
     match edit {
         FileEdit::Write(write) => (write.path.as_str(), write.content.len()),
         FileEdit::Delete { path } => (path.as_str(), 0),
+        // Байти рахуються тією ж міркою, що текст — доккомент модуля,
+        // розділ «Бінарні edit-и йдуть під ТИМИ САМИМИ лімітами».
+        FileEdit::WriteBytes(write) => (write.path.as_str(), write.content.len()),
     }
 }
 
@@ -115,6 +135,56 @@ mod tests {
             ],
         };
         assert!(validate_fix_plan(&plan).is_ok());
+    }
+
+    fn write_bytes_edit(path: &str, content: Vec<u8>) -> FileEdit {
+        FileEdit::WriteBytes(crate::fix::WriteBytesFile {
+            path: path.to_string(),
+            content,
+        })
+    }
+
+    /// Мажор `4.0.0`: бінарний edit проходить ті самі дві перевірки, що
+    /// текстовий — safe-path і ліміт розміру. Без цього тесту новий case
+    /// `variant`-а міг би мовчки випасти з валідації (той самий клас
+    /// тихого пропуску, від якого стереже `edit_path_and_len`).
+    #[test]
+    fn write_bytes_edit_is_validated_like_a_text_write() {
+        let png = vec![0x89u8, 0x50, 0x4E, 0x47];
+        assert!(validate_fix_plan(&FixPlan {
+            edits: vec![write_bytes_edit("docs/logo.png", png.clone())],
+        })
+        .is_ok());
+
+        let escaped = validate_fix_plan(&FixPlan {
+            edits: vec![write_bytes_edit("../escape.png", png)],
+        })
+        .unwrap_err();
+        assert!(escaped.iter().any(|e| e.contains("../escape.png")));
+
+        let oversized = validate_fix_plan(&FixPlan {
+            edits: vec![write_bytes_edit(
+                "big.png",
+                vec![0u8; MAX_FIX_EDIT_CONTENT_BYTES + 1],
+            )],
+        })
+        .unwrap_err();
+        assert!(oversized.iter().any(|e| e.contains("big.png")));
+    }
+
+    /// Бінарні й текстові edit-и лічаться в ОДНУ суму плану — окремого
+    /// «бінарного бюджету» немає (доккомент модуля).
+    #[test]
+    fn binary_and_text_edits_share_one_plan_budget() {
+        let edits = vec![
+            write_edit("a.txt", &"x".repeat(MAX_FIX_EDIT_CONTENT_BYTES)),
+            write_bytes_edit("b.png", vec![0u8; MAX_FIX_EDIT_CONTENT_BYTES]),
+            write_edit("c.txt", &"x".repeat(MAX_FIX_EDIT_CONTENT_BYTES)),
+            write_bytes_edit("d.png", vec![0u8; MAX_FIX_EDIT_CONTENT_BYTES]),
+            write_bytes_edit("e.png", vec![0u8; MAX_FIX_EDIT_CONTENT_BYTES]),
+        ];
+        let errors = validate_fix_plan(&FixPlan { edits }).unwrap_err();
+        assert!(errors.iter().any(|e| e.contains("сумарний")));
     }
 
     #[test]

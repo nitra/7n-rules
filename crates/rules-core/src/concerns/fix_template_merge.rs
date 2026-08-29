@@ -252,7 +252,7 @@ mod tests {
         assert_eq!(plan.edits.len(), 1, "очікували рівно одну правку");
         match &plan.edits[0] {
             FileEdit::Write(w) => (w.path.as_str(), w.content.as_str()),
-            FileEdit::Delete { .. } => panic!("очікували write"),
+            other => panic!("очікували write, отримали {other:?}"),
         }
     }
 

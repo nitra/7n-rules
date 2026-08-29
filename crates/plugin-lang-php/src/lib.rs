@@ -1,4 +1,4 @@
-//! wasm-компонент `n-rules:plugin@3.1.0` — `php/wasm-concerns`, ЧЕТВЕРТИЙ
+//! wasm-компонент `n-rules:plugin@4.0.0` — `php/wasm-concerns`, ЧЕТВЕРТИЙ
 //! first-party wasm-гість репозиторію (перший — `crates/plugin-lang-js`,
 //! другий — `crates/plugin-lang-python`, третій — `crates/plugin-lang-rust`,
 //! доккомент того `src/lib.rs` пояснює форму), створений за тим самим флоу
@@ -1308,7 +1308,7 @@ fn build_manifest() -> Manifest {
     Manifest {
         id: "php/wasm-concerns".to_string(),
         version: "0.1.0".to_string(),
-        world_version: "3.1.0".to_string(),
+        world_version: "4.0.0".to_string(),
         domains: vec![Domain::Lint],
         concerns: vec![
             ConcernContribution {
@@ -1319,11 +1319,13 @@ fn build_manifest() -> Manifest {
                     "package.json".to_string(),
                     ".github/workflows/lint-php.yml".to_string(),
                 ],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_COMPOSER_MANIFEST.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec!["composer.json".to_string()],
+                fix_glob: vec![],
             },
             // `concern.json` цього концерну не декларує `lint.glob` узагалі
             // — глоб контрибуції звужений до ОДНОГО presence-сигналу, той
@@ -1333,6 +1335,7 @@ fn build_manifest() -> Manifest {
                 key: CONCERN_PROJECT.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec!["composer.json".to_string()],
+                fix_glob: vec![],
             },
             // `composer.json` до per-file DELTA-batch-у приносить
             // `lint.anchors`, НЕ цей glob (доккомент [`detect_mago_per_file`]).
@@ -1347,11 +1350,13 @@ fn build_manifest() -> Manifest {
                 key: CONCERN_MAGO_FMT.to_string(),
                 scope: ConcernScope::PerFile,
                 glob: vec!["**/*.php".to_string(), "composer.json".to_string()],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_MAGO_LINT.to_string(),
                 scope: ConcernScope::PerFile,
                 glob: vec!["**/*.php".to_string(), "composer.json".to_string()],
+                fix_glob: vec![],
             },
             // Policy-концерн (rego + snippet, без `main.mjs`) — glob
             // контрибуції РІВНО цільовий файл: він годує і detect
@@ -1362,6 +1367,7 @@ fn build_manifest() -> Manifest {
                 key: CONCERN_VSCODE_EXTENSIONS.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec![".vscode/extensions.json".to_string()],
+                fix_glob: vec![],
             },
         ],
         ci_artifacts: vec![],
@@ -1373,10 +1379,11 @@ fn build_manifest() -> Manifest {
             network: false,
         },
         tools: vec![COMPOSER_TOOL.to_string(), MAGO_TOOL.to_string()],
+        fix_only_concerns: vec![],
     }
 }
 
-/// Guest-реалізація `n-rules:plugin@3.1.0` для `php/wasm-concerns` — п'ять
+/// Guest-реалізація `n-rules:plugin@4.0.0` для `php/wasm-concerns` — п'ять
 /// концернів однієї хвилі (доккомент модуля).
 struct LangPhp;
 

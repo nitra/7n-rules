@@ -19,7 +19,7 @@ use rules_contract::detect::{DetectBatch, SourceFile};
 use rules_contract::fix::{FileEdit, FixRequest};
 use rules_plugin_host::{PluginHost, ToolResolver};
 
-const PLUGIN_WORLD_VERSION: &str = "3.2.0";
+const PLUGIN_WORLD_VERSION: &str = "4.0.0";
 const CONCERN_LINT_PIPELINE: &str = "azure-pipelines/lint_pipeline";
 const CONCERN_VSCODE_EXTENSIONS: &str = "azure-pipelines/vscode_extensions";
 
@@ -60,7 +60,7 @@ fn describe_returns_three_concerns() {
         .expect("завантаження plugin_ci_azure.wasm не мало провалитись");
     let manifest = plugin.describe();
     assert_eq!(manifest.id, "ci-azure/wasm-concerns");
-    assert_eq!(manifest.world_version, "3.2.0");
+    assert_eq!(manifest.world_version, "4.0.0");
     assert_eq!(manifest.concerns.len(), 3);
     let keys: Vec<&str> = manifest.concerns.iter().map(|c| c.key.as_str()).collect();
     assert!(keys.contains(&CONCERN_LINT_PIPELINE));
