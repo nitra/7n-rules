@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.4.7] - 2026-08-29
+
+### Changed
+
+- `ensure_step_uses_key_present` прибрано цілком — після longhand-правок `lint_ga.rego` (#563) і `lint_text.rego` (#565) жоден вшитий `.rego` не читає `step.uses` незахищеним прямим доступом, тож обхід regorus-бага на боці Rust став мертвим кодом
+
+### Fixed
+
+- text/lint_text: `.rego` переписано на longhand-форму `job_uses_set` і позитивне звʼязування актуальних значень перед `not` — workflow без джоби `text` більше не валить пакет у `rego-engine-error`, а віддає канонічний набір `policy-deny`
+
 ## [2.4.6] - 2026-08-29
 
 ### Fixed
