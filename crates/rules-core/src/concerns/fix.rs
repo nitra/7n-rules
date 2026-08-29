@@ -68,6 +68,38 @@
 //! знищується, коментарі виживають) — доккомент
 //! [`super::fix_template_merge`].
 //!
+//! # T7 — «поодинокі» ядра (§2.79 реєстру)
+//!
+//! Розділ 4 плану міграції («Поодинокі») дав ядру чотири концерни без
+//! спільної форми. Портованих — ДВА, і решта два не «не встигли», а
+//! структурно не є T0-фіксами:
+//!
+//! - **`tauri/updater`** — портовано ([`super::fix_tauri_updater`]).
+//!   Чотири патерни `fix-updater.mjs` (package.json, Cargo.toml, lib.rs,
+//!   capabilities). У стіну сусіда `tauri/release` (format-preserving
+//!   YAML) НЕ впирається — жодного YAML і жодного спавну процесу.
+//! - **`text/cspell`** — портовано ([`super::fix_cspell_config`]).
+//!   Policy-концерн (детектор лишається на JS-policy-адаптері + rego,
+//!   як у родини `vscode_extensions`), T0-патерн — merge-запис
+//!   `.cspell.json`. НЕ плутати з `text/cspell-fix` (розділ T4 вище):
+//!   то LLM-воркер, і ключа в [`NATIVE_FIXES`] у нього бути не може.
+//! - **`doc-files/check`** — НЕ T0-фікс. У концерні є лише
+//!   `fix-worker.mjs` (LLM-драбина: docgen-pipeline генерує застарілі
+//!   доки й чистить сирітські), а `fix-check.mjs` СВІДОМО відсутній —
+//!   його доккомент фіксує інваріант: `crc-mismatch` не можна закривати
+//!   детермінованим штампом CRC, бо свіжий CRC поверх старого тексту
+//!   назавжди маскує дрейф. Ключ у [`NATIVE_FIXES`] створив би фіктивний
+//!   T0-патерн і ЗАТІНИВ би воркерний шлях (`loadT0Patterns` повертає
+//!   РІВНО native-патерн, коли ключ у реєстрі) — той самий капкан, що
+//!   описано для `text/cspell-fix`. Запис свідомо не додається.
+//! - **`test/coverage`** — теж НЕ T0-фікс: `fix-worker.mjs` поверх
+//!   fix-hooks coverage-провайдерів мовних плагінів (`generateTests`/
+//!   `generateStories`/`fixSurvived`/`fixFailingTests` — агентні сесії),
+//!   `concern.json` → `"fixability": "code"`, `"skipLocalTier": true`.
+//!   Детермінованого патерну немає взагалі, і ядру він не належить:
+//!   робота живе в провайдерах lang-плагінів. Запис у [`NATIVE_FIXES`] —
+//!   та сама фікція, що вище.
+//!
 //! # Свідомо НЕ портовані T0-фікси (лишаються JS)
 //!
 //! - **`tauri/release`** (`npm/rules/tauri/release/fix-release.mjs`) —
@@ -1192,7 +1224,9 @@ pub const NATIVE_FIXES: &[&str] = &[
     "tauri/cargo_mutants_config",
     "tauri/gitignore_target",
     "tauri/linux_deps",
+    "tauri/updater",
     "tauri/vscode_extensions",
+    "text/cspell",
     "text/markdownlint",
     "text/oxfmt",
     "text/oxfmtrc",
@@ -1250,6 +1284,8 @@ pub fn run_concern_fix(
         "tauri/cargo_mutants_config" => Ok(tauri_cargo_mutants_config_fix(cwd, violations)),
         "tauri/gitignore_target" => Ok(tauri_gitignore_target_fix(cwd, violations)),
         "tauri/linux_deps" => Ok(tauri_linux_deps_fix(cwd, violations)),
+        "tauri/updater" => super::fix_tauri_updater::tauri_updater_fix(cwd, violations),
+        "text/cspell" => Ok(super::fix_cspell_config::cspell_config_fix(cwd, violations)),
         "text/markdownlint" => text_markdownlint_fix(cwd, violations),
         "text/oxfmt" => text_oxfmt_fix(cwd, violations),
         // Родина `vscode_extensions` — ОДИН рушій на пʼять концернів
@@ -2021,7 +2057,9 @@ mod tests {
                 "tauri/cargo_mutants_config",
                 "tauri/gitignore_target",
                 "tauri/linux_deps",
+                "tauri/updater",
                 "tauri/vscode_extensions",
+                "text/cspell",
                 "text/markdownlint",
                 "text/oxfmt",
                 "text/oxfmtrc",
