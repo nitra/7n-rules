@@ -9262,6 +9262,131 @@ npm/scripts/lib/lint-surface/tests/wasm-plugin-parity.test.mjs` — 16 нови�
 `.dylib` + перша компіляція 2,4-МБ компонента). Відтворено на незміненому
 `origin/main` — це дефект самого гейта, не регресія цієї гілки; новий блок
 §2.78 має власну константу `CONFTEST_SPAWN_TIMEOUT_MS` рівно з цього мотиву.
+### 2.79. Ядрові «поодинокі»: портовано ДВА з чотирьох, і два інших — не T0-фікси взагалі
+
+**Задача:** ядрова колія розділу 4 плану
+`docs/plans/2026-08-29-js-rust-migration-completion-plan.md` («Поодинокі»)
+— чотири концерни `npm/rules/**` без спільної форми:
+`doc-files/check`, `tauri/updater`, `test/coverage`, `text/cspell`.
+
+**Результат:** портовано два (`tauri/updater`, `text/cspell`). Два інших
+структурно не належать реєстру `NATIVE_FIXES` — і це не «не встигли», а
+відповідь. Розвідка всіх чотирьох ПЕРЕД портом (порядок, заданий брифом)
+себе виправдала: обидва «не-порти» видно з першого файлу.
+
+#### Портовано
+
+- **`tauri/updater`** → `crates/rules-core/src/concerns/fix_tauri_updater.rs`.
+  Чотири патерни `fix-updater.mjs` (package.json, Cargo.toml, lib.rs,
+  capabilities) обʼєднані в один `FixPlan` — синтетичний `nativeFixPattern`
+  отримує УСІ violations концерну, тож чотири `test()`-предикати канону
+  стають чотирма гілками одного плану.
+- **`text/cspell`** → `crates/rules-core/src/concerns/fix_cspell_config.rs`.
+  Merge-запис `.cspell.json` (snippet + contains + presence-only
+  `language`), канон вшито `include_str!`-ом із `template/` концерну.
+
+#### `tauri/updater` — НЕ той випадок, що `tauri/release`
+
+Бриф просив звірити зі сусідом, задокументованим як свідомий виняток. У
+ту саму стіну `updater` не впирається: `tauri/release` редагує
+`.github/workflows/*.yml` через format-preserving YAML Document API
+(`parseDocument`/`setIn`), якого Rust не має, і додатково спавнить
+`git remote get-url origin`. `tauri/updater` — жодного YAML і жодного
+процесу: package.json і `capabilities/*.json` (JSON), Cargo.toml і lib.rs
+(порядкові splice-и, де решта рядків не переписується взагалі, тож
+форматування зберігається саме собою). Плюс детектор концерну вже
+native, і його read-only хелпери (`find_tauri_app_workspaces`,
+`group_cargo_deps_by_section`, `meets_min_version`, `has_major`)
+перевикористані, а не задубльовані — на відміну від JS, де
+`fix-updater.mjs` мусив скопіювати їх собі після видалення `main.mjs`.
+
+#### `text/cspell` — сусід воркерного `text/cspell-fix`, але інша природа
+
+Бриф просив перевірити природу першим — саме тому, що `text/cspell-fix`
+уже виявився LLM-**воркером** без `fix-<concern>.mjs` (§2.NN, доккомент
+`fix.rs` розділ T4). Перевірка: `text/cspell` має справжній
+`fix-cspell.mjs` з `export const patterns` — T0 у чистому вигляді.
+Детектор при цьому лишається на JS-policy-адаптері + rego
+(`concern.json` → `policy.files.single`), і це нормально: ключ у
+`NATIVE_FIXES` не вимагає native-детектора — той самий розклад, що в
+родини `vscode_extensions` (§2.75).
+
+#### Два концерни, які в `NATIVE_FIXES` потрапити НЕ можуть
+
+- **`doc-files/check`.** У теці немає `fix-check.mjs` — лише
+  `fix-worker.mjs` (LLM-драбина: docgen-pipeline генерує застарілі доки,
+  чистить сирітські, реєструє записи `recordDurableWrite`). Відсутність
+  T0-фіксера тут не пропуск, а ЗАФІКСОВАНИЙ ІНВАРІАНТ, який його
+  доккомент проговорює явно: `crc-mismatch` не можна закривати
+  детермінованим штампом свіжого CRC, бо свіжий CRC поверх старого тексту
+  назавжди маскує дрейф — CRC-гейт вважатиме доку актуальною, і вона
+  більше ніколи не регенерується. Ключ у `NATIVE_FIXES` створив би
+  фіктивний T0-патерн і ЗАТІНИВ би воркерний шлях (`loadT0Patterns`
+  повертає РІВНО native-патерн, коли ключ у реєстрі) — тобто вимкнув би
+  єдиний робочий автофікс концерну.
+- **`test/coverage`.** Теж лише `fix-worker.mjs`, поверх опційних
+  fix-hooks coverage-провайдерів мовних плагінів (`generateTests`,
+  `generateStories`, `fixSurvived`, `fixFailingTests` — агентні сесії);
+  `concern.json` → `"fixability": "code"`, `"skipLocalTier": true`.
+  Детермінованого патерну немає взагалі, і робота належить не ядру, а
+  провайдерам lang-плагінів.
+
+**Наслідок для плану:** розділ 4 плану міграції перелічує всі чотири як
+кандидатів на порт — його треба поправити так само, як довелося з
+`text/cspell-fix`: `doc-files/check` і `test/coverage` не є T0-фіксами і
+мають бути позначені як «не порт, воркерний клас».
+
+#### Дефекти канону, полагоджені (не відтворені заради парності)
+
+`tauri/updater`:
+
+1. **Фікс, що НІКОЛИ не сходився, коли залежність сидить у
+   `devDependencies`.** Детектор зливає секції як
+   `{...dependencies, ...devDependencies}` — ефективною є
+   devDependencies-версія. Канонічний фікс писав канон ЗАВЖДИ в
+   `dependencies`, тож застарілий `"@tauri-apps/plugin-updater": "^1"` у
+   `devDependencies` продовжував затінювати щойно записаний `^2`: `--fix`
+   звітував «змінено», re-detect бачив те саме порушення, і так
+   нескінченно — класичний нескінченний no-progress. Native пише канон у
+   ТУ САМУ секцію, яка вже оголошує пакет; нічого не видаляється, а в
+   типовому випадку (пакета в devDependencies немає) поведінка
+   байт-у-байт канонічна.
+2. **Побитий `capabilities/*.json` — мовчазний пропуск.**
+   `ensureCapabilityPermission` ловив виняток `JSON.parse` і повертав
+   `false`, тобто «файл не змінено» — не відрізнити від «усе вже
+   гаразд». Native: гучний `RulesError::Concern` з іменем файлу (той
+   самий клас, що вже має `package.json`, де `JSON.parse` у каноні НЕ
+   обгорнутий у try/catch).
+3. **JSONC-вхід.** Обидва JSON-таргети читаються
+   `parse_jsonc_document`-ом, тож `//`-коментар більше не робить фікс
+   невидимо неефективним.
+
+`text/cspell`:
+
+4. **JSONC-вхід.** `.cspell.json` — офіційно JSONC-формат самого cspell.
+   Канон читав його `JSON.parse` і на винятку робив
+   `return { touchedFiles: [] }`: МОВЧАЗНИЙ no-op на цілком легальному
+   конфізі — лінт червоний, `--fix` нічого не робить, причина ніде не
+   звучить. Той самий клас, що §2.74/§2.75.
+5. **Не-обʼєктний корінь** (`[1,2]`, скаляр) — тепер явний no-op замість
+   тихої втрати властивості при `JSON.stringify` або винятку.
+
+Свідомо ЗБЕРЕЖЕНО з канону: справді побитий (навіть не JSONC)
+`.cspell.json` → порожній план. Перезаписати сміття «канонічним» файлом
+означало б знищити `words` користувача — рівно те, проти чого фікс і
+писався (інцидент `nitra/task`); порушення лишається видимим у звіті.
+
+**Тести:** `cargo test -p rules-core --lib concerns::fix` — 131 passed
+(19 нових: 8 `fix_cspell_config`, 11 `fix_tauri_updater`); vitest — 11
+passed у двох нових `fix-*-native.test.mjs` через ПРОДАКШН-шлях
+(`loadT0Patterns` → `listNativeFixes()` → `nativeFixPattern` → napi,
+§2.47). Анти-дрейф-гейт `native_fixes_lists_all_ported_keys` оновлено
+(список лишається відсортованим).
+
+**JS-канони не видалено** — політика «спершу парність».
+
+---
+
 ## Як користуватись
 
 Дійшовши кінця плану міграції, пройти реєстр згори вниз: розділи 1 і 6 — це

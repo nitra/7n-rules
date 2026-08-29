@@ -27,7 +27,7 @@ use crate::RulesError;
 
 /// Мінімально допустима версія tauri-plugin-updater-сумісних компонентів —
 /// порт `MIN_TAURI_COMPONENTS_VERSION` (`main.mjs:12`).
-const MIN_TAURI_COMPONENTS_VERSION: [u32; 3] = [0, 8, 0];
+pub(crate) const MIN_TAURI_COMPONENTS_VERSION: [u32; 3] = [0, 8, 0];
 
 static CARGO_TABLE_HEADER_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^\[(.+)\]\s*$").expect("valid regex"));
@@ -37,11 +37,11 @@ static SEMVER_FLOOR_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(\d+)(?:\.(\d+))?(?:\.(\d+))?").expect("valid regex"));
 /// Розпізнає target-специфічну секцію залежностей — порт
 /// `CARGO_TARGET_SECTION_RE` (`main.mjs:17`).
-static CARGO_TARGET_SECTION_RE: LazyLock<Regex> =
+pub(crate) static CARGO_TARGET_SECTION_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"target\.").expect("valid regex"));
 /// Розпізнає мобільну (Android/iOS) target-секцію — порт
 /// `CARGO_MOBILE_SECTION_RE` (`main.mjs:19`).
-static CARGO_MOBILE_SECTION_RE: LazyLock<Regex> =
+pub(crate) static CARGO_MOBILE_SECTION_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"android|ios").expect("valid regex"));
 static QUASAR_DIALOG_IMPORT_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"import\s*\{[^}]*\bDialog\b[^}]*\}\s*from\s*['"]quasar['"]"#).expect("valid regex")
