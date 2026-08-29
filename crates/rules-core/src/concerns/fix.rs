@@ -112,32 +112,29 @@
 //!   Додатково `resolveGithubOwnerRepo` запускає `git remote get-url origin`
 //!   (процесна дія — поза мандатом чистого плану). Не силуємо — фікс
 //!   лишається JS до появи адекватного інструмента.
-//! - **`image-compress/check`**
-//!   (`npm/rules/image-compress/check/fix-check.mjs`) — фікс стискає
-//!   зображення (`bunx @nitra/minify-image --src=. --write`), тобто його
-//!   результат — НОВІ БАЙТИ бінарних файлів (jpg/png/gif/webp).
-//!   [`WriteFile::content`] — `String` (UTF-8, WIT `record write-file`,
-//!   `rules-contract/src/fix.rs`), а `run-fix.mjs::applyPlanEdit` пише його
-//!   як `'utf8'`. Провести PNG крізь `String` неможливо, а «стиснути й
-//!   повернути порожній план» — рівно той мовчазний обман, який проект
-//!   забороняє: файли на диску змінені, а конвеєр звітує «0 файлів»
-//!   (і JS-канон при цьому вже затінений — ключ у [`NATIVE_FIXES`] робить
-//!   native-патерн ЄДИНИМ, `loadT0Patterns`). Розблокування — не в цьому
-//!   концерні, а в контракті: бінарний варіант правки.
 //!
-//!   **Контракт це вже дає** — [`FileEdit::WriteBytes`] приїхав мажором
-//!   `n-rules:plugin@4.0.0` (§2.84 реєстру відкритих питань): у WIT вміст
-//!   їде `list<u8>`, на napi→JS межі — base64-рядком, а
-//!   `run-fix.mjs::applyPlanEdit` пише `Buffer` без кодування. Сам порт
-//!   цього концерну (і `image-avif/avif_generation` нижче, що спирався на
-//!   ту саму відсутність) — ОКРЕМА задача: мажор віддав поверхню, не
-//!   споживачів. До порту обидва лишаються JS.
-//! - **`image-avif/avif_generation`**
-//!   (`npm/rules/image-avif/avif_generation/fix-avif_generation.mjs`) —
-//!   перший крок фіксу запускає `npx @nitra/minify-image --avif`
-//!   (перекодування зображень бінарною залежністю), і лише потім rescan
-//!   вирішує rewrite/orphan-и. Зовнішній процес + залежність від його
-//!   side-effect-ів не виражаються декларативним [`FixPlan`]. Лишається JS.
+//! # T8 — бінарна родина `image-*` (§2.85): обидва блокованих концерни портовані
+//!
+//! `image-compress/check` і `image-avif/avif_generation` роками стояли в
+//! секції «свідомо НЕ портовані» вище з ОДНІЄЮ причиною: [`FixPlan`] не мав
+//! бінарного edit-у, а обхід «стиснути й повернути порожній план» —
+//! мовчазний обман (файли на диску змінені, звіт каже «0 файлів»). Мажор
+//! `n-rules:plugin@4.0.0` (§2.84) завів [`FileEdit::WriteBytes`], і ця
+//! хвиля — його перші споживачі: [`super::fix_image`].
+//!
+//! Ключове тут — байти пішли РІВНО туди, де вони справді байти.
+//! `image-compress` бінарний наскрізь; `image-avif` — змішаний, і його план
+//! лишається текстовим на дві третини (rewrite `.vue`/`.html` —
+//! [`FileEdit::Write`], сироти — [`FileEdit::Delete`], і лише згенеровані
+//! `.avif`-двійники — [`FileEdit::WriteBytes`]). Розкладка й чотири
+//! полагоджені дефекти канону — доккоментарі [`super::fix_image`].
+//!
+//! Побічний, але не менш важливий наслідок хвилі — полагоджена вада
+//! СПІЛЬНОГО хвоста всіх exec-tool фіксів: [`snapshot_before`] знімався
+//! `read_to_string`-ом, тож не-UTF-8 файл читався як `None` і до, і після
+//! прогону тула — «не змінився». Нативний родич тієї вади, що §2.83 закрила
+//! на detect-боці (`String::from_utf8_lossy` у `read_source_files`,
+//! `crates/rules-napi`), лише тихіший: там байти калічились, тут зникали.
 //!
 //! # Форма — спільні типи `rules-contract::fix` (дзеркало злито)
 //!
@@ -217,7 +214,7 @@ use crate::{diagnostics::Violation, RulesError};
 /// замість окремого `T0Pattern.test()`); `FileEdit` — `type`-дискримінант
 /// `"write"`/`"delete"`; `WriteFile.path` — posix-relative шлях від cwd
 /// (той самий контракт, що `rules_contract::detect::SourceFile::path`).
-pub use rules_contract::fix::{FileEdit, FixPlan, WriteFile};
+pub use rules_contract::fix::{FileEdit, FixPlan, WriteBytesFile, WriteFile};
 
 /// Canonical baseline `.marksman.toml`, вбудований у бінарник на етапі
 /// компіляції — джерело правди те саме, що постачається в npm-пакеті
@@ -787,10 +784,7 @@ fn text_oxfmt_fix_with(
         return Ok(FixPlan::default());
     };
 
-    let before: Vec<(String, Option<String>)> = files
-        .iter()
-        .map(|f| (f.clone(), std::fs::read_to_string(cwd.join(f)).ok()))
-        .collect();
+    let before = snapshot_before(cwd, &files);
 
     Command::new(&oxfmt)
         .current_dir(cwd)
@@ -801,19 +795,9 @@ fn text_oxfmt_fix_with(
             RulesError::Concern(format!("text/oxfmt: не вдалося запустити `oxfmt`: {error}"))
         })?;
 
-    let mut edits = Vec::new();
-    for (file, before_content) in before {
-        let after = std::fs::read_to_string(cwd.join(&file)).ok();
-        if after != before_content {
-            if let Some(content) = after {
-                edits.push(FileEdit::Write(WriteFile {
-                    path: file,
-                    content,
-                }));
-            }
-        }
-    }
-    Ok(FixPlan { edits })
+    Ok(FixPlan {
+        edits: plan_writes_for_changed(cwd, before),
+    })
 }
 
 // ── text/markdownlint (хвиля T3, exec-tool клас, npx) ───────────────────────
@@ -898,10 +882,7 @@ fn text_markdownlint_fix_with(
         ));
     };
 
-    let before: Vec<(String, Option<String>)> = files
-        .iter()
-        .map(|f| (f.clone(), std::fs::read_to_string(cwd.join(f)).ok()))
-        .collect();
+    let before = snapshot_before(cwd, &files);
 
     Command::new(&npx)
         .current_dir(cwd)
@@ -913,57 +894,100 @@ fn text_markdownlint_fix_with(
             ))
         })?;
 
-    let mut edits = Vec::new();
-    for (file, before_content) in before {
-        let after = std::fs::read_to_string(cwd.join(&file)).ok();
-        if after != before_content {
-            if let Some(content) = after {
-                edits.push(FileEdit::Write(WriteFile {
-                    path: file,
-                    content,
-                }));
-            }
-        }
-    }
-    Ok(FixPlan { edits })
+    Ok(FixPlan {
+        edits: plan_writes_for_changed(cwd, before),
+    })
 }
 
-// ── exec-tool клас, хвиля §2.82: text/run-dotenv-linter + text/run-shellcheck ─
+// ── exec-tool клас: спільні before/after-хелпери + хвиля §2.82 ──────────────
+//
+// [`snapshot_before`]/[`plan_writes_for_changed`] беруть УСІ exec-tool фікси
+// обох колій — `text/oxfmt`, `text/markdownlint` (T3), `text/run-dotenv-linter`,
+// `text/run-shellcheck` (§2.82) і `image-compress`/`image-avif`
+// ([`super::fix_image`], §2.85). До §2.85 кожен із перших чотирьох носив
+// власну копію цих двох циклів; копії розійшлися б рівно на тому дні, коли
+// одна з них навчилась байтам, а решта — ні.
 
 /// Знімок «до» для набору relative-шляхів — той самий `new Map(abs.map(a =>
 /// [a, readOrNull(a)]))`, що повторюється в кожному exec-tool T0-патерні
 /// (`fix-run-dotenv-linter.mjs`, `fix-run-shellcheck.mjs`, `fix-oxfmt.mjs`).
-/// Нечитабельний файл (немає / не-UTF-8) → `None`, як `readOrNull`.
-fn snapshot_before(cwd: &Path, files: &[String]) -> Vec<(String, Option<String>)> {
+/// Відсутній/нечитабельний файл → `None`, як `readOrNull`.
+///
+/// # Чому БАЙТИ, а не `String` (полагоджений дефект, §2.85)
+///
+/// Знімок раніше знімався [`std::fs::read_to_string`], тобто не-UTF-8 файл
+/// давав `None` і **до**, і **після** прогону тула — а `None == None`
+/// означало «файл не змінився». Тобто exec-tool, який реально переписав
+/// бінарний файл, не давав ЖОДНОГО edit-у, і конвеєр звітував «0 файлів»
+/// при змінених байтах на диску. Це той самий клас вади, що §2.83 закрила
+/// на detect-боці (`String::from_utf8_lossy` у `read_source_files`,
+/// `crates/rules-napi`), лише тихіший: там байти калічились, тут вони
+/// зникали безслідно.
+///
+/// Байтовий знімок робить порівняння «до/після» чесним для БУДЬ-ЯКОГО
+/// вмісту; рішення «текстом чи байтами це записувати» ухвалює
+/// [`plan_writes_for_changed`] на боці ПЛАНУ, де для цього тепер є
+/// [`FileEdit::WriteBytes`].
+pub(super) fn snapshot_before(cwd: &Path, files: &[String]) -> Vec<(String, Option<Vec<u8>>)> {
     files
         .iter()
-        .map(|f| (f.clone(), std::fs::read_to_string(cwd.join(f)).ok()))
+        .map(|f| (f.clone(), std::fs::read(cwd.join(f)).ok()))
         .collect()
 }
 
-/// Порівнює знімок «до» з поточним станом диска і планує `write` лише для
+/// Порівнює знімок «до» з поточним станом диска і планує запис лише для
 /// файлів, чий вміст справді змінився — спільне тіло хвоста всіх exec-tool
 /// фіксів (`touchedFiles = abs.filter(a => readOrNull(a) !== before.get(a))`).
 ///
-/// Файл, який ПІСЛЯ прогону не читається як UTF-8 (`None`), у план не
-/// потрапляє: [`WriteFile::content`] — `String`, байтового каналу контракт
-/// не має (той самий блокер, що тримає `image-compress`/`image-avif` у JS).
-/// Для обох тулів цієї хвилі це недосяжний стан: і `dotenv-linter fix`, і
-/// `shellcheck -f diff`+`patch` працюють з текстом.
-fn plan_writes_for_changed(cwd: &Path, before: Vec<(String, Option<String>)>) -> Vec<FileEdit> {
+/// Форму edit-а обирає САМ вміст «після»: валідний UTF-8 → [`FileEdit::Write`]
+/// (як було), решта → [`FileEdit::WriteBytes`] (мажор контракту `4.0.0`,
+/// §2.84). Мовчазного пропуску тут більше немає ЖОДНОГО: доти файл, який
+/// після прогону не читався як UTF-8, просто не потрапляв у план —
+/// «змінився, але не звітуємо».
+///
+/// Для тулів хвилі §2.82 (`dotenv-linter fix`, `shellcheck -f diff`+`patch`)
+/// байтова гілка недосяжна — вони працюють з текстом; для
+/// `image-compress`/`image-avif` (§2.85) вона і є основною.
+///
+/// Файл, який після прогону ЗНИК (`after == None`, а `before` був `Some`),
+/// у план не потрапляє: жоден із тулів цього класу файлів не видаляє, а
+/// синтезувати [`FileEdit::Delete`] з «не змогли прочитати» означало б
+/// планувати видалення на підставі помилки I/O. Видалення планують ті
+/// фікси, які його ЗНАЮТЬ (`image-avif`-сироти), а не ті, що його вгадують.
+pub(super) fn plan_writes_for_changed(
+    cwd: &Path,
+    before: Vec<(String, Option<Vec<u8>>)>,
+) -> Vec<FileEdit> {
     let mut edits = Vec::new();
     for (file, before_content) in before {
-        let after = std::fs::read_to_string(cwd.join(&file)).ok();
-        if after != before_content {
-            if let Some(content) = after {
-                edits.push(FileEdit::Write(WriteFile {
-                    path: file,
-                    content,
-                }));
-            }
+        let after = std::fs::read(cwd.join(&file)).ok();
+        if after == before_content {
+            continue;
         }
+        let Some(bytes) = after else {
+            continue;
+        };
+        edits.push(byte_or_text_write(file, bytes));
     }
     edits
+}
+
+/// Обирає форму edit-а за фактичним вмістом: валідний UTF-8 —
+/// [`FileEdit::Write`], інакше [`FileEdit::WriteBytes`].
+///
+/// Текст НЕ заганяється у байтовий варіант «про всяк випадок»: `Write`
+/// лишається читабельним у журналі/логах і зберігає поведінку всіх
+/// портованих раніше фіксів до байта, а `WriteBytes` їде base64-рядком на
+/// JSON-межі napi→JS — на текстовому файлі це був би і більший payload, і
+/// втрата діагностованості.
+pub(super) fn byte_or_text_write(path: String, bytes: Vec<u8>) -> FileEdit {
+    match String::from_utf8(bytes) {
+        Ok(content) => FileEdit::Write(WriteFile { path, content }),
+        Err(error) => FileEdit::WriteBytes(rules_contract::fix::WriteBytesFile {
+            path,
+            content: error.into_bytes(),
+        }),
+    }
 }
 
 /// `reason` violation-у `text/run-dotenv-linter` —
@@ -1576,8 +1600,9 @@ fn changelog_consistency_fix(cwd: &Path, violations: &[Violation]) -> Result<Fix
 /// структурний (`nginx-default-tpl/template`), PR-опис; T5 — пʼять
 /// конфіг-подібних `createTemplateFixPattern`-концернів родини
 /// `vscode_*`/`zed_settings`/`oxfmtrc`; §2.82 — ще два exec-tool
-/// (`text/run-dotenv-linter`, `text/run-shellcheck`); `tauri/release`
-/// і `image-avif/avif_generation` свідомо лишаються JS — доккомент модуля).
+/// (`text/run-dotenv-linter`, `text/run-shellcheck`); §2.85 — бінарна
+/// родина `image-*` (`image-compress/check`, `image-avif/avif_generation`);
+/// `tauri/release` свідомо лишається JS — доккомент модуля).
 pub const NATIVE_FIXES: &[&str] = &[
     "abie/env_dns",
     "abie/firebase_hosting",
@@ -1587,6 +1612,8 @@ pub const NATIVE_FIXES: &[&str] = &[
     "graphql/vscode_extensions",
     "hasura/internal_urls",
     "hasura/migrations",
+    "image-avif/avif_generation",
+    "image-compress/check",
     "k8s/dremio_logging",
     "k8s/manifests",
     "nginx-default-tpl/template",
@@ -1634,6 +1661,12 @@ pub fn run_concern_fix(
         "changelog/consistency" => changelog_consistency_fix(cwd, violations),
         "hasura/internal_urls" => Ok(hasura_internal_urls_fix(cwd, violations)),
         "hasura/migrations" => Ok(hasura_migrations_fix(violations)),
+        // Бінарна родина `image-*` (§2.85) — єдині два фікси, чий план несе
+        // `FileEdit::WriteBytes` (доккомент [`super::fix_image`]).
+        "image-avif/avif_generation" => {
+            super::fix_image::image_avif_generation_fix(cwd, violations)
+        }
+        "image-compress/check" => super::fix_image::image_compress_check_fix(cwd, violations),
         "k8s/dremio_logging" => Ok(super::fix_env_dremio::dremio_logging_fix(cwd, violations)),
         "k8s/manifests" => Ok(super::fix_k8s_manifests::k8s_manifests_fix(cwd, violations)),
         "security/sample_secret" => {
@@ -2219,11 +2252,7 @@ mod tests {
                 None,
             )],
         );
-        let paths: Vec<&str> = plan
-            .edits
-            .iter()
-            .map(FileEdit::path)
-            .collect();
+        let paths: Vec<&str> = plan.edits.iter().map(FileEdit::path).collect();
         assert_eq!(
             paths,
             vec![
@@ -2421,6 +2450,8 @@ mod tests {
                 "graphql/vscode_extensions",
                 "hasura/internal_urls",
                 "hasura/migrations",
+                "image-avif/avif_generation",
+                "image-compress/check",
                 "k8s/dremio_logging",
                 "k8s/manifests",
                 "nginx-default-tpl/template",

@@ -67,6 +67,10 @@ mod fix_abie_security;
 /// `.cspell.json` (§2.79 реєстру відкритих питань).
 mod fix_cspell_config;
 mod fix_env_dremio;
+/// Native fix-поверхня бінарної родини `image-*` — `image-compress/check`
+/// і `image-avif/avif_generation` поверх [`rules_contract::fix::FileEdit::WriteBytes`]
+/// (§2.85 реєстру відкритих питань).
+pub mod fix_image;
 /// Native fix-поверхня концерну `k8s/manifests` — T0-патерни
 /// `fix-manifests.mjs`. `pub` заради parity-гейтів, які звіряють кожен
 /// трансформер із JS-каноном окремо.
