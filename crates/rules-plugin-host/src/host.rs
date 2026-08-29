@@ -20,7 +20,7 @@ use crate::loaded_plugin::LoadedPlugin;
 use crate::tool_resolver::ToolResolver;
 use crate::wit;
 
-/// Embedded wasmtime-хост для `n-rules:plugin@3.1.0`. `Engine`+`Linker`
+/// Embedded wasmtime-хост для `n-rules:plugin@4.0.0`. `Engine`+`Linker`
 /// будуються раз на `PluginHost` (host-функції компілюються в `Linker`
 /// один раз, не на кожен `load`) — окремий `Store` на плагін через `load`.
 pub struct PluginHost {
@@ -108,6 +108,21 @@ impl PluginHost {
         let probe_manifest =
             self.describe_with_capabilities(&component, &Capabilities::default())?;
         check_world_version(&probe_manifest.world_version, expected_world_version)?;
+        // Маніфест — недовірений вхід рівно так само, як fix-план
+        // (`LoadedPlugin::fix` → `validators::fix`). Мажор `4.0.0` (§2.84)
+        // додав другий список контрибуцій, і WIT типізацією НЕ може
+        // заборонити плагіну назвати один ключ в обох — стан, у якому
+        // плагін заявляє два взаємно виключних наміри. Хост не вгадує:
+        // плагін не завантажується взагалі (доккомент
+        // `validators::manifest`).
+        rules_contract::validators::manifest::validate_manifest(&probe_manifest).map_err(
+            |errors| {
+                PluginHostError::InvalidContractData(format!(
+                    "маніфест плагіна порушує контракт: {}",
+                    errors.join("; ")
+                ))
+            },
+        )?;
 
         // Реальна фаза викликає `describe()` ЗНОВУ на реальному `Store`
         // (той самий guest-виклик, ідемпотентний за контрактом — WIT
@@ -208,7 +223,7 @@ impl PluginHost {
     }
 }
 
-/// Major-компонента world-версії (`"3.0.0"` → `"3"`) — semver-крейт тут
+/// Major-компонента world-версії (`"4.0.0"` → `"4"`) — semver-крейт тут
 /// свідомо не додається: negotiation (рішення З спеки) звіряє лише major,
 /// рядкове порівняння цього достатньо і без нової залежності.
 fn major(version: &str) -> Option<&str> {

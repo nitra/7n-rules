@@ -312,7 +312,7 @@ mod tests {
                 assert_eq!(w.path, VSCODE_EXTENSIONS_TARGET);
                 &w.content
             }
-            FileEdit::Delete { .. } => panic!("очікували write"),
+            other => panic!("очікували write, отримали {other:?}"),
         }
     }
 

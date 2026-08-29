@@ -5607,6 +5607,7 @@ dependencies = [
 name = "rules-contract"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "regex",
  "schemars 1.2.1",
  "serde",

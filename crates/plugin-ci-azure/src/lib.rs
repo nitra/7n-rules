@@ -1,4 +1,4 @@
-//! wasm-компонент `n-rules:plugin@3.2.0` — `ci-azure/wasm-concerns`, ШОСТИЙ
+//! wasm-компонент `n-rules:plugin@4.0.0` — `ci-azure/wasm-concerns`, ШОСТИЙ
 //! first-party wasm-гість репозиторію (перший — `crates/plugin-lang-js`,
 //! другий — `crates/plugin-lang-python`, третій — `crates/plugin-lang-rust`,
 //! четвертий — `crates/plugin-lang-php`, п'ятий — `crates/plugin-ci-github`,
@@ -818,18 +818,20 @@ fn build_manifest() -> Manifest {
     Manifest {
         id: "ci-azure/wasm-concerns".to_string(),
         version: "0.1.0".to_string(),
-        world_version: "3.2.0".to_string(),
+        world_version: "4.0.0".to_string(),
         domains: vec![Domain::Lint],
         concerns: vec![
             ConcernContribution {
                 key: CONCERN_LINT_PIPELINE.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec![LINT_PIPELINE_TARGET.to_string()],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_VSCODE_EXTENSIONS.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec![VSCODE_EXTENSIONS_TARGET.to_string()],
+                fix_glob: vec![],
             },
             // ДРУГА хвиля — ПЕРША `per-file` контрибуція цього гостя:
             // `concern.json` не декларує `lint.scope`, тобто дельта-прогін
@@ -845,6 +847,7 @@ fn build_manifest() -> Manifest {
                     SERVICE_DEPLOY_PIPELINE_GLOB.to_string(),
                     format!("!{SERVICE_DEPLOY_PIPELINE_EXCLUDED_PREFIX}**"),
                 ],
+                fix_glob: vec![],
             },
         ],
         ci_artifacts: vec![],
@@ -853,10 +856,11 @@ fn build_manifest() -> Manifest {
             network: false,
         },
         tools: vec![],
+        fix_only_concerns: vec![],
     }
 }
 
-/// Guest-реалізація `n-rules:plugin@3.2.0` для `ci-azure/wasm-concerns` —
+/// Guest-реалізація `n-rules:plugin@4.0.0` для `ci-azure/wasm-concerns` —
 /// два концерни, перша хвиля (доккомент модуля).
 struct CiAzure;
 
@@ -1088,7 +1092,7 @@ mod tests {
     fn build_manifest_declares_three_concerns() {
         let manifest = build_manifest();
         assert_eq!(manifest.id, "ci-azure/wasm-concerns");
-        assert_eq!(manifest.world_version, "3.2.0");
+        assert_eq!(manifest.world_version, "4.0.0");
         assert_eq!(manifest.domains, vec![Domain::Lint]);
         assert_eq!(manifest.concerns.len(), 3);
         for c in &manifest.concerns {

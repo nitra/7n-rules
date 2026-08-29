@@ -6,13 +6,17 @@
 //! (лише перевірка ABI/серіалізації DTO і host-функцій `log`/
 //! `report-progress`/`run-tool`/`exec-tool`/`host-context`).
 //!
-//! Фікстура заявляє `world_version: "3.0.0"` і після зрізу 5 контракту v3.1
-//! — свідомо: negotiation major-only, тож цей рядок додатково фіксує, що
-//! хост v3.1 приймає плагін, який заявляє стару мінорну версію. Сам
-//! компонент при цьому збирається з ПОТОЧНОГО world
-//! (`../rules-contract/wit`) і реально кличе `exec-tool` — доказ
-//! «v3.0-гість лінкується без змін» живе окремо, на замороженій копії
-//! world-а (`crates/rules-plugin-host/tests/v30_guest_additive_compat.rs`).
+//! Фікстура заявляє `world_version: "4.0.0"` — рівно ту версію, з якої
+//! збирається (`../rules-contract/wit`). До мажора `4.0.0` (§2.84) тут
+//! стояло `"3.0.0"`: negotiation major-only, і той рядок додатково фіксував,
+//! що хост v3.1 приймає плагін зі старою МІНОРНОЮ версією. Після мажора те
+//! саме твердження вже не тримається — `3` != `4`, `check_world_version`
+//! відхилив би фікстуру, і contract-test-kit падав би цілком. «Стара
+//! мінорна версія приймається» перевіряється не тут, а там, де це
+//! твердження й живе: у гейті negotiation-у (`host.rs`, unit-тести
+//! `check_world_version`), а бінарний доказ ПРОТИЛЕЖНОГО — що гість
+//! попереднього МАЖОРА більше не вантажиться — у
+//! `crates/rules-plugin-host/tests/v30_guest_additive_compat.rs`.
 
 wit_bindgen::generate!({
     path: "../rules-contract/wit",
@@ -127,58 +131,68 @@ impl Guest for GuestEcho {
         Manifest {
             id: "test/guest-echo".to_string(),
             version: "0.1.0".to_string(),
-            world_version: "3.0.0".to_string(),
+            world_version: "4.0.0".to_string(),
             domains: vec![Domain::Lint],
             concerns: vec![
                 ConcernContribution {
                     key: "test/guest-echo".to_string(),
                     scope: ConcernScope::PerFile,
                     glob: vec![],
+                    fix_glob: vec![],
                 },
                 ConcernContribution {
                     key: FS_PROBE_CONCERN_ID.to_string(),
                     scope: ConcernScope::PerFile,
                     glob: vec![],
+                    fix_glob: vec![],
                 },
                 ConcernContribution {
                     key: TOOL_ECHO_CONCERN_ID.to_string(),
                     scope: ConcernScope::PerFile,
                     glob: vec![],
+                    fix_glob: vec![],
                 },
                 ConcernContribution {
                     key: CONTEXT_ECHO_CONCERN_ID.to_string(),
                     scope: ConcernScope::PerFile,
                     glob: vec![],
+                    fix_glob: vec![],
                 },
                 ConcernContribution {
                     key: EXEC_TOOL_CONCERN_ID.to_string(),
                     scope: ConcernScope::PerFile,
                     glob: vec![],
+                    fix_glob: vec![],
                 },
                 ConcernContribution {
                     key: PANIC_CONCERN_ID.to_string(),
                     scope: ConcernScope::PerFile,
                     glob: vec![],
+                    fix_glob: vec![],
                 },
                 ConcernContribution {
                     key: FIX_REWRITE_CONCERN_ID.to_string(),
                     scope: ConcernScope::PerFile,
                     glob: vec![],
+                    fix_glob: vec![],
                 },
                 ConcernContribution {
                     key: FIX_ESCAPE_CONCERN_ID.to_string(),
                     scope: ConcernScope::PerFile,
                     glob: vec![],
+                    fix_glob: vec![],
                 },
                 ConcernContribution {
                     key: FIX_FULL_SCOPE_CONCERN_ID.to_string(),
                     scope: ConcernScope::Full,
                     glob: vec!["**/*.marker".to_string()],
+                    fix_glob: vec![],
                 },
                 ConcernContribution {
                     key: DETECT_PER_FILE_GLOB_CONCERN_ID.to_string(),
                     scope: ConcernScope::PerFile,
                     glob: vec!["**/*.marker".to_string()],
+                    fix_glob: vec![],
                 },
             ],
             ci_artifacts: vec![],
@@ -191,6 +205,7 @@ impl Guest for GuestEcho {
                 network: false,
             },
             tools: vec!["echo-tool".to_string()],
+            fix_only_concerns: vec![],
         }
     }
 

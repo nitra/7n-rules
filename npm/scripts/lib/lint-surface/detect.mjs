@@ -234,6 +234,13 @@ export async function runConcernDetector(concern, ctx) {
     return normalizeResult(raw, ctx)
   }
 
+  // ЛИШЕ `resolveWasmConcernMap` (`manifest.concerns`) — друга мапа контракту
+  // 4.0.0 (`manifest.fix_only_concerns`, §2.84,
+  // `resolveWasmFixOnlyConcernMap`) тут НЕ читається, і це весь сенс її
+  // існування: ключ, оголошений fix-only, не вмикає detect-шедоуїнг, тож
+  // `main.mjs`/policy-детект концерну лишається чинним. До мажора єдиним
+  // способом дістати wasm-фікс було оголосити концерн у `concerns` — і це
+  // МОВЧКИ вимикало його детект гілкою нижче.
   const wasmConcernMap = await resolveWasmConcernMap(ctx.cwd)
   const wasmEntry = wasmConcernMap.get(nativeKey)
   if (wasmEntry !== undefined) {

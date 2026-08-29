@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 license = "Apache-2.0"
-description = "wasm-компонент n-rules:plugin@3.1.0 — php/wasm-concerns (5 концернів: php/tooling, php/composer_manifest, php/project, php/mago_fmt, php/mago_lint)"
+description = "wasm-компонент n-rules:plugin@4.0.0 — php/wasm-concerns (5 концернів: php/tooling, php/composer_manifest, php/project, php/mago_fmt, php/mago_lint)"
 
 [lib]
 # `cdylib` — обов'язково: `wasm32-wasip2` виводить готовий Component Model

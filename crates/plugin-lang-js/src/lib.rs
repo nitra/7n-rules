@@ -1,4 +1,4 @@
-//! wasm-компонент `n-rules:plugin@3.1.0` — `lang-js/wasm-concerns` (задачі N2,
+//! wasm-компонент `n-rules:plugin@4.0.0` — `lang-js/wasm-concerns` (задачі N2,
 //! Q1 батч 1, Q2 батч 2, Q3, Q4 батч 4, батчі 5–9 і зрізи 1–2, 4 контракту v3.1
 //! (`docs/specs/2026-08-01-plugin-contract-v31-surfaces.md`), спека
 //! `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md` §3.5.5 і
@@ -3473,13 +3473,14 @@ fn build_manifest() -> Manifest {
     Manifest {
         id: "lang-js/wasm-concerns".to_string(),
         version: "0.1.0".to_string(),
-        world_version: "3.1.0".to_string(),
+        world_version: "4.0.0".to_string(),
         domains: vec![Domain::Lint],
         concerns: vec![
             ConcernContribution {
                 key: CONCERN_TFM.to_string(),
                 scope: ConcernScope::PerFile,
                 glob: vec!["**/*.vue".to_string()],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_GAP.to_string(),
@@ -3489,6 +3490,7 @@ fn build_manifest() -> Manifest {
                     "**/*.scss".to_string(),
                     "**/*.css".to_string(),
                 ],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_POOL_FORKS.to_string(),
@@ -3497,11 +3499,13 @@ fn build_manifest() -> Manifest {
                     "vitest.config.mjs".to_string(),
                     "vitest.config.js".to_string(),
                 ],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_NO_PROCESS_CHDIR.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec!["**/*.test.mjs".to_string(), "**/*.test.js".to_string()],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_ADMIN_TABLE.to_string(),
@@ -3511,6 +3515,7 @@ fn build_manifest() -> Manifest {
                     "**/*.scss".to_string(),
                     "**/*.css".to_string(),
                 ],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_QUASAR_FIXES.to_string(),
@@ -3520,31 +3525,37 @@ fn build_manifest() -> Manifest {
                     "**/*.scss".to_string(),
                     "**/*.css".to_string(),
                 ],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_LOCATION.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec!["**/*.test.mjs".to_string()],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_NO_CONSOLE_STORE_RESTORE.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec!["**/*.test.mjs".to_string(), "**/*.test.js".to_string()],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_NO_BUN_TEST_IMPORT.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec!["**/*.test.mjs".to_string(), "**/*.test.js".to_string()],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_UTILS_IMPORTS.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec!["**/utils/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}".to_string()],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_NO_RELATIVE_FS_PATH.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec!["**/*.test.mjs".to_string(), "**/*.test.js".to_string()],
+                fix_glob: vec![],
             },
             // Три AST-концерни батчу 4 (задача Q4): глоби дзеркалять
             // `concern.json.lint.glob` JS-оригіналів (`**/package.json` у
@@ -3557,6 +3568,7 @@ fn build_manifest() -> Manifest {
                     "**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}".to_string(),
                     "**/package.json".to_string(),
                 ],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_MSSQL_DEPS.to_string(),
@@ -3565,6 +3577,7 @@ fn build_manifest() -> Manifest {
                     "**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}".to_string(),
                     "**/package.json".to_string(),
                 ],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_BUN_DB_SAFETY.to_string(),
@@ -3573,6 +3586,7 @@ fn build_manifest() -> Manifest {
                     "**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}".to_string(),
                     "**/package.json".to_string(),
                 ],
+                fix_glob: vec![],
             },
             // П'ять концернів storybook-сімейства (батч 5): глоби ШИРШІ за
             // `concern.json.lint.glob` JS-оригіналів — batch мусить містити
@@ -3591,6 +3605,7 @@ fn build_manifest() -> Manifest {
                     ".n-cursor.json".to_string(),
                     "**/package.json".to_string(),
                 ],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_STORYBOOK_HYGIENE.to_string(),
@@ -3604,6 +3619,7 @@ fn build_manifest() -> Manifest {
                     "**/src/css/quasar.variables.scss".to_string(),
                     "**/src/css/quasar.variables.sass".to_string(),
                 ],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_STORYBOOK_PAGE_COVERAGE.to_string(),
@@ -3616,6 +3632,7 @@ fn build_manifest() -> Manifest {
                     "**/*.stories.js".to_string(),
                     "**/*.stories.ts".to_string(),
                 ],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_STORYBOOK_SCAFFOLD.to_string(),
@@ -3627,6 +3644,7 @@ fn build_manifest() -> Manifest {
                     "**/*.vue".to_string(),
                     "**/.storybook/**".to_string(),
                 ],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_STORYBOOK_CI.to_string(),
@@ -3639,6 +3657,7 @@ fn build_manifest() -> Manifest {
                     ".github/actions/setup-playwright-chromium/action.yml".to_string(),
                     ".github/workflows/lint-storybook.yml".to_string(),
                 ],
+                fix_glob: vec![],
             },
             // Батч 6: storybook-vitest-config (глоб — scope-детекція батчу 5
             // плюс самі конфіги) і три package_json rego-порти (лише
@@ -3656,21 +3675,25 @@ fn build_manifest() -> Manifest {
                     "**/vitest.config.ts".to_string(),
                     "**/vitest.stryker.config.*".to_string(),
                 ],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_BUN_DB_PACKAGE_JSON.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec!["**/package.json".to_string()],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_REDIS_PACKAGE_JSON.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec!["**/package.json".to_string()],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_MSSQL_PACKAGE_JSON.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec!["**/package.json".to_string()],
+                fix_glob: vec![],
             },
             // Батч 7: кластер `npm-module/*` + `js/dep-policy`. Глоби трьох
             // метадані-концернів СВІДОМО ВУЖЧІ за `concern.json.lint.glob`
@@ -3682,11 +3705,13 @@ fn build_manifest() -> Manifest {
                 key: CONCERN_RULE_META.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec!["npm/rules/*/*".to_string()],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_SKILL_META.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec!["npm/skills/*/*".to_string()],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_HEADER_DOC_POINTER.to_string(),
@@ -3697,6 +3722,7 @@ fn build_manifest() -> Manifest {
                     "npm/skills/*/js/*".to_string(),
                     "npm/skills/*/js/docs/*".to_string(),
                 ],
+                fix_glob: vec![],
             },
             // `**/*` `concern.json` звужено до реально читаного JS-каноном
             // простору: корінь-`package.json`, увесь `npm/` (tarball-простір
@@ -3713,11 +3739,13 @@ fn build_manifest() -> Manifest {
                     ".config/hk.pkl".to_string(),
                     ".github/workflows/**".to_string(),
                 ],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_DEP_POLICY.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec!["**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}".to_string()],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_BUN_LAYOUT.to_string(),
@@ -3737,6 +3765,7 @@ fn build_manifest() -> Manifest {
                     "bunfig.toml".to_string(),
                     "package.json".to_string(),
                 ],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_STYLE_TOOLING.to_string(),
@@ -3755,16 +3784,19 @@ fn build_manifest() -> Manifest {
                     "stylelint.config.mjs".to_string(),
                     ".stylelintignore".to_string(),
                 ],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_SANDBOX_AWARE_TEST.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec!["**/*.test.mjs".to_string(), "**/*.test.js".to_string()],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_VITEST_API_CONVENTIONS.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec!["**/*.test.mjs".to_string(), "**/*.test.js".to_string()],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_VUE_PACKAGES.to_string(),
@@ -3781,6 +3813,7 @@ fn build_manifest() -> Manifest {
                     "**/*.{js,jsx,mjs,mjsx,cjs,cjsx,ts,tsx,mts,mtsx,cts,ctsx}".to_string(),
                     "**/*.{vue,json,jsonc,yaml,yml,md,mdc}".to_string(),
                 ],
+                fix_glob: vec![],
             },
             // Зріз 1 контракту v3.1: `test/stryker_config`. Глоб —
             // `concern.json.lint.glob` плюс два кореневі файли, які канон
@@ -3800,6 +3833,7 @@ fn build_manifest() -> Manifest {
                     "**/vitest.config.{mjs,js}".to_string(),
                     "**/src/**/*.vue".to_string(),
                 ],
+                fix_glob: vec![],
             },
             // Зріз 2 контракту v3.1: `js/check`. Глоб — `concern.json.lint.glob`
             // плюс `**/*.vue` (детекція vue-воркспейсів `isVueWorkspace`,
@@ -3812,6 +3846,7 @@ fn build_manifest() -> Manifest {
                 key: CONCERN_DOC_COMMENTS.to_string(),
                 scope: ConcernScope::PerFile,
                 glob: vec!["**/*.{js,mjs,cjs,ts}".to_string()],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_JS_CHECK.to_string(),
@@ -3830,6 +3865,7 @@ fn build_manifest() -> Manifest {
                     ".eslintrc.json".to_string(),
                     ".eslintrc.yml".to_string(),
                 ],
+                fix_glob: vec![],
             },
             // Зріз 5 контракту v3.1: `bun/licensee` — пілот `exec-tool`.
             // Детектор читає з диска рівно `.licensee.json` (його
@@ -3849,6 +3885,7 @@ fn build_manifest() -> Manifest {
                     LICENSEE_CONFIG_PATH.to_string(),
                     "**/package.json".to_string(),
                 ],
+                fix_glob: vec![],
             },
             // Зріз 6 контракту v3.1: `style/lint`. `scope: PerFile` —
             // дослівно `concern.json.lint.scope`, глоб — дослівно
@@ -3869,6 +3906,7 @@ fn build_manifest() -> Manifest {
                 key: CONCERN_STYLE_LINT.to_string(),
                 scope: ConcernScope::PerFile,
                 glob: vec![STYLE_LINT_GLOB.to_string()],
+                fix_glob: vec![],
             },
             // Зріз 6 контракту v3.1: `js/jscpd_duplicates`. Глоб ПОРОЖНІЙ —
             // це не пропуск: канон не читає з диска НІЧОГО перед спавном
@@ -3881,6 +3919,7 @@ fn build_manifest() -> Manifest {
                 key: CONCERN_JSCPD_DUPLICATES.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec![],
+                fix_glob: vec![],
             },
             // Зріз 7: глоб ШИРШИЙ за `concern.json` в одному місці —
             // `**/k8s/**/*.{yaml,yml}` замість `**/k8s/base/configmap.yaml` (доккомент
@@ -3897,6 +3936,7 @@ fn build_manifest() -> Manifest {
                     "**/jsconfig.json".to_string(),
                     "**/k8s/**/*.{yaml,yml}".to_string(),
                 ],
+                fix_glob: vec![],
             },
             // §2.78 — родина `vscode_extensions` + четвірка `package_json`
             // (доккомент секції «§2.78» вище). Глоб КОЖНОГО — рівно
@@ -3912,31 +3952,37 @@ fn build_manifest() -> Manifest {
                 key: CONCERN_JS_VSCODE_EXTENSIONS.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec![VSCODE_EXTENSIONS_TARGET.to_string()],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_STYLE_VSCODE_EXTENSIONS.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec![VSCODE_EXTENSIONS_TARGET.to_string()],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_JS_PACKAGE_JSON.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec![ROOT_PACKAGE_JSON_TARGET.to_string()],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_NPM_PACKAGE_JSON.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec![NPM_PACKAGE_JSON_TARGET.to_string()],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_ROOT_PACKAGE_JSON.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec![ROOT_PACKAGE_JSON_TARGET.to_string()],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_STYLE_PACKAGE_JSON.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec![ROOT_PACKAGE_JSON_TARGET.to_string()],
+                fix_glob: vec![],
             },
             // §2.80 — той самий принцип «глоб = таргет», лише
             // `js-run/jsconfig` має форму `walkGlob` і тому багатофайловий
@@ -3947,16 +3993,19 @@ fn build_manifest() -> Manifest {
                 key: CONCERN_STYLE_VSCODE_SETTINGS.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec![VSCODE_SETTINGS_TARGET.to_string()],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_JSCPD_CONFIG.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec![JSCPD_CONFIG_TARGET.to_string()],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_EMIT_TYPES_CONFIG.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec![EMIT_TYPES_CONFIG_TARGET.to_string()],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_JSCONFIG.to_string(),
@@ -3969,6 +4018,7 @@ fn build_manifest() -> Manifest {
                     .expect("конфіг `js-run/jsconfig` у POLICY_CONFIGS")
                     .files
                     .contribution_glob(),
+                fix_glob: vec![],
             },
         ],
         ci_artifacts: vec![],
@@ -3998,6 +4048,7 @@ fn build_manifest() -> Manifest {
             STYLELINT_TOOL.to_string(),
             JSCPD_TOOL.to_string(),
         ],
+        fix_only_concerns: vec![],
     }
 }
 
@@ -15859,7 +15910,7 @@ mod tests {
         assert_eq!(plan.edits.len(), 1);
         match &plan.edits[0] {
             FileEdit::Write(write) => &write.content,
-            FileEdit::Delete(_) => panic!("очікували write-edit"),
+            other => panic!("очікували write-edit, отримали {other:?}"),
         }
     }
 
@@ -15929,7 +15980,7 @@ mod tests {
                 assert_eq!(write.path, "tests/a.test.mjs");
                 assert!(write.content.contains("from 'vitest'"));
             }
-            FileEdit::Delete(_) => panic!("очікували write-edit"),
+            other => panic!("очікували write-edit, отримали {other:?}"),
         }
     }
 
@@ -19888,7 +19939,7 @@ mod tests {
             .iter()
             .filter_map(|e| match e {
                 FileEdit::Delete(path) => Some(path.as_str()),
-                FileEdit::Write(_) => None,
+                FileEdit::Write(_) | FileEdit::WriteBytes(_) => None,
             })
             .collect();
         assert_eq!(deleted, vec!["package-lock.json", "yarn.lock"]);
@@ -19930,7 +19981,7 @@ mod tests {
             .iter()
             .filter_map(|e| match e {
                 FileEdit::Delete(path) => Some(path.as_str()),
-                FileEdit::Write(_) => None,
+                FileEdit::Write(_) | FileEdit::WriteBytes(_) => None,
             })
             .collect();
         assert_eq!(deleted, vec![".yarn"]);
@@ -20542,7 +20593,7 @@ plugins: [VueMacros({}), AutoImport({ imports: ['vue'] })] }\n";
     fn first_write_content(plan: &FixPlan) -> Option<&str> {
         plan.edits.first().map(|edit| match edit {
             FileEdit::Write(write) => write.content.as_str(),
-            FileEdit::Delete(_) => panic!("doc_comments не видаляє файлів"),
+            other => panic!("doc_comments не видаляє файлів, отримали {other:?}"),
         })
     }
 
@@ -21845,7 +21896,7 @@ plugins: [VueMacros({}), AutoImport({ imports: ['vue'] })] }\n";
             .iter()
             .map(|e| match e {
                 FileEdit::Write(w) => w.path.as_str(),
-                FileEdit::Delete { .. } => panic!("js-run/runtime не видаляє файлів"),
+                other => panic!("js-run/runtime не видаляє файлів, отримали {other:?}"),
             })
             .collect();
         assert_eq!(paths, vec!["api/jsconfig.json", "worker/jsconfig.json"]);
@@ -21983,7 +22034,7 @@ plugins: [VueMacros({}), AutoImport({ imports: ['vue'] })] }\n";
         assert_eq!(plan.edits.len(), 1, "очікували рівно один write");
         match plan.edits.into_iter().next().expect("щойно перевірений write") {
             FileEdit::Write(w) => (w.path, w.content),
-            FileEdit::Delete { .. } => panic!("очікували Write, отримали Delete"),
+            other => panic!("очікували Write, отримали {other:?}"),
         }
     }
 
@@ -22617,7 +22668,7 @@ plugins: [VueMacros({}), AutoImport({ imports: ['vue'] })] }\n";
             .into_iter()
             .map(|edit| match edit {
                 FileEdit::Write(w) => source(&w.path, &w.content),
-                FileEdit::Delete { .. } => panic!("очікували Write"),
+                other => panic!("очікували Write, отримали {other:?}"),
             })
             .collect();
         let rest = detect_policy(cfg, &after);
@@ -22786,7 +22837,7 @@ plugins: [VueMacros({}), AutoImport({ imports: ['vue'] })] }\n";
             .into_iter()
             .map(|edit| match edit {
                 FileEdit::Write(w) => source(&w.path, &w.content),
-                FileEdit::Delete { .. } => panic!("очікували Write"),
+                other => panic!("очікували Write, отримали {other:?}"),
             })
             .collect();
         assert_eq!(after.len(), 2, "{after:?}");

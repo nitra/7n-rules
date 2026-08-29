@@ -37,7 +37,7 @@
     },
     "wasmPlugins": {
       "type": "array",
-      "description": "Wasm-плагіни plugin contract v3 (n-rules:plugin@3.0.0, docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md §3.3/§3.4). Кожен запис — АБО dev-форма (name+path на вже зібраний .wasm-компонент, лише поза CI), АБО канонічний hash-пін дистрибуції (name+url+sha256, спека §3.4 рішення Ж). Окреме поле від `plugins` (Plugin API v2, npm-пакети) — різні формати запису й різний конвеєр резолву.",
+      "description": "Wasm-плагіни plugin contract (n-rules:plugin@4.0.0, docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md §3.3/§3.4). Кожен запис — АБО dev-форма (name+path на вже зібраний .wasm-компонент, лише поза CI), АБО канонічний hash-пін дистрибуції (name+url+sha256, спека §3.4 рішення Ж). Окреме поле від `plugins` (Plugin API v2, npm-пакети) — різні формати запису й різний конвеєр резолву.",
       "items": {
         "type": "object",
         "oneOf": [

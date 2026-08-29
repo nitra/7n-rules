@@ -282,7 +282,7 @@ mod tests {
                 assert_eq!(w.path, CSPELL_TARGET);
                 &w.content
             }
-            FileEdit::Delete { .. } => panic!("очікували write"),
+            other => panic!("очікували write, отримали {other:?}"),
         }
     }
 

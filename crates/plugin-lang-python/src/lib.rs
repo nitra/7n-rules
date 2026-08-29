@@ -1,4 +1,4 @@
-//! wasm-компонент `n-rules:plugin@3.1.0` — `python/wasm-concerns`, ДРУГИЙ
+//! wasm-компонент `n-rules:plugin@4.0.0` — `python/wasm-concerns`, ДРУГИЙ
 //! first-party wasm-гість репозиторію (перший — `crates/plugin-lang-js`,
 //! доккомент того `src/lib.rs`), створений за тим самим флоу скіла
 //! `npm/skills/wasm-plugin/`. ПЕРША ХВИЛЯ порту: рівно три концерни
@@ -2605,13 +2605,14 @@ fn build_manifest() -> Manifest {
     Manifest {
         id: "python/wasm-concerns".to_string(),
         version: "0.1.0".to_string(),
-        world_version: "3.1.0".to_string(),
+        world_version: "4.0.0".to_string(),
         domains: vec![Domain::Lint],
         concerns: vec![
             ConcernContribution {
                 key: CONCERN_APPLIES.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec!["pyproject.toml".to_string()],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_TOOLING.to_string(),
@@ -2624,11 +2625,13 @@ fn build_manifest() -> Manifest {
                     "package.json".to_string(),
                     ".github/workflows/lint-python.yml".to_string(),
                 ],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_DOC_COMMENTS.to_string(),
                 scope: ConcernScope::PerFile,
                 glob: vec!["**/*.py".to_string()],
+                fix_glob: vec![],
             },
             // PerFile, як `CONCERN_DOC_COMMENTS`. У ДЕЛЬТА-прогоні
             // `pyproject.toml` до batch-у приносить НЕ цей glob, а
@@ -2646,16 +2649,19 @@ fn build_manifest() -> Manifest {
                 key: CONCERN_MYPY.to_string(),
                 scope: ConcernScope::PerFile,
                 glob: vec!["**/*.py".to_string(), "pyproject.toml".to_string()],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_RUFF.to_string(),
                 scope: ConcernScope::PerFile,
                 glob: vec!["**/*.py".to_string(), "pyproject.toml".to_string()],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_WORKSPACE_ROOT.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec!["**/pyproject.toml".to_string(), "**/uv.lock".to_string()],
+                fix_glob: vec![],
             },
             // наявність `pyproject.toml`, решту вердикту дає ланцюжок
             // `exec-tool` (той самий мотив, що `bun/licensee`,
@@ -2664,6 +2670,7 @@ fn build_manifest() -> Manifest {
                 key: CONCERN_PROJECT.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec!["pyproject.toml".to_string()],
+                fix_glob: vec![],
             },
             // Policy-концерн (rego + snippet, без `main.mjs`) — glob
             // контрибуції РІВНО цільовий файл: він годує і detect
@@ -2674,6 +2681,7 @@ fn build_manifest() -> Manifest {
                 key: CONCERN_VSCODE_EXTENSIONS.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec![".vscode/extensions.json".to_string()],
+                fix_glob: vec![],
             },
         ],
         ci_artifacts: vec![],
@@ -2688,10 +2696,11 @@ fn build_manifest() -> Manifest {
         // цього крейта (доккомент секції перед цією функцією), обидва йдуть
         // через `uv run --frozen`, тож ОДНА декларація [`UV_TOOL`] на двох.
         tools: vec![UV_TOOL.to_string()],
+        fix_only_concerns: vec![],
     }
 }
 
-/// Guest-реалізація `n-rules:plugin@3.1.0` для `python/wasm-concerns` —
+/// Guest-реалізація `n-rules:plugin@4.0.0` для `python/wasm-concerns` —
 /// три контрибуції першої хвилі (доккомент модуля).
 struct LangPython;
 
@@ -3213,7 +3222,7 @@ mod tests {
     fn build_manifest_declares_all_concerns_with_expected_scopes() {
         let manifest = build_manifest();
         assert_eq!(manifest.id, "python/wasm-concerns");
-        assert_eq!(manifest.world_version, "3.1.0");
+        assert_eq!(manifest.world_version, "4.0.0");
         assert_eq!(manifest.domains, vec![Domain::Lint]);
         // Вісім — увесь `lang-python`: `applies`/`tooling`/`doc_comments`
         // (перша хвиля), `mypy`/`ruff` (друга), `workspace_root`/`project`

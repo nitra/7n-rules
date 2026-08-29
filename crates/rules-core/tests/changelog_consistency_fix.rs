@@ -142,10 +142,7 @@ fn workspace_labels_are_deduplicated_and_prefixed() {
     let paths: Vec<&str> = plan
         .edits
         .iter()
-        .map(|e| match e {
-            FileEdit::Write(w) => w.path.as_str(),
-            FileEdit::Delete { path } => path.as_str(),
-        })
+        .map(FileEdit::path)
         .collect();
     assert_eq!(paths.len(), 2, "{plan:?}");
     assert!(paths[0].starts_with("npm/.changes/"), "{paths:?}");

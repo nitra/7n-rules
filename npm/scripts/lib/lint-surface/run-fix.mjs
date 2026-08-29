@@ -24,7 +24,7 @@ import { startChain } from '@7n/llm-lib/chain'
 import { writeTrace } from '@7n/llm-lib/trace'
 import { withTimeout } from '@7n/llm-lib/with-timeout'
 import { loadNative } from '../native.mjs'
-import { resolveWasmConcernMap } from './wasm-plugins.mjs'
+import { resolveWasmConcernMap, resolveWasmFixOnlyConcernMap } from './wasm-plugins.mjs'
 import { buildDetectPlan } from './run-detectors.mjs'
 import { runConcernDetector, DetectorError } from './detect.mjs'
 import { renderViolations } from './render.mjs'
@@ -115,6 +115,20 @@ function getNativeFixKeys() {
  * кидається гучний `Error` (з `cause`), що зупиняє прогін замість тихого
  * звіту «0 файлів змінено» (та сама «гучна помилка», що
  * `ambiguous_empty_fix_batch_err` на napi-боці, `crates/rules-napi/src/lib.rs`).
+ * # `write-bytes` — бінарний вміст (мажор контракту `4.0.0`, §2.84)
+ *
+ * `edit.content` для цього типу — base64-РЯДОК, не текст файлу: у WIT
+ * вміст їде `list<u8>`, а serde-репрезентація Rust-DTO
+ * (`crates/rules-contract/src/fix.rs`) кодує його base64 саме тому, що в
+ * JSON `Vec<u8>` виродився б у масив чисел. Тут він декодується назад у
+ * `Buffer` і пишеться БЕЗ кодування (`writeFile(abs, buf)` — жодного
+ * `'utf8'`): будь-яке текстове кодування зіпсувало б файл, і саме цей
+ * сценарій уже задокументований на detect-боці як знищення бінарника
+ * (`crates/rules-napi::non_utf8_source_file_err`).
+ *
+ * Побитий base64 — гучна помилка, не тихий запис сміття: `Buffer.from`
+ * НЕ кидає на невалідному вводі (мовчки викидає незрозумілі символи), тож
+ * коректність перевіряється явно, зворотним кодуванням.
  * @param {{type:string,path:string,content?:string}} edit Одна правка плану.
  * @param {string} cwd Абсолютний корінь consumer-репо.
  * @param {import('./types.mjs').FixContext} ctx Контекст фікса (`recordWrite` тощо).
@@ -127,6 +141,24 @@ export async function applyPlanEdit(edit, cwd, ctx) {
     ctx.recordWrite?.(abs)
     await mkdir(dirname(abs), { recursive: true })
     await writeFile(abs, edit.content, 'utf8')
+    return abs
+  }
+  if (edit.type === 'write-bytes') {
+    const buf = Buffer.from(edit.content ?? '', 'base64')
+    // `Buffer.from(…, 'base64')` толерантний: невалідні символи мовчки
+    // відкидаються, і зіпсований план записав би на диск обрізаний файл із
+    // виглядом успіху. Звіряємо round-trip — дешево (одна конверсія) і
+    // ловить рівно цей стан.
+    if (buf.toString('base64') !== (edit.content ?? '').replace(/\s+/g, '')) {
+      throw new Error(
+        `write-bytes edit для "${edit.path}": content не є валідним base64 — запис скасовано ` +
+          '(мовчазний запис обрізаного вмісту зіпсував би файл)'
+      )
+    }
+    ctx.recordWrite?.(abs)
+    await mkdir(dirname(abs), { recursive: true })
+    // Без кодування: Buffer пишеться байт-у-байт.
+    await writeFile(abs, buf)
     return abs
   }
   if (edit.type === 'delete') {
@@ -325,8 +357,22 @@ function wasmFixPattern(key, cwd, entry, deltaFiles) {
  *
  * 1. native-fix реєстр (`NATIVE_FIXES`, T1 зрізу 4 фази 7) — абсолютний
  *    пріоритет: синтетичний T0Pattern над native-планом ([`nativeFixPattern`]);
- * 2. wasm-мапа концернів (`resolveWasmConcernMap`, fix-контур contract v3) —
- *    синтетичний T0Pattern над планом `export fix` плагіна
+ * 2. wasm-мапи концернів — ДВІ (мажор контракту `4.0.0`, §2.84):
+ *    `resolveWasmConcernMap` (повна контрибуція: плагін дає і детект, і fix)
+ *    та `resolveWasmFixOnlyConcernMap` (`manifest.fix_only_concerns` — лише
+ *    fix, детект лишається за `main.mjs`/policy). Для fix-контуру вони
+ *    рівноцінні: обидві дають той самий `{ wasmPath, toolPaths }` і той
+ *    самий синтетичний патерн. Різниця живе виключно в `detect.mjs`, який
+ *    читає ЛИШЕ першу — саме тому це два поля контракту, а не одне з
+ *    прапорцем.
+ *
+ *    Ключ не може бути в обох мапах одночасно: такий маніфест хост
+ *    відхиляє ще на завантаженні плагіна
+ *    (`rules_contract::validators::manifest`), тож порядок перевірки тут
+ *    ні на що не впливає.
+ *
+ *    З обох мап будується той самий синтетичний T0Pattern над планом
+ *    `export fix` плагіна
  *    ([`wasmFixPattern`]); на відміну від detect-shadowing (wasm ПОВНІСТЮ
  *    заміняє main.mjs), тут wasm-патерн ДОДАЄТЬСЯ ПЕРЕД можливим
  *    `fix-<concern>.mjs` — плагін із fix-заглушкою (порожній план — сумісна
@@ -356,7 +402,10 @@ export async function loadT0Patterns(concernDir, concernName, ruleId, cwd, delta
   if (getNativeFixKeys().has(nativeKey)) return [nativeFixPattern(nativeKey, cwd)]
   const patterns = []
   const wasmConcernMap = await resolveWasmConcernMap(cwd)
-  const wasmEntry = wasmConcernMap.get(nativeKey)
+  const wasmFixOnlyMap = await resolveWasmFixOnlyConcernMap(cwd)
+  // Обидві мапи (доккомент функції, п.2): взаємну виключність ключа гарантує
+  // host-валідатор маніфеста, тож `??` тут не ховає двозначності.
+  const wasmEntry = wasmConcernMap.get(nativeKey) ?? wasmFixOnlyMap.get(nativeKey)
   if (wasmEntry) patterns.push(wasmFixPattern(nativeKey, cwd, wasmEntry, deltaFiles))
   const fixPath = join(concernDir, `fix-${concernName}.mjs`)
   if (existsSync(fixPath)) {

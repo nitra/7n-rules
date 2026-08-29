@@ -1011,6 +1011,27 @@ fn ambiguous_empty_fix_batch_err(key: &str, scope_label: &str, diagnostics_count
 /// того ж лишає валідними наявні 4-аргументні виклики (тести fix-контуру
 /// `wasm-plugin-parity*.test.mjs`), яким дельта не потрібна.
 ///
+/// # Скоуп fix-batch-у — `fix-glob`, а не `glob` (мажор `4.0.0`, §2.84)
+///
+/// УСІ три місця цієї функції, де batch (чи знімок host-diff) будується з
+/// контрибуції, беруть [`ConcernContribution::effective_fix_glob`], а не
+/// `glob`: full-scope fallback, per-file full-прогін і скоуп
+/// `before`/`after` знімків.
+///
+/// До `4.0.0` тут стояв `glob` — той самий список, що годує ДЕТЕКТ, і
+/// §2.72 записала наслідок у реєстр: вузький detect-glob беззвучно
+/// каструє fix. `rust/check` дивиться на `Cargo.toml`, а `cargo fix`
+/// мутує `src/**` — знімок по detect-глобу не побачив би жодної мутації,
+/// план лишився б порожнім, гейт `edits.length > 0` (`wasmFixPattern`,
+/// `npm/scripts/lib/lint-surface/run-fix.mjs`) не пустив би гість-пріоритет,
+/// і JS-канон ТИХО зробив би фікс удруге поверх уже змінених файлів.
+/// Обхід, який §2.72 реально застосувала, — РОЗШИРИТИ detect-glob заради
+/// fix-у — змушував детект читати файли, які йому не потрібні, заради
+/// побічної механіки хоста; `fix-glob` це закриває.
+///
+/// Порожній `fix-glob` = «fix ділить скоуп із детектом» (fallback на
+/// `glob`), тож для жодної чинної контрибуції поведінка не змінилась.
+///
 /// Порожній `edits` = «фікс для цих violations нічого не змінює» — той
 /// самий контракт застосовності, що в native-плану ([`run_native_concern_fix`]).
 /// Невалідний план від плагіна (path-escape, ліміти розміру) хост відхиляє
@@ -1095,7 +1116,10 @@ pub fn run_wasm_concern_fix(
         let files = if target_files.is_empty() {
             match &contribution {
                 Some(c) if c.scope == ConcernScope::Full => {
-                    build_full_scope_files(&cwd_path, &c.glob)?
+                    // `effective_fix_glob()` (мажор `4.0.0`, §2.84), НЕ
+                    // `glob`: fix-скоуп відділений від detect-скоупу —
+                    // доккомент `fix_glob_scope` нижче.
+                    build_full_scope_files(&cwd_path, c.effective_fix_glob())?
                 }
                 _ if diagnostics.is_empty() => Vec::new(),
                 // Явна дельта викликача (`delta_files`) — рішення (б)
@@ -1132,10 +1156,13 @@ pub fn run_wasm_concern_fix(
                     Some(delta) if !delta.is_empty() => {
                         read_source_files(&cwd_path, delta.to_vec())?
                     }
-                    None if contribution.as_ref().is_some_and(|c| !c.glob.is_empty()) => {
+                    None if contribution
+                        .as_ref()
+                        .is_some_and(|c| !c.effective_fix_glob().is_empty()) =>
+                    {
                         let glob = contribution
                             .as_ref()
-                            .map(|c| c.glob.clone())
+                            .map(|c| c.effective_fix_glob().to_vec())
                             .unwrap_or_default();
                         build_full_scope_files(&cwd_path, &glob)?
                     }
@@ -1179,7 +1206,8 @@ pub fn run_wasm_concern_fix(
         // невідомий — діф пропускається (порожні знімки), поведінка
         // деградує до стану ДО цієї зміни, без нового захисту, але й без
         // регресії.
-        let diff_glob: Option<&[String]> = contribution.as_ref().map(|c| c.glob.as_slice());
+        let diff_glob: Option<&[String]> =
+            contribution.as_ref().map(ConcernContribution::effective_fix_glob);
         let before_snapshot: HashMap<String, String> = match diff_glob {
             Some(glob) => build_full_scope_files(&cwd_path, glob)?
                 .into_iter()
@@ -1209,10 +1237,7 @@ pub fn run_wasm_concern_fix(
             let covered: std::collections::HashSet<String> = plan
                 .edits
                 .iter()
-                .map(|e| match e {
-                    rules_contract::fix::FileEdit::Write(w) => w.path.clone(),
-                    rules_contract::fix::FileEdit::Delete { path } => path.clone(),
-                })
+                .map(|e| e.path().to_string())
                 .collect();
             plan.edits.extend(diff_snapshot_edits(
                 &before_snapshot,
@@ -1952,6 +1977,7 @@ mod tests {
             key: key.to_string(),
             scope,
             glob: glob.iter().map(|g| (*g).to_string()).collect(),
+            fix_glob: vec![],
         }
     }
 
@@ -1966,6 +1992,83 @@ mod tests {
             .expect("glob є — batch будується");
 
         assert_eq!(sorted_paths(&files), vec!["keep.txt", "vendor/skip.txt"]);
+    }
+
+    // --- fix-скоуп: `fix-glob` (мажор контракту `4.0.0`, §2.84) ------------
+
+    /// Той самий хелпер, що [`contribution`], але з окремим fix-скоупом.
+    fn contribution_with_fix_glob(
+        key: &str,
+        scope: ConcernScope,
+        glob: &[&str],
+        fix_glob: &[&str],
+    ) -> ConcernContribution {
+        ConcernContribution {
+            fix_glob: fix_glob.iter().map(|g| (*g).to_string()).collect(),
+            ..contribution(key, scope, glob)
+        }
+    }
+
+    /// **Ядро §2.72**: detect-скоуп і fix-скоуп розходяться, і кожен бере
+    /// СВІЙ glob. Без `fix_glob` єдиним виходом було розширити detect-glob
+    /// заради fix-у — саме та вада, яку реєстр записав по `rust/check`.
+    ///
+    /// Тест іде через [`build_full_scope_files`] обома глобами тієї самої
+    /// контрибуції: це рівно те, що роблять три місця
+    /// [`run_wasm_concern_fix`] (batch і обидва знімки host-diff).
+    #[test]
+    fn fix_glob_scopes_the_fix_batch_independently_from_detect() {
+        let dir = tempfile::tempdir().expect("tmp dir");
+        std::fs::write(dir.path().join("Cargo.toml"), "[package]").expect("Cargo.toml");
+        std::fs::create_dir_all(dir.path().join("src")).expect("src/");
+        std::fs::write(dir.path().join("src/lib.rs"), "fn a() {}").expect("src/lib.rs");
+
+        let c = contribution_with_fix_glob(
+            "rust/check",
+            ConcernScope::Full,
+            &["Cargo.toml"],
+            &["Cargo.toml", "src/**/*.rs"],
+        );
+
+        // Детект бачить лише маніфест...
+        let detect = build_detect_batch_files(dir.path(), &c.key, Some(&c)).expect("detect batch");
+        assert_eq!(sorted_paths(&detect), vec!["Cargo.toml"]);
+
+        // ...а fix — і те, що реально мутує тул.
+        let fixed = build_full_scope_files(dir.path(), c.effective_fix_glob()).expect("fix batch");
+        assert_eq!(sorted_paths(&fixed), vec!["Cargo.toml", "src/lib.rs"]);
+    }
+
+    /// Порожній `fix_glob` — свідомий дефолт «як до мажора»: fix ділить
+    /// скоуп із детектом. Регрес на випадок, якби fallback колись зник:
+    /// без нього кожна чинна контрибуція дістала б порожній fix-batch.
+    #[test]
+    fn empty_fix_glob_keeps_pre_major_behaviour() {
+        let dir = fixture_tree_with_vendor_dir();
+        let c = contribution("demo/shared-scope", ConcernScope::Full, &["**/*.txt"]);
+
+        assert_eq!(c.effective_fix_glob(), c.glob.as_slice());
+        let files = build_full_scope_files(dir.path(), c.effective_fix_glob()).expect("fix batch");
+        assert_eq!(sorted_paths(&files), vec!["keep.txt", "vendor/skip.txt"]);
+    }
+
+    /// `fix_glob` НЕ протікає в детект: `build_detect_batch_files` і далі
+    /// читає лише `glob`. Інакше поле, задумане розділити скоупи, мовчки
+    /// розширювало б саме той detect-скоуп, від розширення якого рятує.
+    #[test]
+    fn fix_glob_does_not_widen_the_detect_batch() {
+        let dir = tempfile::tempdir().expect("tmp dir");
+        std::fs::write(dir.path().join("keep.txt"), "keep").expect("keep.txt");
+        std::fs::write(dir.path().join("other.md"), "md").expect("other.md");
+
+        let c = contribution_with_fix_glob(
+            "demo/split",
+            ConcernScope::Full,
+            &["**/*.txt"],
+            &["**/*.md"],
+        );
+        let detect = build_detect_batch_files(dir.path(), &c.key, Some(&c)).expect("detect batch");
+        assert_eq!(sorted_paths(&detect), vec!["keep.txt"]);
     }
 
     /// `scope: Full` з ПОРОЖНІМ glob-ом — заявлений намір гостя

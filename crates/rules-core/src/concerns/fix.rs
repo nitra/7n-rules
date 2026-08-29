@@ -123,10 +123,15 @@
 //!   забороняє: файли на диску змінені, а конвеєр звітує «0 файлів»
 //!   (і JS-канон при цьому вже затінений — ключ у [`NATIVE_FIXES`] робить
 //!   native-патерн ЄДИНИМ, `loadT0Patterns`). Розблокування — не в цьому
-//!   концерні, а в контракті: бінарний варіант правки
-//!   (`FileEdit::WriteBytes { path, base64 }`) у `n-rules:plugin@3.x`. Він
-//!   розблокував би заразом і `image-avif/avif_generation` нижче — обидва
-//!   спираються на ту саму відсутність. До того — лишається JS.
+//!   концерні, а в контракті: бінарний варіант правки.
+//!
+//!   **Контракт це вже дає** — [`FileEdit::WriteBytes`] приїхав мажором
+//!   `n-rules:plugin@4.0.0` (§2.84 реєстру відкритих питань): у WIT вміст
+//!   їде `list<u8>`, на napi→JS межі — base64-рядком, а
+//!   `run-fix.mjs::applyPlanEdit` пише `Buffer` без кодування. Сам порт
+//!   цього концерну (і `image-avif/avif_generation` нижче, що спирався на
+//!   ту саму відсутність) — ОКРЕМА задача: мажор віддав поверхню, не
+//!   споживачів. До порту обидва лишаються JS.
 //! - **`image-avif/avif_generation`**
 //!   (`npm/rules/image-avif/avif_generation/fix-avif_generation.mjs`) —
 //!   перший крок фіксу запускає `npx @nitra/minify-image --avif`
@@ -1716,7 +1721,7 @@ mod tests {
                 assert!(w.content.contains("[completion]"));
                 assert!(w.content.contains("[code_action]"));
             }
-            FileEdit::Delete { .. } => panic!("очікували write"),
+            other => panic!("очікували write, отримали {other:?}"),
         }
     }
 
@@ -1752,7 +1757,7 @@ mod tests {
         for edit in &plan.edits {
             match edit {
                 FileEdit::Delete { path } => assert!(path.ends_with("down.sql")),
-                FileEdit::Write(_) => panic!("очікували delete"),
+                other => panic!("очікували delete, отримали {other:?}"),
             }
         }
     }
@@ -1832,7 +1837,7 @@ mod tests {
                     )
                 );
             }
-            FileEdit::Delete { .. } => panic!("очікували write"),
+            other => panic!("очікували write, отримали {other:?}"),
         }
     }
 
@@ -1856,7 +1861,7 @@ mod tests {
                     "node_modules/\n\n{GITIGNORE_TARGET_HEADER}\napp/src-tauri/target/\nowner/src-tauri/target/\n\ndist/\n"
                 )
             ),
-            FileEdit::Delete { .. } => panic!("очікували write"),
+            other => panic!("очікували write, отримали {other:?}"),
         }
     }
 
@@ -1903,7 +1908,7 @@ mod tests {
                 assert!(w.content.contains("owner/src-tauri/target/"));
                 assert!(!w.content.contains("app/src-tauri/target/"));
             }
-            FileEdit::Delete { .. } => panic!("очікували write"),
+            other => panic!("очікували write, отримали {other:?}"),
         }
     }
 
@@ -2217,10 +2222,7 @@ mod tests {
         let paths: Vec<&str> = plan
             .edits
             .iter()
-            .map(|e| match e {
-                FileEdit::Write(w) => w.path.as_str(),
-                FileEdit::Delete { path } => path.as_str(),
-            })
+            .map(FileEdit::path)
             .collect();
         assert_eq!(
             paths,
@@ -2541,7 +2543,7 @@ mod tests {
                 assert_eq!(w.path, "bad.mjs");
                 assert_ne!(w.content, SOURCE);
             }
-            FileEdit::Delete { .. } => panic!("очікували write"),
+            other => panic!("очікували write, отримали {other:?}"),
         }
 
         // Продакшн-шлях: NATIVE_FIXES → run_concern_fix, не пряме звернення —
@@ -2642,7 +2644,7 @@ mod tests {
                 assert_eq!(w.path, "bad.md");
                 assert!(!w.content.contains("trailing spaces   \n"));
             }
-            FileEdit::Delete { .. } => panic!("очікували write"),
+            other => panic!("очікували write, отримали {other:?}"),
         }
 
         // Продакшн-шлях: NATIVE_FIXES → run_concern_fix, не пряме звернення —
@@ -2746,7 +2748,7 @@ mod tests {
                 assert_eq!(w.path, "default.conf.template");
                 assert_eq!(w.content, "server {\n  error_log /dev/null crit;\n}\n");
             }
-            FileEdit::Delete { .. } => panic!("очікували write"),
+            other => panic!("очікували write, отримали {other:?}"),
         }
     }
 
@@ -2790,7 +2792,7 @@ mod tests {
             assert_eq!(plan.edits.len(), 1, "{key}: очікували створення файлу");
             match &plan.edits[0] {
                 FileEdit::Write(w) => assert_eq!(w.path, ".vscode/extensions.json"),
-                FileEdit::Delete { .. } => panic!("{key}: очікували write"),
+                other => panic!("{key}: очікували write, отримали {other:?}"),
             }
         }
     }
@@ -2895,7 +2897,7 @@ mod tests {
                 assert_eq!(w.path, ".env");
                 assert_eq!(w.content, "B=2\n");
             }
-            FileEdit::Delete { .. } => panic!("очікували write"),
+            other => panic!("очікували write, отримали {other:?}"),
         }
     }
 
@@ -3089,7 +3091,7 @@ mod tests {
                 assert_eq!(w.path, "x.sh");
                 assert_eq!(w.content, "#!/bin/sh\necho \"$foo\"\n");
             }
-            FileEdit::Delete { .. } => panic!("очікували write"),
+            other => panic!("очікували write, отримали {other:?}"),
         }
     }
 

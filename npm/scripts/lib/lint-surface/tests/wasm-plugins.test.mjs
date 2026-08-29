@@ -27,7 +27,11 @@ import { beforeEach, describe, expect, test, vi } from 'vitest'
 
 import { realRepoRoot, withTmpDir } from '../../../utils/test-helpers.mjs'
 import { loadNative } from '../../native.mjs'
-import { resetWasmConcernMapForTests, resolveWasmConcernMap } from '../wasm-plugins.mjs'
+import {
+  resetWasmConcernMapForTests,
+  resolveWasmConcernMap,
+  resolveWasmFixOnlyConcernMap
+} from '../wasm-plugins.mjs'
 
 const REPO_ROOT = realRepoRoot()
 const WASM_PATH = join(REPO_ROOT, 'target', 'wasm32-wasip2', 'release', 'plugin_lang_js.wasm')
@@ -98,11 +102,15 @@ function fakeFetch(bytes) {
  * реального завантаження wasm-компонента (`resolveEntryPath` для `path`-форми
  * робить лише `existsSync`, не парсить вміст) — ізолює ensure-tool
  * wiring-тести (задача N1) від живого wasmtime-виклику.
- * @param {{ concerns: { key: string, scope: string, glob: string[] }[], tools: string[] }} manifest фейковий маніфест
+ * `fix_only_concerns` — snake_case, як його віддає napi (серіалізований
+ * serde `describe()`); дефолт `[]` тримає наявні виклики короткими, а
+ * резолвер за відсутності поля попереджає ГУЧНО (контракт `4.x` несе його
+ * завжди), тож дефолт тут — не приховування, а дзеркало реального маніфеста.
+ * @param {{ concerns: { key: string, scope: string, glob: string[] }[], tools: string[], fix_only_concerns?: { key: string, scope: string, glob: string[] }[] }} manifest фейковий маніфест
  * @returns {{ wasmPluginManifest: (path: string) => object }} фейковий addon
  */
 function fakeNative(manifest) {
-  return { wasmPluginManifest: () => manifest }
+  return { wasmPluginManifest: () => ({ fix_only_concerns: [], ...manifest }) }
 }
 
 beforeEach(() => {
@@ -860,5 +868,95 @@ describe('resolveWasmConcernMap — ensure-tool wiring (задача N1, ріш�
       expect(ensureToolFn).not.toHaveBeenCalled()
       expect(map.get('fake/concern')).toEqual({ wasmPath: WASM_PATH, toolPaths: {} })
     })
+  })
+})
+
+// --- `fix_only_concerns`: fix БЕЗ detect-шедоуїнгу (мажор 4.0.0, §2.84) ----
+
+describe('resolveWasmFixOnlyConcernMap — окремий список fix-only контрибуцій', () => {
+  /** Маніфест, що декларує один звичайний і один fix-only концерн. */
+  const MIXED_MANIFEST = {
+    concerns: [{ key: 'demo/full-port', scope: 'per-file', glob: ['**/*.mjs'] }],
+    fix_only_concerns: [{ key: 'demo/fix-only', scope: 'per-file', glob: ['**/*.mjs'] }],
+    tools: []
+  }
+
+  /** Пише мінімальний `.n-rules.json` із dev-піном на реальний .wasm. */
+  async function withMixedPlugin(fn) {
+    await withTmpDir(async dir => {
+      await writeFile(
+        join(dir, '.n-rules.json'),
+        JSON.stringify({ wasmPlugins: [{ name: 'fake-plugin', path: WASM_PATH }] }),
+        'utf8'
+      )
+      await fn(dir, { env: {}, nativeFn: () => fakeNative(MIXED_MANIFEST) })
+    })
+  }
+
+  /**
+   * Ядро §2.84: ключ, оголошений fix-only, доступний fix-контуру і ВІДСУТНІЙ
+   * у детект-мапі. Друга половина важливіша за першу — саме вона означає, що
+   * `main.mjs`/policy-детект концерну лишається чинним (`detect.mjs` читає
+   * ЛИШЕ детект-мапу).
+   */
+  test('fix-only ключ є у fix-мапі і ВІДСУТНІЙ у detect-мапі', async () => {
+    await withMixedPlugin(async (dir, opts) => {
+      const detectMap = await resolveMap(dir, opts)
+      const fixOnlyMap = await resolveWasmFixOnlyConcernMap(dir, {
+        builtinPinsDir: NO_BUILTIN_DIR,
+        resolveCmdFn: fakeResolveCmd,
+        ...opts
+      })
+
+      expect(fixOnlyMap.get('demo/fix-only')).toEqual({ wasmPath: WASM_PATH, toolPaths: {} })
+      expect(detectMap.has('demo/fix-only')).toBe(false)
+    })
+  })
+
+  /** Звичайна контрибуція поводиться як раніше: детект-мапа, не fix-only. */
+  test('звичайний концерн лишається у detect-мапі й не протікає у fix-only', async () => {
+    await withMixedPlugin(async (dir, opts) => {
+      const detectMap = await resolveMap(dir, opts)
+      const fixOnlyMap = await resolveWasmFixOnlyConcernMap(dir, {
+        builtinPinsDir: NO_BUILTIN_DIR,
+        resolveCmdFn: fakeResolveCmd,
+        ...opts
+      })
+
+      expect(detectMap.get('demo/full-port')).toEqual({ wasmPath: WASM_PATH, toolPaths: {} })
+      expect(fixOnlyMap.has('demo/full-port')).toBe(false)
+    })
+  })
+
+  /**
+   * Маніфест без `fix_only_concerns` — не контракт `4.x`; резолвер каже це
+   * ВГОЛОС і не вигадує порожній список мовчки (принцип проекту).
+   */
+  test('маніфест без поля fix_only_concerns — гучний warn, не тихий дефолт', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      await withTmpDir(async dir => {
+        await writeFile(
+          join(dir, '.n-rules.json'),
+          JSON.stringify({ wasmPlugins: [{ name: 'legacy-plugin', path: WASM_PATH }] }),
+          'utf8'
+        )
+        const map = await resolveMap(dir, {
+          env: {},
+          // Свідомо БЕЗ `fakeNative` — потрібен маніфест саме без поля.
+          nativeFn: () => ({
+            wasmPluginManifest: () => ({
+              concerns: [{ key: 'legacy/concern', scope: 'per-file', glob: [] }],
+              tools: []
+            })
+          })
+        })
+
+        expect(map.has('legacy/concern')).toBe(true)
+        expect(warn.mock.calls.flat().join(' ')).toContain('fix_only_concerns')
+      })
+    } finally {
+      warn.mockRestore()
+    }
   })
 })

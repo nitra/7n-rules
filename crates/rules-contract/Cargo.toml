@@ -2,7 +2,7 @@
 name = "rules-contract"
 version = "0.1.0"
 edition = "2021"
-description = "Нижній шар serde-DTO + JSON Schema + host-валідатори для WIT-контракту @7n/rules plugin v3 (n-rules:plugin@3.1.0, n-rules:slots@1.0.0)"
+description = "Нижній шар serde-DTO + JSON Schema + host-валідатори для WIT-контракту @7n/rules plugin v3 (n-rules:plugin@4.0.0, n-rules:slots@1.0.0)"
 license = "Apache-2.0"
 
 [lib]
@@ -14,6 +14,11 @@ serde_json = "1"
 # JSON Schema для маніфеста (host-side публікація схеми споживачам скіла
 # авторингу плагінів, спека §2 рішення І).
 schemars = "1"
+# base64 РІВНО для однієї межі — serde-репрезентація `FileEdit::WriteBytes`
+# (мажор 4.0.0, §2.84): у WIT байти їдуть `list<u8>`, а в JSON (napi -> JS)
+# — base64-рядком, бо `Vec<u8>` серіалізувався б масивом чисел. Доккомент
+# `src/fix.rs`, розділ «Бінарний вміст».
+base64 = "0.22"
 # Regex-порт `CI_ARTIFACT_ID_RE` (`npm/scripts/lib/slot-contracts-ci.mjs`).
 regex = "1"
 

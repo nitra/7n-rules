@@ -1,0 +1,215 @@
+// ЗАМОРОЖЕНИЙ знімок world `n-rules:plugin@4.0.0` — фікстура доказу
+// «мінор лінії 4.x лишається additive» (`tests/wit_parity.rs`,
+// `every_v40_type_keeps_its_exact_shape_in_current_world`) і бінарного боку
+// того самого доказу
+// (`crates/rules-plugin-host/tests/v30_guest_additive_compat.rs`).
+//
+// # Що це і чого тут немає
+//
+// Це СТРУКТУРА world-а 4.0.0 дослівно (типи, export-и, import-и), знята з
+// `crates/rules-contract/wit/world.wit` у момент major-бампу (§2.84 реєстру
+// відкритих питань). Уся проза-документація зрізана свідомо — рівно з тих
+// самих міркувань, що описує сусідня фікстура `wit-v30/`: доказ тримається
+// на формі контракту, а дубль тисячі рядків документації розійшовся б із
+// оригіналом за перший же рефакторинг прози.
+//
+// # Файл НЕ оновлюється разом зі світом
+//
+// Він фіксує базу мажора 4: кожен наступний МІНОР `4.x` мусить лишити форму
+// цих типів незмінною (Component Model не має width-subtyping — заміряно в
+// §2.83, таблиця в доккоменті живого `world.wit`). Падіння гейта означає НЕ
+// «оновіть фікстуру», а «зміна вимагає major-бампу `n-rules:plugin`».
+package n-rules:plugin@4.0.0;
+
+world plugin {
+  use n-rules:slots/ci-artifact@1.0.0.{descriptor as ci-artifact-descriptor};
+
+  enum severity {
+    error,
+    warn,
+  }
+
+  enum concern-scope {
+    per-file,
+    full,
+  }
+
+  record concern-contribution {
+    key: string,
+    scope: concern-scope,
+    glob: list<string>,
+    fix-glob: list<string>,
+  }
+
+  record diagnostic {
+    reason: string,
+    message: string,
+    file: option<string>,
+    severity: severity,
+    data: option<string>,
+  }
+
+  record source-file {
+    path: string,
+    content: string,
+  }
+
+  record detect-batch {
+    concern-id: string,
+    files: list<source-file>,
+  }
+
+  record write-file {
+    path: string,
+    content: string,
+  }
+
+  record write-bytes-file {
+    path: string,
+    content: list<u8>,
+  }
+
+  variant file-edit {
+    write(write-file),
+    delete(string),
+    write-bytes(write-bytes-file),
+  }
+
+  record fix-request {
+    concern-id: string,
+    files: list<source-file>,
+    diagnostics: list<diagnostic>,
+  }
+
+  record fix-plan {
+    edits: list<file-edit>,
+  }
+
+  enum domain {
+    lint,
+    ecosystem-outdated,
+    docgen-render,
+  }
+
+  record capabilities {
+    fs-read: list<string>,
+    network: bool,
+  }
+
+  record manifest {
+    id: string,
+    version: string,
+    world-version: string,
+    domains: list<domain>,
+    concerns: list<concern-contribution>,
+    fix-only-concerns: list<concern-contribution>,
+    ci-artifacts: list<ci-artifact-descriptor>,
+    capabilities: capabilities,
+    tools: list<string>,
+  }
+
+  variant domain-error {
+    not-supported,
+    failed(string),
+  }
+
+  record ecosystem-request {
+    ecosystem: string,
+    manifest-path: string,
+    manifest-content: string,
+  }
+
+  record outdated-dep {
+    name: string,
+    current: string,
+    latest: string,
+    breaking: bool,
+  }
+
+  record docgen-request {
+    source-path: string,
+    source-content: string,
+    source-crc: string,
+  }
+
+  record doc-output {
+    content: string,
+    content-crc: string,
+  }
+
+  enum log-level {
+    debug,
+    info,
+    warn,
+    error,
+  }
+
+  record tool-output {
+    status: option<s32>,
+    stdout: string,
+    stderr: string,
+  }
+
+  record scratch-file {
+    path: string,
+    content: string,
+  }
+
+  record tool-request {
+    tool: string,
+    args: list<string>,
+    stdin: option<string>,
+    cwd: option<string>,
+    env: list<tuple<string, string>>,
+    scratch-in: list<scratch-file>,
+    scratch-out: list<string>,
+  }
+
+  record tool-result {
+    status: option<s32>,
+    stdout: string,
+    stderr: string,
+    scratch-out: list<scratch-file>,
+  }
+
+  export describe: func() -> manifest;
+
+  export detect: func(batch: detect-batch) -> list<diagnostic>;
+
+  export fix: func(request: fix-request) -> fix-plan;
+
+  export ecosystem-outdated: func(request: ecosystem-request) -> result<list<outdated-dep>, domain-error>;
+
+  export docgen-render: func(request: docgen-request) -> result<doc-output, domain-error>;
+
+  import report-progress: func(done: u32, total: u32);
+
+  import run-tool: func(tool: string, args: list<string>, stdin: option<string>) -> tool-output;
+
+  import exec-tool: func(request: tool-request) -> tool-result;
+
+  import log: func(level: log-level, message: string);
+
+  import host-context: func(slot: string) -> option<string>;
+
+  enum rego-stage {
+    compile,
+    input,
+    eval,
+  }
+
+  record rego-error {
+    stage: rego-stage,
+    message: string,
+  }
+
+  resource rego-engine {
+    constructor();
+
+    add-policy: func(name: string, source: string) -> result<_, rego-error>;
+
+    add-data-json: func(data-json: string) -> result<_, rego-error>;
+
+    eval-rule: func(input-json: string, rule: string) -> result<list<string>, rego-error>;
+  }
+}

@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 license = "Apache-2.0"
-description = "wasm-компонент n-rules:plugin@3.1.0 — python/wasm-concerns (3 контрибуції першої хвилі: python/applies, python/tooling, python/doc_comments)"
+description = "wasm-компонент n-rules:plugin@4.0.0 — python/wasm-concerns (3 контрибуції першої хвилі: python/applies, python/tooling, python/doc_comments)"
 
 [lib]
 # `cdylib` — обов'язково: `wasm32-wasip2` виводить готовий Component Model

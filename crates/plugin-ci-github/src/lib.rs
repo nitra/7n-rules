@@ -1,4 +1,4 @@
-//! wasm-компонент `n-rules:plugin@3.2.0` — `ci-github/wasm-concerns`, П'ЯТИЙ
+//! wasm-компонент `n-rules:plugin@4.0.0` — `ci-github/wasm-concerns`, П'ЯТИЙ
 //! first-party wasm-гість репозиторію (перший — `crates/plugin-lang-js`,
 //! другий — `crates/plugin-lang-python`, третій — `crates/plugin-lang-rust`,
 //! четвертий — `crates/plugin-lang-php`, доккомент того `src/lib.rs` пояснює
@@ -20,7 +20,7 @@
 //! BSD-3-Clause) — жодного `conftest`-субпроцесу (доккомент розділу
 //! «Regorus замість conftest» нижче). **ОНОВЛЕНО** (реєстр відкритих
 //! питань `docs/plans/2026-08-05-open-questions-register.md` §2.66): від
-//! `n-rules:plugin@3.2.0` `regorus` виконується IN-PROCESS лише на
+//! `n-rules:plugin@4.0.0` `regorus` виконується IN-PROCESS лише на
 //! host-таргеті (`cargo test`, `cfg(not(target_arch = "wasm32"))`); на
 //! wasm32 (продакшн) той самий `regorus`-виклик перетнув component-межу —
 //! доккомент [`RegoEngineHandle`] пояснює обидва шляхи й чому нативне
@@ -3095,7 +3095,7 @@ fn build_manifest() -> Manifest {
     Manifest {
         id: "ci-github/wasm-concerns".to_string(),
         version: "0.3.0".to_string(),
-        world_version: "3.1.0".to_string(),
+        world_version: "4.0.0".to_string(),
         domains: vec![Domain::Lint],
         concerns: vec![
             ConcernContribution {
@@ -3107,6 +3107,7 @@ fn build_manifest() -> Manifest {
                     "Cargo.toml".to_string(),
                     "src-tauri/Cargo.toml".to_string(),
                 ],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_WORKFLOWS.to_string(),
@@ -3118,6 +3119,7 @@ fn build_manifest() -> Manifest {
                     ".megalinter.yaml".to_string(),
                     ".mega-linter.yaml".to_string(),
                 ],
+                fix_glob: vec![],
             },
             // ТРЕТЯ хвиля — три policy-концерни, кожен ОДИН target-файл
             // (доккомент модуля, розділ «ТРЕТЯ хвиля»).
@@ -3125,16 +3127,19 @@ fn build_manifest() -> Manifest {
                 key: CONCERN_VSCODE_EXTENSIONS.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec![VSCODE_EXTENSIONS_CFG.target_path.to_string()],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_VSCODE_SETTINGS.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec![VSCODE_SETTINGS_CFG.target_path.to_string()],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_LINT_SECURITY_YML.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec![LINT_SECURITY_YML_CFG.target_path.to_string()],
+                fix_glob: vec![],
             },
             // ЧЕТВЕРТА хвиля — дванадцять `createTemplateFixPattern`-концернів
             // (доккомент модуля, розділ «ЧЕТВЕРТА хвиля»), кожен ОДИН
@@ -3143,61 +3148,73 @@ fn build_manifest() -> Manifest {
                 key: CONCERN_GIT_AI.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec![GIT_AI_CFG.target_path.to_string()],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_LINT_GA.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec![LINT_GA_CFG.target_path.to_string()],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_CLEAN_GA_WORKFLOWS.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec![CLEAN_GA_WORKFLOWS_CFG.target_path.to_string()],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_CLEAN_MERGED_BRANCH.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec![CLEAN_MERGED_BRANCH_CFG.target_path.to_string()],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_LINT_DOCKER_YML.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec![LINT_DOCKER_YML_CFG.target_path.to_string()],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_ZIZMOR_YML.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec![ZIZMOR_YML_CFG.target_path.to_string()],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_LINT_K8S_YML.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec![LINT_K8S_YML_CFG.target_path.to_string()],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_LINT_STYLE_YML.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec![LINT_STYLE_YML_CFG.target_path.to_string()],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_LINT_TEXT.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec![LINT_TEXT_CFG.target_path.to_string()],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_CLEAN_MERGED_IGNORE_BRANCHES.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec![ABIE_CLEAN_MERGED_IGNORE_BRANCHES_CFG.target_path.to_string()],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_LINT_REPO_YML.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec![GA_LINT_REPO_YML_CFG.target_path.to_string()],
+                fix_glob: vec![],
             },
             ConcernContribution {
                 key: CONCERN_NPM_PUBLISH_YML.to_string(),
                 scope: ConcernScope::Full,
                 glob: vec![NPM_MODULE_NPM_PUBLISH_YML_CFG.target_path.to_string()],
+                fix_glob: vec![],
             },
             // ПʼЯТА хвиля — ПЕРША `per-file` контрибуція цього гостя:
             // `concern.json` не декларує `lint.scope`, тож дельта-прогін дає
@@ -3207,6 +3224,7 @@ fn build_manifest() -> Manifest {
                 key: CONCERN_SERVICE_DEPLOY_WORKFLOW.to_string(),
                 scope: ConcernScope::PerFile,
                 glob: vec![SERVICE_DEPLOY_WORKFLOW_GLOB.to_string()],
+                fix_glob: vec![],
             },
         ],
         ci_artifacts: vec![],
@@ -3226,10 +3244,11 @@ fn build_manifest() -> Manifest {
             "path:uvx".to_string(),
             "shellcheck".to_string(),
         ],
+        fix_only_concerns: vec![],
     }
 }
 
-/// Guest-реалізація `n-rules:plugin@3.1.0` для `ci-github/wasm-concerns` —
+/// Guest-реалізація `n-rules:plugin@4.0.0` для `ci-github/wasm-concerns` —
 /// п'ять концернів, три хвилі (доккомент модуля).
 struct CiGithub;
 

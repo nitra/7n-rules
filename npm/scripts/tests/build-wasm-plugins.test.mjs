@@ -187,7 +187,10 @@ describe('FIRST_PARTY_WASM_PLUGINS', () => {
       { name: 'lang-python', crateDir: 'crates/plugin-lang-python' },
       { name: 'lang-rust', crateDir: 'crates/plugin-lang-rust' },
       { name: 'lang-php', crateDir: 'crates/plugin-lang-php' },
-      { name: 'ci-github', crateDir: 'crates/plugin-ci-github' }
+      { name: 'ci-github', crateDir: 'crates/plugin-ci-github' },
+      // ШОСТИЙ гість (§2.77) — список наздоганяє `FIRST_PARTY_WASM_PLUGINS`,
+      // яка лишається джерелом правди.
+      { name: 'ci-azure', crateDir: 'crates/plugin-ci-azure' }
     ])
   })
 })
