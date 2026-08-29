@@ -715,13 +715,19 @@ const LINT_SECURITY_YML_SNIPPET_YML: &str = include_str!(
 /// head `s contains arr[_].field` дає `Err("not an object")`, коли ХОЧА Б
 /// ОДИН елемент масиву не має поля `field` (undefined mid-iteration) —
 /// LONGHAND-форма (`s contains v if { some x in arr; v := x.field }`) з ТИМ
-/// САМИМ входом працює коректно. РІВНО ОДИН рядок серед пʼяти вшитих
-/// `.rego`-джерел використовує саме цю крихку форму:
-/// `lint_ga.rego:17: job_uses_set contains job.steps[_].uses` (кроки БЕЗ
-/// `uses:`, напр. чисті `run:`-кроки, тригерять баг). Rego-текст НЕ можна
-/// правити (спільне джерело з живим JS-каноном, 55 `conftest verify`-тестів
-/// його стережуть) — обхід тут, на боці Rust, ПЕРЕД `set_input`: кожен
-/// `jobs.*.steps[]`-елемент отримує явний `"uses": ""`, якщо ключа не було.
+/// САМИМ входом працює коректно. Серед вшитих `.rego`-джерел цю крихку
+/// форму сьогодні використовує РІВНО ОДИН рядок —
+/// `text/lint_text/lint_text.rego:32: job_uses_set contains job.steps[_].uses`
+/// (кроки БЕЗ `uses:`, напр. чисті `run:`-кроки, тригерять баг).
+/// `lint_ga.rego` цю форму БІЛЬШЕ НЕ використовує: там її переписано в
+/// longhand (§2.81 реєстру) — shorthand ЩЕ Й ламався інакше, коли
+/// `jobs["lint-ga"]` взагалі відсутній (undefined корінь → `eval`-помилка
+/// замість канонічного набору deny), а цього обходу той випадок НЕ покривав.
+/// Правити rego МОЖНА (спільне джерело з живим JS-каноном), але ціна —
+/// повний `conftest verify` + диференційна звірка виходу порту з conftest,
+/// тож для `lint_text` обхід поки лишається тут, на боці Rust, ПЕРЕД
+/// `set_input`: кожен `jobs.*.steps[]`-елемент отримує явний `"uses": ""`,
+/// якщо ключа не було.
 /// Застосовано УНІВЕРСАЛЬНО (усі пʼять namespace-ів, доккомент
 /// [`run_all_ga_rego`]), а не лише для `ga.lint_ga` — нейтрально для решти
 /// чотирьох: кожне звернення до `step.uses` там або індексує КОНКРЕТНИЙ,
@@ -1661,7 +1667,7 @@ fn next_non_empty_workflow_line(lines: &[&str], from: usize) -> usize {
     j
 }
 
-/// Точний відповідник `WITH_LINE_RE = /^\s*with:\s*$/u` — увесь (trim-ований)
+/// Точний відповідник `WITH_LINE_RE = /^\s*with:\s*$/u` — увесь обрізаний `trim`-ом
 /// рядок дорівнює `with:`.
 fn is_with_block_line(line: &str) -> bool {
     line.trim() == "with:"
@@ -2385,8 +2391,9 @@ fn detect_policy(files: &[SourceFile], cfg: &PolicyCfg) -> Vec<Diagnostic> {
     let data_json = wrap_template_data(snippet);
     // [`ensure_step_uses_key_present`] — той самий захисний прийом, що
     // [`run_all_ga_rego`] застосовує для ЧОТИРЬОХ ga-концернів вище
-    // (доккомент функції): `lint_ga.rego`/`lint_text.rego` (ЧЕТВЕРТА хвиля)
-    // читають `job.steps[_].uses` НЕЗАХИЩЕНИМ прямим доступом (на відміну
+    // (доккомент функції): `lint_text.rego` (ЧЕТВЕРТА хвиля; `lint_ga.rego`
+    // переписано в longhand і він більше не залежить від цього)
+    // читає `job.steps[_].uses` НЕЗАХИЩЕНИМ прямим доступом (на відміну
     // від `object.get(step, "uses", "")` у решти `.rego` цієї хвилі) — крок
     // без `uses` (наприклад `run`-лише крок) інакше валить ВЕСЬ
     // `job_uses_set` comprehension у regorus. Безпечний no-op для
@@ -4180,7 +4187,7 @@ mod tests {
     /// Той самий прийом, що `ignored_dir_names_match_declarative_rule_gate`
     /// у `crates/plugin-lang-rust` — тут перевіряє не список значень, а що
     /// `data.<namespace>.deny` ВЗАГАЛІ обчислюється (не помилка компіляції/
-    /// eval) на кожному з пʼяти вшитих `.rego` — намespace-рядок,
+    /// eval) на кожному з пʼяти вшитих `.rego` — namespace-рядок,
     /// захардкоджений у [`run_all_ga_rego`]/[`build_workflow_common_engine`],
     /// має РЕАЛЬНО збігатися з `package ga.<name>` усередині вшитого файлу
     /// (не окрема Rust-копія, яка могла б розійтися).
@@ -4396,7 +4403,7 @@ mod tests {
     #[test]
     fn broken_policy_produces_visible_diagnostic_not_silence() {
         // Пряме порівняння СТАРОЇ (до правки 1) і НОВОЇ поведінки на ОДНІЙ і
-        // тій самій зламаній policy — доводить сáме твердження задачі: там,
+        // тій самій зламаній policy — доводить саме твердження задачі: там,
         // де стара гілка (`if let Ok(messages) = eval_deny_rule(...) { … }`,
         // без `else`) мовчки ковтала Err, нова (`match … Err((stage, err)) =>
         // push_rego_engine_error(...)`) дає РІВНО одну діагностику.
@@ -5256,7 +5263,7 @@ mod tests {
     /// розпізнати наявну кому й НЕ дописати другу (подвійна кома —
     /// синтаксично невалідний JSON, доккомент функції). Очікуваний вивід —
     /// БУКВАЛЬНО той самий, що без trailing-коми на вході (existing кома
-    /// стає роздільником замість synthетичної).
+    /// стає роздільником замість синтетичної).
     #[test]
     fn fix_vscode_settings_jsonc_trailing_comma_merges_without_double_comma() {
         let before = concat!(
@@ -5764,6 +5771,41 @@ mod tests {
     #[test]
     fn lint_ga_t0_round_trip_missing_file_is_clean() {
         assert_policy_round_trip(CONCERN_LINT_GA, &LINT_GA_CFG, &LINT_GA_FIX_CFG);
+    }
+
+    /// `lint-ga.yml` із джобою, названою НЕ `lint-ga` (`jobs["lint-ga"]`
+    /// undefined). Реєстр §2.81: раніше порт віддавав ОДНУ діагностику
+    /// `rego-engine-error` (`eval`, «item cannot be indexed») замість набору
+    /// deny — shorthand-голова `job_uses_set contains job.steps[_].uses` під
+    /// regorus падала на undefined корені, а не давала undefined. Очікуваний
+    /// набір звірено з ЖИВИМ `conftest test` на цій самій фікстурі
+    /// (біт-у-біт), той самий канон пінить `lint_ga_test.rego`
+    /// (`test_deny_missing_job`).
+    #[test]
+    fn lint_ga_missing_job_gives_canonical_denies_not_engine_error() {
+        let files = [sf(
+            ".github/workflows/lint-ga.yml",
+            "name: lint-ga\njobs:\n  other:\n    steps:\n      - run: echo x\n",
+        )];
+        let mut got: Vec<String> = detect_policy(&files, &LINT_GA_CFG)
+            .into_iter()
+            .inspect(|d| assert_eq!(d.reason, POLICY_DENY_REASON, "{}", d.message))
+            .map(|d| d.message)
+            .collect();
+        got.sort();
+        assert_eq!(
+            got,
+            vec![
+                "lint-ga.yml: jobs.lint-ga відсутній (ga.mdc)".to_string(),
+                "lint-ga.yml: name має бути \"Lint GA\" (ga.mdc)".to_string(),
+                "lint-ga.yml: on.pull_request.paths має містити .github/actions/** і .github/workflows/** (ga.mdc)".to_string(),
+                "lint-ga.yml: має бути uses: ./.github/actions/setup-bun-deps (ga.mdc)".to_string(),
+                "lint-ga.yml: має бути uses: actions/checkout@v6 (ga.mdc)".to_string(),
+                "lint-ga.yml: має бути uses: astral-sh/setup-uv@v8.0.0 (ga.mdc)".to_string(),
+                "lint-ga.yml: має бути крок Install conftest (ga.mdc)".to_string(),
+                "lint-ga.yml: має бути крок run: n-rules lint ga --no-fix (ga.mdc)".to_string(),
+            ]
+        );
     }
 
     #[test]
