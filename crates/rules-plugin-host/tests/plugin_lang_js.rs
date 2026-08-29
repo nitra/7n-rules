@@ -43,7 +43,7 @@ use std::path::PathBuf;
 
 use rules_contract::detect::{DetectBatch, SourceFile};
 use rules_contract::diagnostic::Severity;
-use rules_contract::manifest::{ConcernScope, Domain};
+use rules_contract::manifest::{ConcernContribution, ConcernScope, Domain};
 use rules_plugin_host::{PluginHost, ToolResolver};
 
 mod common;
@@ -170,8 +170,35 @@ fn describe_declares_all_concerns_with_expected_scopes() {
         vec![
             "path:bun".to_string(),
             "npm:stylelint".to_string(),
-            "path:bunx".to_string()
+            "path:bunx".to_string(),
+            // §2.86: `js/eslint` пише ним механічну заміну на диск ДО спавну
+            // лінтерів — перший тул цього компонента, чий споживач фіксер.
+            "path:tee".to_string()
         ]
+    );
+
+    // §2.86 — ДРУГИЙ список контрибуцій (мажор `4.0.0`, §2.84). Гейт
+    // ТОЧНИЙ (весь запис, не лише кількість) і окремий від `concerns`: те,
+    // у якому саме списку лежить ключ, вирішує, чи шедоуїться detect
+    // концерну, тож переїзд запису між списками мусить впасти тут.
+    assert_eq!(
+        manifest.fix_only_concerns,
+        vec![ConcernContribution {
+            key: "js/eslint".to_string(),
+            scope: ConcernScope::PerFile,
+            glob: vec!["**/*.{js,mjs,cjs,jsx,ts,tsx,vue}".to_string()],
+            // Порожній — fix ділить скоуп із детектом (§2.84): скоуп фіксу
+            // тут задає дельта ЗАПИТУ, а не інший статичний глоб.
+            fix_glob: vec![],
+        }]
+    );
+    // Друге твердження того самого гейта, явно: detect `js/eslint` НЕ
+    // шедоуїться, бо ключа немає у `concerns` (`detect.mjs` читає лише цей
+    // список). Саме заради цього робився мажор.
+    assert!(
+        !manifest.concerns.iter().any(|c| c.key == "js/eslint"),
+        "js/eslint мусить лишатись ПОЗА `concerns`: ключ там вмикає detect-шедоуїнг \
+         (detect.mjs, гілка `wasmEntry !== undefined`) і мовчки вимикає `main.mjs`"
     );
 
     let licensee = manifest

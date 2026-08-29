@@ -125,6 +125,16 @@ const EXPECTED_LANG_JS_CONCERNS = [
   'style/vscode_settings'
 ]
 
+/**
+ * Fix-only контрибуції `plugin-lang-js` — ДРУГИЙ список маніфеста (мажор
+ * контракту `4.0.0`, §2.84; перший запис — §2.86). Окремий гейт, бо
+ * розсинхрон тут значить інше, ніж у `EXPECTED_LANG_JS_CONCERNS`: ключ,
+ * що переїхав звідси у `concerns`, вмикає detect-шедоуїнг і мовчки гасить
+ * `main.mjs` концерну.
+ * @type {string[]}
+ */
+const EXPECTED_LANG_JS_FIX_ONLY_CONCERNS = ['js/eslint']
+
 /** Валідний sha256-hex — той самий канон, що `SHA256_HEX_RE` у `wasm-plugins.mjs` (module-scope, без пере-компіляції на кожен виклик). */
 const SHA256_HEX_RE = /^[0-9a-f]{64}$/
 
@@ -169,6 +179,15 @@ if (!hasBuild) {
           // без оновлення цього тесту, розсинхрон має впасти тут, а не мовчки
           // пройти повз dispatch-shadowing доккомент `wasm-plugins.mjs`.
           expect(keys).toEqual(EXPECTED_LANG_JS_CONCERNS.toSorted())
+          // Другий список мажора `4.0.0` — так само точним збігом. Без
+          // цього гейта fix-only контрибуції не мали б тут анти-дрейфу
+          // взагалі: `keys` вище їх не бачить за побудовою.
+          const fixOnlyKeys = (manifest.fix_only_concerns ?? []).map(c => c.key).toSorted()
+          expect(fixOnlyKeys).toEqual(EXPECTED_LANG_JS_FIX_ONLY_CONCERNS.toSorted())
+          // Взаємна виключність списків — host відхиляє маніфест із ключем
+          // в обох, але тут вона перевіряється ще й «зовні», на реальному
+          // артефакті: перетин означав би, що detect концерну зашедоуєно.
+          expect(keys.filter(k => fixOnlyKeys.includes(k))).toEqual([])
         } else {
           expect(keys.length).toBeGreaterThan(0)
         }

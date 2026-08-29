@@ -1107,12 +1107,18 @@ pub fn run_wasm_concern_fix(
         // «сигналізувати яскраво, не ховати» (error, не warn). Порожні
         // `diagnostics` (нема violations узагалі — нема що фіксити)
         // лишаються Vec::new(), як і раніше — жодної двозначності немає.
-        let contribution = plugin
-            .describe()
-            .concerns
-            .iter()
-            .find(|c| c.key == key)
-            .cloned();
+        // ОБИДВА списки контрибуцій (`concerns` + `fix_only_concerns`,
+        // мажор `4.0.0` §2.84) — через єдиний акцесор
+        // `Manifest::fix_contribution`. Пошук лише в `concerns` (як було до
+        // першого fix-only споживача, `js/eslint`) давав тиху ваду рівно
+        // того класу, що §2.72: для fix-only концерну контрибуція не
+        // знаходилась, тож (а) `diff_glob` ставав `None` і host-diff
+        // ВИМИКАВСЯ — exec-tool-фіксер мутував диск, а план виходив
+        // порожній, і JS-канон мовчки робив фікс удруге; (б) у `--full`
+        // (`delta_files: None`) виклик падав `ambiguous_empty_fix_batch_err`
+        // із текстом «не заявлений у describe().concerns», хоч концерн був
+        // заявлений — у другому списку.
+        let contribution = plugin.describe().fix_contribution(&key).cloned();
         let files = if target_files.is_empty() {
             match &contribution {
                 Some(c) if c.scope == ConcernScope::Full => {
@@ -1170,7 +1176,7 @@ pub fn run_wasm_concern_fix(
                         let scope_label = contribution
                             .as_ref()
                             .map(|c| format!("{:?}", c.scope))
-                            .unwrap_or_else(|| "не заявлений у describe().concerns".to_string());
+                            .unwrap_or_else(|| "не заявлений ані у describe().concerns, ані у fix_only_concerns".to_string());
                         return Err(ambiguous_empty_fix_batch_err(
                             &key,
                             &scope_label,

@@ -62,12 +62,13 @@ function resolveMap(dir, opts = {}) {
 
 /**
  * Тули, які реально декларує plugin-lang-js: `path:bun` (зріз 5 контракту
- * v3.1), `npm:stylelint` і `path:bunx` (зріз 6). Без ін'єкції `resolveCmd`
+ * v3.1), `npm:stylelint` і `path:bunx` (зріз 6) та `path:tee` (§2.86 —
+ * ним `js/eslint` кладе механічну заміну на диск). Без ін'єкції `resolveCmd`
  * `toolPaths` у цих тестах залежав би від того, що стоїть на машині, де їх
  * запустили. Схема `npm:` спершу дивиться в `<cwd>/node_modules/.bin/` —
  * у tmp-каталозі тесту його немає, тож і вона доходить до цього ж фолбеку.
  */
-const LANG_JS_DECLARED_TOOLS = ['bun', 'stylelint', 'bunx']
+const LANG_JS_DECLARED_TOOLS = ['bun', 'stylelint', 'bunx', 'tee']
 /** Шлях, який фейковий `resolveCmd` віддає для `bun` (найчастіше цитований окремо). */
 const FAKE_BUN_PATH = '/fake/bin/bun'
 /** Очікуваний `toolPaths` реального plugin-lang-js за [`fakeResolveCmd`]. */
@@ -910,6 +911,38 @@ describe('resolveWasmFixOnlyConcernMap — окремий список fix-only 
 
       expect(fixOnlyMap.get('demo/fix-only')).toEqual({ wasmPath: WASM_PATH, toolPaths: {} })
       expect(detectMap.has('demo/fix-only')).toBe(false)
+    })
+  })
+
+  /**
+   * Анти-дрейф-гейт на РЕАЛЬНОМУ маніфесті `plugin-lang-js` (§2.86 — перший
+   * і поки єдиний споживач поверхні; тести вище ганяють фейковий маніфест і
+   * дрейфу реальної декларації не бачать).
+   *
+   * Друге твердження важливіше за перше: `js/eslint` мусить лишатись ПОЗА
+   * detect-мапою, бо саме її читає `detect.mjs` — ключ, що туди потрапив,
+   * мовчки замінює `main.mjs` гостем.
+   */
+  test('реальний plugin-lang-js: fix-only мапа — рівно js/eslint, і його НЕМАЄ в detect-мапі', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(
+        join(dir, '.n-rules.json'),
+        JSON.stringify({ wasmPlugins: [{ name: 'lang-js', path: WASM_PATH }] }),
+        'utf8'
+      )
+      const detectMap = await resolveMap(dir, { env: {} })
+      const fixOnlyMap = await resolveWasmFixOnlyConcernMap(dir, {
+        builtinPinsDir: NO_BUILTIN_DIR,
+        resolveCmdFn: fakeResolveCmd,
+        env: {}
+      })
+
+      expect([...fixOnlyMap.keys()]).toEqual(['js/eslint'])
+      expect(fixOnlyMap.get('js/eslint')).toEqual({ wasmPath: WASM_PATH, toolPaths: LANG_JS_TOOL_PATHS })
+      expect(detectMap.has('js/eslint')).toBe(false)
+      // Число — той самий анти-дрейф-гейт, що вище: fix-only контрибуція
+      // НЕ мусить збільшувати детект-мапу.
+      expect(detectMap.size).toBe(50)
     })
   })
 

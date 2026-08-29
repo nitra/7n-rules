@@ -122,6 +122,30 @@ pub struct Manifest {
     pub tools: Vec<String>,
 }
 
+impl Manifest {
+    /// Контрибуція, за якою host будує **fix**-контур для `key`: спершу
+    /// повна контрибуція ([`Self::concerns`] — плагін дає і детект, і fix),
+    /// потім fix-only ([`Self::fix_only_concerns`], мажор `4.0.0`, §2.84).
+    ///
+    /// ЄДИНА точка цього пошуку — рівно з того самого мотиву, що
+    /// [`ConcernContribution::effective_fix_glob`]: fix-шлях host-а читає
+    /// контрибуцію у кількох місцях (батч `files`, обидва знімки host-diff,
+    /// текст помилки `ambiguous_empty_fix_batch_err`), і «забув подивитись
+    /// у другий список» у будь-якому з них дає ту саму тиху ваду — глоб
+    /// невідомий, host-diff вимикається, exec-tool-фіксер повертає
+    /// ПОРОЖНІЙ план, і JS-канон мовчки робить фікс удруге (§2.72).
+    ///
+    /// Порядок списків тут ні на що не впливає: ключ у ОБОХ списках
+    /// одночасно host відхиляє ще на завантаженні плагіна
+    /// ([`crate::validators::manifest::validate_manifest`]).
+    pub fn fix_contribution(&self, key: &str) -> Option<&ConcernContribution> {
+        self.concerns
+            .iter()
+            .chain(self.fix_only_concerns.iter())
+            .find(|c| c.key == key)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -216,6 +240,32 @@ mod tests {
         let manifest: Manifest = serde_json::from_value(raw).unwrap();
         assert!(manifest.fix_only_concerns.is_empty());
         assert!(manifest.concerns[0].fix_glob.is_empty());
+    }
+
+    /// `fix_contribution` бачить ОБИДВА списки — і саме тому fix-only
+    /// концерн не лишається без glob-а (без цього host-diff exec-tool
+    /// фіксера мовчки вимикався б, доккомент методу).
+    #[test]
+    fn fix_contribution_finds_key_in_either_list() {
+        let mut manifest = sample_manifest();
+        manifest.fix_only_concerns = vec![ConcernContribution {
+            key: "js/eslint".to_string(),
+            scope: ConcernScope::PerFile,
+            glob: vec!["**/*.mjs".to_string()],
+            fix_glob: vec![],
+        }];
+
+        assert_eq!(
+            manifest.fix_contribution("sample/concern").map(|c| c.scope),
+            Some(ConcernScope::PerFile)
+        );
+        assert_eq!(
+            manifest
+                .fix_contribution("js/eslint")
+                .map(ConcernContribution::effective_fix_glob),
+            Some(["**/*.mjs".to_string()].as_slice())
+        );
+        assert!(manifest.fix_contribution("nope/none").is_none());
     }
 
     /// Схема генерується без паніки і містить назву типу — мінімальний
