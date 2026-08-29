@@ -31,25 +31,26 @@
 //!   перевіряє `exists(".firebase")`, лишився б червоним на порожній теці.
 //!   Прибирання тек — поза журналом свідомо: журнал несе вміст (файли з
 //!   pre-image), а порожня тека вмісту не має.
-//! - `WriteBytes` (мажор контракту `4.0.0`, §2.84) — **не виражається цим
-//!   планом узагалі**, і це відмова, а не пропуск. `EditPlan` цієї петлі —
-//!   ТЕКСТОВИЙ: `FileEditPlan::Create::content` — `String`, `Anchored`
-//!   рахує рядкові якорі, журнал зберігає pre-image текстом. Байти сюди не
-//!   лягають ніяк, а «покласти майже» (lossy-конверсія у `String`) —
-//!   рівно той сценарій, що вже задокументований на detect-боці як
-//!   знищення файлу (`crates/rules-napi::non_utf8_source_file_err`: 12
-//!   байтів PNG-сигнатури → 18 байтів мозаїки).
+//! - `WriteBytes` (мажор контракту `4.0.0`, §2.84) — ПРЯМИЙ відповідник
+//!   [`FileEditPlan::WriteBytes`] (llm-lib 0.5.0), без обхідних шляхів:
+//!   варіант законний і на наявному файлі, і на новому, тож ані
+//!   `Anchored`-трюку для перезапису, ані розгортання теки тут не треба.
 //!
-//!   Тому міст ЗБИРАЄ такі edit-и й валить `prepare` типізованою помилкою
-//!   (не `plan`: його сигнатура повертає `EditPlan` без каналу помилки).
-//!   Мовчазний skip тут був би найгіршим із варіантів: фікс «відпрацював
-//!   би» без єдиної правки, детектор лишився б червоним, і ніщо не
-//!   пояснило б чому. Сьогодні жоден із `NATIVE_FIXES` `WriteBytes` не
-//!   повертає, тож ця гілка не змінює жодного чинного прогону — вона
-//!   стріляє рівно тоді, коли перший бінарний фіксер (`image-compress`,
-//!   `image-avif`) приїде в цю петлю, і скаже вголос, ЩО саме треба
-//!   доробити: байтовий варіант `FileEditPlan` у `llm_lib`.
+//!   **Історія цієї гілки варта того, щоб не повторювати.** До llm-lib
+//!   0.5.0 `EditPlan` був ТЕКСТОВИЙ наскрізь (`Create::content` — `String`,
+//!   `Anchored` рахує рядкові якорі, pre-image журналу — текст), тож міст
+//!   збирав такі edit-и й валив `prepare` типізованою помилкою. Це було
+//!   чесно, але фікс не працював. Спокуслива альтернатива — lossy-конверсія
+//!   байтів у `String` — знищила б файл: на detect-боці рівно вона
+//!   перетворювала 12 байтів PNG-сигнатури на 18 байтів мозаїки
+//!   (`crates/rules-napi::non_utf8_source_file_err`, §2.83).
 //!
+//!   Справжньою стіною був навіть не тип `content`, а
+//!   `WriteGuard::capture_pre_image`: він знімав знімок `read_to_string`-ом,
+//!   на бінарному файлі падав `Err`, і `check_write` перетворював це на
+//!   `Decision::Block` — тобто будь-який запис у бінарний файл через guard
+//!   був неможливий узагалі. llm-lib 0.5.0 закрив обидва боки; тут лишився
+//!   рядок мапінгу.
 //! # Місце в петлі
 //!
 //! T0 виконується ДО гейту `fixability` (`harness::pipeline::run_fix`), тож
@@ -137,15 +138,16 @@ fn sweep_empty_dirs(root: &Path) {
 }
 
 /// Переклад плану native-фікса в декларативний [`EditPlan`] + перелік
-/// тек-коренів, які треба прибрати після commit (розгорнуті `Delete`-теки)
-/// + перелік edit-ів, які цим планом НЕ виражаються (`WriteBytes` —
-/// доккомент модуля). Третій елемент непорожній ⇒ `prepare` мусить
-/// відмовити: мовчки застосувати «все, крім них» означало б відзвітувати
-/// успіх, не зробивши того, заради чого фікс кликали.
-fn to_edit_plan(cwd: &Path, edits: &[FileEdit]) -> (EditPlan, Vec<PathBuf>, Vec<String>) {
+/// тек-коренів, які треба прибрати після commit (розгорнуті `Delete`-теки).
+///
+/// Третього елемента (перелік невиразних edit-ів) більше немає: з llm-lib
+/// 0.5.0 всі три операції контракту мають прямий відповідник у плані. Він і
+/// не потрібен як страховка — [`FileEdit`] НЕ `#[non_exhaustive]`, тож
+/// четверта операція контракту стане помилкою компіляції тут, а не тихим
+/// пропуском.
+fn to_edit_plan(cwd: &Path, edits: &[FileEdit]) -> (EditPlan, Vec<PathBuf>) {
     let mut files = Vec::new();
     let mut dir_roots = Vec::new();
-    let mut unsupported = Vec::new();
     for edit in edits {
         match edit {
             FileEdit::Write(write) => {
@@ -187,12 +189,17 @@ fn to_edit_plan(cwd: &Path, edits: &[FileEdit]) -> (EditPlan, Vec<PathBuf>, Vec<
                 // Відсутній шлях — мета вже досягнута, у план не потрапляє
                 // (Delete на відсутній файл — Err валідації, а не no-op).
             }
-            // Байтовий запис — доккомент модуля: текстовий `EditPlan` його
-            // не виражає, тож збираємо для гучної відмови у `prepare`.
-            FileEdit::WriteBytes(write) => unsupported.push(write.path.clone()),
+            // Байтовий запис — прямий відповідник, без обхідних шляхів
+            // (доккомент модуля). `WriteBytes` законний і на наявному файлі,
+            // і на новому, тож ані `Anchored`-трюк для перезапису, ані
+            // розгортання теки тут не потрібні.
+            FileEdit::WriteBytes(write) => files.push(FileEditPlan::WriteBytes {
+                path: PathBuf::from(&write.path),
+                content: write.content.clone(),
+            }),
         }
     }
-    (EditPlan { files }, dir_roots, unsupported)
+    (EditPlan { files }, dir_roots)
 }
 
 /// Стан між `prepare` і `commit`: guard (несе pre-images і editLog) і
@@ -221,22 +228,15 @@ pub fn build_t0_step(key: &str, cwd: &Path, files: Option<&[String]>) -> Option<
     // Шляхи `WriteBytes`-edit-ів, які текстовий `EditPlan` не виражає — той
     // самий життєвий цикл «порахували у фазі плану, спожили пізніше», що й
     // `dir_roots`, але спожити їх треба у `prepare` (доккомент модуля).
-    let unsupported: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
     let state: PreparedState = Arc::new(Mutex::new(None));
 
     let plan_fn = {
-        let (key, cwd, dir_roots, unsupported) = (
-            key.clone(),
-            cwd.clone(),
-            Arc::clone(&dir_roots),
-            Arc::clone(&unsupported),
-        );
+        let (key, cwd, dir_roots) = (key.clone(), cwd.clone(), Arc::clone(&dir_roots));
         Arc::new(move || {
             let key = key.clone();
             let cwd = cwd.clone();
             let files = files.clone();
             let dir_roots = Arc::clone(&dir_roots);
-            let unsupported = Arc::clone(&unsupported);
             let fut: BoxFuture<'static, EditPlan> = Box::pin(async move {
                 // Детектор напряму, не через `detect::run_canonical`:
                 // native-фікс приймає `rules_core::diagnostics::Violation`.
@@ -249,9 +249,8 @@ pub fn build_t0_step(key: &str, cwd: &Path, files: Option<&[String]>) -> Option<
                 let Ok(plan) = run_concern_fix(&key, &cwd, &violations) else {
                     return EditPlan::empty();
                 };
-                let (edit_plan, roots, unsupported_paths) = to_edit_plan(&cwd, &plan.edits);
+                let (edit_plan, roots) = to_edit_plan(&cwd, &plan.edits);
                 *lock_ok(&dir_roots) = roots;
-                *lock_ok(&unsupported) = unsupported_paths;
                 edit_plan
             });
             fut
@@ -259,33 +258,11 @@ pub fn build_t0_step(key: &str, cwd: &Path, files: Option<&[String]>) -> Option<
     };
 
     let prepare_fn = {
-        let (cwd, state, unsupported, key) = (
-            cwd.clone(),
-            Arc::clone(&state),
-            Arc::clone(&unsupported),
-            key.clone(),
-        );
+        let (cwd, state) = (cwd.clone(), Arc::clone(&state));
         Arc::new(move |plan: EditPlan| {
             let cwd = cwd.clone();
             let state = Arc::clone(&state);
-            let unsupported = Arc::clone(&unsupported);
-            let key = key.clone();
             let fut: BoxFuture<'static, Result<PreparedPlan, String>> = Box::pin(async move {
-                // Гучна відмова замість часткового застосування (доккомент
-                // модуля, `WriteBytes`).
-                let unsupported_paths = std::mem::take(&mut *lock_ok(&unsupported));
-                if !unsupported_paths.is_empty() {
-                    return Err(format!(
-                        "t0 `{key}`: native-фікс повернув {} байтових edit-ів ({}), які \
-                         декларативний EditPlan цієї петлі не виражає — його `Create::content` \
-                         і pre-image журналу ТЕКСТОВІ. Застосувати «все, крім них» означало б \
-                         відзвітувати успіх, не зробивши фікс; lossy-конверсія байтів у рядок \
-                         знищила б файл. Потрібен байтовий варіант FileEditPlan у llm_lib — \
-                         доккомент crates/rules-fix/src/t0.rs",
-                        unsupported_paths.len(),
-                        unsupported_paths.join(", ")
-                    ));
-                }
                 let mut guard = WriteGuard::new(cwd.clone());
                 let prepared = prepare_edit_plan(&mut guard, &cwd, &plan)?;
                 let pre_images = collect_pre_images(&guard, &cwd, &plan);
@@ -349,9 +326,19 @@ fn collect_pre_images(guard: &WriteGuard, cwd: &Path, plan: &EditPlan) -> Vec<Ed
             });
             guard.pre_image(&abs).map(|pre| EditPreImage {
                 path: file_plan.path().to_path_buf(),
+                // `ExistingBytes` (llm-lib 0.5.0) — pre-image не-UTF-8 файлу.
+                // Доти такого варіанта не існувало: guard знімав знімок
+                // `read_to_string`-ом і на бінарному файлі падав `Err`, тобто
+                // рунг, який його зачепив, не мав із чого відкотитись.
+                // Перекладається БАЙТ-У-БАЙТ, без lossy-конверсії — саме
+                // вона на detect-боці перетворювала 12 байтів PNG-сигнатури
+                // на 18 байтів мозаїки (`non_utf8_source_file_err`, §2.83).
                 pre_image: match pre {
                     llm_lib::edit_log::PreImage::Existing(text) => {
                         FilePreImage::Existing(text.clone())
+                    }
+                    llm_lib::edit_log::PreImage::ExistingBytes(bytes) => {
+                        FilePreImage::ExistingBytes(bytes.clone())
                     }
                     llm_lib::edit_log::PreImage::New => FilePreImage::New,
                 },
@@ -436,8 +423,7 @@ mod tests {
                 path: ".fire".into(),
             },
         ];
-        let (plan, dir_roots, unsupported) = to_edit_plan(cwd, &edits);
-        assert!(unsupported.is_empty(), "текстові edit-и не бувають байтовими");
+        let (plan, dir_roots) = to_edit_plan(cwd, &edits);
 
         let kinds: Vec<&str> = plan
             .files
@@ -446,6 +432,7 @@ mod tests {
                 FileEditPlan::Anchored { .. } => "anchored",
                 FileEditPlan::Create { .. } => "create",
                 FileEditPlan::Delete { .. } => "delete",
+                FileEditPlan::WriteBytes { .. } => "write-bytes",
             })
             .collect();
         assert_eq!(
@@ -454,6 +441,37 @@ mod tests {
             "no-op Write випав, тека розгорнулась у 2 файли: {plan:?}"
         );
         assert_eq!(dir_roots, vec![cwd.join(".fire")]);
+    }
+
+    /// `WriteBytes` перекладається В ПЛАН, а не збирається на відмову.
+    ///
+    /// До llm-lib 0.5.0 байтовий edit не виражався `EditPlan`-ом узагалі
+    /// (`Create::content` — `String`), і міст валив `prepare` типізованою
+    /// помилкою — чесно, але фікс не працював. Цей гейт стереже, що
+    /// переклад лишається прямим: ані `Anchored`-трюку для перезапису, ані
+    /// lossy-конверсії в рядок (саме вона на detect-боці перетворювала
+    /// 12 байтів PNG-сигнатури на 18 байтів мозаїки, §2.83).
+    #[test]
+    fn write_bytes_edit_lands_in_plan_byte_for_byte() {
+        let tmp = tempfile::tempdir().expect("tmp");
+        let cwd = tmp.path();
+        let raw = vec![0x89u8, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0xFF, 0xFE];
+        let edits = vec![FileEdit::WriteBytes(rules_contract::fix::WriteBytesFile {
+            path: "img/logo.png".into(),
+            content: raw.clone(),
+        })];
+
+        let (plan, dir_roots) = to_edit_plan(cwd, &edits);
+
+        assert!(dir_roots.is_empty(), "байтовий запис не розгортає тек");
+        assert_eq!(plan.files.len(), 1, "рівно один edit: {plan:?}");
+        match &plan.files[0] {
+            FileEditPlan::WriteBytes { path, content } => {
+                assert_eq!(path, &PathBuf::from("img/logo.png"));
+                assert_eq!(content, &raw, "байти мусять доїхати БЕЗ конверсії");
+            }
+            other => panic!("очікувався WriteBytes, отримано {other:?}"),
+        }
     }
 
     /// Наскрізний прогін T0Step: plan → prepare (pre-images, нічого на
