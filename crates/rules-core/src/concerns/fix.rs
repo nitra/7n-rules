@@ -19,6 +19,31 @@
 //! ([`super::nginx_default_tpl_template`]). Деталі вибору й вимір вартості
 //! — §2.67 реєстру.
 //!
+//! # T4 — друга хвиля exec-tool (ядро): `changelog/consistency`
+//!
+//! Хвиля бралася трійкою «ядрових exec-tool» концернів плану
+//! (`docs/plans/2026-08-29-js-rust-migration-completion-plan.md` §3):
+//! `changelog/consistency`, `image-compress/check`, `text/cspell-fix`.
+//! Портованим виявився один — решта два вже мали відповідь, і вимірювання
+//! її підтвердило (деталі — §2.NN реєстру, `docs/plans/2026-08-05-open-questions-register.md`):
+//!
+//! - **`changelog/consistency`** — портовано ([`changelog_consistency_fix`]).
+//!   Клас exec-tool із підкласом «тул нічого не мутує»: спавн (`git log -1
+//!   --format=%s`) лише наповнює ВМІСТ, який планує сам Rust, тож
+//!   before/after-diff диска (T3, `text/oxfmt`) тут навіть не потрібен.
+//! - **`image-compress/check`** — структурно НЕ виражається [`FixPlan`]:
+//!   секція «Свідомо НЕ портовані» нижче.
+//! - **`text/cspell-fix`** — не T0-фікс узагалі: це fix-**воркер**
+//!   (`fix-worker.mjs`, LLM-драбина), і він УЖЕ портований нативно —
+//!   `crates/rules-fix/src/workers.rs::build_cspell_worker` поверх чистих
+//!   хелперів [`super::cspell_fix`] (`detect_cspell`/`unknown_words`/
+//!   `classify_prompt`/`parse_classify`/`append_words_to_dict`).
+//!   [`NATIVE_FIXES`] — реєстр T0-патернів; ключ воркерного концерну тут
+//!   створив би фіктивний T0-патерн, який ЗАТІНИВ би реальний шлях
+//!   (`loadT0Patterns` повертає РІВНО native-патерн, коли ключ у реєстрі).
+//!   Тож запис свідомо не додається — концерн уже native, просто іншим
+//!   класом виконавця.
+//!
 //! # Свідомо НЕ портовані T0-фікси (лишаються JS)
 //!
 //! - **`tauri/release`** (`npm/rules/tauri/release/fix-release.mjs`) —
@@ -31,6 +56,21 @@
 //!   Додатково `resolveGithubOwnerRepo` запускає `git remote get-url origin`
 //!   (процесна дія — поза мандатом чистого плану). Не силуємо — фікс
 //!   лишається JS до появи адекватного інструмента.
+//! - **`image-compress/check`**
+//!   (`npm/rules/image-compress/check/fix-check.mjs`) — фікс стискає
+//!   зображення (`bunx @nitra/minify-image --src=. --write`), тобто його
+//!   результат — НОВІ БАЙТИ бінарних файлів (jpg/png/gif/webp).
+//!   [`WriteFile::content`] — `String` (UTF-8, WIT `record write-file`,
+//!   `rules-contract/src/fix.rs`), а `run-fix.mjs::applyPlanEdit` пише його
+//!   як `'utf8'`. Провести PNG крізь `String` неможливо, а «стиснути й
+//!   повернути порожній план» — рівно той мовчазний обман, який проект
+//!   забороняє: файли на диску змінені, а конвеєр звітує «0 файлів»
+//!   (і JS-канон при цьому вже затінений — ключ у [`NATIVE_FIXES`] робить
+//!   native-патерн ЄДИНИМ, `loadT0Patterns`). Розблокування — не в цьому
+//!   концерні, а в контракті: бінарний варіант правки
+//!   (`FileEdit::WriteBytes { path, base64 }`) у `n-rules:plugin@3.x`. Він
+//!   розблокував би заразом і `image-avif/avif_generation` нижче — обидва
+//!   спираються на ту саму відсутність. До того — лишається JS.
 //! - **`image-avif/avif_generation`**
 //!   (`npm/rules/image-avif/avif_generation/fix-avif_generation.mjs`) —
 //!   перший крок фіксу запускає `npx @nitra/minify-image --avif`
@@ -955,6 +995,153 @@ fn nginx_default_tpl_template_fix(cwd: &Path, violations: &[Violation]) -> FixPl
     FixPlan { edits }
 }
 
+// ── changelog/consistency (хвиля T4, exec-tool клас) ────────────────────────
+
+/// Маркер, за яким T0-патерн визнає себе застосовним — порт нестрогого
+/// `MISSING_CHANGE_RE` (`fix-consistency.mjs:15`, `/є релевантні зміни, але
+/// немає change-файлу/u` без якорів).
+const MISSING_CHANGE_MARKER: &str = "є релевантні зміни, але немає change-файлу";
+
+/// Строгий екстрактор мітки воркспейсу з message-а — порт
+/// `MISSING_CHANGE_LABEL_RE` (`fix-consistency.mjs:17`,
+/// `/^(\S+): є релевантні зміни, але немає change-файлу/u`). Джерело самого
+/// message-а — `missing_change_file_message`
+/// ([`super::changelog_consistency_workspace`]).
+static MISSING_CHANGE_LABEL_RE: std::sync::LazyLock<regex::Regex> =
+    std::sync::LazyLock::new(|| {
+        regex::Regex::new(r"^(\S+): є релевантні зміни, але немає change-файлу")
+            .expect("valid regex")
+    });
+
+/// Мітка `<root>` позначає кореневий workspace — порт `labelToWorkspace`
+/// (`fix-consistency.mjs:38-40`).
+const ROOT_LABEL: &str = "<root>";
+
+/// Перше вільне ім'я change-файлу в теці `dir_rel` для мітки часу
+/// `timestamp_millis` — декларативний аналог create-only циклу
+/// [`super::change_file::write_change`] (`OpenOptions::create_new`, порт
+/// `writeFile(..., { flag: 'wx' })`).
+///
+/// # Чому не `write_change`
+///
+/// Фікс-домен нічого не пише сам — [`run_concern_fix`] лише БУДУЄ план
+/// (доккомент модуля), а запис робить `run-fix.mjs::applyPlanEdit`. Тож
+/// замість атомарного `create_new` тут — перевірка наявності перед
+/// плануванням: та сама послідовність імен (`YYMMDD-HHMM`, далі `-2`,
+/// `-3`…), той самий кінцевий стан. Гонка «файл зʼявився між плануванням і
+/// записом» тут теоретична (T0 виконується послідовно, один прогін на
+/// concern) і присутня в JS-каноні так само — `writeChange` кличеться
+/// всередині `apply()`, тобто теж після `test()`.
+fn first_free_change_file_name(cwd: &Path, dir_rel: &str, timestamp_millis: i64) -> String {
+    let dir = cwd.join(dir_rel);
+    for sequence in 1u32.. {
+        let name = super::change_file::change_file_name(timestamp_millis, sequence);
+        if !dir.join(&name).exists() {
+            return name;
+        }
+    }
+    unreachable!("послідовність sequence нескінченна")
+}
+
+/// T0-фікс `changelog/consistency` — точний семантичний порт `patterns[0]`
+/// з `fix-consistency.mjs`: для кожного воркспейсу, чиє порушення каже «є
+/// релевантні зміни, але немає change-файлу», планує створення
+/// `<ws>/.changes/YYMMDD-HHMM[-N].md` з `bump: patch` / `section: Changed`
+/// і описом із останнього git-коміту.
+///
+/// # Клас exec-tool
+///
+/// Як і `text/oxfmt`/`text/markdownlint` (хвиля T3), фікс спавнить
+/// зовнішній процес (`git log -1 --format=%s`, за потреби й
+/// `git rev-parse --abbrev-ref HEAD`) ПЕРЕД побудовою плану. Відмінність
+/// від тих двох: зовнішній тул тут нічого не мутує — його вивід лише
+/// наповнює вміст, який планує сам Rust. Тобто before/after-diff диска не
+/// потрібен: план цілком детермінований від виводу git-а.
+///
+/// # Полагоджені дефекти канону
+///
+/// 1. **Мовчазний no-op при нерозпізнаній мітці.** JS `test()` матчить
+///    НЕСТРОГИМ `MISSING_CHANGE_RE`, а `apply()` витягує мітку СТРОГИМ
+///    `MISSING_CHANGE_LABEL_RE` — якщо message не починається з `<мітка>: `,
+///    патерн визнає себе застосовним і мовчки повертає `{ touchedFiles: [] }`
+///    (`fix-consistency.mjs:54`). Людина бачить порушення, запускає `--fix`,
+///    нічого не відбувається — і жодного пояснення. Тут це
+///    [`RulesError::Concern`] з переліком нерозпізнаних message-ів.
+/// 2. **Дві розбіжні реалізації «звідки взяти опис».** JS-фіксер має власний
+///    `autoChangeMessage` (`fix-consistency.mjs:27-31`): лише
+///    `git log -1 --format=%s`, і будь-який ненульовий статус (git відсутній,
+///    репо без комітів, detached-стан) мовчки дає літерал `'оновлення'`.
+///    Детектор того самого concern-а має БАГАТШИЙ `resolveAutoChangeMessage`
+///    (`main.mjs:509-515`, порт —
+///    [`super::changelog_consistency_workspace::resolve_auto_change_message`]):
+///    subject → ім'я гілки → `'оновлення'`. Два шляхи одного concern-а
+///    (autofix-гілка детектора під `N_RULES_CHANGELOG_AUTOFIX` і T0-фікс)
+///    створювали change-файли з РІЗНИМ описом на тому самому дереві.
+///    Native-порт кличе канонічну версію детектора — розбіжність зникає.
+///    Практично видимий випадок — коміт із порожнім subject-ом
+///    (`--allow-empty-message`): JS-фіксер писав літерал «оновлення»,
+///    канонічний резолвер бере ім'я гілки (тест
+///    `empty_commit_subject_falls_back_to_branch_name_not_literal`).
+fn changelog_consistency_fix(cwd: &Path, violations: &[Violation]) -> Result<FixPlan, RulesError> {
+    let candidates: Vec<&Violation> = violations
+        .iter()
+        .filter(|v| v.message.contains(MISSING_CHANGE_MARKER))
+        .collect();
+    if candidates.is_empty() {
+        return Ok(FixPlan::default());
+    }
+
+    let mut seen = std::collections::HashSet::new();
+    let mut workspaces = Vec::new();
+    let mut unparsed = Vec::new();
+    for violation in &candidates {
+        let Some(captures) = MISSING_CHANGE_LABEL_RE.captures(&violation.message) else {
+            unparsed.push(violation.message.clone());
+            continue;
+        };
+        let label = &captures[1];
+        let ws = if label == ROOT_LABEL { "." } else { label };
+        if seen.insert(ws.to_string()) {
+            workspaces.push(ws.to_string());
+        }
+    }
+    if workspaces.is_empty() {
+        return Err(RulesError::Concern(format!(
+            "changelog/consistency: {} порушень «{MISSING_CHANGE_MARKER}», але з жодного не \
+             вдалося витягти мітку воркспейсу (очікується префікс «<ws>: »): {}",
+            unparsed.len(),
+            unparsed.join(" | ")
+        )));
+    }
+
+    let message = super::changelog_consistency_workspace::resolve_auto_change_message(cwd);
+    let timestamp_millis = chrono::Utc::now().timestamp_millis();
+    let content = super::change_file::serialize_change_file(&super::change_file::ChangeEntry {
+        bump: super::changelog_consistency_workspace::AUTOFIX_BUMP.to_string(),
+        section: super::changelog_consistency_workspace::AUTOFIX_SECTION.to_string(),
+        description: message.trim().to_string(),
+    });
+    // Той самий self-check, що робить `write_change` перед записом: биті
+    // поля мають впасти зрозумілою помилкою тут, а не лягти на диск.
+    super::change_file::parse_change_file(&content)
+        .map_err(|e| RulesError::Concern(format!("changelog/consistency: {e}")))?;
+
+    let mut edits = Vec::new();
+    for ws in workspaces {
+        let dir_rel = if ws == "." {
+            super::change_file::CHANGES_DIR.to_string()
+        } else {
+            format!("{ws}/{}", super::change_file::CHANGES_DIR)
+        };
+        let name = first_free_change_file_name(cwd, &dir_rel, timestamp_millis);
+        edits.push(FileEdit::Write(WriteFile {
+            path: format!("{dir_rel}/{name}"),
+            content: content.clone(),
+        }));
+    }
+    Ok(FixPlan { edits })
+}
+
 /// Ключі native-портованих fix-ів (`ruleId/concernId`) — той самий формат,
 /// що [`super::NATIVE_CONCERNS`]. Підмножина: не кожен native-детектор має
 /// native-фікс (T1 зрізу 4 — два пілоти; T2 зрізу 5 — ще чотири; T3 —
@@ -964,6 +1151,7 @@ fn nginx_default_tpl_template_fix(cwd: &Path, violations: &[Violation]) -> FixPl
 pub const NATIVE_FIXES: &[&str] = &[
     "abie/env_dns",
     "abie/firebase_hosting",
+    "changelog/consistency",
     "doc-files/marksman_config",
     "hasura/internal_urls",
     "hasura/migrations",
@@ -999,6 +1187,7 @@ pub fn run_concern_fix(
         "abie/env_dns" => Ok(super::fix_env_dremio::env_dns_fix(cwd, violations)),
         "abie/firebase_hosting" => Ok(super::fix_abie_security::firebase_hosting_fix(violations)),
         "doc-files/marksman_config" => Ok(marksman_config_fix(violations)),
+        "changelog/consistency" => changelog_consistency_fix(cwd, violations),
         "hasura/internal_urls" => Ok(hasura_internal_urls_fix(cwd, violations)),
         "hasura/migrations" => Ok(hasura_migrations_fix(violations)),
         "k8s/dremio_logging" => Ok(super::fix_env_dremio::dremio_logging_fix(cwd, violations)),
@@ -1756,6 +1945,7 @@ mod tests {
             &[
                 "abie/env_dns",
                 "abie/firebase_hosting",
+                "changelog/consistency",
                 "doc-files/marksman_config",
                 "hasura/internal_urls",
                 "hasura/migrations",

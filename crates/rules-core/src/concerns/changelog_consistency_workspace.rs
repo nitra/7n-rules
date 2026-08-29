@@ -67,9 +67,9 @@ const REASON: &str = "consistency";
 
 /// Дефолтний `bump` для autofix-створеного change-файлу — точний порт
 /// `AUTOFIX_BUMP` (`main.mjs:31`).
-const AUTOFIX_BUMP: &str = "patch";
+pub(super) const AUTOFIX_BUMP: &str = "patch";
 /// Дефолтна секція — точний порт `AUTOFIX_SECTION` (`main.mjs:34`).
-const AUTOFIX_SECTION: &str = "Changed";
+pub(super) const AUTOFIX_SECTION: &str = "Changed";
 /// Fallback-опис, коли subject останнього коміту порожній — точний порт
 /// `AUTOFIX_FALLBACK_MESSAGE` (`main.mjs:37`).
 const AUTOFIX_FALLBACK_MESSAGE: &str = "оновлення";
@@ -184,7 +184,7 @@ fn has_pending_change_files(ws: &str, cwd: &Path) -> Result<bool, RulesError> {
 
 /// Опис для autofix-change-файлу — точний порт `resolveAutoChangeMessage`
 /// (`main.mjs:509-515`).
-fn resolve_auto_change_message(cwd: &Path) -> String {
+pub(super) fn resolve_auto_change_message(cwd: &Path) -> String {
     if let Some(subject) = last_commit_subject(cwd) {
         if !subject.is_empty() {
             return subject;
