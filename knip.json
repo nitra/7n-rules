@@ -99,7 +99,6 @@
     },
     "plugins/ci-github": {
       "entry": [
-        "rules/*/lib/*.mjs",
         "rules/*/*/main.mjs",
         "rules/*/*/fix-*.mjs",
         "rules/**/*.test.mjs",
@@ -113,7 +112,6 @@
     },
     "plugins/ci-azure": {
       "entry": [
-        "rules/*/lib/*.mjs",
         "rules/*/*/main.mjs",
         "rules/*/*/fix-*.mjs",
         "rules/**/*.test.mjs",
@@ -127,8 +125,6 @@
     },
     "plugins/lang-python": {
       "entry": [
-        "rules/*/lib/*.mjs",
-        "rules/*/*/main.mjs",
         "rules/*/*/fix-*.mjs",
         "rules/**/*.test.mjs",
         "slots/**/*.test.mjs",
@@ -145,7 +141,6 @@
       "entry": [
         "doc-files/extractors.mjs",
         "rules/*/lib/*.mjs",
-        "rules/*/*/main.mjs",
         "rules/*/*/fix-*.mjs",
         "rules/**/*.test.mjs",
         "slots/**/*.test.mjs",
@@ -177,7 +172,6 @@
     },
     "plugins/lang-php": {
       "entry": [
-        "rules/*/*/main.mjs",
         "rules/*/*/fix-*.mjs",
         "rules/**/*.test.mjs",
         "slots/**/*.test.mjs",
