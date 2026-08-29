@@ -108,7 +108,10 @@ serde = "1"
 # `default-features = false` вище про той самий мотив).
 #
 # Побічний, але важливий наслідок: `rules_template_merge::Json::Object` —
-# `Vec<(String, Json)>`, тобто ДОКУМЕНТНИЙ порядок ключів (на відміну від
+# `Vec<(String, Json)>`, тобто ДОКУМЕНТНИЙ порядок ключів (§2.87: до фіксу
+# фічі `preserve_order` у `jsonc-parser` це твердження було ХИБНЕ саме для
+# JSONC-гілки — вектор наповнювався з `HashMap`, тобто у хеш-порядку, і
+# щоразу в іншому; тепер воно справджується) (на відміну від
 # `serde_json::Value`/`BTreeMap`). Саме те, чого вимагає byte-exact parity з
 # `JSON.stringify(obj, null, 2)` JS-канону; окремий [`JsonOrdered`] цій
 # родині НЕ потрібен.

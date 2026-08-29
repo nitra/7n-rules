@@ -159,11 +159,32 @@ glob = [
 key = "test/storybook-scaffold"
 scope = "full"
 glob = [".n-rules.json", ".n-cursor.json", "**/package.json", "**/*.vue", "**/.storybook/**"]
+# §2.87: ширший за детект-глоб рівно на `**/src/components/**` — цю теку
+# питає `detect_stories_glob` фіксу, детекту її вміст не потрібен.
+fix_glob = [
+  ".n-rules.json",
+  ".n-cursor.json",
+  "**/package.json",
+  "**/*.vue",
+  "**/.storybook/**",
+  "**/src/components/**",
+]
 
 [[concerns]]
 key = "test/storybook-ci"
 scope = "full"
 glob = [
+  ".n-rules.json",
+  ".n-cursor.json",
+  "**/package.json",
+  "**/*.vue",
+  ".github/actions/setup-playwright-chromium/action.yml",
+  ".github/workflows/lint-storybook.yml",
+]
+# §2.87: список той самий, що детекту, але оголошений ЯВНО — саме
+# непорожній `fix_glob` вмикає в хості full-scope fix-батч (інакше гість
+# дістав би лише два ВІДСУТНІ шляхи з діагностик, тобто порожній батч).
+fix_glob = [
   ".n-rules.json",
   ".n-cursor.json",
   "**/package.json",

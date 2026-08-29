@@ -6258,3 +6258,76 @@ describe('wasm-plugin — js/eslint: fix-only контрибуція НЕ шед
     120_000
   )
 })
+
+/**
+ * §2.87 — fix-половина storybook-пари через РЕАЛЬНИЙ napi-міст.
+ *
+ * Тест сторожить не лише вміст плану, а сам МІСТ: обидва концерни —
+ * перші споживачі непорожнього `fix-glob`, і саме цей тест ловить регрес
+ * «хост знову звузив fix-батч до шляхів діагностик». Симптом там був би
+ * підступний: план не падає, а ТИХНЕ (порожній `edits`), гейт
+ * `edits.length > 0` не пускає гість-пріоритет, і JS-канон робить фікс
+ * удруге — жодного червоного без цієї перевірки.
+ */
+describe('wasm-plugin parity — §2.87 storybook-пара T0-фікс через fix-міст', () => {
+  const fixCtx = (dir, concernId) => ({ cwd: dir, ruleId: 'test', concernId })
+
+  test('storybook-ci: обидва .github-файли ВІДСУТНІ (батч із самих діагностик був би порожній) — план несе матрицю пакетів у скоупі', async () => {
+    await withTmpDir(async dir => {
+      await writeStorybookLibraryFixture(dir)
+
+      const before = withDefaultSeverity(
+        loadNative().runWasmConcern(WASM_PATH, STORYBOOK_CI_CONCERN_KEY, dir, null).violations
+      )
+      expect(before.map(v => v.reason)).toEqual(['missing-playwright-action', 'missing-storybook-workflow'])
+
+      const plan = loadNative().runWasmConcernFix(WASM_PATH, STORYBOOK_CI_CONCERN_KEY, dir, before, {})
+      expect(plan.edits.map(e => e.path)).toEqual([
+        '.github/actions/setup-playwright-chromium/action.yml',
+        '.github/workflows/lint-storybook.yml'
+      ])
+      for (const edit of plan.edits) await applyPlanEdit(edit, dir, fixCtx(dir, 'storybook-ci'))
+
+      const workflow = await readFile(join(dir, '.github/workflows/lint-storybook.yml'), 'utf8')
+      expect(workflow).toContain('          - packages/ui\n')
+      expect(workflow).not.toContain('__STORYBOOK_CI_PACKAGE_DIRS__')
+
+      const again = loadNative().runWasmConcern(WASM_PATH, STORYBOOK_CI_CONCERN_KEY, dir, null)
+      expect(again.violations).toEqual([])
+    })
+  })
+
+  test('storybook-scaffold: план створює канонічний скафолд і дописує scripts.storybook, повторний детект чистий', async () => {
+    await withTmpDir(async dir => {
+      await writeStorybookLibraryFixture(dir)
+
+      const before = withDefaultSeverity(
+        loadNative().runWasmConcern(WASM_PATH, STORYBOOK_SCAFFOLD_CONCERN_KEY, dir, null).violations
+      )
+      expect(before.map(v => v.reason)).toEqual([
+        'missing-main-js',
+        'missing-preview-js',
+        'missing-empty-vite-config',
+        'missing-vitest-setup-js',
+        'missing-storybook-script'
+      ])
+
+      const plan = loadNative().runWasmConcernFix(WASM_PATH, STORYBOOK_SCAFFOLD_CONCERN_KEY, dir, before, {})
+      for (const edit of plan.edits) await applyPlanEdit(edit, dir, fixCtx(dir, 'storybook-scaffold'))
+
+      // Глоб звузився до src/components/ — саме та перевірка, заради якої
+      // fix-скоуп ШИРШИЙ за детект-глоб (`**/src/components/**`).
+      const mainJs = await readFile(join(dir, 'packages/ui/.storybook/main.js'), 'utf8')
+      expect(mainJs).toContain("'../src/components/**/*.stories.@(js|ts)'")
+
+      const pkg = JSON.parse(await readFile(join(dir, 'packages/ui/package.json'), 'utf8'))
+      expect(pkg.scripts.storybook).toBe('storybook dev -p 6006 --no-open')
+      // Ключі консюмера лишились на місці й у ТОМУ САМОМУ порядку
+      // (регрес hash-порядку `parse_jsonc_document`, §2.87).
+      expect(Object.keys(pkg)).toEqual(['name', 'peerDependencies', 'scripts'])
+
+      const again = loadNative().runWasmConcern(WASM_PATH, STORYBOOK_SCAFFOLD_CONCERN_KEY, dir, null)
+      expect(again.violations).toEqual([])
+    })
+  })
+})

@@ -28,4 +28,21 @@ saphyr = { version = "0.0", optional = true }
 # недоторкані діапазони вихідного тексту виживають структурно. Розгорнуте
 # обґрунтування вибору — `crates/plugin-ci-github/Cargo.toml`, звідки цей
 # блок винесено.
-jsonc-parser = { version = "0.33", default-features = false, optional = true }
+#
+# `preserve_order` — НЕ косметика (§2.87). Без цієї фічі `JsonObject`
+# крейта лежить у `std::collections::HashMap`, тож `into_iter()` віддає
+# ключі у ХЕШ-порядку, а `RandomState` засівається наново КОЖЕН ПРОЦЕС.
+# Наслідок тягнувся через увесь [`parse_jsonc_document`]: `Json::Object`
+# (`Vec<(String, Json)>`) документного порядку НЕ мав, попри доккоментар,
+# що на нього посилається, і будь-який шлях ПОВНОЇ регенерації
+# (`fix_template_merge`-fallback, `jsconfig_fix` §2.80,
+# `fix_style_tooling`) переписував `package.json`/`jsconfig.json`
+# консюмера з ключами у випадковому порядку — щоразу в ІНШОМУ. Тихий
+# diff-шум замість фіксу, і байт-у-байт parity з `JSON.stringify` канону
+# (який успадковує порядок `JSON.parse`) був недосяжний за побудовою.
+# З фічею backing-мапа — `indexmap::IndexMap`, тобто саме документний
+# порядок; хірургічний шлях (`try_surgical_merge`) на це не спирався й не
+# змінюється.
+jsonc-parser = { version = "0.33", default-features = false, features = [
+  "preserve_order",
+], optional = true }
