@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.1] - 2026-08-29
+
+### Changed
+
+- release: @7n/rules@1.118.3, @7n/rules-ci-github@2.4.7, @7n/rules-lang-js@0.33.0, @7n/rules-lang-php@0.5.0; feat(lang-php): зняття JS-канонів — пілот на одному концерні + зразок (§2.88) (#562)
+
 ## [0.5.0] - 2026-08-29
 
 ### Removed
