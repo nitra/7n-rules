@@ -241,8 +241,14 @@ impl Guest for GuestEcho {
     }
 
     fn fix(request: FixRequest) -> FixPlan {
+        // `DETECT_PER_FILE_GLOB_CONCERN_ID` — той самий rewrite-план:
+        // `per-file` контрибуція з непорожнім glob-ом потрібна не лише
+        // detect-боці (§2.65), а й fix-боці — щоб довести, що в
+        // full-прогоні (`delta_files: none`) хост будує batch glob-обходом,
+        // а не падає `ambiguous_empty_fix_batch_err`.
         if request.concern_id == FIX_REWRITE_CONCERN_ID
             || request.concern_id == FIX_FULL_SCOPE_CONCERN_ID
+            || request.concern_id == DETECT_PER_FILE_GLOB_CONCERN_ID
         {
             return fix_rewrite_plan(&request);
         }

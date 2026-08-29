@@ -169,17 +169,26 @@ fn describe_declares_all_forty_concerns_with_expected_scopes() {
         .find(|c| c.key == CONCERN_BUN_LICENSEE)
         .expect("bun/licensee має бути в маніфесті");
     assert_eq!(licensee.scope, ConcernScope::Full);
-    assert_eq!(licensee.glob, vec![".licensee.json".to_string()]);
+    // `**/package.json` — вимога T0-фіксера (`fix_bun_licensee`, патерн
+    // `bun-licensee-workspace-license-metadata`): без нього гість не бачить
+    // `package.json` власного пакета, який треба переписати. Детектор ці
+    // записи ігнорує.
+    assert_eq!(
+        licensee.glob,
+        vec![".licensee.json".to_string(), "**/package.json".to_string()]
+    );
 
-    // `style/lint` — `Full` при `per-file` у `concern.json` (доккомент
-    // секції «Зріз 6» у `crates/plugin-lang-js/src/lib.rs`): інакше
-    // `lint --full` мовчки не перевіряв би стилі взагалі.
+    // `style/lint` — `PerFile`, дослівно `concern.json`. Тут БУЛО `Full` як
+    // обхід дефекту хоста (до §2.65 `per-file` діставав у `lint --full`
+    // порожній batch); після порту T0-фіксера обхід шкідливий — на fix-боці
+    // `Full` ігнорує дельту запиту (доккомент контрибуції в
+    // `crates/plugin-lang-js/src/lib.rs`).
     let style_lint = manifest
         .concerns
         .iter()
         .find(|c| c.key == CONCERN_STYLE_LINT)
         .expect("style/lint має бути в маніфесті");
-    assert_eq!(style_lint.scope, ConcernScope::Full);
+    assert_eq!(style_lint.scope, ConcernScope::PerFile);
     assert_eq!(style_lint.glob, vec!["**/*.{css,scss,vue}".to_string()]);
 
     // `js/jscpd_duplicates` — ЄДИНА контрибуція з порожнім глобом: детектор
