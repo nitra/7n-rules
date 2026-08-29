@@ -31,8 +31,8 @@ docstring-и, то точніша дока і менше роботи локал
 - Решта — LLM-ladder за вмістом функції.
 
 Перевірка: детектор `detect_doc_comments` wasm-гостя `crates/plugin-lang-python`
-(концерн `python/doc_comments`). T0-фікс лишається JS —
-`plugins/lang-python/rules/python/doc_comments/fix-doc_comments.mjs`.
+(концерн `python/doc_comments`). T0-фікс — `fix_doc_comments` того самого
+гостя (єдина реалізація; JS-канон знято).
 
 ## Rego-gate: перевірка `pyproject.toml`
 
@@ -83,7 +83,7 @@ Rego-пакет: `python.pyproject_toml`
 Три концерни (кожен — окремий per-file чи project-wide детектор):
 
 - `python/project` (`detect_project`) — `uv lock --check` + `uv sync --frozen` + ліцензійний аудит (`pip-licenses`); project-wide, поза delta-планом (лише `n-rules lint --full` або scoped `n-rules lint python`);
-- `python/ruff` (`detect_ruff`, фіксер `fix-ruff.mjs` лишається JS) — `ruff check` + `ruff format --check` (детект), `ruff check --fix` + `ruff format` (autofix); per-file;
+- `python/ruff` (`detect_ruff`, фіксер `fix_ruff` того самого гостя — єдина реалізація) — `ruff check` + `ruff format --check` (детект), `ruff check --fix` + `ruff format` (autofix); per-file;
 - `python/mypy` (`detect_mypy`) — `mypy` (лише детект, немає autofix); per-file.
 
 `python/ruff` і `python/mypy` гейтяться на кореневому `pyproject.toml`, якого в

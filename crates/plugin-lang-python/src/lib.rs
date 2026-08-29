@@ -104,8 +104,9 @@
 //! На відміну від усіх дотепер портованих T0-фіксерів (декларативні
 //! `FixPlan` над вмістом у пам'яті — `fix_doc_comments` тут і в
 //! `plugin-lang-js`/`plugin-lang-rust`, `fix_no_bun_test_import`,
-//! `fix_js_check`), JS-канон `python/ruff` (`plugins/lang-python/rules/python/ruff/fix-ruff.mjs`,
-//! 65 рядків) — тонка обгортка над `uv run --frozen ruff check --fix .` +
+//! `fix_js_check`), JS-канон `python/ruff` (`fix-ruff.mjs`, 65 рядків;
+//! ВИДАЛЕНИЙ §2.91 — [`fix_ruff`] нижче тепер ЄДИНА реалізація) був
+//! тонкою обгорткою над `uv run --frozen ruff check --fix .` +
 //! `ruff format .`: зовнішній процес сам мутує файли НА ДИСКУ consumer-репо,
 //! `apply()` лише діффить до/після. §2.51 зафіксував ДВІ структурні
 //! перешкоди порту через [`exec_tool`] — обидві тепер зняті:
@@ -157,9 +158,14 @@
 //! заміняє policy-детект, щойно концерн зʼявляється в `describe()` — порт
 //! самого лише фіксу МОВЧКИ вимкнув би детект.
 //!
-//! JS-канон (`concern.json` + `fix-vscode_extensions.mjs`) лишається чинним
-//! за політикою «спершу парність»; гість має пріоритет
-//! (`T0Pattern.guestFix`, `run-fix.mjs`).
+//! JS-КАНОН ФІКСУ (`fix-vscode_extensions.mjs`) ЗНЯТО §2.91 — гість тепер
+//! ЄДИНА реалізація. Канон-ДЖЕРЕЛО (`concern.json`, `vscode_extensions.rego`,
+//! `template/**`) лишається на місці: його гість `include_str!`-ить, тож
+//! detect-парність через справжній `conftest` і далі жива. Разом із каноном
+//! зник і третій шар `loadT0Patterns` (native → wasm(`guestFix`) →
+//! `fix-<concern>.mjs`), який глушив випадок «гість не резолвиться»; склад
+//! резолву пінує табличний гейт §2.91
+//! (`npm/scripts/lib/lint-surface/tests/wasm-plugin-parity-python.test.mjs`).
 
 // Двигун JSONC-парсу й серіалізації — спільний крейт `rules-template-merge`
 // (§2.71): ту саму семантику читає нативна колія (`crates/rules-core`) і
@@ -698,7 +704,9 @@ fn leading_whitespace(line: &str) -> &str {
 /// Т0-фіксер `python/doc_comments` — точний семантичний порт T0-патерна
 /// `promote-comments-to-docstring` (`fix-doc_comments.mjs`), ПЕРШИЙ
 /// портований фіксер `plugin-lang-python` (три попередні хвилі лишили
-/// `Guest::fix` суцільною заглушкою для КОЖНОГО концерну).
+/// `Guest::fix` суцільною заглушкою для КОЖНОГО концерну). Від §2.91 —
+/// ЄДИНА реалізація: канон-джерело порту видалено, JS-fallback-у в
+/// `loadT0Patterns` більше немає.
 ///
 /// 1. групування діагностик з `data.promotable == true` за файлом (порядок
 ///    надходження, дзеркало JS `Map`) — [`doc_comment_promote_fix`] читає
@@ -1153,8 +1161,8 @@ fn detect_ruff(files: &[SourceFile]) -> Vec<Diagnostic> {
 /// поправляє §2.51: обидві структурні перешкоди зняті — доккомент модуля
 /// вище, розділ «`python/ruff` — Т0-фіксер ПОРТОВАНО»). На відміну від
 /// `fix_doc_comments`/`fix_js_check` тощо, `fix_ruff` НЕ будує власний
-/// `FixPlan::edits` у пам'яті — точний порт `fix-ruff.mjs`
-/// (`plugins/lang-python/rules/python/ruff/fix-ruff.mjs`): зовнішній
+/// `FixPlan::edits` у пам'яті — точний порт `fix-ruff.mjs` (канон знято
+/// §2.91, цей фіксер ЄДИНИЙ): зовнішній
 /// процес (`uv run --frozen ruff check --fix .` + `ruff format .`) сам
 /// мутує `.py`-файли НА ДИСКУ consumer-репо, синхронно, ВСЕРЕДИНІ
 /// `exec_tool`. Гість повертає ПОРОЖНІЙ план — host-diff
@@ -1172,9 +1180,13 @@ fn detect_ruff(files: &[SourceFile]) -> Vec<Diagnostic> {
 ///
 /// Префлайт — той самий [`prepare_python_run`], що [`detect_ruff`]: немає
 /// `pyproject.toml`/`.py`-файлів у батчі, `uv` не резолвиться, чи `ruff`
-/// недоступний у uv-середовищі — тихий no-op (`FixPlan { edits: vec![] }`), той
+/// недоступний у uv-середовищі — no-op (`FixPlan { edits: vec![] }`), той
 /// самий контракт, що перевірка `resolveCmd('uv')` JS-канону (`fix-ruff.mjs`
-/// повертає `{ touchedFiles: [] }` без `uv`). [`run_ruff_step`] (той самий
+/// повертав `{ touchedFiles: [] }` без `uv`). Канон знято §2.91, тож ці
+/// виходи більше не «віддають роботу JS» — вони СВІДОМІ no-op-и: без `uv`
+/// чи `ruff` детект цього концерну взагалі не видає fixable-діагностик
+/// (`uv-missing` — окремий гучний канал §2.33), тож фіксити нічого.
+/// [`run_ruff_step`] (той самий
 /// крок, що [`detect_ruff`]) тут НЕ використовується: фікс не перетворює
 /// провал кроку на diagnostic (`FixPlan` не несе violations) — обидва
 /// кроки виконуються, код виходу ігнорується, як і в JS-канону
@@ -2769,16 +2781,32 @@ impl Guest for LangPython {
 
     /// Перші три хвилі не портували жодного fix-контуру; четверта додала
     /// `python/doc_comments` ([`fix_doc_comments`], доккомент функції) —
-    /// ПЕРШИЙ реальний план цього крейта. JS-канон (`fix-doc_comments.mjs`)
-    /// лишається чинним (парність, не заміна). `python/ruff`
-    /// ([`fix_ruff`]) — ПЕРШИЙ ПОРТ класу exec-tool fix (реєстр §2.63
-    /// поправляє §2.51: обидві структурні перешкоди зняті, доккомент
-    /// модуля вище) — гість повертає порожній план, host-diff
+    /// ПЕРШИЙ реальний план цього крейта. `python/ruff` ([`fix_ruff`]) —
+    /// ПЕРШИЙ ПОРТ класу exec-tool fix (реєстр §2.63 поправляє §2.51:
+    /// обидві структурні перешкоди зняті, доккомент модуля вище) — гість
+    /// повертає порожній план, host-diff
     /// (`crates/rules-napi/src/lib.rs::diff_snapshot_edits`) синтезує
-    /// edits із знімку диска до/після. `fix-ruff.mjs` лишається чинним
-    /// JS-каноном (парність, не заміна). Решта концернів і далі отримують
-    /// сумісну заглушку — порожній план (доккомент `wit/world.wit` біля
-    /// `export fix`).
+    /// edits із знімку диска до/після. §2.77 додала
+    /// `python/vscode_extensions` ([`fix_vscode_extensions`]). Решта
+    /// концернів і далі отримують сумісну заглушку — порожній план
+    /// (доккомент `wit/world.wit` біля `export fix`).
+    ///
+    /// # Порожній план тут — СВІДОМИЙ no-op, не «підхопить JS»
+    ///
+    /// Доти кожен із трьох ключів нижче ніс ще й JS-канон
+    /// `fix-<concern>.mjs` за політикою «спершу парність», і `loadT0Patterns`
+    /// (`run-fix.mjs`) резолвив три шари: native → wasm (`guestFix`) →
+    /// канон. §2.91 зняла всі три канони — гість лишився ЄДИНОЮ реалізацією
+    /// фіксу цих концернів, а третій шар зник разом із ними. Наслідок для
+    /// читання цього `match`: гілка, що віддає порожній план, більше НЕ
+    /// означає «фікс зробить JS» — вона означає «фікс не зробить НІХТО».
+    /// Найгостріше це для [`fix_ruff`], у якого ВЕСЬ вихід — порожній план
+    /// (edits синтезує host-diff): його префлайт-виходи
+    /// ([`prepare_python_run`]: немає `pyproject.toml`/`.py`, немає `uv`,
+    /// немає `ruff`) тепер СВІДОМІ no-op-и, а не «віддамо канону».
+    /// Склад резолву пінує табличний гейт §2.91
+    /// (`wasm-plugin-parity-python.test.mjs`): рівно один патерн, і той
+    /// `guestFix`.
     fn fix(request: FixRequest) -> FixPlan {
         match request.concern_id.as_str() {
             CONCERN_DOC_COMMENTS => fix_doc_comments(&request),

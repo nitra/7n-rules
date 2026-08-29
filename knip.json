@@ -120,8 +120,6 @@
     },
     "plugins/lang-python": {
       "entry": [
-        "rules/*/*/fix-*.mjs",
-        "rules/**/*.test.mjs",
         "slots/**/*.test.mjs",
         "taze/provider.mjs",
         "taze/**/*.test.mjs",
@@ -136,7 +134,6 @@
       "entry": [
         "doc-files/extractors.mjs",
         "rules/*/lib/*.mjs",
-        "rules/*/*/fix-*.mjs",
         "rules/**/*.test.mjs",
         "slots/**/*.test.mjs",
         "taze/provider.mjs",

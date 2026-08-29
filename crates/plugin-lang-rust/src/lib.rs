@@ -102,8 +102,8 @@
 //! - `rust/cargo_mutants_config` (full-scope) — порт
 //!   `plugins/lang-rust/rules/rust/cargo_mutants_config/main.mjs`:
 //!   presence-перевірка `<cargoDir>/.cargo/mutants.toml` для КОЖНОГО
-//!   резолвленого Cargo-маніфесту. Т0-фіксер лишається JS (доккомент секції
-//!   нижче).
+//!   резолвленого Cargo-маніфесту. Т0-фіксер — [`fix_cargo_mutants_config`]
+//!   (доккомент секції нижче); JS-канон знято §2.91.
 //! - `rust/wasm_component` (per-file) — порт
 //!   `plugins/lang-rust/rules/rust/wasm_component/main.mjs`: забороняє
 //!   `wasm-bindgen`, вимагає явний `component-model` у `wasmtime` з
@@ -194,11 +194,12 @@
 //!     — шлях, недосяжний для гостя (wasm-компонент не має доступу до
 //!     файлової системи хост-пакета, доккомент `Capabilities` нижче).
 //!     Детектор НІКОЛИ не читає ВМІСТ baseline — лише факт існування;
-//!     вміст споживає ВИКЛЮЧНО T0-фіксер (`fix-cargo_mutants_config.mjs`),
-//!     який лишається JS. Чесна ціна: зламаний npm-пакет (без
-//!     `data/cargo_mutants_config/mutants.toml.baseline`) дає діагностику
-//!     в JS і мовчання в гостя — жодна parity-фікстура це не покриє (не
-//!     забутий крок, задокументована межа).
+//!     вміст споживає ВИКЛЮЧНО T0-фіксер. Після §2.91 (зняття JS-канону
+//!     `fix-cargo_mutants_config.mjs`) цей фіксер — [`fix_cargo_mutants_config`],
+//!     і baseline потрапляє в бінарник `include_str!`-ом
+//!     ([`CARGO_MUTANTS_CONFIG_BASELINE`]), тож розбіжність «файл шаблону
+//!     зник із npm-пакета» більше не існує як клас: шаблону немає — крейт
+//!     не компілюється, гучно й на збірці, а не тихо в проді.
 //! (c) **`resolveAllCargoManifests` — `workspaces`-записи ТЕПЕР
 //!     glob-розкриваються, латентний баг джерела ВИПРАВЛЕНО.** Раніше
 //!     [`resolve_all_cargo_manifests`] буквально відтворювала баг
@@ -398,9 +399,14 @@
 //! заміняє policy-детект, щойно концерн зʼявляється в `describe()` — порт
 //! самого лише фіксу МОВЧКИ вимкнув би детект.
 //!
-//! JS-канон (`concern.json` + `fix-vscode_extensions.mjs`) лишається чинним
-//! за політикою «спершу парність»; гість має пріоритет
-//! (`T0Pattern.guestFix`, `run-fix.mjs`).
+//! JS-КАНОН ФІКСУ (`fix-vscode_extensions.mjs`) ЗНЯТО §2.91 — гість тепер
+//! ЄДИНА реалізація. Канон-ДЖЕРЕЛО (`concern.json`, `vscode_extensions.rego`,
+//! `template/**`) лишається на місці: його гість `include_str!`-ить, тож
+//! detect-парність через справжній `conftest` і далі жива. Разом із каноном
+//! зник і третій шар `loadT0Patterns` (native → wasm(`guestFix`) →
+//! `fix-<concern>.mjs`), який глушив випадок «гість не резолвиться»; склад
+//! резолву пінує табличний гейт §2.91
+//! (`npm/scripts/lib/lint-surface/tests/wasm-plugin-parity-rust.test.mjs`).
 
 // Двигун JSONC-парсу й серіалізації — спільний крейт `rules-template-merge`
 // (§2.71): ту саму семантику читає нативна колія (`crates/rules-core`) і
@@ -898,6 +904,8 @@ fn promote_plain_comment_line(line: &str, marker: &str) -> Option<String> {
 /// Т0-фіксер `rust/doc_comments` — точний семантичний порт T0-патерна
 /// `promote-line-comments-to-rustdoc` (`fix-doc_comments.mjs`), другий
 /// портований фіксер цього крейта (перший — [`fix_cargo_mutants_config`]).
+/// Від §2.91 — ЄДИНА реалізація: канон-джерело порту видалено, JS-fallback-у
+/// в `loadT0Patterns` більше немає.
 ///
 /// 1. групування діагностик з `data.promotable == true` за файлом (порядок
 ///    надходження, дзеркало JS `Map`) — [`doc_comment_promote_block`] читає
@@ -1532,12 +1540,15 @@ fn detect_check(files: &[SourceFile]) -> Vec<Diagnostic> {
 const CHECK_DENY_CONFIG_PATH: &str = "deny.toml";
 
 /// Мінімальний детермінований `deny.toml`-скаффолд, вшитий `include_str!` з
-/// ТОГО САМОГО data-файлу, який читає JS-канон (`MINIMAL_DENY_TOML_PATH`,
-/// `plugins/lang-rust/rules/rust/check/data/check/deny.toml.minimal`) — той
-/// самий прийом і мотив, що [`CARGO_MUTANTS_CONFIG_BASELINE`]: два літерали
-/// в двох мовах розійшлися б беззвучно, спільне джерело робить парність
-/// байт-у-байт структурною, а не тестовою домовленістю. (Літерал жив у
-/// `fix-check.mjs`; винесення в data-файл — частина цього порту.)
+/// data-файлу `plugins/lang-rust/rules/rust/check/data/check/deny.toml.minimal`
+/// — той самий прийом і мотив, що [`CARGO_MUTANTS_CONFIG_BASELINE`]. Літерал
+/// колись жив просто в `fix-check.mjs`; винесення в data-файл зробило
+/// парність двох реалізацій байт-у-байт структурною, а не тестовою
+/// домовленістю. §2.91 зняла JS-канон — читач data-файлу лишився ОДИН
+/// (цей `include_str!`), але сам файл НЕ інлайниться назад у код: його
+/// окремо читає parity-гейт (`wasm-plugin-parity-rust.test.mjs` звіряє
+/// вміст edit-а САМЕ з ним, а не з літералом у тесті), і саме роздільність
+/// «джерело / реалізація» тримає це твердження чесним.
 const CHECK_MINIMAL_DENY_TOML: &str =
     include_str!("../../../plugins/lang-rust/rules/rust/check/data/check/deny.toml.minimal");
 
@@ -1561,7 +1572,8 @@ fn check_fix_channels(diagnostics: &[Diagnostic]) -> (bool, bool) {
 /// (перший — `fix_ruff`, `crates/plugin-lang-python/src/lib.rs`; механіка —
 /// host-diff, §2.64 реєстру відкритих питань, доккомент
 /// `crates/rules-napi/src/lib.rs::diff_snapshot_edits`). Точний порт
-/// `fix-check.mjs` — ДВА незалежні канали ([`check_fix_channels`]):
+/// `fix-check.mjs` (канон видалено §2.91 — цей фіксер ЄДИНИЙ) — ДВА
+/// незалежні канали ([`check_fix_channels`]):
 ///
 /// 1. **`cargo-fmt-violation` → `cargo fmt --all`** — exec-tool: зовнішній
 ///    процес САМ переписує `.rs`-файли на диску консюмера всередині цього
@@ -1677,10 +1689,13 @@ fn fix_check(request: &FixRequest) -> FixPlan {
 const CARGO_MUTANTS_CONFIG_MISSING_REASON: &str = "mutants-config-missing";
 
 /// Canonical neutral baseline `.cargo/mutants.toml`, вшитий `include_str!` з
-/// ТОГО САМОГО файлу, що читає (за тим самим шляхом на диску) JS-фіксер
-/// `fix-cargo_mutants_config.mjs` (`BASELINE_PATH`) — ОДНЕ джерело, не копія
-/// (доккомент модуля, розділ «`rust/cargo_mutants_config` — Т0-фіксер
-/// ПОРТОВАНО», прецедент `plugin-ci-github`). Компонується в бінарник під
+/// data-файлу
+/// `plugins/lang-rust/rules/rust/cargo_mutants_config/data/cargo_mutants_config/mutants.toml.baseline`
+/// — ОДНЕ джерело, не копія (доккомент модуля, розділ
+/// «`rust/cargo_mutants_config` — Т0-фіксер ПОРТОВАНО», прецедент
+/// `plugin-ci-github`). До §2.91 той самий файл читав із диска JS-фіксер
+/// `fix-cargo_mutants_config.mjs` (`BASELINE_PATH`); канон знято, читач
+/// лишився один. Компонується в бінарник під
 /// час `cargo build`, тож гість не потребує package-асетів консюмера чи
 /// файлової системи хост-пакета під час виконання (`Capabilities::fs_read`
 /// лишається порожнім — доккомент [`build_manifest`]).
@@ -2939,12 +2954,26 @@ impl Guest for LangRust {
     /// Перша й друга хвилі не портували жодного fix-контуру; третя додала
     /// `rust/cargo_mutants_config` ([`fix_cargo_mutants_config`]); четверта —
     /// `rust/doc_comments` ([`fix_doc_comments`], доккомент модуля, розділ
-    /// «Т0-фіксер ПОРТОВАНО») — JS-канон `fix-doc_comments.mjs` лишається
-    /// чинним (парність, не заміна цієї хвилі). Пʼята додала `rust/check`
-    /// ([`fix_check`]) — ДРУГИЙ порт класу exec-tool fix у репозиторії
-    /// (host-diff, §2.64; перший — `python/ruff`), теж без заміни
-    /// JS-канону `fix-check.mjs`. Решта концернів і далі отримують сумісну
-    /// заглушку — порожній план.
+    /// «Т0-фіксер ПОРТОВАНО»); пʼята — `rust/check` ([`fix_check`]), ДРУГИЙ
+    /// порт класу exec-tool fix у репозиторії (host-diff, §2.64; перший —
+    /// `python/ruff`); §2.77 — `rust/vscode_extensions`
+    /// ([`fix_vscode_extensions`]). Решта концернів і далі отримують
+    /// сумісну заглушку — порожній план.
+    ///
+    /// # Порожній план тут — СВІДОМИЙ no-op, не «підхопить JS»
+    ///
+    /// Доти кожен із чотирьох ключів нижче ніс ще й JS-канон
+    /// `fix-<concern>.mjs` за політикою «спершу парність», і `loadT0Patterns`
+    /// (`run-fix.mjs`) резолвив три шари: native → wasm (`guestFix`) →
+    /// канон. §2.91 зняла всі чотири канони — гість лишився ЄДИНОЮ
+    /// реалізацією фіксу цих концернів, а третій шар зник разом із ними.
+    /// Наслідок для читання цього `match`: гілка, що віддає порожній план,
+    /// більше НЕ означає «фікс зробить JS» — вона означає «фікс не
+    /// зробить НІХТО». Кожен такий випадок ([`fix_check`] і подібні
+    /// exec-tool канали) має бути або гучним (`LogLevel::Error`), або свідомим
+    /// no-op, задокументованим на місці. Склад резолву пінує табличний
+    /// гейт §2.91 (`wasm-plugin-parity-rust.test.mjs`): рівно один патерн,
+    /// і той `guestFix`.
     fn fix(request: FixRequest) -> FixPlan {
         match request.concern_id.as_str() {
             CONCERN_CARGO_MUTANTS_CONFIG => fix_cargo_mutants_config(&request),

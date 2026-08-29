@@ -28,7 +28,7 @@ version: '1.6'
 
 ## Лінт Rust: rustfmt + clippy + cargo-deny
 
-**rustfmt** ([rust-lang/rustfmt](https://github.com/rust-lang/rustfmt)) — форматер; **clippy** ([rust-lang/rust-clippy](https://github.com/rust-lang/rust-clippy)) — лінтер; **cargo-deny** — перевірка ліцензій залежностей. Запуск — через **`n-rules lint rust`** (детектор `detect_check` wasm-гостя `crates/plugin-lang-rust`, концерн `rust/check`; autofix `fix-check.mjs` лишається JS):
+**rustfmt** ([rust-lang/rustfmt](https://github.com/rust-lang/rustfmt)) — форматер; **clippy** ([rust-lang/rust-clippy](https://github.com/rust-lang/rust-clippy)) — лінтер; **cargo-deny** — перевірка ліцензій залежностей. Запуск — через **`n-rules lint rust`** (детектор `detect_check` wasm-гостя `crates/plugin-lang-rust`, концерн `rust/check`; autofix `fix_check` того самого гостя — єдина реалізація):
 
 - **read-only (детект, CI):** `cargo fmt --all -- --check` → `cargo clippy --all-targets --all-features -- -D warnings` → (за наявності `deny.toml` і встановленого `cargo-deny`) `cargo deny check licenses`.
 - **`fix` (локально):** `cargo fmt --all` (реальне форматування) і, якщо `deny.toml` відсутній та `cargo-deny` встановлено, `cargo deny init` для генерації канонічного файлу.
@@ -63,7 +63,8 @@ version: '1.6'
 - Елементи зовсім без коментаря — дописує LLM-ladder.
 
 Перевірка: детектор `detect_doc_comments` wasm-гостя `crates/plugin-lang-rust`
-(концерн `rust/doc_comments`). T0-фікс лишається JS — `fix-doc_comments.mjs`.
+(концерн `rust/doc_comments`). T0-фікс — `fix_doc_comments` того самого гостя
+(єдина реалізація; JS-канон знято).
 
 ## Rego-gate: `cargo`, `rustfmt`, `clippy` заборонені у `package.json`
 

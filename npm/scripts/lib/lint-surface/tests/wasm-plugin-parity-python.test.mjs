@@ -85,7 +85,6 @@ const PYTHON_RULES_DIR = join(REPO_ROOT, 'plugins', 'lang-python', 'rules', 'pyt
 const APPLIES_MAIN_MJS_PATH = join(PYTHON_RULES_DIR, 'applies', 'main.mjs')
 const TOOLING_MAIN_MJS_PATH = join(PYTHON_RULES_DIR, 'tooling', 'main.mjs')
 const DOC_COMMENTS_MAIN_MJS_PATH = join(PYTHON_RULES_DIR, 'doc_comments', 'main.mjs')
-const DOC_COMMENTS_FIX_MJS_PATH = join(PYTHON_RULES_DIR, 'doc_comments', 'fix-doc_comments.mjs')
 const WORKSPACE_ROOT_MAIN_MJS_PATH = join(PYTHON_RULES_DIR, 'workspace_root', 'main.mjs')
 const PROJECT_MAIN_MJS_PATH = join(PYTHON_RULES_DIR, 'project', 'main.mjs')
 const MYPY_MAIN_MJS_PATH = join(PYTHON_RULES_DIR, 'mypy', 'main.mjs')
@@ -438,57 +437,6 @@ describe('wasm-plugin parity — python/doc_comments (JS канон vs wasm plug
   })
 })
 
-// --- python/doc_comments: замикання T0-циклу ---------------------------
-//
-// Не parity (порівнювати нема з чим): `Guest::fix` гостя для цього концерну
-// свідомо віддає порожній план, T0-фіксер лишається JS
-// (`fix-doc_comments.mjs`). Але після зняття JS-ДЕТЕКТОРА фіксер уперше
-// живе окремо від реалізації, що породжує його вхід: у продакшені
-// `violations` йому дає wasm-гість. Раніше цю петлю замикав
-// `doc_comments.test.mjs` (`checkFileDocComments(after)` після `apply`) —
-// разом із детектором вона б зникла, а це саме та властивість, що ловить
-// фіксер, який пише текст, на який детектор далі скаржиться.
-//
-// Тому петля переїхала СЮДИ, де вже є гість: детект гостем → JS-фіксер →
-// повторний детект гостем має бути порожній. Юніти самого фіксера
-// (`buildDocstring`, форма виводу) лишились у
-// `plugins/lang-python/rules/python/doc_comments/tests/fix-doc_comments.test.mjs`.
-describe('python/doc_comments — T0-цикл: детект гостем → JS-фіксер → детект гостем чистий', () => {
-  const tq = '"'.repeat(3)
-
-  test('#-блок над def промотується в docstring, і повторний детект мовчить', async () => {
-    await withTmpDir(async dir => {
-      const rel = 'pkg/mod.py'
-      await writeFileDeep(dir, rel, [`${tq}Модуль.${tq}`, '', '# робить X', 'def go():', '    return 1', ''].join('\n'))
-
-      const before = withDefaultSeverity(
-        loadNative().runWasmConcern(WASM_PATH, DOC_COMMENTS_CONCERN_KEY, dir, [rel]).violations
-      )
-      expect(before).toHaveLength(1)
-      expect(before[0].data?.promotable).toBe(true)
-
-      // eslint-disable-next-line no-unsanitized/method
-      const { patterns } = await import(pathToFileURL(DOC_COMMENTS_FIX_MJS_PATH).href)
-      expect(patterns[0].test(before)).toBe(true)
-      const writes = []
-      await patterns[0].apply(before, {
-        cwd: dir,
-        recordWrite: path => {
-          writes.push(path)
-        }
-      })
-      expect(writes).toHaveLength(1)
-
-      const after = await readFile(join(dir, rel), 'utf8')
-      expect(after).toContain(`    ${tq}робить X${tq}`)
-      expect(after).not.toContain('# робить X')
-
-      const again = loadNative().runWasmConcern(WASM_PATH, DOC_COMMENTS_CONCERN_KEY, dir, [rel])
-      expect(again.violations).toEqual([])
-    })
-  })
-})
-
 // --- python/doc_comments: замикання T0-циклу через РЕАЛЬНИЙ napi-міст --
 // (§2.49 open-questions-register) ----------------------------------------
 //
@@ -501,11 +449,13 @@ describe('python/doc_comments — T0-цикл: детект гостем → JS-
 // (`run-fix.mjs::loadT0Patterns`) веде через `wasmFixPattern` →
 // `runWasmConcernFix` napi-міст.
 //
-// Describe-блок вище («T0-цикл: детект гостем → JS-фіксер → детект гостем
-// чистий») цей факт не перевіряє: `apply()` там береться з
-// `fix-doc_comments.mjs` (JS-канон) НАПРЯМУ — `runWasmConcernFix` жодного
-// разу не викликається, тож guest-фікс (реальний код продакшена) лишається
-// неперевіреним через міст. Той самий клас прогалини, що PR #513 (`js/check`,
+// §2.91 (зняття JS-канонів `lang-python`) видалила сусідній describe-блок
+// «T0-цикл: детект гостем → JS-фіксер → детект гостем чистий»: його `apply()`
+// брався з `fix-doc_comments.mjs` НАПРЯМУ — канону, якого більше немає, і
+// `runWasmConcernFix` там не викликався жодного разу. Його єдиний сценарій
+// (#-блок над `def` → docstring, повторний детект мовчить) не зник, а вже був
+// дослівним двійником тесту нижче — тільки в правильній формі «гість =
+// очікуваний результат». Той самий клас прогалини, що PR #513 (`js/check`,
 // `wasm-plugin-parity.test.mjs`) закрив для lang-js. `python/doc_comments` —
 // PerFile, кожна fixable діагностика несе `diagnostic.file`
 // ([`check_file_doc_comments`]-еквівалент, `crates/plugin-lang-python`), тож
@@ -1487,4 +1437,71 @@ describe('wasm-plugin parity — python/vscode_extensions (rego-канон че�
       expect(js).toEqual([])
     })
   })
+})
+
+// =====================================================================
+// §2.91 — ЗНЯТТЯ JS-КАНОНІВ ФІКСУ: усі ТРИ `fix-<concern>.mjs`
+// `plugins/lang-python` видалено (`doc_comments`, `ruff`,
+// `vscode_extensions`). `crates/plugin-lang-python` тепер ЄДИНА
+// реалізація фіксу кожного з них.
+//
+// Форма гейта — зразок §2.88 (пілот `lang-php`), але ТАБЛИЧНА: пілот мав
+// один концерн, тут їх три. Таблиця нижче — це `match` у `Guest::fix`
+// (`crates/plugin-lang-python/src/lib.rs`) у JS-формі: розходження між нею
+// і гостем має бути видно з одного місця.
+//
+// Перевіряється НЕ відсутність файлу, а СКЛАД резолву тим самим
+// `loadT0Patterns`, яким ходить прод (`run-fix.mjs`: native → wasm
+// (`guestFix`) → `fix-<concern>.mjs`). Третій шар був глушником випадку
+// «гість не резолвиться» (плагін не зібрано, розбіжність піна, хост без
+// wasm); тепер такого глушника немає, тож обидві регресії мовчазні:
+//
+// - ДВА патерни  → канон повернувся (подвійний фікс, пастка §2.72);
+// - НУЛЬ патернів → зник гість, тобто `--fix` МОВЧКИ перестав фіксити
+//   концерн, і він тихо поїхав би в дорогий LLM-ладдер.
+//
+// `existsSync` на видалених файлах ловив би лише перше з двох.
+//
+// Окремо про `python/ruff`: його канон був ЄДИНИМ місцем, де жив
+// `test()`-предикат за `reason` (`ruff-check-violation`/
+// `ruff-format-violation`). У гостя такого предиката немає — і не має
+// бути: `fix()` диспатчиться за concern-id, а «нічого робити» гість
+// вирішує префлайтом [`prepare_python_run`] (немає `pyproject.toml`/
+// `.py`-файлів, немає `uv`, немає `ruff` — порожній план). Пінує цей
+// контур `wasm-fix-exec-tool-python-ruff.test.mjs` (лічильник спавнів
+// `uv`), а не reason-предикат.
+// =====================================================================
+describe('§2.91 — lang-python: фікс кожного концерну живе рівно в одному місці (JS-канони знято)', () => {
+  /** Ключі `match` у `Guest::fix` гостя `crates/plugin-lang-python` — повний перелік. */
+  const GUEST_FIX_CONCERNS = ['doc_comments', 'ruff', 'vscode_extensions']
+
+  test(
+    'loadT0Patterns для КОЖНОГО концерну гостя віддає РІВНО ОДИН патерн, і той — guestFix',
+    async () => {
+      await withTmpDir(async dir => {
+        await writeFile(
+          join(dir, '.n-rules.json'),
+          JSON.stringify({ wasmPlugins: [{ name: 'lang-python', path: WASM_PATH }] }),
+          'utf8'
+        )
+        const { loadT0Patterns } = await import('../run-fix.mjs')
+
+        /** @type {Record<string, boolean[]>} */
+        const resolved = {}
+        for (const concern of GUEST_FIX_CONCERNS) {
+          const patterns = await loadT0Patterns(join(PYTHON_RULES_DIR, concern), concern, 'python', dir)
+          resolved[concern] = patterns.map(p => p.guestFix === true)
+        }
+
+        // Уся таблиця одним твердженням: падіння називає САМЕ той концерн,
+        // що розійшовся, і показує напрямок ([] чи [true, false]).
+        expect(resolved).toEqual({
+          doc_comments: [true],
+          ruff: [true],
+          vscode_extensions: [true]
+        })
+      })
+    },
+    120_000
+  )
 })
