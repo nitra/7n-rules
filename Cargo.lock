@@ -4301,9 +4301,9 @@ dependencies = [
 
 [[package]]
 name = "n7n-harness"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fff1ff7f8262d4d060945354f3797839b68053fa5dda059686910d764aa8c842"
+checksum = "4eee796790028a4c8b6d37ead4867f0db7552701988d4802b4ad20f6e7246716"
 dependencies = [
  "n7n-gix-util",
  "n7n-llm-lib",
@@ -4316,11 +4316,12 @@ dependencies = [
 
 [[package]]
 name = "n7n-llm-lib"
-version = "0.4.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "35e48ef91903295dea149d0c455aa2c6e9c1b04ec74675b248743eb5157f7eea"
+checksum = "0aa3f7f1e323c693d1d8453a198c37edf515ec574cfc47757136237296ac0016"
 dependencies = [
  "agent-client-protocol",
+ "base64",
  "bytes",
  "futures",
  "genai",

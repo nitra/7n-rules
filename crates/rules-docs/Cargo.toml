@@ -7,7 +7,7 @@ license = "MIT"
 publish = false
 
 [dependencies]
-llm-lib = { version = "0.4", package = "n7n-llm-lib" }
+llm-lib = { version = "0.5", package = "n7n-llm-lib" }
 # Маркери зон згенерованого Markdown (`zones`) — строгий формат із
 # необовʼязковими атрибутами; регулярка тут дзеркальна до JS-оригіналу, а
 # ручний парсер розійшовся б із ним на першому ж крайньому випадку.
