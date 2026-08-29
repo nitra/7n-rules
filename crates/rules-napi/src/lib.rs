@@ -552,6 +552,32 @@ pub fn wasm_plugin_manifest(wasm_path: String) -> Result<serde_json::Value> {
     })
 }
 
+/// Типізована помилка «патерн glob-а контрибуції невалідний».
+///
+/// # Чому помилка, а не мовчазний пропуск (той самий клас, що §2.65/§2.72)
+///
+/// До цієї правки обидві гілки нижче стояли як `if let Ok(glob) = …` БЕЗ
+/// `else`: невалідний патерн просто зникав із набору. Наслідок залежить від
+/// того, який саме патерн зник, і жоден із варіантів не видно в логах:
+/// зник include — концерн отримує МЕНШЕ файлів (або нуль, і тоді звітує
+/// «чисто», не перевіривши нічого); зник exclude — БІЛЬШЕ, тобто гість
+/// бачить файли, які канон свідомо відсіює. Обидва — тиха розбіжність із
+/// каноном, рівно та, що §2.65 (`--full` мовчки не перевіряв per-file
+/// концерни) і §2.72 (вузький glob беззвучно каструє fix) робили гучною.
+///
+/// `plugin.toml` і `build_manifest()` гостя — єдине джерело цих патернів,
+/// тож помилка називає патерн дослівно: правити треба там.
+fn invalid_contribution_glob_err(pattern: &str, err: &globset::Error) -> Error {
+    Error::from_reason(format!(
+        "runWasmConcern: патерн `{pattern}` у glob-і контрибуції концерну невалідний ({err}). \
+         Раніше такий патерн мовчки випадав із набору — і скоуп концерну тихо \
+         розходився з каноном в один чи інший бік (менше файлів → «чисто», не \
+         перевіривши нічого; менше виключень → гість бачить те, що канон відсіює). \
+         Патерни оголошує плагін: `plugin.toml` + `build_manifest()` відповідного \
+         крейта. Див. §2.65/§2.72 docs/plans/2026-08-05-open-questions-register.md."
+    ))
+}
+
 /// Типізована помилка «файл у batch-і не UTF-8» (§2.83 реєстру відкритих
 /// питань) — [`read_source_files`] кличе її замість колишнього
 /// `String::from_utf8_lossy`.
@@ -653,15 +679,15 @@ fn build_full_scope_files(cwd: &Path, glob_patterns: &[String]) -> Result<Vec<So
     for pattern in glob_patterns {
         match pattern.strip_prefix('!') {
             Some(negated) => {
-                if let Ok(glob) = globset::Glob::new(negated) {
-                    exclude_builder.add(glob);
-                    has_excludes = true;
-                }
+                let glob = globset::Glob::new(negated)
+                    .map_err(|e| invalid_contribution_glob_err(pattern, &e))?;
+                exclude_builder.add(glob);
+                has_excludes = true;
             }
             None => {
-                if let Ok(glob) = globset::Glob::new(pattern) {
-                    builder.add(glob);
-                }
+                let glob = globset::Glob::new(pattern)
+                    .map_err(|e| invalid_contribution_glob_err(pattern, &e))?;
+                builder.add(glob);
             }
         }
     }
@@ -1355,9 +1381,46 @@ mod tests {
         let files = build_full_scope_files(
             dir.path(),
             &["**/*.txt".to_string(), "!vendor/**".to_string()],
-        );
+        )
+        .expect("усі файли фікстури — валідний UTF-8");
 
         assert_eq!(sorted_paths(&files), vec!["keep.txt"]);
+    }
+
+    /// Невалідний патерн у glob-і контрибуції — ГУЧНА відмова, не мовчазний
+    /// пропуск. До §2.83 обидві гілки стояли як `if let Ok(glob) = …` без
+    /// `else`, тож зіпсований патерн просто зникав із набору, а скоуп
+    /// концерну тихо розходився з каноном (той самий клас, що §2.65/§2.72).
+    /// Перевіряються ОБИДВІ гілки — include і `!`-exclude — бо кожна мала
+    /// власний мовчазний `if let`.
+    #[test]
+    fn build_full_scope_files_rejects_invalid_glob_pattern_loudly() {
+        let dir = fixture_tree_with_vendor_dir();
+
+        for pattern in ["**/*.{txt", "!**/*.{txt"] {
+            let err = build_full_scope_files(dir.path(), &[pattern.to_string()])
+                .expect_err("невалідний патерн мусить впасти, а не зникнути з набору");
+            let text = err.to_string();
+            assert!(
+                text.contains(pattern),
+                "помилка мусить називати патерн: {text}"
+            );
+        }
+    }
+
+    /// Валідний патерн поруч із невалідним НЕ рятує: набір або повний, або
+    /// помилка. Інакше «часткове» звуження скоупу лишалось би тихим — рівно
+    /// те, що ця правка й закриває.
+    #[test]
+    fn build_full_scope_files_rejects_invalid_pattern_even_among_valid_ones() {
+        let dir = fixture_tree_with_vendor_dir();
+
+        let err = build_full_scope_files(
+            dir.path(),
+            &["**/*.txt".to_string(), "**/*.{md".to_string()],
+        )
+        .expect_err("один зіпсований патерн валить увесь набір");
+        assert!(err.to_string().contains("**/*.{md"));
     }
 
     /// Побитий JSON у `.n-rules.json` — tolerant-парсинг
