@@ -22,7 +22,7 @@ deny contains msg if {
 	not is_object(expected_value)
 	actual := object.get(input, key, null)
 	actual != expected_value
-	msg := sprintf("package.json: \"%s\" має бути %q (js.mdc)", [key, expected_value])
+	msg := sprintf("package.json: \"%s\" має бути \"%v\" (js.mdc)", [key, expected_value])
 }
 
 # ── deny: scripts (nested) — exact match із normalize ──────────────────
@@ -31,7 +31,7 @@ deny contains msg if {
 	some script_name, expected in data.template.snippet.scripts
 	actual := object.get(object.get(input, "scripts", {}), script_name, "")
 	normalize_script(actual) != expected
-	msg := sprintf("package.json: scripts.%s має бути %q (js.mdc)", [script_name, expected])
+	msg := sprintf("package.json: scripts.%s має бути \"%v\" (js.mdc)", [script_name, expected])
 }
 
 # ── deny: engines.node >= 24 (inverse, у rego) ──────────────────────────
@@ -60,7 +60,7 @@ deny contains msg if {
 	range := object.get(object.get(input, "devDependencies", {}), "@nitra/eslint-config", "")
 	range != ""
 	not eslint_config_meets_min(range)
-	msg := sprintf("package.json: @nitra/eslint-config має бути >= %s (зараз %q) (js.mdc)", [eslint_min_display, range])
+	msg := sprintf("package.json: @nitra/eslint-config має бути >= %s (зараз \"%v\") (js.mdc)", [eslint_min_display, range])
 }
 
 # ── deny: @nitra/as-integrations-fastify заборонений (dep-policy.mdc) ───

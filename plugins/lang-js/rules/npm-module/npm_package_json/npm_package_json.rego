@@ -36,8 +36,8 @@ dev_deps_template := concat(" ", [
 ])
 
 storybook_version_template := concat(" ", [
-	"npm/package.json: devDependencies.%v = %q не відповідає зафіксованій версії",
-	"Storybook-канону %q — вирівняй версію пакета до канону (npm-module.mdc, канон Storybook)",
+	"npm/package.json: devDependencies.%v = \"%v\" не відповідає зафіксованій версії",
+	"Storybook-канону \"%v\" — вирівняй версію пакета до канону (npm-module.mdc, канон Storybook)",
 ])
 
 # Канонічні Storybook-devDeps (isStorybookRoot()-маркери, канон Storybook кластер 7):
@@ -90,7 +90,7 @@ deny contains msg if {
 	actual_set := {v | some v in input[field]}
 	some required in expected_values
 	not required in actual_set
-	msg := sprintf("npm/package.json: масив \"%s\" має містити %q (npm-module.mdc)", [field, required])
+	msg := sprintf("npm/package.json: масив \"%s\" має містити \"%v\" (npm-module.mdc)", [field, required])
 }
 
 # ── deny: devDependencies (inverse-pattern + Storybook-allowlist виняток) ─

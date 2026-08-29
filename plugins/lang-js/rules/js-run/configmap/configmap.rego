@@ -15,7 +15,7 @@ deny contains msg if {
 	actual != ""
 	some needle in needles
 	not contains(actual, needle)
-	msg := sprintf("ConfigMap %q: %s має містити %q (js-run.mdc)", [cm_name, field, needle])
+	msg := sprintf("ConfigMap \"%v\": %s має містити \"%v\" (js-run.mdc)", [cm_name, field, needle])
 }
 
 cm_name := object.get(object.get(input, "metadata", {}), "name", "?")

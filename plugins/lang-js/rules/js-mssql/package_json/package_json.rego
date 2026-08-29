@@ -23,7 +23,7 @@ deny contains msg if {
 	range := object.get(object.get(input, "dependencies", {}), "mssql", "")
 	range != ""
 	not mssql_version_meets_min(range)
-	msg := sprintf("dependencies.mssql має бути >= 12.5.0 (зараз %q) (js-mssql.mdc)", [range])
+	msg := sprintf("dependencies.mssql має бути >= 12.5.0 (зараз \"%v\") (js-mssql.mdc)", [range])
 }
 
 # Мінімум — 12.5.0 (js-mssql.mdc). `workspace:*` трактуємо як OK (узгоджено з JS).

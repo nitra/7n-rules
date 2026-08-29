@@ -17,7 +17,7 @@ deny contains msg if {
 	some leaf_key, expected_value in expected_inner
 	actual := object.get(inner, leaf_key, null)
 	actual != expected_value
-	msg := sprintf("bunfig.toml: у секції [%s] має бути %s = %q (bun.mdc)", [section, leaf_key, expected_value])
+	msg := sprintf("bunfig.toml: у секції [%s] має бути %s = \"%v\" (bun.mdc)", [section, leaf_key, expected_value])
 }
 
 # Section відсутня (null) або не обʼєкт.
