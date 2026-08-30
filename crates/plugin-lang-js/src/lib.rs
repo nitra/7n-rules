@@ -4,7 +4,32 @@
 //! `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md` §3.5.5 і
 //! `docs/specs/2026-08-01-wasm-ast-strategy.md`),
 //! створений за флоу скіла `npm/skills/wasm-plugin/` (scaffold → реалізація →
-//! golden-тести). ТРИДЦЯТЬ ШІСТЬ концернів у контрибуції (перелік нижче —
+//! golden-тести).
+//!
+//! # §2.93 — цей крейт ЄДИНА реалізація фіксу девʼятнадцяти концернів
+//!
+//! Борг «спершу парність» для `plugins/lang-js` закрито: девʼятнадцять
+//! `fix-<concern>.mjs` знято (`bun/layout`, `bun/licensee`, `js/check`,
+//! `js/doc_comments`, `js/jscpd_config`, `js/package_json`,
+//! `js/vscode_extensions`, `js-run/jsconfig`, `js-run/runtime`,
+//! `npm-module/emit_types_config`, `npm-module/npm_package_json`,
+//! `npm-module/root_package_json`, `style/lint`, `style/package_json`,
+//! `style/tooling`, `style/vscode_extensions`, `style/vscode_settings`,
+//! `test/storybook-ci`, `test/storybook-scaffold`). Для КОЖНОГО з них
+//! читання «порожній `FixPlan` → підхопить JS-канон» відтоді НЕПРАВДИВЕ:
+//! `loadT0Patterns` (`run-fix.mjs`) третього шару для них більше не має,
+//! тож кожна гілка, що віддає порожній план, мусить бути СВІДОМИМ no-op, а
+//! не «нехай доробить JS». Гейт складу резолву — `§2.93` у
+//! `npm/scripts/lib/lint-surface/tests/wasm-plugin-parity.test.mjs`.
+//!
+//! Чотири концерни плагіна фікс у JS ЗБЕРЕГЛИ, і кожен з іменованою
+//! причиною: `js/eslint` (доккомент [`ESLINT_TOOL`] — канон робить те,
+//! чого гість не робить), `bun/package_json` (§2.92 — не портований),
+//! `test/storybook-vitest-config` (§2.87 — не портований),
+//! `test/stryker_config` (портовано лише detect-половину — доккомент
+//! секції «Зріз 1 контракту v3.1»).
+//!
+//! ТРИДЦЯТЬ ШІСТЬ концернів у контрибуції (перелік нижче —
 //! перші чотирнадцять; батчі 5–9 і зріз 1 описані в доккоментах однойменних секцій
 //! нижче за текстом; `js/doc_comments` зрізу 4 — секція «Зріз 4»), порт чинних
 //! JS-оригіналів — справжній 1:1, той самий `reason`/`message` біт-у-біт
@@ -10863,10 +10888,12 @@ fn fix_js_check(request: &FixRequest) -> FixPlan {
 // - **Конверсія ПОТРІБНА рівно у двох точках — на WIT-межі.**
 //   1. `detect`: [`check_file_doc_comments`] кладе в `data.{start,end}` не
 //      байтові офсети, а результат [`byte_offset_to_utf16`]. Причина
-//      конкретна: споживач цього поля — JS, який ріже JS-рядок
-//      (`fix-doc_comments.mjs` лишається fallback-ом за чинним конвеєром
-//      `run-fix.mjs`, доккомент `loadT0Patterns`), а parity-звірка порівнює
-//      `data` з тим, що віддає JS-канон.
+//      конкретна: `data` — частина WIT-контракту діагностики, яку читає
+//      JS-оркестрація й із якою звіряється parity-еталон детекту
+//      (`goldenJs`). §2.93 зняла JS-канон ФІКСУ (`fix-doc_comments.mjs`),
+//      тож споживачем `data.{start,end}` лишився рівно один — [`fix_doc_comments`]
+//      нижче, який тими самими офсетами ходить назад; конверсія
+//      симетрична, і саме тому вона й далі потрібна в ОБИДВІ сторони.
 //   2. `fix`: [`fix_doc_comments`] читає ті самі `data.{start,end}` назад і
 //      переводить їх [`utf16_offset_to_byte`] ПЕРЕД тим, як різати
 //      UTF-8-рядок `SourceFile::content`.
@@ -11452,10 +11479,13 @@ fn fix_doc_comments(request: &FixRequest) -> FixPlan {
 //    список один. Семантика зберігається (`warn` не блокує гейт), форма —
 //    ні, тож у цієї гілки з'явився `reason`, якого в канону не було
 //    ([`LICENSEE_TOOL_ERROR_REASON`]).
-// 3. **T0-фікс лишається JS.** `fix-licensee.mjs` спавнить `licensee
-//    --init`, читає/зливає `.licensee.json` і обходить workspace-и через
-//    `resolveAllJsRoots` — це не `FixPlan` із повного вмісту файлу, а
-//    інший клас роботи. Порт fix-контуру цього концерну — не зріз 5.
+// 3. **T0-фікс лишається JS.** — БІЛЬШЕ НЕПРАВДА, і виправлено тут, а не
+//    прибрано, щоб історія читалась. Зріз 5 справді не портував фікс
+//    (`fix-licensee.mjs` спавнив `licensee --init`, зливав `.licensee.json`
+//    і обходив workspace-и через `resolveAllJsRoots`). Пізніша хвиля
+//    портувала ВСІ ТРИ патерни ([`fix_bun_licensee`]), а §2.93 зняла
+//    JS-канон: цей крейт — ЄДИНИЙ виконавець фіксу `bun/licensee`.
+//    Читання «порожній план → підхопить JS» відтоді неправдиве.
 // =====================================================================
 
 /// Ключ контрибуції `bun/licensee` (зріз 5 контракту v3.1 — пілот
@@ -12019,11 +12049,13 @@ fn fix_bun_licensee(request: &FixRequest) -> FixPlan {
 // 3. **`r.exitCode ?? 1` канону недосяжний у порті.** `null` exit code на
 //    боці канону означає «вбито сигналом»; у гостя той самий випадок — це
 //    `status: none`, який перехоплює гілка розбіжності 1 вище.
-// 4. **T0-фікси обох концернів лишаються JS.** `fix-lint.mjs` спавнить
-//    `stylelint --fix`, який пише файли САМ (модель «тул пише сам»,
-//    відкрите питання §9 спеки), і перелічує цілі через `git ls-files` —
-//    жодне з двох не є `FixPlan`. `js/jscpd_duplicates` фіксера не має
-//    взагалі.
+// 4. **T0-фікси обох концернів лишаються JS.** — для `style/lint` БІЛЬШЕ
+//    НЕПРАВДА: пізніша хвиля портувала фікс класом exec-tool + host-diff
+//    ([`fix_style_lint`]), а §2.93 зняла JS-канон `fix-lint.mjs`, тож цей
+//    крейт — ЄДИНИЙ виконавець фіксу `style/lint`, і порожній план тут
+//    означає СВІДОМИЙ no-op, а не «підхопить JS». Твердження зрізу
+//    лишилось чинним рівно для `js/jscpd_duplicates` — той фіксера не має
+//    взагалі, ні в JS, ні в гості.
 // 5. **Запис `duplicates` не за схемою `jscpd` порт ПРОПУСКАЄ.** Канон
 //    читає поля без перевірки, тож клон без `firstFile.name` дав би
 //    повідомлення з рядком `undefined` і `data.line: undefined` — знову
@@ -12060,6 +12092,18 @@ const STYLELINT_TOOL: &str = "npm:stylelint";
 /// `/\.(?:css|scss|vue)$/u` — прив'язаний до кінця рядка, тож `ends_with`
 /// точний, а не наближення).
 const STYLE_EXTENSIONS: [&str; 3] = [".css", ".scss", ".vue"];
+
+/// Предикат «шлях віддаємо `stylelint`» — порт `filterStyleFiles`
+/// (`style/lint/fix-lint.mjs`, JS-канон знято §2.93). Винесений з тіла
+/// [`fix_style_lint`] в іменовану функцію рівно заради того, щоб перевірка
+/// набору розширень лишалась ОКРЕМИМ твердженням тесту, а не побічним
+/// ефектом exec-tool-сценарію: єдиний JS-тест, що це доводив
+/// (`style/tests/main.test.mjs`), помер разом із каноном.
+fn is_style_path(path: &str) -> bool {
+    STYLE_EXTENSIONS
+        .iter()
+        .any(|extension| path.ends_with(extension))
+}
 
 /// Глоб контрибуції `style/lint` — той самий набір розширень, що
 /// [`STYLE_EXTENSIONS`], у формі, яку хост розкриває у full-scope batch.
@@ -12180,11 +12224,7 @@ fn fix_style_lint(request: &FixRequest) -> FixPlan {
     let targets: Vec<String> = request
         .files
         .iter()
-        .filter(|file| {
-            STYLE_EXTENSIONS
-                .iter()
-                .any(|extension| file.path.ends_with(extension))
-        })
+        .filter(|file| is_style_path(&file.path))
         .map(|file| file.path.clone())
         .collect();
     // Порт `if (files.length === 0) return { touchedFiles: [] }` канону.
@@ -12295,10 +12335,27 @@ const JS_ESLINT_GLOB: &str = "**/*.{js,mjs,cjs,jsx,ts,tsx,vue}";
 const JS_ESLINT_EXTENSIONS: [&str; 7] = [".mjs", ".cjs", ".js", ".jsx", ".ts", ".tsx", ".vue"];
 
 /// Декларація тула лінтерів — та сама `path:bunx`, що вже несе
-/// `js/jscpd_duplicates` ([`JSCPD_TOOL`]): канон теж кличе саме
-/// `bunx oxlint` / `bunx eslint`. Свідомо ТОЙ САМИЙ рядок, а не другий
-/// запис у `manifest.tools`: список тулів — множина декларацій, не мапа
-/// «концерн → тул».
+/// `js/jscpd_duplicates` ([`JSCPD_TOOL`]). Свідомо ТОЙ САМИЙ рядок, а не
+/// другий запис у `manifest.tools`: список тулів — множина декларацій, не
+/// мапа «концерн → тул».
+///
+/// # Розбіжність із каноном (§2.93) — ЄДИНА причина, чому `fix-eslint.mjs` живий
+///
+/// Попередня редакція цього доккомента стверджувала «канон теж кличе саме
+/// `bunx oxlint` / `bunx eslint`». Для oxlint це правда; для eslint —
+/// НІ: канон гейтить на `resolveCmd('bunx')` тільки oxlint, а
+/// `eslint --fix` кличе programmatic API (`new ESLint({ cwd, fix: true })`
+/// + `ESLint.outputFixes`) і тому працює й БЕЗ `bunx`. Гість такої гілки
+/// не має — за нерезолвного `bunx` він голосно логує
+/// ([`run_js_eslint_linter_fix`]) і НЕ фіксить нічого.
+///
+/// Тому §2.93, яка зняла девʼятнадцять JS-канонів фіксу цього плагіна,
+/// СВІДОМО лишила `plugins/lang-js/rules/js/eslint/fix-eslint.mjs`: гість
+/// віддає порожній `FixPlan` (клас host-diff), тож `guestFix`-брейк
+/// `applyT0` канон не глушить, і драбина «спершу гість, а якщо він нічого
+/// не зробив — канон» тут не залишок міграції, а робочий контур. Знімати
+/// канон можна лише разом із портом eslint-половини так, щоб вона не
+/// вимагала `bunx`.
 const ESLINT_TOOL: &str = "path:bunx";
 
 /// Декларація тула запису — `tee` з `PATH`. Потрібен рівно для одного:
@@ -24037,5 +24094,25 @@ plugins: [VueMacros({}), AutoImport({ imports: ['vue'] })] }\n";
             diagnostics: vec![],
         });
         assert!(plan.edits.is_empty());
+    }
+
+    // --- style/lint: набір розширень ---
+
+    /// Дзеркало знятого §2.93 JS-тесту `filterStyleFiles`
+    /// (`plugins/lang-js/rules/style/tests/main.test.mjs`): той самий вхід,
+    /// той самий очікуваний вихід. Тест НЕ про exec-tool-сценарій (його
+    /// покриває `wasm-plugin-parity.test.mjs`), а рівно про те, що набір
+    /// розширень не поповз.
+    #[test]
+    fn is_style_path_mirrors_filter_style_files() {
+        let input = ["a.css", "b.scss", "c.vue", "d.js"];
+        let kept: Vec<&str> = input
+            .into_iter()
+            .filter(|path| is_style_path(path))
+            .collect();
+        assert_eq!(kept, vec!["a.css", "b.scss", "c.vue"]);
+        // Розширення — суфікс, не підрядок: `styles.cssx` не стиль.
+        assert!(!is_style_path("styles.cssx"));
+        assert!(!is_style_path("vue"));
     }
 }

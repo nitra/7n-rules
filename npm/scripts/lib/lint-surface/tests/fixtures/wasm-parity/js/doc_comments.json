@@ -87,7 +87,7 @@
   "wasm-plugin parity — js/doc_comments (JS канон vs wasm plugin-lang-js, per-file) > тест/фікстура/декларація — поза вимогою в обох реалізаціях #2": [],
   "wasm-plugin parity — js/doc_comments (JS канон vs wasm plugin-lang-js, per-file) > тест/фікстура/декларація — поза вимогою в обох реалізаціях #3": [],
   "wasm-plugin parity — js/doc_comments (JS канон vs wasm plugin-lang-js, per-file) > тест/фікстура/декларація — поза вимогою в обох реалізаціях #4": [],
-  "wasm-plugin parity — js/doc_comments (JS канон vs wasm plugin-lang-js, per-file) > T0-фікс: ASCII-блок підвищується однаково JS-патерном фікса і wasm-планом": [
+  "wasm-plugin parity — js/doc_comments (JS канон vs wasm plugin-lang-js, per-file) > T0-фікс: ASCII-блок підвищується до JSDoc": [
     {
       "reason": "missing-file-header",
       "message": "src/a.mjs: файл з експортами без провідного header-JSDoc. Глобальний сенс: конвеєр doc-files копіює цей коментар ДОСЛІВНО в секцію «Огляд» автоматично згенерованої документації файлу (0 LLM-токенів) — без нього «Огляд» вигадує LLM із самого коду.",
@@ -110,7 +110,7 @@
       }
     }
   ],
-  "wasm-plugin parity — js/doc_comments (JS канон vs wasm plugin-lang-js, per-file) > T0-фікс: не-ASCII вміст — JS-патерн фікса і wasm-план дають БАЙТ-У-БАЙТ той самий текст": [
+  "wasm-plugin parity — js/doc_comments (JS канон vs wasm plugin-lang-js, per-file) > T0-фікс: не-ASCII вміст — БАЙТ-У-БАЙТ очікуваний текст (зворотна конверсія UTF-16 → байти)": [
     {
       "reason": "missing-file-header",
       "message": "src/файл.mjs: файл з експортами без провідного header-JSDoc. Глобальний сенс: конвеєр doc-files копіює цей коментар ДОСЛІВНО в секцію «Огляд» автоматично згенерованої документації файлу (0 LLM-токенів) — без нього «Огляд» вигадує LLM із самого коду.",
@@ -133,7 +133,7 @@
       }
     }
   ],
-  "wasm-plugin parity — js/doc_comments (JS канон vs wasm plugin-lang-js, per-file) > T0-фікс: кілька блоків в одному файлі — однаковий результат (заміна з кінця)": [
+  "wasm-plugin parity — js/doc_comments (JS канон vs wasm plugin-lang-js, per-file) > T0-фікс: кілька блоків в одному файлі — усі підвищені (заміна з кінця)": [
     {
       "reason": "missing-file-header",
       "message": "src/файл.mjs: файл з експортами без провідного header-JSDoc. Глобальний сенс: конвеєр doc-files копіює цей коментар ДОСЛІВНО в секцію «Огляд» автоматично згенерованої документації файлу (0 LLM-токенів) — без нього «Огляд» вигадує LLM із самого коду.",
@@ -167,7 +167,7 @@
       }
     }
   ],
-  "wasm-plugin parity — js/doc_comments (JS канон vs wasm plugin-lang-js, per-file) > T0-фікс: несвіжі офсети після wasm-плану — JS-патерн фікса лишає файл недоторканим": [
+  "wasm-plugin parity — js/doc_comments (JS канон vs wasm plugin-lang-js, per-file) > T0-фікс: несвіжі офсети — повторний план гостя ПОРОЖНІЙ, файл недоторканий": [
     {
       "reason": "missing-file-header",
       "message": "src/файл.mjs: файл з експортами без провідного header-JSDoc. Глобальний сенс: конвеєр doc-files копіює цей коментар ДОСЛІВНО в секцію «Огляд» автоматично згенерованої документації файлу (0 LLM-токенів) — без нього «Огляд» вигадує LLM із самого коду.",

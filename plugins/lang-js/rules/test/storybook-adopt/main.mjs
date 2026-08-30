@@ -39,7 +39,7 @@ import {
   renderMocksGqlSse,
   renderPreviewJs,
   renderVitestSetupJs
-} from '../storybook-scaffold/fix-storybook-scaffold.mjs'
+} from '../storybook-scaffold/render.mjs'
 import { buildFreshVitestConfig, buildStrykerConfig } from '../storybook-vitest-config/fix-storybook-vitest-config.mjs'
 import {
   AUTO_IMPORT_PLUGIN_RE,

@@ -18,10 +18,10 @@ export const KNIP_CANONICAL_JSON_PATH = join(
   'knip-canonical.json'
 )
 
-/** `.oxlintrc.json` відсутній — T0 копіює канон (`fix-check.mjs`). */
+/** `.oxlintrc.json` відсутній — T0 копіює канон (гість `fix_js_check`, §2.93). */
 export const OXLINTRC_MISSING = 'oxlintrc-missing'
 /**
- * `knip.json` відсутній — T0 копіює канон (`fix-check.mjs`, патерн `js-check-knip`).
+ * `knip.json` відсутній — T0 копіює канон (гість `fix_js_check`, гілка `needs_knip`, §2.93).
  *
  * До 2026-08-01 порушення НЕ існувало: `checkKnipConfig` детектора сам робив
  * `copyFile` під час фази detect і звітував `pass`, тобто стан «knip.json
@@ -192,7 +192,7 @@ export function verifyOxlintRcAgainstCanonical(cfg, canonical) {
 }
 
 /**
- * Детермінований merge `.oxlintrc.json` до відповідності канону (T0 `fix-check.mjs`) —
+ * Детермінований merge `.oxlintrc.json` до відповідності канону (T0 — гість `fix_js_check`, §2.93) —
  * дзеркалить правила `verifyOxlintRcAgainstCanonical`, тож результат завжди проходить
  * повторну перевірку без LLM. Project-specific розширення зберігаються: зайві ключі в
  * `rules` і зайві `ignorePatterns` не видаляються, лише доповнюються канонічними.

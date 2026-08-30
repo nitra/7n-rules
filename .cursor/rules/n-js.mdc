@@ -134,7 +134,7 @@ import fastifyApollo, { fastifyApolloDrainPlugin } from '@as-integrations/fastif
 Заглушки на кшталт «опис.» не рахуються документацією ніде в конвеєрі — пиши
 змістовно або лиши LLM-ladder-у.
 
-Перевірка (детект): `crates/plugin-lang-js/src/lib.rs` (`detect_doc_comments`); T0-фікс лишається в JS — `rules/js/doc_comments/fix-doc_comments.mjs`.
+Перевірка (детект): `crates/plugin-lang-js/src/lib.rs` (`detect_doc_comments`); T0-фікс — той самий гість (`fix_doc_comments`); JS-канон знято (§2.93).
 
 ## Розширення нових файлів — `.mjs` / `.cjs`, не `.js`
 
