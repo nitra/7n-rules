@@ -164,7 +164,6 @@
     },
     "plugins/lang-php": {
       "entry": [
-        "rules/*/*/main.mjs",
         "rules/**/*.test.mjs",
         "slots/**/*.test.mjs",
         "stryker.config.mjs",
