@@ -60,68 +60,31 @@ jobs:
       # команду на Linux — тобто РІВНО тим шляхом (GitHub Release, делегація в
       # `ensureToolAsync` через міст), якого стаби юніт-тестів не покривають.
       - name: Ensure external lint tools
-        run: ./target/release/rules-cli tools ensure kubeconform
+        run: ./target/release/rules-cli tools ensure kubeconform kubescape
 
-      # Реальний wasm-плагін lang-js (задача N2) — JS wasm-dispatch тести
-      # (доккомент кроку вище) падають з чіткою помилкою на свіжому checkout
-      # без цього кроку (той самий require_fixture-мотив, що в Rust-тестах).
+      # Усі ШІСТЬ first-party гостей, не один.
       #
-      # Раніше — голий `bash crates/plugin-lang-js/build.sh`. Тепер той самий
-      # `build.sh` викликається ЗСЕРЕДИНИ `build-wasm-plugins.mjs::buildAndStage`
-      # (той самий крок, що `npm-publish.yml` робить для ВСІХ п'яти first-party
-      # плагінів) — але звужено фільтром до ОДНОГО lang-js: реєстрація в
-      # docs/plans/2026-08-05-open-questions-register.md §2.31 показала, що
-      # `npm/scripts/lib/lint-surface/tests/wasm-plugin-e2e.test.mjs`,
-      # `wasm-fix-e2e.test.mjs` і `npm/scripts/lib/tests/wasm-builtin-pins.test.mjs`
-      # гейтяться на `existsSync(npm/wasm-plugins/builtin-pins.json)` — артефакт,
-      # який генерує лише повний `node npm/scripts/build-wasm-plugins.mjs`
-      # (усі 5 плагінів), а той у test.yml НІКОЛИ не викликався: три describe-блоки
-      # мовчки пропускались на кожному PR. Повний 5-плагінний прогін (lang-python/
-      # lang-rust/lang-php/ci-github) сюди свідомо НЕ переїжджає — ці 3 файли
-      # звіряють ЛИШЕ запис "lang-js" (усі assertion на конкретних concern-ключах
-      # `style/admin_table`/`js/utils_imports` — lang-js-специфічні), тож
-      # генерація пінів для решти чотирьох була б чистими зайвими секундами
-      # збірки без жодного нового покриття. `main()` з build-wasm-plugins.mjs
-      # приймає довільний підсписок `FIRST_PARTY_WASM_PLUGINS` першим
-      # аргументом — фільтр тут не дублює реєстр, а звужує його.
-      - name: Build lang-js wasm plugin (raw artifact + npm/wasm-plugins/builtin-pins.json)
-        run: |
-          node --input-type=module -e "
-            import { main, FIRST_PARTY_WASM_PLUGINS } from './npm/scripts/build-wasm-plugins.mjs'
-            main(FIRST_PARTY_WASM_PLUGINS.filter(p => p.name === 'lang-js'))
-          "
+      # Раніше крок був звужений фільтром до `lang-js` з докладним
+      # обґрунтуванням: три тести, що гейтяться на `builtin-pins.json`,
+      # звіряли лише запис "lang-js", тож генерація пінів для решти була б
+      # зайвими секундами без покриття.
+      #
+      # Це обґрунтування застаріло. Відтоді зʼявились гейти складу резолву
+      # для решти плагінів — §2.88 (`lang-php`), §2.90 (`ci-github`),
+      # §2.91 (`lang-rust`, `lang-python`), §2.93 (`lang-js`), і кожен із них
+      # вимагає СВОГО зібраного компонента:
+      # `wasm-plugin-parity-{php,ci-github,ci-azure,python,rust}.test.mjs`,
+      # `wasm-detect-full-per-file`, `wasm-fix-exec-tool-python-ruff`.
+      # Без їхніх гостей ці пʼять сюїтів у CI не можуть пройти СТРУКТУРНО —
+      # саме вони й тримали `main` червоним. Гейт, доданий без свого входу,
+      # не «строгіший», а декоративний.
+      #
+      # Окремий крок `bash crates/plugin-lang-php/build.sh` тут більше не
+      # потрібен: повний прогін і будує, і стейджить lang-php у
+      # `npm/wasm-plugins/`, чого голий `build.sh` не робив.
+      - name: Build all first-party wasm plugins (raw artifacts + npm/wasm-plugins/builtin-pins.json)
+        run: node npm/scripts/build-wasm-plugins.mjs
 
-      # `php/mago_lint` security-фікстури (`plugins/lang-php/rules/php/mago_lint/tests/
-      # security-fixtures.test.mjs`) диспатчаться через РЕАЛЬНИЙ `plugin_lang_php.wasm`
-      # (той самий Rust-гість, не JS-канон — його вже знято). Без цього кроку тест
-      # (гейт якого §2.31 перевела з голого PATH-скану на `ensureToolAsync('mago')`,
-      # той самий канал, що добуває mago нижче через GITHUB_TOKEN) на свіжому
-      # checkout падав би на `runWasmConcern`: mago добудеться, а wasm-компонент —
-      # ні. lang-php — НАЙЛЕГШИЙ з п'яти first-party гостей (доккомент
-      # `crates/plugin-lang-php/Cargo.toml`: лише `wit-bindgen`, без regex/toml/serde),
-      # тож окремий крок тут дешевший, ніж підмішувати його в builtin-pins-крок вище
-      # (той звужений навмисно лише до lang-js, доккомент там).
-      - name: Build plugin-lang-php wasm component
-        run: bash crates/plugin-lang-php/build.sh
-
-      # Знахідка §2.31 (реєстр відкритих питань) під час реанімації
-      # `npm/tests/integration-repo-checks.test.mjs` (`describe.skip` знято —
-      # доккомент там): `checkGa` (концерн `ga/workflows`, доккомент
-      # секції) чекає РЕАЛЬНИЙ `target/wasm32-wasip2/release/plugin_ci_github.wasm`,
-      # якого test.yml ще НІКОЛИ не збирав. Це не лише блокер для §2.31 —
-      # той самий `plugin_ci_github.wasm` жорстко вимагає (throw на import,
-      # без жодного `existsSync`-гейту з console.warn) `wasm-plugin-parity-
-      # ci-github.test.mjs`, тож `Full vitest run` УЖЕ падав на main до цієї
-      # зміни: "0 test" на файлі — throw на завантаженні модуля, не помилка
-      # тесту (перевірено `gh run list --workflow=test.yml --branch=main` —
-      # 5 останніх прогонів FAIL). Крок нижче лагодить обидва: і §2.31, і цей
-      # розрив, що існував ще до цієї зміни. Дешево — `plugin-ci-github` тягне
-      # лише `wit-bindgen` і Rego-рушій (жоден conftest-субпроцес, `ga/workflows`
-      # ганяє Rego in-process, доккомент `crates/plugin-ci-github/Cargo.toml`);
-      # спільні залежності з двома кроками build.sh вище (`wit-bindgen` і т.д.)
-      # уже теплі в rust-cache цього ж прогону.
-      - name: Build plugin-ci-github wasm component
-        run: bash crates/plugin-ci-github/build.sh
 
       - name: Full vitest run
         run: bun run test
