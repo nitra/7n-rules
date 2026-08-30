@@ -43,7 +43,8 @@
       "WebFetch(domain:pvieito.com)",
       "WebFetch(domain:support.claude.com)",
       "WebFetch(domain:developers.openai.com)",
-      "WebFetch(domain:learn.chatgpt.com)"
+      "WebFetch(domain:learn.chatgpt.com)",
+      "Bash(rtk git *)"
     ]
   }
 }
