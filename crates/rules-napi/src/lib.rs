@@ -489,16 +489,61 @@ thread_local! {
 }
 
 /// Бере плагін за шляхом із кешу (чи завантажує й кешує, якщо це перший
-/// виклик для цього шляху) і виконує `f` над ним.
+/// виклик для цього шляху) і виконує `f` над ним — БЕЗ кореня preopen-ів.
+///
+/// Вхід для викликів, які кореня не мають і не потребують
+/// ([`wasm_plugin_concerns`]/[`wasm_plugin_manifest`] — чистий
+/// `describe()`). Плагін із непорожнім `capabilities.fs-read`, узятий цим
+/// шляхом, лишається придатним лише до `describe()`: перший же
+/// `detect`/`fix` на ньому падає типізовано
+/// (`PluginHostError::FsReadRootUnbound`), а не читає порожню пісочницю
+/// мовчки. Виклики з деревом ходять через
+/// [`with_loaded_plugin_in_root`].
 fn with_loaded_plugin<T>(
     wasm_path: &str,
     f: impl FnOnce(&mut LoadedPlugin) -> Result<T>,
 ) -> Result<T> {
+    with_loaded_plugin_in_root(wasm_path, None, f)
+}
+
+/// Те саме, але з КОРЕНЕМ дерева, що лінтується (`cwd`-параметр
+/// [`run_wasm_concern`]/[`run_wasm_concern_fix`]) — від нього хост
+/// резолвить `capabilities.fs-read`-preopens (§2.95 реєстру відкритих
+/// питань).
+///
+/// # Чому кеш переживає зміну кореня, а інстанс — ні
+///
+/// `LOADED_PLUGINS` кешує інстанс per-path на процес (уникнення повторної
+/// компіляції компонента), але preopens фіксуються при створенні `Store` —
+/// підмінити їх постфактум, як `set_tool_resolver`/`set_repo_root`,
+/// неможливо. Тож коли закешований інстанс відкритий НЕ на те дерево, яке
+/// прийшло з викликом, плагін перезавантажується
+/// ([`preopen_root_satisfies`]). Ціна платиться ЛИШЕ плагінами з
+/// непорожнім `fs-read` (жоден чинний маніфест його не заявляє) — решта
+/// preopen-ів не має взагалі, тож для них корінь ні на що не впливає й
+/// кеш працює як раніше.
+fn with_loaded_plugin_in_root<T>(
+    wasm_path: &str,
+    root: Option<&Path>,
+    f: impl FnOnce(&mut LoadedPlugin) -> Result<T>,
+) -> Result<T> {
     LOADED_PLUGINS.with(|cache| {
         let mut cache = cache.borrow_mut();
-        if !cache.contains_key(wasm_path) {
+        let cached_fits = cache.get(wasm_path).is_some_and(|plugin| {
+            preopen_root_satisfies(
+                !plugin.describe().capabilities.fs_read.is_empty(),
+                plugin.preopen_root(),
+                root,
+            )
+        });
+        if !cached_fits {
             let loaded = PLUGIN_HOST
-                .with(|host| host.load(Path::new(wasm_path), PLUGIN_WORLD_VERSION))
+                .with(|host| match root {
+                    Some(root) => {
+                        host.load_in_root(Path::new(wasm_path), PLUGIN_WORLD_VERSION, root)
+                    }
+                    None => host.load(Path::new(wasm_path), PLUGIN_WORLD_VERSION),
+                })
                 .map_err(to_wasm_napi_err)?;
             cache.insert(wasm_path.to_string(), loaded);
         }
@@ -507,6 +552,56 @@ fn with_loaded_plugin<T>(
             .expect("щойно вставлено або вже було в кеші");
         f(plugin)
     })
+}
+
+/// Чи придатний закешований інстанс для виклику з коренем `wanted`
+/// (доккомент [`with_loaded_plugin_in_root`]).
+///
+/// Чиста функція — рішення тут одне на всі гілки кешу, і воно варте
+/// власних юніт-тестів: «підходить/не підходить» помилкове в бік `true`
+/// означає рівно ту ваду, яку §2.95 закриває (гість читає ІНШЕ дерево,
+/// мовчки), а помилкове в бік `false` — зайву перекомпіляцію компонента на
+/// кожен виклик.
+fn preopen_root_satisfies(
+    declares_fs_read: bool,
+    cached_root: Option<&Path>,
+    wanted_root: Option<&Path>,
+) -> bool {
+    // Порожній `fs-read` — жодного preopen-у не відкривається, тож корінь
+    // на поведінку гостя не впливає (типовий випадок: усі чинні маніфести).
+    if !declares_fs_read {
+        return true;
+    }
+    match (cached_root, wanted_root) {
+        // Корінь виклику невідомий (`describe()`-шлях) — інстанс лишається
+        // як є: гейт `FsReadRootUnbound` спрацює на `detect`/`fix`, якщо
+        // хтось спробує ним щось запустити.
+        (_, None) => true,
+        (Some(cached), Some(wanted)) => cached == wanted,
+        // Інстанс без preopen-ів, а дерево тепер відоме — перезавантажити.
+        (None, Some(_)) => false,
+    }
+}
+
+/// Абсолютний корінь дерева з `cwd`-параметра napi-виклику.
+///
+/// `cwd` приходить із JS і за конвенцією вже абсолютний, але хост вимагає
+/// абсолютний шлях типізовано (`PluginHostError::RelativePreopenRoot`) —
+/// тож відносний тут дорезолвлюється РІВНО так само, як його вже резолвить
+/// решта fix/detect-шляху (`cwd_path.join(file)` у [`read_source_files`]):
+/// від cwd процесу. Так preopens і батч файлів гарантовано дивляться в
+/// одне дерево, яким би не був вхід.
+fn absolute_root(cwd: &Path) -> Result<PathBuf> {
+    if cwd.is_absolute() {
+        return Ok(cwd.to_path_buf());
+    }
+    let base = std::env::current_dir().map_err(|err| {
+        Error::from_reason(format!(
+            "не вдалось визначити cwd процесу для резолву відносного кореня `{}`: {err}",
+            cwd.display()
+        ))
+    })?;
+    Ok(base.join(cwd))
 }
 
 /// Ключі концернів (contributions), задекларовані wasm-плагіном за шляхом —
@@ -936,6 +1031,42 @@ fn ambiguous_empty_fix_batch_err(key: &str, scope_label: &str, diagnostics_count
     ))
 }
 
+/// Типізована помилка «діагностики назвали ЛИШЕ відсутні на диску файли, і
+/// відновити батч нема з чого» (§2.95, продовження §2.87).
+///
+/// # Чому це окремий випадок, а не «просто порожній batch»
+///
+/// Гейт [`ambiguous_empty_fix_batch_err`] дивиться на `target_files` ДО
+/// читання диска: якщо хоч одна діагностика назвала файл, виклик уважався
+/// однозначним. Але концерн класу «канонічного файлу БРАКУЄ»
+/// (`stryker-config-missing` у `plugins/lang-js/rules/test/stryker_config`,
+/// §2.80) називає у `file` рівно той шлях, якого НЕМАЄ — його й треба
+/// створити. [`read_source_files`] пропускає відсутні шляхи
+/// (`read_source_files_all_missing_returns_empty`), тож гість діставав
+/// ПОРОЖНІЙ `files` при непорожніх `diagnostics` — та сама двозначність
+/// #513, лише занесена з іншого боку, і мовчазна: план виходив порожній, а
+/// прогін звітував «чисто».
+///
+/// Порядок відновлення (у [`run_wasm_concern_fix`]) — від найбільш
+/// заявленого до найменш: `effective_fix_glob` контрибуції (гість сам
+/// оголосив свій fix-скоуп, §2.84/§2.87) → `delta_files` запиту → ця
+/// помилка. Порожній результат ГЛОБ-обходу помилкою НЕ вважається: там
+/// хост зробив рівно те, що концерн заявив, і «у дереві нічого не
+/// знайшлось» — факт про дерево, а не невизначеність хоста.
+fn missing_target_files_fix_batch_err(key: &str, target_files: &[String]) -> Error {
+    Error::from_reason(format!(
+        "runWasmConcernFix: концерн `{key}` — усі названі діагностиками файли відсутні на \
+         диску ({target_files:?}), а контрибуція не заявляє ані `fix-glob`, ані `glob`, і \
+         виклик не передав `delta_files`. Хост не має з чого побудувати FixRequest::files, а \
+         порожній batch при непорожніх diagnostics — та сама прихована вада, що PR #513: \
+         гість не відрізнив би «файлів немає» від «хост їх не передав» і мусив би писати \
+         наосліп. Штатний шлях для концерну класу «канонічного файлу бракує» — оголосити \
+         `fix-glob` контрибуції (§2.87): непорожній `fix-glob` вмикає full-scope fix-батч із \
+         union-ом названих діагностиками файлів. Див. доккомент \
+         missing_target_files_fix_batch_err (crates/rules-napi/src/lib.rs)."
+    ))
+}
+
 /// Виконує `detect` одного концерну wasm-плагіна — тонкий binding над
 /// `LoadedPlugin::detect` (задача K фази 6, full-scope міст — задача N2).
 /// Повертає ТУ САМУ форму `{"violations": [...]}`, що [`run_native_concern`]
@@ -1064,7 +1195,10 @@ pub fn run_wasm_concern_fix(
     }
 
     let resolver = build_tool_resolver(tool_paths);
-    let plan = with_loaded_plugin(&wasm_path, |plugin| {
+    // Корінь preopen-ів — те саме дерево, від якого резолвиться батч
+    // (§2.95, доккомент [`with_loaded_plugin_in_root`]).
+    let preopen_root = absolute_root(&cwd_path)?;
+    let plan = with_loaded_plugin_in_root(&wasm_path, Some(&preopen_root), |plugin| {
         // Full-scope fallback (задача порту T0-фіксера `js/check`, доккомент
         // `crates/plugin-lang-js/src/lib.rs`, секція «`js/check` — T0-фіксер
         // ПОРТОВАНО»): whole-batch концерни (`checkOxlintRc`/
@@ -1204,35 +1338,61 @@ pub fn run_wasm_concern_fix(
                 // ПОРОЖНІМ списком при непорожніх diagnostics і далі падає
                 // голосно (нижче), бо «дельта є, але порожня» — це стан
                 // викликача, а не заявлений full-прогін.
-                _ => match delta_files.as_deref() {
-                    Some(delta) if !delta.is_empty() => {
-                        read_source_files(&cwd_path, delta.to_vec())?
-                    }
-                    None if contribution
-                        .as_ref()
-                        .is_some_and(|c| !c.effective_fix_glob().is_empty()) =>
-                    {
-                        let glob = contribution
+                _ => {
+                    match delta_files.as_deref() {
+                        Some(delta) if !delta.is_empty() => {
+                            read_source_files(&cwd_path, delta.to_vec())?
+                        }
+                        None if contribution
                             .as_ref()
-                            .map(|c| c.effective_fix_glob().to_vec())
-                            .unwrap_or_default();
-                        build_full_scope_files(&cwd_path, &glob)?
-                    }
-                    _ => {
-                        let scope_label = contribution
+                            .is_some_and(|c| !c.effective_fix_glob().is_empty()) =>
+                        {
+                            let glob = contribution
+                                .as_ref()
+                                .map(|c| c.effective_fix_glob().to_vec())
+                                .unwrap_or_default();
+                            build_full_scope_files(&cwd_path, &glob)?
+                        }
+                        _ => {
+                            let scope_label = contribution
                             .as_ref()
                             .map(|c| format!("{:?}", c.scope))
                             .unwrap_or_else(|| "не заявлений ані у describe().concerns, ані у fix_only_concerns".to_string());
-                        return Err(ambiguous_empty_fix_batch_err(
-                            &key,
-                            &scope_label,
-                            diagnostics.len(),
-                        ));
+                            return Err(ambiguous_empty_fix_batch_err(
+                                &key,
+                                &scope_label,
+                                diagnostics.len(),
+                            ));
+                        }
                     }
-                },
+                }
             }
         } else {
-            read_source_files(&cwd_path, target_files.clone())?
+            // Батч із названих діагностиками файлів — і ПЕРЕВІРКА ФАКТИЧНОГО
+            // батчу, а не лише `target_files` (§2.95, доккомент
+            // [`missing_target_files_fix_batch_err`]): коли всі названі
+            // шляхи на диску відсутні (клас «канонічного файлу БРАКУЄ»),
+            // `read_source_files` віддає порожній список, і гість дістав би
+            // порожній `files` при непорожніх `diagnostics` — мовчки.
+            let batch = read_source_files(&cwd_path, target_files.clone())?;
+            if !batch.is_empty() {
+                batch
+            } else {
+                match contribution
+                    .as_ref()
+                    .map(ConcernContribution::effective_fix_glob)
+                {
+                    Some(glob) if !glob.is_empty() => build_full_scope_files(&cwd_path, glob)?,
+                    _ => match delta_files.as_deref() {
+                        Some(delta) if !delta.is_empty() => {
+                            read_source_files(&cwd_path, delta.to_vec())?
+                        }
+                        _ => {
+                            return Err(missing_target_files_fix_batch_err(&key, &target_files));
+                        }
+                    },
+                }
+            }
         };
         plugin.set_tool_resolver(resolver);
         // Слот `repo-root@1` host-контексту (доккомент `wit/world.wit` біля
@@ -1258,8 +1418,9 @@ pub fn run_wasm_concern_fix(
         // невідомий — діф пропускається (порожні знімки), поведінка
         // деградує до стану ДО цієї зміни, без нового захисту, але й без
         // регресії.
-        let diff_glob: Option<&[String]> =
-            contribution.as_ref().map(ConcernContribution::effective_fix_glob);
+        let diff_glob: Option<&[String]> = contribution
+            .as_ref()
+            .map(ConcernContribution::effective_fix_glob);
         let before_snapshot: HashMap<String, String> = match diff_glob {
             Some(glob) => build_full_scope_files(&cwd_path, glob)?
                 .into_iter()
@@ -1286,11 +1447,8 @@ pub fn run_wasm_concern_fix(
                 .into_iter()
                 .map(|f| (f.path, f.content))
                 .collect();
-            let covered: std::collections::HashSet<String> = plan
-                .edits
-                .iter()
-                .map(|e| e.path().to_string())
-                .collect();
+            let covered: std::collections::HashSet<String> =
+                plan.edits.iter().map(|e| e.path().to_string()).collect();
             plan.edits.extend(diff_snapshot_edits(
                 &before_snapshot,
                 &after_snapshot,
@@ -1322,7 +1480,10 @@ pub fn run_wasm_concern(
 ) -> Result<serde_json::Value> {
     let cwd_path = PathBuf::from(&cwd);
     let resolver = build_tool_resolver(tool_paths);
-    let diagnostics = with_loaded_plugin(&wasm_path, |plugin| {
+    // Корінь preopen-ів — те саме дерево, від якого резолвиться batch
+    // (§2.95, доккомент [`with_loaded_plugin_in_root`]).
+    let preopen_root = absolute_root(&cwd_path)?;
+    let diagnostics = with_loaded_plugin_in_root(&wasm_path, Some(&preopen_root), |plugin| {
         let source_files = match files {
             Some(files) => read_source_files(&cwd_path, files)?,
             None => {
@@ -1360,6 +1521,86 @@ mod tests {
     //! по собі НЕ нова (доккомент функції вже це стверджував), тест лише
     //! робить твердження перевіреним, а не декларативним.
     use super::*;
+
+    // --- §2.95: корінь preopen-ів = дерево виклику, не cwd процесу ---
+    //
+    // Наскрізний доказ («гість читає САМЕ передане дерево») живе там, де
+    // є гість із непорожнім `fs-read`:
+    // `crates/rules-plugin-host/tests/fs_read_preopen_root.rs`. Тут —
+    // рішення кешу, яке той доказ робить дійсним і в napi-мосту, де
+    // інстанс переживає багато викликів із РІЗНИМИ коренями.
+
+    /// Типовий випадок (усі чинні маніфести): `fs-read` порожній —
+    /// preopen-ів немає, корінь ні на що не впливає, кеш не має
+    /// перезавантажувати компонент через зміну `cwd`.
+    #[test]
+    fn preopen_root_satisfies_ignores_root_when_no_fs_read_declared() {
+        assert!(preopen_root_satisfies(
+            false,
+            None,
+            Some(Path::new("/tree/one"))
+        ));
+        assert!(preopen_root_satisfies(
+            false,
+            Some(Path::new("/tree/one")),
+            Some(Path::new("/tree/two"))
+        ));
+    }
+
+    /// Червоний-зелений якір §2.95 на боці кешу: інстанс, відкритий на
+    /// ІНШЕ дерево, для плагіна з `fs-read` НЕ придатний — інакше
+    /// `lint --path <інше-дерево>` після першого ж виклику читав би
+    /// перше дерево, мовчки.
+    #[test]
+    fn preopen_root_satisfies_requires_exact_root_match_for_fs_read_plugin() {
+        assert!(preopen_root_satisfies(
+            true,
+            Some(Path::new("/tree/one")),
+            Some(Path::new("/tree/one"))
+        ));
+        assert!(!preopen_root_satisfies(
+            true,
+            Some(Path::new("/tree/one")),
+            Some(Path::new("/tree/two"))
+        ));
+        // Інстанс без preopen-ів (завантажений `describe()`-шляхом), а
+        // дерево тепер відоме — перезавантажити, не кликати гостя в
+        // порожній пісочниці.
+        assert!(!preopen_root_satisfies(
+            true,
+            None,
+            Some(Path::new("/tree/one"))
+        ));
+    }
+
+    /// `describe()`-шлях (`wasmPluginConcerns`/`wasmPluginManifest`) кореня
+    /// не має й не потребує — інстанс переюзається як є. Гучність тут
+    /// забезпечує не кеш, а сам хост: `detect`/`fix` на плагіні без
+    /// прив'язаного кореня падає `FsReadRootUnbound`.
+    #[test]
+    fn preopen_root_satisfies_keeps_instance_when_call_has_no_root() {
+        assert!(preopen_root_satisfies(
+            true,
+            Some(Path::new("/tree/one")),
+            None
+        ));
+        assert!(preopen_root_satisfies(true, None, None));
+    }
+
+    /// Відносний `cwd` дорезолвлюється від cwd процесу — РІВНО як його вже
+    /// резолвить `read_source_files` (`cwd_path.join(file)`), тож preopens
+    /// і батч дивляться в одне дерево; абсолютний лишається як є.
+    #[test]
+    fn absolute_root_resolves_relative_cwd_the_same_way_batch_does() {
+        let absolute = PathBuf::from("/tree/one");
+        assert_eq!(absolute_root(&absolute).expect("абсолютний"), absolute);
+
+        let relative = PathBuf::from("sub/tree");
+        let expected = std::env::current_dir()
+            .expect("cwd процесу")
+            .join(&relative);
+        assert_eq!(absolute_root(&relative).expect("відносний"), expected);
+    }
 
     #[test]
     fn read_source_files_skips_missing_path_and_keeps_existing() {
@@ -1650,6 +1891,134 @@ mod tests {
         assert_eq!(edits[0]["type"], "write");
         assert_eq!(edits[0]["path"], "broken.marker");
         assert_eq!(edits[0]["content"], "FIXED content");
+    }
+
+    // --- §2.95/§2.80: діагностика назвала файл, якого на диску НЕМАЄ ---
+    //
+    // Клас «канонічного файлу БРАКУЄ» (`test/stryker_config`,
+    // `stryker-config-missing`): усі діагностики несуть `file`, але ЖОДЕН
+    // із цих шляхів не існує — він і має бути створений. `target_files`
+    // непорожній, тож жодна з fallback-гілок не вмикається, а
+    // `read_source_files` пропускає всі відсутні шляхи — гість дістає
+    // ПОРОЖНІЙ батч при непорожніх діагностиках і не відрізняє «у дереві
+    // нічого немає» від «хост нічого не передав».
+
+    /// §2.87 закрила цей клас для контрибуцій із ЯВНИМ `fix-glob`: батч
+    /// будується glob-обходом, а названі діагностиками файли доливаються
+    /// поверх. Тест доводить це наскрізно (гість реально переписав
+    /// знайдений на диску `broken.marker`) — тобто для порту
+    /// `test/stryker_config` форма host-мосту БІЛЬШЕ НЕ блокер.
+    #[test]
+    fn run_wasm_concern_fix_explicit_glob_survives_diagnostics_naming_missing_files() {
+        let wasm_path = require_guest_fixture();
+        let dir = tempfile::tempdir().expect("tmp dir");
+        std::fs::write(dir.path().join("broken.marker"), "BROKEN content").expect("marker file");
+        let violations = serde_json::json!([
+            {
+                "reason": "canonical-file-missing",
+                "message": "canonical-файл відсутній — його й треба створити",
+                "file": "stryker.config.mjs",
+                "severity": "error"
+            }
+        ]);
+
+        let result = run_wasm_concern_fix(
+            wasm_path.to_string_lossy().to_string(),
+            "test/guest-fix-explicit-glob".to_string(),
+            dir.path().to_string_lossy().to_string(),
+            violations,
+            None,
+            None,
+        );
+
+        let plan = result.expect("явний fix-glob має дати батч попри відсутній таргет діагностики");
+        let edits = plan["edits"].as_array().expect("edits — масив");
+        assert_eq!(
+            edits.len(),
+            1,
+            "батч мав прийти з glob-обходу диска, не з відсутнього таргета: {plan:?}"
+        );
+        assert_eq!(edits[0]["path"], "broken.marker");
+        assert_eq!(edits[0]["content"], "FIXED content");
+    }
+
+    /// Залишок того самого класу, який §2.87 НЕ закрила: контрибуція без
+    /// явного `fix-glob`. Гейт `ambiguous_empty_fix_batch_err` дивиться на
+    /// `target_files` ДО читання, тож «діагностика назвала лише відсутні
+    /// файли» проходила повз нього — гість діставав порожній батч і
+    /// звітував «чисто». Тепер хост падає назад на `effective_fix_glob`
+    /// (та сама гілка, що для «жодна діагностика не назвала файл»), і
+    /// непорожній `edits` доводить, що файли прийшли з диска.
+    #[test]
+    fn run_wasm_concern_fix_full_scope_recovers_when_named_files_are_all_missing() {
+        let wasm_path = require_guest_fixture();
+        let dir = tempfile::tempdir().expect("tmp dir");
+        std::fs::write(dir.path().join("broken.marker"), "BROKEN content").expect("marker file");
+        let violations = serde_json::json!([
+            {
+                "reason": "canonical-file-missing",
+                "message": "canonical-файл відсутній — його й треба створити",
+                "file": "stryker.config.mjs",
+                "severity": "error"
+            }
+        ]);
+
+        let result = run_wasm_concern_fix(
+            wasm_path.to_string_lossy().to_string(),
+            "test/guest-fix-full-scope".to_string(),
+            dir.path().to_string_lossy().to_string(),
+            violations,
+            None,
+            None,
+        );
+
+        let plan = result.expect("full-scope концерн має впасти назад на glob-обхід");
+        let edits = plan["edits"].as_array().expect("edits — масив");
+        assert_eq!(
+            edits.len(),
+            1,
+            "батч мав прийти з glob-обходу диска: {plan:?}"
+        );
+        assert_eq!(edits[0]["path"], "broken.marker");
+        assert_eq!(edits[0]["content"], "FIXED content");
+    }
+
+    /// Крайній випадок того самого класу: у контрибуції немає ЖОДНОГО
+    /// глоба (ані detect-, ані fix-), тобто відновити батч нема з чого.
+    /// Тоді — гучна типізована помилка, а не порожній батч мовчки: гість
+    /// не повинен вирішувати, писати йому наосліп чи ні.
+    #[test]
+    fn run_wasm_concern_fix_errors_loudly_when_named_files_missing_and_no_glob() {
+        let wasm_path = require_guest_fixture();
+        let dir = tempfile::tempdir().expect("tmp dir");
+        let violations = serde_json::json!([
+            {
+                "reason": "guest-delete",
+                "message": "діагностика назвала файл, якого немає",
+                "file": "no-such-file.txt",
+                "severity": "error"
+            }
+        ]);
+
+        let result = run_wasm_concern_fix(
+            wasm_path.to_string_lossy().to_string(),
+            "test/guest-fix-rewrite".to_string(),
+            dir.path().to_string_lossy().to_string(),
+            violations,
+            None,
+            None,
+        );
+
+        let err = result.expect_err("порожній батч при непорожніх діагностиках має падати гучно");
+        let message = err.to_string();
+        assert!(
+            message.contains("test/guest-fix-rewrite"),
+            "повідомлення має називати концерн: {message}"
+        );
+        assert!(
+            message.contains("no-such-file.txt"),
+            "повідомлення має називати шлях, якого не знайшлось: {message}"
+        );
     }
 
     /// `per-file` контрибуція з непорожнім glob-ом і `delta_files: None`
