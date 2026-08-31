@@ -13070,6 +13070,76 @@ field 'worlds' in initializer of rules_contract::manifest::Manifest`):
 (`tool-runner` для шести чинних гостей, доккомент `wit/world.wit`
 версійного блоку `5.0.0` і таблиця спеки §10) — не додати поле з нуля.
 
+### 2.110. Крок 3 контракту v5 — вибіркове лінкування підтверджено експериментом: `Linker` під оголошені світи, реєстр порожній до хвилі 1
+
+**Джерело:** `docs/specs/2026-08-31-plugin-contract-v5.md` §9 (крок 3 з §12).
+Задача: хост має будувати Component Model `Linker` під набір світів
+повноважень/поверхонь, які оголосив компонент, і гучно відхиляти невідомий
+світ — БЕЗ читання маніфесту (поле `manifest.worlds`, §8, — окрема
+паралельна хвиля 2; ця робота приймає перелік світів параметром).
+
+**Центральне технічне питання спеки закрито експериментом, не
+припущенням.** Перед правкою `crates/rules-plugin-host` перевірено поза
+деревом (три `wasm32-wasip2`-гості, зібрані `wit-bindgen` з реальним
+`wit`-фікстурним пакетом двох світів, і `wasmtime::component::Linker`
+проти них):
+
+1. `wasmtime::component::bindgen!` МОЖНА викликати кілька разів у одному
+   крейті для різних `world` — кожен виклик породжує незалежний модуль зі
+   своїм `Host`-трейтом (`<World>Imports`) і своєю
+   `<World>::add_to_linker_imports`, без взаємних конфліктів.
+2. `Linker<T>`, що має лише імпорти світу A, **гучно** валить
+   інстанціацію гостя, що реально імпортує щось зі світу B — повідомлення
+   wasmtime називає САМЕ відсутній імпорт (`component imports function
+   "cap-a-fn", but a matching implementation was not found in the
+   linker`), не тихий no-op і не крах без діагностики.
+3. Той самий `Linker`, розширений `add_to_linker_imports` світу B через
+   `Linker::clone()` (`Linker<T: 'static>` реалізує `Clone`), інстанціює
+   того самого гостя без перезбирання компонента чи Engine.
+4. `Linker` із ЗАЙВИМИ (не запитаними гостем) імпортами інстанціює гостя,
+   якому вони не потрібні, без жодного побічного ефекту.
+
+Тобто дизайн §9 («ядро + по одному модулю на кожен оголошений світ»)
+технічно спроможний рівно в тій формі, яку спека припускала.
+
+**Реалізовано.** `crates/rules-plugin-host/src/host.rs`:
+`PluginHost::base_linker` (перейменовано з `linker`) несе тепер лише WASI
+Preview 2 й ядровий світ `n-rules:plugin` — те, що належить кожному гостю
+за конструкцією (спека §8: «ядровий світ… не перелічується — його
+реалізують усі»). Новий `PluginHost::linker_for_worlds` клонує
+`base_linker` і розширює його через новий модуль
+`crates/rules-plugin-host/src/world_linker.rs` — реєстр
+`KNOWN_CAPABILITY_WORLDS: &[(&str, LinkFn)]`, який мапить
+WIT-ідентифікатор світу (`namespace:package/world@version`, формат §8) на
+функцію `add_to_linker_imports`; `extend_linker_for_worlds` гучно повертає
+`PluginHostError::UnknownWorld` на першому нерозпізнаному рядку. Нові
+публічні входи `PluginHost::load_for_worlds`/`load_in_root_for_worlds`
+приймають `declared_worlds: &[String]` параметром (не читають манфест —
+преамбула задачі); `load`/`load_in_root` лишились незмінними
+(делегують `&[]`), тож жоден з ~150 наявних викликів у тестах і
+`crates/rules-napi` не зачеплений.
+
+**Чому реєстр порожній — і чому це коректно, не недогляд.** Пакети
+`n-rules:caps`/`n-rules:surfaces` (хвиля 1, `wit/deps/caps/`,
+`wit/deps/surfaces/`) ще не злиті в це дерево, тож жодного WIT-ідентифікатора
+реального світу тут ще нема. Наслідок: сьогодні БУДЬ-ЯКИЙ непорожній
+`declared_worlds`-вхід гучно відхиляється як невідомий — рівно поведінка,
+яку вимагає п.3 послідовності §9. Коли хвиля 1 зіллється, підключення
+одного нового світу — це `bindgen!` на нього (окремий приватний модуль,
+той самий прийом, що `crate::wit`) + один рядок у
+`KNOWN_CAPABILITY_WORLDS`; жодної іншої правки `PluginHost` не потрібно.
+Інтеграція з `manifest.worlds` (після мержу з хвилею 2) — виклик на кшталт
+`host.load_for_worlds(path, version, &manifest.worlds)` замість
+`host.load(path, version)`, теж без правок цього модуля.
+
+**Цільові прогони:** `cargo test -p rules-plugin-host` — 139 тестів (11
+файлів: 19 unit у `src/` включно з двома новими в `world_linker.rs`, і 120
+у `tests/*.rs`, серед них `plugin_lang_js.rs` на 86), 0 провалів (гости
+`test-plugin-guest`/`plugin-ci-azure`/`plugin-ci-github`/`plugin-lang-js`/
+`plugin-lang-php` зібрані заново перед прогоном); `cargo build -p
+rules-napi` — компілюється без правок (сигнатури `load`/`load_in_root`
+незмінні); `cargo clippy -p rules-plugin-host --all-targets` — чисто.
+
 ### 2.111. Гейт додатковості `crates/rules-plugin-host/tests/v30_guest_additive_compat.rs` переморожений на мажор `5.0.0` — `main` знову зелений
 
 **Джерело:** мажор `5.0.0` (крок 2, §2.109) уже змерджений: `record
