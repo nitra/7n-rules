@@ -65,8 +65,10 @@ describe('buildConftestArgs', () => {
 })
 
 describe('runConftestBatch', () => {
-  test('кидає коли conftest відсутній у PATH і авто-install відключено', async () => {
-    // withBinRemovedFromPath сам виставляє N_CURSOR_NO_AUTO_INSTALL=1 — тест не тягне brew/scoop/curl
+  test('кидає коли conftest відсутній у PATH і в керованому кеші', async () => {
+    // withBinRemovedFromPath ізолює PATH і кеш-каталог (ensureToolProvisioned не має
+    // авто-install-кроку взагалі, тож N_CURSOR_NO_AUTO_INSTALL тут не читається — але
+    // helper однаково безпечний, бо ізоляція PATH/кешу — те, що реально потрібно)
     await withBinRemovedFromPath('conftest', async () => {
       await withTmpDir(async dir => {
         const fakeFile = join(dir, 'a.json')
@@ -82,13 +84,10 @@ describe('runConftestBatch', () => {
     })
   })
 
-  // runConftestBatch резолвить conftest (ensureToolAsync) ДО перевірки rego-каталогу —
-  // на чистому GitHub ubuntu-runner-і без прогрітого ensure-tool-кешу перший виклик тягне
-  // реальний GitHub Release-install (curl+tar), що може перевищити дефолтний
-  // vitest testTimeout=5000ms (той самий клас проблеми, що й cold npx cspell — див.
-  // cspell-fix.test.mjs). Тест не ізолює PATH/кеш (перевіряє «тул є, каталог нема»), тож
-  // покладатись на вже прогрітий кеш з іншого тесту небезпечно — піднімаємо timeout симетрично.
-  test('кидає коли rego-каталог не знайдено', { timeout: 30_000 }, async () => {
+  // runConftestBatch перевіряє rego-каталог ДО резолву conftest (ensureToolProvisioned,
+  // PATH → кеш → hard-fail, БЕЗ авто-встановлення) — цей тест більше не може випадково
+  // тригернути реальний GitHub Release-install, тож окремий піднятий timeout не потрібен.
+  test('кидає коли rego-каталог не знайдено', async () => {
     await withTmpDir(async dir => {
       const fakeFile = join(dir, 'a.json')
       writeFileSync(fakeFile, '{}')

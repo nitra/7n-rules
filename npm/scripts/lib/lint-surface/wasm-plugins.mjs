@@ -10,13 +10,16 @@
  * задекларовані зовнішні tool-залежності плагіна (напр. `"shellcheck@^0.9"`,
  * `"path:bun"`, `"npm:stylelint"` — схеми резолву, рішення В спеки
  * `docs/specs/2026-08-01-plugin-contract-v31-surfaces.md`, [`parseToolRef`]).
- * Для кожного запису резолвер кличе ensure-tool контур (`ensureToolAsync`,
- * `../ensure-tool.mjs`, injectable через `opts.ensureToolFn`) — будує мапу
+ * Для кожного запису резолвер кличе ensure-tool контур (`ensureToolProvisioned`,
+ * `../ensure-tool.mjs`, injectable через `opts.ensureToolFn`) — PATH → керований
+ * кеш → hard-fail, БЕЗ авто-встановлення (той самий принцип, що вже застосований
+ * до нативних concern-ів — `n-rules tools ensure` лишається явним запитом на
+ * install, не побічним ефектом резолву wasm-плагіна) — будує мапу
  * «ім'я тула (без semver-суфікса декларації) → абсолютний шлях», яку
  * `run_wasm_concern` (napi) перетворює на host-бічний `ToolResolver`
  * (`crates/rules-plugin-host/src/tool_resolver.rs`). Тул, якого ensure-tool
- * не знає (немає в `TOOLS`-реєстрі) чи не зміг поставити (мережа,
- * rate-limit) — `console.warn`, ПРОПУСКАЄТЬСЯ з мапи (skip-not-crash на
+ * не знає (немає в `TOOLS`-реєстрі), чи він не резолвиться ні з PATH, ні з
+ * керованого кешу — `console.warn`, ПРОПУСКАЄТЬСЯ з мапи (skip-not-crash на
  * рівні ОДНОГО tool-у, не плагіна) — виклик `run-tool` у самому
  * wasm-компоненті просто отримає типізовану помилку в `tool-output`
  * (`ToolResolver::run`, доккомент host-боку), не крашиться.
@@ -114,7 +117,7 @@ import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { ensureToolAsync } from '../ensure-tool.mjs'
+import { ensureToolProvisioned } from '../ensure-tool.mjs'
 import { loadNative } from '../native.mjs'
 import { resolveCmd } from '../../utils/resolve-cmd.mjs'
 
@@ -481,16 +484,17 @@ function parseToolRef(declared) {
 /**
  * Забезпечує наявність кожного задекларованого tool-у плагіна через
  * ensure-tool контур (задача N1, рішення Д спеки). Тул, якого ensure-tool
- * не знає (немає в `TOOLS`-реєстрі `ensure-tool.mjs`) чи не зміг поставити
- * (мережа, rate-limit, hard-fail під `N_CURSOR_NO_AUTO_INSTALL`) —
- * `console.warn`, ПРОПУСКАЄТЬСЯ з результуючої мапи (skip-not-crash на рівні
+ * не знає (немає в `TOOLS`-реєстрі `ensure-tool.mjs`) чи не резолвиться ні з
+ * PATH, ні з керованого кешу (`ensureToolProvisioned` — БЕЗ авто-install,
+ * remedy — `n-rules tools ensure`) — `console.warn`, ПРОПУСКАЄТЬСЯ з
+ * результуючої мапи (skip-not-crash на рівні
  * ОДНОГО tool-у, не плагіна загалом) — плагін і решта його tools лишаються
  * робочими; виклик `run-tool` у самому wasm-компоненті для ЦЬОГО tool-у
  * просто отримає типізовану помилку в `tool-output`
  * (`ToolResolver::run`), не крашиться.
  * @param {string} pluginName ім'я плагіна (лише для diagnostics-повідомлень)
  * @param {string[]} declaredTools `manifest.tools` — рядки виду `"shellcheck@^0.9"`
- * @param {(toolId: string) => Promise<string>} ensureToolFn ін'єкція `ensureToolAsync` (тести підміняють)
+ * @param {(toolId: string) => Promise<string>} ensureToolFn ін'єкція `ensureToolProvisioned` (тести підміняють)
  * @param {(cmd: string) => string | null} resolveCmdFn ін'єкція `resolveCmd` для схем `path:`/`npm:` (тести підміняють — інакше результат залежав би від PATH машини)
  * @param {string} cwd абсолютний корінь consumer-репо — база `node_modules/.bin` для схеми `npm:`
  * @returns {Promise<Record<string, string>>} ім'я тула (без semver-суфікса) → абсолютний шлях
@@ -620,7 +624,7 @@ async function buildWasmConcernMaps(cwd, ctx) {
  * @param {string} cwd абсолютний корінь consumer-репо (звідки читається `.n-rules.json`)
  * @param {{fetchFn?: typeof fetch, cacheDir?: string, env?: Record<string, string | undefined>, ensureToolFn?: (toolId: string) => Promise<string>, resolveCmdFn?: (cmd: string) => string | null, nativeFn?: typeof loadNative, builtinPinsDir?: string}} [opts] ін'єкції для тестів:
  *   `fetchFn` (дефолт — глобальний `fetch`), `cacheDir` (дефолт — `resolvePluginCacheDir`), `env` (дефолт — `process.env`),
- *   `ensureToolFn` (дефолт — `ensureToolAsync`), `resolveCmdFn` (дефолт — `resolveCmd`; тести підміняють, бо інакше
+ *   `ensureToolFn` (дефолт — `ensureToolProvisioned`), `resolveCmdFn` (дефолт — `resolveCmd`; тести підміняють, бо інакше
  *   схеми `path:`/`npm:` давали б різний `toolPaths` залежно від PATH машини), `nativeFn` (дефолт — `loadNative`, wiring-тести підміняють фейковим addon-ом),
  *   `builtinPinsDir` (дефолт — [`WASM_PLUGINS_DIR`], реальна `npm/wasm-plugins/`; тести ізолюють неіснуючим каталогом,
  *   щоб локальна wasm-збірка в робочому дереві не підмішувала builtin-контрибуції в контрольовані сценарії)
@@ -664,7 +668,7 @@ function resolveWasmConcernMaps(cwd, opts = {}) {
     fetchFn: opts.fetchFn ?? fetch,
     cacheDir: opts.cacheDir ?? resolvePluginCacheDir(env),
     env,
-    ensureToolFn: opts.ensureToolFn ?? ensureToolAsync,
+    ensureToolFn: opts.ensureToolFn ?? ensureToolProvisioned,
     resolveCmdFn: opts.resolveCmdFn ?? resolveCmd,
     nativeFn: opts.nativeFn ?? loadNative,
     builtinPinsDir: opts.builtinPinsDir ?? WASM_PLUGINS_DIR

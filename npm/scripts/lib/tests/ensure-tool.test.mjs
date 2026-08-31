@@ -89,6 +89,7 @@ afterAll(async () => {
 const {
   ensureTool,
   ensureToolAsync,
+  ensureToolProvisioned,
   ensureHkInstall,
   fetchLatestVersion,
   checkToolPinsFreshness,
@@ -141,6 +142,48 @@ describe('ensureTool', () => {
       if (prev === undefined) delete env['N_CURSOR_NO_AUTO_INSTALL']
       else env['N_CURSOR_NO_AUTO_INSTALL'] = prev
     }
+  })
+})
+
+describe('ensureToolProvisioned', () => {
+  beforeEach(() => {
+    resolveCmdMock.mockReset()
+    existsSyncMock.mockReset()
+    spawnSyncMock.mockReset()
+    withLockMock.mockReset()
+  })
+
+  afterEach(() => {
+    vi.clearAllMocks()
+  })
+
+  test('PATH hit → повертає абсолютний шлях, без install', async () => {
+    resolveCmdMock.mockReturnValue('/usr/local/bin/conftest')
+    await expect(ensureToolProvisioned('conftest')).resolves.toBe('/usr/local/bin/conftest')
+    expect(spawnSyncMock).not.toHaveBeenCalled()
+    expect(withLockMock).not.toHaveBeenCalled()
+  })
+
+  test('кеш hit → повертає шлях з кеш-каталогу, коли в PATH нема', async () => {
+    resolveCmdMock.mockReturnValue(null)
+    existsSyncMock.mockReturnValue(true)
+    await expect(ensureToolProvisioned('hk')).resolves.toMatch(HK_SUFFIX_RE)
+    expect(spawnSyncMock).not.toHaveBeenCalled()
+  })
+
+  test('невідомий тул → кидає', async () => {
+    await expect(ensureToolProvisioned('definitely-not-a-tool')).rejects.toThrow(UNKNOWN_TOOL_RE)
+  })
+
+  test('відсутній всюди → hard-fail з підказкою й вказівником на `tools ensure`, БЕЗ install і БЕЗ читання N_CURSOR_NO_AUTO_INSTALL', async () => {
+    resolveCmdMock.mockReturnValue(null)
+    existsSyncMock.mockReturnValue(false)
+    // На відміну від ensureTool/ensureToolAsync, тут навіть НЕ виставляємо
+    // N_CURSOR_NO_AUTO_INSTALL — auto-install тут ніколи не був опцією.
+    await expect(ensureToolProvisioned('conftest')).rejects.toThrow(CONFTEST_RE)
+    await expect(ensureToolProvisioned('conftest')).rejects.toThrow(/n-rules tools ensure conftest/)
+    expect(spawnSyncMock).not.toHaveBeenCalled()
+    expect(withLockMock).not.toHaveBeenCalled()
   })
 })
 

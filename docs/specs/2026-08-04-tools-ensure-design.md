@@ -34,10 +34,43 @@ fail-closed із install-підказкою. Це рівно чинний реж
 | Крок 4: hard-fail + підказка | `buildHint` | вже портовано (`install_hint`) |
 | Cross-process лок | `installWithCrossProcessLock` + `withLock` | mkdir-лок у `<git-common-dir>/n-rules/…` |
 
-Споживачі JS-`ensureTool` (лишаються на перехідний період): `k8s/manifests`,
-`rego/regal`, `rego/opa_check`, `docker/lib/docker-hadolint`,
-`run-conftest-batch`, `lint-surface/wasm-plugins`, `tool-pins-refresh`, а також
-зовнішній `plugins/ci-github` (публічний API пакета — Р6).
+Споживачі JS-`ensureTool` (лишаються на перехідний період, стан на дату
+документа): `k8s/manifests`, `rego/regal`, `rego/opa_check`,
+`docker/lib/docker-hadolint`, `run-conftest-batch`, `lint-surface/wasm-plugins`,
+`tool-pins-refresh`, а також зовнішній `plugins/ci-github` (публічний API
+пакета — Р6).
+
+**Оновлення (2026-09-01, §2.131 реєстру відкритих питань).** Перелік вище
+застарів — між написанням документа й цим виміром інші зрізи ПОРТУВАЛИ
+резолв п'яти з семи названих концернів у Rust, не чіпаючи `ensureToolAsync`:
+`k8s/manifests` (rego-рушій лишився у JS через `crate::conftest`, але сам
+`conftest` резолвиться нативно — `resolve_provisioned_tool`, TOOL_ID
+`"conftest"`), `rego/regal` → `crates/rules-core/src/concerns/rego_regal.rs`,
+`rego/opa_check` → `.../rego_opa_check.rs`, `docker/lib/docker-hadolint` →
+`.../docker_lint_hadolint.rs` (1:1 порт, доккомент модуля), плюс суміжні
+`k8s/kubeconform`/`k8s_manifests_kubescape` — усі fail-closed
+(`resolve_provisioned_tool`, БЕЗ install), той самий принцип, що
+задекларований на початку розділу 1. `tool-pins-refresh.mjs` виявився
+хибно зарахованим із самого початку — він імпортує `TOOLS`/`fetchLatestVersion`
+з `ensure-tool.mjs`, а не `ensureTool`/`ensureToolAsync`; версій він НІКОЛИ не
+встановлював. `plugins/ci-github` (греп по `plugins/ci-github/**/*.mjs`) не
+має жодного виклику `ensureTool`/`ensureToolAsync` у коді цього репо — пункт
+Р6 про публічний API пакета лишається чинним обмеженням (сигнатура `ensureTool`
+не змінюється), але як АКТИВНИЙ споживач у вимірі §2.131 не підтвердився.
+
+Реальний вимір на момент §2.131 (`grep -rl 'ensureToolAsync' npm/ | grep -v
+tests`): рівно ДВА виробничі виклики — `run-conftest-batch.mjs:78` (спільний
+conftest-раннер, який обслуговує ВСІ policy/rego-концерни JS-детект-шляху
+через `policy-lint-adapter.mjs`, а не сім окремих call-сайтів) і
+`lint-surface/wasm-plugins.mjs:667` (провіжн довільних `manifest.tools`,
+задекларованих зовнішніми wasm-плагінами — генеричний контур, не прив'язаний
+до конкретного тула). §2.131 портувала ОБИДВА: замінила виклик на новий
+`ensureToolProvisioned` (`ensure-tool.mjs`) — PATH → керований кеш →
+hard-fail, БЕЗ авто-install, дзеркало `resolve_provisioned_tool`/`install_hint`
+Rust-боку. Після цього порту жодного JS-виклику `ensureToolAsync`, що
+неявно (як побічний ефект лінт/детект-прогону) тягне авто-install, не
+лишилось — єдиний живий кличчик авто-install-гілки `ensureToolAsync` —
+`bridge-host.mjs`, тобто явний запит `n-rules tools ensure` (розділ 4 нижче).
 
 ## 3. Т1 — реєстр тулів: одне джерело правди, дані замість коду
 
@@ -114,6 +147,27 @@ JS-`ensureToolAsync`** через уже наявний ЗВОРОТНИЙ МІ�
 портований, реалізація завантаження переїжджає в Rust варіантом A (тоді це
 буде єдина реалізація, а не третя), а операція мосту й `ensure-tool.mjs`
 видаляються разом.
+
+**Стан критерію (2026-09-01, §2.131 реєстру).** За виміром розділу 2
+(оновлення там-таки) — усі implicit lint/detect-time споживачі
+`ensureToolAsync`, як вони існують СЬОГОДНІ (а не як їх перелічив документ на
+дату написання), портовані: пʼять із семи названих концернів мали власний
+нативний резолв ще ДО цього зрізу (окремими портами, не цим документом), а
+останні два живі виробничі виклики (`run-conftest-batch.mjs`,
+`lint-surface/wasm-plugins.mjs`) §2.131 перевела на fail-closed
+`ensureToolProvisioned` (PATH → кеш → hard-fail, БЕЗ install) — той самий
+принцип розділу 1. Єдиний живий шлях в `ensureToolAsync`, що досі МОЖЕ
+авто-встановити, — сам `bridge-host.mjs` (операція `ensureTool` для команди
+`n-rules tools ensure`), тобто явний запит користувача, не побічний ефект.
+
+Це означає: буквальна умова «останній JS-споживач розділу 2 портований» —
+виконана. Це НЕ означає «зробити варіант A» автоматично стає правильним
+наступним кроком у ЦІЙ задачі — §2.131 свідомо НЕ реалізувала варіант A
+(новий крейт-стек `ureq`+`flate2`+`tar`+`xz2`, зміни `deny.toml`/ліцензійного
+гейля, видалення `bridge-host.mjs`-операції й install-гілки `ensure-tool.mjs`
+— окрема, самостійна робота з власним рев'ю поверхні залежностей, а не
+побічний продукт порту двох consumer-ів). Зняття блокера Т2 — рішення
+власника проєкту, тепер РОЗБЛОКОВАНЕ вимірюванням, а не виконане цим PR.
 
 ## 5. Т3 — brew/scoop нативно
 
@@ -205,8 +259,12 @@ n-rules tools ensure [<tool>…] [--check]
   й пакета `@7n/rules` поруч; без них команда падає з чіткою помилкою мосту.
 - `ensureHkInstall` (реєстрація git-хука) до `tools ensure` не переїжджає — це
   не добування тула.
-- JS-`ensureTool` лишається чинним для 7 споживачів розділу 2; його видалення —
-  окремий зріз після їх портування.
+- JS-`ensureTool` лишається чинним публічним API пакета (Р6) і залишається
+  каналом `bridge-host.mjs` для `n-rules tools ensure`; станом на 2026-09-01
+  (§2.131 реєстру) implicit lint/detect-time споживачі розділу 2 — всі
+  портовані (розділ 2, оновлення). Видалення самого `ensure-tool.mjs`
+  install-коду й операції мосту — окремий зріз, що реалізує варіант A
+  (розділ 4, «Стан критерію»), не виконаний цим документом.
 - `tools list` не показує «версія встановленого бінарника» (лише закріплену):
   це вимагало б спавна кожного тула з різними прапорцями версії — окрема
   задача з власним реєстром, якщо колись знадобиться.

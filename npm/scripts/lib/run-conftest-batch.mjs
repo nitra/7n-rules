@@ -9,8 +9,14 @@
  * ризик дрифту (типу `spec.config` vs `spec.default.config` у
  * `health_check_policy.rego`, що ми ловили cross-check тестами).
  *
- * Hard-fail на відсутність `conftest` — через `ensureToolAsync`, що спочатку
- * намагається авто-встановити, і лише після невдачі кидає виняток.
+ * Hard-fail на відсутність `conftest` — через `ensureToolProvisioned` (PATH →
+ * керований кеш → hard-fail, БЕЗ авто-встановлення). Лінт/детект-прогін лише
+ * резолвить і чесно каже, чого бракує; добування тула — явний запит через
+ * `n-rules tools ensure conftest` (той самий принцип, що вже застосований до
+ * нативних concern-ів типу `k8s/kubeconform`, PR #378, і зафіксований §4
+ * мінідизайну `docs/specs/2026-08-04-tools-ensure-design.md` — цей модуль був
+ * останнім implicit-install споживачем `ensureToolAsync` серед policy-
+ * концернів, порт прибрав його з переліку розділу 2).
  *
  * Async (`spawnAsync`, не `spawnSync`) — детектор не блокує event loop, тож може
  * виконуватись у parallel lane `detectAll()` (ADR 260716-1354). Приймає опційний
@@ -21,7 +27,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { ensureToolAsync } from './ensure-tool.mjs'
+import { ensureToolProvisioned } from './ensure-tool.mjs'
 import { spawnAsync } from '../utils/spawn-async.mjs'
 
 /**
@@ -69,13 +75,13 @@ export function buildConftestArgs(p) {
 /**
  * Виконує `conftest test` для всіх файлів одним спавном і повертає масив
  * порушень. Якщо `files` порожній — повертає `[]` без спавна. Якщо `conftest`
- * не у PATH і авто-встановлення не вдалось — кидає виняток (hard fail).
+ * не у PATH і не в керованому кеші — кидає виняток (hard fail, БЕЗ
+ * авто-встановлення — `ensureToolProvisioned`, доккомент модуля).
  * @param {ConftestBatchOptions} opts параметри запуску
  * @returns {Promise<ConftestViolation[]>} масив порушень (порожній — все ок)
  */
 export async function runConftestBatch(opts) {
   if (opts.files.length === 0) return []
-  const conftestBin = await ensureToolAsync('conftest')
   // policyDirRel — формат `<rule>/<concern>` (наприклад `abie/base_deployment_preem`).
   // Flat concern path: rules/<rule>/<concern>/ (без проміжного `policy/`).
   const slash = opts.policyDirRel.indexOf('/')
@@ -85,6 +91,9 @@ export async function runConftestBatch(opts) {
   if (!existsSync(policyAbs)) {
     throw new Error(`runConftestBatch: rego-каталог не знайдено: ${policyAbs}`)
   }
+  // Резолв тула — ПІСЛЯ перевірки rego-каталогу: дешева валідація аргументів
+  // випереджає дорожчий (і тепер потенційно fail-closed) резолв зовнішнього бінарника.
+  const conftestBin = await ensureToolProvisioned('conftest')
   let tmpDataDir = null
   let tmpDataFile = null
   if (opts.templateData) {
