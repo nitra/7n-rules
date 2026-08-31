@@ -121,15 +121,26 @@ describe('declared_worlds — гейт продуктового napi-шляху 
     }
   )
 
-  test('маніфест декларує реальний worlds гостя (n-rules:caps/file-reader@1.0.0) → інстанціюється й describe() бачить world', async () => {
-    await withTmpDir(async dir => {
-      const validPath = join(dir, 'valid.wasm')
-      copyFileSync(RAW_WASM_PATH, validPath)
-      embedManifest(REAL_CRATE_DIR, 'lang-js', validPath)
+  test(
+    'маніфест декларує реальні worlds гостя (file-reader + coverage-provider, крок 6 §12) ' +
+      '→ інстанціюється й describe() бачить обидва',
+    async () => {
+      await withTmpDir(async dir => {
+        const validPath = join(dir, 'valid.wasm')
+        copyFileSync(RAW_WASM_PATH, validPath)
+        embedManifest(REAL_CRATE_DIR, 'lang-js', validPath)
 
-      const manifest = loadNative().wasmPluginManifest(validPath)
+        const manifest = loadNative().wasmPluginManifest(validPath)
 
-      expect(manifest.worlds).toEqual(['n-rules:caps/file-reader@1.0.0'])
-    })
-  })
+        // Крок 6 спеки `docs/specs/2026-08-31-plugin-contract-v5.md` §12
+        // (§2.123/§2.126 реєстру відкритих питань) додав ДРУГИЙ запис —
+        // `plugin-lang-js` тепер оголошує і `n-rules:caps/file-reader@1.0.0`
+        // (крок 5), і `n-rules:surfaces/coverage-provider@1.0.0` (крок 6).
+        expect(manifest.worlds).toEqual([
+          'n-rules:caps/file-reader@1.0.0',
+          'n-rules:surfaces/coverage-provider@1.0.0'
+        ])
+      })
+    }
+  )
 })

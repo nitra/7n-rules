@@ -15091,3 +15091,160 @@ LLM-етапів `docgen-judge` (135 рядків) — ЄДИНИЙ, що роб
 потім чиста трансформація, потім розширення `llm-consumer.wit` під
 ланцюг/batch (виміряне рішення, не заздалегідь), потім `docgen-gen`, і
 насамкінець host-бік `docgen-stage`.
+### 2.128. Крок 6 спеки v5 (§12) — `coverage-provider` закрито: `plugin-lang-js`, ЧЕТВЕРТИЙ і останній провайдер, окрема хвиля §2.123
+
+**Контекст.** §2.120 довела механізм слотового world-а («хост кличе export
+гостя») на `plugin-lang-rust`; §2.123 повторила його на `lang-python`/
+`lang-php` і свідомо винесла `lang-js` в окрему хвилю — 46 файлів канону
+(`plugins/lang-js/coverage-provider/**`), вп'ятеро більший обсяг за решту
+трьох разом. Ця задача — та хвиля, і вона закриває родину `coverage-provider`
+цілком: усі чотири мовні провайдери тепер реалізують
+`n-rules:surfaces/coverage-provider@1.0.0`.
+
+**Обсяг звужено свідомо, тим самим прийомом, що rust/python/php** — не
+байт-у-байт порт `js-collector.mjs` (Storybook browser-mode вимір, bun-native
+детекція, LLM-мутанти, multi-root монорепо-обхід), а один вимір `JS` з
+одним коренем. Звуження й причини задокументовані доккоментом секції над
+`collect_coverage_impl` (`crates/plugin-lang-js/src/lib.rs`):
+1. **ОДИН корінь**, не `resolveAllJsRoots` — той самий мотив, що rust/python/php.
+2. **Лише рядок `JS`, без `Vue (Storybook)`** — Storybook-вимір вимагає
+   Playwright Chromium, окремий named vitest-проєкт і власний
+   mutation-executor — цілком окремий контур поверх основного, не звуження
+   ТОГО САМОГО виміру.
+3. **Bun-native workspace-и не розпізнаються** — гість завжди йде через
+   `vitest run --coverage`.
+4. **Мутація — canonical Stryker-прогін, без `--mutate`-звуження й без
+   LLM-мутантів** — завжди повний `stryker run`, той самий контракт, що
+   full-режим `collectOneRoot` без `scope`.
+
+**Структурна різниця від трьох сусідів — `lang-js` УЖЕ ніс комбінований
+world.** На відміну від rust/python/php (голий `plugin` → `plugin` +
+`coverage-provider`), `plugin-lang-js` від кроку 5 (§2.92/§2.94/§2.119) уже
+ніс `plugin-file-reader` (`n-rules:caps/file-reader@1.0.0`, єдиний споживач
+— fix `bun/package_json`). Тому цей крок додає ТРЕТІЙ include, не другий:
+новий постійний файл `crates/rules-contract/wit/js-coverage-provider-guest.wit`
+(`include plugin; include n-rules:caps/file-reader@1.0.0 with { domain-error
+as file-reader-domain-error }; include n-rules:surfaces/coverage-provider@1.0.0
+with { domain-error as coverage-domain-error }`) — резолв звірено
+`wasm-tools component wit crates/rules-contract/wit` (exit 0) ДО написання
+коду гостя, той самий порядок дій, що §2.120. `plugin-file-reader.wit`
+лишився незайманим (самостійний довідковий world, більше нічого не змінює).
+
+**Mutation-звіт читається через `n-rules:caps/file-reader`, НЕ
+scratch-out** — єдина архітектурна відмінність від трьох сусідів
+(rust/python/php читають lcov/JSON виключно через `exec-tool`+scratch-out,
+бо жоден з них не має file-reader). `plugin-lang-js` УЖЕ мав file-reader,
+тож замість непевного CLI-перевизначення шляху Stryker-звіту
+(dot-notation nested-опцій — неперевірена поведінка) гість читає канонічний
+`reports/stryker/mutation.json` напряму через `read_file_bytes` — шлях,
+який ЗАВЖДИ пишеться туди канонічним `stryker.config.mjs` за вимогою
+сусіднього концерну цього самого гостя (`test/stryker_config`,
+`plugins/lang-js/rules/test/stryker_config/data/stryker_config/
+stryker.config.baseline.mjs:13`, `jsonReporter.fileName`). Не апроксимація,
+а прямий переюз механізму, який гість уже несе для іншого концерну.
+
+**Що зроблено.**
+1. **`crates/rules-contract/wit/js-coverage-provider-guest.wit`** — новий
+   ТРИЙНИЙ world (доккомент вище).
+2. **`crates/plugin-lang-js/src/lib.rs`** — `wit_bindgen::generate!`
+   перемкнутий з `plugin-file-reader` на `js-coverage-provider-guest`;
+   `Guest::collect_coverage` — порт `js-collector.mjs::collect` (звужений,
+   доккомент вище): `npm:vitest run --coverage --coverage.reporter=lcov
+   --coverage.reportsDirectory=<scratch>` (lcov через `exec-tool`+
+   scratch-out, `parse_lcov_totals` — той самий текстовий парсер, що
+   rust/python) → опційно `npm:stryker --version` (probe, чесний skip БЕЗ
+   помилки, коли недоступний — той самий `hasMutants`-дух, що rust/python)
+   → `npm:stryker run` (canonical config, без прапорців) →
+   `read_file_bytes("reports/stryker/mutation.json")` →
+   `parse_stryker_totals` (СТРУКТУРНИЙ парсер: мапа `files` → масив
+   `mutants` зі `status`, не захардкожений знімок — anti-drift правило
+   проєкту). `worlds` у `build_manifest()` розширено ДРУГИМ записом
+   (`n-rules:surfaces/coverage-provider@1.0.0`), `tools` — двома новими
+   (`npm:vitest`, `npm:stryker`).
+3. **`crates/plugin-lang-js/plugin.toml`** — синхронізовано (`worlds`,
+   `tools`) — ОДНОРЯДКОВИЙ масив `worlds` (не багаторядковий): ручний
+   парсер `read_declared_worlds` (`crates/rules-cli/src/plugin_cmd.rs`)
+   вимагає рівно один рядок, багаторядковий формат ламає
+   `embed-manifest` гучно (спіймано й виправлено в процесі — не мовчки).
+4. **Anti-drift тест `plugin_toml_concern_keys_match_describe`
+   (`crates/plugin-lang-js/src/lib.rs`) розширено перевіркою `worlds`** —
+   ГЕЙТ, ЯКОГО НЕ БУЛО навіть у кроці 5 (rust/python/php мали його з
+   §2.120/§2.123, `lang-js` — ні, до цього кроку). Закрито мовчазний
+   пропуск попередньої хвилі, не задубльовано його.
+5. **`crates/rules-plugin-host/tests/surfaces_coverage_provider_js_gate.rs`**
+   (новий) — четвертий гейт кроку 6, за зразком трьох наявних
+   (`surfaces_coverage_provider_{gate,python_gate,php_gate}.rs`), ТІ САМІ
+   три твердження (позитивний round-trip з маркером+echo `cwd`, типізована
+   `domain-error::failed` крізь ABI, негативна половина
+   `SurfaceNotDeclared`) — АЛЕ негативний тест структурно ІНШИЙ: на
+   відміну від трьох сусідів (`PluginHost::load` без жодного world-а —
+   coverage-provider export-only, на інстанціацію не впливає), тут
+   `js-coverage-provider-guest` СТРУКТУРНО вимагає file-reader для
+   ІНСТАНЦІАЦІЇ (компонент реально імпортує `list-files`/`read-file-bytes`
+   незалежно від того, чи тіло методу їх викликає). Негативний тест тому
+   заявляє РІВНО file-reader (без coverage-provider) — точний відповідник
+   стану `lang-js` ДО цього кроку (крок 5) — і доводить, що декларація
+   ОДНОГО world-а не «протікає» дозвіл на ІНШИЙ; задокументовано в
+   доккоменті файлу як точніший, не слабший доказ.
+6. **`crates/rules-plugin-host/tests/plugin_lang_js.rs`** — спільний
+   хелпер `lang_js_worlds()` (використовується usіма 93 тестами файлу)
+   розширено ДРУГИМ world-ом; два захардкоджені `assert_eq!`
+   (`manifest.worlds`, `manifest.tools`) синхронізовано з новим станом
+   `build_manifest()`.
+7. **`npm/scripts/lib/lint-surface/tests/wasm-declared-worlds-gate.test.mjs`**
+   — тест, що звіряє РЕАЛЬНИЙ `plugin-lang-js/plugin.toml` через
+   продуктовий napi-шлях, мав захардкоджене `expect(manifest.worlds).toEqual([
+   'n-rules:caps/file-reader@1.0.0'])` — розширено на обидва world-и, назву
+   тесту оновлено.
+
+**Пастка процесу, зафіксована для наступних хвиль.** `require_fresh_fixture`
+(`crates/rules-plugin-host/tests/common/mod.rs`) звіряє mtime `.wasm` проти
+НАЙНОВІШОГО файлу в `crates/<crate>` — включно з `plugin.toml`. Редагування
+`plugin.toml` (форматування `worlds` на один рядок) ПІСЛЯ збірки `.wasm`
+зробило артефакт «застарілим» за цим гейтом, хоча вміст компонента не
+змінився — cargo не перезаписав бінарник, бо джерело (`src/`) не мінялось.
+Виправлення — `touch src/lib.rs` перед повторною збіркою (форсує
+перекомпіляцію й оновлює mtime артефакту), а не ігнорування гейту.
+
+**Цільові прогони (усі синхронно, без фонових процесів):**
+- `cargo check -p plugin-lang-js` — 0 помилок (перший прогін після
+  написання коду, без жодної правки під компілятор).
+- `cargo test -p plugin-lang-js --lib` — 491 passed (наявні, без приросту
+  — `collect_coverage_impl` кличе host-імпорти й тому тестований лише
+  живим гейтом, той самий підхід, що rust/python/php).
+- `cargo test -p rules-plugin-host --test surfaces_coverage_provider_js_gate`
+  — 3 passed (новий гейт).
+- `cargo test -p rules-plugin-host --test surfaces_coverage_provider_gate`
+  / `..._python_gate` / `..._php_gate` / `--test caps_file_reader_gate` —
+  3/3/3/2 passed (контрольні групи, наявні гейти не зачеплені).
+- `cargo test -p rules-plugin-host --lib` — 22 passed.
+- `cargo test -p rules-plugin-host --test plugin_lang_js` — 93 passed
+  (після синхронізації `lang_js_worlds()`/двох захардкоджених `assert_eq!`).
+- `cargo test -p rules-plugin-host` (повний, без фільтра) — 167 passed, 1
+  ignored (16 suites) — регресія по всьому крейту.
+- `cargo test -p rules-cli` — 119 passed (2 suites) — контроль, що зміна
+  формату `worlds` у `plugin.toml` не зачепила `plugin_cmd`.
+- `cargo check --workspace` — чисто.
+- `cargo build --release -p rules-cli` / `cargo build --release -p
+  rules-napi` — OK (передумови `embed-manifest`/napi-тестів).
+- `node npm/scripts/build-wasm-plugins.mjs` — усі шість гостей зібрані під
+  `wasm32-wasip3` і зманіфестовані (включно з `plugin-lang-js`, що тепер
+  несе `collect-coverage`).
+- `bash crates/test-plugin-guest/build.sh` — контрольна фікстура
+  перезібрана.
+- `N_RULES_NATIVE_ADDON=$PWD/target/release/librules_napi.dylib npx vitest
+  run npm/scripts/lib/lint-surface/tests/wasm-declared-worlds-gate.test.mjs
+  npm/scripts/tests/build-wasm-plugins.test.mjs
+  npm/scripts/lib/lint-surface/tests/wasm-plugin-parity.test.mjs` — 330
+  passed, 0 failed (реальний napi-шлях + parity-гейт JS-провайдера).
+
+**Родина `coverage-provider` закрита цим кроком** — усі чотири
+(`rust`/`python`/`php`/`js`) провайдери реалізують
+`n-rules:surfaces/coverage-provider@1.0.0`. Крок 7 спеки §12 (`docgen` як
+гість) лишається наступним і найбільшим окремим кроком порядку реалізації,
+поза обсягом цієї задачі.
+
+`npx @7n/rules lint` і `/doc-files` свідомо НЕ запускались (правило
+задачі, worktree-хвиля для JS-варіанта відкладена) — CRC у frontmatter
+доки `crates/plugin-lang-js/docs/*.md` (за наявності) стане застарілим;
+регенерація — окремим кроком, поза обсягом цієї задачі.

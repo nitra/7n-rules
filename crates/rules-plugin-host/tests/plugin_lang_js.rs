@@ -130,11 +130,23 @@ fn host() -> PluginHost {
 /// лінкера без них; доккомент `crate::world_linker` у
 /// `rules-plugin-host/src`). Тому КОЖЕН `.load*` цього файлу передає
 /// цей перелік — не лише тести, що реально фіксять `bun/package_json`.
+///
+/// Крок 6 спеки §12 (`collect-coverage`, §2.126 реєстру відкритих питань)
+/// додав ДРУГИЙ запис — `n-rules:surfaces/coverage-provider@1.0.0`.
+/// Coverage-provider — export-only world (жодного import-у, доккомент
+/// `world_linker::link_coverage_provider`), тож його присутність тут НЕ
+/// впливає на жодну з наявних detect/fix-перевірок нижче — додано лише
+/// заради відповідності РЕАЛЬНОМУ `manifest.worlds` гостя.
 /// `&'static [String]` не можна виразити константою напряму
 /// (`String::from` не `const fn`), тож — лінивий-раз-побудований масив.
 fn lang_js_worlds() -> &'static [String] {
     static WORLDS: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
-    WORLDS.get_or_init(|| vec!["n-rules:caps/file-reader@1.0.0".to_string()])
+    WORLDS.get_or_init(|| {
+        vec![
+            "n-rules:caps/file-reader@1.0.0".to_string(),
+            "n-rules:surfaces/coverage-provider@1.0.0".to_string(),
+        ]
+    })
 }
 
 #[test]
@@ -203,7 +215,14 @@ fn describe_declares_all_concerns_with_expected_scopes() {
             "npm:jscpd".to_string(),
             // §2.86: `js/eslint` пише ним механічну заміну на диск ДО спавну
             // лінтерів — перший тул цього компонента, чий споживач фіксер.
-            "path:tee".to_string()
+            "path:tee".to_string(),
+            // Крок 6 спеки `docs/specs/2026-08-31-plugin-contract-v5.md`
+            // §12 (`collect-coverage`, §2.126 реєстру відкритих питань):
+            // `npm:vitest` (line coverage) і `npm:stryker` (мутаційне
+            // тестування) — доккомент секції над `collect_coverage_impl`
+            // у `crates/plugin-lang-js/src/lib.rs`.
+            "npm:vitest".to_string(),
+            "npm:stryker".to_string()
         ]
     );
 
@@ -245,8 +264,16 @@ fn describe_declares_all_concerns_with_expected_scopes() {
     );
 
     // Крок 5 спеки `docs/specs/2026-08-31-plugin-contract-v5.md`: ПЕРША
-    // декларація world-а повноважень будь-яким first-party гостем.
-    assert_eq!(manifest.worlds, vec!["n-rules:caps/file-reader@1.0.0".to_string()]);
+    // декларація world-а повноважень будь-яким first-party гостем. Крок 6
+    // §12 (§2.126 реєстру відкритих питань) додав ДРУГИЙ запис —
+    // `collect-coverage`.
+    assert_eq!(
+        manifest.worlds,
+        vec![
+            "n-rules:caps/file-reader@1.0.0".to_string(),
+            "n-rules:surfaces/coverage-provider@1.0.0".to_string(),
+        ]
+    );
 
     // §2.87 — ПЕРШИЙ реальний непорожній `fix-glob` цього гостя (поле
     // існує з мажора `4.0.0`, але до §2.87 його не заявляв ніхто, тож і не

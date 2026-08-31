@@ -1,0 +1,40 @@
+// Комбінований world РЕАЛЬНОГО гостя `crates/plugin-lang-js` (крок 6 спеки
+// `docs/specs/2026-08-31-plugin-contract-v5.md` §12, «coverage-provider як
+// перша слотова поверхня» — ЧЕТВЕРТИЙ і останній провайдер, лишений §2.123
+// окремою хвилею). Без `package`-рядка — файл лежить поряд із `world.wit`,
+// тож належить ТІЙ САМІЙ директорійній package-групі (`n-rules:plugin@5.0.0`),
+// той самий прийом, що `rust-coverage-provider-guest.wit`/
+// `python-coverage-provider-guest.wit`/`php-coverage-provider-guest.wit`.
+//
+// # ТРИ include, не два — на відміну від решти трьох провайдерів
+//
+// `plugin-lang-js` — ЄДИНИЙ із чотирьох гостей, що вже ніс комбінований
+// world ДО цього кроку (`plugin-file-reader.wit`, крок 5 спеки: `bun/
+// package_json` читає диск через `n-rules:caps/file-reader@1.0.0`). Три
+// сусіди (`rust`/`python`/`php`) додавали coverage-provider до ГОЛОГО
+// `plugin`; тут — до ВЖЕ комбінованого. `plugin-file-reader.wit` лишається
+// на місці незайманим (файл нікуди не дівається, лишається самостійним
+// довідковим world-ом на випадок, якщо колись знадобиться «лише
+// file-reader» без coverage-provider) — цей файл додає ТРЕТІЙ, окремий
+// world, а не редагує наявний.
+//
+// Обидва `with { domain-error as … }` — ОБОВ'ЯЗКОВІ й НЕЗАЛЕЖНІ:
+// `plugin`/`n-rules:caps/file-reader@1.0.0`/`n-rules:surfaces/
+// coverage-provider@1.0.0` кожен оголошує ВЛАСНИЙ локальний `variant
+// domain-error` (структурно ідентичні — `not-supported`/`failed(string)`,
+// доккоменти `deps/caps/file-reader.wit`/`deps/surfaces/
+// coverage-provider.wit`) У ТІЛІ world-а, а не в спільному інтерфейсі. Без
+// перейменування ОБОХ `wasm-tools`/`wit-bindgen` бачать три одноіменних
+// локальних типи при об'єднанні («import of `domain-error` shadows
+// previously imported items») — та сама пастка, що вже задокументована в
+// `caps_file_reader_gate.rs::GATE_WIT` і перенесена в `plugin-file-reader.wit`.
+//
+// Синтаксис і резолв перевірено `wasm-tools component wit
+// crates/rules-contract/wit` ДО того, як `crates/plugin-lang-js/src/lib.rs`
+// почав на нього спиратись (той самий порядок дій, що доккомент
+// `rust-coverage-provider-guest.wit`).
+world js-coverage-provider-guest {
+  include plugin;
+  include n-rules:caps/file-reader@1.0.0 with { domain-error as file-reader-domain-error }
+  include n-rules:surfaces/coverage-provider@1.0.0 with { domain-error as coverage-domain-error }
+}
