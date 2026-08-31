@@ -99,6 +99,26 @@ struct LintRun {
     rules: Vec<String>,
 }
 
+/// Чи спрацьовує native-фікс БЕЗ явного `--native-fix` — крок 3 плану
+/// `docs/specs/2026-08-31-full-rust-migration-plan.md`: прапорець перестав
+/// бути потрібним для форми виклику, яку `fix_cmd::run` і так підтримує
+/// (§2.104 реєстру відкритих питань пояснює межу: `fix_cmd` бере РІВНО
+/// перелік ключів `rule/concern`, не весь lint-план, тож дефолт можна
+/// перемкнути безпечно лише для цієї форми — бо для голого `lint` без
+/// ключів `fix_cmd::run` одразу впав би на «бракує ключа concern-а»).
+///
+/// Умови: є хоча б один позиційний аргумент, і ВСІ вони мають вигляд
+/// `rule/concern` (містять `/`) — голий фільтр за назвою правила
+/// (`lint text`) під евристику не підпадає, бо `fix_cmd` таких не приймає;
+/// `--no-fix` (детекція) і `--no-native-fix` (аварійний люк) вимикають
+/// евристику явно.
+fn native_fix_default_applies(parsed: &LintArgs) -> bool {
+    !parsed.no_fix
+        && !parsed.no_native_fix
+        && !parsed.rules.is_empty()
+        && parsed.rules.iter().all(|rule| rule.contains('/'))
+}
+
 /// Чи ввімкнено native-шлях (прапорець або env).
 fn native_enabled(parsed: &LintArgs) -> bool {
     if parsed.native_detect {
@@ -136,11 +156,18 @@ fn resolve_args(parsed: &LintArgs, process_cwd: &Path) -> Result<LintRun, String
     })
 }
 
+/// Прапорець аварійного люка назад у JS fix-конвеєр — вирізається з argv
+/// перед делегацією так само, як [`crate::fix_cmd::NATIVE_FIX_FLAG`]
+/// (JS-CLI про нього не знає).
+const NO_NATIVE_FIX_FLAG: &str = "--no-native-fix";
+
 /// Точка входу підкоманди. `args` — argv ПІСЛЯ `lint` (для делегації як є).
 pub fn run(parsed: &LintArgs, args: &[String]) -> ExitCode {
     // Native-фікс — окрема поверхня зі своїм прапорцем: не плутається з
-    // детекційним native-шляхом і не змінює дефолтну делегацію.
-    if parsed.native_fix {
+    // детекційним native-шляхом і не змінює дефолтну делегацію. Крок 3
+    // плану full-rust-migration зробив її дефолтною для власної
+    // підтримуваної форми виклику — доккомент [`native_fix_default_applies`].
+    if parsed.native_fix || native_fix_default_applies(parsed) {
         return crate::fix_cmd::run(parsed);
     }
     if !native_enabled(parsed) {
@@ -179,13 +206,17 @@ pub fn run(parsed: &LintArgs, args: &[String]) -> ExitCode {
     }
 }
 
-/// Делегація з відрізаним власним прапорцем: JS-CLI про `--native-detect`
-/// не знає (він його мовчки проігнорував би, але чистий argv надійніший).
+/// Делегація з відрізаними власними прапорцями: JS-CLI про них не знає
+/// (вона їх мовчки проігнорувала б, але чистий argv надійніший).
 fn delegate(args: &[String]) -> ExitCode {
     let mut argv = vec!["lint".to_string()];
     argv.extend(
         args.iter()
-            .filter(|a| *a != NATIVE_FLAG && *a != crate::fix_cmd::NATIVE_FIX_FLAG)
+            .filter(|a| {
+                *a != NATIVE_FLAG
+                    && *a != crate::fix_cmd::NATIVE_FIX_FLAG
+                    && *a != NO_NATIVE_FIX_FLAG
+            })
             .cloned(),
     );
     js_fallback::delegate(&argv)
@@ -745,6 +776,54 @@ mod tests {
     fn native_path_is_opt_in() {
         assert!(!native_enabled(&lint_args(&["--no-fix"])));
         assert!(native_enabled(&lint_args(&["--no-fix", NATIVE_FLAG])));
+    }
+
+    /// Крок 3 плану full-rust-migration: `rule/concern`-ключі без прапорця
+    /// вже вмикають native-фікс — колишній `--native-fix` більше не
+    /// потрібен для цієї форми виклику.
+    #[test]
+    fn native_fix_default_applies_to_bare_concern_keys() {
+        assert!(native_fix_default_applies(&lint_args(&[
+            "text/forbidden-prettier"
+        ])));
+        assert!(native_fix_default_applies(&lint_args(&[
+            "text/forbidden-prettier",
+            "rego/opa_check"
+        ])));
+    }
+
+    /// Голий `lint` (без ключів) не підпадає — `fix_cmd::run` одразу впав
+    /// би на «бракує ключа concern-а»: default-шлях фіксу голого прогону
+    /// лишається JS-поверхнею (доккомент модуля `fix_cmd`).
+    #[test]
+    fn native_fix_default_does_not_apply_without_rules() {
+        assert!(!native_fix_default_applies(&lint_args(&[])));
+    }
+
+    /// Голий фільтр за назвою правила (без `/`) — не ключ concern-а,
+    /// `fix_cmd` його не приймає, тож евристика не спрацьовує і команда
+    /// й далі йде звичним шляхом (делегація чи `--native-detect`).
+    #[test]
+    fn native_fix_default_does_not_apply_to_bare_rule_names() {
+        assert!(!native_fix_default_applies(&lint_args(&["text"])));
+        assert!(!native_fix_default_applies(&lint_args(&[
+            "text/forbidden-prettier",
+            "text"
+        ])));
+    }
+
+    /// `--no-fix` (детекція) і `--no-native-fix` (аварійний люк) вимикають
+    /// евристику явно, навіть коли `rules` мають форму `rule/concern`.
+    #[test]
+    fn native_fix_default_respects_opt_outs() {
+        assert!(!native_fix_default_applies(&lint_args(&[
+            "text/forbidden-prettier",
+            "--no-fix"
+        ])));
+        assert!(!native_fix_default_applies(&lint_args(&[
+            "text/forbidden-prettier",
+            "--no-native-fix"
+        ])));
     }
 
     #[test]
