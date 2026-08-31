@@ -14,7 +14,6 @@ resource: npm/scripts/
 | [ensure-n-rules-dev-dependencies.mjs](ensure-n-rules-dev-dependencies.md) | JS Module |
 | [github-package-release.mjs](github-package-release.md)                   | JS Module |
 | [hook.mjs](hook.md)                                                       | JS Module |
-| [post-tool-use-check.mjs](post-tool-use-check.md)                         | JS Module |
 | [release-smoke.mjs](release-smoke.md)                                     | JS Module |
 | [rename-yaml-extensions.mjs](rename-yaml-extensions.md)                   | JS Module |
 | [skills-cli.mjs](skills-cli.md)                                           | JS Module |

@@ -27,10 +27,27 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join, relative } from 'node:path'
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
+import { parse } from 'yaml'
 
-import { parseWorkflowYaml } from '@7n/rules/scripts/lib/gha-workflow.mjs'
 import { resolveCmd } from '@7n/rules/scripts/utils/resolve-cmd.mjs'
 import { walkDir } from '@7n/rules/scripts/utils/walkDir.mjs'
+
+/**
+ * Парсить workflow YAML у звичайний об’єкт; при синтаксичній помилці — `null`.
+ * Інлайн-копія колишньої `parseWorkflowYaml` з видаленого `scripts/lib/gha-workflow.mjs`
+ * (Rust-порт: `crates/rules-template-merge/src/lib.rs:193`) — тут потрібен лише сам
+ * YAML-parse, а не решта аналітичних хелперів того модуля.
+ * @param {string} content вміст файлу
+ * @returns {Record<string, unknown> | null} корінь документа або `null`
+ */
+function parseWorkflowYaml(content) {
+  try {
+    const root = parse(content)
+    return root && typeof root === 'object' ? /** @type {Record<string, unknown>} */ (root) : null
+  } catch {
+    return null
+  }
+}
 
 const here = dirname(fileURLToPath(import.meta.url))
 
