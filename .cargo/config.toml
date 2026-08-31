@@ -1,0 +1,16 @@
+# cspell:ignore kellnr
+#
+# Реєстр `kellnr` (crates.7n.ai) — приватний cargo-реєстр організації, куди
+# опубліковано `oci-dist-package`/`oci-dist-oci` (задача Д2 плану
+# `docs/plans/2026-08-31-full-rust-migration-plan.md`: публікація кожного
+# first-party wasm-плагіна як власного OCI-артефакта). До цієї задачі жоден
+# крейт воркспейсу на нього не залежав, тож алiасу не було взагалі —
+# заведено тут, а не в `~/.cargo/config.toml`, щоб залежність від kellnr
+# була відтворюваною з чистого чекауту, а не з локальної машини розробника.
+#
+# Sparse-індекс (не git) — той самий протокол, що crates.io з 1.68:
+# кореневий `config.json` живе на `<index>/config.json`, звідти й перевірено
+# `curl https://crates.7n.ai/api/v1/crates/config.json` →
+# `{"dl":"https://crates.7n.ai:443/api/v1/crates/dl", "api":"https://crates.7n.ai:443", "auth-required":false}`.
+[registries.kellnr]
+index = "sparse+https://crates.7n.ai/api/v1/crates/"
