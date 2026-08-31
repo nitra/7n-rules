@@ -36,19 +36,61 @@ wasmtime = { version = "48.0", default-features = false, features = [
   # існує лише під цією feature (`impl From<wasmtime::Error> for
   # anyhow::Error`, `wasmtime-internal-core/src/error/error.rs`).
   "anyhow",
+  # Component Model async ABI (`stream`/`future`, WASI 0.3) — потрібна
+  # `p3`-фічі `wasmtime-wasi` нижче (спека
+  # `docs/specs/2026-08-31-plugin-contract-v5.md`, розділ 10.1). Пряме
+  # transitive-ребро: `wasmtime-wasi/p3 = ["wasmtime/component-model-async",
+  # "wasmtime/component-model-bytes"]` — пінуємо тут ЯВНО, а не покладаємось
+  # на те, що cargo підтягне сам: обидва крейти той самий релізний потяг
+  # (доккомент піна `wasmtime-wasi` нижче), і явний пін тут документує ЧОМУ
+  # ця фіча ввімкнена, а не лише ЩО.
+  "component-model-async",
+  "component-model-bytes",
+  # Component-model-async вимагає `async`-виконання (host-функції p3-WASI
+  # повертають futures, обертання `wasmtime::component::Linker::instantiate_async`/
+  # `TypedFunc::call_async`, доккомент `PluginHost` у `src/host.rs`).
+  "async",
 ] }
-# WASI Preview 2 host-реалізація (той самий пін-каданс, що й `wasmtime`
-# вище — обидва крейти з одного релізного потяга bytecodealliance/wasmtime,
-# тому версії тримаються синхронно). Дає `wasmtime_wasi::p2::WasiCtxBuilder`
-# для preopen-ів за capabilities (рішення Е спеки) — мережа заборонена за
-# замовчуванням через `WasiCtx`-політику (`allow_tcp`/`allow_udp`/
-# `allow_ip_name_lookup` лишаються `false`, доккомент `PluginHost::new` у
-# `src/host.rs`), не через відсутність wasi:sockets у `Linker`.
+# WASI-хост-реалізація — ОБИДВІ лінії, Preview 2 ТА Preview 3, ОДНОЧАСНО
+# (спека, розділ 10.1: перехід гостей на `wasm32-wasip3` — БЕЗ негайного
+# видалення `p2`). Причина дуальності — НЕ інерція: `wasmtime_wasi::WasiCtx`/
+# `WasiCtxView`/`WasiView` — ОДИН СПІЛЬНИЙ тип для обох ліній (top-level
+# ре-експорт, не p2/p3-специфічний), і `p2::add_to_linker_sync` +
+# `p3::add_to_linker` реєструються на ОДНОМУ й тому самому `Linker`
+# без конфлікту (звірено експериментально — окремий wasip2-гість
+# `test-plugin-guest`, зібраний ДО цієї хвилі, і новий wasip3-гість
+# `plugin-lang-php` інстанціюються через ОДИН і той самий async-лінкер,
+# `describe()` повертає коректні дані для обох). Причина дуальності —
+# `npm/skills/wasm-plugin/template/build.sh` (протектована зона паралельної
+# хвилі, `crates/rules-plugin-host/tests/wasm_plugin_skill_smoke.rs` і
+# `tests/guest_additive_compat.rs::v50_guest_loads_and_detects_on_current_host`
+# скаффолдять гостя через ЦЕЙ шаблон) СЬОГОДНІ ще генерує `wasm32-wasip2`
+# — негайне видалення `p2` тут поламало б обидва тести гучно заради
+# половинчастого переходу (правило проєкту: половинчаста міграція гірша за
+# жодну). Видалення `p2` лишається наступним кроком — ПІСЛЯ того, як окрема
+# хвиля мігрує шаблон скіла на `wasm32-wasip3` (відкрите питання, реєстр
+# `docs/plans/2026-08-05-open-questions-register.md`).
+#
+# `wasmtime-wasi` 48.0.1 несе `p3` як ЕКСПЕРИМЕНТАЛЬНУ, НЕСТАБІЛЬНУ фічу
+# (дослівно з `src/p3/mod.rs`: «not compliant with semver and is not ready
+# for production use. Bug and security fixes limited to wasip3 will not be
+# given patch releases.») — прийнятий ризик рішення власника 2026-08-31,
+# зафіксований тут, а не замовчаний.
 wasmtime-wasi = { version = "48.0", default-features = false, features = [
   "p2",
+  "p3",
 ] }
 thiserror = "1"
 serde_json = "1"
+# Виконавець для `component-model-async`/p3-WASI (host-функції p3-інтерфейсів
+# повертають futures, `tokio::sync::oneshot` — транзитивна залежність
+# `wasmtime-wasi`, доккомент `wasmtime-wasi/src/p3/mod.rs`). Публічний API
+# `PluginHost` лишається СИНХРОННИМ (доккомент `PluginHost` у `src/host.rs`)
+# — `rt-multi-thread` НЕ потрібен, кожен `PluginHost` тримає один
+# `current_thread`-рантайм і `block_on`-ить кожен виклик; жодної реальної
+# конкурентності всередині одного виклику не вимагається, async — лише
+# ABI-формальність, яку накладає `component-model-async`.
+tokio = { version = "1", default-features = false, features = ["rt"] }
 # Scratch-контур `exec-tool` (`src/scratch.rs`, зріз 5 контракту v3.1):
 # тимчасовий каталог обміну з тулом, який має зникнути разом із
 # `detect`/`fix`-викликом — `TempDir` дає рівно цю семантику (рекурсивне

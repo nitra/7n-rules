@@ -35,8 +35,13 @@ fn to_wit_error(err: rules_rego_engine::RegoError) -> wit::RegoError {
     }
 }
 
+// `async fn` — той самий мотив, що `impl wit::PluginImports for HostState`
+// (доккомент `src/host_state.rs`): `imports: { default: async }`
+// bindgen-конфігу вимагає однорідного async на КОЖНОМУ host-імпорті, а не
+// лише на p3-специфічних. `regorus`-виклики (`RegoEngine::*`) лишаються
+// синхронними в тілі — жодного `.await`.
 impl wit::HostRegoEngine for HostState {
-    fn new(&mut self) -> Resource<RegoEngineState> {
+    async fn new(&mut self) -> Resource<RegoEngineState> {
         self.table
             .push(RegoEngineState {
                 inner: RegoEngine::new(),
@@ -44,7 +49,7 @@ impl wit::HostRegoEngine for HostState {
             .expect("ResourceTable::push для rego-engine — таблиця не повна за конструкцією")
     }
 
-    fn add_policy(
+    async fn add_policy(
         &mut self,
         self_: Resource<RegoEngineState>,
         name: String,
@@ -57,7 +62,7 @@ impl wit::HostRegoEngine for HostState {
         state.inner.add_policy(&name, &source).map_err(to_wit_error)
     }
 
-    fn add_data_json(
+    async fn add_data_json(
         &mut self,
         self_: Resource<RegoEngineState>,
         data_json: String,
@@ -69,7 +74,7 @@ impl wit::HostRegoEngine for HostState {
         state.inner.add_data_json(&data_json).map_err(to_wit_error)
     }
 
-    fn eval_rule(
+    async fn eval_rule(
         &mut self,
         self_: Resource<RegoEngineState>,
         input_json: String,
@@ -85,7 +90,7 @@ impl wit::HostRegoEngine for HostState {
             .map_err(to_wit_error)
     }
 
-    fn drop(&mut self, rep: Resource<RegoEngineState>) -> wasmtime::Result<()> {
+    async fn drop(&mut self, rep: Resource<RegoEngineState>) -> wasmtime::Result<()> {
         self.table.delete(rep)?;
         Ok(())
     }

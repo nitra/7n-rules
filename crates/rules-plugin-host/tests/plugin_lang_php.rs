@@ -56,11 +56,11 @@ const CONCERN_MAGO_FMT: &str = "php/mago_fmt";
 const CONCERN_MAGO_LINT: &str = "php/mago_lint";
 
 /// Абсолютний шлях до зібраного `.wasm`-компонента
-/// (`crates/plugin-lang-php/build.sh`) — `wasm32-wasip2`/`release`, той
+/// (`crates/plugin-lang-php/build.sh`) — `wasm32-wasip3`/`release`, той
 /// самий шлях, що використовує `wasm-plugin-parity-php.test.mjs`.
 fn fixture_wasm_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../target/wasm32-wasip2/release/plugin_lang_php.wasm")
+        .join("../../target/wasm32-wasip3/release/plugin_lang_php.wasm")
 }
 
 fn require_fixture() -> PathBuf {

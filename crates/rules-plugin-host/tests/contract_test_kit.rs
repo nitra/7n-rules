@@ -43,12 +43,12 @@ const EXEC_TOOL_CONCERN_ID: &str = "test/guest-exec-tool";
 const PANIC_CONCERN_ID: &str = "test/guest-panic";
 
 /// Абсолютний шлях до зібраного `.wasm`-компонента фікстури
-/// (`crates/test-plugin-guest/build.sh`) — `wasm32-wasip2`/`release`,
+/// (`crates/test-plugin-guest/build.sh`) — `wasm32-wasip3`/`release`,
 /// корінь workspace обчислено від `CARGO_MANIFEST_DIR` цього крейта
 /// (`crates/rules-plugin-host` — два рівні вгору до кореня).
 fn fixture_wasm_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../target/wasm32-wasip2/release/test_plugin_guest.wasm")
+        .join("../../target/wasm32-wasip3/release/test_plugin_guest.wasm")
 }
 
 /// Падає з чіткою інструкцією збірки, якщо фікстура відсутня чи застаріла —

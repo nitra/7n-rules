@@ -13226,6 +13226,163 @@ npm/scripts/build-wasm-plugins.mjs` — гейт застарілих `.wasm`-ф
 реальні декларації) — паралельна хвиля (§2.109), не заблокована й не
 блокує цей коміт.
 
+### 2.112. Шість гостей і хост переведені на `wasm32-wasip3` — дуальний `p2`+`p3` лінк, toolchain пінований, `add_to_linker_sync` виявився пасткою
+
+**Задача.** Спека `docs/specs/2026-08-31-plugin-contract-v5.md`, розділ
+10.1 і п.5 §11: перевести шість first-party wasm-гостей
+(`plugin-lang-{js,python,rust,php}`, `plugin-ci-{github,azure}`) і
+`crates/test-plugin-guest` з `wasm32-wasip2` на `wasm32-wasip3`, запінувати
+Rust toolchain і хост (`wasmtime-wasi`) під WASI 0.3.
+
+#### Первинний бриф мав три хибні засновки — виправлено ПІД ЧАС хвилі
+
+1. **«Перемкнути feature-прапорець `p2` → `p3`» — хибно.** Синхронного
+   p3-лінкера не існує: `wasmtime-wasi-48.0.1/src/p3/mod.rs:170` має лише
+   `add_to_linker` (async); `add_to_linker_sync` є ЛИШЕ в
+   `src/p2/mod.rs:452`. Component-model-async тягне async-Store через увесь
+   шлях виклику.
+2. **WASI 0.3.1 недосяжна цим піном wasmtime.** `wasmtime-wasi` 48.0.1 несе
+   `wasi:cli`/`wasi:clocks`/`wasi:filesystem`/`wasi:random`/`wasi:sockets`
+   рівно на `@0.3.0`, не `@0.3.1` (звірено `wasm-tools component wit` на
+   реально зібраному компоненті). Спека (розділ 10.1, таблиця пінів) і
+   далі каже «0.3.1» — **розбіжність не виправлена цим комітом** (спека —
+   територія паралельної WASI-розвідки, `docs/specs/` — не моя зона): цей
+   запис лишає доказ для тієї хвилі.
+3. **`wasmtime-wasi::p3` — офіційно експериментальна фіча**, дослівно з
+   `src/p3/mod.rs`: «Experimental, unstable and incomplete… not compliant
+   with semver and is not ready for production use. Bug and security fixes
+   limited to wasip3 will not be given patch releases.» Прийнятий ризик
+   рішення власника (підтверджено явно, знаючи всі три пункти) —
+   зафіксовано тут, не замовчано.
+
+#### Що зроблено
+
+- **`rust-toolchain.toml`** (корінь репо, файлу не було взагалі) —
+  `nightly-2026-08-27`, той самий канал, що сусідній `nitra/r-plugin`.
+  `wasm32-wasip3` не роздає precompiled `std` через rustup (`rustc
+  --print target-list` знає ціль, `rustup target list` — ні), тож збірка
+  йде `-Z build-std=std,panic_abort` — нестабільна фіча, обов'язково
+  nightly, обов'язково пінований канал (інакше невідтворювано за
+  побудовою).
+- **`crates/wasm-sdk/fetch-wasi-sdk.sh`** — спільний добувач WASI SDK для
+  всіх семи `build.sh`: пінує **фінальний** `wasi-sdk-34` (не
+  `34.0-rc.2`), sha256 чотирьох платформних архівів (macOS/Linux ×
+  arm64/x86_64) звірені дослівно з оновленим `nitra/r-plugin`
+  (`scripts/test-component-spike.sh`, коміт `7cf8da9`, той самий
+  реліз — розбіжність, що мотивувала «форма, не вміст» на старті хвилі,
+  зникла сама). macOS/arm64 (збірна машина) ДОДАТКОВО звірено локально
+  повним завантаженням: sha256, `VERSION` (`34.0`, `wasi-libc:
+  2e6fb9d8ee0c`, `llvm-version: 23.1.0`), `wasm-component-ld 0.5.30`,
+  наявність `crt1-reactor.o`. Гейт версії — ПОРОГОВИЙ (`MAJOR >= 34`), не
+  точна рівність рядка `VERSION` (на відміну від r-plugin) — «мінімум, а
+  не точна версія» спеки. Кеш — `~/.cache/n-rules/wasi-sdk-34`, спільний
+  на всі сім `build.sh` (~180 MiB тягнеться раз, не сім разів); маркер
+  `.n-rules-verified` пишеться лише ПІСЛЯ повного проходу sha256+VERSION
+  гейту — часткова розпаковка ніколи не проходить як «готово».
+- **Сім `build.sh`** (шість гостей + `test-plugin-guest`) — `TARGET`
+  `wasm32-wasip2` → `wasm32-wasip3`, `cargo build` → `cargo build -Z
+  build-std=std,panic_abort`, лінкер/CRT з WASI SDK через
+  `CARGO_TARGET_WASM32_WASIP3_LINKER`/`RUSTFLAGS`. Диверґують від шаблону
+  скіла `npm/skills/wasm-plugin/template/build.sh` (протектована зона
+  паралельної хвилі, лишається на `wasm32-wasip2`) — доккомент кожного
+  файлу пояснює розбіжність.
+- **`npm/scripts/build-wasm-plugins.mjs`** — `WASM_TARGET` теж на
+  `wasm32-wasip3`.
+- **`.cursor/rules/n-rust.mdc`** (канонізує ціль для консюмерів) — оновлено
+  на `wasm32-wasip3` з приміткою про шаблон скіла. Строка-підказка
+  `WASM_COMPONENT_WASM_BINDGEN_HINT` у `crates/plugin-lang-rust/src/lib.rs`
+  **НЕ чіпалась** — вона побайтово звіряється з protected-зоною фікстурою
+  `npm/scripts/lib/lint-surface/tests/fixtures/wasm-parity/rust/wasm_component.json`
+  (інша хвиля); зміна тексту гостя без синхронного оновлення JSON-фікстури
+  дала б новий, самостійний дрейф — лишається відкритим для тієї хвилі.
+- **Хост (`crates/rules-plugin-host`)** — `wasmtime`
+  (`component-model-async`, `component-model-bytes`, `async`) +
+  `wasmtime-wasi` (`p2` **і** `p3` ОДНОЧАСНО, не заміна) + `tokio`
+  (`current_thread`, лише `rt`). `wit.rs`: `bindgen!` отримав
+  `imports/exports: { default: async }` — усі host-функції ядра
+  (`report-progress`/`log`/`host-context`/`run-tool`/`exec-tool`/
+  `rego-engine`) і guest-експорти стали `async fn` (формальність ABI:
+  жодне тіло не `.await`-ить нічого реального). `PluginHost` тримає один
+  `tokio::runtime::Runtime` (`current_thread`) і `block_on`-ить кожен
+  виклик — публічний API `PluginHost`/`LoadedPlugin` лишається
+  СИНХРОННИМ, жодного tokio/wasmtime-типу назовні (рішення М спеки не
+  порушено).
+
+#### Чому дуальний `p2`+`p3`, а не заміна
+
+`wasmtime_wasi::WasiCtx`/`WasiCtxView`/`WasiView` — один спільний тип для
+обох ліній (не p2/p3-специфічний), тож `p2::add_to_linker_async` і
+`p3::add_to_linker` реєструються на ОДНОМУ `Linker` без конфлікту. Причина
+не інерція: `npm/skills/wasm-plugin/template/build.sh` (протектована зона)
+досі скаффолдить `wasm32-wasip2`-гостей — `tests/wasm_plugin_skill_smoke.rs`
+і `tests/guest_additive_compat.rs::v50_guest_loads_and_detects_on_current_host`
+обидва компілюють гостя через ЦЕЙ шаблон. Негайне видалення `p2` поламало
+б обидва тести гучно заради половинчастого переходу; видалення `p2` —
+наступний крок, ПІСЛЯ окремої хвилі, що мігрує сам шаблон скіла.
+
+#### Пастка, яку зловив РЕАЛЬНИЙ (не trivial-`describe()`) тест
+
+Перша спроба дуального лінку реєструвала `wasmtime_wasi::p2::add_to_linker_SYNC`
+поруч із `p3::add_to_linker` на async-Config `Engine`. Мінімальна спайк-проба
+(`describe()` без I/O) проходила для ОБОХ p2- і p3-гостей — хибний сигнал
+«усе працює». `tests/fs_read_preopen_root.rs` (гість, що РЕАЛЬНО читає файл
+через WASI filesystem) зловив справжню несумісність:
+`"Cannot start a runtime from within a runtime"` — `add_to_linker_sync`
+усередині сам заводить тимчасовий tokio-рантайм при КОЖНОМУ реальному
+WASI-виклику, конфліктуючи з `self.runtime.block_on`, що вже активний.
+Фікс — `add_to_linker_ASYNC` (`p2::add_to_linker_async`, існує поруч із
+`_sync` у `src/p2/mod.rs:314`): інтегрується з ЧУЖИМ `block_on`, а не
+заводить свій. Урок: `describe()`-only спайк недостатній доказ для
+preopen-контуру — саме той ризик, на який паралельна WASI-розвідка (`#609`)
+попереджала явно («у `r-plugin` `grep -rn preopen crates/` дає нуль — їхній
+досвід нашу найризикованішу частину не покриває»).
+
+#### Побічний ефект: розблокований Д2 (§2.101)
+
+§2.101 задокументувала структурний блокер: `oci-dist-package` 0.1.6
+(`PluginManifest::validate`) приймає ЛИШЕ `component_profile ==
+"wasm32-wasip3"`, а всі шість гостей були `wasm32-wasip2`. Ця хвиля
+знімає саме цю половину блокера — шість гостей тепер `wasm32-wasip3`.
+Д2 (вбудовування маніфесту й публікація в OCI) і далі поза межею цього
+коміту, але передумова, яку §2.101 назвала структурною, більше не
+відсутня.
+
+#### Цільові прогони
+
+- `cargo build -Z build-std=std,panic_abort --target wasm32-wasip3
+  --release` (усі сім гостей, через `bash <crate>/build.sh` і
+  `node npm/scripts/build-wasm-plugins.mjs`) — успішно, `wasm-tools
+  validate --features component-model` підтверджує валідний компонент,
+  `wasm-tools component wit` показує очікувані `wasi:{cli,clocks,random}@0.3.0`
+  імпорти.
+- `cargo check --workspace` (увесь workspace під новим піном) — чисто, 504
+  крейти.
+- `cargo test -p rules-plugin-host` (після перебудови всіх сімох
+  фікстур) — 141 passed, 1 ignored, 0 failed (10 suites) — включно з
+  `fs_read_preopen_root` (4/4), `guest_additive_compat` (5/5, той самий
+  wasip2-шлях через шаблон скіла — доказ, що дуальний лінк не зламав
+  §2.111), `wasm_plugin_skill_smoke`.
+- `cargo test -p plugin-lang-php` — 34 passed (нативний regorus-шлях,
+  доккомент `Cargo.toml`).
+- `cargo test -p rules-napi` — падає лінкуванням (`_napi_call_threadsafe_function`
+  не знайдено) НЕЗАЛЕЖНО від цієї хвилі: символи napi-рантайму (Node.js
+  FFI), нуль звʼязку з wasm/WASI; не досліджувалось глибше — поза межею
+  задачі (єдина зміна цього крейта — оновлення одного хардкод-шляху
+  `wasm32-wasip2` → `wasm32-wasip3` у тестовій фікстурі).
+
+#### Не зроблено цим комітом
+
+- Видалення `wasmtime-wasi` feature `p2` — блоковано міграцією шаблону
+  скіла (окрема хвиля, поза `crates/**`).
+- Виправлення піна `0.3.1` → `0.3.0` у спеці — територія паралельної
+  WASI-розвідки (`docs/specs/`).
+- Синхронізація `WASM_COMPONENT_WASM_BINDGEN_HINT` (`plugin-lang-rust`) з
+  канонізованою ціллю — блоковано протектованою JSON-фікстурою іншої
+  хвилі.
+- Пункти 1–4 §11 спеки (`worlds`-декларації гостей, винесення
+  `run-tool`/`exec-tool` з ядра, слотові поверхні, `capabilities.network`)
+  — окремі кроки порядку реалізації, поза межею цієї задачі (лише п.5).
+
 ### 2.113. `npm/skills/wasm-plugin/SKILL.md` — прозовий дрейф `@4.0.0`/«contract v3» закрито, борг вичерпано
 
 **Джерело:** хвиля `#606` (§2.109, §2.111) уже виправила `template/lib.rs.tpl`

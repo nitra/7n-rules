@@ -52,6 +52,19 @@ pub struct PluginHost {
     engine: Engine,
     base_linker: Linker<HostState>,
     tool_resolver: Arc<ToolResolver>,
+    /// `current_thread`-рантайм, що ганяє `instantiate_async`/`call_async`
+    /// (спека `docs/specs/2026-08-31-plugin-contract-v5.md`, розділ 10.1) —
+    /// `component-model-async` вимагає async-виклику НАВІТЬ для семантично
+    /// синхронних host-функцій (доккомент `crate::wit`), тож ЦЕЙ рантайм —
+    /// формальність ABI, не джерело реальної конкурентності. Публічний API
+    /// [`PluginHost`]/[`LoadedPlugin`] лишається СИНХРОННИМ (рішення М спеки:
+    /// жоден wasmtime/tokio-тип у публічній сигнатурі) — кожен виклик
+    /// блокує потік викликача через [`tokio::runtime::Runtime::block_on`],
+    /// той самий контракт, що й до цієї хвилі. Один рантайм на `PluginHost`
+    /// (не per-виклик) — `Runtime::new()` не безкоштовний (створює потік
+    /// таймера/резервує ресурси), а `PluginHost` уже живе процес-довго
+    /// (доккомент вище: `Engine`+`base_linker` будуються раз).
+    runtime: Arc<tokio::runtime::Runtime>,
 }
 
 impl PluginHost {
@@ -64,6 +77,14 @@ impl PluginHost {
     pub fn new(tool_resolver: ToolResolver) -> Result<Self, PluginHostError> {
         let mut config = Config::new();
         config.wasm_component_model(true);
+        // `component-model-async` (спека, розділ 10.1) — потрібна БУДЬ-ЯКОМУ
+        // компоненту, зібраному під `wasm32-wasip3` (WASI 0.3, host-функції
+        // p3-інтерфейсів — стрімами/futures на рівні canonical ABI, доккомент
+        // `crate::wit`). Дуальний `p2`+`p3` лінк нижче потребує ЦЬОГО
+        // прапорця навіть для чисто-p2 гостей, зібраних до цієї хвилі —
+        // доведено спайком: `instantiate_async` успішно інстанціює й старий
+        // wasm32-wasip2 компонент на цьому самому `Engine`.
+        config.wasm_component_model_async(true);
         let engine =
             Engine::new(&config).map_err(|err| PluginHostError::Instantiate(err.into()))?;
 
@@ -79,15 +100,51 @@ impl PluginHost {
         // замовчуванням») — простіша й надійніша за ручне вибіркове
         // лінкування підмножини інтерфейсів (яке залежить від приватних
         // функцій `wasmtime-wasi`, крихке між minor-релізами).
-        wasmtime_wasi::p2::add_to_linker_sync(&mut linker)
+        //
+        // ДУАЛЬНИЙ лінк p2+p3 (спека, розділ 10.1) — `WasiCtx`/`WasiCtxView`/
+        // `WasiView` ОДИН СПІЛЬНИЙ тип для обох ліній (не p2/p3-специфічний,
+        // доккомент піна `wasmtime-wasi` у `Cargo.toml`), тож той самий
+        // `HostState` задовольняє обидва трейти без жодного дублювання.
+        // `p2::add_to_linker_sync` реєструє `wasi:*@0.2.x`, `p3::add_to_linker`
+        // — `wasi:*@0.3.x`; жодного перетину ключів (різні WIT-пакети), тож
+        // порядок реєстрації не важить. Причина дуальності — не інерція:
+        // `npm/skills/wasm-plugin/template/build.sh` (протектована зона
+        // паралельної хвилі) СЬОГОДНІ ще скаффолдить `wasm32-wasip2`-гостей
+        // (`tests/wasm_plugin_skill_smoke.rs`,
+        // `tests/guest_additive_compat.rs::v50_guest_loads_and_detects_on_current_host`),
+        // і негайне видалення `p2` тут поламало б обидва тести гучно заради
+        // половинчастого переходу (правило проєкту: половинчаста міграція
+        // гірша за жодну). Видалення `p2` — наступний крок, ПІСЛЯ окремої
+        // хвилі, що мігрує шаблон скіла (відкрите питання, реєстр
+        // `docs/plans/2026-08-05-open-questions-register.md`).
+        // `add_to_linker_ASYNC`, НЕ `_sync` (перша спроба цієї хвилі впала
+        // саме на цьому): `add_to_linker_sync` усередині сам блокує потік
+        // через власний тимчасовий `tokio`-рантайм при КОЖНОМУ реальному
+        // WASI-виклику (не при лінкуванні) — конфліктує з `self.runtime.
+        // block_on` ЦЬОГО хоста, коли Store вже async (`wasm_component_model_async`
+        // вище) і виконується всередині ВЖЕ активного block_on. Емпірично
+        // зловлено `tests/fs_read_preopen_root.rs`: `describe()` (без I/O)
+        // проходив і з `_sync`, а реальний `std::fs::read_to_string` гостя
+        // (справжній WASI filesystem-виклик) падав `"Cannot start a runtime
+        // from within a runtime"`. `add_to_linker_async` інтегрується з ЦИМ
+        // самим `block_on`, а не заводить свій — конфлікту нема.
+        wasmtime_wasi::p2::add_to_linker_async(&mut linker)
+            .map_err(|err| PluginHostError::Instantiate(err.into()))?;
+        wasmtime_wasi::p3::add_to_linker(&mut linker)
             .map_err(|err| PluginHostError::Instantiate(err.into()))?;
         wit::Plugin::add_to_linker_imports::<_, HasSelf<_>>(&mut linker, |state| state)
             .map_err(|err| PluginHostError::Instantiate(err.into()))?;
+
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(|err| PluginHostError::Instantiate(anyhow::Error::new(err)))?;
 
         Ok(Self {
             engine,
             base_linker: linker,
             tool_resolver: Arc::new(tool_resolver),
+            runtime: Arc::new(runtime),
         })
     }
 
@@ -274,15 +331,23 @@ impl PluginHost {
         // компонента»), а не запис у відкинутому probe-`Store`.
         let host_state = self.build_host_state(&probe_manifest.capabilities, preopen_root)?;
         let mut store = Store::new(&self.engine, host_state);
-        let plugin = wit::Plugin::instantiate(&mut store, &component, &linker)
-            .map_err(|err| PluginHostError::Instantiate(err.into()))?;
-        let manifest =
-            plugin
-                .call_describe(&mut store)
-                .map_err(|err| PluginHostError::Execution {
-                    function: "describe",
-                    source: err.into(),
-                })?;
+        let (plugin, manifest) = self.runtime.block_on(async {
+            let instance = linker
+                .instantiate_async(&mut store, &component)
+                .await
+                .map_err(|err| PluginHostError::Instantiate(err.into()))?;
+            let plugin = wit::Plugin::new(&mut store, &instance)
+                .map_err(|err| PluginHostError::Instantiate(err.into()))?;
+            let manifest =
+                plugin
+                    .call_describe(&mut store)
+                    .await
+                    .map_err(|err| PluginHostError::Execution {
+                        function: "describe",
+                        source: err.into(),
+                    })?;
+            Ok::<_, PluginHostError>((plugin, manifest))
+        })?;
         let manifest = convert::manifest_from_wit(manifest);
 
         Ok(LoadedPlugin::new(
@@ -290,6 +355,7 @@ impl PluginHost {
             plugin,
             manifest,
             preopen_root.map(Path::to_path_buf),
+            Arc::clone(&self.runtime),
         ))
     }
 
@@ -306,15 +372,21 @@ impl PluginHost {
     ) -> Result<Manifest, PluginHostError> {
         let host_state = self.build_host_state(capabilities, preopen_root)?;
         let mut store = Store::new(&self.engine, host_state);
-        let plugin = wit::Plugin::instantiate(&mut store, component, linker)
-            .map_err(|err| PluginHostError::Instantiate(err.into()))?;
-        let manifest =
+        let manifest = self.runtime.block_on(async {
+            let instance = linker
+                .instantiate_async(&mut store, component)
+                .await
+                .map_err(|err| PluginHostError::Instantiate(err.into()))?;
+            let plugin = wit::Plugin::new(&mut store, &instance)
+                .map_err(|err| PluginHostError::Instantiate(err.into()))?;
             plugin
                 .call_describe(&mut store)
+                .await
                 .map_err(|err| PluginHostError::Execution {
                     function: "describe",
                     source: err.into(),
-                })?;
+                })
+        })?;
         Ok(convert::manifest_from_wit(manifest))
     }
 

@@ -103,14 +103,22 @@ impl WasiView for HostState {
     }
 }
 
+// `async fn` на кожному методі — вимога `imports: { default: async }`
+// bindgen-конфігу (доккомент `crate::wit`), не реальна асинхронність: жодне
+// тіло нижче не `.await`-ить нічого — вся робота лишається синхронною
+// (`RefCell`-буфери, `ToolResolver` — блокуючий спавн процесу). Викликач
+// (`PluginHost`/`LoadedPlugin`) `block_on`-ить кожен виклик на власному
+// `current_thread`-рантаймі (доккомент `PluginHost` у `src/host.rs`), тож
+// синхронний блок усередині `async fn` тут коректний і не блокує жоден
+// сторонній executor.
 impl wit::PluginImports for HostState {
-    fn report_progress(&mut self, done: u32, total: u32) {
+    async fn report_progress(&mut self, done: u32, total: u32) {
         self.progress
             .borrow_mut()
             .push(CapturedProgress { done, total });
     }
 
-    fn run_tool(
+    async fn run_tool(
         &mut self,
         tool: String,
         args: Vec<String>,
@@ -151,7 +159,7 @@ impl wit::PluginImports for HostState {
     /// (ізоляція процесу засобами трьох різних ОС) — це не бюджет v3.1.
     /// Той самий текст стоїть у WIT (`record tool-result`) — щоб автор
     /// плагіна прочитав його ще до того, як напише перший `exec-tool`.
-    fn exec_tool(&mut self, request: wit::ToolRequest) -> wit::ToolResult {
+    async fn exec_tool(&mut self, request: wit::ToolRequest) -> wit::ToolResult {
         let request = ToolRequest {
             tool: request.tool,
             args: request.args,
@@ -182,7 +190,7 @@ impl wit::PluginImports for HostState {
         to_wit_tool_result(result)
     }
 
-    fn log(&mut self, level: wit::LogLevel, message: String) {
+    async fn log(&mut self, level: wit::LogLevel, message: String) {
         self.logs.borrow_mut().push(CapturedLog {
             level: crate::convert::log_level_from_wit(level),
             message,
@@ -199,7 +207,7 @@ impl wit::PluginImports for HostState {
     /// `wit/world.wit`). Провал створення теж дає `None` — гість не
     /// відрізняє «немає каталогу» від «немає слоту», і в обох випадках має
     /// деградувати однаково.
-    fn host_context(&mut self, slot: String) -> Option<String> {
+    async fn host_context(&mut self, slot: String) -> Option<String> {
         match slot.as_str() {
             "repo-root@1" => self.repo_root.clone(),
             "scratch-dir@1" => {

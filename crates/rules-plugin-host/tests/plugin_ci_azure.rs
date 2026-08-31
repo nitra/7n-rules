@@ -29,7 +29,7 @@ const CONCERN_VSCODE_EXTENSIONS: &str = "azure-pipelines/vscode_extensions";
 /// (`crates/plugin-ci-azure/build.sh`) — той самий, що використовує
 /// `wasm-plugin-parity-ci-azure.test.mjs`.
 fn fixture_wasm_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/wasm32-wasip2/release/plugin_ci_azure.wasm")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/wasm32-wasip3/release/plugin_ci_azure.wasm")
 }
 
 fn require_fixture() -> PathBuf {
