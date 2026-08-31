@@ -13225,3 +13225,63 @@ npm/scripts/build-wasm-plugins.mjs` — гейт застарілих `.wasm`-ф
 контракту v5 (хост-лінкер, міграція шести гостей із `worlds = []` на
 реальні декларації) — паралельна хвиля (§2.109), не заблокована й не
 блокує цей коміт.
+
+### 2.113. `npm/skills/wasm-plugin/SKILL.md` — прозовий дрейф `@4.0.0`/«contract v3» закрито, борг вичерпано
+
+**Джерело:** хвиля `#606` (§2.109, §2.111) уже виправила `template/lib.rs.tpl`
+(бракувало поля `worlds` — `Manifest`-літерал узагалі не компілювався) і
+`Cargo.toml.tpl`/`plugin.toml.tpl` (косметичний бамп на `@5.0.0`), але явно
+винесла прозову частину `SKILL.md` за межі скоупу (§2.111: «`npm/skills/
+wasm-plugin/SKILL.md` — окремий дрейф документації»).
+
+**Що зроблено.** Звірено кожну згадку `4.0.0`/`v3`/`wasip2` у `SKILL.md` й
+шаблонах проти того, чи твердження описує ПОТОЧНИЙ стан, а не історію.
+Три місця справді відставали від реальності (`crates/rules-contract/wit/world.wit`
+уже пакет `n-rules:plugin@5.0.0`): заголовок/frontmatter-опис
+(`contract v3` → `contract v5`), розділ «Мета» (цільова версія
+`@4.0.0` → `@5.0.0`, з окремим посиланням на спеку `2026-08-31-plugin-contract-v5.md`
+поряд зі спекою v3, що й далі джерело кроку 1/2/3/4-структури), і фраза
+«джерело правди контракту» (`@4.0.0` → `@5.0.0`). `template/build.sh`:
+заголовковий коментар «plugin contract v3» → «plugin contract v5» (той
+самий дрейф, що вже виправили сусідні шаблони).
+
+**Свідомо НЕ чіпалось — ці згадки коректні як історія, не як поточний
+стан:** `fix_only_concerns`/`fix_glob` «контракт `4.0.0`» (§248-266
+SKILL.md) — обидва поля дійсно введені саме мажором `4.0.0`
+(`97742a1eb feat(contract)!: мажор n-rules:plugin@4.0.0 — write-bytes,
+fix-only…`), звірено `git log` по `world.wit`; `fix-контур contract v3` і
+«сумісна поведінка v3.0» — `export fix` дійсно з'явився в мажорі `3.0.0`
+(`6f5143cc4 feat(rules): fix()-домен wasm-плагінів через contract v3`);
+`exec-tool` «зріз 5 контракту v3.1» — коректне посилання на окрему спеку
+`2026-08-01-plugin-contract-v31-surfaces.md`; `TODO(v3-wasm-first-party-pins)`
+— живий тег, що досі використовується дослівно в
+`crates/plugin-lang-js/plugin.toml`.
+
+**Свідомо НЕ чіпався `wasm32-wasip2` — build-target, не версія контракту.**
+`template/build.sh` (`TARGET="wasm32-wasip2"`), прикладні шляхи в SKILL.md
+(`wasm32-wasip2/release/…`) і передумова `rustup target add wasm32-wasip2`
+лишені як є: `crates/rules-plugin-host/tests/wasm_plugin_skill_smoke.rs`
+(цільовий синхронний тест цієї задачі) хардкодить
+`target/wasm32-wasip2/release` і зелений на цій цілі просто зараз —
+`crates/plugin-lang-js/build.sh`/`crates/test-plugin-guest/build.sh` (поза
+межею цієї задачі) досі на `wasm32-wasip2` теж, `rust-toolchain.toml` у
+репозиторії взагалі не існує. Перехід на `wasm32-wasip3` (спека
+`2026-08-31-plugin-contract-v5.md` §10.1: WASI 0.3.1, WASI SDK ≥34
+фінальний, нове пінування toolchain-у) — окрема паралельна хвиля; проста
+заміна рядка цілі без пінованого nightly-каналу й WASI SDK зробила б
+`build.sh` нерентабельним (`wasm32-wasip3` не роздається через `rustup
+target add`, спека §10.1) — саме тому лишено хвилі, що заводить
+`rust-toolchain.toml`/WASI SDK provisioning.
+
+**Окрема знахідка поза скоупом (не виправлялось мовчки).**
+`.cursor/rules/n-rust.mdc:102` канонізує `wasm32-wasip2` як обов'язкову
+ціль гостьового wasm-коду («Гостьовий wasm-код — через `wit-bindgen` +
+ціль `wasm32-wasip2`») — це rego/mdc-гейт поза директорією цієї задачі
+(`npm/skills/wasm-plugin/**` і доки поза `docs/specs/`), і його оновлення
+на `wasm32-wasip3` пов'язане з тим самим інфраструктурним переходом
+(rust-toolchain.toml, WASI SDK), що й `build.sh` вище — належить хвилі
+wasip3-міграції, не цій задачі.
+
+**Цільові прогони.** `cargo test -p rules-plugin-host --test
+wasm_plugin_skill_smoke` — 1 passed (тест сам скаффолдить/збирає/вантажить
+шаблон і перевіряє `manifest.world_version == "5.0.0"`), 0 провалів.
