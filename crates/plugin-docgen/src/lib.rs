@@ -57,6 +57,20 @@ wit_bindgen::generate!({
 use regex::Regex;
 use std::sync::OnceLock;
 
+// Фаза 2 (карта `docs/specs/2026-08-31-recon-docgen-surface.md` §5.3, §6):
+// шість детермінованих етапів `docgen`, портованих як звичайні Rust-модулі
+// БЕЗ підключення до wasm-експорту цього гостя (жоден `docgen-stage`
+// консюмер ще не існує, §5.4 розвідки) — той самий принцип «не вигадувати
+// потребу», застосований тут до самого факту підключення модуля до
+// `Guest`-трейта, не лише до capability worlds. Кожен модуль документує
+// власне рішення "диск читає файл-рідер чи параметр" у своєму заголовку.
+pub mod crc;
+pub mod extract_anchors;
+pub mod ignore;
+pub mod prompts;
+pub mod scan;
+pub mod test_context;
+
 /// Ключ єдиної контрибуції цього гостя — точний відповідник
 /// `plugin.toml::concerns[0].key`.
 const CONCERN_DOCGEN_JUDGE: &str = "docgen/judge";
@@ -140,7 +154,9 @@ pub struct DocVerdict {
 /// `Ok(DocVerdict)` за валідного JSON, інакше `Err` із людинозрозумілим
 /// текстом (той самий текст помилок, що JS `throw new Error(...)`).
 pub fn parse_doc_verdict(raw_text: &str) -> Result<DocVerdict, String> {
-    let a = raw_text.find('{').ok_or("judge: no JSON object in response")?;
+    let a = raw_text
+        .find('{')
+        .ok_or("judge: no JSON object in response")?;
     let b = raw_text
         .rfind('}')
         .ok_or("judge: no JSON object in response")?;
@@ -148,13 +164,10 @@ pub fn parse_doc_verdict(raw_text: &str) -> Result<DocVerdict, String> {
         return Err("judge: no JSON object in response".to_string());
     }
     let slice = &raw_text[a..=b];
-    let value: serde_json::Value =
-        serde_json::from_str(slice).map_err(|err| format!("judge: bad JSON in response ({err})"))?;
+    let value: serde_json::Value = serde_json::from_str(slice)
+        .map_err(|err| format!("judge: bad JSON in response ({err})"))?;
 
-    let verdict = value
-        .get("verdict")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
+    let verdict = value.get("verdict").and_then(|v| v.as_str()).unwrap_or("");
     if !matches!(verdict, "accurate" | "generic" | "inaccurate") {
         return Err(format!("judge: bad verdict \"{verdict}\""));
     }
@@ -167,10 +180,7 @@ pub fn parse_doc_verdict(raw_text: &str) -> Result<DocVerdict, String> {
         return Err("judge: bad confidence".to_string());
     }
 
-    let reason = value
-        .get("reason")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
+    let reason = value.get("reason").and_then(|v| v.as_str()).unwrap_or("");
     let reason: String = reason.chars().take(500).collect();
 
     Ok(DocVerdict {
@@ -496,7 +506,11 @@ mod tests {
             .collect();
         assert_eq!(
             declared_worlds,
-            runtime.worlds.iter().map(String::as_str).collect::<Vec<_>>(),
+            runtime
+                .worlds
+                .iter()
+                .map(String::as_str)
+                .collect::<Vec<_>>(),
             "plugin.toml розійшовся з describe() по worlds"
         );
     }
