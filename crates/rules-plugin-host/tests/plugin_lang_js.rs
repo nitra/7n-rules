@@ -121,11 +121,27 @@ fn host() -> PluginHost {
     PluginHost::new(ToolResolver::empty()).expect("PluginHost::new не мав провалитись")
 }
 
+/// `plugin-lang-js` оголошує `n-rules:caps/file-reader@1.0.0` у
+/// `manifest.worlds` (крок 5 спеки `docs/specs/2026-08-31-plugin-
+/// contract-v5.md`, §2.92/§2.94/§2.119) — БУДЬ-ЯКЕ завантаження цього
+/// `.wasm` мусить розширювати лінкер цим world-ом, інакше інстанціація
+/// падає ГУЧНО (`PluginHostError::Instantiate` — компонент, чий ТИП реально
+/// імпортує `list-files`/`read-file-bytes`, не інстанціюється проти
+/// лінкера без них; доккомент `crate::world_linker` у
+/// `rules-plugin-host/src`). Тому КОЖЕН `.load*` цього файлу передає
+/// цей перелік — не лише тести, що реально фіксять `bun/package_json`.
+/// `&'static [String]` не можна виразити константою напряму
+/// (`String::from` не `const fn`), тож — лінивий-раз-побудований масив.
+fn lang_js_worlds() -> &'static [String] {
+    static WORLDS: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
+    WORLDS.get_or_init(|| vec!["n-rules:caps/file-reader@1.0.0".to_string()])
+}
+
 #[test]
 fn describe_declares_all_concerns_with_expected_scopes() {
     let path = require_fixture();
     let plugin = host()
-        .load(&path, PLUGIN_WORLD_VERSION)
+        .load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds())
         .expect("load не мав провалитись на plugin-lang-js");
 
     let manifest = plugin.describe();
@@ -197,14 +213,27 @@ fn describe_declares_all_concerns_with_expected_scopes() {
     // концерну, тож переїзд запису між списками мусить впасти тут.
     assert_eq!(
         manifest.fix_only_concerns,
-        vec![ConcernContribution {
-            key: "js/eslint".to_string(),
-            scope: ConcernScope::PerFile,
-            glob: vec!["**/*.{js,mjs,cjs,jsx,ts,tsx,vue}".to_string()],
-            // Порожній — fix ділить скоуп із детектом (§2.84): скоуп фіксу
-            // тут задає дельта ЗАПИТУ, а не інший статичний глоб.
-            fix_glob: vec![],
-        }]
+        vec![
+            ConcernContribution {
+                key: "js/eslint".to_string(),
+                scope: ConcernScope::PerFile,
+                glob: vec!["**/*.{js,mjs,cjs,jsx,ts,tsx,vue}".to_string()],
+                // Порожній — fix ділить скоуп із детектом (§2.84): скоуп
+                // фіксу тут задає дельта ЗАПИТУ, а не інший статичний глоб.
+                fix_glob: vec![],
+            },
+            // Крок 5 спеки `docs/specs/2026-08-31-plugin-contract-v5.md`
+            // (§2.92/§2.94/§2.119): `bun/package_json` — ДРУГИЙ запис,
+            // detect лишається чистим rego-policy поза цим гостем. `fix_glob`
+            // порожній навмисно — фікс читає репо сам через
+            // `n-rules:caps/file-reader@1.0.0`, не через host full-scope batch.
+            ConcernContribution {
+                key: "bun/package_json".to_string(),
+                scope: ConcernScope::Full,
+                glob: vec!["package.json".to_string()],
+                fix_glob: vec![],
+            }
+        ]
     );
     // Друге твердження того самого гейта, явно: detect `js/eslint` НЕ
     // шедоуїться, бо ключа немає у `concerns` (`detect.mjs` читає лише цей
@@ -214,6 +243,10 @@ fn describe_declares_all_concerns_with_expected_scopes() {
         "js/eslint мусить лишатись ПОЗА `concerns`: ключ там вмикає detect-шедоуїнг \
          (detect.mjs, гілка `wasmEntry !== undefined`) і мовчки вимикає `main.mjs`"
     );
+
+    // Крок 5 спеки `docs/specs/2026-08-31-plugin-contract-v5.md`: ПЕРША
+    // декларація world-а повноважень будь-яким first-party гостем.
+    assert_eq!(manifest.worlds, vec!["n-rules:caps/file-reader@1.0.0".to_string()]);
 
     // §2.87 — ПЕРШИЙ реальний непорожній `fix-glob` цього гостя (поле
     // існує з мажора `4.0.0`, але до §2.87 його не заявляв ніхто, тож і не
@@ -446,7 +479,7 @@ fn describe_declares_all_concerns_with_expected_scopes() {
 #[test]
 fn detect_flags_vue_file_importing_tf_without_get_tr() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_TFM.to_string(),
@@ -471,7 +504,7 @@ fn detect_flags_vue_file_importing_tf_without_get_tr() {
 #[test]
 fn detect_passes_vue_file_with_get_tr_declared() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_TFM.to_string(),
@@ -494,7 +527,7 @@ fn detect_passes_vue_file_with_get_tr_declared() {
 #[test]
 fn detect_tfm_ignores_non_vue_files() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_TFM.to_string(),
@@ -513,7 +546,7 @@ fn detect_tfm_ignores_non_vue_files() {
 #[test]
 fn detect_gap_passes_when_used_class_is_defined() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_GAP.to_string(),
@@ -538,7 +571,7 @@ fn detect_gap_passes_when_used_class_is_defined() {
 #[test]
 fn detect_gap_flags_used_but_undefined_class() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_GAP.to_string(),
@@ -567,7 +600,7 @@ fn detect_gap_flags_used_but_undefined_class() {
 #[test]
 fn detect_gap_passes_when_class_never_used() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_GAP.to_string(),
@@ -586,7 +619,7 @@ fn detect_gap_passes_when_class_never_used() {
 #[test]
 fn detect_pool_forks_passes_when_config_has_pool_forks() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_POOL_FORKS.to_string(),
@@ -605,7 +638,7 @@ fn detect_pool_forks_passes_when_config_has_pool_forks() {
 #[test]
 fn detect_pool_forks_flags_config_with_other_pool() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_POOL_FORKS.to_string(),
@@ -627,7 +660,7 @@ fn detect_pool_forks_flags_config_with_other_pool() {
 #[test]
 fn detect_pool_forks_passes_when_no_config_present() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_POOL_FORKS.to_string(),
@@ -643,7 +676,7 @@ fn detect_pool_forks_passes_when_no_config_present() {
 #[test]
 fn detect_no_process_chdir_flags_forbidden_call() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_NO_PROCESS_CHDIR.to_string(),
@@ -669,7 +702,7 @@ fn detect_no_process_chdir_flags_forbidden_call() {
 #[test]
 fn detect_no_process_chdir_passes_on_doc_comment_citation() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_NO_PROCESS_CHDIR.to_string(),
@@ -688,7 +721,7 @@ fn detect_no_process_chdir_passes_on_doc_comment_citation() {
 #[test]
 fn detect_no_process_chdir_passes_without_forbidden_call() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_NO_PROCESS_CHDIR.to_string(),
@@ -707,7 +740,7 @@ fn detect_no_process_chdir_passes_without_forbidden_call() {
 #[test]
 fn detect_admin_table_passes_when_used_class_is_defined() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_ADMIN_TABLE.to_string(),
@@ -732,7 +765,7 @@ fn detect_admin_table_passes_when_used_class_is_defined() {
 #[test]
 fn detect_admin_table_flags_used_but_undefined_class() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_ADMIN_TABLE.to_string(),
@@ -759,7 +792,7 @@ fn detect_admin_table_flags_used_but_undefined_class() {
 #[test]
 fn detect_quasar_fixes_passes_when_used_fix_is_defined() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_QUASAR_FIXES.to_string(),
@@ -784,7 +817,7 @@ fn detect_quasar_fixes_passes_when_used_fix_is_defined() {
 #[test]
 fn detect_quasar_fixes_flags_used_but_undefined_fix() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_QUASAR_FIXES.to_string(),
@@ -813,7 +846,7 @@ fn detect_quasar_fixes_flags_used_but_undefined_fix() {
 #[test]
 fn detect_location_passes_when_test_is_inside_tests_dir() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_LOCATION.to_string(),
@@ -838,7 +871,7 @@ fn detect_location_passes_when_test_is_inside_tests_dir() {
 #[test]
 fn detect_location_flags_test_next_to_source() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_LOCATION.to_string(),
@@ -865,7 +898,7 @@ fn detect_location_flags_test_next_to_source() {
 #[test]
 fn detect_no_console_store_restore_flags_direct_assignment() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let assign = ["console.lo", "g ="].join("");
     let batch = DetectBatch {
@@ -887,7 +920,7 @@ fn detect_no_console_store_restore_flags_direct_assignment() {
 #[test]
 fn detect_no_console_store_restore_passes_for_spy_on() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_NO_CONSOLE_STORE_RESTORE.to_string(),
@@ -906,7 +939,7 @@ fn detect_no_console_store_restore_passes_for_spy_on() {
 #[test]
 fn detect_no_bun_test_import_flags_fixable_import() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let bun_test = ["bun", "test"].join(":");
     let batch = DetectBatch {
@@ -946,7 +979,7 @@ fn fix_no_bun_test_import_builds_rewrite_plan_via_host_call() {
     use rules_contract::fix::{FileEdit, FixRequest};
 
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let bun_test = ["bun", "test"].join(":");
     let files = vec![SourceFile {
@@ -1002,7 +1035,7 @@ fn fix_no_bun_test_import_returns_empty_plan_for_unfixable_import() {
     use rules_contract::fix::FixRequest;
 
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let bun_test = ["bun", "test"].join(":");
     let files = vec![SourceFile {
@@ -1039,7 +1072,7 @@ fn doc_comments_detect_and_fix_round_trip_on_non_ascii_fixture() {
     use rules_contract::fix::{FileEdit, FixRequest};
 
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let files = vec![SourceFile {
         path: "src/файл.mjs".to_string(),
@@ -1099,7 +1132,7 @@ export function робити() {}
 #[test]
 fn detect_no_bun_test_import_passes_for_vitest_import() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_NO_BUN_TEST_IMPORT.to_string(),
@@ -1122,7 +1155,7 @@ fn detect_no_bun_test_import_passes_for_vitest_import() {
 #[test]
 fn detect_utils_imports_flags_parent_relative_import() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_UTILS_IMPORTS.to_string(),
@@ -1145,7 +1178,7 @@ fn detect_utils_imports_flags_parent_relative_import() {
 #[test]
 fn detect_utils_imports_passes_for_bare_package_import() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_UTILS_IMPORTS.to_string(),
@@ -1163,7 +1196,7 @@ fn detect_utils_imports_passes_for_bare_package_import() {
 #[test]
 fn detect_utils_imports_ignores_fixtures_subdir() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_UTILS_IMPORTS.to_string(),
@@ -1189,7 +1222,7 @@ const NO_RELATIVE_FS_PATH_HEAD: &str =
 #[test]
 fn detect_no_relative_fs_path_flags_relative_first_arg() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_NO_RELATIVE_FS_PATH.to_string(),
@@ -1214,7 +1247,7 @@ fn detect_no_relative_fs_path_flags_relative_first_arg() {
 #[test]
 fn detect_no_relative_fs_path_passes_when_join_used() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_NO_RELATIVE_FS_PATH.to_string(),
@@ -1234,7 +1267,7 @@ fn detect_no_relative_fs_path_passes_when_join_used() {
 #[test]
 fn detect_no_relative_fs_path_ignores_non_test_files() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_NO_RELATIVE_FS_PATH.to_string(),
@@ -1256,7 +1289,7 @@ fn detect_no_relative_fs_path_ignores_non_test_files() {
 #[test]
 fn detect_redis_imports_flags_ioredis_import_with_exact_message() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_REDIS_IMPORTS.to_string(),
@@ -1289,7 +1322,7 @@ fn detect_redis_imports_flags_ioredis_import_with_exact_message() {
 #[test]
 fn detect_redis_imports_passes_for_comment_and_string_mentions() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_REDIS_IMPORTS.to_string(),
@@ -1315,7 +1348,7 @@ fn detect_redis_imports_passes_for_comment_and_string_mentions() {
 #[test]
 fn detect_mssql_deps_flags_low_version_with_exact_message() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_MSSQL_DEPS.to_string(),
@@ -1338,7 +1371,7 @@ fn detect_mssql_deps_flags_low_version_with_exact_message() {
 #[test]
 fn detect_mssql_deps_passes_for_singleton_and_tagged_query() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_MSSQL_DEPS.to_string(),
@@ -1364,7 +1397,7 @@ fn detect_mssql_deps_passes_for_singleton_and_tagged_query() {
 #[test]
 fn detect_bun_db_safety_flags_per_request_sql_with_exact_message() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_BUN_DB_SAFETY.to_string(),
@@ -1398,7 +1431,7 @@ fn detect_bun_db_safety_flags_per_request_sql_with_exact_message() {
 #[test]
 fn detect_bun_db_safety_tagged_join_yields_js_identical_duplicates() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_BUN_DB_SAFETY.to_string(),
@@ -1455,7 +1488,7 @@ fn storybook_scope_fixture_files() -> Vec<SourceFile> {
 #[test]
 fn detect_storybook_scope_flags_stale_opt_out() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let mut files = storybook_scope_fixture_files();
     files.push(SourceFile {
@@ -1482,7 +1515,7 @@ fn detect_storybook_scope_flags_stale_opt_out() {
 #[test]
 fn detect_storybook_hygiene_flags_undeclared_import() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let mut files = storybook_scope_fixture_files();
     files.push(SourceFile {
@@ -1512,7 +1545,7 @@ fn detect_storybook_hygiene_flags_undeclared_import() {
 #[test]
 fn detect_storybook_page_coverage_warns_page_without_story() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_STORYBOOK_PAGE_COVERAGE.to_string(),
@@ -1553,7 +1586,7 @@ fn detect_storybook_page_coverage_warns_page_without_story() {
 #[test]
 fn detect_storybook_scaffold_reports_missing_canon_files() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_STORYBOOK_SCAFFOLD.to_string(),
@@ -1584,7 +1617,7 @@ fn detect_storybook_scaffold_reports_missing_canon_files() {
 #[test]
 fn detect_storybook_ci_reports_missing_repo_canon_files() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_STORYBOOK_CI.to_string(),
@@ -1611,7 +1644,7 @@ fn detect_storybook_ci_reports_missing_repo_canon_files() {
 #[test]
 fn detect_storybook_vitest_config_reports_missing_config() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_STORYBOOK_VITEST_CONFIG.to_string(),
@@ -1642,7 +1675,7 @@ fn detect_storybook_vitest_config_reports_missing_config() {
 #[test]
 fn detect_storybook_vitest_config_degrades_without_repo_root_slot() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let mut files = storybook_scope_fixture_files();
     files.push(SourceFile {
@@ -1678,7 +1711,7 @@ fn detect_storybook_vitest_config_degrades_without_repo_root_slot() {
 #[test]
 fn detect_storybook_vitest_config_uses_repo_root_slot_for_absolute_path() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
     plugin.set_repo_root(Some("/repo".to_string()));
 
     let mut files = storybook_scope_fixture_files();
@@ -1714,7 +1747,7 @@ fn detect_storybook_vitest_config_uses_repo_root_slot_for_absolute_path() {
 #[test]
 fn detect_storybook_vitest_config_reports_missing_stryker_config() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let mut files = storybook_scope_fixture_files();
     files.push(SourceFile {
@@ -1749,7 +1782,7 @@ fn detect_storybook_vitest_config_reports_missing_stryker_config() {
 #[test]
 fn detect_bun_db_package_json_flags_denied_dependencies() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_BUN_DB_PACKAGE_JSON.to_string(),
@@ -1774,7 +1807,7 @@ fn detect_bun_db_package_json_flags_denied_dependencies() {
 #[test]
 fn detect_redis_package_json_flags_denied_dependency_in_nested_package() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_REDIS_PACKAGE_JSON.to_string(),
@@ -1806,7 +1839,7 @@ fn detect_redis_package_json_flags_denied_dependency_in_nested_package() {
 #[test]
 fn detect_mssql_package_json_checks_minimum_version() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_MSSQL_PACKAGE_JSON.to_string(),
@@ -1838,7 +1871,7 @@ fn detect_mssql_package_json_checks_minimum_version() {
 #[test]
 fn fix_returns_empty_plan() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let request = rules_contract::fix::FixRequest {
         concern_id: CONCERN_TFM.to_string(),
@@ -1866,7 +1899,7 @@ fn batch_file(path: &str, content: &str) -> SourceFile {
 #[test]
 fn detect_rule_meta_validates_rule_metadata_from_batch() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_RULE_META.to_string(),
@@ -1899,7 +1932,7 @@ fn detect_rule_meta_validates_rule_metadata_from_batch() {
 #[test]
 fn detect_skill_meta_validates_skill_metadata_from_batch() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_SKILL_META.to_string(),
@@ -1925,7 +1958,7 @@ fn detect_skill_meta_validates_skill_metadata_from_batch() {
 #[test]
 fn detect_header_doc_pointer_flags_narrative_jsdoc_next_to_docs() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_HEADER_DOC_POINTER.to_string(),
@@ -1962,7 +1995,7 @@ fn detect_header_doc_pointer_flags_narrative_jsdoc_next_to_docs() {
 #[test]
 fn detect_package_structure_reports_missing_pieces_in_canonical_order() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_PACKAGE_STRUCTURE.to_string(),
@@ -1990,7 +2023,7 @@ fn detect_package_structure_reports_missing_pieces_in_canonical_order() {
 #[test]
 fn detect_package_structure_flags_tests_inside_published_files() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_PACKAGE_STRUCTURE.to_string(),
@@ -2031,7 +2064,7 @@ fn detect_package_structure_flags_tests_inside_published_files() {
 #[test]
 fn detect_dep_policy_flags_banned_specifiers_only_in_real_import_positions() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_DEP_POLICY.to_string(),
@@ -2066,7 +2099,7 @@ fn detect_dep_policy_flags_banned_specifiers_only_in_real_import_positions() {
 #[test]
 fn detect_bun_layout_passes_on_canonical_bun_root() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_BUN_LAYOUT.to_string(),
@@ -2086,7 +2119,7 @@ fn detect_bun_layout_passes_on_canonical_bun_root() {
 #[test]
 fn detect_bun_layout_flags_foreign_lockfiles_and_missing_bun_artifacts() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_BUN_LAYOUT.to_string(),
@@ -2115,7 +2148,7 @@ fn detect_bun_layout_flags_foreign_lockfiles_and_missing_bun_artifacts() {
 #[test]
 fn detect_style_tooling_passes_with_config_and_dist_ignore() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_STYLE_TOOLING.to_string(),
@@ -2137,7 +2170,7 @@ fn detect_style_tooling_passes_with_config_and_dist_ignore() {
 #[test]
 fn detect_style_tooling_flags_missing_config_and_ignore() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_STYLE_TOOLING.to_string(),
@@ -2159,7 +2192,7 @@ fn detect_style_tooling_flags_missing_config_and_ignore() {
 #[test]
 fn detect_sandbox_aware_test_flags_unguarded_deep_navigation() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_SANDBOX_AWARE_TEST.to_string(),
@@ -2194,7 +2227,7 @@ fn detect_sandbox_aware_test_flags_unguarded_deep_navigation() {
 #[test]
 fn detect_vitest_api_conventions_flags_to_be_with_literal_argument() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = DetectBatch {
         concern_id: CONCERN_VITEST_API_CONVENTIONS.to_string(),
@@ -2225,7 +2258,7 @@ fn detect_vitest_api_conventions_flags_to_be_with_literal_argument() {
 #[test]
 fn detect_vue_packages_flags_vue_import_node_import_and_esbuild() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let clean_files = vec![
         batch_file(
@@ -2339,7 +2372,7 @@ fn licensee_batch_with_config() -> DetectBatch {
 #[test]
 fn licensee_reports_missing_config_without_spawning_the_tool() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
     let batch = DetectBatch {
         concern_id: CONCERN_BUN_LICENSEE.to_string(),
         files: vec![],
@@ -2360,7 +2393,7 @@ fn licensee_reports_missing_config_without_spawning_the_tool() {
 #[test]
 fn licensee_maps_unresolved_tool_to_canonical_bun_missing() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
     let diagnostics = plugin.detect(&licensee_batch_with_config()).unwrap();
     assert_eq!(diagnostics.len(), 1);
     assert_eq!(diagnostics[0].reason, "bun-missing");
@@ -2377,7 +2410,7 @@ fn licensee_clean_run_reports_nothing() {
     let dir = tempfile::tempdir().expect("tempdir має створитись");
     let host = licensee_host(dir.path(), "#!/bin/sh\nexit 0\n");
     let path = require_fixture();
-    let mut plugin = host.load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host.load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
     assert!(plugin
         .detect(&licensee_batch_with_config())
         .unwrap()
@@ -2395,7 +2428,7 @@ fn licensee_passes_canonical_arguments_to_the_tool() {
         "#!/bin/sh\n[ \"$*\" = \"x licensee --production --errors-only\" ] && exit 0\nexit 7\n",
     );
     let path = require_fixture();
-    let mut plugin = host.load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host.load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
     assert!(
         plugin
             .detect(&licensee_batch_with_config())
@@ -2416,7 +2449,7 @@ fn licensee_tool_crash_is_fail_open_warning() {
         "#!/bin/sh\necho \"Cannot read properties of undefined\" >&2\nexit 1\n",
     );
     let path = require_fixture();
-    let mut plugin = host.load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host.load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
     let diagnostics = plugin.detect(&licensee_batch_with_config()).unwrap();
     assert_eq!(diagnostics.len(), 1);
     assert_eq!(diagnostics[0].severity, Severity::Warn);
@@ -2447,7 +2480,7 @@ fn licensee_splits_metadata_and_third_party_violations() {
          exit 1\n",
     );
     let path = require_fixture();
-    let mut plugin = host.load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host.load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
     let diagnostics = plugin.detect(&licensee_batch_with_config()).unwrap();
 
     assert_eq!(diagnostics.len(), 2, "{diagnostics:?}");
@@ -2490,7 +2523,7 @@ fn licensee_reports_only_metadata_violation_without_empty_third_party_entry() {
         "#!/bin/sh\nprintf 'root-pkg@0.0.0\\n  Terms: Invalid license metadata\\n'\nexit 1\n",
     );
     let path = require_fixture();
-    let mut plugin = host.load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host.load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
     let diagnostics = plugin.detect(&licensee_batch_with_config()).unwrap();
 
     assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
@@ -2517,7 +2550,7 @@ fn licensee_unparsable_stdout_falls_back_to_aggregated_violation() {
     let dir = tempfile::tempdir().expect("tempdir має створитись");
     let host = licensee_host(dir.path(), "#!/bin/sh\nprintf '@\\n'\nexit 2\n");
     let path = require_fixture();
-    let mut plugin = host.load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host.load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
     let diagnostics = plugin.detect(&licensee_batch_with_config()).unwrap();
     assert_eq!(diagnostics.len(), 1);
     assert_eq!(diagnostics[0].reason, "license-violation");
@@ -2573,7 +2606,7 @@ fn style_batch(paths: &[&str]) -> DetectBatch {
 #[test]
 fn style_lint_without_style_files_does_not_spawn_the_tool() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
     let diagnostics = plugin
         .detect(&style_batch(&["src/main.mjs", "README.md"]))
         .unwrap();
@@ -2587,7 +2620,7 @@ fn style_lint_without_style_files_does_not_spawn_the_tool() {
 #[test]
 fn style_lint_on_empty_batch_reports_nothing() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
     let diagnostics = plugin.detect(&style_batch(&[])).unwrap();
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
 }
@@ -2597,7 +2630,7 @@ fn style_lint_on_empty_batch_reports_nothing() {
 #[test]
 fn style_lint_unresolved_tool_is_fail_open_warning() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
     let diagnostics = plugin.detect(&style_batch(&["src/app.scss"])).unwrap();
     assert_eq!(diagnostics.len(), 1);
     assert_eq!(diagnostics[0].reason, "stylelint-unresolved");
@@ -2623,7 +2656,7 @@ fn style_lint_passes_only_style_files_as_targets() {
         "#!/bin/sh\n[ \"$*\" = \"src/app.scss src/Page.vue\" ] && exit 0\nexit 7\n",
     );
     let path = require_fixture();
-    let mut plugin = host.load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host.load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
     let diagnostics = plugin
         .detect(&style_batch(&[
             "src/app.scss",
@@ -2651,7 +2684,7 @@ fn jscpd_batch() -> DetectBatch {
 #[test]
 fn jscpd_unresolved_tool_is_fail_open_warning() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
     let diagnostics = plugin.detect(&jscpd_batch()).unwrap();
     assert_eq!(diagnostics.len(), 1);
     assert_eq!(diagnostics[0].reason, "jscpd-report-unreadable");
@@ -2677,7 +2710,7 @@ fn jscpd_missing_report_degrades_to_warning_with_tool_output() {
         "#!/bin/sh\necho 'jscpd: nothing to do'\nexit 0\n",
     );
     let path = require_fixture();
-    let mut plugin = host.load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host.load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
     let diagnostics = plugin.detect(&jscpd_batch()).unwrap();
     assert_eq!(diagnostics.len(), 1);
     assert_eq!(diagnostics[0].reason, "jscpd-report-unreadable");
@@ -2704,7 +2737,7 @@ fn jscpd_unparsable_report_degrades_to_warning() {
         "#!/bin/sh\nprintf 'not json' > \"$5/jscpd-report.json\"\nexit 0\n",
     );
     let path = require_fixture();
-    let mut plugin = host.load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host.load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
     let diagnostics = plugin.detect(&jscpd_batch()).unwrap();
     assert_eq!(diagnostics.len(), 1);
     assert_eq!(diagnostics[0].reason, "jscpd-report-unreadable");
@@ -2729,7 +2762,7 @@ fn jscpd_reads_report_written_into_the_scratch_dir() {
          exit 0\n",
     );
     let path = require_fixture();
-    let mut plugin = host.load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host.load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
     let diagnostics = plugin.detect(&jscpd_batch()).unwrap();
     assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
     assert_eq!(diagnostics[0].reason, "duplicate-clone");
@@ -2769,7 +2802,7 @@ fn jscpd_skips_clone_entries_that_do_not_match_the_report_schema() {
          exit 0\n",
     );
     let path = require_fixture();
-    let mut plugin = host.load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host.load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
     let diagnostics = plugin.detect(&jscpd_batch()).unwrap();
     assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
     assert_eq!(diagnostics[0].file.as_deref(), Some("c.vue"));
@@ -2804,7 +2837,7 @@ fn js_run_batch(files: &[(&str, &str)]) -> DetectBatch {
 #[test]
 fn js_run_runtime_tolerates_broken_root_package_json() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = js_run_batch(&[
         ("package.json", "{ це не JSON"),
@@ -2822,7 +2855,7 @@ fn js_run_runtime_tolerates_broken_root_package_json() {
 #[test]
 fn js_run_runtime_tolerates_broken_workspace_package_json() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = js_run_batch(&[
         (
@@ -2847,7 +2880,7 @@ fn js_run_runtime_tolerates_broken_workspace_package_json() {
 #[test]
 fn js_run_runtime_treats_src_with_no_batch_files_as_absent() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = js_run_batch(&[
         (
@@ -2868,7 +2901,7 @@ fn js_run_runtime_treats_src_with_no_batch_files_as_absent() {
 #[test]
 fn js_run_runtime_never_spawns_a_tool_for_the_jsconfig_branch() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = js_run_batch(&[
         (
@@ -2893,7 +2926,7 @@ fn js_run_runtime_never_spawns_a_tool_for_the_jsconfig_branch() {
 #[test]
 fn js_run_runtime_skips_files_with_syntax_errors() {
     let path = require_fixture();
-    let mut plugin = host().load(&path, PLUGIN_WORLD_VERSION).unwrap();
+    let mut plugin = host().load_for_worlds(&path, PLUGIN_WORLD_VERSION, lang_js_worlds()).unwrap();
 
     let batch = js_run_batch(&[
         (
@@ -2909,4 +2942,262 @@ fn js_run_runtime_skips_files_with_syntax_errors() {
 
     let diagnostics = plugin.detect(&batch).expect("detect не мав провалитись");
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
+}
+
+// =====================================================================
+// `bun/package_json` — характеризація ПОРТОВАНА з
+// `plugins/lang-js/rules/bun/package_json/tests/fix-package_json.test.mjs`
+// (§2.94, знята разом із JS-каноном кроком 5 спеки
+// `docs/specs/2026-08-31-plugin-contract-v5.md`, §2.92/§2.94/§2.119) — не
+// викинута, правило проєкту («перенеси, не викидай», §2.91). Живе в цьому
+// файлі, не поряд із чистими хелперами `crates/plugin-lang-js/src/lib.rs`
+// (`#[cfg(test)]`): [`fix_bun_package_json`] кличе `list_files`/
+// `read_file_bytes` (host-імпорти `n-rules:caps/file-reader@1.0.0`), тож
+// потребує РЕАЛЬНОГО хоста над РЕАЛЬНИМ tempdir — той самий поділ, що
+// решта host-import-фіксів гостя (`style/lint`/`bun/licensee`/`exec-tool`).
+//
+// Три з дванадцяти JS-тестів («мовчазний readDenyTemplate → {}») НЕ
+// портовані — і це задокументована різниця, не пропуск. Канон читав
+// deny-template з диска через `ctx.concernDir` (окремий файл поряд із
+// концерном), тож «шаблон відсутній/побитий/без concernDir» були трьома
+// реальними шляхами відмови. Порт вшиває той самий канонічний файл
+// `include_str!`-ом (`BUN_PACKAGE_JSON_DENY_TEMPLATE_JSON`,
+// `crates/plugin-lang-js/src/lib.rs`) — компільований у `.wasm`, тобто
+// «відсутній/побитий шаблон» стає СТРУКТУРНО недосяжним (build-time
+// інваріант: невалідний вшитий JSON не дав би скомпілювати гостя, доккомент
+// `bun_package_json_deny_field_names`), а не силою, яку канон мав тестувати
+// в рантаймі. Не регресія — зникнення класу вад.
+// =====================================================================
+
+/// Пише `package.json` у корінь tempdir-дерева й повертає готовий до
+/// `fix()` гість, що оголосив `n-rules:caps/file-reader@1.0.0` (єдиний
+/// спосіб інстанціюватись — доккомент [`lang_js_worlds`]).
+fn pkg_json_plugin_in_root(root: &std::path::Path) -> rules_plugin_host::LoadedPlugin {
+    let path = require_fixture();
+    host()
+        .load_in_root_for_worlds(&path, PLUGIN_WORLD_VERSION, root, lang_js_worlds())
+        .expect("plugin-lang-js із file-reader має інстанціюватись над tempdir-коренем")
+}
+
+/// Порт `VIOLATIONS` канону (`fix-package_json.test.mjs`) — та сама умова
+/// вмикання патерна (`reason == "policy-deny"`, `file` непорожній).
+fn pkg_json_violations() -> Vec<rules_contract::diagnostic::Diagnostic> {
+    vec![rules_contract::diagnostic::Diagnostic {
+        reason: "policy-deny".to_string(),
+        message: "заборонене поле".to_string(),
+        file: Some("package.json".to_string()),
+        severity: Severity::Warn,
+        data: None,
+    }]
+}
+
+fn pkg_json_fix_request() -> rules_contract::fix::FixRequest {
+    rules_contract::fix::FixRequest {
+        concern_id: "bun/package_json".to_string(),
+        // Порт не використовує `request.files` узагалі (доккомент
+        // `fix_bun_package_json`) — читає репо через file-reader, тож
+        // порожній батч тут навмисний, не недогляд.
+        files: vec![],
+        diagnostics: pkg_json_violations(),
+    }
+}
+
+fn pkg_json_write(root: &std::path::Path, rel: &str, content: &str) {
+    let abs = root.join(rel);
+    if let Some(parent) = abs.parent() {
+        std::fs::create_dir_all(parent).expect("mkdir -p не мав провалитись");
+    }
+    std::fs::write(abs, content).expect("запис не мав провалитись");
+}
+
+fn pkg_json_read(root: &std::path::Path, rel: &str) -> String {
+    std::fs::read_to_string(root.join(rel)).unwrap_or_else(|err| panic!("читання {rel}: {err}"))
+}
+
+/// `edits` `fix-plan`-у у вигляді шляхів — зручний зріз для звірки без
+/// матчингу на `FileEdit::Write` у кожному тесті.
+fn pkg_json_edit_paths(plan: &rules_contract::fix::FixPlan) -> Vec<String> {
+    plan.edits
+        .iter()
+        .map(|edit| match edit {
+            rules_contract::fix::FileEdit::Write(w) => w.path.clone(),
+            other => panic!("bun/package_json пише лише FileEdit::Write, отримано {other:?}"),
+        })
+        .collect()
+}
+
+/// `LoadedPlugin::fix` — ЧИСТА функція: повертає план, НЕ пише на диск
+/// (WIT-контракт `fix-plan`, доккомент `record fix-plan` у `wit/world.wit`
+/// — запис у продакшн робить хост/napi-міст, `run_wasm_concern_fix`, а не
+/// гість). Ці тести відтворюють ту саму фазу застосування, що й JS-канон
+/// робив `writeFileSync`-ом сам, — щоб читання диска ПІСЛЯ `fix()`
+/// показувало кінцевий стан, а не проміжний план.
+fn pkg_json_apply(root: &std::path::Path, plan: &rules_contract::fix::FixPlan) {
+    for edit in &plan.edits {
+        match edit {
+            rules_contract::fix::FileEdit::Write(w) => pkg_json_write(root, &w.path, &w.content),
+            other => panic!("bun/package_json пише лише FileEdit::Write, отримано {other:?}"),
+        }
+    }
+}
+
+/// Щасливий шлях 1 (якір теперішньої коректної поведінки): видаляє
+/// deny-поле й lint-скрипт, переписавши його виклик у workflow.
+#[test]
+fn pkg_json_removes_denied_fields_and_rewrites_workflow_call() {
+    let dir = tempfile::tempdir().expect("tempdir має створитись");
+    pkg_json_write(
+        dir.path(),
+        "package.json",
+        "{\n  \"name\": \"x\",\n  \"packageManager\": \"bun@1.2.0\",\n  \"scripts\": {\n    \"lint-js\": \"eslint .\",\n    \"test\": \"bun test\"\n  }\n}\n",
+    );
+    pkg_json_write(
+        dir.path(),
+        ".github/workflows/ci.yml",
+        "jobs:\n  a:\n    steps:\n      - run: bun run lint-js\n",
+    );
+
+    let mut plugin = pkg_json_plugin_in_root(dir.path());
+    let plan = plugin.fix(&pkg_json_fix_request()).expect("fix не мав провалитись");
+    pkg_json_apply(dir.path(), &plan);
+
+    let pkg: serde_json::Value = serde_json::from_str(&pkg_json_read(dir.path(), "package.json")).unwrap();
+    assert!(pkg.get("packageManager").is_none());
+    assert!(pkg["scripts"].get("lint-js").is_none());
+    assert_eq!(pkg["scripts"]["test"], "bun test");
+
+    let mut paths = pkg_json_edit_paths(&plan);
+    paths.sort();
+    assert_eq!(paths, vec![".github/workflows/ci.yml".to_string(), "package.json".to_string()]);
+}
+
+/// Щасливий шлях 2: адаптує виклик у сусідньому скрипті ТОГО Ж
+/// `package.json` (не потрапляє в репо-вайд обхід — цей файл і є ціль).
+#[test]
+fn pkg_json_rewrites_sibling_script_in_same_file() {
+    let dir = tempfile::tempdir().expect("tempdir має створитись");
+    pkg_json_write(
+        dir.path(),
+        "package.json",
+        "{\n  \"name\": \"x\",\n  \"dependencies\": { \"a\": \"1\" },\n  \"scripts\": {\n    \"lint-js\": \"eslint .\",\n    \"precommit\": \"bun run lint-js && bun test\"\n  }\n}\n",
+    );
+
+    let mut plugin = pkg_json_plugin_in_root(dir.path());
+    let plan = plugin.fix(&pkg_json_fix_request()).expect("fix не мав провалитись");
+    pkg_json_apply(dir.path(), &plan);
+
+    let pkg: serde_json::Value = serde_json::from_str(&pkg_json_read(dir.path(), "package.json")).unwrap();
+    assert!(pkg.get("dependencies").is_none());
+    assert!(pkg["scripts"].get("lint-js").is_none());
+    assert_eq!(pkg["scripts"]["precommit"], "bunx n-rules lint js && bun test");
+}
+
+/// Дефект 1 §2.92 (half-apply), полагоджений §2.94: нерозпізнаний виклик
+/// у Makefile блокує ВИДАЛЕННЯ, отже й запис package.json/workflow — план
+/// порожній, нічого не записано.
+#[test]
+fn pkg_json_unrecognized_makefile_call_blocks_the_whole_plan() {
+    let dir = tempfile::tempdir().expect("tempdir має створитись");
+    let pkg_source = "{\n  \"name\": \"x\",\n  \"scripts\": {\n    \"lint-js\": \"eslint .\",\n    \"precommit\": \"bun run lint-js && bun test\"\n  }\n}\n";
+    let workflow_source = "jobs:\n  a:\n    steps:\n      - run: bun run lint-js\n";
+    pkg_json_write(dir.path(), "package.json", pkg_source);
+    pkg_json_write(dir.path(), ".github/workflows/ci.yml", workflow_source);
+    pkg_json_write(dir.path(), "Makefile", "lint:\n\tbun run lint-js\n");
+
+    let mut plugin = pkg_json_plugin_in_root(dir.path());
+    let plan = plugin.fix(&pkg_json_fix_request()).expect("fix не мав провалитись");
+    pkg_json_apply(dir.path(), &plan);
+
+    assert_eq!(pkg_json_read(dir.path(), "package.json"), pkg_source);
+    assert_eq!(pkg_json_read(dir.path(), ".github/workflows/ci.yml"), workflow_source);
+    assert!(plan.edits.is_empty());
+}
+
+/// Дефект 2 §2.92 (переписи ДО зʼясування резолвності), полагоджений
+/// §2.94: deny-поле видаляється незалежно (не блокується скриптом), а
+/// workflow заблокованого скрипта лишається недоторканим.
+#[test]
+fn pkg_json_deny_field_removed_independently_of_blocked_script() {
+    let dir = tempfile::tempdir().expect("tempdir має створитись");
+    pkg_json_write(
+        dir.path(),
+        "package.json",
+        "{\n  \"name\": \"x\",\n  \"packageManager\": \"bun@1.2.0\",\n  \"scripts\": {\n    \"lint-js\": \"eslint .\"\n  }\n}\n",
+    );
+    let workflow_source = "jobs:\n  a:\n    steps:\n      - run: bun run lint-js\n";
+    pkg_json_write(dir.path(), ".github/workflows/ci.yml", workflow_source);
+    pkg_json_write(dir.path(), "Makefile", "lint:\n\tbun run lint-js\n");
+
+    let mut plugin = pkg_json_plugin_in_root(dir.path());
+    let plan = plugin.fix(&pkg_json_fix_request()).expect("fix не мав провалитись");
+    pkg_json_apply(dir.path(), &plan);
+
+    let pkg: serde_json::Value = serde_json::from_str(&pkg_json_read(dir.path(), "package.json")).unwrap();
+    assert!(pkg.get("packageManager").is_none());
+    assert_eq!(pkg["scripts"]["lint-js"], "eslint .");
+    assert_eq!(pkg_json_read(dir.path(), ".github/workflows/ci.yml"), workflow_source);
+    assert_eq!(pkg_json_edit_paths(&plan), vec!["package.json".to_string()]);
+}
+
+/// Дефект 2 §2.92, друга фікстура: вкладений `package.json` заблокованого
+/// скрипта теж не переписується.
+#[test]
+fn pkg_json_nested_package_json_of_blocked_script_is_untouched() {
+    let dir = tempfile::tempdir().expect("tempdir має створитись");
+    pkg_json_write(
+        dir.path(),
+        "package.json",
+        "{\n  \"name\": \"root\",\n  \"packageManager\": \"bun@1.2.0\",\n  \"scripts\": {\n    \"lint-css\": \"stylelint .\"\n  }\n}\n",
+    );
+    let nested_source = "{\n  \"name\": \"nested\",\n  \"scripts\": {\n    \"ci\": \"bun run lint-css\"\n  }\n}\n";
+    pkg_json_write(dir.path(), "packages/ui/package.json", nested_source);
+    pkg_json_write(dir.path(), "run.sh", "#!/bin/sh\nbun run lint-css\n");
+
+    let mut plugin = pkg_json_plugin_in_root(dir.path());
+    let plan = plugin.fix(&pkg_json_fix_request()).expect("fix не мав провалитись");
+    pkg_json_apply(dir.path(), &plan);
+
+    assert_eq!(pkg_json_read(dir.path(), "packages/ui/package.json"), nested_source);
+}
+
+/// Дефект 4 §2.92 (форматування): 4-пробільний відступ цільового файлу
+/// зберігається.
+#[test]
+fn pkg_json_preserves_four_space_indent() {
+    let dir = tempfile::tempdir().expect("tempdir має створитись");
+    pkg_json_write(
+        dir.path(),
+        "package.json",
+        "{\n    \"name\": \"x\",\n    \"packageManager\": \"bun@1.2.0\",\n    \"scripts\": {\n        \"test\": \"bun test\"\n    }\n}\n",
+    );
+
+    let mut plugin = pkg_json_plugin_in_root(dir.path());
+    let plan = plugin.fix(&pkg_json_fix_request()).expect("fix не мав провалитись");
+    pkg_json_apply(dir.path(), &plan);
+    assert!(!plan.edits.is_empty(), "packageManager мав дати непорожній план");
+
+    let raw = pkg_json_read(dir.path(), "package.json");
+    assert!(raw.contains("\n    \"name\""));
+    assert!(!raw.contains("\n  \"name\""));
+}
+
+/// Дефект 4 §2.92, друга фікстура: табуляція й відсутність кінцевого
+/// переводу рядка зберігаються.
+#[test]
+fn pkg_json_preserves_tabs_and_missing_trailing_newline() {
+    let dir = tempfile::tempdir().expect("tempdir має створитись");
+    pkg_json_write(
+        dir.path(),
+        "package.json",
+        "{\n\t\"name\": \"x\",\n\t\"packageManager\": \"bun@1.2.0\",\n\t\"scripts\": {\n\t\t\"test\": \"bun test\"\n\t}\n}",
+    );
+
+    let mut plugin = pkg_json_plugin_in_root(dir.path());
+    let plan = plugin.fix(&pkg_json_fix_request()).expect("fix не мав провалитись");
+    pkg_json_apply(dir.path(), &plan);
+    assert!(!plan.edits.is_empty(), "packageManager мав дати непорожній план");
+
+    let raw = pkg_json_read(dir.path(), "package.json");
+    assert!(raw.contains("\n\t\"name\""));
+    assert!(raw.ends_with('}'));
 }

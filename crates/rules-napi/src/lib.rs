@@ -448,6 +448,45 @@ fn to_wasm_napi_err(err: PluginHostError) -> Error {
     Error::from_reason(err.to_string())
 }
 
+/// Усі СЬОГОДНІ відомі world-и повноважень (крок 5 спеки
+/// `docs/specs/2026-08-31-plugin-contract-v5.md`) — розширюють лінкер
+/// БЕЗУМОВНО для КОЖНОГО завантаження, не лише `plugin-lang-js`
+/// (єдиного сьогодні реального споживача, `bun/package_json`).
+///
+/// # Чому безумовно, а не читаючи `manifest.worlds`
+///
+/// Курка-яйце (спека §8): щоб знати, які world-и оголосив компонент, треба
+/// прочитати маніфест; щоб прочитати маніфест (`describe()`), компонент
+/// уже має бути інстанційований проти ПРАВИЛЬНОГО набору імпортів.
+/// Розвʼязання без інстанціації — custom-section дискавері
+/// (`inspect_component`, без wasmtime) — окрема робота Д2
+/// (`crates/rules-cli`), поза обсягом цього кроку.
+///
+/// Безумовне розширення — безпечний обхід: `crate::world_linker`
+/// (`rules-plugin-host`) документує експериментально доведений факт —
+/// «зайві» імпорти в лінкері НЕ шкодять гостю, що їх не потребує
+/// (Component Model перевіряє лише що гостьові імпорти ЗАДОВОЛЕНІ, не що
+/// лінкер СКУПИЙ). Пʼять із шести first-party гостей і сьогодні несуть
+/// `worlds = []` — для них цей рядок не міняє нічого.
+///
+/// # Чого це коштує — назвати прямо, щоб обхід не став вічним
+///
+/// Гейт `caps_file_reader_gate` доводить, що гість БЕЗ оголошення світу не
+/// дістає його імпортів. Цей рядок робить те твердження істинним лише в
+/// тестах: у продуктовому шляху через napi КОЖЕН гість дістає `file-reader`
+/// безумовно. Тобто типізований гейт повноважень (рішення 4 спеки
+/// `2026-08-31-slice6-consumer-surfaces.md`) тут не гейтить.
+///
+/// Замикається це конкретним кроком, і всі його частини вже існують:
+/// `n-rules plugin embed-manifest` (Д2, PR #618) вбудовує маніфест у
+/// custom-section, `oci_dist_package::inspect_component` читає його БЕЗ
+/// wasmtime. Лишається змусити `npm/scripts/build-wasm-plugins.mjs` робити
+/// embed на збірці, а цю функцію — читати `worlds` звідти замість константи.
+fn declared_worlds() -> &'static [String] {
+    static WORLDS: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
+    WORLDS.get_or_init(|| vec!["n-rules:caps/file-reader@1.0.0".to_string()])
+}
+
 /// Будує [`ToolResolver`] із JS-переданого `toolPaths` (`Option<HashMap<String,String>>`,
 /// задача N1 фази 6, спека `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md`
 /// §3.3): напряму мапить «ім'я тула → шлях» у `PathBuf`, версійну політику
@@ -540,9 +579,14 @@ fn with_loaded_plugin_in_root<T>(
             let loaded = PLUGIN_HOST
                 .with(|host| match root {
                     Some(root) => {
-                        host.load_in_root(Path::new(wasm_path), PLUGIN_WORLD_VERSION, root)
+                        host.load_in_root_for_worlds(
+                            Path::new(wasm_path),
+                            PLUGIN_WORLD_VERSION,
+                            root,
+                            declared_worlds(),
+                        )
                     }
-                    None => host.load(Path::new(wasm_path), PLUGIN_WORLD_VERSION),
+                    None => host.load_for_worlds(Path::new(wasm_path), PLUGIN_WORLD_VERSION, declared_worlds()),
                 })
                 .map_err(to_wasm_napi_err)?;
             cache.insert(wasm_path.to_string(), loaded);

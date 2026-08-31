@@ -18,12 +18,13 @@ id = "lang-js/wasm-concerns"
 version = "0.1.0"
 world_version = "5.0.0"
 domains = ["lint"]
-# ТИМЧАСОВО порожньо: мажор `5.0.0` (§2.109 реєстру відкритих питань) додав
-# поле `worlds`, реальна міграція шести гостей на декларації `caps`/
-# `surfaces` — крок 4 спеки `docs/specs/2026-08-31-plugin-contract-v5.md`
-# §12, окрема задача. До неї гість однаково НЕ інстанціюється на
-# `5.x`-хості (`check_world_version` major-only).
-worlds = []
+# Крок 5 спеки `docs/specs/2026-08-31-plugin-contract-v5.md` (§2.92/§2.94/
+# §2.119 реєстру відкритих питань) — ПЕРША декларація world-а повноважень
+# будь-яким first-party гостем: єдиний споживач сьогодні — fix
+# `bun/package_json` (`fix_only_concerns` нижче, доккомент
+# `fix_bun_package_json` у `src/lib.rs`). Решта пʼяти first-party гостей і
+# далі несуть `worlds = []` — їхня міграція лишається окремою задачею.
+worlds = ["n-rules:caps/file-reader@1.0.0"]
 # Top-level поля маніфеста — ОБОВʼЯЗКОВО перед першим `[[concerns]]`: після
 # array-of-tables заголовка TOML відніс би їх до останнього елемента масиву,
 # а не до кореня (як і `[capabilities]` нижче, який лишається коректним, бо
@@ -483,9 +484,24 @@ key = "js/eslint"
 scope = "per-file"
 glob = ["**/*.{js,mjs,cjs,jsx,ts,tsx,vue}"]
 
+# Крок 5 спеки `docs/specs/2026-08-31-plugin-contract-v5.md` (§2.92/§2.94/
+# §2.119 реєстру відкритих питань): detect лишається чистим rego-policy
+# (`plugins/lang-js/rules/bun/package_json/package_json.rego`, поза цим
+# гостем), тож ключ тут — у `fix_only_concerns`, не в `concerns`. `fix_glob`
+# навмисно порожній: фікс читає репо сам через `n-rules:caps/file-reader`
+# (`list-files`/`read-file-bytes`, доккомент `fix_bun_package_json` у
+# `src/lib.rs`), не через host-побудований full-scope batch.
+[[fix_only_concerns]]
+key = "bun/package_json"
+scope = "full"
+glob = ["package.json"]
+
 [capabilities]
 # Хост передає вміст файлів inline у `detect-batch`/`fix-request` (як
 # per-file, так і host-побудований full-scope batch) — плагін не читає диск
-# сам.
+# сам, ОКРІМ `bun/package_json` (вище): той world-фікс читає диск НАПРЯМУ
+# через `n-rules:caps/file-reader@1.0.0`, не через WASI-preopen, тож
+# `fs_read` тут лишається порожнім (доккомент `HostState::fs_read_root`,
+# `crates/rules-plugin-host`: file-reader — не WASI-preopen-capability).
 fs_read = []
 network = false

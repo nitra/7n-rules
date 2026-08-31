@@ -1,0 +1,36 @@
+// Той самий пакет `n-rules:plugin@5.0.0`, що `world.wit` — доккомент пакета
+// живе РІВНО там (wit-parser вимагає doc-коментар пакета лише в одному
+// файлі багатофайлового пакета; тут навмисно без другого `package`-рядка,
+// та сама конвенція, що `wit/deps/caps/file-reader.wit` для
+// `n-rules:caps@1.0.0`).
+//
+// Крок 5 спеки `docs/specs/2026-08-31-plugin-contract-v5.md`: `file-reader`
+// як перший РЕАЛЬНИЙ споживач (порт `bun/package_json`, §2.92/§2.94
+// реєстру відкритих питань). Гість, що читає диск сам (не лише вміст,
+// переданий у `detect-batch`/`fix-request`), мусить бути ЗІБРАНИЙ проти
+// world-а, чий ТИП реально несе `list-files`/`read-file-bytes` — Component
+// Model не має «опціональних» імпортів: якщо компонент їх викликає, вони
+// мають бути в його типі, інакше wasm-tools відмовляється компілювати
+// компонент узагалі.
+//
+// Тому — окремий, комбінований world, а не сам ядровий `plugin`:
+// `include plugin` тягне УСІ імпорти/експорти ядра (щоб
+// `describe`/`detect`/`fix`/… лишались валідними, а `log`/`run-tool`/…
+// доступними), `include n-rules:caps/file-reader@1.0.0` додає РІВНО два
+// нові host-імпорти. Перейменування `domain-error` — ОБОВ'ЯЗКОВЕ: обидва
+// world-и оголошують власний локальний варіант цього імені (доккомент
+// `wit/deps/caps/file-reader.wit`), інакше `wasm-tools component wit`
+// відмовляє («import of `domain-error` shadows previously imported
+// items») — той самий синтаксис, що вже перевірений і задокументований
+// `crates/rules-plugin-host/tests/caps_file_reader_gate.rs::GATE_WIT`, тут
+// лише перенесений із tempdir-скаффолда тесту в постійне дерево контракту,
+// бо `crates/plugin-lang-js` — не тестовий гість, а перший продакшн-
+// споживач цього world-а.
+//
+// Гості, що НЕ читають диск самі (решта п'яти first-party плагінів),
+// лишаються на голому `world: "plugin"` — цей файл не змінює жодного
+// наявного визначення, лише додає нове.
+world plugin-file-reader {
+  include plugin;
+  include n-rules:caps/file-reader@1.0.0 with { domain-error as file-reader-domain-error }
+}
