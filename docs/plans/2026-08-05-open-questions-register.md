@@ -12778,3 +12778,72 @@ plugins/ci-github/rules/ga/tests/workflow-templates-actionlint.test.mjs` —
 plugins/ci-github/rules/ga/tests/workflow-templates-actionlint.test.mjs` —
 PASS. Тести самих видалених модулів зникли разом з модулями — очікувано,
 названо тут явно.
+
+### 2.107. Прогалина оркестрації закрита: `auto-worktree.mjs` — клас A з блокером, `native.mjs` — роль без класу, `worktree-notice.mjs`/`root-notice.mjs` — C сьогодні, `tools ensure` виявився не «повністю native»
+
+**Джерело:** `docs/specs/2026-08-31-recon-orchestration-gap.md` (крок 8
+плану `2026-08-31-full-rust-migration-plan.md`). Закриває 799 рядків
+(`native.mjs`, `auto-worktree.mjs`, `worktree-notice.mjs`, `root-notice.mjs`),
+названі в `docs/specs/2026-08-31-recon-orchestration.md` §0/§8 як явно не
+розібрані, плюс добиває `ensure-tool.mjs` по внутрішньому устрою (раніше
+розібрано лише по межі з Rust).
+
+**`native.mjs` (273) навмисно без номера класу.** Це JS-бік мосту
+`rules-core ⇄ napi` — дзеркало `js_fallback.rs` у протилежний бік, як
+`bridge-host.mjs` у `lint-surface`. Клас файлу без власного алгоритму —
+не властивість самого файлу, а сума доль дев'яти імпортерів (`walkDir.mjs`,
+`auto-worktree.mjs`, `changed-files.mjs`, і п'ять файлів `lint-surface`).
+Зникає рівно тоді, коли зникає останній JS-файл, що кличе `loadNative()` —
+тобто разом із `bridge-host.mjs`, а не раніше.
+
+**`auto-worktree.mjs` (279) — клас A з явним застереженням.**
+Worktree-lifecycle (`sanitizeWorktreeName`/`worktreeCreate`/`worktreeRemove`)
+уже 1:1 нативний через `rules_core::worktree` (тонка обгортка над
+`mt_core`, повний тестовий паритет). Решта — git-статус-гейт,
+`readline`-confirm, copy-back-логіка, спавн `bun install`/`npx @7n/n push`
+— не портована, але не потребує нових поверхонь (Rust-CLI вже має
+прецедент `stdin.is_terminal()` у `hook_cmd.rs` і спавну git у тестах
+`worktree.rs`): клас **A**. Але повне зняття файлу впирається не в обсяг
+роботи, а в блокер §4 п.2 материнського плану — `npm/skills/taze/js/orchestrate.mjs`
+ре-експортує `bringChangesBackToOriginal`/`removeAutoCreatedWorktree` для
+власного флоу, і доти, доки `taze` лишається JS-оркестрованим скілом,
+файл не можна прибрати цілком.
+
+**`worktree-notice.mjs` (180) і `root-notice.mjs` (67) — клас C сьогодні.**
+Єдиний споживач обох — `runSync` (`n-rules-cli.mjs:964-965`), частина
+«дефолтного sync», який план (крок 3) і материнська розвідка (зведення §8а)
+уже класифікують як «C сьогодні»: Rust-контуру немає взагалі, а §12.4.1
+спеки зрізу 6 обіцяє лише **вшивання тексту** для консюмер-facing
+контенту — а ці два файли не носять готовий текст, вони обчислюють його
+(кирилична транслітерація suffix, ідемпотентна регекс-інжекція
+параметризованого блоку). «Вшити» тут нічого не заміняє — потрібен
+виконавець алгоритму, якого жодна спека не проектує.
+
+**`ensure-tool.mjs` (592) — клас B підтверджено, розібрано по функціях.**
+Резолв (PATH → кеш) і дані реєстру (`tools.json`/`tool-pins.json`) —
+спільні з Rust через `include_str!`, код читання дубльований, дані ні.
+Не портовано і чому: `fetchLatestVersion*`/`installFromGithub` (HTTP-клієнт,
+свідомо не заводиться в `rules-core`), `checkToolPinsFreshness` (гейт
+свіжості 30 днів — Rust-бік явно каже «поле не потрібне»), `ToolProvisionError`
+(розпізнається за `name` у `lint-surface/detect.mjs`, специфічний для
+JS fail-open шляху), `ensureHkInstall` (git-hook реєстрація), `withLock`-механізм
+async-шляху (Rust має аналог локу, не аналог самого `withLock`).
+
+**Знахідка, що суперечить документу-джерелу (правило 2 завдання):**
+`docs/specs/2026-08-31-recon-orchestration.md` §2 позначає `tools ensure`
+як «✅ native, повністю». Насправді `crates/rules-cli/src/tools_cmd.rs`
+для GitHub Release install-шляху (Linux завжди, Windows без
+scoop-manifest) **реверс-делегує в JS**: `LazyBridge::ensure` →
+той самий unix-socket-міст, що й `lint` (`bridge.rs`,
+`HOST_REL = "scripts/lib/lint-surface/bridge-host.mjs"`) → операція
+`ensureTool` (протокол-версія 2, з'явилась саме заради цієї операції) →
+`bridge-host.mjs:212-216` → `await import('../ensure-tool.mjs')` →
+`ensureToolAsync`. Сам доккомент `tools_cmd.rs:16-23` це визнає прямим
+текстом («делегується в чинний `ensureToolAsync` через зворотний міст»)
+— розбіжність не в коді, а в одному рядку таблиці, яка узагальнила
+«резолв нативний» до «команда повністю нативна». Для всіх 11 тулів
+реєстру на Linux `tools ensure` сьогодні піднімає node-процес.
+**Наслідок для кроку 4 плану:** таблиця §2 не може братись як джерело
+істини «що вже закрито» без цього виправлення — інакше крок 4 порахує
+`tools ensure` за вже готову роботу, хоча провізіонінг для
+Linux-мажоритарного випадку досі виконує JS.
