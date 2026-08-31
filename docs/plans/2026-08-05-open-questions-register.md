@@ -11956,6 +11956,139 @@ storybook-vitest-config` — цілком на JS-каноні, за підст�
 (`wasm-plugin-parity.test.mjs:6351`) і без цього запису вже коректно
 відображала стан трьох із трьох канонів — зміни до неї не потрібні.
 
+### 2.101. Д2 (публікація wasm-плагінів у OCI) заблокована структурно: `oci-dist-package` 0.1.6 приймає лише `wasm32-wasip3`, усі шість first-party гостей зібрані під `wasm32-wasip2`
+
+**Задача.** План `2026-08-29-js-rust-migration-completion-plan.md` (розділ
+«Третя колія — дистрибуція») ставив Д2 першим кроком дистрибуції:
+вбудувати маніфест (`oci_dist_package::embed_manifest`) у кожного з шести
+first-party wasm-гостей і дати команду публікації (`rules-cli` поверх
+`oci_dist_oci::publish_plugin_component`). **Результат ревізії: нуль
+рядків коду.** Обидва кроки впираються в один і той самий структурний
+блокер на самому вході — до OCI, до CLI, до реєстру.
+
+#### Доказ 1 — `PluginManifest` жорстко відхиляє все, крім `wasm32-wasip3`
+
+`oci-dist-package` (клон `git.7n.ai/nitra/oci-dist`, тег `=0.1.6`,
+`crates/oci-dist-package/src/manifest.rs`):
+
+```rust
+pub const COMPONENT_PROFILE: &str = "wasm32-wasip3";
+...
+if manifest.component_profile.as_str() != COMPONENT_PROFILE {
+    return Err(ManifestError::UnsupportedComponentProfile(...));
+}
+```
+
+Це не недогляд — крейт несе ВИДІЛЕНИЙ тест саме на відхилення P2
+(`crates/oci-dist-package/src/manifest.rs`, `rejects_p2_component_profile`):
+
+```rust
+fn rejects_p2_component_profile() {
+    let source = VALID.replace("wasm32-wasip3", "wasm32-wasip2");
+    let error = PluginManifest::from_toml(&source).expect_err("P2 profile must fail");
+    assert_eq!(
+        error.to_string(),
+        "unsupported Component profile `wasm32-wasip2`; expected `wasm32-wasip3`"
+    );
+}
+```
+
+`ComponentProfile` — tuple-struct із приватним полем і без публічного
+конструктора (лише `#[serde(transparent)]` deserialize), тож обійти
+перевірку прямою побудовою `PluginManifest` з іншого крейта неможливо:
+єдиний шлях створити валідний маніфест — `from_toml`/`from_json`, обидва
+проганяють `Self::validate`, обидва відмовляють на будь-чому, крім
+дослівного рядка `"wasm32-wasip3"`.
+
+#### Доказ 2 — усі шість first-party гостей зібрані під `wasm32-wasip2`, не `wasip3`
+
+Той самий рядок `TARGET="wasm32-wasip2"` (`build.sh:24`) — буквально
+ідентичний в усіх шести крейтах:
+
+```
+crates/plugin-lang-js/build.sh:24:TARGET="wasm32-wasip2"
+crates/plugin-lang-python/build.sh:24:TARGET="wasm32-wasip2"
+crates/plugin-lang-rust/build.sh:24:TARGET="wasm32-wasip2"
+crates/plugin-lang-php/build.sh:24:TARGET="wasm32-wasip2"
+crates/plugin-ci-github/build.sh:24:TARGET="wasm32-wasip2"
+crates/plugin-ci-azure/build.sh:24:TARGET="wasm32-wasip2"
+```
+
+Те саме в CI-орудному `npm/scripts/build-wasm-plugins.mjs`
+(`const WASM_TARGET = 'wasm32-wasip2'`). Це не випадковий вибір, який
+можна тихо перемкнути: хост (`crates/rules-plugin-host`) інстанціює
+компоненти саме проти WASI Preview 2 — `wasmtime-wasi = "48.0"` з
+доккоментом «WASI Preview 2 host-реалізація», лінкер будується через
+`wasmtime_wasi::p2::WasiCtxBuilder` (`crates/rules-plugin-host/src/wit.rs`,
+`bindgen!` на `crates/rules-contract/wit/world.wit`, `package
+n-rules:plugin@4.0.0`). Ціль `wasm32-wasip3` **не встановлена і навіть не
+доступна** через `rustup target list` на цій машині — вона існує лише в
+сирому переліку `rustc --print target-list`, тобто не є стандартним
+дистрибутивним таргетом на сьогодні (перевірено 2026-08-31,
+`rustup 1.28`/поточний тулчейн репозиторію).
+
+#### Наслідок для обох пунктів обсягу
+
+- **Пункт 1 (вбудувати маніфест).** `embed_manifest(component, manifest)`
+  бере вже сконструйований `&PluginManifest` — конструювання відмовляє
+  раніше, ніж доходить до самого `embed_manifest`. Немає жодного
+  публічного шляху отримати валідний `PluginManifest` для
+  `wasm32-wasip2`-компонента в `oci-dist-package` 0.1.6.
+- **Пункт 2 (команда публікації).** `oci_dist_oci::publish_plugin_component`
+  (`crates/oci-dist-oci/src/lib.rs`) починається з `inspect_component(&component)`
+  — тобто вимагає ВЖЕ вбудований валідний маніфест на вході; без пункту 1
+  публікувати нічого. Доккомент модуля прямо каже: «both start from
+  `inspect_component`, which requires a real WebAssembly Component and
+  rejects a native binary outright» — і симетрично відмовляє й
+  wasip2-компоненту з відсутнім/невалідним маніфестом.
+
+#### Другий, незалежний блокер того самого класу — форма `entrypoints`
+
+Навіть якби профіль збігався, `PluginManifest::entrypoints` вимагає
+непорожню мапу на `WitExportRef` виду `namespace:package/interface@version`
+(`crates/oci-dist-package/src/manifest.rs`, `WitExportRef::validate` —
+`split_once('/')` потім `split_once('@')`, з валідним `PackageRef` і
+`Version` по обидва боки). Контракт v3.1 `n-rules:plugin@4.0.0`
+(`crates/rules-contract/wit/world.wit:153-606`) не має типізованих
+export-інтерфейсів такої форми — `describe`/`detect`/`fix`/… оголошені як
+прямі function-export'и світу (`export detect: func(...)`), не як
+`interface`, реекспортований з версією. Немає природного значення, яким
+заповнити `entrypoints` без вигадування фіктивного WIT-референсу — та сама
+вада класу «мовчазний пропуск», якої правила проєкту забороняють.
+
+#### Що НЕ є блокером
+
+Пункт 3 обсягу («реєстр — обов'язковий параметр, не константа») уже
+задоволений на рівні API: `publish_plugin_component(registry: &str, ...)`
+бере реєстр першим аргументом виклику, жодної вшитої константи в
+`oci-dist-oci` немає. Це не потребувало окремої роботи — і лишається
+підтвердженим на майбутнє, коли блокер профілю буде знято.
+
+#### Рекомендація, не рішення
+
+Розблокувати може одне з (жодне не в обсязі Д2, обидва рішення власника):
+
+1. **7n-rules мігрує гостей на `wasm32-wasip3`.** Вимагає доступного
+   rustup-таргета, підтримки `wasm32-wasip3` у `wasmtime`/`wasmtime-wasi`
+   на пінованому мінорі (`48.0`) або його бампу, і повторної перевірки
+   всього host-мосту (`crates/rules-plugin-host`) проти WASI P3 — окрема
+   міграція порівнянного масштабу з мажором `4.0.0` (§2.84), не крок
+   усередині Д2.
+2. **`oci-dist` розширює `COMPONENT_PROFILE`/`entrypoints`** під P2-гостей
+   і world-рівневі function-export'и без типізованого WIT-інтерфейсу —
+   рішення власника `nitra/oci-dist`, який «незалежний проєкт, не
+   підпорядкований ні `r-plugin`, ні `7n-rules`» (README крейту).
+3. Дочекатись, доки `wasm32-wasip3` дозріє до звичайного rustup-таргета
+   й отримає підтримку в пінованому `wasmtime`-релізному потязі.
+
+Жодного коду в межах цієї задачі не написано (ні `embed_manifest`-виклику,
+ні команди `rules-cli`) — примусове обходження (напр. заявити
+`component_profile = "wasm32-wasip3"` для фактично wasip2-компонента) було
+б брехнею в маніфесті, яку `inspect_component` не виявить одразу
+(`wasmparser`-валідація не перевіряє WASI-рівень імпортів), але яка
+зробила б увесь дистрибутивний контур недовірним — саме тип
+напів-рішення, якого це завдання прямо забороняло форсувати.
+
 ### 2.102. Дорожня карта контракту для чотирьох «заблокованих» концернів — блокерів три, мажора не треба, і один із трьох названий не тим засобом
 
 **Задача (дизайн, без коду).** Скласти дорожню карту змін контракту
