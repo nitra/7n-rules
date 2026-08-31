@@ -24,6 +24,7 @@
 //! свідомо відкладено (`PluginHost::load` документує двофазну
 //! інстанціацію).
 
+mod caps_file_reader;
 mod convert;
 mod error;
 mod host;
