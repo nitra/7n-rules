@@ -1,4 +1,4 @@
-//! Шаблон wasm-компонента `n-rules:plugin@4.0.0` (скіл `wasm-plugin`,
+//! Шаблон wasm-компонента `n-rules:plugin@5.0.0` (скіл `wasm-plugin`,
 //! `npm/skills/wasm-plugin/SKILL.md`) — замінити перед реалізацією:
 //! - `__WIT_PATH__` (нижче, у `wit_bindgen::generate!`) на реальний шлях до
 //!   `wit/` пакета `n-rules:plugin` (first-party: `../rules-contract/wit`;
@@ -49,7 +49,7 @@ fn build_manifest() -> Manifest {
     Manifest {
         id: "__PLUGIN_ID__".to_string(),
         version: "0.1.0".to_string(),
-        world_version: "4.0.0".to_string(),
+        world_version: "5.0.0".to_string(),
         domains: vec![Domain::Lint],
         concerns: vec![ConcernContribution {
             key: CONCERN_KEY.to_string(),
@@ -74,6 +74,11 @@ fn build_manifest() -> Manifest {
         },
         tools: vec![],
         fix_only_concerns: vec![],
+        // `worlds` (контракт `5.0.0`) — світи повноважень/слотові світи, які
+        // цей плагін реалізує понад ядровий `n-rules:plugin` (напр.
+        // `n-rules:caps/tool-runner@1.0.0`). Лишай порожнім, якщо плагіну
+        // достатньо ядрових `report-progress`/`log`/`host-context`.
+        worlds: vec![],
     }
 }
 

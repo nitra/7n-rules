@@ -13069,3 +13069,89 @@ field 'worlds' in initializer of rules_contract::manifest::Manifest`):
 `worlds = []`-заглушки, які потрібно замінити реальними деклараціями
 (`tool-runner` для шести чинних гостей, доккомент `wit/world.wit`
 версійного блоку `5.0.0` і таблиця спеки §10) — не додати поле з нуля.
+
+### 2.111. Гейт додатковості `crates/rules-plugin-host/tests/v30_guest_additive_compat.rs` переморожений на мажор `5.0.0` — `main` знову зелений
+
+**Джерело:** мажор `5.0.0` (крок 2, §2.109) уже змерджений: `record
+manifest` отримав поле `worlds`, і `check_world_version` разом зі
+структурним типом-чеком Component Model почали відхиляти будь-якого
+гостя, зібраного проти `4.0.0` — включно з тим, якого сам гейт
+додатковості до цього моменту вважав «поточним»
+(`v40_guest_loads_and_detects_on_current_host`). Той самий факт уже
+відпрацював `wit_parity.rs` (§2.109: `v40_shapes_drifted_exactly_where_major_five_declares`,
+`every_v50_type_keeps_its_exact_shape_in_current_world`) — бінарна
+половина доказу лишалась на старій базі й падала: `expected record of 10
+fields, found 9 fields` на `describe()`.
+
+**Що зроблено.** Той самий хід, що вже пройшов `wit_parity.rs` і що
+доккомент файлу описує як взірець на бампі `4.0.0`: тест не «полагоджено»
+оновленням очікуваної форми, а переосмислено. Файл перейменований
+`v30_guest_additive_compat.rs` → `guest_additive_compat.rs` (версія в
+назві означала б перейменування на кожен наступний мажор — рух, якого
+`wit_parity.rs` навмисно уникає). Заморожена база чинного мажора —
+`wit-v40` → `wit-v50` (фікстура `crates/rules-contract/tests/fixtures/wit-v50/`,
+знята кроком 2). `render()`/`downgrade_to_v30()` стали дворівневим
+опусканням: `downgrade_to_v40` знімає рядки, яких немає в мажорі `4.0.0`
+(`V50_ONLY_TEMPLATE_LINES` — поле `worlds` шаблону скіла) і підміняє
+заявлену версію `5.0.0` → `4.0.0`; `downgrade_to_v30` викликає його як
+перший крок і додатково знімає `V40_ONLY_TEMPLATE_LINES` (як і раніше)
+та підміняє `4.0.0` → `3.0.0`. Обидва рівні мають власний
+gate-на-дрейф-шаблону (`every_v50_only_template_line_is_actually_in_the_templates`,
+`every_v40_only_template_line_is_actually_in_the_templates`) — підміна, що
+нічого не знайшла, падає гучно, а не мовчить.
+
+Твердження «гість попереднього мажора не вантажиться» тепер перевіряється
+для v4.0 (`v40_guest_no_longer_instantiates_on_current_major_host`, замінив
+`v40_guest_loads_and_detects_on_current_host`) — і для v3.0
+(`v30_guest_no_longer_instantiates_on_current_major_host`) лишено як є:
+твердження й далі істинне (Component Model не має width-subtyping, тож
+гість двох мажорів тому не вантажиться так само певно, як гість одного),
+видаляти правдиве покриття мотиву не було. Твердження «база чинного
+мажора вантажиться й працює» перенесено на v5.0
+(`v50_guest_loads_and_detects_on_current_host`).
+
+**Побічний, але необхідний ремонт: шаблон скіла й три сусідні
+self-contained фікстури.** Крок 2 (§2.109) переніс шість first-party
+гостей і `test-plugin-guest` на `worlds = []`/`worlds: vec![]`, але НЕ
+чіпав `npm/skills/wasm-plugin/template/lib.rs.tpl` (лише `plugin.toml.tpl`
+отримав коментар і `worlds = []` — `Manifest`-літерал `lib.rs.tpl`
+лишився без поля, тобто взагалі не компілювався: `missing field 'worlds'
+in initializer of 'Manifest'`). Це ламало не лише цей гейт, а й
+`wasm_plugin_skill_smoke.rs` (той самий шаблон, той самий літерал) —
+обидва вже впадали до будь-якої правки цього коміту, симптом, а не
+причина. Виправлено мінімально: `lib.rs.tpl` отримав поле `worlds:
+vec![],` і `world_version: "5.0.0"`, `Cargo.toml.tpl`/`plugin.toml.tpl` —
+косметичний бамп версії в доккоментарях/description на `@5.0.0`.
+`wasm_plugin_skill_smoke.rs` (`PLUGIN_WORLD_VERSION`) і inline-гість
+`fs_read_preopen_root.rs` (окрема self-contained фікстура, не шаблон
+скіла — доккомент файлу explicit пояснює чому) синхронізовано на
+`5.0.0`/`worlds: vec![]` тим самим чином. Прозова частина
+`npm/skills/wasm-plugin/SKILL.md` (посилання на `n-rules:plugin@4.0.0` у
+кількох місцях) НЕ чіпалась — поза межею цього гейта, окремий дрейф
+документації.
+
+**Цільові прогони.** `cargo test -p rules-plugin-host --test
+guest_additive_compat` — 5 passed (`every_v50_only_template_line_...`,
+`every_v40_only_template_line_...`, `v30_guest_no_longer_instantiates_...`,
+`v40_guest_no_longer_instantiates_...`, `v50_guest_loads_and_detects_...`).
+`cargo test -p rules-plugin-host` (увесь крейт, після `bash
+crates/test-plugin-guest/build.sh` і `node
+npm/scripts/build-wasm-plugins.mjs` — гейт застарілих `.wasm`-фікстур
+вимагав обох) — 139 passed, 1 ignored, 0 failed.
+
+**Обидва твердження гейта лишаються змістовними, не лише зеленими.**
+Перевірено вручну: тимчасово зіпсувавши текст рядка в
+`V50_ONLY_TEMPLATE_LINES` (щоб він розійшовся з реальним шаблоном) —
+`every_v50_only_template_line_is_actually_in_the_templates` падає
+(константа більше не знайдена в шаблоні), а `downgrade_to_v40` перестає
+знімати рядок `worlds`, тож v3.0/v4.0-скаффолд узагалі не компілюється
+(`E0560: struct Manifest has no field named worlds`) — «опускання, що
+нічого не зняло» падає гучно на ДВОХ незалежних рівнях, а не мовчки видає
+хибний доказ сумісності. Зміну відкачено, `cargo test -p rules-plugin-host
+--test guest_additive_compat` знову зелений (5 passed).
+
+**Не зроблено цим комітом.** `npm/skills/wasm-plugin/SKILL.md` (прозові
+згадки `@4.0.0`) — окремий дрейф документації, поза межею гейта. Крок 3–4
+контракту v5 (хост-лінкер, міграція шести гостей із `worlds = []` на
+реальні декларації) — паралельна хвиля (§2.109), не заблокована й не
+блокує цей коміт.

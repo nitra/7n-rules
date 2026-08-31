@@ -1,4 +1,4 @@
-# Маніфест wasm-плагіна `n-rules:plugin@4.0.0` (шаблон скіла `wasm-plugin`,
+# Маніфест wasm-плагіна `n-rules:plugin@5.0.0` (шаблон скіла `wasm-plugin`,
 # npm/skills/wasm-plugin/SKILL.md) — статичний дублікат того, що `describe()`
 # (src/lib.rs) повертає в рантаймі. Поля 1:1 відповідають
 # `rules_contract::manifest::Manifest` (crates/rules-contract/src/manifest.rs,
@@ -9,7 +9,7 @@
 
 id = "__PLUGIN_ID__"
 version = "0.1.0"
-world_version = "4.0.0"
+world_version = "5.0.0"
 domains = ["lint"]
 # `worlds` (контракт `5.0.0`, спека `docs/specs/2026-08-31-plugin-contract-v5.md`
 # §8) — перелік world-ів повноважень/слотових world-ів, які плагін реалізує

@@ -191,7 +191,7 @@ fn world_plugin_has_required_exports_and_imports() {
 /// хоста. Тест тримає інваріант без збірки wasm (мілісекунди замість
 /// хвилини); бінарний бік того самого доказу — реальний гість, зібраний із
 /// цієї ж фікстури й завантажений v3.1-хостом
-/// (`crates/rules-plugin-host/tests/v30_guest_additive_compat.rs`).
+/// (`crates/rules-plugin-host/tests/guest_additive_compat.rs`).
 ///
 /// Падіння цього тесту означає НЕ «оновіть фікстуру», а «зміна world-а
 /// зламала вже піновані плагіни» — доккомент фікстури каже те саме.

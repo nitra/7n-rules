@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 license = "Apache-2.0"
-description = "wasm-компонент n-rules:plugin@4.0.0 — __PLUGIN_ID__ (__CONCERN_ID__)"
+description = "wasm-компонент n-rules:plugin@5.0.0 — __PLUGIN_ID__ (__CONCERN_ID__)"
 
 [lib]
 # `cdylib` — обов'язково: `wasm32-wasip2` виводить готовий Component Model
