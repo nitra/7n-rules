@@ -219,10 +219,11 @@ fn resolve_subcommand(args: &[String]) -> (String, clap::Command) {
 ///
 /// Два винятки лишаються за JS. `claude` — legacy-ім'я, якого JS-раннером уже
 /// НЕ вважає (`RUNNERS` там — `{pi, cursor, codex}`): віддаємо його туди, щоб
-/// JS лишався власником свого usage-повідомлення на це ім'я. Скіли з оркестратором
-/// (`taze`, `git-reconcile`) — конвеєр детермінованих кроків із точковими
+/// JS лишався власником свого usage-повідомлення на це ім'я. Скіл з оркестратором
+/// (`git-reconcile`) — конвеєр детермінованих кроків із точковими
 /// LLM-викликами, і підмінити його одним агентним ходом означало б мовчки
-/// втратити ті кроки.
+/// втратити ті кроки. `taze` тут БІЛЬШЕ немає (§2.125, `skill_cmd::ORCHESTRATED_SKILLS`) —
+/// іде native-шляхом нижче, як звичайний скіл.
 fn skill_runner_is_native(rest: &[String]) -> bool {
     let (Some(runner), Some(skill)) = (rest.first(), rest.get(1)) else {
         return false;
@@ -258,7 +259,7 @@ fn dispatch(command: NativeCommand, args: &[String]) -> ExitCode {
         },
         // `skill list` — перелік; `skill <runner> <id>` — ACP-раннер;
         // `skill <id>` — друк промпта. Делегованими лишаються рівно дві
-        // гілки: скіли з власним JS-оркестратором (`taze`/`git-reconcile` —
+        // гілки: скіл із власним JS-оркестратором (`git-reconcile` —
         // конвеєр, а не один хід) і legacy-ім'я `claude`, чиє usage-повідомлення
         // лишається за JS.
         NativeCommand::Skill(parsed) if parsed.rest.first().map(String::as_str) == Some("list") => {
@@ -352,10 +353,16 @@ mod tests {
                 skill_runner_is_native(&args(&[runner, "lint"])),
                 "{runner}: звичайний скіл має йти нативно"
             );
-            for orchestrated in ["taze", "git-reconcile", "n-taze"] {
+            for orchestrated in ["git-reconcile", "n-git-reconcile"] {
                 assert!(
                     !skill_runner_is_native(&args(&[runner, orchestrated])),
                     "{runner} {orchestrated}: конвеєр лишається в JS"
+                );
+            }
+            for decomposed in ["taze", "n-taze"] {
+                assert!(
+                    skill_runner_is_native(&args(&[runner, decomposed])),
+                    "{runner} {decomposed}: розібраний скіл (§2.125) — звичайний native-хід, без JS-конвеєра"
                 );
             }
         }
@@ -377,7 +384,7 @@ mod tests {
 
         assert!(skill_prompt_is_native(&arg("lint")));
         assert!(
-            skill_prompt_is_native(&arg("n-taze")),
+            skill_prompt_is_native(&arg("n-git-reconcile")),
             "оркестрований скіл БЕЗ раннера — це лише друк промпта, без конвеєра"
         );
         for reserved in ["pi", "cursor", "codex", "claude", "list"] {

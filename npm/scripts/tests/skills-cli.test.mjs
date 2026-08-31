@@ -9,7 +9,6 @@ import { describe, expect, test } from 'vitest'
 import {
   buildSkillPrompt,
   isJsOrchestratedSkillArgs,
-  isTazeOrchestratorSkillArgs,
   listSkillIds,
   normalizeSkillId,
   resolveBundledPackageRoot,
@@ -39,41 +38,15 @@ describe('normalizeSkillId', () => {
   })
 })
 
-describe('isTazeOrchestratorSkillArgs', () => {
-  test('cursor taze → true (JS-оркестрований worktree-only шлях)', () => {
-    expect(isTazeOrchestratorSkillArgs(['cursor', 'taze'])).toBe(true)
-  })
-
-  test('pi n-taze (n-префікс) → true', () => {
-    expect(isTazeOrchestratorSkillArgs(['pi', 'n-taze'])).toBe(true)
-  })
-
-  test('claude taze → false (deprecated-раннер не веде в оркестратор)', () => {
-    expect(isTazeOrchestratorSkillArgs(['claude', 'taze'])).toBe(false)
-  })
-
-  test('cursor lint → false (інший скіл)', () => {
-    expect(isTazeOrchestratorSkillArgs(['cursor', 'lint'])).toBe(false)
-  })
-
-  test('taze без раннера (single-shot LLM-промпт) → false', () => {
-    expect(isTazeOrchestratorSkillArgs(['taze'])).toBe(false)
-  })
-
-  test('порожні аргументи → false', () => {
-    expect(isTazeOrchestratorSkillArgs([])).toBe(false)
-  })
-})
-
 describe('isJsOrchestratedSkillArgs', () => {
-  test('pi taze і codex git-reconcile → true', () => {
-    expect(isJsOrchestratedSkillArgs(['pi', 'taze'])).toBe(true)
+  test('codex git-reconcile → true', () => {
     expect(isJsOrchestratedSkillArgs(['codex', 'n-git-reconcile'])).toBe(true)
   })
 
-  test('claude та generic skill → false', () => {
+  test('claude та generic skill (включно з taze, розібраним §2.125) → false', () => {
     expect(isJsOrchestratedSkillArgs(['claude', 'git-reconcile'])).toBe(false)
     expect(isJsOrchestratedSkillArgs(['pi', 'lint'])).toBe(false)
+    expect(isJsOrchestratedSkillArgs(['pi', 'taze'])).toBe(false)
   })
 })
 
@@ -418,8 +391,8 @@ describe('runSkillsCli', () => {
   // з нашим `connect_with`-замиканням. Фікс — `create_session` завжди
   // повертає РЕАЛЬНИЙ текст помилки (включно зі stderr дочірнього процесу).
   // Тут перевіряється, що `runLlmCli` (єдиний одноходовий ACP-виклик поза
-  // `taze`-циклом) не маскує/не обрізає це повідомлення — просто forward-ить
-  // `error.message` як є через `logError`.
+  // `git-reconcile`-циклом) не маскує/не обрізає це повідомлення — просто
+  // forward-ить `error.message` як є через `logError`.
   test('cursor runner: реальне ACP auth-повідомлення (не generic-фолбек) доходить до logError без обрізання', async () => {
     const root = join(tmpdir(), `skills-cli-cursor-auth-${Date.now()}`)
     const skillsRoot = join(root, 'skills')
@@ -446,51 +419,6 @@ describe('runSkillsCli', () => {
     expect(code).toBe(1)
     expect(errors).toContain(authMessage)
     expect(errors.join('\n')).not.toContain('до підтвердження handshake')
-  })
-
-  test('taze: pi/cursor/codex делегують у runTazeOrchestrator замість generic-шляху', async () => {
-    const root = join(tmpdir(), `skills-cli-taze-orchestrate-${Date.now()}`)
-    mkdirSync(join(root, 'skills'), { recursive: true })
-
-    for (const runner of ['pi', 'cursor', 'codex']) {
-      const calls = []
-      const code = await runSkillsCli([runner, 'n-taze'], {
-        packageRoot: root,
-        projectDir: root,
-        log: () => {
-          /* noop: stdout не перевіряється в цьому тесті */
-        },
-        deps: {
-          runTazeOrchestrator: opts => {
-            calls.push(opts)
-            return Promise.resolve({ ok: true, report: 'ok', results: [] })
-          }
-        }
-      })
-
-      expect(code).toBe(0)
-      expect(calls).toHaveLength(1)
-      expect(calls[0].runner).toBe(runner)
-      expect(calls[0].cwd).toBe(root)
-    }
-  })
-
-  test('taze: провальний оркестратор → exit 1', async () => {
-    const root = join(tmpdir(), `skills-cli-taze-fail-${Date.now()}`)
-    mkdirSync(join(root, 'skills'), { recursive: true })
-
-    const code = await runSkillsCli(['pi', 'taze'], {
-      packageRoot: root,
-      projectDir: root,
-      log: () => {
-        /* noop: stdout не перевіряється в цьому тесті */
-      },
-      deps: {
-        runTazeOrchestrator: () => Promise.resolve({ ok: false, report: 'помилка', results: [] })
-      }
-    })
-
-    expect(code).toBe(1)
   })
 
   test('git-reconcile: JS-оркестратор отримує runner, cwd і task', async () => {
@@ -541,7 +469,6 @@ describe('runSkillsCli', () => {
     mkdirSync(join(skillsRoot, 'taze'), { recursive: true })
     writeFileSync(join(skillsRoot, 'taze', 'SKILL.md'), '# Taze\n')
 
-    const orchestratorCalls = []
     const acpCalls = []
     const code = await runSkillsCli(['claude', 'taze'], {
       packageRoot: root,
@@ -553,10 +480,6 @@ describe('runSkillsCli', () => {
         /* noop: тест не перевіряє deprecated-попередження */
       },
       deps: {
-        runTazeOrchestrator: opts => {
-          orchestratorCalls.push(opts)
-          return Promise.resolve({ ok: true, report: '', results: [] })
-        },
         runAcpRunner: (kind, prompt) => {
           acpCalls.push({ kind, prompt })
           return Promise.resolve(0)
@@ -565,7 +488,6 @@ describe('runSkillsCli', () => {
     })
 
     expect(code).toBe(1)
-    expect(orchestratorCalls).toHaveLength(0)
     expect(acpCalls).toHaveLength(0)
   })
 })

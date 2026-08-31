@@ -323,8 +323,12 @@ fn skill_prompt_branch_names_available_skills_on_typo() {
 /// конвеєр кроків, а не один агентний хід, і підміна мовчки з'їла б кроки.
 #[test]
 fn orchestrated_skills_still_delegate_to_js() {
-    let package = fake_package(&["taze", "git-reconcile"]);
-    for skill in ["taze", "git-reconcile"] {
+    // `taze` більше НЕ в цьому списку: §2.125 розібрала його оркестратор —
+    // кроки живуть у native-CLI й тексті `SKILL.md`, тож делегувати нічого.
+    // `git-reconcile` лишається єдиним оркестрованим скілом (його 3 484-рядковий
+    // оркестратор — окрема хвиля), і саме він тут за екземпляр.
+    let package = fake_package(&["git-reconcile"]);
+    for skill in ["git-reconcile"] {
         let out = bin()
             .env("N_RULES_JS_ENTRY", fake_entry(&package))
             .args(["skill", "pi", skill])
@@ -550,11 +554,11 @@ fn orchestrated_skill_delegates_argv_and_exit_code() {
         .current_dir(tmp.path())
         .env("N_RULES_JS_ENTRY", "/fake/n-rules.js")
         .env("N_RULES_JS_RUNTIME", &stub)
-        .args(["skill", "pi", "taze"])
+        .args(["skill", "pi", "git-reconcile"])
         .output()
         .unwrap();
     assert_eq!(out.status.code(), Some(7));
-    assert_eq!(stdout(&out), "/fake/n-rules.js skill pi taze\n");
+    assert_eq!(stdout(&out), "/fake/n-rules.js skill pi git-reconcile\n");
 }
 
 // Позитивної перевірки «звичайний скіл під раннером іде нативно» тут НЕМАЄ

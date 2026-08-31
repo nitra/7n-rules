@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.118.12] - 2026-08-31
+
+### Changed
+
+- `taze`-скіл розібраний (§2.125): власний JS-оркестратор
+  (`npm/skills/taze/js/orchestrate.mjs` + `migration-cache.mjs`, 546
+  рядків) знесено. Причина — блокер, не прибирання: `js/`-підкаталог скіла
+  не копіюється в дерево консюмера, а після зняття npm-каналу `js_fallback`
+  не мав би куди делегувати `skill … taze` — команда перестала б працювати
+  мовчки-ламано. Розбір: worktree-preflight несе загальний
+  `n-rules:worktree:start`-блок SKILL.md (як у будь-якого `worktree: true`
+  скіла); кроки 1/3/7 (backup/diff/cleanup) — нові дієслова
+  `n-rules taze backup|cleanup` (дельта до вже наявного `taze diff`,
+  `npm/bin/n-rules-cli.mjs`); крок 2 (bump) і кроки 4-6 (breaking changes →
+  сумісність → рефакторинг) агент виконує напряму, послідовно, без вкладеного
+  ACP-виклику на кожен major-пакет — той самий агент, що читає `SKILL.md`, є
+  раннером. `skill pi|cursor|codex taze` іде звичайним native-шляхом
+  (`ORCHESTRATED_SKILLS` у `crates/rules-cli/src/skill_cmd.rs` тепер несе
+  лише `git-reconcile`).
+- Свідомо втрачено (задокументовано, не мовчки): міжрепозиторний кеш
+  міграцій `taze` (`~/.cache/n-rules/taze-migrations`) — мав сенс лише в
+  архітектурі з ізольованим підвикликом раннера на кожен пакет, якої більше
+  немає.
+
 ## [1.118.11] - 2026-08-30
 
 ### Fixed

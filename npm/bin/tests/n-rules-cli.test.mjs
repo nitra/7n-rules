@@ -15,7 +15,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { getFakeTazeCliCalls } from './fixtures/fake-lang-js-taze-handler.mjs'
+import { getFakeTazeCliCalls, getFakeTazeProviderCalls } from './fixtures/fake-lang-js-taze-handler.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const fakeTazeHandlerPath = join(here, 'fixtures', 'fake-lang-js-taze-handler.mjs')
@@ -189,6 +189,33 @@ describe('runCli', () => {
     await runCli(['taze', 'diff'])
     expect(process.exitCode).toBe(1)
     expect(errSpy.mock.calls[0][0]).toContain('taze.provider')
+    errSpy.mockRestore()
+  })
+
+  test('taze backup делегує в default-export EcosystemProvider.backup', async () => {
+    getSlotContributionsMock.mockReturnValueOnce([{ id: 'taze-js', resourcePath: fakeTazeHandlerPath }])
+    const logSpy = vi.spyOn(process.stdout, 'write').mockReturnValue(true)
+    await runCli(['taze', 'backup'])
+    expect(process.exitCode).toBe(0)
+    expect(getFakeTazeProviderCalls().at(-1)).toMatchObject({ verb: 'backup', manifests: ['package.json'] })
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('"ok":true'))
+    logSpy.mockRestore()
+  })
+
+  test('taze cleanup делегує в default-export EcosystemProvider.cleanup', async () => {
+    getSlotContributionsMock.mockReturnValueOnce([{ id: 'taze-js', resourcePath: fakeTazeHandlerPath }])
+    vi.spyOn(process.stdout, 'write').mockReturnValue(true)
+    await runCli(['taze', 'cleanup'])
+    expect(process.exitCode).toBe(0)
+    expect(getFakeTazeProviderCalls().at(-1)).toMatchObject({ verb: 'cleanup', manifests: ['package.json'] })
+  })
+
+  test('taze без відомого дієслова → usage, exitCode 1', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockReturnValue()
+    await runCli(['taze', 'bump'])
+    expect(process.exitCode).toBe(1)
+    expect(errSpy.mock.calls[0][0]).toContain('Usage: n-rules taze')
+    expect(getSlotContributionsMock).not.toHaveBeenCalled()
     errSpy.mockRestore()
   })
 

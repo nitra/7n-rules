@@ -1,9 +1,15 @@
 /**
- * Спільний vitest-набір для мосту auto-worktree: той самий поведінковий
- * контракт `bringChangesBackToOriginal`/`removeAutoCreatedWorktree`
- * перевіряється і на прямому імпорті з `scripts/lib/auto-worktree.mjs`
- * (auto-worktree.test.mjs), і на реекспорті зі `skills/taze/js/orchestrate.mjs`
- * (orchestrate.test.mjs) — тіла тестів існують в одному місці.
+ * Спільний vitest-набір для мосту auto-worktree: поведінковий контракт
+ * `bringChangesBackToOriginal`/`removeAutoCreatedWorktree` перевіряється на
+ * прямому імпорті з `scripts/lib/auto-worktree.mjs` (`auto-worktree.test.mjs`).
+ *
+ * До §2.125 тим самим набором (без дублювання тіл тестів) перевірявся й
+ * реекспорт зі `skills/taze/js/orchestrate.mjs` — той файл знесено разом із
+ * рештою JS-оркестратора `taze` (скіл розібраний: worktree-preflight несе
+ * загальний `n-rules:worktree:start`-блок SKILL.md, а не власний
+ * auto-worktree-флоу). Функція лишається придатною для повторного
+ * перевикористання, якщо в майбутньому зʼявиться ще один споживач
+ * auto-worktree-мосту.
  */
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
