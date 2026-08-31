@@ -290,6 +290,32 @@ PI_MODEL="${ADR_NORMALIZE_PI_MODEL:-${N_CLOUD_AVG_MODEL:-openai-codex/gpt-5.5}}"
 
 RESPONSE_FILE="$TMP_DIR/response.txt"
 
+# Резолвить прямий шлях до entrypoint `@7n/rules` без `npx` — той самий
+# каскад, що `js_fallback.rs::resolve_entry` (Rust-бік зворотної делегації):
+# встановлений консюмером пакет (`node_modules/@7n/rules/bin/n-rules.js`),
+# інакше dev-репо самого пакета (`npm/bin/n-rules.js` поруч із
+# `npm/package.json` з `"name": "@7n/rules"`). `npx` тут зайвий кошт: пакет
+# уже пінований у `package.json`, резолву реєстру не треба, а холодний старт
+# `npx` (окремий wrapper-процес НАД `node`) — та сама ціна, яку §2.43 вже
+# прибрав із PostToolUse-хука. Друкує шлях у stdout; порожньо й код 1, якщо
+# жоден шар каскаду не резолвився (нетиповий layout консюмера).
+resolve_n_rules_entry() {
+  local dir="$1"
+  while [ -n "$dir" ] && [ "$dir" != "/" ]; do
+    if [ -f "$dir/node_modules/@7n/rules/bin/n-rules.js" ]; then
+      printf '%s\n' "$dir/node_modules/@7n/rules/bin/n-rules.js"
+      return 0
+    fi
+    if [ -f "$dir/npm/bin/n-rules.js" ] && [ -f "$dir/npm/package.json" ] \
+      && grep -q '"name":[[:space:]]*"@7n/rules"' "$dir/npm/package.json" 2>/dev/null; then
+      printf '%s\n' "$dir/npm/bin/n-rules.js"
+      return 0
+    fi
+    dir="$(dirname "$dir")"
+  done
+  return 1
+}
+
 # Backend selection. `local` — конвеєр на малій локальній моделі (privacy + $0,
 # `npm/scripts/lib/adr/normalize-pipeline.mjs`); `pi`/`claude`/`cursor` — single-shot
 # у хмару. Auto-default: local, якщо policy resolver знайшов локальну модель,
@@ -312,7 +338,19 @@ if [ -z "$BACKEND" ]; then
   fi
 fi
 
-ADR_LOCAL_CMD="${ADR_NORMALIZE_LOCAL_CMD:-npx --no @7n/rules adr-normalize-local}"
+if [ -n "${ADR_NORMALIZE_LOCAL_CMD:-}" ]; then
+  ADR_LOCAL_CMD="$ADR_NORMALIZE_LOCAL_CMD"
+else
+  N_RULES_ENTRY="$(resolve_n_rules_entry "$PROJECT_ROOT" || true)"
+  if [ -n "$N_RULES_ENTRY" ]; then
+    ADR_LOCAL_CMD="node $N_RULES_ENTRY adr-normalize-local"
+  else
+    # Аварійний fallback, не дефолт: нетиповий layout, де жоден шар
+    # каскаду вище не резолвився (наприклад, пакет підвантажено не через
+    # локальний node_modules/dev-репо, а глобально).
+    ADR_LOCAL_CMD="npx --no @7n/rules adr-normalize-local"
+  fi
+fi
 
 case "$BACKEND" in
   local)

@@ -7,7 +7,8 @@
 # tree. Never invokes git — developer reviews via `git status` / `git diff`.
 #
 # LLM CLI selection (first available wins):
-#   1. claude        — `claude -p --model "$ADR_NORMALIZE_MODEL"` (default: sonnet)
+#   1. pi            — `pi -p --model "$ADR_NORMALIZE_PI_MODEL"` (default: N_CLOUD_AVG_MODEL)
+#   2. claude        — `claude -p --model "$ADR_NORMALIZE_MODEL"` (default: sonnet)
 #   2. cursor-agent  — `cursor-agent -p --mode ask --output-format text --model …`
 #                      (default: claude-4.6-sonnet-medium)
 #   neither          — exit 0 silently
@@ -18,7 +19,7 @@
 #
 # Portable bash 3.2 (macOS /bin/bash): no `mapfile`, no associative arrays.
 #
-# Bundled with @nitra/cursor; project copy is auto-synced by the `adr` rule.
+# Bundled with @7n/rules; project copy is auto-synced by the `adr` rule.
 set -eu
 set -o pipefail
 
@@ -26,6 +27,13 @@ if [ -n "${ADR_NORMALIZE_RUNNING:-}" ]; then
   exit 0
 fi
 export ADR_NORMALIZE_RUNNING=1
+
+# Orchestrator sessions (JS-orchestrated lint/skill/taze/release/... that spawn an
+# internal agent/LLM session) set ADR_HOOKS_SKIP=1 before spawning — exit silently,
+# no log, before touching hook directories (spec 2026-06-30).
+if [ -n "${ADR_HOOKS_SKIP:-}" ]; then
+  exit 0
+fi
 
 INPUT=$(cat || true)
 CURSOR_WORKSPACE_ROOT=$(printf '%s' "$INPUT" | jq -r '.workspace_roots[0] // empty' 2>/dev/null || true)
@@ -278,18 +286,49 @@ date +%s > "$STATE_FILE"
 
 CLAUDE_MODEL="${ADR_NORMALIZE_MODEL:-sonnet}"
 CURSOR_MODEL="${ADR_NORMALIZE_CURSOR_MODEL:-claude-4.6-sonnet-medium}"
+PI_MODEL="${ADR_NORMALIZE_PI_MODEL:-${N_CLOUD_AVG_MODEL:-openai-codex/gpt-5.5}}"
 
 RESPONSE_FILE="$TMP_DIR/response.txt"
 
+# Резолвить прямий шлях до entrypoint `@7n/rules` без `npx` — той самий
+# каскад, що `js_fallback.rs::resolve_entry` (Rust-бік зворотної делегації):
+# встановлений консюмером пакет (`node_modules/@7n/rules/bin/n-rules.js`),
+# інакше dev-репо самого пакета (`npm/bin/n-rules.js` поруч із
+# `npm/package.json` з `"name": "@7n/rules"`). `npx` тут зайвий кошт: пакет
+# уже пінований у `package.json`, резолву реєстру не треба, а холодний старт
+# `npx` (окремий wrapper-процес НАД `node`) — та сама ціна, яку §2.43 вже
+# прибрав із PostToolUse-хука. Друкує шлях у stdout; порожньо й код 1, якщо
+# жоден шар каскаду не резолвився (нетиповий layout консюмера).
+resolve_n_rules_entry() {
+  local dir="$1"
+  while [ -n "$dir" ] && [ "$dir" != "/" ]; do
+    if [ -f "$dir/node_modules/@7n/rules/bin/n-rules.js" ]; then
+      printf '%s\n' "$dir/node_modules/@7n/rules/bin/n-rules.js"
+      return 0
+    fi
+    if [ -f "$dir/npm/bin/n-rules.js" ] && [ -f "$dir/npm/package.json" ] \
+      && grep -q '"name":[[:space:]]*"@7n/rules"' "$dir/npm/package.json" 2>/dev/null; then
+      printf '%s\n' "$dir/npm/bin/n-rules.js"
+      return 0
+    fi
+    dir="$(dirname "$dir")"
+  done
+  return 1
+}
+
 # Backend selection. `local` — конвеєр на малій локальній моделі (privacy + $0,
-# `npm/scripts/lib/adr/normalize-pipeline.mjs`); `claude`/`cursor` — single-shot
-# у хмару. Auto-default: local, якщо налаштовано `N_LOCAL_MIN_MODEL`, інакше
-# claude → cursor. Команда local-бекенда override-иться через ADR_NORMALIZE_LOCAL_CMD
-# (для тестів/in-repo: `node npm/bin/n-cursor.js adr-normalize-local`).
+# `npm/scripts/lib/adr/normalize-pipeline.mjs`); `pi`/`claude`/`cursor` — single-shot
+# у хмару. Auto-default: local, якщо policy resolver знайшов локальну модель,
+# інакше
+# pi → claude → cursor. Команда local-бекенда override-иться через ADR_NORMALIZE_LOCAL_CMD
+# (для тестів/in-repo: `node npm/bin/n-rules.js adr-normalize-local`).
 BACKEND="${ADR_NORMALIZE_BACKEND:-}"
+LOCAL_POLICY_MODEL="$(resolve_local_policy_model "$PROJECT_ROOT" || true)"
 if [ -z "$BACKEND" ]; then
-  if [ -n "${N_LOCAL_MIN_MODEL:-}" ]; then
+  if [ -n "$LOCAL_POLICY_MODEL" ]; then
     BACKEND=local
+  elif command -v pi >/dev/null 2>&1; then
+    BACKEND=pi
   elif command -v claude >/dev/null 2>&1; then
     BACKEND=claude
   elif command -v cursor-agent >/dev/null 2>&1; then
@@ -299,14 +338,30 @@ if [ -z "$BACKEND" ]; then
   fi
 fi
 
-ADR_LOCAL_CMD="${ADR_NORMALIZE_LOCAL_CMD:-npx --no @nitra/cursor adr-normalize-local}"
+if [ -n "${ADR_NORMALIZE_LOCAL_CMD:-}" ]; then
+  ADR_LOCAL_CMD="$ADR_NORMALIZE_LOCAL_CMD"
+else
+  N_RULES_ENTRY="$(resolve_n_rules_entry "$PROJECT_ROOT" || true)"
+  if [ -n "$N_RULES_ENTRY" ]; then
+    ADR_LOCAL_CMD="node $N_RULES_ENTRY adr-normalize-local"
+  else
+    # Аварійний fallback, не дефолт: нетиповий layout, де жоден шар
+    # каскаду вище не резолвився (наприклад, пакет підвантажено не через
+    # локальний node_modules/dev-репо, а глобально).
+    ADR_LOCAL_CMD="npx --no @7n/rules adr-normalize-local"
+  fi
+fi
 
 case "$BACKEND" in
   local)
-    log "using local pipeline backend (model: ${N_LOCAL_MIN_MODEL:-?})"
+    log "using local pipeline backend (model: $LOCAL_POLICY_MODEL)"
     # local-бекенд будує власні дрібні промпти з батча — FULL_PROMPT_FILE не потрібен.
     # shellcheck disable=SC2086
     $ADR_LOCAL_CMD --batch "$BATCH_LIST" --clean "$CLEAN_LIST" --adr-dir "$ADR_DIR" > "$RESPONSE_FILE" 2>>"$LOG" || true
+    ;;
+  pi)
+    log "using pi CLI (model: $PI_MODEL)"
+    pi -p --model "$PI_MODEL" --no-prompt-templates < "$FULL_PROMPT_FILE" > "$RESPONSE_FILE" 2>>"$LOG" || true
     ;;
   claude)
     log "using claude CLI (model: $CLAUDE_MODEL)"

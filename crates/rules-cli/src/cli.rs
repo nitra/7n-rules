@@ -301,10 +301,19 @@ pub struct LintArgs {
     /// Увімкнути native-контур детекції (власний прапорець бінаря).
     #[arg(long)]
     pub native_detect: bool,
-    /// Запустити native-контур фіксу для одного concern-а (власний прапорець
-    /// бінаря): `n-rules lint --native-fix rule/concern`.
+    /// Явно запустити native-контур фіксу (власний прапорець бінаря):
+    /// `n-rules lint --native-fix rule/concern`. Здебільшого прапорець НЕ
+    /// потрібен — крок 3 плану full-rust-migration зробив native-фікс
+    /// дефолтом для своєї підтримуваної форми виклику (`rules` — самі
+    /// ключі `rule/concern`, без `--no-fix`); тримати прапорець явним тут
+    /// потрібно лише щоб форсувати native-шлях, коли евристика [`crate::lint_cmd`]
+    /// не спрацювала.
     #[arg(long)]
     pub native_fix: bool,
+    /// Аварійний люк назад у JS fix-конвеєр там, де інакше спрацював би
+    /// дефолт native-фіксу (крок 3 плану full-rust-migration).
+    #[arg(long)]
+    pub no_native_fix: bool,
     /// Фільтр за назвою правила чи concern.
     #[arg(value_name = "rule|concern")]
     pub rules: Vec<String>,
