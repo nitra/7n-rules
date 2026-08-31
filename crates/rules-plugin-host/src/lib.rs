@@ -25,6 +25,7 @@
 //! інстанціацію).
 
 mod caps_file_reader;
+mod caps_llm_consumer;
 mod convert;
 mod error;
 mod host;
@@ -37,6 +38,7 @@ mod tool_resolver;
 mod wit;
 mod world_linker;
 
+pub use caps_llm_consumer::{BoxFuture as LlmCallFuture, DomainError as LlmDomainError, LlmCaller};
 pub use error::PluginHostError;
 pub use host::PluginHost;
 pub use host_state::{CapturedLog, CapturedProgress};

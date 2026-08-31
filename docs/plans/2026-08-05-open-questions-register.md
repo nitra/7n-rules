@@ -14597,5 +14597,114 @@ coverage-provider — окрема задача, наступна хвиля.
   `plugin-lang-php` — з новим export-ом `collect-coverage`), кожен дав
   `OK: …wasm` + sha256; `npm/wasm-plugins/builtin-pins.json` перегенеровано
   локально (gitignored build-артефакт, не комітиться).
+### 2.124. Крок 4.1 спеки v5 (§12.1), застосований ДРУГИЙ раз — `n-rules:caps/llm-consumer@1.0.0`: host-бік реалізовано, `llm-call` перевикористовує `n7n-llm-lib`, зафіксований на `Tier::Local`
+
+**Контекст.** §2.116 довела механізм «повноваження як world-и» на
+`n-rules:caps/file-reader@1.0.0` — перший реальний host-import. Це
+передумова кроку 7 спеки (`docgen` як гість), заявленого споживача ДВОХ
+world-ів повноважень (`file-reader`, `llm-consumer`) і одного слотового
+(`docgen-stage`). `llm-consumer.wit` (крок 1, `#603`) уже існував, форма
+навмисно мінімальна (`prompt`/`text`) — задача цього кроку не мінялась з
+першого дня: реалізувати host-бік, не переписувати WIT.
+
+**Головне рішення — виклик робить хост.** `n-rules:caps/llm-consumer@1.0.0`
+не дає гостю ані вибору тиру, ані доступу до ключів — точний прецедент
+`run-tool`. Реалізація ПЕРЕВИКОРИСТОВУЄ наявний LLM-контур
+(`n7n-llm-lib`, той самий крейт і версія, що `rules-cli`/`rules-fix`/
+`rules-adr`/`rules-docs`), не пише другий клієнт.
+
+**Три властивості, вирішені явно (спека їх не фіксує) — задокументовані
+доккоментом `crates/rules-plugin-host/src/caps_llm_consumer.rs`, не лише
+тут:**
+
+1. **Недетермінованість.** Fix-контур побудований навколо інваріанта
+   «повторний детект — чистий»; `llm-call` цю чистоту не гарантує. Хост НЕ
+   забороняє гостю викликати `llm-call` усередині `fix` (рівень світу —
+   «чи взагалі може», не «як саме користується», та сама межа, що спека
+   §9 про `capabilities`) — властивість документована як попередження для
+   МАЙБУТНЬОГО гостя, бо єдиний СЬОГОДНІ заявлений споживач (`docgen`) не
+   бере участі в `detect`/`fix`-драбині взагалі.
+2. **Ціна виклику.** [`RealLlmCaller`] жорстко фіксує `llm_lib::Tier::Local`
+   — гість не обирає тир (WIT-форма й не дає йому такого поля), і хост НЕ
+   підіймає виклик у хмару автоматично. Найбезпечніший дефолт (нульова
+   маржинальна вартість) для нової, потенційно дорогої поверхні — той
+   самий клас гейту, що `capabilities.network == false` за замовчуванням.
+   Розширення до хмарних тирів лишається майбутньою роботою — воно
+   вимагає власного бюджетного механізму, не додається «про всяк випадок».
+3. **Відсутність ключа/моделі.** `n7n-llm-lib` уже розрізняє це на рівні
+   власного `LlmError`: «модель не налаштована» (`N_LOCAL_MODEL` не
+   задано) → `LlmError::NoModelConfigured` → `DomainError::NotSupported`;
+   «виклик стався, але відмовив» (мережа, HTTP 401 за відсутності/
+   недійсності ключа, порожня відповідь моделі — `LocalCloud::one_shot`
+   САМ трактує порожній текст як помилку, не як успіх) →
+   `LlmError::Provider` → `DomainError::Failed(String)` із текстом
+   провайдера всередині. Третій WIT-варіант для «саме ключа нема» не
+   додано: різниця видима гостю в тексті `failed(string)`, а заводити
+   окремий тег під кожен HTTP-статус означало б дублювати номенклатуру
+   провайдера в WIT.
+
+**Форма `llm-request`/`llm-response` НЕ розширена цим кроком** — мінімальна
+форма (`prompt`→`text`) досить для реального one-shot виклику
+(`LocalCloud::one_shot(Tier::Local, None, &prompt)`); `system`/тир/стрімінг
+не додані, бо жоден наявний споживач їх не показав (та сама дисципліна,
+що `caps_file_reader.rs`).
+
+**Що зроблено.**
+1. **`crates/rules-plugin-host/src/caps_llm_consumer.rs`** (новий) —
+   другий `wasmtime::component::bindgen!` у крейті (`imports: { default:
+   async }`), дзеркало `caps_file_reader.rs`. Несе `LlmCaller`-трейт (DI,
+   той самий мотив, що `ClassifyFn` у `crates/rules-fix/src/workers.rs`) —
+   `pub`, не `pub(crate)`: точка ін'єкції гейт-тесту, якому заборонено
+   робити реальний мережевий виклик моделі («мокай на рівні хоста»).
+   `RealLlmCaller` — бойова реалізація, стан-less (env читається на
+   кожен виклик, той самий прийом, що `default_classify_fn`).
+2. **`crates/rules-plugin-host/src/world_linker.rs`** — новий запис
+   `KNOWN_CAPABILITY_WORLDS` для `n-rules:caps/llm-consumer@1.0.0` +
+   юніт-тест `llm_consumer_world_is_known`.
+3. **`crates/rules-plugin-host/src/host_state.rs`** — нове поле
+   `HostState::llm_caller` (`Arc<dyn LlmCaller>`, той самий прийом, що
+   `tool_resolver`) + `impl LlmConsumerImports for HostState::llm_call`
+   (тонкий міст WIT ⇄ `LlmCaller`, уся семантика — у
+   `caps_llm_consumer.rs`).
+4. **`crates/rules-plugin-host/src/host.rs`** — `PluginHost::new`
+   делегує в НОВИЙ `PluginHost::new_with_llm_caller(tool_resolver,
+   llm_caller)`, кладучи `RealLlmCaller` за замовчуванням — публічна
+   сигнатура `PluginHost::new` НЕ змінена (жоден із наявних викликачів,
+   `rules-cli`/`rules-napi`, не зачеплений).
+5. **`crates/rules-plugin-host/Cargo.toml`** — `llm-lib = { version =
+   "0.5", package = "n7n-llm-lib" }`, дефолтні features (`agents`) — ті
+   самі, що `rules-adr`/`rules-docs`/`rules-cli`.
+6. **`crates/rules-plugin-host/tests/caps_llm_consumer_gate.rs`** (новий)
+   — гейт кроку, дзеркало `caps_file_reader_gate.rs`: ОДИН `.wasm`
+   (реально імпортує `llm-call`), зібраний проти комбінованого world
+   (`include plugin; include n-rules:caps/llm-consumer@1.0.0 with {
+   domain-error as llm-consumer-domain-error }`), інстанціюється двічі —
+   з `declared_worlds` (позитивна половина: `detect()` повертає
+   маркерну відповідь `FakeLlmCaller`, звірений маркерний prompt доводить
+   напрям гість→хост, маркерна відповідь — напрям хост→гість) і без
+   (негативна половина: `PluginHostError::Instantiate`, не мовчазна
+   деградація). `FakeLlmCaller` — офлайновий двійник `LlmCaller`, без
+   жодного HTTP-виклику чи звернення до `n7n-llm-lib`.
+7. **`crates/rules-plugin-host/src/lib.rs`** — публічний реекспорт
+   `LlmCaller`/`LlmCallFuture`(=`BoxFuture`)/`LlmDomainError`(=`DomainError`)
+   — вузька поверхня, потрібна виключно для точки ін'єкції гейт-тесту
+   (`PluginHost::new_with_llm_caller`), той самий принцип «вузький
+   публічний trait» (доккомент `lib.rs`), що вже тримає крейт.
+
+**Цільові прогони (усі синхронно, без фонових процесів):**
+- `cargo check -p rules-plugin-host` — 0 помилок (перший прогін після
+  написання коду, без жодної правки під компілятор).
+- `cargo test -p rules-plugin-host --lib` — 22 passed (21 наявних + 1
+  новий, `llm_consumer_world_is_known`).
+- `cargo test -p rules-plugin-host --test caps_llm_consumer_gate` — 2
+  passed (новий гейт кроку, обидві половини критерію готовності).
+- `bash crates/test-plugin-guest/build.sh` і `node
+  npm/scripts/build-wasm-plugins.mjs` — усі шість наявних гостей і
+  контрольна фікстура перезібрані під `wasm32-wasip3` (жоден із них цим
+  кроком не змінений — перевірка, що дефолтна `PluginHost::new`
+  (`RealLlmCaller`) не ламає жодного наявного гостя, усі шість оголошують
+  `worlds = []`).
+- `cargo test -p rules-plugin-host` (повний, без фільтра) — регресія по
+  всьому крейту після перезбірки контрольних фікстур вище.
 
 

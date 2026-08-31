@@ -61,6 +61,7 @@
 use wasmtime::component::{HasSelf, Linker};
 
 use crate::caps_file_reader::FileReader;
+use crate::caps_llm_consumer::LlmConsumer;
 use crate::error::PluginHostError;
 use crate::host_state::HostState;
 
@@ -79,6 +80,14 @@ type LinkFn = fn(&mut Linker<HostState>) -> Result<(), PluginHostError>;
 /// `&mut HostState` із даних `Store`.
 fn link_file_reader(linker: &mut Linker<HostState>) -> Result<(), PluginHostError> {
     FileReader::add_to_linker_imports::<_, HasSelf<_>>(linker, |state| state)
+        .map_err(|err| PluginHostError::Instantiate(err.into()))
+}
+
+/// Обгортка `LlmConsumer::add_to_linker_imports::<_, HasSelf<_>>` (крок 4.1
+/// спеки, застосований ДРУГИЙ раз, `crate::caps_llm_consumer`) — той самий
+/// прийом, що [`link_file_reader`] вище.
+fn link_llm_consumer(linker: &mut Linker<HostState>) -> Result<(), PluginHostError> {
+    LlmConsumer::add_to_linker_imports::<_, HasSelf<_>>(linker, |state| state)
         .map_err(|err| PluginHostError::Instantiate(err.into()))
 }
 
@@ -121,6 +130,12 @@ pub(crate) const COVERAGE_PROVIDER_WORLD: &str = "n-rules:surfaces/coverage-prov
 const KNOWN_CAPABILITY_WORLDS: &[(&str, LinkFn)] = &[
     ("n-rules:caps/file-reader@1.0.0", link_file_reader as LinkFn),
     (COVERAGE_PROVIDER_WORLD, link_coverage_provider as LinkFn),
+    // `n-rules:caps/llm-consumer@1.0.0` (крок 4.1, застосований ДРУГИЙ раз,
+    // §2.124 реєстру відкритих питань): `llm-call` реалізує
+    // `crate::caps_llm_consumer::RealLlmCaller` через `n7n-llm-lib`,
+    // зафіксований на `Tier::Local` (доккомент модуля `caps_llm_consumer`,
+    // «ціна виклику»).
+    ("n-rules:caps/llm-consumer@1.0.0", link_llm_consumer as LinkFn),
 ];
 
 /// Розширює `linker` (очікується клон `PluginHost::base_linker` — ядро вже
@@ -179,6 +194,24 @@ mod tests {
         let mut linker = Linker::<HostState>::new(&engine);
         extend_linker_for_worlds(&mut linker, &["n-rules:caps/file-reader@1.0.0".to_string()])
             .expect("file-reader має бути відомим реєстру після цього кроку");
+    }
+
+    /// Реєстрація `n-rules:caps/llm-consumer@1.0.0` (крок 4.1, застосований
+    /// ДРУГИЙ раз) — той самий одинична-механічна перевірка, що
+    /// `file_reader_world_is_known`: рядок розпізнається, лінкер
+    /// розширюється без помилки. Наскрізний доказ, що хост РЕАЛЬНО кличе
+    /// `llm-call` через цей world, живе окремо
+    /// (`tests/caps_llm_consumer_gate.rs`).
+    #[test]
+    fn llm_consumer_world_is_known() {
+        let engine = wasmtime::Engine::new(wasmtime::Config::new().wasm_component_model(true))
+            .expect("Engine::new");
+        let mut linker = Linker::<HostState>::new(&engine);
+        extend_linker_for_worlds(
+            &mut linker,
+            &["n-rules:caps/llm-consumer@1.0.0".to_string()],
+        )
+        .expect("llm-consumer має бути відомим реєстру після цього кроку");
     }
 
     /// Реєстрація `n-rules:surfaces/coverage-provider@1.0.0` (крок 6 спеки

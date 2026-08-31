@@ -112,6 +112,16 @@ globset = "0.4"
 # Тип `#[source]`-полів `PluginHostError` (`src/error.rs`) — `wasmtime::Error`
 # конвертується сюди через `From` (feature `anyhow` вище на `wasmtime`).
 anyhow = "1"
+# Реалізація host-import `n-rules:caps/llm-consumer@1.0.0` (`llm-call`,
+# `src/caps_llm_consumer.rs`) ПЕРЕВИКОРИСТОВУЄ наявний LLM-контур, а не пише
+# другий клієнт — той самий крейт, версія й пакетне ім'я, що `rules-cli`/
+# `rules-fix`/`rules-adr`/`rules-docs` уже підключають (`llm_lib::local_cloud::
+# LocalCloud`, `llm_lib::tiers::{Tier, resolve_model}`). Дефолтні features
+# (`agents`) — ті самі, що бере `rules-adr`/`rules-docs`/`rules-cli` (не
+# `default-features = false`, як `rules-core`, і не `fix-agent`, як
+# `rules-fix`: цьому крейту не потрібен ні rig-агентний контур, ні голий
+# `tiers`-модуль без клієнта — рівно `LocalCloud::one_shot`).
+llm-lib = { version = "0.5", package = "n7n-llm-lib" }
 
 # cspell:ignore libc globset
 # `ToolResolver` (`src/tool_resolver.rs`, задача N1): таймаут run-tool-виклику
