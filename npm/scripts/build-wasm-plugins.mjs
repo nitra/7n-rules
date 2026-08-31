@@ -22,6 +22,16 @@
  * пакет; `wasm-plugins.mjs` звіряє саме цей hash при кожному резолві
  * (захист від пошкодженої інсталяції, доккомент модуля).
  *
+ * Після копіювання, ДО рахунку sha256, [`buildAndStage`] вбудовує
+ * авторитетний маніфест у staged-копію командою `n-rules plugin
+ * embed-manifest` (`crates/rules-cli/src/plugin_cmd.rs`, Д2, PR #618) — той
+ * самий крок, що замикає обхід `declared_worlds` у `crates/rules-napi/src/
+ * lib.rs` (спека `docs/specs/2026-08-31-plugin-contract-v5.md` §8): без
+ * вбудованого маніфесту хост НЕ зможе прочитати `worlds` компонента без
+ * інстанціації й гучно відмовить (`declared_worlds` там, доккомент
+ * `missing_component_manifest_err`), тож цей крок — не косметика, а
+ * передумова робочого `.wasm` у `npm/wasm-plugins/`.
+ *
  * `spawnFn`/`wasmPluginsDir`/`repoRoot` — ін'єкції для тестів
  * (`npm/scripts/tests/build-wasm-plugins.test.mjs`), той самий DI-мотив, що
  * `release-smoke.mjs`: юніт-тести підміняють `cargo`/`build.sh` фейковим
@@ -36,6 +46,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { isRunAsCli } from './cli-entry.mjs'
+import { resolveRulesCliBin } from './utils/test-helpers.mjs'
 
 const NPM_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const REPO_ROOT = join(NPM_ROOT, '..')
@@ -119,10 +130,44 @@ export function readCargoTargetDir(crateDir, spawnFn = spawnSync) {
 }
 
 /**
- * Збирає один first-party плагін (`build.sh` крейта) і копіює артефакт у
- * `<wasmPluginsDir>/<package-name>.wasm`.
+ * Вбудовує авторитетний маніфест у staged-копію (`n-rules plugin
+ * embed-manifest --crate-dir <crateDir> --package <name> --component
+ * <destPath>`, доккомент модуля) — на місці, БЕЗ `--out` (дефолт команди
+ * перезаписує `--component`). `cliBin` — резолвиться через
+ * [`resolveRulesCliBin`] (`npm/scripts/utils/test-helpers.mjs`), той самий
+ * каскад, що parity-гейти `rules-cli` вже використовують: явний
+ * `N_RULES_CLI_BIN` → зібраний `target/{release,debug}/rules-cli`, гучна
+ * відмова з підказкою, якщо жодного немає (без мовчазного skip — інакше
+ * staged `.wasm` лишився б без маніфесту, і фікс `declared_worlds` у
+ * `crates/rules-napi` мовчки не спрацював би для щойно зібраного плагіна).
  * @param {{ name: string, crateDir: string }} plugin запис [`FIRST_PARTY_WASM_PLUGINS`]
- * @param {{ spawnFn?: typeof spawnSync, repoRoot?: string, wasmPluginsDir?: string }} [opts] ін'єкції для тестів
+ * @param {string} crateDir абсолютний шлях крейта гостя
+ * @param {string} destPath абсолютний шлях staged-копії `.wasm`
+ * @param {{ spawnFn: typeof spawnSync, cliBin?: string }} opts `spawnFn` — та сама ін'єкція, що [`buildAndStage`]; `cliBin` — тестова ін'єкція (дефолт [`resolveRulesCliBin`])
+ * @returns {void}
+ */
+function embedManifest(plugin, crateDir, destPath, opts) {
+  const cliBin = opts.cliBin ?? resolveRulesCliBin()
+  console.log(`== n-rules plugin embed-manifest (${plugin.name}) ==`)
+  const result = opts.spawnFn(
+    cliBin,
+    ['plugin', 'embed-manifest', '--crate-dir', crateDir, '--package', plugin.name, '--component', destPath],
+    { cwd: crateDir, stdio: 'inherit' }
+  )
+  if (result.status !== 0) {
+    throw new Error(
+      `n-rules plugin embed-manifest для "${plugin.name}" впав (exit ${result.status ?? result.error?.message})`
+    )
+  }
+}
+
+/**
+ * Збирає один first-party плагін (`build.sh` крейта), копіює артефакт у
+ * `<wasmPluginsDir>/<package-name>.wasm` і вбудовує в цю копію авторитетний
+ * маніфест ([`embedManifest`]) — ДО рахунку sha256, щоб пін покривав саме
+ * той вміст, що піде в опублікований пакет (доккомент модуля).
+ * @param {{ name: string, crateDir: string }} plugin запис [`FIRST_PARTY_WASM_PLUGINS`]
+ * @param {{ spawnFn?: typeof spawnSync, repoRoot?: string, wasmPluginsDir?: string, cliBin?: string }} [opts] ін'єкції для тестів
  * @returns {{ name: string, file: string, sha256: string }} запис для `builtin-pins.json`
  */
 export function buildAndStage(plugin, opts = {}) {
@@ -146,6 +191,8 @@ export function buildAndStage(plugin, opts = {}) {
   const destFile = `${pkgName}.wasm`
   const destPath = join(wasmPluginsDir, destFile)
   copyFileSync(builtWasmPath, destPath)
+
+  embedManifest(plugin, crateDir, destPath, { spawnFn, cliBin: opts.cliBin })
 
   const sha256 = createHash('sha256').update(readFileSync(destPath)).digest('hex')
   console.log(`OK: ${destFile} (sha256 ${sha256})`)

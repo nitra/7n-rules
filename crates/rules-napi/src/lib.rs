@@ -448,43 +448,83 @@ fn to_wasm_napi_err(err: PluginHostError) -> Error {
     Error::from_reason(err.to_string())
 }
 
-/// Усі СЬОГОДНІ відомі world-и повноважень (крок 5 спеки
-/// `docs/specs/2026-08-31-plugin-contract-v5.md`) — розширюють лінкер
-/// БЕЗУМОВНО для КОЖНОГО завантаження, не лише `plugin-lang-js`
-/// (єдиного сьогодні реального споживача, `bun/package_json`).
+/// Типізована помилка «маніфест компонента відсутній чи побитий» —
+/// [`declared_worlds`] кличе її замість мовчазного фолбеку на порожній
+/// список.
 ///
-/// # Чому безумовно, а не читаючи `manifest.worlds`
+/// # Чому гучна відмова, а не «вважаємо, що world-ів немає»
+///
+/// Порожній `Vec::new()` тут виглядав би НЕВІДРІЗНЕННИМ від легітимного
+/// `worlds = []` (пʼять із шести first-party гостей сьогодні саме так і
+/// декларують) — але означає протилежне: не «гість свідомо не потребує
+/// жодного world-а», а «хост не зміг прочитати, чого гість потребує».
+/// Мовчазна підміна другого першим — рівно та вада, яку заміняє цей крок:
+/// БЕЗУМОВНЕ розширення лінкера (попередня версія цієї функції) підмінялось
+/// би БЕЗУМОВНОЮ відмовою від розширення, тиша та сама, лише в інший бік.
+fn missing_component_manifest_err(wasm_path: &Path, cause: &str) -> Error {
+    Error::from_reason(format!(
+        "declaredWorlds: компонент `{}` не несе валідного вбудованого маніфесту ({cause}). \
+         Хост читає задекларовані world-и повноважень із custom-section компонента \
+         (`oci_dist_package::inspect_component`, без wasmtime-інстанціації, спека \
+         `docs/specs/2026-08-31-plugin-contract-v5.md` §8) — БЕЗ маніфесту хост не може \
+         відрізнити «гість свідомо не потребує жодного world-а» (`worlds = []`) від «маніфест \
+         не вбудовано». Порожній список у цьому місці був би тихим фолбеком рівно того класу, \
+         що правило проєкту «мовчазний пропуск — вада» забороняє. Вбудуй маніфест командою \
+         `n-rules plugin embed-manifest --crate-dir <крейт> --package <назва> --component {}` \
+         (той самий крок, що `npm/scripts/build-wasm-plugins.mjs` виконує на збірці кожного \
+         first-party гостя) або перевір, що файл — дійсний Component Model `.wasm`. Див. \
+         доккомент declared_worlds (crates/rules-napi/src/lib.rs).",
+        wasm_path.display(),
+        wasm_path.display()
+    ))
+}
+
+/// Задекларовані world-и повноважень КОНКРЕТНОГО компонента (крок 6 спеки
+/// `docs/specs/2026-08-31-plugin-contract-v5.md`, замикання обходу кроку 5)
+/// — читаються з custom-section вбудованого маніфесту
+/// (`oci_dist_package::inspect_component`), а НЕ константа на весь процес:
+/// різні `.wasm`-шляхи можуть декларувати різні world-и, тож ПЕР-компонентний
+/// вхід тут — не косметика, а сама суть фіксу.
+///
+/// # Custom-section дискавері — БЕЗ інстанціації
 ///
 /// Курка-яйце (спека §8): щоб знати, які world-и оголосив компонент, треба
-/// прочитати маніфест; щоб прочитати маніфест (`describe()`), компонент
-/// уже має бути інстанційований проти ПРАВИЛЬНОГО набору імпортів.
-/// Розвʼязання без інстанціації — custom-section дискавері
-/// (`inspect_component`, без wasmtime) — окрема робота Д2
-/// (`crates/rules-cli`), поза обсягом цього кроку.
+/// прочитати маніфест; щоб прочитати маніфест через `describe()`, компонент
+/// уже мав би бути інстанційований проти ПРАВИЛЬНОГО набору імпортів.
+/// `inspect_component` розвʼязує це, читаючи байти файлу напряму (custom
+/// section, записана `n-rules plugin embed-manifest`,
+/// `crates/rules-cli/src/plugin_cmd.rs`) — жодного wasmtime, жодної
+/// інстанціації.
 ///
-/// Безумовне розширення — безпечний обхід: `crate::world_linker`
-/// (`rules-plugin-host`) документує експериментально доведений факт —
-/// «зайві» імпорти в лінкері НЕ шкодять гостю, що їх не потребує
-/// (Component Model перевіряє лише що гостьові імпорти ЗАДОВОЛЕНІ, не що
-/// лінкер СКУПИЙ). Пʼять із шести first-party гостей і сьогодні несуть
-/// `worlds = []` — для них цей рядок не міняє нічого.
+/// `manifest.worlds` — не typed-поле схеми `nitra.plugin-manifest/v1`
+/// (`oci_dist_package::PluginManifest`, версія `=0.3.1`), а додаткове
+/// top-level значення, яке `#[serde(flatten)] extensions` цього крейта
+/// ловить і везе крізь TOML → embedded JSON незмінним (доккомент
+/// `render_manifest_toml` у `plugin_cmd.rs`) — той самий канал, яким
+/// `n-rules plugin embed-manifest` вбудовує `worlds` із кореневого
+/// `plugin.toml` гостя.
 ///
-/// # Чого це коштує — назвати прямо, щоб обхід не став вічним
-///
-/// Гейт `caps_file_reader_gate` доводить, що гість БЕЗ оголошення світу не
-/// дістає його імпортів. Цей рядок робить те твердження істинним лише в
-/// тестах: у продуктовому шляху через napi КОЖЕН гість дістає `file-reader`
-/// безумовно. Тобто типізований гейт повноважень (рішення 4 спеки
-/// `2026-08-31-slice6-consumer-surfaces.md`) тут не гейтить.
-///
-/// Замикається це конкретним кроком, і всі його частини вже існують:
-/// `n-rules plugin embed-manifest` (Д2, PR #618) вбудовує маніфест у
-/// custom-section, `oci_dist_package::inspect_component` читає його БЕЗ
-/// wasmtime. Лишається змусити `npm/scripts/build-wasm-plugins.mjs` робити
-/// embed на збірці, а цю функцію — читати `worlds` звідти замість константи.
-fn declared_worlds() -> &'static [String] {
-    static WORLDS: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
-    WORLDS.get_or_init(|| vec!["n-rules:caps/file-reader@1.0.0".to_string()])
+/// Відсутній маніфест, побитий custom-section, відсутнє поле `worlds` чи
+/// елемент не-рядкового типу — усі ці стани падають через
+/// [`missing_component_manifest_err`], не мовчазним `Vec::new()` (доккомент
+/// там).
+fn declared_worlds(wasm_path: &Path) -> Result<Vec<String>> {
+    let bytes = std::fs::read(wasm_path).map_err(|error| {
+        missing_component_manifest_err(wasm_path, &format!("не вдалось прочитати файл: {error}"))
+    })?;
+    let inspected = oci_dist_package::inspect_component(&bytes)
+        .map_err(|error| missing_component_manifest_err(wasm_path, &error.to_string()))?;
+    let worlds = inspected
+        .manifest
+        .extensions
+        .get("worlds")
+        .ok_or_else(|| missing_component_manifest_err(wasm_path, "маніфест не декларує `worlds`"))?;
+    serde_json::from_value(worlds.clone()).map_err(|error| {
+        missing_component_manifest_err(
+            wasm_path,
+            &format!("`worlds` не є масивом рядків: {error}"),
+        )
+    })
 }
 
 /// Будує [`ToolResolver`] із JS-переданого `toolPaths` (`Option<HashMap<String,String>>`,
@@ -576,6 +616,7 @@ fn with_loaded_plugin_in_root<T>(
             )
         });
         if !cached_fits {
+            let worlds = declared_worlds(Path::new(wasm_path))?;
             let loaded = PLUGIN_HOST
                 .with(|host| match root {
                     Some(root) => {
@@ -583,10 +624,10 @@ fn with_loaded_plugin_in_root<T>(
                             Path::new(wasm_path),
                             PLUGIN_WORLD_VERSION,
                             root,
-                            declared_worlds(),
+                            &worlds,
                         )
                     }
-                    None => host.load_for_worlds(Path::new(wasm_path), PLUGIN_WORLD_VERSION, declared_worlds()),
+                    None => host.load_for_worlds(Path::new(wasm_path), PLUGIN_WORLD_VERSION, &worlds),
                 })
                 .map_err(to_wasm_napi_err)?;
             cache.insert(wasm_path.to_string(), loaded);
@@ -2632,5 +2673,123 @@ mod tests {
 
         assert_eq!(files.len(), 1);
         assert_eq!(files[0].content, content);
+    }
+
+    // --- declared_worlds: custom-section дискавері, крок 6 §12 ---
+    //
+    // Той самий мінімальний Component Model `.wasm` (`wasm_encoder::Component::
+    // new().finish()`), що `crates/rules-cli/src/plugin_cmd.rs::tests::
+    // embeds_manifest_into_a_minimal_component` — жодної реальної wasi-sdk
+    // збірки не потрібно: `declared_worlds` читає ЛИШЕ custom-section байти,
+    // не інстанціює компонент.
+
+    /// Будує authoring-TOML із заданим `worlds` — той самий формат, що
+    /// `render_manifest_toml` у `plugin_cmd.rs`.
+    fn manifest_toml_with_worlds(worlds_line: &str) -> String {
+        format!(
+            "schema = \"{}\"\n\
+             component_profile = \"{}\"\n\
+             publisher_id = \"n-rules\"\n\
+             package = \"test-guest\"\n\
+             version = \"0.1.0\"\n\
+             {worlds_line}\n\n\
+             [entrypoints]\n\
+             describe = \"describe\"\n",
+            oci_dist_package::MANIFEST_SCHEMA,
+            oci_dist_package::COMPONENT_PROFILE,
+        )
+    }
+
+    /// Пише мінімальний Component Model `.wasm` із вбудованим маніфестом,
+    /// що декларує `worlds_line` (`worlds = [...]`), у `dir/guest.wasm`.
+    fn write_embedded_fixture(dir: &Path, worlds_line: &str) -> PathBuf {
+        let component = wasm_encoder::Component::new().finish();
+        let manifest = oci_dist_package::PluginManifest::from_toml(&manifest_toml_with_worlds(
+            worlds_line,
+        ))
+        .expect("валідний authoring-TOML");
+        let embedded =
+            oci_dist_package::embed_manifest(&component, &manifest).expect("вбудовує маніфест");
+        let path = dir.join("guest.wasm");
+        std::fs::write(&path, &embedded).expect("запис фікстури");
+        path
+    }
+
+    #[test]
+    fn declared_worlds_reads_nonempty_array_from_embedded_manifest() {
+        let dir = tempfile::tempdir().expect("tmp dir");
+        let path = write_embedded_fixture(dir.path(), "worlds = [\"n-rules:caps/file-reader@1.0.0\"]");
+
+        let worlds = declared_worlds(&path).expect("маніфест несе валідний worlds");
+
+        assert_eq!(worlds, vec!["n-rules:caps/file-reader@1.0.0".to_string()]);
+    }
+
+    #[test]
+    fn declared_worlds_reads_empty_array_from_embedded_manifest() {
+        let dir = tempfile::tempdir().expect("tmp dir");
+        let path = write_embedded_fixture(dir.path(), "worlds = []");
+
+        let worlds = declared_worlds(&path).expect("порожній worlds — валідний стан");
+
+        assert!(worlds.is_empty());
+    }
+
+    /// Гучна відмова: маніфест ВЗАГАЛІ не вбудований (сирий Component Model
+    /// `.wasm` без custom-section) — НЕ мовчазний `Vec::new()` (доккомент
+    /// [`missing_component_manifest_err`]).
+    #[test]
+    fn declared_worlds_fails_loudly_when_manifest_is_missing() {
+        let dir = tempfile::tempdir().expect("tmp dir");
+        let component = wasm_encoder::Component::new().finish();
+        let path = dir.path().join("guest-no-manifest.wasm");
+        std::fs::write(&path, &component).expect("запис фікстури без маніфесту");
+
+        let err = declared_worlds(&path).expect_err("відсутній маніфест мав відмовити");
+
+        assert!(
+            err.to_string().contains("не несе валідного вбудованого маніфесту"),
+            "{err}"
+        );
+    }
+
+    /// Гучна відмова: маніфест вбудований, але БЕЗ поля `worlds` узагалі —
+    /// відрізняється від `worlds = []` (свідомий порожній намір) саме тим,
+    /// що тут хост НЕ знає, чого гість потребує.
+    #[test]
+    fn declared_worlds_fails_loudly_when_worlds_field_is_absent() {
+        let dir = tempfile::tempdir().expect("tmp dir");
+        let component = wasm_encoder::Component::new().finish();
+        let manifest = oci_dist_package::PluginManifest::from_toml(&format!(
+            "schema = \"{}\"\n\
+             component_profile = \"{}\"\n\
+             publisher_id = \"n-rules\"\n\
+             package = \"test-guest-no-worlds-field\"\n\
+             version = \"0.1.0\"\n\n\
+             [entrypoints]\n\
+             describe = \"describe\"\n",
+            oci_dist_package::MANIFEST_SCHEMA,
+            oci_dist_package::COMPONENT_PROFILE,
+        ))
+        .expect("валідний authoring-TOML без worlds");
+        let embedded =
+            oci_dist_package::embed_manifest(&component, &manifest).expect("вбудовує маніфест");
+        let path = dir.path().join("guest.wasm");
+        std::fs::write(&path, &embedded).expect("запис фікстури");
+
+        let err = declared_worlds(&path).expect_err("відсутнє поле worlds мало відмовити");
+
+        assert!(err.to_string().contains("не декларує `worlds`"), "{err}");
+    }
+
+    /// Гучна відмова: `worlds` присутній, але не масив рядків.
+    #[test]
+    fn declared_worlds_fails_loudly_when_worlds_is_not_a_string_array() {
+        let dir = tempfile::tempdir().expect("tmp dir");
+        let path = write_embedded_fixture(dir.path(), "worlds = [1, 2]");
+
+        let err = declared_worlds(&path).expect_err("не-рядковий worlds мав відмовити");
+
+        assert!(err.to_string().contains("не є масивом рядків"), "{err}");
     }
 }

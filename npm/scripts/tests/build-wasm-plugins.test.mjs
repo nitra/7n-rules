@@ -33,15 +33,23 @@ function writeCargoToml(crateDir, name) {
   writeFileSync(join(crateDir, 'Cargo.toml'), `[package]\nname = "${name}"\nversion = "0.1.0"\n`, 'utf8')
 }
 
+/** Фейковий шлях бінаря `rules-cli`, переданий через тестову ін'єкцію `cliBin` — жоден реальний процес не запускається (`spawnFn` фейковий), тож значення довільне, аби впізнаване в асертах. */
+const FAKE_CLI_BIN = '/fake/rules-cli'
+
 /**
  * Фейковий `spawnFn` для [`buildAndStage`]: перший виклик (build.sh за шляхом
  * `buildScript`) симулює успішну збірку, записуючи `wasmBytes` за очікуваним
  * шляхом cargo-виводу (`<targetDir>/wasm32-wasip3/release/<stem>.wasm`);
- * другий (`cargo metadata`) повертає `targetDir` у JSON-виводі.
- * @param {{ buildScript: string, targetDir: string, wasmStem: string, wasmBytes: string, buildStatus?: number, produceArtifact?: boolean }} cfg параметри фейкового сценарію збірки
+ * другий (`cargo metadata`) повертає `targetDir` у JSON-виводі; третій
+ * (`cliBin plugin embed-manifest`) симулює вбудування маніфесту — дописує
+ * маркерний байт до staged-копії (`--component`), щоб тест на sha256 бачив
+ * ЗМІНЕНИЙ вміст (той самий контракт, що реальний `embed-manifest`: sha256
+ * рахується ПІСЛЯ вбудування, доккомент [`buildAndStage`] у модулі).
+ * @param {{ buildScript: string, targetDir: string, wasmStem: string, wasmBytes: string, buildStatus?: number, produceArtifact?: boolean, cliBin?: string, embedStatus?: number }} cfg параметри фейкового сценарію збірки
  * @returns {import('vitest').Mock} фейк `spawnFn`
  */
 function fakeSpawn(cfg) {
+  const cliBin = cfg.cliBin ?? FAKE_CLI_BIN
   return vi.fn((cmd, args, opts) => {
     if (cmd === cfg.buildScript) {
       if ((cfg.buildStatus ?? 0) === 0 && cfg.produceArtifact !== false) {
@@ -53,6 +61,15 @@ function fakeSpawn(cfg) {
     }
     if (cmd === 'cargo') {
       return { status: 0, stdout: JSON.stringify({ target_directory: cfg.targetDir }) }
+    }
+    if (cmd === cliBin && args[0] === 'plugin' && args[1] === 'embed-manifest') {
+      if ((cfg.embedStatus ?? 0) === 0) {
+        const componentIdx = args.indexOf('--component')
+        const componentPath = args[componentIdx + 1]
+        const existing = readFileSync(componentPath)
+        writeFileSync(componentPath, Buffer.concat([existing, Buffer.from('EMBEDDED-MANIFEST')]))
+      }
+      return { status: cfg.embedStatus ?? 0 }
     }
     throw new Error(`неочікуваний spawn: ${cmd} ${JSON.stringify(args)} (cwd=${opts?.cwd})`)
   })
@@ -107,16 +124,24 @@ describe('buildAndStage', () => {
       const spawnFn = fakeSpawn({ buildScript, targetDir, wasmStem: 'plugin_lang_js', wasmBytes })
       const wasmPluginsDir = join(repoRoot, 'wasm-plugins-out')
 
-      const result = buildAndStage(plugin, { spawnFn, repoRoot, wasmPluginsDir })
+      const result = buildAndStage(plugin, { spawnFn, repoRoot, wasmPluginsDir, cliBin: FAKE_CLI_BIN })
 
+      const embeddedBytes = `${wasmBytes}EMBEDDED-MANIFEST`
       expect(result).toEqual({
         name: 'lang-js',
         file: 'plugin-lang-js.wasm',
-        sha256: createHash('sha256').update(wasmBytes).digest('hex')
+        sha256: createHash('sha256').update(embeddedBytes).digest('hex')
       })
       const destPath = join(wasmPluginsDir, 'plugin-lang-js.wasm')
       expect(existsSync(destPath)).toBe(true)
-      expect(readFileSync(destPath, 'utf8')).toBe(wasmBytes)
+      // sha256 рахується ПІСЛЯ embed-manifest (доккомент [`buildAndStage`]
+      // у модулі) — staged-копія несе маркер фейкового вбудування маніфесту.
+      expect(readFileSync(destPath, 'utf8')).toBe(embeddedBytes)
+      expect(spawnFn).toHaveBeenCalledWith(
+        FAKE_CLI_BIN,
+        ['plugin', 'embed-manifest', '--crate-dir', crateDir, '--package', 'lang-js', '--component', destPath],
+        expect.objectContaining({ cwd: crateDir })
+      )
     })
   })
 
@@ -130,7 +155,9 @@ describe('buildAndStage', () => {
       const spawnFn = fakeSpawn({ buildScript, targetDir, wasmStem: 'plugin_lang_js', wasmBytes: 'x', buildStatus: 1 })
       const wasmPluginsDir = join(repoRoot, 'wasm-plugins-out')
 
-      expect(() => buildAndStage(plugin, { spawnFn, repoRoot, wasmPluginsDir })).toThrow('build.sh')
+      expect(() => buildAndStage(plugin, { spawnFn, repoRoot, wasmPluginsDir, cliBin: FAKE_CLI_BIN })).toThrow(
+        'build.sh'
+      )
       expect(existsSync(wasmPluginsDir)).toBe(false)
     })
   })
@@ -150,9 +177,32 @@ describe('buildAndStage', () => {
         produceArtifact: false
       })
 
-      expect(() => buildAndStage(plugin, { spawnFn, repoRoot, wasmPluginsDir: join(repoRoot, 'out') })).toThrow(
-        'очікуваний артефакт не знайдено'
-      )
+      expect(() =>
+        buildAndStage(plugin, { spawnFn, repoRoot, wasmPluginsDir: join(repoRoot, 'out'), cliBin: FAKE_CLI_BIN })
+      ).toThrow('очікуваний артефакт не знайдено')
+    })
+  })
+
+  test('n-rules plugin embed-manifest падає (status != 0) → кидає', async () => {
+    await withTmpDir(repoRoot => {
+      const plugin = { name: 'lang-js', crateDir: 'crates/plugin-lang-js' }
+      const crateDir = join(repoRoot, plugin.crateDir)
+      writeCargoToml(crateDir, 'plugin-lang-js')
+      const buildScript = join(crateDir, 'build.sh')
+      const targetDir = join(crateDir, 'target')
+      const spawnFn = fakeSpawn({
+        buildScript,
+        targetDir,
+        wasmStem: 'plugin_lang_js',
+        wasmBytes: 'x',
+        cliBin: FAKE_CLI_BIN,
+        embedStatus: 1
+      })
+      const wasmPluginsDir = join(repoRoot, 'wasm-plugins-out')
+
+      expect(() =>
+        buildAndStage(plugin, { spawnFn, repoRoot, wasmPluginsDir, cliBin: FAKE_CLI_BIN })
+      ).toThrow('n-rules plugin embed-manifest')
     })
   })
 })
@@ -169,12 +219,13 @@ describe('main', () => {
       const spawnFn = fakeSpawn({ buildScript, targetDir, wasmStem: 'plugin_lang_js', wasmBytes })
       const wasmPluginsDir = join(repoRoot, 'wasm-plugins-out')
 
-      const pinsPath = main([plugin], { spawnFn, repoRoot, wasmPluginsDir })
+      const pinsPath = main([plugin], { spawnFn, repoRoot, wasmPluginsDir, cliBin: FAKE_CLI_BIN })
 
       expect(pinsPath).toBe(join(wasmPluginsDir, 'builtin-pins.json'))
       const pins = JSON.parse(readFileSync(pinsPath, 'utf8'))
+      const embeddedBytes = `${wasmBytes}EMBEDDED-MANIFEST`
       expect(pins).toEqual({
-        'lang-js': { file: 'plugin-lang-js.wasm', sha256: createHash('sha256').update(wasmBytes).digest('hex') }
+        'lang-js': { file: 'plugin-lang-js.wasm', sha256: createHash('sha256').update(embeddedBytes).digest('hex') }
       })
     })
   })
