@@ -452,6 +452,11 @@ impl PluginHost {
             // `detect`/`fix`), тож на момент load/instantiate його теж
             // немає й бути не має.
             scratch: Default::default(),
+            // Абсолютний корінь для `n-rules:caps/file-reader@1.0.0`
+            // (крок 4.1 спеки §12.1) — той самий `preopen_root`, що
+            // `LoadedPlugin` собі памʼятає нижче (`load_impl`), незалежно
+            // від `capabilities.fs_read` (доккомент поля `HostState::fs_read_root`).
+            fs_read_root: preopen_root.map(Path::to_path_buf),
         })
     }
 }

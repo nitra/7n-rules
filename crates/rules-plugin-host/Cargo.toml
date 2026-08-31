@@ -10,6 +10,12 @@ name = "rules_plugin_host"
 
 [dependencies]
 rules-contract = { path = "../rules-contract" }
+# Реалізація host-import `n-rules:caps/file-reader@1.0.0` (`list-files`,
+# `src/caps_file_reader.rs`) ПЕРЕВИКОРИСТОВУЄ обхід дерева, а не пише другу
+# реалізацію (крок 4.1 спеки `docs/specs/2026-08-31-plugin-contract-v5.md`
+# §12.1): `walk_repo` — той самий двигун, що `crates/rules-napi::build_full_scope_files`
+# і JS-бік full-скоупу, з тим самим `.n-rules.json:ignore`.
+rules-core = { path = "../rules-core" }
 # Реалізація host-import resource `rego-engine` (`wit/world.wit`, реєстр
 # §2.66) делегує СЮДИ — той самий крейт, що `plugin-ci-github` підключає
 # нативно під `cfg(not(wasm32))`, єдине джерело істини для rego-семантики

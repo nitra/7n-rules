@@ -13692,3 +13692,91 @@ gitignored бінарний build-артефакт, у якому рядок т�
 секції, не джерело). Жодного мовчазного пропуску: кожен файл, що лишився
 у списку, названо і обґрунтовано.
 
+### 2.116. Крок 4.1 (неназваний крок §12.1) — `KNOWN_CAPABILITY_WORLDS` дістав перший запис: `n-rules:caps/file-reader@1.0.0`
+
+**Джерело.** §12.1 спеки `docs/specs/2026-08-31-plugin-contract-v5.md`,
+виявлений після кроку 3: `crate::world_linker::KNOWN_CAPABILITY_WORLDS`
+лишався порожнім (коректно — до злиття хвилі 1), тож жоден гість не міг
+оголосити жодного world-а, і кроки 5-6 спеки («`file-reader` як перший
+споживач», «`coverage-provider` як перша слотова поверхня») були
+неможливі за побудовою. Цей крок підключає РІВНО один world —
+`n-rules:caps/file-reader@1.0.0` — і доводить механізм наскрізно.
+
+**Чотири пункти реалізації (доккомент `world_linker.rs` називав два,
+спека §12.1 уточнила — їх чотири):**
+
+1. `crates/rules-plugin-host/src/caps_file_reader.rs` — окремий приватний
+   модуль, `wasmtime::component::bindgen!` на
+   `world: "n-rules:caps/file-reader@1.0.0"` (той самий прийом, що
+   `crate::wit`, `imports: { default: async }` з тих самих причин —
+   доккомент модуля). Породжує `FileReaderImports`-трейт і власну
+   `add_to_linker_imports`, незалежні від `wit::PluginImports`.
+2. `KNOWN_CAPABILITY_WORLDS` (`world_linker.rs`) дістав перший запис:
+   `("n-rules:caps/file-reader@1.0.0", link_file_reader)`.
+3. `impl caps_file_reader::FileReaderImports for HostState`
+   (`host_state.rs`) — уся семантика. Нове поле `HostState::fs_read_root:
+   Option<PathBuf>` (заповнюється в `PluginHost::build_host_state` з
+   того самого `preopen_root`-параметра, що вже дає `LoadedPlugin`, —
+   **не** WASI-preopen: `list-files`/`read-file-bytes` читають диск
+   НАПРЯМУ host-процесом, не через guest WASI-пісочницю). `list-files`
+   перевикористовує `rules_core::concerns::cursor_ignore::walk_repo` +
+   `globset`-фільтр — той самий двигун, що
+   `crates/rules-napi::build_full_scope_files` (нова залежність
+   `rules-core` у `rules-plugin-host/Cargo.toml`), не друга реалізація.
+   `read-file-bytes` валідує шлях через
+   `rules_contract::validators::ci_artifact::is_safe_repo_relative_path`
+   (переюз, той самий, що вже охороняє fix-плани й `exec-tool`) і
+   повертає типізовану `DomainError::Failed` на будь-яку відмову
+   (відсутній корінь, небезпечний шлях, відсутній на диску файл) — WIT
+   дає їй `result`-канал, тож усі три відмови гучні. `list-files` каналу
+   помилки НЕ має (`-> list<string>`, структурне обмеження самого WIT) —
+   відсутній корінь чи невалідний glob-патерн дають порожній/звужений
+   перелік, а не трап; слід лишається в логах (`CapturedLog`, той самий
+   формат, що провал `ensure_scratch`).
+4. Гейт — `crates/rules-plugin-host/tests/caps_file_reader_gate.rs`,
+   доводить ОБИДВІ половини критерію готовності одним і тим самим
+   `.wasm` (зібраний проти комбінованого world `include plugin; include
+   n-rules:caps/file-reader@1.0.0 with { domain-error as
+   file-reader-domain-error }` — перейменування обов'язкове, обидва
+   world-и оголошують власний локальний `domain-error`; синтаксис
+   звірено `wasm-tools component wit` окремо ДО написання тесту):
+   - `declares_world_reads_file_through_host_import` —
+     `PluginHost::load_in_root_for_worlds` з world-ом у
+     `declared_worlds`: інстанціюється, `detect()` повертає РЕАЛЬНИЙ
+     вміст probe-файлу через `read-file-bytes` і його перелік через
+     `list-files`;
+   - `undeclared_world_fails_instantiation_loudly` — ТОЙ САМИЙ `.wasm`
+     через `PluginHost::load_in_root` (без `declared_worlds`):
+     інстанціація падає `PluginHostError::Instantiate` — гучно, не
+     мовчазна деградація до «гість без доступу».
+
+   Комбінований world живе лише в tempdir-скаффолді цього тесту (копія
+   реального `wit/` + один дописаний файл) — `crates/rules-contract/wit/`
+   незміненим лишився.
+
+**Чому `file-reader`, не `tool-runner` першим.** Той самий вибір, що
+обґрунтовує §12.1 спеки: `file-reader` адитивний (додає нову поверхню, не
+чіпає робочу — `run-tool`/`exec-tool` й далі живуть у ядровому world),
+семантика вже перевикористана з Rust-коду, без нових зовнішніх
+залежностей.
+
+**Не робилось у цьому кроці:** сам `crates/rules-contract/wit/deps/caps/file-reader.wit`
+не редагувався (bindgen зійшовся на ньому без правок першого разу — п.1
+спеки «якщо `bindgen!` не сходиться — зупинись і задокументуй» не
+спрацював); `plugin.toml`/`Manifest`-літерали шести first-party гостей і
+далі несуть `worlds = []` (реальна міграція — крок 5 спеки, окрема
+задача); `tool-runner`/`llm-consumer`/`coverage-provider`/`docgen-stage`/
+`knowledge-extractor` лишаються поза `KNOWN_CAPABILITY_WORLDS` (кожен
+наступний world — рівно один додатковий запис, доккомент реєстру).
+
+**Цільові прогони (синхронно, без фонових процесів):**
+- `cargo check -p rules-plugin-host` — OK.
+- `cargo test -p rules-plugin-host --lib` — 20 passed (додано
+  `file_reader_world_is_known` до `world_linker`-тестів).
+- `bash crates/test-plugin-guest/build.sh` — OK (перезбірка перед гейтом).
+- `cargo test -p rules-plugin-host --lib --test caps_file_reader_gate
+  --test fs_read_preopen_root --test contract_test_kit --test
+  guest_additive_compat` — 48 passed (5 suites) — новий гейт зелений,
+  наявні гейти (`fs-read`-preopens, contract-test-kit, additive-сумісність)
+  без регресії.
+

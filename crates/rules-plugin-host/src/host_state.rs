@@ -4,7 +4,7 @@
 //! задача N1).
 
 use std::cell::RefCell;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use wasmtime::component::ResourceTable;
@@ -12,6 +12,7 @@ use wasmtime_wasi::{WasiCtx, WasiCtxView, WasiView};
 
 use rules_contract::tool::{LogLevel, ScratchFile, ToolRequest, ToolResult};
 
+use crate::caps_file_reader;
 use crate::scratch::ScratchDir;
 use crate::tool_resolver::ToolResolver;
 use crate::wit;
@@ -67,6 +68,19 @@ pub(crate) struct HostState {
     /// після виклику гостя (`Drop` `TempDir` прибирає каталог рекурсивно),
     /// тож шлях не можна кешувати між викликами.
     pub(crate) scratch: RefCell<Option<ScratchDir>>,
+    /// Абсолютний корінь, від якого world `n-rules:caps/file-reader@1.0.0`
+    /// (`crate::caps_file_reader`, крок 4.1 спеки
+    /// `docs/specs/2026-08-31-plugin-contract-v5.md` §12.1) обходить і читає
+    /// диск — той самий `preopen_root`, що `PluginHost::build_host_state`
+    /// отримує параметром (`src/host.rs`). **Не** WASI-preopen: `list-files`/
+    /// `read-file-bytes` — host-import функції, що читають диск НАПРЯМУ
+    /// host-процесом, а не guest-syscall крізь WASI-пісочницю, тож окреме
+    /// поле, не переюз `capabilities.fs_read`-preopens. `None` — плагін
+    /// завантажений без кореня (`PluginHost::load`): `read-file-bytes` тоді
+    /// відмовляє типізовано (WIT дає `result`), `list-files` (без каналу
+    /// помилки в WIT) повертає порожній перелік і лишає слід у логах —
+    /// доккомент [`HostState::list_files`]/[`HostState::read_file_bytes`].
+    pub(crate) fs_read_root: Option<PathBuf>,
 }
 
 impl HostState {
@@ -221,6 +235,61 @@ impl wit::PluginImports for HostState {
             }
             _ => None,
         }
+    }
+}
+
+// Реалізація `n-rules:caps/file-reader@1.0.0` (крок 4.1 спеки
+// `docs/specs/2026-08-31-plugin-contract-v5.md` §12.1, п.3 — «уся
+// семантика» цього кроку): окремий `Host`-трейт `crate::caps_file_reader`
+// (доккомент модуля), реалізований на ТОМУ САМОМУ `HostState`, що
+// `wit::PluginImports` вище — той самий приймач, лише інший трейт, лінкер
+// поєднує обидва вибірково (`crate::world_linker`).
+impl caps_file_reader::FileReaderImports for HostState {
+    /// `list-files` — переліковує шляхи під [`Self::fs_read_root`], без
+    /// вмісту (доккомент [`caps_file_reader::list_files_under_root`]).
+    /// Порожній корінь (плагін завантажений без `PluginHost::load_in_root`)
+    /// — WIT не дає каналу помилки для цієї функції (`-> list<string>`),
+    /// тож єдина чесна відповідь — порожній перелік, а слід лишається в
+    /// логах (той самий формат, що [`Self::ensure_scratch`] пише при
+    /// провалі створення scratch-каталогу).
+    async fn list_files(&mut self, globs: Vec<String>) -> Vec<String> {
+        let Some(root) = self.fs_read_root.clone() else {
+            self.logs.borrow_mut().push(CapturedLog {
+                level: LogLevel::Warn,
+                message: "n-rules:caps/file-reader: list-files викликано без кореня preopen-ів \
+                          (PluginHost::load_in_root) — повертаю порожній перелік"
+                    .to_string(),
+            });
+            return Vec::new();
+        };
+        caps_file_reader::list_files_under_root(&root, &globs)
+    }
+
+    /// `read-file-bytes` — вміст ОДНОГО файлу байтами. На відміну від
+    /// [`Self::list_files`], WIT дає канал помилки (`result<list<u8>,
+    /// domain-error>`), тож і відсутній корінь, і небезпечний шлях
+    /// (`..`-сегменти, ведучий `/`), і відсутній на диску файл — усі три
+    /// типізовані відмови, не порожній/мовчазний результат (правило
+    /// проєкту «мовчазний пропуск — вада»).
+    async fn read_file_bytes(
+        &mut self,
+        path: String,
+    ) -> Result<Vec<u8>, caps_file_reader::DomainError> {
+        let Some(root) = self.fs_read_root.clone() else {
+            return Err(caps_file_reader::DomainError::Failed(format!(
+                "n-rules:caps/file-reader: read-file-bytes(`{path}`) викликано без кореня \
+                 preopen-ів — вантажте плагін через PluginHost::load_in_root"
+            )));
+        };
+        if !rules_contract::validators::ci_artifact::is_safe_repo_relative_path(&path) {
+            return Err(caps_file_reader::DomainError::Failed(format!(
+                "шлях `{path}` не є безпечним repo-relative шляхом (без `..`-сегментів, без \
+                 ведучого `/`) — читання поза коренем репо заборонено"
+            )));
+        }
+        std::fs::read(root.join(&path)).map_err(|err| {
+            caps_file_reader::DomainError::Failed(format!("не вдалось прочитати `{path}`: {err}"))
+        })
     }
 }
 

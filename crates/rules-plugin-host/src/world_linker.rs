@@ -58,8 +58,9 @@
 //! росте адитивно, як і самі пакети `caps`/`surfaces` (спека §3: «Три
 //! родини, три цикли версіонування»).
 
-use wasmtime::component::Linker;
+use wasmtime::component::{HasSelf, Linker};
 
+use crate::caps_file_reader::FileReader;
 use crate::error::PluginHostError;
 use crate::host_state::HostState;
 
@@ -70,15 +71,32 @@ use crate::host_state::HostState;
 /// обгортка фіксує їх один раз при реєстрації).
 type LinkFn = fn(&mut Linker<HostState>) -> Result<(), PluginHostError>;
 
+/// Обгортка `FileReader::add_to_linker_imports::<_, HasSelf<_>>` (крок 4.1
+/// спеки `docs/specs/2026-08-31-plugin-contract-v5.md` §12.1, п.2) — той
+/// самий прийом, що [`crate::host::PluginHost::new`] лінкує ядровий
+/// `wit::Plugin`: `HasSelf<_>` каже bindgen-у, що `Host`-трейт реалізує сам
+/// `HostState` (не окремий підресурс), `|state| state` — проекція
+/// `&mut HostState` із даних `Store`.
+fn link_file_reader(linker: &mut Linker<HostState>) -> Result<(), PluginHostError> {
+    FileReader::add_to_linker_imports::<_, HasSelf<_>>(linker, |state| state)
+        .map_err(|err| PluginHostError::Instantiate(err.into()))
+}
+
 /// Реєстр відомих світів повноважень/поверхонь: WIT-ідентифікатор світу →
-/// функція, що долінковує його імпорти. Порожній до злиття хвилі 1
-/// (доккомент модуля вище) — кожен новий світ додає РІВНО один рядок.
+/// функція, що долінковує його імпорти. Перший непорожній запис —
+/// `n-rules:caps/file-reader@1.0.0` (крок 4.1 спеки §12.1, перший
+/// реалізований world за трьома причинами, названими там: найбільше
+/// доведених споживачів, семантика вже перевикористана з
+/// `rules_core::concerns::cursor_ignore`/`rules-napi::build_full_scope_files`,
+/// без нових зовнішніх залежностей) — кожен наступний world додає РІВНО
+/// один рядок.
 ///
 /// Ядровий світ `n-rules:plugin` тут навмисно ВІДСУТНІЙ — спека §8 прямо
 /// каже «ядровий світ `n-rules:plugin` не перелічується — його реалізують
 /// усі», і [`PluginHost::base_linker`](crate::host::PluginHost) вже несе
 /// його імпорти безумовно, до будь-якого запиту цього реєстру.
-const KNOWN_CAPABILITY_WORLDS: &[(&str, LinkFn)] = &[];
+const KNOWN_CAPABILITY_WORLDS: &[(&str, LinkFn)] =
+    &[("n-rules:caps/file-reader@1.0.0", link_file_reader as LinkFn)];
 
 /// Розширює `linker` (очікується клон `PluginHost::base_linker` — ядро вже
 /// прилінковане) імпортами кожного світу з `declared_worlds`, звіряючи
@@ -122,9 +140,27 @@ mod tests {
         extend_linker_for_worlds(&mut linker, &[]).expect("порожній вхід не мав відмовити");
     }
 
-    /// Будь-який непорожній рядок сьогодні невідомий (реєстр порожній до
-    /// хвилі 1) — [`PluginHostError::UnknownWorld`], а не тиха відмова чи
-    /// паніка.
+    /// Реєстрація `n-rules:caps/file-reader@1.0.0` (крок 4.1 спеки §12.1) —
+    /// одинична, механічна перевірка п.2 («один запис у
+    /// `KNOWN_CAPABILITY_WORLDS`»): рядок розпізнається, лінкер
+    /// розширюється без помилки. Наскрізний доказ, що розширені імпорти
+    /// РЕАЛЬНО задовольняють гостя, живе окремо
+    /// (`tests/caps_file_reader_gate.rs`, критерій готовності кроку) — тут
+    /// лише факт «реєстр більше не порожній для цього рядка».
+    #[test]
+    fn file_reader_world_is_known() {
+        let engine = wasmtime::Engine::new(wasmtime::Config::new().wasm_component_model(true))
+            .expect("Engine::new");
+        let mut linker = Linker::<HostState>::new(&engine);
+        extend_linker_for_worlds(&mut linker, &["n-rules:caps/file-reader@1.0.0".to_string()])
+            .expect("file-reader має бути відомим реєстру після цього кроку");
+    }
+
+    /// Будь-який непорожній рядок, відмінний від зареєстрованих, лишається
+    /// невідомим — [`PluginHostError::UnknownWorld`], а не тиха відмова чи
+    /// паніка. `tool-runner` навмисно НЕ реєструється цим кроком (спека
+    /// §12.1: «файловий читач першим», винесення `tool-runner` — окрема
+    /// задача §11 п.2).
     #[test]
     fn unknown_world_is_rejected_loudly() {
         let engine = wasmtime::Engine::new(
