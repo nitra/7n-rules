@@ -1,8 +1,11 @@
 //! `PluginHost` — вузький публічний вхід у Component Model wasmtime
-//! (рішення М спеки): будує `Engine`/`Linker` один раз (спільні для всіх
-//! завантажених плагінів), `load()` компілює `.wasm`, інстанціює двофазно
-//! (probe `describe()` без capabilities → реальний `Store` з preopens) і
-//! повертає `LoadedPlugin`.
+//! (рішення М спеки): будує `Engine` і базовий `Linker` (WASI + ядровий
+//! світ `n-rules:plugin`) один раз, спільні для всіх завантажених плагінів
+//! — `load()`/`load_for_worlds()` компілює `.wasm`, під конкретний
+//! компонент збирає лінкер (ядро + оголошені світи повноважень/поверхонь,
+//! спека `docs/specs/2026-08-31-plugin-contract-v5.md` §9, доккомент
+//! [`PluginHost`] нижче), інстанціює двофазно (probe `describe()` без
+//! capabilities → реальний `Store` з preopens) і повертає `LoadedPlugin`.
 
 use std::path::Path;
 use std::sync::Arc;
@@ -19,13 +22,35 @@ use crate::host_state::HostState;
 use crate::loaded_plugin::LoadedPlugin;
 use crate::tool_resolver::ToolResolver;
 use crate::wit;
+use crate::world_linker;
 
-/// Embedded wasmtime-хост для `n-rules:plugin@4.0.0`. `Engine`+`Linker`
-/// будуються раз на `PluginHost` (host-функції компілюються в `Linker`
-/// один раз, не на кожен `load`) — окремий `Store` на плагін через `load`.
+/// Embedded wasmtime-хост для `n-rules:plugin@4.0.0`. `Engine`+`base_linker`
+/// будуються раз на `PluginHost` — окремий `Store` на плагін через `load`.
+///
+/// # `base_linker` — ядро, не весь лінкер (спека §9)
+///
+/// До задачі «хост будує лінкер під набір світів» (`docs/specs/2026-08-31-plugin-contract-v5.md`
+/// §9) тут був ЄДИНИЙ статичний `linker`, спільний для всіх плагінів. Тепер
+/// `base_linker` несе лише те, що належить КОЖНОМУ гостю за конструкцією —
+/// WASI Preview 2 й ядровий світ `n-rules:plugin` (спека §8: «ядровий світ…
+/// не перелічується — його реалізують усі») — і саме тому лишається полем
+/// `PluginHost`, побудованим раз: жоден зі шести гостей сьогодні не оголошує
+/// жодного світу повноважень (реєстр `crate::world_linker` порожній до
+/// хвилі 1), тож `base_linker` — це й є фактичний лінкер для всіх поточних
+/// плагінів.
+///
+/// Лінкер під ДЕКЛАРОВАНІ світи компонента (капабіліті/поверхневі, поза
+/// ядром) будується per-load — [`Self::linker_for_worlds`]: клон
+/// `base_linker` (`Linker<T: 'static>` реалізує `Clone` дешево — доккомент
+/// `crate::world_linker`) розширюється `add_to_linker_imports` кожного
+/// оголошеного світу. Клонування «до» додавання host-функцій, компільованих
+/// у `base_linker` один раз тут, лишається дешевим — і саме тому коментар
+/// вище про одноразову побудову ядра ще правдивий, попри те, що фінальний
+/// лінкер, який бачить `Component::instantiate`, тепер збирається наново на
+/// кожен `load`.
 pub struct PluginHost {
     engine: Engine,
-    linker: Linker<HostState>,
+    base_linker: Linker<HostState>,
     tool_resolver: Arc<ToolResolver>,
 }
 
@@ -61,9 +86,27 @@ impl PluginHost {
 
         Ok(Self {
             engine,
-            linker,
+            base_linker: linker,
             tool_resolver: Arc::new(tool_resolver),
         })
+    }
+
+    /// Будує лінкер під конкретний компонент — клон [`Self::base_linker`]
+    /// (ядро вже прилінковане), розширений `add_to_linker_imports` кожного
+    /// світу з `declared_worlds` (спека §9, п.3: «зібрати лінкер: ядро + по
+    /// одному модулю на кожен оголошений світ»).
+    ///
+    /// Гучно повертає [`PluginHostError::UnknownWorld`] на першому
+    /// нерозпізнаному світі — делегує `crate::world_linker`
+    /// (доккомент модуля пояснює, чому реєстр сьогодні порожній і чому це
+    /// коректний стан, а не недогляд).
+    fn linker_for_worlds(
+        &self,
+        declared_worlds: &[String],
+    ) -> Result<Linker<HostState>, PluginHostError> {
+        let mut linker = self.base_linker.clone();
+        world_linker::extend_linker_for_worlds(&mut linker, declared_worlds)?;
+        Ok(linker)
     }
 
     /// Завантажує `.wasm`-компонент за шляхом, звіряє `world-version` (за
@@ -95,7 +138,28 @@ impl PluginHost {
         path: &Path,
         expected_world_version: &str,
     ) -> Result<LoadedPlugin, PluginHostError> {
-        self.load_impl(path, expected_world_version, None)
+        self.load_impl(path, expected_world_version, None, &[])
+    }
+
+    /// Те саме, що [`Self::load`], але з ЯВНИМ переліком світів
+    /// повноважень/поверхонь, які оголосив компонент (спека
+    /// `docs/specs/2026-08-31-plugin-contract-v5.md` §9) — параметром, НЕ
+    /// прочитаним із маніфеста тут: побудова лінкера навмисно не знає,
+    /// звідки взявся перелік (доккомент `crate::world_linker` і преамбула
+    /// задачі steps 3). Інтеграція з полем `manifest.worlds` (спека §8) —
+    /// окремий тривіальний крок після мержу паралельних хвиль 1/2: виклик
+    /// на кшталт `host.load_for_worlds(path, version, &manifest.worlds)`.
+    ///
+    /// Порожній `declared_worlds` — поведінка, тотожна [`Self::load`]
+    /// (ядро й лише ядро) — саме так завантажуються всі шість гостей
+    /// сьогодні, до міграції на `5.0.0` (спека §10).
+    pub fn load_for_worlds(
+        &self,
+        path: &Path,
+        expected_world_version: &str,
+        declared_worlds: &[String],
+    ) -> Result<LoadedPlugin, PluginHostError> {
+        self.load_impl(path, expected_world_version, None, declared_worlds)
     }
 
     /// Те саме, що [`Self::load`], але з ЯВНИМ коренем, від якого
@@ -128,7 +192,25 @@ impl PluginHost {
                 root: root.to_path_buf(),
             });
         }
-        self.load_impl(path, expected_world_version, Some(root))
+        self.load_impl(path, expected_world_version, Some(root), &[])
+    }
+
+    /// Те саме, що [`Self::load_in_root`], але з переліком світів — див.
+    /// доккомент [`Self::load_for_worlds`] (той самий параметр, той самий
+    /// мотив «не читає маніфест тут»).
+    pub fn load_in_root_for_worlds(
+        &self,
+        path: &Path,
+        expected_world_version: &str,
+        root: &Path,
+        declared_worlds: &[String],
+    ) -> Result<LoadedPlugin, PluginHostError> {
+        if !root.is_absolute() {
+            return Err(PluginHostError::RelativePreopenRoot {
+                root: root.to_path_buf(),
+            });
+        }
+        self.load_impl(path, expected_world_version, Some(root), declared_worlds)
     }
 
     /// Спільне тіло [`Self::load`]/[`Self::load_in_root`] — `preopen_root:
@@ -143,6 +225,7 @@ impl PluginHost {
         path: &Path,
         expected_world_version: &str,
         preopen_root: Option<&Path>,
+        declared_worlds: &[String],
     ) -> Result<LoadedPlugin, PluginHostError> {
         let bytes = std::fs::read(path).map_err(|err| PluginHostError::Load {
             path: path.to_path_buf(),
@@ -154,10 +237,16 @@ impl PluginHost {
                 source: err.into(),
             })?;
 
+        // Лінкер під ЦЕЙ компонент — раз на `load_impl`, спека §9: обидві
+        // фази нижче (probe і реальна) інстанціюють проти того самого
+        // набору оголошених світів, тож той самий лінкер годиться для обох
+        // (доккомент `Self::linker_for_worlds`).
+        let linker = self.linker_for_worlds(declared_worlds)?;
+
         // Probe — завжди `Capabilities::default()` (порожній `fs_read`), тож
         // корінь preopen-ів цій фазі не потрібен: `None`.
         let probe_manifest =
-            self.describe_with_capabilities(&component, &Capabilities::default(), None)?;
+            self.describe_with_capabilities(&component, &Capabilities::default(), None, &linker)?;
         check_world_version(&probe_manifest.world_version, expected_world_version)?;
         // Маніфест — недовірений вхід рівно так само, як fix-план
         // (`LoadedPlugin::fix` → `validators::fix`). Мажор `4.0.0` (§2.84)
@@ -185,7 +274,7 @@ impl PluginHost {
         // компонента»), а не запис у відкинутому probe-`Store`.
         let host_state = self.build_host_state(&probe_manifest.capabilities, preopen_root)?;
         let mut store = Store::new(&self.engine, host_state);
-        let plugin = wit::Plugin::instantiate(&mut store, &component, &self.linker)
+        let plugin = wit::Plugin::instantiate(&mut store, &component, &linker)
             .map_err(|err| PluginHostError::Instantiate(err.into()))?;
         let manifest =
             plugin
@@ -213,10 +302,11 @@ impl PluginHost {
         component: &Component,
         capabilities: &Capabilities,
         preopen_root: Option<&Path>,
+        linker: &Linker<HostState>,
     ) -> Result<Manifest, PluginHostError> {
         let host_state = self.build_host_state(capabilities, preopen_root)?;
         let mut store = Store::new(&self.engine, host_state);
-        let plugin = wit::Plugin::instantiate(&mut store, component, &self.linker)
+        let plugin = wit::Plugin::instantiate(&mut store, component, linker)
             .map_err(|err| PluginHostError::Instantiate(err.into()))?;
         let manifest =
             plugin

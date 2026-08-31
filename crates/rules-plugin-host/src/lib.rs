@@ -33,6 +33,7 @@ mod rego_engine;
 mod scratch;
 mod tool_resolver;
 mod wit;
+mod world_linker;
 
 pub use error::PluginHostError;
 pub use host::PluginHost;
