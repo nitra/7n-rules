@@ -24,7 +24,7 @@ rules-contract = { path = "../rules-contract" }
 # wasm-гості `ci-github`/`ci-azure`. Дефолтна фіча `jsonc` — рівно те, що
 # потрібно ядру: ядрова частина родини це виключно JSON/JSONC-таргети, тож
 # фіча `yaml` (і `saphyr` за нею) сюди СВІДОМО не тягнеться.
-rules-template-merge = { path = "../rules-template-merge" }
+rules-template-merge = { path = "../rules-template-merge", features = ["yaml"] }
 # Пін 0.86 синхронно з mt-rust (Р4 спеки). default-features=false: лише
 # локальні commit-graph запити (merge-base, rev-parse) — без мережевих
 # transport-фіч, потрібних mt-core для fetch/push. `revision` дає

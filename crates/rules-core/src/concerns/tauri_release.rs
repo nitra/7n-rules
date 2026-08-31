@@ -23,29 +23,29 @@ use crate::diagnostics::{Severity, Violation};
 
 /// Шлях workflow, що на push у main бампає версію з change-файлів і створює
 /// тег — порт `CHANGELOG_RELEASE_WORKFLOW` (`main.mjs:11`).
-const CHANGELOG_RELEASE_WORKFLOW: &str = ".github/workflows/changelog-release.yml";
+pub(super) const CHANGELOG_RELEASE_WORKFLOW: &str = ".github/workflows/changelog-release.yml";
 /// Шлях workflow, що на тег збирає й публікує реліз Tauri-застосунку — порт
 /// `RELEASE_WORKFLOW` (`main.mjs:13`).
-const RELEASE_WORKFLOW: &str = ".github/workflows/release.yml";
+pub(super) const RELEASE_WORKFLOW: &str = ".github/workflows/release.yml";
 
 /// Канонічний фрагмент push-auth кроку (текстовий, не через YAML-дерево —
 /// точний вигляд рядка з `main.mjs:186`, вживається лише всередині
 /// `format!`-інтерполяції через звичайний `&str`, тож фігурні дужки
 /// `${{ ... }}` тут — буквальний текст, без спецсимволів `format!`).
-const PUSH_AUTH_SNIPPET: &str =
+pub(super) const PUSH_AUTH_SNIPPET: &str =
     "git remote set-url origin \"https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git\"";
 
 /// Один знайдений Tauri-застосунок — точний порт `{ ws, tauriConfPath }`
 /// (`main.mjs:21-32`).
-struct TauriApp {
-    ws: String,
-    tauri_conf_path: PathBuf,
+pub(super) struct TauriApp {
+    pub(super) ws: String,
+    pub(super) tauri_conf_path: PathBuf,
 }
 
 /// Знаходить workspace-каталоги з Tauri-застосунком (`<ws>/src-tauri/
 /// tauri.conf.json` чи legacy `<ws>/tauri.conf.json`) — точний порт
 /// `findTauriAppDirs` (`main.mjs:21-32`).
-fn find_tauri_app_dirs(cwd: &Path) -> Vec<TauriApp> {
+pub(super) fn find_tauri_app_dirs(cwd: &Path) -> Vec<TauriApp> {
     let roots = get_monorepo_package_root_dirs(cwd);
     let mut found = Vec::new();
     for ws in roots {
@@ -73,7 +73,7 @@ fn find_tauri_app_dirs(cwd: &Path) -> Vec<TauriApp> {
 
 /// Чи `on.workflow_dispatch` присутній у корені workflow — точний порт
 /// `hasWorkflowDispatch` (`main.mjs:39-42`).
-fn has_workflow_dispatch(root: &serde_json::Value) -> bool {
+pub(super) fn has_workflow_dispatch(root: &serde_json::Value) -> bool {
     root.get("on")
         .and_then(|on| on.as_object())
         .map(|on| on.contains_key("workflow_dispatch"))

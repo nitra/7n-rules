@@ -77,6 +77,7 @@ pub mod fix_image;
 pub mod fix_k8s_manifests;
 /// Native fix-поверхня концерну `tauri/updater` — чотири T0-патерни
 /// `fix-updater.mjs` (§2.79 реєстру відкритих питань).
+mod fix_tauri_release;
 mod fix_tauri_updater;
 /// Native fix-поверхня родини `vscode_*`/`zed_settings`/`oxfmtrc` — пʼять
 /// конфігів [`fix_template_merge::TemplateFixCfg`] поверх одного рушія

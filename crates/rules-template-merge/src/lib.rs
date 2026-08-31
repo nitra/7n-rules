@@ -1344,6 +1344,105 @@ pub fn try_surgical_merge(content: &str, snippet: &Json, format: Format) -> Opti
     }
     Some(result)
 }
+
+/// Початок рядка, що містить `byte_offset`.
+fn line_start(content: &str, byte_offset: usize) -> usize {
+    content[..byte_offset]
+        .rfind('\n')
+        .map_or(0, |nl| nl + 1)
+}
+
+/// Вставляє `value` у block-послідовність за шляхом `path` НА ПОЗИЦІЮ
+/// `index`, зберігаючи форматування решти документа.
+///
+/// # Навіщо окремий вхід, а не [`try_surgical_merge`]
+///
+/// Мерж відповідає на питання «чого бракує» і дописує це В КІНЕЦЬ
+/// послідовності — порядок для нього не спостережуваний. Є клас правок, де
+/// порядок і Є змістом: крок GitHub Actions, який мусить стояти ПЕРЕД
+/// `tauri-apps/tauri-action` (інакше версію синхронізовано після збірки) чи
+/// ПЕРЕД першим `run`-кроком job-а (інакше push іде без токена). Дописування
+/// в кінець тут не «трохи інше» — воно не робить того, заради чого правка
+/// існує. Саме через відсутність цієї операції концерн `tauri/release`
+/// роками стояв у секції «свідомо НЕ портовані» ядра.
+///
+/// # Межі
+///
+/// `None` (виклична сторона падає на повну регенерацію) — коли:
+/// - формат не YAML: JSONC-масиви цим шляхом поки не підтримані;
+/// - документ не парситься annotated-парсером;
+/// - `path` не веде до послідовності;
+/// - послідовність порожня (нема елемента, від якого брати відступ) чи
+///   записана flow-стилем (`[…]`) — обидва випадки не мають block-якоря.
+///
+/// `index >= len` означає «в кінець» і обробляється тим самим кодом, що
+/// звичайне дописування.
+///
+/// Як і [`try_surgical_merge`], результат ПЕРЕВІРЯЄТЬСЯ перед поверненням:
+/// повторний парс плюс звірка, що на позиції `index` справді стоїть
+/// вставлене значення. Байтовий splice не приймається на віру з побудови.
+#[cfg(feature = "yaml")]
+pub fn try_surgical_seq_insert(
+    content: &str,
+    path: &[&str],
+    index: usize,
+    value: &Json,
+    format: Format,
+) -> Option<String> {
+    if !format.is_yaml() {
+        return None;
+    }
+    let root = parse_marked_document(content)?;
+    let mut node = &root;
+    for key in path {
+        let MNode::Object(entries, _) = node else {
+            return None;
+        };
+        node = &entries.iter().find(|(k, _, _)| k == key)?.2;
+    }
+    let MNode::Array(items, arr_span) = node else {
+        return None;
+    };
+    let first = items.first()?;
+    if is_flow_container(content, *arr_span, b'[') {
+        return None;
+    }
+    let dash_col = column_at(content, mnode_span(first).0).saturating_sub(2);
+
+    let insert_at = if index < items.len() {
+        line_start(content, mnode_span(&items[index]).0)
+    } else {
+        next_line_start(content, deepest_last_leaf_end(items.last()?))?
+    };
+
+    let mut block = String::new();
+    write_yaml_array_items(std::slice::from_ref(value), dash_col / 2, &mut block);
+    let result = apply_edits(content, vec![Edit::Insert(insert_at, block)]);
+
+    // Той самий пост-гейт, що в `try_surgical_merge`, але сильніший: мало
+    // перевірити, що значення десь є — тут значуща сама ПОЗИЦІЯ, тож
+    // звіряємо, що після вставки послідовність містить його РІВНО на
+    // `index` (чи в кінці, коли `index >= len`).
+    let reparsed = parse_yaml_document(&result)?;
+    let mut cursor = &reparsed;
+    for key in path {
+        let Json::Object(entries) = cursor else {
+            return None;
+        };
+        cursor = &entries.iter().find(|(k, _)| k == key)?.1;
+    }
+    let Json::Array(new_items) = cursor else {
+        return None;
+    };
+    if new_items.len() != items.len() + 1 {
+        return None;
+    }
+    let at = index.min(items.len());
+    if !is_subset(new_items.get(at), value) {
+        return None;
+    }
+    Some(result)
+}
 #[cfg(test)]
 mod tests {
     //! Юніт-покриття двигуна — перенесено разом із кодом із
@@ -1351,6 +1450,112 @@ mod tests {
     //! перевіряють, інакше крейт лишився б без власних гейтів, а регресію
     //! ловив би лише суїт стороннього споживача.
     use super::*;
+
+    #[cfg(feature = "yaml")]
+    #[test]
+    fn seq_insert_puts_the_step_before_the_target_and_keeps_comments() {
+        // Той самий сценарій, заради якого операція існує: крок синхронізації
+        // версії мусить стояти ПЕРЕД `tauri-action`, інакше версія
+        // синхронізується вже після збірки — тобто дописування в кінець
+        // виглядало б успішним і не робило б нічого.
+        let src = "\
+jobs:
+  release:
+    steps:
+      # чекаут першим — не чіпати
+      - uses: actions/checkout@v4
+      - uses: tauri-apps/tauri-action@v0
+";
+        let step = Json::Object(vec![
+            ("name".into(), Json::Str("Sync app version from tag".into())),
+            ("run".into(), Json::Str("echo hi".into())),
+        ]);
+        let out = try_surgical_seq_insert(
+            src,
+            &["jobs", "release", "steps"],
+            1,
+            &step,
+            Format::Yaml,
+        )
+        .expect("block-послідовність із двох кроків — підтримана форма");
+        let lines: Vec<&str> = out.lines().collect();
+        let sync = lines
+            .iter()
+            .position(|l| l.contains("Sync app version"))
+            .expect("вставлений крок");
+        let action = lines
+            .iter()
+            .position(|l| l.contains("tauri-action"))
+            .expect("цільовий крок");
+        assert!(sync < action, "крок мусить стояти ПЕРЕД tauri-action:\n{out}");
+        assert!(
+            out.contains("# чекаут першим — не чіпати"),
+            "коментар не мав зникнути:\n{out}"
+        );
+        assert!(
+            out.contains("      - uses: actions/checkout@v4"),
+            "відступ наявних кроків збережено:\n{out}"
+        );
+    }
+
+    #[cfg(feature = "yaml")]
+    #[test]
+    fn seq_insert_beyond_length_appends() {
+        let src = "steps:\n  - a: 1\n";
+        let out = try_surgical_seq_insert(
+            src,
+            &["steps"],
+            99,
+            &Json::Object(vec![("b".into(), Json::Int(2))]),
+            Format::Yaml,
+        )
+        .expect("index за межами — це «в кінець», не помилка");
+        // Ключі виходять у лапках — це наявна поведінка `yaml_key`
+        // (=`json_escape_string`), спільна з рештою фіксерів цього крейта,
+        // а не особливість вставки.
+        assert!(out.ends_with("  - \"b\": 2\n"), "{out}");
+    }
+
+    #[cfg(feature = "yaml")]
+    #[test]
+    fn seq_insert_declines_forms_without_a_block_anchor() {
+        let empty = "steps: []\n";
+        assert_eq!(
+            try_surgical_seq_insert(
+                empty,
+                &["steps"],
+                0,
+                &Json::Object(vec![("a".into(), Json::Int(1))]),
+                Format::Yaml
+            ),
+            None,
+            "порожня послідовність не дає відступу — регенерація, не здогадка"
+        );
+        let flow = "steps: [{a: 1}]\n";
+        assert_eq!(
+            try_surgical_seq_insert(
+                flow,
+                &["steps"],
+                0,
+                &Json::Object(vec![("b".into(), Json::Int(2))]),
+                Format::Yaml
+            ),
+            None,
+            "flow-стиль не має block-якоря"
+        );
+        let missing = "jobs:\n  release:\n    steps:\n      - a: 1\n";
+        assert_eq!(
+            try_surgical_seq_insert(
+                missing,
+                &["jobs", "nope", "steps"],
+                0,
+                &Json::Object(vec![("b".into(), Json::Int(2))]),
+                Format::Yaml
+            ),
+            None,
+            "шлях, якого немає — None, а не паніка"
+        );
+    }
 
     #[cfg(feature = "yaml")]
     #[test]
