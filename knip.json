@@ -60,8 +60,6 @@
         "scripts/rename-yaml-extensions.mjs",
         "scripts/sync-*.mjs",
         "scripts/upgrade-n-rules-and-install.mjs",
-        "scripts/lib/lint-surface/tier-sampling-bench.mjs",
-        "scripts/lib/lint-surface/tier-sampling-experiment.mjs",
         "rules/**/*.test.mjs",
         "scripts/**/*.test.mjs",
         "tests/**/*.test.mjs",

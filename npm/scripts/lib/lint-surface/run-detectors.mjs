@@ -22,9 +22,22 @@ import { readNRulesConfigLite, isRuleEnabled } from '../read-n-rules-config-lite
 import { evaluateAppliesNode, readRuleApplies } from '../rule-applies.mjs'
 import { isSerialLane } from './blocking-inventory.mjs'
 import { runConcernDetector, DetectorError, isBuiltinNativeConcern, normalizeResult } from './detect.mjs'
-import { renderDiagnostics } from './render.mjs'
 import { createProgressReporter } from './progress.mjs'
 import { runPlanConcurrently } from './scheduler.mjs'
+
+/**
+ * Рендерить diagnostics (тех. інфа) — лише у verbose. Не має native-порту
+ * (`render.mjs` видалено — R1 фази 7 портував лише `renderViolations`, doc-комент
+ * `crates/rules-core/src/lint_render.rs` явно обмежує scope violations, не diagnostics),
+ * тому лишається інлайновою JS-реалізацією тут, у єдиного споживача.
+ * @typedef {import('./types.mjs').LintDiagnostic} LintDiagnostic
+ * @param {LintDiagnostic[]} diagnostics перелік diagnostics для рендеру.
+ * @returns {string} текст diagnostics (порожній рядок, якщо їх немає).
+ */
+function renderDiagnostics(diagnostics) {
+  if (diagnostics.length === 0) return ''
+  return diagnostics.map(d => `  ${d.level === 'warn' ? '⚠' : 'ℹ'} ${d.message}`).join('\n') + '\n'
+}
 
 /** Цей файл: npm/scripts/lib/lint-surface/run-detectors.mjs → PACKAGE_ROOT = npm (4 dirname угору). */
 export const DEFAULT_RULES_DIR = join(dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url))))), 'rules')
