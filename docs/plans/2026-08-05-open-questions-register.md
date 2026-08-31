@@ -13780,6 +13780,95 @@ gitignored бінарний build-артефакт, у якому рядок т�
   наявні гейти (`fs-read`-preopens, contract-test-kit, additive-сумісність)
   без регресії.
 
+### 2.117. Д2 (публікація wasm-плагінів у OCI) заблокована ВДРУГЕ — тепер `serde_json`-пін `oci-dist-package` конфліктує з `rig-agent` у `crates/rules-cli`
+
+**Контекст.** §2.101 задокументувала перший структурний блокер Д2
+(`component_profile`/`entrypoints` у `oci-dist-package` 0.1.6 приймали лише
+форму `r-plugin`) — хвиля `#610` (§2.115) зняла його повністю:
+`oci-dist-package`/`oci-dist-oci` `0.2.0` (kellnr `crates.7n.ai`, перевірено
+й `0.3.0` — той самий стан) приймають `KNOWN_COMPONENT_PROFILES =
+["wasm32-wasip2", "wasm32-wasip3"]` і world-функцію як entrypoint без
+префікса пакета (`manifest.rs:29,360-363`, перевірено вихідним кодом
+крейта — розпаковано з `crates.7n.ai`, реальний `PluginManifest`/
+`embed_manifest`/`inspect_component` API збігається з описом задачі один в
+один). Ця задача розкрила ідентичність (`publisher_id = "n-rules"` —
+namespace `crates/rules-contract/wit/world.wit:204`
+`package n-rules:plugin@5.0.0`; `package` — коротке ім'я з
+`FIRST_PARTY_WASM_PLUGINS[].name` у `build-wasm-plugins.mjs`; `version` —
+`Cargo.toml` крейта-гостя; `entrypoints` — `describe`/`detect`/`fix`,
+world-функції `world.wit:647,650,667`, спільні для всіх шести гостей) і
+завела реєстр `[registries.kellnr]` у `.cargo/config.toml`
+(sparse-протокол, `index = "sparse+https://crates.7n.ai/api/v1/crates/"`,
+перевірено `curl https://crates.7n.ai/api/v1/crates/config.json` →
+`{"dl":"...","api":"...","auth-required":false}`).
+
+**Другий блокер — реальний, а не спекулятивний.** `oci-dist-package`
+(усі опубліковані версії `0.1.0`–`0.3.0`, звірено через sparse-індекс
+kellnr) пінить `serde_json = "=1.0.149"` (точна версія, той самий принцип
+дисципліни транспорту, що вимагає й ця задача — «лише `=version`»).
+`crates/rules-cli` уже залежить від `llm-lib` (`n7n-llm-lib` `^0.5`), чия
+транзитивна залежність `rig-agent` `0.41.0` вимагає `serde_json = "^1.0.150"`
+— підтверджено як реальний, вже зафіксований у `Cargo.lock` стан ДО цієї
+задачі (`grep -A2 'name = "serde_json"' Cargo.lock` → `version = "1.0.150"`).
+Два незалежні зовнішні крейти вимагають несумісних версій ОДНОГО крейта в
+ОДНОМУ бінарі — `=1.0.149` і `^1.0.150` не перетинаються (обидва в межах
+`1.x`, тож cargo зобов'язаний уніфікувати в ОДНУ версію, а не тримає дві):
+
+```
+error: failed to select a version for `serde_json`.
+    ... required by package `rig-agent v0.41.0`
+    ... which satisfies dependency `rig-agent = "^0.41"` of package `n7n-llm-lib v0.5.0`
+    ... which satisfies dependency `llm-lib = "^0.5"` of package `rules-cli v0.1.0`
+versions that meet the requirements `^1.0.150` are: 1.0.150, 1.0.151
+```
+
+**Чому це не «просто послабити свій пін».** Конфлікт живе ВСЕРЕДИНІ
+маніфесту `oci-dist-package` (їхній `[dependencies.serde_json] version =
+"=1.0.149"`), не в тому, ЯК `rules-cli` оголошує залежність на
+`oci-dist-package` (`=0.2.0` проти `^0.2` — не важить, той самий
+транзитивний пін серед усіх восьми опублікованих версій, звірено індексом).
+Перевірено на бінарному рівні (`cargo build -p rules-cli`) — не
+припущено з читання маніфестів.
+
+**Чому не можна ізолювати підпроцесом «зараз».** Єдиний реальний обхід —
+винести `embed-manifest`/`publish` у СПРАВЖНІЙ окремий Cargo-проєкт ПОЗА
+кореневим workspace (власний `Cargo.lock`, `[workspace]`-таблиця, що
+скасовує пошук предка — заборонений патерн для member-крейтів
+`rust/workspace_root`, але тут потрібен НЕ-member) і викликати його як
+дочірній процес (той самий мотив, що `bridge`/`ensureToolAsync` для
+`tools ensure`). Це окрема, суттєва за обсягом робота (новий крейт, білд
+його бінаря як передумова кожного `plugin embed-manifest`/`publish`,
+provisioning цього бінаря) — не «дописати рядок», і задача explicitly
+обмежує обсяг `crates/rules-cli` + `npm/scripts/build-wasm-plugins.mjs`, не
+новий незалежний Cargo-проєкт.
+
+**Що зроблено цим комітом.** Прототип CLI-поверхні (`n-rules plugin
+embed-manifest`/`n-rules plugin publish`, грамотика `clap`, `run_blocking`
+той самий прийом, що `fix_cmd` — `tokio::runtime::Builder::
+new_multi_thread().block_on(...)`) і повний парсинг ідентичності з
+джерел були написані й перевірені ПРОТИ реального розпакованого коду
+`oci-dist-package`/`oci-dist-oci` `0.2.0` (сигнатури `embed_manifest`,
+`inspect_component`, `publish_plugin_component`, `PluginManifest::
+from_toml` — узгоджені), але ЗІГНОРОВАНІ з дерева: код, що не компілюється
+у складі workspace, гірший за код, якого немає (правило проєкту
+«половинчаста міграція гірша за жодну»). Лишено ЛИШЕ `.cargo/config.toml`
+(реєстр `kellnr`) — інертний запис, не впливає на резолв, доки жоден крейт
+на нього не посилається.
+
+**Дороговказ для наступної спроби.** Найдешевший реальний фікс — не в
+цьому репозиторії: підняти `serde_json`-пін у `nitra/oci-dist` до
+чогось на зразок `"1.0"` (діапазон, не точна версія) або хоча б `"=1.0.150"`
+— issue/PR проти `nitra/oci-dist`. Локальний обхід без цього — вищезгаданий
+non-member-крейт+subprocess, вартий окремої задачі з власним дизайном
+(і, ймовірно, того ж рішення, яким `tools_cmd`/`bridge` вже розв'язали
+клас «важкий/конфліктний рантайм → дочірній процес»).
+
+**Цільові прогони.** `cargo build -p rules-cli` — падає з наведеною вище
+помилкою резолву ДО цього коміту повернення; ПІСЛЯ повернення (лишено лише
+`.cargo/config.toml`) — `cargo build -p rules-cli` OK (480 крейтів,
+workspace незмінений). `cargo test -p rules-cli` не запускався окремо —
+без змін у скомпільованому коді крейта немає нового стану для перевірки.
+
 ### 2.118. Останній справжній залишок концернового портування закрито: `test/stryker_config` — fix-половина портована у `crates/plugin-lang-js`
 
 **Джерело.** Таблиця винятків `FIX_STAYS_IN_JS`
