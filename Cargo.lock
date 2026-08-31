@@ -5254,6 +5254,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "plugin-docgen"
+version = "0.1.0"
+dependencies = [
+ "regex",
+ "serde_json",
+ "toml 0.8.23",
+ "wit-bindgen 0.60.0",
+]
+
+[[package]]
 name = "plugin-lang-js"
 version = "0.1.0"
 dependencies = [

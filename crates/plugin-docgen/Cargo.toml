@@ -1,0 +1,43 @@
+[package]
+name = "plugin-docgen"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "Apache-2.0"
+description = "wasm-компонент n-rules:plugin@5.0.0 — docgen/judge, перша ПОРТОВАНА LLM-стадія docgen (крок 7 порядку реалізації спеки docs/specs/2026-08-31-plugin-contract-v5.md §12; карта решти обсягу — docs/specs/2026-08-31-recon-docgen-surface.md)"
+
+[lib]
+# `cdylib` — обов'язково: `wasm32-wasip3` виводить готовий Component Model
+# компонент лише з цього crate-type (той самий мотив, що
+# `crates/plugin-lang-rust`/`crates/plugin-lang-js`).
+crate-type = ["cdylib"]
+
+[dependencies]
+# Пін звірено з `crates/plugin-lang-rust/Cargo.toml` (той самий мінор, що
+# резолвиться в Cargo.lock кореня) — НЕ розширюй у caret-діапазон без причини.
+wit-bindgen = "0.60"
+# `REFUSAL_FILLER_RES` (`npm/rules/doc-files/docgen-judge/main.mjs`) — усі
+# патерни з прапорцем `/iu` (case-insensitive + unicode), на відміну від
+# `plugin-lang-rust`, тож ОБИДВІ фічі обов'язкові:
+# - `unicode-perl` — `\w`/`\s`/межі слова в україномовних/англомовних
+#   патернах (без неї `\w`/`\s` звузились би до ASCII);
+# - `unicode-case` — case-folding для `(?i)`-семантики `/iu`.
+# `default-features = false` — той самий size-budget мотив, що всі наявні
+# first-party гості (доккомент `plugin-lang-js/Cargo.toml`).
+regex = { version = "1", default-features = false, features = [
+  "std",
+  "perf",
+  "unicode-case",
+  "unicode-perl",
+] }
+# Парсинг verdict-JSON відповіді судді (`parseDocVerdict` — порт 1:1,
+# `serde_json::Value` достатньо: поля читаються, порядок ключів не важить
+# — на відміну від `js/check`-родини `plugin-lang-js`, тут не серіалізуємо
+# назад у JSON).
+serde_json = "1"
+
+[dev-dependencies]
+# Anti-drift тест `plugin_toml_concern_keys_match_describe` (той самий
+# мотив, що `crates/plugin-lang-rust/Cargo.toml`) парсить `plugin.toml`
+# СПРАВЖНІМ TOML-парсером. Dev-only: у wasm32-wasip3 cdylib не потрапляє.
+toml = "0.8"
