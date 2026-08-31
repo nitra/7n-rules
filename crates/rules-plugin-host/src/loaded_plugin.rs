@@ -35,6 +35,13 @@ pub struct LoadedPlugin {
     /// закешований інстанс відкритий саме на потрібне дерево, і
     /// перезавантажує плагін, коли ні (§2.95).
     preopen_root: Option<PathBuf>,
+    /// Той самий `current_thread`-рантайм, що [`crate::host::PluginHost`]
+    /// (`Arc`-клон, доккомент поля `PluginHost::runtime`) — `detect`/`fix`
+    /// нижче `block_on`-лять `call_detect`/`call_fix`, які
+    /// `component-model-async`-бінгден генерує як `async fn` (доккомент
+    /// `crate::wit`), незалежно від того, чи КОНКРЕТНИЙ гість (`p2` чи
+    /// `p3`) реально суспендиться.
+    runtime: Arc<tokio::runtime::Runtime>,
 }
 
 impl LoadedPlugin {
@@ -43,12 +50,14 @@ impl LoadedPlugin {
         plugin: wit::Plugin,
         manifest: Manifest,
         preopen_root: Option<PathBuf>,
+        runtime: Arc<tokio::runtime::Runtime>,
     ) -> Self {
         Self {
             store,
             plugin,
             manifest,
             preopen_root,
+            runtime,
         }
     }
 
@@ -117,7 +126,9 @@ impl LoadedPlugin {
         self.ensure_fs_read_bound("detect")?;
         let wit_batch = convert::detect_batch_to_wit(batch);
         self.reset_scratch();
-        let result = self.plugin.call_detect(&mut self.store, &wit_batch);
+        let result = self
+            .runtime
+            .block_on(self.plugin.call_detect(&mut self.store, &wit_batch));
         self.reset_scratch();
         let result = result.map_err(|err| PluginHostError::Execution {
             function: "detect",
@@ -156,7 +167,9 @@ impl LoadedPlugin {
         self.ensure_fs_read_bound("fix")?;
         let wit_request = convert::fix_request_to_wit(request);
         self.reset_scratch();
-        let plan = self.plugin.call_fix(&mut self.store, &wit_request);
+        let plan = self
+            .runtime
+            .block_on(self.plugin.call_fix(&mut self.store, &wit_request));
         self.reset_scratch();
         let plan = plan.map_err(|err| PluginHostError::Execution {
             function: "fix",

@@ -1790,7 +1790,7 @@ mod tests {
     /// (`crates/test-plugin-guest/build.sh`).
     fn guest_fixture_wasm_path() -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../target/wasm32-wasip2/release/test_plugin_guest.wasm")
+            .join("../../target/wasm32-wasip3/release/test_plugin_guest.wasm")
     }
 
     /// Падає з чіткою інструкцією збірки, якщо фікстура відсутня — не

@@ -43,7 +43,7 @@ const CONCERN_WORKFLOWS: &str = "ga/workflows";
 /// `wasm-plugin-parity-ci-github.test.mjs`.
 fn fixture_wasm_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../target/wasm32-wasip2/release/plugin_ci_github.wasm")
+        .join("../../target/wasm32-wasip3/release/plugin_ci_github.wasm")
 }
 
 fn require_fixture() -> PathBuf {

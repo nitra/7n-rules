@@ -90,10 +90,10 @@ const CONCERN_JSCPD_DUPLICATES: &str = "js/jscpd_duplicates";
 const CONCERN_JS_RUN_RUNTIME: &str = "js-run/runtime";
 
 /// Абсолютний шлях до зібраного `.wasm`-компонента (`crates/plugin-lang-js/build.sh`)
-/// — `wasm32-wasip2`/`release`.
+/// — `wasm32-wasip3`/`release`.
 fn fixture_wasm_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../target/wasm32-wasip2/release/plugin_lang_js.wasm")
+        .join("../../target/wasm32-wasip3/release/plugin_lang_js.wasm")
 }
 
 fn require_fixture() -> PathBuf {

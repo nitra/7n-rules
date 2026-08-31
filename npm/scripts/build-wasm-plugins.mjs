@@ -72,8 +72,13 @@ export const FIRST_PARTY_WASM_PLUGINS = [
   { name: 'ci-azure', crateDir: 'crates/plugin-ci-azure' }
 ]
 
-/** Ціль Component Model, під яку зібрані first-party плагіни (доккомент `build.sh`). */
-const WASM_TARGET = 'wasm32-wasip2'
+/**
+ * Ціль Component Model, під яку зібрані first-party плагіни (доккомент
+ * `build.sh`) — `wasm32-wasip3` від хвилі міграції на WASI 0.3 (спека
+ * `docs/specs/2026-08-31-plugin-contract-v5.md`, розділ 10.1, крок 4
+ * порядку реалізації); до цієї хвилі було `wasm32-wasip2`.
+ */
+const WASM_TARGET = 'wasm32-wasip3'
 
 /** `name = "..."` у першому рядку-збігу `Cargo.toml` — той самий парсинг, що `build.sh` (`grep -m1 '^name'`). */
 const CARGO_PACKAGE_NAME_RE = /^name\s*=\s*"([^"]+)"/m

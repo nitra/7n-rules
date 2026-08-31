@@ -5706,6 +5706,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "thiserror 1.0.69",
+ "tokio",
  "wasmtime",
  "wasmtime-wasi",
 ]
@@ -7218,6 +7219,7 @@ dependencies = [
  "async-trait",
  "bitflags 2.13.1",
  "bumpalo",
+ "bytes",
  "cc",
  "encoding_rs",
  "futures",
