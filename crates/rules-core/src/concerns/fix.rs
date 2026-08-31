@@ -102,16 +102,13 @@
 //!
 //! # Свідомо НЕ портовані T0-фікси (лишаються JS)
 //!
-//! - **`tauri/release`** (`npm/rules/tauri/release/fix-release.mjs`) —
-//!   augmentation-патерни редагують `changelog-release.yml`/`release.yml`
-//!   через format-preserving YAML Document API (`parseDocument`/`setIn`
-//!   пакета `yaml`: коментарі, порядок ключів і стиль лишаються на місці).
-//!   Rust-екосистема не має format-preserving YAML-редактора рівня
-//!   `toml_edit` (serde-серіалізація знищила б коментарі й форматування
-//!   workflow-файлів), а `FixPlan` вимагає повного нового вмісту файла.
-//!   Додатково `resolveGithubOwnerRepo` запускає `git remote get-url origin`
-//!   (процесна дія — поза мандатом чистого плану). Не силуємо — фікс
-//!   лишається JS до появи адекватного інструмента.
+//! Порожньо. Останній мешканець цієї секції — `tauri/release` — виїхав:
+//! [`super::fix_tauri_release`] (§2.97). Його рація трималась на трьох
+//! пунктах, з яких два застаріли непоміченими (format-preserving YAML зʼявився
+//! з §2.71, а спавн `git` замінився читанням `.git/config`), а третій —
+//! позиційна вставка кроку — блокував лише ДВА патерни з пʼятьох, але
+//! записаний був як загальний. Урок ширший за концерн: рація «не портуємо»
+//! має переглядатись разом із інструментом, інакше вона живе довше за причину.
 //!
 //! # T8 — бінарна родина `image-*` (§2.85): обидва блокованих концерни портовані
 //!
@@ -1623,6 +1620,7 @@ pub const NATIVE_FIXES: &[&str] = &[
     "tauri/cargo_mutants_config",
     "tauri/gitignore_target",
     "tauri/linux_deps",
+    "tauri/release",
     "tauri/updater",
     "tauri/vscode_extensions",
     "text/cspell",
@@ -1691,6 +1689,7 @@ pub fn run_concern_fix(
         "tauri/cargo_mutants_config" => Ok(tauri_cargo_mutants_config_fix(cwd, violations)),
         "tauri/gitignore_target" => Ok(tauri_gitignore_target_fix(cwd, violations)),
         "tauri/linux_deps" => Ok(tauri_linux_deps_fix(cwd, violations)),
+        "tauri/release" => super::fix_tauri_release::tauri_release_fix(cwd, violations),
         "tauri/updater" => super::fix_tauri_updater::tauri_updater_fix(cwd, violations),
         "text/cspell" => Ok(super::fix_cspell_config::cspell_config_fix(cwd, violations)),
         "text/markdownlint" => text_markdownlint_fix(cwd, violations),
@@ -2461,6 +2460,7 @@ mod tests {
                 "tauri/cargo_mutants_config",
                 "tauri/gitignore_target",
                 "tauri/linux_deps",
+                "tauri/release",
                 "tauri/updater",
                 "tauri/vscode_extensions",
                 "text/cspell",
