@@ -19,7 +19,7 @@
 //!
 //! # Чому власне джерело гостя, а не шаблон скіла
 //!
-//! `wasm_plugin_skill_smoke.rs`/`v30_guest_additive_compat.rs` скаффолдять
+//! `wasm_plugin_skill_smoke.rs`/`guest_additive_compat.rs` скаффолдять
 //! ШАБЛОН скіла — там предмет тесту саме шаблон. Тут предмет — хост, а
 //! потрібен гість із НЕПОРОЖНІМ `fs_read` і читанням файлу; шаблон такого
 //! не має й не повинен мати (типовий концерн лишає `fs_read` порожнім).
@@ -42,7 +42,7 @@ use std::sync::OnceLock;
 use rules_contract::detect::DetectBatch;
 use rules_plugin_host::{PluginHost, PluginHostError, ToolResolver};
 
-const PLUGIN_WORLD_VERSION: &str = "4.0.0";
+const PLUGIN_WORLD_VERSION: &str = "5.0.0";
 const CRATE_NAME: &str = "fs-read-preopen-root-fixture";
 const PLUGIN_ID: &str = "fs-read-gate/preopen-root";
 const CONCERN_ID: &str = "fs-read-gate/reads-preopen";
@@ -72,7 +72,7 @@ fn build_manifest() -> Manifest {
     Manifest {
         id: "__PLUGIN_ID__".to_string(),
         version: "0.1.0".to_string(),
-        world_version: "4.0.0".to_string(),
+        world_version: "5.0.0".to_string(),
         domains: vec![Domain::Lint],
         concerns: vec![ConcernContribution {
             key: CONCERN_KEY.to_string(),
@@ -87,6 +87,7 @@ fn build_manifest() -> Manifest {
         },
         tools: vec![],
         fix_only_concerns: vec![],
+        worlds: vec![],
     }
 }
 

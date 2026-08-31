@@ -16,7 +16,7 @@
 //! твердження й живе: у гейті negotiation-у (`host.rs`, unit-тести
 //! `check_world_version`), а бінарний доказ ПРОТИЛЕЖНОГО — що гість
 //! попереднього МАЖОРА більше не вантажиться — у
-//! `crates/rules-plugin-host/tests/v30_guest_additive_compat.rs`.
+//! `crates/rules-plugin-host/tests/guest_additive_compat.rs`.
 
 wit_bindgen::generate!({
     path: "../rules-contract/wit",
