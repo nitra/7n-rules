@@ -1,26 +1,29 @@
 ---
 name: n-wasm-plugin
 description: >-
-  Авторинг плагінів contract v3 (wasm-компонент, n-rules:plugin@4.0.0) — scaffold нового guest-крейта, реалізація концерну, golden-тести через rules-plugin-host, publish (url+sha256 пін для wasmPlugins)
+  Авторинг плагінів contract v5 (wasm-компонент, n-rules:plugin@5.0.0) — scaffold нового guest-крейта, реалізація концерну, golden-тести через rules-plugin-host, publish (url+sha256 пін для wasmPlugins)
 version: '1.0'
 ---
 
-# n-wasm-plugin — авторинг wasm-плагінів contract v3
+# n-wasm-plugin — авторинг wasm-плагінів contract v5
 
 ## Мета
 
-Провести LLM-агента через повний цикл створення плагіна `n-rules:plugin@4.0.0`
-(спека `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md`, рішення
-І): **scaffold** нового guest-крейта → **реалізація** одного концерну →
-**golden-тести** через реальний `rules-plugin-host` → **publish** (пін
-`url`+`sha256` для `wasmPlugins`). Guest-мова за замовчуванням — **Rust**
-(`wit-bindgen`, найзріліший wasm-toolchain у цьому репо); контракт приймає
-будь-який компонент, що відповідає WIT `wit/world.wit`, тож ці кроки
-транслюються й на інші мови зі своїм component-model-toolchain-ом, лише
-крок 1 (scaffold) і Cargo-специфіка кроку 4 (publish) прив'язані до Rust.
+Провести LLM-агента через повний цикл створення плагіна `n-rules:plugin@5.0.0`
+(крокова структура — спека
+`docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md`, рішення І;
+поточна форма ядрового світу — спека
+`docs/specs/2026-08-31-plugin-contract-v5.md`): **scaffold** нового
+guest-крейта → **реалізація** одного концерну → **golden-тести** через
+реальний `rules-plugin-host` → **publish** (пін `url`+`sha256` для
+`wasmPlugins`). Guest-мова за замовчуванням — **Rust** (`wit-bindgen`,
+найзріліший wasm-toolchain у цьому репо); контракт приймає будь-який
+компонент, що відповідає WIT `wit/world.wit`, тож ці кроки транслюються й
+на інші мови зі своїм component-model-toolchain-ом, лише крок 1 (scaffold)
+і Cargo-специфіка кроку 4 (publish) прив'язані до Rust.
 
 **Джерело правди контракту** — `crates/rules-contract/wit/world.wit`
-(world `plugin`, пакет `n-rules:plugin@4.0.0`). Якщо цей файл і цей SKILL.md
+(world `plugin`, пакет `n-rules:plugin@5.0.0`). Якщо цей файл і цей SKILL.md
 розійшлись — вір `.wit`, і онови цей документ.
 
 ## Передумови

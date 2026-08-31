@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Генеричний build-скрипт wasm-компонента plugin contract v3 — сировина скіла
+# Генеричний build-скрипт wasm-компонента plugin contract v5 — сировина скіла
 # `wasm-plugin` (npm/skills/wasm-plugin/SKILL.md). Копіюється як є в новий
 # guest-крейт (не `.tpl` — без плейсхолдерів, працює для будь-якої назви
 # крейта): та сама ціль `wasm32-wasip2` без окремого adapter-кроку, що й
