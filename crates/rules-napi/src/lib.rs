@@ -468,6 +468,20 @@ fn to_wasm_napi_err(err: PluginHostError) -> Error {
 /// (Component Model перевіряє лише що гостьові імпорти ЗАДОВОЛЕНІ, не що
 /// лінкер СКУПИЙ). Пʼять із шести first-party гостей і сьогодні несуть
 /// `worlds = []` — для них цей рядок не міняє нічого.
+///
+/// # Чого це коштує — назвати прямо, щоб обхід не став вічним
+///
+/// Гейт `caps_file_reader_gate` доводить, що гість БЕЗ оголошення світу не
+/// дістає його імпортів. Цей рядок робить те твердження істинним лише в
+/// тестах: у продуктовому шляху через napi КОЖЕН гість дістає `file-reader`
+/// безумовно. Тобто типізований гейт повноважень (рішення 4 спеки
+/// `2026-08-31-slice6-consumer-surfaces.md`) тут не гейтить.
+///
+/// Замикається це конкретним кроком, і всі його частини вже існують:
+/// `n-rules plugin embed-manifest` (Д2, PR #618) вбудовує маніфест у
+/// custom-section, `oci_dist_package::inspect_component` читає його БЕЗ
+/// wasmtime. Лишається змусити `npm/scripts/build-wasm-plugins.mjs` робити
+/// embed на збірці, а цю функцію — читати `worlds` звідти замість константи.
 fn declared_worlds() -> &'static [String] {
     static WORLDS: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
     WORLDS.get_or_init(|| vec!["n-rules:caps/file-reader@1.0.0".to_string()])
