@@ -15346,3 +15346,144 @@ PR дописати рядок «Крок 1 (§5) — закрито §595/§596
 `npx @7n/rules lint` і `/doc-files` свідомо НЕ запускались (правило
 задачі) — діфф цієї задачі не чіпає жодного кодового файлу, лише реєстр,
 тому CRC-дрейф доків не застосовний.
+### 2.130. `tools ensure` — критерій виходу §4 мінідизайну: вимір показав 2 живих JS-споживачі `ensureToolAsync`, не 7+1; обидва портовано на fail-closed
+
+**Задача.** §2.126 зафіксувала: `tools ensure` (GitHub-Release install-шлях)
+СТРУКТУРНО заблокований власним мінідизайном
+(`docs/specs/2026-08-04-tools-ensure-design.md` §4), не браком часу —
+документ явно ВІДХИЛИВ порт install-у в Rust, поки JS-`ensureToolAsync`
+потрібен «7 споживачам розділу 2 плюс зовнішньому `plugins/ci-github`».
+Записаний критерій виходу: спершу портувати цих споживачів. Ця задача —
+буквальне виконання критерію: спершу ЗМІРЯТИ актуальний склад (мінідизайн
+писаний 2026-08-04, з тих пір інші зрізи вже чіпали суміжні концерни), потім
+портувати те, що вимір підтвердив.
+
+**Вимір (відтворювано `grep -rl 'ensureToolAsync' npm/ --include='*.mjs' | grep
+-v /tests/`).** Мінідизайнівський перелік застарів по КОЖНОМУ з восьми
+пунктів:
+
+- `k8s/manifests` — rego-рушій (conftest) лишається в JS
+  (`crate::conftest` спавнить `conftest` як субпроцес — Р11, «rego НЕ
+  портується в Rust», доккомент `k8s_manifests_rego.rs:11-12`), АЛЕ сам
+  `conftest`-бінарник резолвиться нативно, `resolve_provisioned_tool`
+  (`crates/rules-core/src/conftest.rs:36`) — той самий принцип fail-closed,
+  що вже застосований до `kubeconform`.
+- `rego/regal` → `crates/rules-core/src/concerns/rego_regal.rs`
+  (`resolve_provisioned_tool` з фолбеком `resolve_cmd`) — нативний, fail-closed.
+- `rego/opa_check` → `.../rego_opa_check.rs` — той самий патерн.
+- `docker/lib/docker-hadolint` — файл `npm/rules/docker/lib/docker-hadolint.mjs`
+  БІЛЬШЕ НЕ ІСНУЄ; 1:1 портований у `.../docker_lint_hadolint.rs` (доккомент
+  модуля: «1:1 порт `npm/rules/docker/lib/docker-hadolint.mjs` (58 рядків)»).
+- `tool-pins-refresh.mjs` — виявився хибно зарахованим ще на момент написання
+  мінідизайну: імпортує `TOOLS`/`fetchLatestVersion` з `ensure-tool.mjs`, а
+  НЕ `ensureTool`/`ensureToolAsync` (перевірено `grep -n "^import" …`). Він
+  ЧИТАЄ реєстр і РЕЗОЛВИТЬ останню версію тега — версій ніколи не
+  встановлював, install-шлях не викликав.
+- `plugins/ci-github` (зовнішній, per Р6) — `grep -rl "ensureTool"
+  plugins/ci-github --include='*.mjs'` не дав ЖОДНОГО збігу в коді цього
+  репо. Пункт Р6 про публічний API пакета лишається чинним ОБМЕЖЕННЯМ
+  (сигнатура `ensureTool` не змінюється незалежно від внутрішніх
+  споживачів), але як активний споживач на дату виміру НЕ підтвердився.
+- `run-conftest-batch.mjs:78` і `lint-surface/wasm-plugins.mjs:667` —
+  ЄДИНІ два живих виробничих виклики `ensureToolAsync`, що лишились.
+  Обидва — НЕ окремі концерни, а спільна ІНФРАСТРУКТУРА: перший обслуговує
+  ВСІ policy/rego-концерни JS-детект-шляху одним call-сайтом (через
+  `policy-lint-adapter.mjs`, не по одному на концерн, як мінідизайн
+  імпліцитно припускав переліком «`k8s/manifests`, `rego/regal`, …» окремими
+  рядками), другий — генеричний провіжн `manifest.tools`, задекларованих
+  ДОВІЛЬНИМИ wasm-плагінами (first-party чи сторонніми), не привʼязаний до
+  конкретного тула.
+
+Розбіжність зафіксована явно (правило 2 брифу): мінідизайн називав 7+1,
+реальний виробничий код на дату виміру має РІВНО 2 живих implicit-споживачі.
+`docs/specs/2026-08-04-tools-ensure-design.md` оновлено на місці (розділи 2,
+4, 9) — не переписаний заднім числом, а доповнений блоками «Оновлення
+(2026-09-01, §2.130 реєстру)»/«Стан критерію», що явно розрізняють «що
+документ казав тоді» від «що показав вимір тепер», з посиланням на
+конкретні файли/рядки Rust-порту, які й зробили решту пʼятьох застарілими.
+
+**Порт (обидва живих споживачі, критерій виходу — ПОВНІСТЮ виконаний).**
+Новий `ensureToolProvisioned` (`npm/scripts/lib/ensure-tool.mjs`) — JS-
+дзеркало нативного `resolve_provisioned_tool`/`install_hint`: PATH → керований
+кеш → hard-fail з підказкою (`n-rules tools ensure <tool>`), БЕЗ авто-install
+і БЕЗ читання `N_CURSOR_NO_AUTO_INSTALL` (auto-install тут ніколи не був
+опцією — нема що вимикати). `ensureTool`/`ensureToolAsync` (з install-гілкою)
+НЕ видалені й НЕ змінені — лишаються публічним API пакета (Р6) і каналом
+`bridge-host.mjs` для `n-rules tools ensure`.
+
+- `npm/scripts/lib/run-conftest-batch.mjs` — виклик переведено на
+  `ensureToolProvisioned('conftest')`, ПЕРЕНЕСЕНИЙ ПІСЛЯ перевірки
+  rego-каталогу (дешева валідація аргументів випереджає дорожчий, тепер
+  fail-closed резолв зовнішнього бінарника; попутно прибрало клас flake —
+  тест `run-conftest-batch.test.mjs` більше не може випадково тригернути
+  реальний GitHub-install на холодному CI-раннері, піднятий `timeout: 30_000`
+  на відповідному тесті знятий як такий, що втратив підставу).
+- `npm/scripts/lib/lint-surface/wasm-plugins.mjs` — дефолтна ін'єкція
+  `ensureToolFn` (параметр лишається injectable, тести не займали дефолт)
+  переведена на `ensureToolProvisioned`.
+- Доккоменти обох модулів переписані — прибрано згадки «намагається
+  авто-встановити», додано явне обґрунтування fail-closed (той самий
+  принцип, що вже застосований до `k8s/kubeconform`, PR #378: «лінт-рантайм
+  резолвить і чесно каже, чого бракує; ставить — той, хто явно попросив»).
+- Тести: `ensure-tool.test.mjs` дістав новий `describe('ensureToolProvisioned',
+  …)` (4 тести, дзеркало існуючих `ensureTool`/`ensureToolAsync` кейсів —
+  PATH hit, кеш hit, невідомий тул, hard-fail без install і без
+  `N_CURSOR_NO_AUTO_INSTALL`); `run-conftest-batch-async.test.mjs` — мок
+  `vi.mock('../ensure-tool.mjs', …)` переведено з `ensureToolAsync` на
+  `ensureToolProvisioned`; коментарі `run-conftest-batch.test.mjs` уточнені
+  під нову семантику/порядок перевірок.
+
+**Наслідок для критерію Т2 (розділ 4 мінідизайну).** Після порту жодного
+JS-виклику `ensureToolAsync`, що НЕЯВНО (побічний ефект лінт/детект-прогону)
+тягне авто-install, не лишилось — єдиний живий кличчик install-гілки
+`ensureToolAsync` — сам `bridge-host.mjs` (операція `ensureTool` для
+`n-rules tools ensure`), тобто ЯВНИЙ запит користувача, не implicit-
+споживач розділу 2. Буквальна умова критерію виходу — виконана.
+
+**Свідомо НЕ зроблено в цій задачі (правило 4 брифу — блокер не знімається
+сам собою).** Реалізація GitHub-Release install-у в Rust варіантом A
+(`ureq`+`flate2`+`tar`+`xz2`, зафіксовано мінідизайном §4) — НЕ виконана.
+Це нова хвиля залежностей (`deny.toml`/ліцензійний гейт), видалення
+`bridge-host.mjs`-операції `ensureTool` і install-гілки самого
+`ensure-tool.mjs` — самостійна робота з власним рев'ю поверхні залежностей,
+а не побічний продукт порту двох consumer-ів. Вимір цієї задачі
+РОЗБЛОКОВУЄ рішення (умова мінідизайну виконана), але саме рішення —
+переїзд на variant A — лишається за власником проєкту, не виконане цим PR.
+
+**Цільові прогони (синхронно, без фонових процесів):**
+- `cargo build --release -p rules-cli` — OK (547 крейтів, код Rust не
+  чіплявся — контрольний прогін).
+- `cargo build --release -p rules-napi` — OK (263 крейти).
+- `node npm/scripts/build-wasm-plugins.mjs` — 6 wasm-плагінів зібрано
+  (потрібно для `wasm-plugins.test.mjs`, gitignored build-артефакти,
+  `npm/wasm-plugins/*.wasm`+`builtin-pins.json`).
+- `N_RULES_NATIVE_ADDON=$PWD/target/release/librules_napi.dylib bun run
+  --bun vitest run npm/scripts/lib/tests/ensure-tool.test.mjs
+  npm/scripts/lib/tests/run-conftest-batch.test.mjs
+  npm/scripts/lib/tests/run-conftest-batch-async.test.mjs
+  npm/scripts/lib/lint-surface/tests/wasm-plugins.test.mjs
+  npm/scripts/lib/lint-surface/tests/wasm-plugin-parity-php.test.mjs
+  npm/scripts/lib/lint-surface/tests/wasm-plugin-parity-ci-github.test.mjs
+  npm/scripts/lib/lint-surface/tests/bridge-ensure-tool.test.mjs
+  npm/scripts/tests/` — 473 passed, 1 skipped (24 файли).
+- той самий override, `bun run --bun vitest run
+  npm/scripts/lib/lint-surface/ npm/scripts/lib/tests/` — 1574 passed, 1
+  skipped; 6 failed — усі 6 у `detect.test.mjs` (4) і `mirror-parity.test.mjs`
+  (2), ПЕРЕВІРЕНО відтворюваними на `origin/main` БЕЗ жодної зміни цієї
+  задачі (репо-дрейф: `.cursor/rules/n-*.mdc` розійшовся з inlined-каноном
+  для `rust`, і реальні `.github/workflows/*.yml` цього репо порушують
+  ga.mdc-політику, яку `detect.test.mjs` випадково зачіпає через реальний
+  `cwd`) — попередній, не мій, поза обсягом задачі.
+- `cargo test -p rules-cli --bins` — 88 passed.
+- `cargo test -p rules-cli --test cli` — 35 passed.
+
+`npx @7n/rules lint` і `/doc-files` свідомо НЕ запускались (правило задачі)
+— CRC у frontmatter доків `ensure-tool.md`/`run-conftest-batch.md`/
+`wasm-plugins.md` (за наявності) стане застарілим; регенерація — окремим
+кроком.
+
+**Розбіжність із текстом завдання, зафіксована явно (правило 2 брифу):**
+завдання просило записати підсумок під номером §2.131. На момент виконання
+останній наявний запис реєстру — §2.129 (PR #630, влитий уже В ЦЕЙ час),
+тож коректний наступний номер за конвенцією файлу (без розривів у
+нумерації) — **§2.130**, не §2.131. Записано під §2.130.

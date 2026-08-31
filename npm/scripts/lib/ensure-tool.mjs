@@ -502,6 +502,67 @@ export function ensureTool(toolId) {
   throw new Error(buildHint(toolId, entry))
 }
 
+/**
+ * Будує hard-fail hint для [`ensureToolProvisioned`] — дзеркало Rust-boку
+ * `rules_core::tool_resolve::install_hint` (та сама структура: назва тула,
+ * per-OS маршрут встановлення), плюс явний вказівник на `n-rules tools
+ * ensure`. НЕ використовує [`buildHint`] — той згадує
+ * `N_CURSOR_NO_AUTO_INSTALL`, змінну, яку цей шлях не читає й не шанує
+ * (авто-install тут ніколи не був опцією, тож нема що «вимикати»).
+ * @param {string} toolId ключ у TOOLS
+ * @param {ToolEntry} entry опис тула
+ * @returns {string} рядок помилки з підказками
+ */
+function buildProvisionHint(toolId, entry) {
+  const lines = [`${toolId} не знайдено ні в PATH, ні в керованому кеші бінарників.`, '   Встанови:']
+  if (platform === 'darwin') {
+    lines.push(`     macOS: brew install ${entry.brew}`)
+  } else if (platform === 'win32') {
+    if (entry.scoop) lines.push(`     Windows: scoop install ${entry.scoop}`)
+    lines.push(`     або: https://github.com/${entry.github}/releases`)
+  } else {
+    lines.push(`     Linux: https://github.com/${entry.github}/releases`)
+  }
+  lines.push(`   або: n-rules tools ensure ${toolId}`)
+  return lines.join('\n')
+}
+
+/**
+ * Резолвить зовнішній CLI-тул БЕЗ авто-встановлення — PATH → кеш → hard-fail.
+ * JS-дзеркало нативного `rules_core::tool_resolve::resolve_provisioned_tool`
+ * (крок 1-2, уже портований — доккомент модуля, таблиця розділу 2 мінідизайну
+ * `docs/specs/2026-08-04-tools-ensure-design.md`). Кличеться замість
+ * `ensureToolAsync` там, де добування тула має бути ЯВНИМ запитом
+ * користувача (`n-rules tools ensure`), а не побічним ефектом лінт/детект-
+ * прогону — той самий принцип, що вже застосований до нативних concern-ів
+ * (`k8s/kubeconform`, PR #378: «резолвить і чесно каже, чого бракує; ставить —
+ * той, хто явно попросив»).
+ *
+ * НЕ мутує стан (жодного install), тож синхронна за суттю — `async` лишений
+ * для сумісності сигнатури з `ensureToolAsync` (виклики через `await`,
+ * injectable у тестах як `(toolId) => Promise<string>`).
+ * @param {string} toolId ключ у реєстрі TOOLS
+ * @returns {Promise<string>} абсолютний шлях до бінарника
+ * @throws {Error} якщо тул не резолвиться ні з PATH, ні з керованого кешу
+ */
+export async function ensureToolProvisioned(toolId) {
+  const entry = TOOLS[toolId]
+  if (!entry) throw new Error(`ensureTool: невідомий тул '${toolId}'`)
+
+  // 1. PATH
+  const fromPath = resolveCmd(toolId)
+  if (fromPath) return fromPath
+
+  // 2. Кеш
+  const cacheDir = getCacheDir()
+  const cachedBin = join(cacheDir, toolId)
+  if (existsSync(cachedBin)) return cachedBin
+
+  // 3. Hard-fail — без авто-install, незалежно від N_CURSOR_NO_AUTO_INSTALL
+  //    (для цього шляху авто-install ніколи не був опцією, тож змінна нема що вимикати).
+  throw new Error(buildProvisionHint(toolId, entry))
+}
+
 /** Внутрішньопроцесний single-flight: конкурентні `ensureToolAsync(toolId)` в одному Node-процесі колапсують в один install. */
 const inFlightInstalls = new Map()
 

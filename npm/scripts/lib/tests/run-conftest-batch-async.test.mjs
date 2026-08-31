@@ -1,6 +1,6 @@
 /**
  * `runConftestBatch` — signal/timeoutMs passthrough у `spawnAsync` (ADR 260716-1354).
- * Окремий файл від `run-conftest-batch.test.mjs`: тут `ensureToolAsync`/`spawnAsync`
+ * Окремий файл від `run-conftest-batch.test.mjs`: тут `ensureToolProvisioned`/`spawnAsync`
  * повністю мокаються (жодного реального PATH-резолву чи install-логіки), тоді як
  * сусідній файл навмисно перевіряє real hard-fail шлях (`withBinRemovedFromPath`) —
  * змішувати обидва стилі мокування в одному файлі означало б module-wide `vi.mock`,
@@ -15,7 +15,7 @@ import { withTmpDir } from '../../utils/test-helpers.mjs'
 const spawnAsyncMock = vi.fn()
 
 vi.mock('../ensure-tool.mjs', () => ({
-  ensureToolAsync: vi.fn().mockResolvedValue('/usr/local/bin/conftest')
+  ensureToolProvisioned: vi.fn().mockResolvedValue('/usr/local/bin/conftest')
 }))
 vi.mock('../../utils/spawn-async.mjs', () => ({
   spawnAsync: spawnAsyncMock
