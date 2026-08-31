@@ -12990,3 +12990,82 @@ candidate.rs`); `fragment-json` навмисно рядок, не record, бо �
 порушені), `wasm-tools component wit crates/rules-contract/wit` (exit 0,
 надрукований мердж усіх пакетів показує всі шість нових world-ів поряд із
 `n-rules:plugin@4.0.0` і незмінним `n-rules:slots@1.0.0`).
+
+### 2.109. `manifest.worlds` — крок 2 контракту `5.0.0` реалізовано; шість гостей і хост тимчасово червоні (крок 3–4 попереду)
+
+**Джерело:** `docs/specs/2026-08-31-plugin-contract-v5.md` §8/§11/§12 (крок
+2 порядку реалізації). Мета мажора `5.0.0` — винести тип поверхні з форми
+ядрового світу, щоб наступна поверхня (`caps`/`surfaces` world) була
+безкоштовною для контракту (жодного нового мажору). Крок 2 — дискавері-поле
+`manifest.worlds`, яке робить цю модель можливою: хост читає перелік
+world-ів компонента з custom section ДО інстанціації (спека §8), не
+чекаючи `describe()`.
+
+**Що зроблено.** `wit/world.wit`: `record manifest` отримав поле `worlds:
+list<string>` (форма `namespace:package/world@version`, доккомент поля),
+пакет бампнуто `n-rules:plugin@4.0.0` → `@5.0.0`. `crates/rules-contract`:
+`Manifest::worlds: Vec<String>` (serde-дефолт — порожній список читається
+без явного поля), `PLUGIN_WORLD_VERSION = "5.0.0"`,
+`validators::manifest::validate_manifest` доповнено трьома перевірками
+`worlds` (форма рядка регексом `WORLD_REF_RE`, заборона ядрового world
+`n-rules:plugin` у будь-якій із трьох форм запису, дублікати) — усі
+акумулюються в одному виклику поряд із чинними перевірками
+`concerns`/`fix-only-concerns`. `tests/wit_parity.rs`: заморожено НОВУ
+базову фікстуру `tests/fixtures/wit-v50/` (той самий цикл, що вже пройшов
+`3.0.0` → `4.0.0`), стара `every_v40_type_keeps_its_exact_shape_in_current_world`
+переосмислена на `v40_shapes_drifted_exactly_where_major_five_declares`
+(історичне свідчення — форма розійшлась РІВНО в `manifest`), заведено
+`every_v50_type_keeps_its_exact_shape_in_current_world` (тавтологічно
+зелений сьогодні, змістовним стане з першою правкою world після цього
+бампу). `cargo test -p rules-contract`: 88 пройдено, 0 провалено (нові:
+`new_major_five_worlds_field_defaults_to_empty`
+(`crates/rules-contract/src/manifest.rs`), шість тестів валідатора `worlds`
+(`crates/rules-contract/src/validators/manifest.rs`) і
+`every_v50_type_keeps_its_exact_shape_in_current_world`
+(`crates/rules-contract/tests/wit_parity.rs`)).
+
+**Свідомо НЕ зроблено цим кроком (спека §11 п.2–4, крок 3–4 §12 —
+паралельні хвилі, поза межею).** Мажор `5.0.0` за практикою `4.0.0` мав би
+нести ВСІ накопичені зміни форми одним бампом — але `run-tool`/`exec-tool`
+у `caps:tool-runner` і `ecosystem-outdated`/`docgen-render` у слотові
+world-и належать хост-лінкеру під оголошені world-и (крок 3, «Не заходь у
+їхні файли» — `crates/rules-plugin-host`, `crates/rules-napi`), а сам вибір
+хоста лінкувати проти оголошеного набору — окрема задача, яку крок 2 не
+може зробити коректно без хоста. Проміжний стан «major уже піднято, форма
+world-набору ще не вся» безпечний ЛИШЕ тому, що зовнішнього консюмента
+контракту досі немає (пре-реліз-режим, доккомент `wit/world.wit` з самого
+початку файлу) — і саме тому цей запис називає розрив прямо, а не ховає
+його за «мажор завершено».
+
+**Наслідок — шість гостей і хост НЕ компілюються/не інстанціюються, доки
+не мігровані.** `check_world_version` — major-only negotiation: жоден
+гість, зібраний проти `4.0.0`, не інстанціюється хостом, що очікує
+`5.0.0` (та сама механіка, що вже ламала гостей на бампі `4.0.0`). Але
+цього разу є й ДРУГИЙ, гостріший ефект — Rust СТРУКТУРНА зміна ламає
+компіляцію, не лише рантайм-негоціацію: шість `build_manifest()`
+(`crates/plugin-lang-js/python/rust/php`, `crates/plugin-ci-github/azure`)
+і фікстура `crates/test-plugin-guest` будують `Manifest { .. }` літералом
+БЕЗ `..Default::default()`, тож нове обов'язкове поле ламає компіляцію, не
+лише інстанціацію. Виправлено найдешевшим шляхом, дозволеним бріфом
+задачі: усі сім guest-літералів і шість `plugin.toml` (+ шаблон скіла
+`npm/skills/wasm-plugin/template/plugin.toml.tpl`) тимчасово несуть
+`worlds = []`/`worlds: vec![]` з коментарем-посиланням на крок 4 —
+`cargo check --target wasm32-wasip2` для всіх семи чистий.
+
+`crates/rules-plugin-host/src/convert.rs:119` — ЄДИНЕ місце workspace, що
+не компілюється (`cargo check --workspace`: рівно одна помилка, `missing
+field 'worlds' in initializer of rules_contract::manifest::Manifest`):
+конвертація `wit::Manifest` → `rules_contract::manifest::Manifest` теж
+будує літерал без `..Default::default()`. Це файл кроку 3 (заборонена
+територія цього кроку), тому лишений як є — але саме тут крок 3 має
+почати: додати `worlds` у мапінг, потім реально читати custom section і
+будувати лінкер під оголошений набір (спека §9).
+
+**Наслідок для кроку 3 плану.** Крок 3 успадковує НЕ порожнє поле, а вже
+провалідоване хостом (форма/ядровий-world/дублікати) — йому лишається
+лише «чи відомий хосту сам world» (спека §9, свідомо не продубльовано в
+`rules-contract`, доккомент `validators::manifest`) і сама побудова
+лінкера під перелік. Крок 4 (міграція шести гостей) успадковує
+`worlds = []`-заглушки, які потрібно замінити реальними деклараціями
+(`tool-runner` для шести чинних гостей, доккомент `wit/world.wit`
+версійного блоку `5.0.0` і таблиця спеки §10) — не додати поле з нуля.

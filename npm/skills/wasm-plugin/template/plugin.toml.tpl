@@ -11,6 +11,13 @@ id = "__PLUGIN_ID__"
 version = "0.1.0"
 world_version = "4.0.0"
 domains = ["lint"]
+# `worlds` (контракт `5.0.0`, спека `docs/specs/2026-08-31-plugin-contract-v5.md`
+# §8) — перелік world-ів повноважень/слотових world-ів, які плагін реалізує
+# (`namespace:package/world@version`, напр. `n-rules:caps/tool-runner@1.0.0`).
+# Ядровий world `n-rules:plugin` НЕ перелічується — його реалізують усі.
+# Лишай порожнім, якщо плагін не потребує нічого понад ядрові
+# `report-progress`/`log`/`host-context`.
+worlds = []
 # `ci_artifacts`/`tools` — top-level поля маніфеста, тож мусять стояти ПЕРЕД
 # першим `[[concerns]]`: після array-of-tables заголовка TOML прочитав би їх
 # як поля ОСТАННЬОГО концерну, а не як поля кореня (`[capabilities]` нижче

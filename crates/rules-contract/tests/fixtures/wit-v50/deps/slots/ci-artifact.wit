@@ -1,0 +1,66 @@
+// Пакет `n-rules:slots@1.0.0` — типи слот-payload-ів, окремий цикл
+// версіонування від `n-rules:plugin` (рішення Л спеки
+// `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md`): еволюція
+// слоту (`ci.artifact@2` тощо) не тягне за собою bump plugin-world.
+//
+// `ci-artifact` — типізована форма payload-у слоту `ci.artifact@1`, витягнута
+// з canonical JS-контракту `npm/scripts/lib/slot-contracts-ci.mjs`
+// (`validateCiArtifactPayload`, `CiArtifactDescriptor` typedef). Семантичні
+// перевірки, які WIT-типізація не покриває (regex `artifact-id`, safe-path
+// для `target-path`/`template`), лишаються host-валідаторами в
+// `rules-contract::validators::ci_artifact` — WIT дає лише структурну форму
+// (обов'язковість полів, enum-membership), не вміст рядків.
+package n-rules:slots@1.0.0;
+
+interface ci-artifact {
+  /// Формат цільового файлу артефакту. v1: лише `yaml` (JS `KNOWN_FORMATS`).
+  /// Нове значення — привід для `ci.artifact@2`, не додавання варіанта сюди
+  /// (additive-only в межах world, але зміна семантики enum-у — вже breaking
+  /// для guest-коду, що матчить усі варіанти).
+  enum format {
+    yaml,
+  }
+
+  /// Режим застосування артефакту (JS `KNOWN_MODES`).
+  enum mode {
+    /// Файл обов'язковий — T0 створює з `template`, якщо відсутній.
+    required-file,
+    /// Застосовується лише коли target вже існує (файл належить іншому
+    /// активному concern-у).
+    patch-existing,
+  }
+
+  /// Стратегія злиття snippet-у з існуючим цільовим файлом (JS
+  /// `KNOWN_MERGE_STRATEGIES`).
+  enum merge-strategy {
+    /// GitHub-стиль structural merge.
+    deep-subset,
+    /// Azure-стиль пошук canonical кроку на будь-якій глибині.
+    contains-step,
+  }
+
+  /// Точний структурний відповідник `CiArtifactDescriptor`
+  /// (`slot-contracts-ci.mjs`). Поля, чия безпека залежить від вмісту рядка
+  /// (шлях без `..`, id-regex), лишаються `string` тут — WIT типізує форму
+  /// (обов'язковість, enum-membership), а не вміст; вміст перевіряє
+  /// host-валідатор `rules-contract::validators::ci_artifact::validate_ci_artifact_payload`.
+  record descriptor {
+    /// Capability активного consumer-а, для якого призначений artifact
+    /// (напр. `ci:github`).
+    target-capability: string,
+    /// Domain collision key — стабільний ідентифікатор логічного артефакту,
+    /// має відповідати `^[a-z][a-z0-9-]*$` (перевіряється host-валідатором).
+    artifact-id: string,
+    /// Consumer-repo-relative шлях цільового файлу (posix, без `..`, без
+    /// абсолютних) — форму перевіряє host-валідатор.
+    target-path: string,
+    format: format,
+    mode: mode,
+    /// Шлях до canonical snippet-у, відносний від каталогу дескриптора
+    /// (`./…`, без `..`) — форму перевіряє host-валідатор.
+    template: string,
+    merge-strategy: merge-strategy,
+    /// Чи дозволений deterministic T0 fix для цього артефакту.
+    fix: bool,
+  }
+}

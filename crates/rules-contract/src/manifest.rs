@@ -120,6 +120,22 @@ pub struct Manifest {
     /// `"shellcheck@^0.9"`.
     #[serde(default)]
     pub tools: Vec<String>,
+    /// Світи повноважень і слотові світи, які цей компонент реалізує, у
+    /// формі `namespace:package/world@version` (напр.
+    /// `n-rules:caps/tool-runner@1.0.0`) — мажор `5.0.0` (WIT
+    /// `manifest.worlds`, спека `docs/specs/2026-08-31-plugin-contract-v5.md`
+    /// §8). Ядровий світ `n-rules:plugin` НЕ перелічується — його реалізують
+    /// усі; згадка тут — контрактна помилка
+    /// ([`crate::validators::manifest::validate_manifest`]).
+    ///
+    /// Дискавері-поле: хост читає перелік world-ів із custom section
+    /// компонента ДО інстанціації (спека §8) — цим і розвʼязується
+    /// курка-і-яйце «щоб дізнатись, проти якого набору імпортів лінкувати,
+    /// треба прочитати маніфест». Форма рядка перевіряється тут-таки, у
+    /// хост-валідаторі; ЧИ ВІДОМИЙ хосту сам world — окрема перевірка на
+    /// боці хоста при побудові лінкера (спека §9), не цього валідатора.
+    #[serde(default)]
+    pub worlds: Vec<String>,
 }
 
 impl Manifest {
@@ -176,6 +192,7 @@ mod tests {
             }],
             capabilities: Capabilities::default(),
             tools: vec!["shellcheck@^0.9".to_string()],
+            worlds: vec!["n-rules:caps/tool-runner@1.0.0".to_string()],
         }
     }
 
@@ -240,6 +257,21 @@ mod tests {
         let manifest: Manifest = serde_json::from_value(raw).unwrap();
         assert!(manifest.fix_only_concerns.is_empty());
         assert!(manifest.concerns[0].fix_glob.is_empty());
+    }
+
+    /// Нове поле мажора `5.0.0` (`worlds`) теж має serde-дефолт: маніфест,
+    /// серіалізований до бампу (чи руками написаний `plugin.toml`-довідник
+    /// шести гостей, ще не мігрованих на крок 4 спеки v5), читається без
+    /// нього — порожній список, не помилка парсингу.
+    #[test]
+    fn new_major_five_worlds_field_defaults_to_empty() {
+        let raw = serde_json::json!({
+            "id": "x",
+            "version": "0.1.0",
+            "world_version": "5.0.0",
+        });
+        let manifest: Manifest = serde_json::from_value(raw).unwrap();
+        assert!(manifest.worlds.is_empty());
     }
 
     /// `fix_contribution` бачить ОБИДВА списки — і саме тому fix-only

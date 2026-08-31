@@ -33,7 +33,28 @@
 /// `plugin_world_version_matches_wit_package` (`tests/wit_parity.rs`)
 /// тепер тримає цю константу й `package n-rules:plugin@…` синхронними
 /// механічно.
-pub const PLUGIN_WORLD_VERSION: &str = "4.0.0";
+///
+/// `5.0.0` — МАЖОР (спека `docs/specs/2026-08-31-plugin-contract-v5.md`
+/// §8/§11, §2.109 реєстру відкритих питань): нове поле
+/// `worlds: list<string>` у `record manifest` — та сама структурна причина
+/// (`expected record of N fields, found N-1 fields`), доккомент
+/// `wit/world.wit`, версійний блок `5.0.0`. На відміну від `4.0.0`, цей
+/// бамп СВІДОМО не несе одразу всіх пунктів, які спека §11 перелічує для
+/// мажора `5.0.0` (винесення `run-tool`/`exec-tool` у `caps:tool-runner`,
+/// `ecosystem-outdated`/`docgen-render` у слотові світи): вони належать
+/// окремим паралельним крокам реалізації (спека §12, кроки 3–4) і не
+/// заходять в область цього коміту — доккомент `wit/world.wit`, версійний
+/// блок `5.0.0`, пояснює, чому проміжний стан «major уже піднятий, форма
+/// ще не вся змінена» тут безпечний (жодного зовнішнього консюмента ще
+/// немає, пре-реліз-режим із самого початку файлу).
+///
+/// Шість first-party гостей до реальної міграції (спека §10, крок 4 §12)
+/// несуть `worlds = []` як тимчасову декларацію (доккомент `wit/world.wit`,
+/// версійний блок `5.0.0`) — до неї плагіни все одно НЕ інстанціюються цим
+/// хостом (`check_world_version` major-only), тож порожній список нічого
+/// не приховує: він лише документує «повноважень понад ядро не заявлено»,
+/// а не «плагін уже мігрований».
+pub const PLUGIN_WORLD_VERSION: &str = "5.0.0";
 
 /// Версія пакета `n-rules:slots` (`wit/deps/slots/ci-artifact.wit`) —
 /// незалежний цикл версіонування від `PLUGIN_WORLD_VERSION` (рішення Л:
@@ -45,8 +66,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn plugin_world_version_is_four_zero_zero() {
-        assert_eq!(PLUGIN_WORLD_VERSION, "4.0.0");
+    fn plugin_world_version_is_five_zero_zero() {
+        assert_eq!(PLUGIN_WORLD_VERSION, "5.0.0");
     }
 
     #[test]

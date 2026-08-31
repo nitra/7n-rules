@@ -29,6 +29,16 @@ fn frozen_v40_wit_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/wit-v40")
 }
 
+/// Заморожений знімок world v5.0 — БАЗА чинного мажора (спека
+/// `docs/specs/2026-08-31-plugin-contract-v5.md`, §2.109 реєстру відкритих
+/// питань). Той самий мотив, що v4.0-фікстура: знятий у момент
+/// major-бампу, тримає інваріант «мінор лінії `5.x` лишається additive»
+/// уперед, тоді як v4.0-фікстура лишається історичним свідченням того, що
+/// мажор реально стався.
+fn frozen_v50_wit_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/wit-v50")
+}
+
 /// Імена bare-функцій (не інтерфейсів) world-а — той рівень, на якому
 /// Component Model звіряє імпорти гостя з тим, що дає `Linker` хоста.
 fn world_function_names(dir: PathBuf) -> (Vec<String>, Vec<String>) {
@@ -61,7 +71,7 @@ fn wit_directory_parses_without_errors() {
         .expect("wit/ має парситись без помилок");
 }
 
-/// Пакет `n-rules:plugin@4.0.0` резолвиться і містить world `plugin`.
+/// Пакет `n-rules:plugin@5.0.0` резолвиться і містить world `plugin`.
 #[test]
 fn plugin_package_and_world_resolve() {
     let mut resolve = Resolve::new();
@@ -71,7 +81,7 @@ fn plugin_package_and_world_resolve() {
     assert_eq!(pkg.name.name, "plugin");
     assert_eq!(
         pkg.name.version.as_ref().map(|v| v.to_string()).as_deref(),
-        Some("4.0.0")
+        Some("5.0.0")
     );
 
     let world_id = *pkg
@@ -298,6 +308,19 @@ fn slots_package_resolves_with_ci_artifact_interface() {
 //
 // Падіння будь-якого з двох означає «зміна вимагає major-бампу
 // `n-rules:plugin`», а не «оновіть фікстуру».
+//
+// --- Той самий хід повторився на мажорі `5.0.0` (§2.109) ------------------
+//
+// `manifest.worlds` (спека `docs/specs/2026-08-31-plugin-contract-v5.md`
+// §8) повторив РІВНО той самий структурний факт для ОДНОГО поля: гейт
+// (2) вище (`every_v40_type_keeps_its_exact_shape_in_current_world`)
+// упіймав дрейф форми `manifest` і був так само переосмислений —
+// перейменований на `v40_shapes_drifted_exactly_where_major_five_declares`
+// (нова роль (1): історичне свідчення), плюс заведений `every_v50_type_
+// keeps_its_exact_shape_in_current_world` (нова роль (2), нова база
+// `tests/fixtures/wit-v50/`). Той самий цикл повториться на кожному
+// наступному мажорі: попередня «роль (2)» стає новою «роль (1)», а нова
+// «роль (2)» заводиться зі свіжою фікстурою.
 
 /// Канонічний рендер типу для порівняння між ДВОМА різними `Resolve`
 /// (індекси арен у них різні, тож `Debug` непридатний).
@@ -483,17 +506,27 @@ fn v30_shapes_drifted_exactly_where_major_four_declares() {
     );
 }
 
-/// **Additive-гейт лінії `4.x`** (доккомент блоку вище, п.2): кожен
-/// іменований тип замороженого world v4.0 присутній у поточному world-і з
-/// ІДЕНТИЧНОЮ структурою.
+/// **Історичний гейт мажора `5.0.0`** (доккомент блоку вище, п.1, ТОЙ САМИЙ
+/// хід, що вже стерігся при `4.0.0` — доккомент `wit/world.wit`, версійний
+/// блок `5.0.0`, і `v30_shapes_drifted_exactly_where_major_four_declares`
+/// вище): відносно замороженого v4.0 форма змінилась РІВНО в одному типі —
+/// `manifest` (нове поле `worlds`, спека
+/// `docs/specs/2026-08-31-plugin-contract-v5.md` §8, §2.109 реєстру
+/// відкритих питань) — і major при цьому реально бампнуто.
 ///
-/// Це те саме твердження, що стеріг домажорний
-/// `every_v30_type_keeps_its_exact_shape_in_current_world`, лише з новою
-/// базою. Сьогодні він зелений тавтологічно (фікстура знята з цього ж
-/// world) — і це нормально: гейт заводиться в момент бампу саме для того,
-/// щоб перша ж правка world після нього не проїхала мовчки.
+/// Це те саме твердження, що доти стеріг
+/// `every_v40_type_keeps_its_exact_shape_in_current_world` (свіжо заведений
+/// разом із мажором `4.0.0`, і тепер сам порушений мажором `5.0.0` —
+/// доккомент `wit/world.wit` пояснює, чому свідомо): гейт «форма типів v4.0
+/// не змінюється НІКОЛИ» протримався РІВНО до першої правки world після
+/// нього, і саме для цього заводився. «Полагодити» падіння оновленням
+/// v4.0-фікстури означало б викинути гейт — замість цього він
+/// переосмислений тим самим ходом, що вже пройшов v3.0 → v4.0: v4.0-фікстура
+/// лишається історичним доказом (цей тест), а нова база (`wit-v50/`) тримає
+/// exact-shape інваріант уперед для мінорів лінії `5.x`
+/// (`every_v50_type_keeps_its_exact_shape_in_current_world` нижче).
 #[test]
-fn every_v40_type_keeps_its_exact_shape_in_current_world() {
+fn v40_shapes_drifted_exactly_where_major_five_declares() {
     let frozen = world_type_shapes(frozen_v40_wit_dir());
     let current = world_type_shapes(wit_dir());
 
@@ -512,15 +545,75 @@ fn every_v40_type_keeps_its_exact_shape_in_current_world() {
         );
     }
 
+    for name in frozen.keys() {
+        assert!(
+            current.contains_key(name),
+            "тип `{name}` був у world v4.0 і ЗНИК із поточного. Мажор `5.0.0` (цей коміт) міняв \
+             форму РІВНО одного типу (`manifest`), а не видаляв типи — видалення тут не \
+             задекларовано жодним рішенням"
+        );
+    }
+
+    let drifted: std::collections::BTreeSet<&str> = frozen
+        .iter()
+        .filter(|(name, shape)| current.get(*name) != Some(*shape))
+        .map(|(name, _)| name.as_str())
+        .collect();
+    let declared: std::collections::BTreeSet<&str> = ["manifest"].into_iter().collect();
+    assert_eq!(
+        drifted, declared,
+        "множина типів, чия форма розійшлась із замороженим world v4.0, не збігається з тією, \
+         яку задекларував мажор `5.0.0` (доккомент `wit/world.wit`, версійний блок `5.0.0`, \
+         `crates/rules-contract/src/version.rs`). Зайвий тип тут = НЕЗАДЕКЛАРОВАНА зміна \
+         форми, що приїхала мовчки: Component Model не має width-subtyping, тож вона так само \
+         ламає інстанціацію вже пінованих гостей і так само вимагає бампу major. Фікстуру \
+         `wit-v40/` НЕ оновлювати — вона історичний знімок, а не дзеркало поточного world"
+    );
+
+    assert!(
+        world_major(wit_dir()) > world_major(frozen_v40_wit_dir()),
+        "форма типів розійшлась із v4.0, але major-компонента `n-rules:plugin` не бампнута — \
+         рівно той мовчазний breaking-реліз, який цей гейт має робити неможливим"
+    );
+}
+
+/// **Additive-гейт лінії `5.x`** (доккомент блоку вище, п.2): кожен
+/// іменований тип замороженого world v5.0 присутній у поточному world-і з
+/// ІДЕНТИЧНОЮ структурою.
+///
+/// Те саме твердження, що доти стеріг `every_v40_type_keeps_its_exact_shape_in_current_world`,
+/// лише з новою базою. Сьогодні він зелений тавтологічно (фікстура знята з
+/// цього ж world) — і це нормально: гейт заводиться в момент бампу саме для
+/// того, щоб перша ж правка world після нього не проїхала мовчки.
+#[test]
+fn every_v50_type_keeps_its_exact_shape_in_current_world() {
+    let frozen = world_type_shapes(frozen_v50_wit_dir());
+    let current = world_type_shapes(wit_dir());
+
+    for required in [
+        "manifest",
+        "concern-contribution",
+        "file-edit",
+        "write-bytes-file",
+        "diagnostic",
+    ] {
+        assert!(
+            frozen.contains_key(required),
+            "фікстура v5.0 має містити тип `{required}` — інакше гейт його не покриває \
+             (наявні: {:?})",
+            frozen.keys().collect::<Vec<_>>()
+        );
+    }
+
     for (name, frozen_shape) in &frozen {
         match current.get(name) {
             None => panic!(
-                "тип `{name}` був у world v4.0 і зник із поточного — зміна НЕ additive, \
+                "тип `{name}` був у world v5.0 і зник із поточного — зміна НЕ additive, \
                  потрібен major-бамп `n-rules:plugin`"
             ),
             Some(current_shape) => assert_eq!(
                 current_shape, frozen_shape,
-                "форма типу `{name}` змінилась відносно замороженого world v4.0. \
+                "форма типу `{name}` змінилась відносно замороженого world v5.0. \
                  Component Model не має width-subtyping: уже піно́ваний гість НЕ \
                  інстанціюється (виміряно §2.83 — `expected record of N fields, found N-1 \
                  fields` / `expected variant of N cases, found N-1 cases`). Це MAJOR-зміна \
