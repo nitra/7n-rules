@@ -12,9 +12,10 @@ pub mod ci_artifact;
 /// хостом (`rules-plugin-host::LoadedPlugin::fix`) до передачі плану
 /// оркестрації.
 pub mod fix;
-/// Валідатор [`crate::manifest::Manifest`]-ів wasm-плагінів (мажор `4.0.0`,
-/// §2.84) — взаємна виключність `concerns` і `fix-only-concerns` та
-/// відсутність дублікатів у кожному зі списків; викликається хостом
+/// Валідатор [`crate::manifest::Manifest`]-ів wasm-плагінів — взаємна
+/// виключність `concerns` і `fix-only-concerns` та відсутність дублікатів
+/// у кожному зі списків (мажор `4.0.0`, §2.84), плюс форма/ядровий
+/// world/дублікати `worlds` (мажор `5.0.0`, §2.109); викликається хостом
 /// (`rules-plugin-host::PluginHost::load`) ОДРАЗУ після probe-`describe()`,
 /// до того як плагін потрапить у мапу концернів.
 pub mod manifest;
