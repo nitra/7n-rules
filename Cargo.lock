@@ -6013,11 +6013,13 @@ dependencies = [
  "napi",
  "napi-build",
  "napi-derive",
+ "oci-dist-package",
  "rules-contract",
  "rules-core",
  "rules-plugin-host",
  "serde_json",
  "tempfile",
+ "wasm-encoder 0.255.0",
 ]
 
 [[package]]

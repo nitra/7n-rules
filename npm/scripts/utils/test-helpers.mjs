@@ -307,3 +307,32 @@ export async function installFakeLangJsPlugin(dir) {
   )
   await writeFile(join(dir, '.n-rules.json'), JSON.stringify({ plugins: ['@7n/rules-lang-js'] }))
 }
+
+/**
+ * Резолвить шлях до ВИРОБЛЕНОГО `.wasm`-артефакта first-party гостя —
+ * `npm/wasm-plugins/<pkgName>.wasm`, тобто рівно те, що йде в опублікований
+ * пакет і на що вказує `builtin-pins.json`.
+ *
+ * Джерело правди свідомо ОДНЕ і це НЕ сирий `target/<triple>/release/*.wasm`:
+ * той файл — проміжний вихід `cargo` всередині `build.sh`, а не готовий
+ * артефакт. Відколи `npm/scripts/build-wasm-plugins.mjs` вбудовує
+ * авторитетний маніфест (`n-rules plugin embed-manifest`) у ставлену копію,
+ * маніфест несе САМЕ вона; компонент без маніфесту `declared_worlds`
+ * (`crates/rules-napi/src/lib.rs`) гучно відхиляє. Тест, що бере сирий
+ * `target/`, тому міряє не той артефакт, який реально виконується у
+ * продукті, — цей helper прибирає цілий клас такої розбіжності.
+ *
+ * @param {string} pkgName ім'я cargo-пакета гостя (напр. `plugin-lang-js`)
+ * @returns {string} абсолютний шлях до `npm/wasm-plugins/<pkgName>.wasm`
+ * @throws {Error} якщо артефакт не зібраний — з підказкою, а не мовчазний skip
+ */
+export function stagedWasmPath(pkgName) {
+  const path = join(realRepoRoot(), 'npm', 'wasm-plugins', `${pkgName}.wasm`)
+  if (!existsSync(path)) {
+    throw new Error(
+      `stagedWasmPath: wasm-компонент "${pkgName}" не зібраний: ${path} відсутній.\n` +
+        'Зберіть локально: node npm/scripts/build-wasm-plugins.mjs'
+    )
+  }
+  return path
+}

@@ -36,6 +36,14 @@ serde_json = "1"
 # G1 TOML-кластеру), не під фільтрацію вже зібраного списку шляхів проти
 # набору патернів.
 globset = "0.4"
+# Custom-section дискавері маніфесту БЕЗ інстанціації (задача замикання
+# `declared_worlds`-обходу, спека `docs/specs/2026-08-31-plugin-contract-v5.md`
+# §8): `inspect_component` читає байти `.wasm` і повертає вбудований
+# `n-rules plugin embed-manifest` (`crates/rules-cli/src/plugin_cmd.rs`)
+# `PluginManifest` — той самий крейт, що вже несе `rules-cli` (Д2, PR #618),
+# пін версії звідти ж (`=0.3.1`, `registry = "crates-7n"`), щоб обидва
+# споживачі бачили ідентичний формат.
+oci-dist-package = { version = "=0.3.1", registry = "crates-7n" }
 
 [build-dependencies]
 napi-build = "2"
@@ -47,3 +55,7 @@ napi-build = "2"
 # у їхніх `[dev-dependencies]`), пряма залежність нового крейта в граф не
 # додає.
 tempfile = "3"
+# Мінімальний Component Model `.wasm` для юніт-тестів [`declared_worlds`]
+# (той самий фікстур-прийом, що `crates/rules-cli/src/plugin_cmd.rs::tests::
+# embeds_manifest_into_a_minimal_component`) — без реальної wasi-sdk збірки.
+wasm-encoder = "0.255"

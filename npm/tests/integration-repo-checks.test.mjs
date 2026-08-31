@@ -14,7 +14,7 @@ import { ensureToolAsync } from '../scripts/lib/ensure-tool.mjs'
 import { runConcernDetector } from '../scripts/lib/lint-surface/detect.mjs'
 import { loadNative } from '../scripts/lib/native.mjs'
 import { resetWasmConcernMapForTests, resolveWasmConcernMap } from '../scripts/lib/lint-surface/wasm-plugins.mjs'
-import { realRepoRoot, withShellcheckStubInPath, withTmpDir, writeJson } from '../scripts/utils/test-helpers.mjs'
+import { realRepoRoot, stagedWasmPath, withShellcheckStubInPath, withTmpDir, writeJson } from '../scripts/utils/test-helpers.mjs'
 import { resolveCmd } from '../scripts/utils/resolve-cmd.mjs'
 
 // РЕАЛЬНИЙ shellcheck із PATH, зняте на момент ІМПОРТУ цього модуля — до того,
@@ -97,7 +97,7 @@ const checkGraphql = mkNative('graphql', 'tooling', 'graphql', 'tooling')
 // `runWasmConcern` на щойно зібраний компонент (той самий шлях, що
 // `npm/tests/check-rule-fixtures.test.mjs` і
 // `npm/scripts/lib/lint-surface/tests/wasm-plugin-parity.test.mjs`).
-const WASM_PATH = join(realRepoRoot(), 'target', 'wasm32-wasip3', 'release', 'plugin_lang_js.wasm')
+const WASM_PATH = stagedWasmPath('plugin-lang-js')
 const mkWasm = concernKey => async cwd => {
   if (!existsSync(WASM_PATH)) {
     throw new Error(
@@ -144,7 +144,7 @@ const checkNpmModule = mkWasm('npm-module/package_structure')
 // тож `resetWasmConcernMapForTests()` і до, і після: без «до» лишок кешу
 // попереднього check-у сховав би наш tmp-пін; без «після» наш ci-github-пін
 // протік би в резолв решти check-ів нижче (`checkGraphql`/`checkText`/…).
-const WASM_CI_GITHUB_PATH = join(realRepoRoot(), 'target', 'wasm32-wasip3', 'release', 'plugin_ci_github.wasm')
+const WASM_CI_GITHUB_PATH = stagedWasmPath('plugin-ci-github')
 const checkGa = async cwd => {
   if (!existsSync(WASM_CI_GITHUB_PATH)) {
     throw new Error(

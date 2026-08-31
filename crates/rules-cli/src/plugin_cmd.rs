@@ -137,8 +137,9 @@ fn embed_manifest_component(
     let publisher_id = read_world_publisher_id(&args.crate_dir)?;
     let version = read_cargo_version(&args.crate_dir)?;
     validate_lint_only_domain(&args.crate_dir)?;
+    let worlds = read_declared_worlds(&args.crate_dir)?;
 
-    let manifest_toml = render_manifest_toml(&publisher_id, &args.package, &version);
+    let manifest_toml = render_manifest_toml(&publisher_id, &args.package, &version, &worlds);
     let manifest = PluginManifest::from_toml(&manifest_toml)
         .map_err(|error| format!("маніфест не пройшов валідацію: {error}"))?;
 
@@ -166,13 +167,32 @@ fn embed_manifest_component(
 /// публічний шлях побудувати валідний маніфест (`ComponentProfile`/
 /// `WitExportRef` мають приватні поля, конструктор лише через
 /// `from_toml`/`from_json`, доккомент `oci-dist-package`).
-fn render_manifest_toml(publisher_id: &str, package: &str, version: &str) -> String {
+///
+/// `worlds` — п'ятий top-level рядок, серед полів, яких `PluginManifest`
+/// СТРУКТУРНО не знає (`schema`/`component_profile`/`publisher_id`/
+/// `package`/`version`/`entrypoints`/`dependencies`/`triggers` — вичерпний
+/// список typed-полів `0.3.1`): `#[serde(flatten)] extensions` крейта ловить
+/// довільні top-level ключі й везе їх крізь TOML → JSON custom-section
+/// незмінними (доккомент `render_manifest_toml`, тест
+/// `preserves_unknown_additive_metadata_in_embedded_json` у `oci-dist-package`).
+/// Це навмисно ТОЙ САМИЙ канал, а не новий формат — `worlds` матеріалізується
+/// в embedded JSON як `manifest.worlds` (масив рядків), який `declared_worlds`
+/// у `crates/rules-napi/src/lib.rs` читає назад через
+/// `oci_dist_package::inspect_component` БЕЗ інстанціації (доккомент там,
+/// секція «Custom-section дискавері»).
+fn render_manifest_toml(publisher_id: &str, package: &str, version: &str, worlds: &[String]) -> String {
+    let worlds_array = worlds
+        .iter()
+        .map(|world| format!("\"{world}\""))
+        .collect::<Vec<_>>()
+        .join(", ");
     let mut toml = format!(
         "schema = \"{MANIFEST_SCHEMA}\"\n\
          component_profile = \"{COMPONENT_PROFILE}\"\n\
          publisher_id = \"{publisher_id}\"\n\
          package = \"{package}\"\n\
-         version = \"{version}\"\n\n\
+         version = \"{version}\"\n\
+         worlds = [{worlds_array}]\n\n\
          [entrypoints]\n"
     );
     for entrypoint in LINT_ENTRYPOINTS {
@@ -278,13 +298,79 @@ fn validate_lint_only_domain(crate_dir: &Path) -> Result<(), String> {
     ))
 }
 
+/// `worlds = [...]` з кореня `plugin.toml` — та сама декларація, яку
+/// anti-drift тест кожного гостя (`crates/plugin-lang-rust/src/lib.rs`,
+/// секція «Крок 6 спеки §12») звіряє проти `build_manifest().worlds`, тож
+/// джерело правди тут — те саме, що вже перевірене там: якщо `plugin.toml`
+/// розійдеться з `describe()`, той тест впаде раніше, ніж ця команда встигне
+/// вбудувати застарілий знімок.
+///
+/// Формат — той самий однорядковий TOML-масив рядків, що `worlds = []`/
+/// `worlds = ["n-rules:caps/…@1.0.0"]` у шести чинних `plugin.toml`
+/// (доккомент `[render_manifest_toml]`): парсер тут навмисно ручний
+/// (той самий прийом, що [`validate_lint_only_domain`]/[`read_cargo_version`]
+/// — `rules-cli` не тягне `toml`-крейт як пряму залежність лише заради
+/// однієї команди), а не через `toml::Value`, тож приймає рівно ту форму,
+/// яку самі автори `plugin.toml` й пишуть: список `"..."`-літералів у
+/// квадратних дужках на одному рядку.
+fn read_declared_worlds(crate_dir: &Path) -> Result<Vec<String>, String> {
+    let plugin_toml_path = crate_dir.join("plugin.toml");
+    let source = std::fs::read_to_string(&plugin_toml_path).map_err(|error| {
+        format!(
+            "не вдалось прочитати `{}`: {error}",
+            plugin_toml_path.display()
+        )
+    })?;
+    for line in source.lines() {
+        let line = line.trim();
+        let Some(rest) = line.strip_prefix("worlds") else {
+            continue;
+        };
+        let rest = rest.trim_start();
+        let Some(rest) = rest.strip_prefix('=') else {
+            continue;
+        };
+        let declared = rest.trim();
+        let Some(inner) = declared.strip_prefix('[').and_then(|v| v.strip_suffix(']')) else {
+            return Err(format!(
+                "`worlds` у `{}` має бути однорядковим масивом (`worlds = [...]`), отримано: `{declared}`",
+                plugin_toml_path.display()
+            ));
+        };
+        let inner = inner.trim();
+        if inner.is_empty() {
+            return Ok(Vec::new());
+        }
+        return inner
+            .split(',')
+            .map(|entry| {
+                let entry = entry.trim();
+                entry
+                    .strip_prefix('"')
+                    .and_then(|v| v.strip_suffix('"'))
+                    .map(str::to_owned)
+                    .ok_or_else(|| {
+                        format!(
+                            "елемент `worlds` у `{}` має бути рядком у лапках, отримано: `{entry}`",
+                            plugin_toml_path.display()
+                        )
+                    })
+            })
+            .collect();
+    }
+    Err(format!(
+        "не знайшов `worlds = [...]` у `{}`",
+        plugin_toml_path.display()
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
 
     use super::{
-        embed_manifest_component, read_cargo_version, read_world_publisher_id,
-        render_manifest_toml, validate_lint_only_domain,
+        embed_manifest_component, read_cargo_version, read_declared_worlds,
+        read_world_publisher_id, render_manifest_toml, validate_lint_only_domain,
     };
     use crate::cli::PluginEmbedManifestArgs;
 
@@ -339,7 +425,8 @@ mod tests {
 
     #[test]
     fn rendered_manifest_toml_parses_and_validates() {
-        let toml = render_manifest_toml("n-rules", "lang-js", "0.1.0");
+        let worlds = vec!["n-rules:caps/file-reader@1.0.0".to_string()];
+        let toml = render_manifest_toml("n-rules", "lang-js", "0.1.0", &worlds);
         let manifest = oci_dist_package::PluginManifest::from_toml(&toml).expect("валідний TOML");
 
         assert_eq!(manifest.package_identity(), "n-rules:lang-js");
@@ -347,6 +434,39 @@ mod tests {
         assert_eq!(manifest.entrypoints.len(), 3);
         for key in ["describe", "detect", "fix"] {
             assert_eq!(manifest.entrypoints[key].as_str(), key);
+        }
+        assert_eq!(
+            manifest.extensions["worlds"],
+            serde_json::json!(["n-rules:caps/file-reader@1.0.0"])
+        );
+    }
+
+    #[test]
+    fn rendered_manifest_toml_carries_empty_worlds_array() {
+        let toml = render_manifest_toml("n-rules", "lang-python", "0.1.0", &[]);
+        let manifest = oci_dist_package::PluginManifest::from_toml(&toml).expect("валідний TOML");
+
+        assert_eq!(manifest.extensions["worlds"], serde_json::json!([]));
+    }
+
+    #[test]
+    fn reads_declared_worlds_of_each_guest_matching_plugin_toml() {
+        // Той самий anti-drift факт, що `every_first_party_guest_declares_lint_only_domain`
+        // звіряє для `domains` — тут лише перевіряємо, що парсер узагалі не
+        // падає й повертає ту форму, яку сьогодні несуть шість `plugin.toml`.
+        let expectations: &[(&str, &[&str])] = &[
+            ("plugin-lang-js", &["n-rules:caps/file-reader@1.0.0"]),
+            ("plugin-lang-python", &[]),
+            ("plugin-lang-rust", &["n-rules:surfaces/coverage-provider@1.0.0"]),
+            ("plugin-lang-php", &[]),
+            ("plugin-ci-github", &[]),
+            ("plugin-ci-azure", &[]),
+        ];
+        for (crate_name, expected) in expectations {
+            let crate_dir = repo_root().join("crates").join(crate_name);
+            let worlds = read_declared_worlds(&crate_dir)
+                .unwrap_or_else(|error| panic!("{crate_name}: {error}"));
+            assert_eq!(worlds, *expected, "{crate_name}");
         }
     }
 

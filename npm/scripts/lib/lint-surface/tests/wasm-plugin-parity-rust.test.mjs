@@ -73,19 +73,13 @@ import { pathToFileURL } from 'node:url'
 import { describe, expect, test } from 'vitest'
 
 import { loadNative } from '../../native.mjs'
-import { realRepoRoot, withTmpDir } from '../../../utils/test-helpers.mjs'
+import { realRepoRoot, stagedWasmPath, withTmpDir } from '../../../utils/test-helpers.mjs'
 import { createGoldenJs } from './wasm-parity-golden.mjs'
 import { WASM_SIZE_BUDGET_BYTES, WASM_SIZE_BUDGET_LABEL } from './wasm-size-budget.mjs'
 
 const REPO_ROOT = realRepoRoot()
-const WASM_PATH = join(REPO_ROOT, 'target', 'wasm32-wasip3', 'release', 'plugin_lang_rust.wasm')
+const WASM_PATH = stagedWasmPath('plugin-lang-rust')
 
-if (!existsSync(WASM_PATH)) {
-  throw new Error(
-    `wasm-plugin-parity-rust.test.mjs: wasm-компонент plugin-lang-rust не зібраний: ${WASM_PATH} відсутній.\n` +
-      'Зберіть його командою: bash crates/plugin-lang-rust/build.sh'
-  )
-}
 
 const RUST_RULES_DIR = join(REPO_ROOT, 'plugins', 'lang-rust', 'rules', 'rust')
 const APPLIES_MAIN_MJS_PATH = join(RUST_RULES_DIR, 'applies', 'main.mjs')

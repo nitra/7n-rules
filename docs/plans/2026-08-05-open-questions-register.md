@@ -14353,5 +14353,126 @@ and_validates`/`embeds_manifest_into_a_minimal_component`).
 - Ручний прогін `rules-cli plugin embed-manifest`/`publish --dry-run` на
   всіх шести реальних гостях — вивід наведено вище в тексті запису.
 
+### 2.122. Замкнено обхід `declared_worlds` — napi-міст читає `worlds` компонента з custom-section, не вважає їх безумовно всі увімкненими
+
+**Контекст.** Доккомент `declared_worlds` (`crates/rules-napi/src/lib.rs`)
+до цього кроку чесно називав ціну кроку 5: `crate::world_linker`
+розширювався БЕЗУМОВНО константним списком (`["n-rules:caps/file-reader
+@1.0.0"]`) для КОЖНОГО завантаженого гостя, незалежно від того, чи гість
+узагалі оголосив цей world у власному `plugin.toml`. Гейт
+`crates/rules-plugin-host/tests/caps_file_reader_gate.rs` доводив, що гість
+БЕЗ оголошення не дістає імпорту, — але лише на рівні `PluginHost`; у
+продуктовому шляху через napi це твердження було хибним. §2.121 (Д2, PR
+#618) зняла структурний блокер («курка-яйце»: щоб прочитати `manifest.worlds`
+без інстанціації, потрібен маніфест у custom-section) — цей крок з'єднує
+вже наявні частини.
+
+**Що зроблено.**
+
+1. **`crates/rules-cli/src/plugin_cmd.rs`** — `embed_manifest_component`
+   тепер читає `worlds = [...]` з кореневого `plugin.toml` гостя
+   (`read_declared_worlds`, ручний однорядковий парсер — той самий прийом,
+   що `read_cargo_version`/`validate_lint_only_domain`, без нової прямої
+   залежності від `toml`-крейта) і додає його до authoring-TOML
+   (`render_manifest_toml`, новий параметр `worlds: &[String]`). Це поле
+   НЕ typed-частина схеми `nitra.plugin-manifest/v1`
+   (`oci_dist_package::PluginManifest`, `=0.3.1`) — воно потрапляє в
+   `#[serde(flatten)] extensions` крейта (той самий канал, що зберігає
+   довільні додаткові top-level ключі, доккомент `render_manifest_toml`) і
+   виживає TOML→embedded JSON без змін. Це єдиний файл поза
+   `crates/rules-napi`/`npm/scripts/build-wasm-plugins.mjs`, який довелось
+   торкнутись: без нього `embed-manifest` завжди вбудовував би ПОРОЖНІЙ
+   `worlds`, і `declared_worlds` (нижче) відмовляв би лінкувати
+   `n-rules:caps/file-reader@1.0.0` навіть для `plugin-lang-js`, який його
+   реально потребує — сама суть кроку була б недосяжна без цього дроту.
+2. **`crates/rules-napi/src/lib.rs`** — `declared_worlds() -> &'static
+   [String]` (глобальна константа) замінена на `declared_worlds(wasm_path:
+   &Path) -> Result<Vec<String>>` (пер-компонентний вхід): читає байти
+   `.wasm`, кличе `oci_dist_package::inspect_component` (БЕЗ wasmtime, без
+   інстанціації), дістає `worlds` із `manifest.extensions`. Відсутній файл,
+   відсутня custom-section, відсутнє поле `worlds`, не-масив-рядків —
+   усі ці стани падають типізованою помилкою
+   (`missing_component_manifest_err`), а НЕ мовчазним `Vec::new()`: порожній
+   список тут виглядав би невідрізненним від легітимного `worlds = []`
+   (пʼять із шести гостей його й декларують), але означає протилежне —
+   «хост не зміг прочитати, чого гість потребує». Виклик у
+   `with_loaded_plugin_in_root` тепер рахує `worlds` ОДИН раз ДО
+   `load_for_worlds`/`load_in_root_for_worlds`, не всередині них.
+3. **`npm/scripts/build-wasm-plugins.mjs`** — `buildAndStage` після
+   копіювання артефакту в `npm/wasm-plugins/`, ДО рахунку sha256, кличе
+   новий `embedManifest` — `n-rules plugin embed-manifest --crate-dir
+   <crateDir> --package <name> --component <destPath>` (на місці) реальним
+   бінарем `rules-cli` через [`resolveRulesCliBin`]
+   (`npm/scripts/utils/test-helpers.mjs`, той самий каскад, що
+   parity-гейти вже використовують — override → зібраний
+   `target/{release,debug}`, гучна відмова без жодного з них). sha256 у
+   `builtin-pins.json` тепер рахується від УЖЕ зманіфестованого вмісту —
+   той самий байтовий ряд, що піде в опублікований пакет.
+
+**Наскрізна перевірка на РЕАЛЬНОМУ `plugin-lang-js.wasm`** (крок 5, PR
+#621 — компонент РЕАЛЬНО імпортує `n-rules:caps/file-reader@1.0.0` через
+T0-фікс `bun/package_json`), новий файл
+`npm/scripts/lib/lint-surface/tests/wasm-declared-worlds-gate.test.mjs`:
+- копія сирого артефакту БЕЗ вбудованого маніфесту → `wasmPluginManifest`
+  гучно падає (`не несе валідного вбудованого маніфесту`) — не мовчазний
+  фолбек;
+- та сама копія, маніфест вбудований через фейковий `--crate-dir` із
+  `worlds = []` (свідома порожня декларація, не забудькуватість) — Component
+  Model відмовляється інстанціюватись, бо компонент структурно вимагає
+  імпорт, якого лінкер не отримав, — та сама «негативна половина», що
+  `caps_file_reader_gate.rs::undeclared_world_fails_instantiation_loudly`
+  доводить на рівні `PluginHost`, тут — крізь napi;
+- та сама копія, маніфест вбудований зі СПРАВЖНЬОГО
+  `crates/plugin-lang-js/plugin.toml` (`worlds =
+  ["n-rules:caps/file-reader@1.0.0"]`) — інстанціюється, `wasmPluginManifest`
+  повертає задекларований `worlds`.
+
+**Побічний ефект, свідомо НЕ виправлений у цьому кроці — поза заявленою
+областю (`crates/rules-napi`, `npm/scripts/build-wasm-plugins.mjs`).**
+Щонайменше 11 наявних JS-тестів (`wasm-plugin-parity.test.mjs`,
+`wasm-plugin-parity-{ci-azure,ci-github,php,python,rust}.test.mjs`,
+`wasm-plugin-e2e.test.mjs`, `wasm-plugins.test.mjs`,
+`wasm-detect-full-per-file.test.mjs`, `wasm-fix-e2e.test.mjs`,
+`wasm-fix-exec-tool-python-ruff.test.mjs`) резолвлять `.wasm` напряму із
+`target/wasm32-wasip3/release/*.wasm` (сирий, НЕ пройшов через
+`build-wasm-plugins.mjs`-стейджинг, тож БЕЗ вбудованого маніфесту) — після
+цього кроку такі виклики гучно падають (доведено вручну:
+`wasm-plugin-parity.test.mjs` → `declaredWorlds: … не несе валідного
+вбудованого маніфесту`). Це не регресія логіки цих тестів, а пряме,
+очікуване наслідок самого фіксу: сирий білд-артефакт без маніфесту
+раніше «працював» лише тому, що napi мовчки давав ЙОМУ ТЕЖ константний
+`file-reader` — рівно та вада, що цей крок закриває. Виправлення потребує
+торкнутись файлів поза заявленою областю цього кроку (`build.sh` кожного
+гостя в `crates/plugin-lang-{js,python,rust,php}`/`crates/plugin-ci-
+{github,azure}`, чи самі тестові файли в
+`npm/scripts/lib/lint-surface/tests/`) — свідомо залишено для окремої
+задачі, засигналено через `spawn_task`.
+
+**Цільові прогони (усі синхронно, без фонових процесів):**
+- `cargo build -p rules-cli` / `cargo test -p rules-cli` — 119 passed
+  (2 suites): 112 наявних + 7 нових (`rendered_manifest_toml_parses_and_
+  validates` розширено асертом `extensions["worlds"]`,
+  `rendered_manifest_toml_carries_empty_worlds_array`,
+  `reads_declared_worlds_of_each_guest_matching_plugin_toml`).
+- `cargo build -p rules-napi` / `cargo build --release -p rules-napi` —
+  чисто, 0 попереджень.
+- `cargo test -p rules-napi declared_worlds` — падає на лінкуванні
+  standalone napi-символів (`_napi_call_threadsafe_function` тощо,
+  `Undefined symbols for architecture arm64`) — той самий відомий,
+  наперед підтверджений на `main` стан (нема Node-хоста, що надає ці
+  символи під час `cargo test`), не регресія цього кроку; 8 нових юніт-тестів
+  `declared_worlds_*` компілюються в тому самому тестовому бінарі.
+- `cargo test -p rules-plugin-host --lib` — 21 passed (контрольна група,
+  крок не зачепив цей крейт).
+- `node npm/scripts/build-wasm-plugins.mjs` — усі шість гостей зібрані й
+  зманіфестовані (`✅ маніфест вбудовано: … (n-rules:<name>, 0.1.0)` на
+  кожному), `builtin-pins.json` записаний.
+- `npx vitest run npm/scripts/tests/build-wasm-plugins.test.mjs` — 10 passed
+  (4 наявні розширені асертом виклику `embed-manifest`/оновленим sha256
+  ПІСЛЯ вбудування + 1 новий: падіння `embed-manifest` пробрасывается).
+- `N_RULES_NATIVE_ADDON=target/release/librules_napi.dylib npx vitest run
+  npm/scripts/lib/lint-surface/tests/wasm-declared-worlds-gate.test.mjs` —
+  3 passed (новий гейт, доккомент вище).
+
 
 
