@@ -102,6 +102,13 @@
 //! `wit/deps/slots/ci-artifact.wit` описують **producer**-бік
 //! (`manifest.ci_artifacts` — що гість ВНОСИТЬ), не consumer-бік. Порт
 //! інвертував би шар: гість одного плагіна вирішував би за весь graph.
+//! Незалежна повторна розвідка (реєстр відкритих питань
+//! `docs/plans/2026-08-05-open-questions-register.md` §2.98) підтвердила
+//! цей висновок і додала третій канал блокування, тут не названий: навіть
+//! з гіпотетичним host-import-ом для резолву графа, сам `template`-файл
+//! лежить у пакеті ІНШОГО плагіна (`resolveArtifactTemplatePath` →
+//! `contribution.packageRoot`) — поза `capabilities.fs-read`/`repo-root@1`,
+//! які скоуплені на консюмер-репо, не на встановлені директорії плагінів.
 //!
 //! # ПʼЯТА хвиля (§2.81): `ga/service_deploy_workflow`
 //!
