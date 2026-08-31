@@ -232,17 +232,26 @@
 
 // Крок 5 спеки `docs/specs/2026-08-31-plugin-contract-v5.md`: цей гість —
 // ПЕРШИЙ продакшн-споживач `n-rules:caps/file-reader@1.0.0`
-// (`bun/package_json`, доккомент [`fix_bun_package_json`]). Тому world тут
-// — не голий `plugin`, а комбінований `plugin-file-reader`
-// (`crates/rules-contract/wit/plugin-file-reader.wit`, `include plugin +
-// include n-rules:caps/file-reader@1.0.0`): усі імпорти/експорти ядра
-// лишаються без змін, плюс два нові host-імпорти — `list_files`/
-// `read_file_bytes`. Component Model не має «опціональних» імпортів: якщо
-// компонент їх реально викликає, вони мають бути в його типі, тож голий
-// `world: "plugin"` тут неможливий структурно, не лише за зручністю.
+// (`bun/package_json`, доккомент [`fix_bun_package_json`]). Крок 6 §12
+// («coverage-provider як перша слотова поверхня», ЧЕТВЕРТИЙ і останній
+// провайдер, §2.123 винесла цей гість окремою хвилею) додає ЩЕ один
+// export — `collect-coverage` ([`Guest::collect_coverage`] нижче). Тому
+// world тут — не `plugin-file-reader` (лишається на місці незайманим,
+// доккомент `plugin-file-reader.wit`), а ТРИЙНИЙ комбінований
+// `js-coverage-provider-guest`
+// (`crates/rules-contract/wit/js-coverage-provider-guest.wit`, `include
+// plugin + include n-rules:caps/file-reader@1.0.0 + include
+// n-rules:surfaces/coverage-provider@1.0.0`): усі імпорти/експорти ядра й
+// file-reader лишаються без змін, плюс новий export `collect-coverage`.
+// Component Model не має «опціональних» імпортів/експортів: якщо
+// компонент їх реально використовує, вони мають бути в його типі, тож
+// голий `world: "plugin"` (чи вужчий `plugin-file-reader`) тут неможливий
+// структурно, не лише за зручністю. Синтаксис і резолв перевірено
+// `wasm-tools component wit` ДО написання цього рядка (доккомент
+// `js-coverage-provider-guest.wit`).
 wit_bindgen::generate!({
     path: "../rules-contract/wit",
-    world: "plugin-file-reader",
+    world: "js-coverage-provider-guest",
     generate_all,
 });
 
@@ -4148,6 +4157,10 @@ fn build_manifest() -> Manifest {
             OXLINT_TOOL.to_string(),
             JSCPD_TOOL.to_string(),
             TEE_TOOL.to_string(),
+            // Крок 6 спеки §12 (`collect-coverage`, доккомент секції над
+            // [`collect_coverage_impl`]).
+            COVERAGE_TOOL.to_string(),
+            STRYKER_TOOL.to_string(),
         ],
         // §2.86 — перший (і поки єдиний) запис ДРУГОГО списку контрибуцій
         // мажора `4.0.0`: `js/eslint` віддає гостю ЛИШЕ fix, а detect
@@ -4185,9 +4198,19 @@ fn build_manifest() -> Manifest {
         // ПЕРША реальна декларація world-а повноважень будь-яким
         // first-party гостем — `n-rules:caps/file-reader@1.0.0`,
         // єдиний споживач якого сьогодні — `fix_bun_package_json`.
-        // Решта пʼяти гостей і далі несуть `worlds = []` (їхня міграція —
-        // окрема задача поза цим кроком).
-        worlds: vec!["n-rules:caps/file-reader@1.0.0".to_string()],
+        //
+        // Крок 6 спеки §12 («coverage-provider як перша слотова
+        // поверхня», ЧЕТВЕРТИЙ і останній провайдер, §2.123 винесла цей
+        // гість окремою хвилею) додає ДРУГИЙ запис — цей гість тепер
+        // ЕКСПОРТУЄ `collect-coverage` (`Guest::collect_coverage`, world
+        // `js-coverage-provider-guest` у бінгден-виклику вище). Заявляти
+        // world ОБОВ'ЯЗКОВО, інакше хост відмовляє будь-якому виклику
+        // цього export-у гучно, навіть коли він реально є в типі
+        // компонента (`PluginHostError::SurfaceNotDeclared`).
+        worlds: vec![
+            "n-rules:caps/file-reader@1.0.0".to_string(),
+            "n-rules:surfaces/coverage-provider@1.0.0".to_string(),
+        ],
     }
 }
 
@@ -16615,6 +16638,308 @@ fn fix_storybook_scaffold(request: &FixRequest) -> FixPlan {
     FixPlan { edits }
 }
 
+// =====================================================================
+// Крок 6 спеки `docs/specs/2026-08-31-plugin-contract-v5.md` §12,
+// «coverage-provider як перша слотова поверхня»: `collect-coverage` —
+// ПОРТ `plugins/lang-js/coverage-provider/js-collector.mjs::collect`
+// (line coverage через `vitest run --coverage` + мутаційне тестування
+// через Stryker, `parseStrykerReport`). ЧЕТВЕРТИЙ і останній провайдер —
+// §2.123 винесла цей гість окремою хвилею (46 файлів канону, п'ятиразово
+// більший обсяг за решту трьох разом).
+//
+// # Свідоме звуження проти JS-канону — доки, задокументовані тут
+//
+// 1. **ОДИН корінь, не `resolveAllJsRoots`.** JS-канон обходить дерево в
+//    пошуках КОЖНОГО workspace з package.json і агрегує покриття по всіх
+//    (моно-репо). Той самий мотив звуження, що вже задокументований для
+//    rust/python/php: гість тут працює з РІВНО одним коренем (кореневим
+//    package.json консюмера, `cwd: None` в exec-tool-запитах нижче).
+// 2. **Лише рядок `JS`, без `Vue (Storybook)`.** Storybook-вимір
+//    (`collectStorybookForRoot`) вимагає Playwright Chromium, окремий
+//    named vitest-проєкт і власний mutation-executor
+//    (`storybook-mutation.mjs`) — цілком окремий контур поверх основного,
+//    не звуження ТОГО САМОГО виміру. Додавання його сюди розширило б
+//    доказ кроку 6 далеко за «доведений механізм», не додавши нової
+//    демонстрації самого механізму.
+// 3. **Bun-native workspace-и не розпізнаються.** `isBunNativeRoot`
+//    (canon) перемикає coverage на `bun test --coverage` для workspace-ів,
+//    де prod-код імпортує `bun`/`bun:*` (vitest такий модуль не резолвить).
+//    Гість завжди йде через `vitest run --coverage`; консюмер із
+//    bun-native prod-кодом дістане помилку від самого vitest —
+//    задокументована різниця, не мовчазний пропуск.
+// 4. **Мутація — canonical Stryker-прогін, без `--mutate`-звуження й без
+//    LLM-мутантів.** `runStryker`/`proposeLlmMutants` (canon) додають
+//    changed-scope фільтр і LLM-джерело мутантів поверх детермінованих;
+//    гість тут завжди ганяє ПОВНИЙ прогін canonical `stryker run` (без
+//    прапорців) — той самий контракт, що full-режим `collectOneRoot` без
+//    `scope`.
+//
+// # Mutation-звіт — через `n-rules:caps/file-reader`, а НЕ scratch-out
+//
+// На відміну від трьох сусідів (rust/python/php), ЦЕЙ гість УЖЕ несе
+// `n-rules:caps/file-reader@1.0.0` (крок 5, `fix_bun_package_json`) —
+// тому mutation-звіт читається НЕ через непевне CLI-перевизначення шляху
+// звіту (Stryker дозволяє override опцій через CLI, але dot-notation
+// nested-полів — недокументована й неперевірена поведінка тут), а
+// напряму з диска через [`read_file_bytes`]: канонічний
+// `stryker.config.mjs` (вимога сусіднього концерну
+// [`CONCERN_STRYKER_CONFIG`], `plugins/lang-js/rules/test/stryker_config/
+// data/stryker_config/stryker.config.baseline.mjs:13`) ЗАВЖДИ пише
+// `jsonReporter.fileName: 'reports/stryker/mutation.json'` — той самий
+// шлях, що читає `readParsedMutationReport` canon. Це не апроксимація, а
+// прямий переюз механізму, який цей самий гість уже несе для іншого
+// концерну.
+//
+// # Мутаційне тестування — чесний skip, не помилка (той самий мотив, що canon)
+//
+// Stryker недоступний (`npm:stryker --version` не резолвиться) дає
+// [`CoverageArea::mutation`] `{caught: 0, total: 0}` і порожній
+// `survived_files`, а НЕ [`CoverageDomainError`] — рівно поведінка
+// bun-native-гілки `provider.mjs::collect` («лише line coverage»).
+// Відсутність `vitest` для САМОГО line-coverage-кроку — інша річ:
+// [`CoverageDomainError::NotSupported`] (без нього нема що агрегувати).
+
+/// Ім'я тула — `npm:vitest` (`<cwd>/node_modules/.bin/vitest`, фолбек
+/// PATH), той самий канал резолву, що `npm:jscpd`/`npm:eslint` вище.
+const COVERAGE_TOOL: &str = "npm:vitest";
+
+/// Ім'я тула для мутаційного тестування — `npm:stryker`
+/// (`@stryker-mutator/core`, канонічна бінарна назва `stryker`).
+const STRYKER_TOOL: &str = "npm:stryker";
+
+/// Ім'я lcov-файлу, який vitest `--coverage.reporter=lcov` пише В
+/// scratch-каталог (`--coverage.reportsDirectory=<scratch>`) — той самий
+/// файл, що `lcovPath = join(lcovDir, 'lcov.info')` canon.
+const COVERAGE_LCOV_FILE_NAME: &str = "lcov.info";
+
+/// Шлях JSON-звіту мутації, ЗАВЖДИ той самий у консюмерів (доккомент
+/// секції вище: `jsonReporter.fileName` канонічного `stryker.config.mjs`,
+/// вимога [`CONCERN_STRYKER_CONFIG`]) — читається через
+/// [`read_file_bytes`], НЕ scratch-out.
+const STRYKER_MUTATION_REPORT_PATH: &str = "reports/stryker/mutation.json";
+
+/// Агрегує `LF:`/`LH:`/`FNF:`/`FNH:` по всіх записах lcov — той самий
+/// формат/парсер, що `crates/plugin-lang-rust::parse_lcov_totals` (і
+/// python-сусід, продубльований тут: крейти не діляться кодом через
+/// wasm-межу).
+fn parse_lcov_totals(text: &str) -> (CoverageCounts, CoverageCounts) {
+    let mut lines = CoverageCounts {
+        covered: 0,
+        total: 0,
+    };
+    let mut functions = CoverageCounts {
+        covered: 0,
+        total: 0,
+    };
+    for line in text.lines() {
+        if let Some(rest) = line.strip_prefix("LF:") {
+            lines.total += rest.trim().parse::<u32>().unwrap_or(0);
+        } else if let Some(rest) = line.strip_prefix("LH:") {
+            lines.covered += rest.trim().parse::<u32>().unwrap_or(0);
+        } else if let Some(rest) = line.strip_prefix("FNF:") {
+            functions.total += rest.trim().parse::<u32>().unwrap_or(0);
+        } else if let Some(rest) = line.strip_prefix("FNH:") {
+            functions.covered += rest.trim().parse::<u32>().unwrap_or(0);
+        }
+    }
+    (lines, functions)
+}
+
+/// Розбирає Stryker `mutation.json` — структурна підмножина порту
+/// `parseStrykerReport` (`js-collector.mjs`): `Killed`/`Timeout`
+/// рахуються як caught, `Survived`/`NoCoverage` — до total, кожен файл із
+/// хоча б одним `Survived`-мутантом дає ОДИН запис `survived-files` (шлях,
+/// не деталізований мутант — доккомент `coverage-provider.wit`: детальна
+/// форма мутанта не портовна без узгодження між мовами). Перевіряє
+/// СТРУКТУРНИЙ інваріант формату (мапа `files` → масив `mutants` зі
+/// `status`), не фіксований знімок «який гість що несе» — той клас
+/// anti-drift тестів, що ламається від сусідніх хвиль (правило проєкту).
+fn parse_stryker_totals(report: &serde_json::Value) -> (MutationCounts, Vec<String>) {
+    let mut mutation = MutationCounts {
+        caught: 0,
+        total: 0,
+    };
+    let mut survived_files: Vec<String> = Vec::new();
+    let Some(files) = report.get("files").and_then(|v| v.as_object()) else {
+        return (mutation, survived_files);
+    };
+    for (file_path, file_data) in files {
+        let mutants = file_data
+            .get("mutants")
+            .and_then(|v| v.as_array())
+            .cloned()
+            .unwrap_or_default();
+        let mut file_has_survived = false;
+        for mutant in mutants {
+            let status = mutant.get("status").and_then(|v| v.as_str()).unwrap_or("");
+            match status {
+                "Killed" | "Timeout" => {
+                    mutation.caught += 1;
+                    mutation.total += 1;
+                }
+                "Survived" => {
+                    mutation.total += 1;
+                    file_has_survived = true;
+                }
+                "NoCoverage" => {
+                    mutation.total += 1;
+                }
+                _ => {}
+            }
+        }
+        if file_has_survived {
+            survived_files.push(file_path.clone());
+        }
+    }
+    survived_files.sort();
+    (mutation, survived_files)
+}
+
+/// Спавнить `<tool>` через `exec-tool` — `cwd: None` (корінь репо,
+/// доккомент секції «Свідоме звуження», п.1).
+fn exec_coverage_tool(tool: &str, args: Vec<String>, scratch_out: Vec<String>) -> ToolResult {
+    exec_tool(&ToolRequest {
+        tool: tool.to_string(),
+        args,
+        stdin: None,
+        cwd: None,
+        env: vec![],
+        scratch_in: vec![],
+        scratch_out,
+    })
+}
+
+/// `collect-coverage` — доккомент секції вище пояснює звуження й
+/// happy-path. Повертає [`CoverageDomainError::NotSupported`] лише коли
+/// `vitest` структурно недоступний (гість не може виміряти ХОЧ ЩОСЬ);
+/// будь-який ІНШИЙ провал (тул резолвився, але спав дав ненульовий код;
+/// lcov-файл, який тул мав лишити, відсутній) — [`CoverageDomainError::Failed`]
+/// з людиночитним повідомленням, НЕ порожній звіт (правило проєкту
+/// «мовчазний пропуск — вада»).
+fn collect_coverage_impl(
+    request: &CoverageRequest,
+) -> Result<CoverageReport, CoverageDomainError> {
+    let Some(scratch_dir) = host_context(SCRATCH_DIR_SLOT) else {
+        return Err(CoverageDomainError::Failed(
+            "collect-coverage: хост не надав scratch-каталогу (слот scratch-dir@1)".to_string(),
+        ));
+    };
+
+    let vitest_run = exec_coverage_tool(
+        COVERAGE_TOOL,
+        vec![
+            "run".to_string(),
+            "--passWithNoTests".to_string(),
+            "--coverage".to_string(),
+            "--coverage.reporter=lcov".to_string(),
+            format!("--coverage.reportsDirectory={scratch_dir}"),
+        ],
+        vec![COVERAGE_LCOV_FILE_NAME.to_string()],
+    );
+    let Some(status) = vitest_run.status else {
+        return Err(CoverageDomainError::NotSupported);
+    };
+    if status != 0 {
+        return Err(CoverageDomainError::Failed(format!(
+            "vitest run --coverage завершився кодом {status}: {}{}",
+            vitest_run.stdout, vitest_run.stderr
+        )));
+    }
+    // Порожній lcov (жоден тест не знайдено, `--passWithNoTests`) — легітимний
+    // нуль, той самий контракт, що canon: провайдер не помиляється, вимір
+    // просто нульовий.
+    let (lines, functions) = match vitest_run
+        .scratch_out
+        .iter()
+        .find(|f| f.path == COVERAGE_LCOV_FILE_NAME)
+    {
+        Some(lcov_file) => parse_lcov_totals(&lcov_file.content),
+        None => (
+            CoverageCounts {
+                covered: 0,
+                total: 0,
+            },
+            CoverageCounts {
+                covered: 0,
+                total: 0,
+            },
+        ),
+    };
+
+    // Мутаційне тестування — чесний skip, доккомент секції.
+    let stryker_probe = exec_coverage_tool(STRYKER_TOOL, vec!["--version".to_string()], vec![]);
+    let stryker_available = stryker_probe.status == Some(0);
+
+    let (mutation, survived_files) = if stryker_available {
+        // Ненульовий exit `stryker run` сам по собі не помилка (survived
+        // мутанти дають ненульовий код) — точний порт: canon теж ігнорує
+        // його (`runStryker`), правду каже лише сам JSON-звіт.
+        exec_coverage_tool(STRYKER_TOOL, vec!["run".to_string()], vec![]);
+        match read_file_bytes(STRYKER_MUTATION_REPORT_PATH) {
+            Ok(bytes) => {
+                let text = String::from_utf8_lossy(&bytes);
+                match serde_json::from_str::<serde_json::Value>(&text) {
+                    Ok(parsed) => parse_stryker_totals(&parsed),
+                    Err(err) => {
+                        return Err(CoverageDomainError::Failed(format!(
+                            "{STRYKER_MUTATION_REPORT_PATH} — невалідний JSON: {err}"
+                        )));
+                    }
+                }
+            }
+            // Звіту нема — Stryker впав ДО генерації репорту (конфіг
+            // консюмера непридатний до прогону, чи компіляція провалилась);
+            // той самий канал помилки, що vitest-крок вище, НЕ чесний skip
+            // (skip — лише за НЕДОСТУПНІСТЬ інструменту, доккомент секції).
+            Err(err) => {
+                return Err(CoverageDomainError::Failed(format!(
+                    "stryker run не лишив {STRYKER_MUTATION_REPORT_PATH}: {}",
+                    pkg_json_file_reader_error_message(&err)
+                )));
+            }
+        }
+    } else {
+        (
+            MutationCounts {
+                caught: 0,
+                total: 0,
+            },
+            Vec::new(),
+        )
+    };
+
+    log(
+        LogLevel::Info,
+        &format!(
+            "plugin-lang-js: collect-coverage(cwd={}) lines={}/{} functions={}/{} mutation={}/{}",
+            request.cwd,
+            lines.covered,
+            lines.total,
+            functions.covered,
+            functions.total,
+            mutation.caught,
+            mutation.total
+        ),
+    );
+
+    // Той самий свідомий "нічого не виміряно" → порожній звіт, що
+    // `js-collector.mjs::collect` (`jsResults.length === 0` без Storybook)
+    // — ЛЕГІТИМНИЙ успіх (немає JS-коду під виміром), не помилка.
+    if lines.total == 0 && mutation.total == 0 {
+        return Ok(CoverageReport { areas: vec![] });
+    }
+
+    Ok(CoverageReport {
+        areas: vec![CoverageArea {
+            area: "JS".to_string(),
+            lines,
+            functions,
+            mutation,
+            survived_files,
+        }],
+    })
+}
+
 /// Guest-реалізація world `plugin` — тридцять дев'ять контрибуцій ([`CONCERN_TFM`],
 /// [`CONCERN_GAP`], [`CONCERN_POOL_FORKS`], [`CONCERN_NO_PROCESS_CHDIR`],
 /// [`CONCERN_ADMIN_TABLE`], [`CONCERN_QUASAR_FIXES`], [`CONCERN_LOCATION`],
@@ -16932,6 +17257,19 @@ impl Guest for LangJs {
 
     fn docgen_render(_request: DocgenRequest) -> Result<DocOutput, DomainError> {
         Err(DomainError::NotSupported)
+    }
+
+    /// Крок 6 спеки `docs/specs/2026-08-31-plugin-contract-v5.md` §12 —
+    /// `n-rules:surfaces/coverage-provider@1.0.0`, ЧЕТВЕРТИЙ і останній
+    /// export цієї слотової поверхні (§2.123 винесла цей гість окремою
+    /// хвилею). Уся семантика — [`collect_coverage_impl`] (доккомент
+    /// секції вище) — винесена окремо лише заради читабельності сигнатури
+    /// `Guest`-методу; сама функція кличе `host_context`/`exec_tool`/
+    /// `read_file_bytes`/`log` і тому, як і `fix_bun_package_json`,
+    /// тестована лише живим end-to-end прогоном через `PluginHost` (поза
+    /// обсягом цього кроку), НЕ юніт-тестом host-таргета.
+    fn collect_coverage(request: CoverageRequest) -> Result<CoverageReport, CoverageDomainError> {
+        collect_coverage_impl(&request)
     }
 }
 
@@ -21688,6 +22026,27 @@ mod tests {
             declared_tools,
             runtime.tools.iter().map(String::as_str).collect::<Vec<_>>(),
             "plugin.toml розійшовся з describe() по tools"
+        );
+
+        // Крок 6 спеки `docs/specs/2026-08-31-plugin-contract-v5.md` §12
+        // (`worlds`) — той самий anti-drift мотив, що вже покриває
+        // rust/python/php-сусідів (`crates/plugin-lang-rust/src/lib.rs`):
+        // без цієї перевірки `plugin.toml`/`build_manifest()` могли б
+        // розійтись мовчки (обидва компілюються, обидва проходять решту
+        // тестів). Гейт додано ЗАРАЗ (а не в кроці 5, коли `worlds`
+        // з'явилось уперше) — той самий пропуск, що rust/python/php мали
+        // до §2.120, тепер закритий тут теж.
+        let declared_worlds: Vec<&str> = manifest
+            .get("worlds")
+            .and_then(|v| v.as_array())
+            .expect("`worlds` мусить бути top-level масивом маніфеста")
+            .iter()
+            .map(|w| w.as_str().expect("елемент `worlds` — рядок"))
+            .collect();
+        assert_eq!(
+            declared_worlds,
+            runtime.worlds.iter().map(String::as_str).collect::<Vec<_>>(),
+            "plugin.toml розійшовся з describe() по worlds"
         );
 
         // `ci_artifacts` — так само з кореня; звіряємо `artifact_id`-и
