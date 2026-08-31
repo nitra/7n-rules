@@ -15487,3 +15487,172 @@ JS-виклику `ensureToolAsync`, що НЕЯВНО (побічний ефе�
 останній наявний запис реєстру — §2.129 (PR #630, влитий уже В ЦЕЙ час),
 тож коректний наступний номер за конвенцією файлу (без розривів у
 нумерації) — **§2.130**, не §2.131. Записано під §2.130.
+### 2.131. Крок 7 порядку реалізації спеки v5 — `docgen` як гість, ФАЗА 2: шість детермінованих етапів портовано як звичайні Rust-модулі
+
+**Контекст.** §2.127 закрила ФАЗУ 1 — скелет `crates/plugin-docgen/`,
+контракт `n-rules:plugin@5.0.0`, ЄДИНИЙ портований LLM-етап `docgen/judge`
+(135 рядків, наскрізний гейт `plugin_docgen_judge_gate.rs`). Карта
+(`docs/specs/2026-08-31-recon-docgen-surface.md` §2) назвала шість інших
+етапів «детермінованими» (`scan`/`ignore`/`crc`/`extract-anchors`/
+`test-context`/`prompts`, 1 291 рядок JS без тестів) — не потребують LLM, а
+отже дешевша й безпечніша частина обсягу. Ця задача — ФАЗА 2: порт усіх
+шести 1:1 у Rust-модулі того самого крейта, з юніт-тестами, БЕЗ підключення
+до wasm-експорту гостя (жоден консюмер — `docgen-stage` слот-диспетчер —
+ще не існує, §5.4 розвідки).
+
+**Порядок нумерації реєстру.** Задача просила писати підсумок під §2.130.
+На момент виконання останній зайнятий номер — **§2.128**, тож наступний
+вільний — **§2.129** (не §2.130). Записано під §2.129, за тим самим
+правилом, що вже застосоване §2.126/§2.127 раніше в цьому файлі.
+
+**Що зроблено — шість нових модулів `crates/plugin-docgen/src/`:**
+
+1. **`ignore.rs`** (170 рядків) — порт `docgen-ignore/main.mjs` (53 рядки):
+   `DOCGEN_IGNORE_GLOBS` (16 записів, byte-exact), `is_docgen_ignored`.
+   Жодного дискового вводу — той самий контракт, що JS (шлях уже переданий
+   викликачем). Замість нового Cargo-dep (пакет `ignore` у JS) — власний
+   сегментний glob-matcher (`glob_match`) із підтримкою `**`/`*`: усі 16
+   записів мають рівно дві форми (`X/**`, `**/X/**`), повний
+   gitignore-двигун — ширший за реальну потребу. Один нетривіальний нюанс,
+   знайдений тестом, а не здогадом: **трейлінговий `**`** (останній сегмент
+   патерну) вимагає МІНІМУМ один залишковий сегмент шляху (семантика
+   «вміст каталогу», не сам каталог) — інакше `**/demo/**` хибно матчив би
+   голий `demo` для `IgnoreKind::Path`, а JS-коментар (`main.mjs:48-50`)
+   прямо документує протилежне; провідний/серединний `**` лишається
+   нуль-або-більше.
+2. **`crc.rs`** (451 рядок) — порт `docgen-crc/main.mjs` (219 рядків): CRC32
+   (власна таблична CRC-32/ISO-HDLC реалізація — byte-exact з
+   `node:zlib.crc32`, звірено на класичному векторі `"123456789"` →
+   `cbf43926`), `parse_doc_frontmatter`/`build_doc_frontmatter`/`stamp_doc`,
+   `read_doc_crc`/`read_doc_quality`/`read_doc_model`/`read_doc_tier`,
+   `staleness`. **Рішення "диск чи параметр" (задача фази 2, явно
+   обґрунтовано в доккоменті модуля):** JS-оригінал читає
+   `sourceAbsPath`/`docAbsPath` напряму (`readFileSync`/`existsSync`).
+   Порт МІНЯЄ форму на параметри вже прочитаного вмісту (`&[u8]` /
+   `Option<&str>`, де `None` = «доки немає») замість підключення
+   `n-rules:caps/file-reader@1.0.0` до `docgen-guest.wit` — бо жоден
+   консюмер ще не читав би цей канал (той самий принцип «не вигадувати
+   потребу», що §2.124 застосувала до `llm-consumer`). `typeForSource`
+   (динамічний plugin slot-граф) не має гостьового еквівалента —
+   `build_doc_frontmatter`/`stamp_doc` приймають вже вирішений
+   `type_label: &str`. `QUALITY_THRESHOLD` (env) — константа `70`
+   (той самий дефолт JS без перевизначення, дзеркало вже задокументованого
+   `JUDGE_CONFIDENCE`).
+3. **`extract_anchors.rs`** (381 рядок) — порт `docgen-extract-anchors/main.mjs`
+   (118 рядків): `extract_anchors`/`anchor_tokens`/`anchors_to_prompt`.
+   Жодного дискового вводу — чиста текстова трансформація. **Розходження з
+   картою, зафіксоване явно (задача: «не підганяй»):** JS `CONFIG_REF_RE`
+   спирається на негативний lookbehind `(?<![\w.])`, якого Rust-крейт
+   `regex` НЕ підтримує (архітектурна відмова від зворотного трекінгу).
+   Карта назвала цей етап «текстовим екстрактором» без застережень — на
+   практиці одна деталь виявилась не тривіальним 1:1 regex-портом.
+   Розв'язок [`config_refs`] — ручне сканування позицій-кандидатів із
+   перевіркою попереднього символу (емуляція lookbehind), звірено проти
+   усіх трьох живих кейсів JS-тестів (`settings.local.json`,
+   `capacitor.config.json`, `.n-rules.json`, `package.json`).
+4. **`test_context.rs`** (500 рядків) — порт `docgen-test-context/main.mjs`
+   (212 рядків): `is_docgen_test_file`, `candidate_paths_for_reference`
+   (чиста генерація кандидатів) + `resolve_relative_reference` (вибір
+   першого наявного з параметра `existing: &HashSet<String>` — той самий
+   принцип "диск чи параметр", що `crc.rs`), `is_likely_test_subject`,
+   `build_test_evidence_index` (приймає вже прочитані
+   `(relPath, content)`-пари, обхід дерева лишається обов'язком
+   майбутнього консюмера), `scenario_names`, `test_evidence_for_source`,
+   `render_test_scenarios`, `source_files_for_test`.
+5. **`prompts.rs`** (585 рядків) — порт `docgen-prompts/main.mjs`
+   (341 рядок): `style`, `facts_summary`, `section_messages`,
+   `is_api_gap`/`render_api_line`/`api_gap_messages`, `overview_messages`,
+   `critic_messages`/`refine_messages`, `guarantees_from_markers`,
+   `one_shot_messages`, `build_unit_digest`, `judge_refine_messages`.
+   Жодного дискового вводу (промпти будуються з переданих `facts`/
+   `anchors`/`intent`, як і в JS). `UNIT_DIGEST_TOKENS` (env) — константа
+   `2000` (той самий дефолт-без-env принцип, що `crc.rs::QUALITY_THRESHOLD`).
+6. **`scan.rs`** (362 рядки) — порт ЛОГІКИ `docgen-scan/main.mjs`
+   (237 рядків): `is_source_file`, `doc_path_for_source`, `is_doc_candidate`,
+   `describe_file`, `scan_for_doc_files` (батч над `CandidateInput`),
+   `find_orphaned_docs`. **Найбільше розходження з картою серед шести
+   етапів, зафіксоване явно:** `docgen-scan` — не просто «диск чи
+   параметр», тут ДВІ окремі причини незбігу з JS 1:1 по СТРУКТУРІ:
+   (а) `readdirSync`-обхід дерева — той самий "не вигадувати потребу"
+   мотив, що інші етапи; (б) **`execFileSync('git', ['check-ignore', ...])`
+   (`gitIgnoredPaths`, `main.mjs:166-185`) — ПРИНЦИПОВО інший клас
+   прогалини, не "диск чи параметр": це виконання зовнішнього процесу, а
+   не читання файлу.** У поточному наборі world-ів
+   (`crates/rules-contract/wit/deps/caps/`) НЕМАЄ capability класу
+   "виконати процес" — `file-reader` дає лише `list-files`/
+   `read-file-bytes`, обидва про читання. Ця половина `scanForDocFiles`
+   свідомо НЕ портована — не звужена мовчки, а названа як структурна
+   прогалина капабіліті-поверхні, якої карта розвідки не передбачила.
+   `pluginDocFilesExtensions` (`lang-extensions.mjs`, динамічний slot-граф
+   плагінів, потенційний `import()` JS-екстракторів) взагалі не портується
+   — не Rust-порт, а JS-orchestration механізм без гостьового еквівалента;
+   `is_source_file`/`is_doc_candidate` приймають вже вирішену мапу
+   розширень параметром. `resolveRoot` (CLI `--root` argv-парсер) не
+   портований — гість не має argv, семантично N/A.
+
+**Юніт-тести:** 73 (було 11 після фази 1) — `cargo test -p plugin-docgen
+--lib`, кожен модуль покриває і щасливий шлях, і крайові випадки з
+JS-докоментарів/тестів (де вони існували): CRC-32 тестовий вектор
+`"123456789"`, три `configRefs`-кейси складених імен, дзеркало-тест
+`docgen-scan.test.mjs`-подібних сценаріїв через `describe_file`/
+`scan_for_doc_files`. `cargo clippy -p plugin-docgen --lib --tests` — 0
+попереджень. `cargo fmt -p plugin-docgen` застосовано (усі 7 файлів).
+
+**НЕ зроблено цим кроком (явно, не мовчки):**
+
+1. `docgen-gen`/`docgen-files-batch`/`docgen-wave-batch` (2 444 рядки,
+   LLM-оркестрація) — поза обсягом і фази 1, і фази 2 (§5.1 розвідки, без
+   змін).
+2. `n-rules:caps/file-reader@1.0.0` НЕ підключений до `docgen-guest.wit`
+   цим кроком — жоден консюмер ще не читав би цей канал (`docgen-stage`
+   слот-диспетчер лишається майбутньою роботою, §5.4). Усі шість модулів
+   спроєктовані так, щоб підключення дало б реальний glue-код БЕЗ
+   переписування самої логіки, коли консюмер матеріалізується.
+3. `gitIgnoredPaths` (git-check-ignore подвійна фільтрація в
+   `docgen-scan`) — НЕ портована: немає capability класу "виконати
+   процес" у поточній спеці. Якщо ця фільтрація виявиться потрібною
+   продакшн-консюмеру, вона вимагає АБО нового world-а виконання процесу
+   (за межами поточної спеки §6.2), АБО прийняття, що host-side
+   `file-reader::list-files` (яка вже фільтрує через
+   `rules_core::concerns::cursor_ignore::walk_repo`, consumer-ignore з
+   `.n-rules.json`) — інша, не еквівалентна заміна `.gitignore`-фільтрації.
+4. Жоден із шести нових модулів НЕ додає нову concern-контрибуцію чи
+   world до `plugin.toml`/`build_manifest()` — `docgen/judge` лишається
+   ЄДИНОЮ контрибуцією гостя (`plugin_toml_matches_describe`
+   anti-drift-тест і далі проходить без змін).
+5. `docgen-stage` (слотовий world) — не задіяний, той самий стан, що фаза 1.
+
+**Цільові прогони (усі синхронно, без фонових процесів):**
+- `cargo build --release -p rules-cli` — успішно.
+- `cargo build --release -p rules-napi` — успішно (263 крейти,
+  передумова JS-парності, цим кроком не використана).
+- `node npm/scripts/build-wasm-plugins.mjs` — успішно, усі шість наявних
+  first-party гостей перезібрані й вбудували маніфест без змін
+  (`plugin-docgen` навмисно НЕ в списку, той самий стан, що фаза 1).
+- `bash crates/test-plugin-guest/build.sh` — успішно.
+- `bash crates/plugin-docgen/build.sh` — успішно,
+  `target/wasm32-wasip3/release/plugin_docgen.wasm` (нові модулі
+  компілюються в той самий `cdylib`, без нових host-імпортів — 0 змін у
+  WIT-поверхні).
+- `cargo test -p plugin-docgen --lib` — 73 passed (0 failed).
+- `cargo clippy -p plugin-docgen --lib --tests` — 0 попереджень.
+- `cargo test -p rules-plugin-host --test plugin_docgen_judge_gate` —
+  2 passed (гейт фази 1 незачеплений).
+- `cargo test -p rules-plugin-host` (повний, без фільтра) — 169 passed,
+  1 ignored, 17 суїтів — регресія по всьому крейту, жоден наявний тест не
+  зачеплений.
+- `cargo check --workspace` — 613 крейтів, 0 помилок.
+- JS-тести НЕ запускались — жоден JS-файл не змінено цим кроком (лише
+  нові `.rs`-модулі й правка реєстру), тож `N_RULES_NATIVE_ADDON`-обхід
+  застарілого registry-бінаря не був потрібен.
+- `npx @7n/rules lint`/`/doc-files` свідомо НЕ запускались (правило
+  задачі) — файлова дока `crates/plugin-docgen/docs/lib.md` (за наявності)
+  стане застарілою щодо нових модулів; регенерація — окремим кроком.
+
+**Наступний крок (не цей PR).** `docs/specs/2026-08-31-recon-docgen-surface.md`
+§6, скориговане цим кроком: підключення `file-reader` до `docgen-guest.wit`
+і реальний host↔guest glue для `scan`/`test-context` матеріалізується лише
+разом із `docgen-stage`-диспетчером (він же вирішить, чи git-ignore
+фільтрація взагалі потрібна продакшн-шляху, чи host-side consumer-ignore
+досить). До того часу — розширення `llm-consumer.wit` під `docgen-gen`
+(виміряне рішення, не заздалегідь).
