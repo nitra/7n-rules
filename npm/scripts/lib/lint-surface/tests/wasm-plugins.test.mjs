@@ -62,13 +62,16 @@ function resolveMap(dir, opts = {}) {
 
 /**
  * Тули, які реально декларує plugin-lang-js: `path:bun` (зріз 5 контракту
- * v3.1), `npm:stylelint` і `path:bunx` (зріз 6) та `path:tee` (§2.86 —
- * ним `js/eslint` кладе механічну заміну на диск). Без ін'єкції `resolveCmd`
- * `toolPaths` у цих тестах залежав би від того, що стоїть на машині, де їх
- * запустили. Схема `npm:` спершу дивиться в `<cwd>/node_modules/.bin/` —
- * у tmp-каталозі тесту його немає, тож і вона доходить до цього ж фолбеку.
+ * v3.1), `npm:stylelint` (зріз 6), `path:tee` (§2.86 — ним `js/eslint`
+ * кладе механічну заміну на диск) і `npm:eslint`/`npm:oxlint`/`npm:jscpd`
+ * (§2.100 — замінили спільний `path:bunx`: зріз 6 контракту `n-rules`
+ * знімає неявну гарантію присутності `bun`/`bunx` у консюмера). Без
+ * ін'єкції `resolveCmd` `toolPaths` у цих тестах залежав би від того, що
+ * стоїть на машині, де їх запустили. Схема `npm:` спершу дивиться в
+ * `<cwd>/node_modules/.bin/` — у tmp-каталозі тесту його немає, тож і вона
+ * доходить до цього ж фолбеку.
  */
-const LANG_JS_DECLARED_TOOLS = ['bun', 'stylelint', 'bunx', 'tee']
+const LANG_JS_DECLARED_TOOLS = ['bun', 'stylelint', 'eslint', 'oxlint', 'jscpd', 'tee']
 /** Шлях, який фейковий `resolveCmd` віддає для `bun` (найчастіше цитований окремо). */
 const FAKE_BUN_PATH = '/fake/bin/bun'
 /** Очікуваний `toolPaths` реального plugin-lang-js за [`fakeResolveCmd`]. */
@@ -204,8 +207,8 @@ describe('resolveWasmConcernMap — читання конфігу', () => {
         'utf8'
       )
       const map = await resolveMap(dir, { env: {} })
-      // plugin-lang-js декларує `tools = ["path:bun", "npm:stylelint", "path:bunx"]`
-      // (зрізи 5–6 контракту v3.1) — обидві схеми резолвляться ін'єктованим
+      // plugin-lang-js декларує `tools` — `path:`/`npm:` (зрізи 5–6 і §2.100
+      // контракту v3.1); обидві схеми резолвляться ін'єктованим
       // [`fakeResolveCmd`], не ensure-tool контуром.
       expect(map.get('vue/tfm-translations')).toEqual({ wasmPath: WASM_PATH, toolPaths: LANG_JS_TOOL_PATHS })
     })

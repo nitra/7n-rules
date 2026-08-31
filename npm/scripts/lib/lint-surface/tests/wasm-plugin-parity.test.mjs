@@ -4324,21 +4324,29 @@ async function runStyleLintBoth(dir, files, toolBody) {
 }
 
 /**
- * Ганяє `js/jscpd_duplicates` через JS-канон і wasm-порт на СПІЛЬНОМУ
- * фейковому `bunx`. Канон резолвить `bunx` із PATH (тому PATH тимчасово
- * доповнюється каталогом фейка й відновлюється у `finally`), wasm — із
- * `toolPaths`. Обидва передають тулу однаковий набір аргументів, де `$6` —
- * каталог `--output`: канон дає власний `mkdtemp`, хост — scratch-каталог
- * виклику.
+ * Ганяє `js/jscpd_duplicates` через JS-канон і wasm-порт на фейкових тулах
+ * ІЗ ОДНАКОВИМ ТІЛОМ, але різними іменами файлу — розбіжність, яку внесла
+ * §2.100. Канон (лише в режимі зняття еталонів, доккомент нижче) і далі
+ * резолвить `bunx` із PATH (тому PATH тимчасово доповнюється каталогом
+ * фейка й відновлюється у `finally`) і кличе його з провідним аргументом
+ * `jscpd`; wasm — `npm:jscpd` (`toolPaths.jscpd`, доккомент [`JSCPD_TOOL`]
+ * у `crates/plugin-lang-js/src/lib.rs`: зріз 6 контракту знімає неявну
+ * гарантію присутності `bun`/`bunx`, а сам тул тепер СПАВНИТЬСЯ напряму,
+ * без провідного `jscpd`-аргументу бінарника-раннера). Тіло фейкового тула
+ * тому шукає `--output` СКАНОМ аргументів, а не фіксованою позицією —
+ * позиція зсувається між двома викликами (доккомент [`fakeJscpdReport`]).
  * @param {string} dir абсолютний шлях tmp-каталогу
- * @param {string} toolBody тіло фейкового `bunx`
+ * @param {string} toolBody тіло фейкового тула (спільне для обох імен)
  * @returns {Promise<{ js: unknown[], wasm: unknown[] }>} результати обох реалізацій
  */
 async function runJscpdBoth(dir, toolBody) {
   const { mkdir } = await import('node:fs/promises')
   const binDir = join(dir, 'fake-bin')
   await mkdir(binDir, { recursive: true })
-  const toolPath = await writeFakeTool(join(binDir, 'bunx'), toolBody)
+  // Канон (compute-гілка, лише зняття еталонів) і wasm-порт резолвлюють
+  // РІЗНІ імена — той самий фейковий скрипт лягає під обома.
+  await writeFakeTool(join(binDir, 'bunx'), toolBody)
+  const jscpdToolPath = await writeFakeTool(join(binDir, 'jscpd'), toolBody)
 
   const js = await goldenJs(JSCPD_CONCERN_KEY, dir, async () => {
     // `env` з `node:process` (не `process.env`) — вимога `js-run/runtime`;
@@ -4356,17 +4364,25 @@ async function runJscpdBoth(dir, toolBody) {
       env.PATH = originalPath
     }
   })
-  const wasmResult = loadNative().runWasmConcern(WASM_PATH, JSCPD_CONCERN_KEY, dir, null, { bunx: toolPath })
+  const wasmResult = loadNative().runWasmConcern(WASM_PATH, JSCPD_CONCERN_KEY, dir, null, { jscpd: jscpdToolPath })
   return { js, wasm: withDefaultSeverity(wasmResult.violations) }
 }
 
 /**
- * Тіло фейкового `jscpd`, що пише заданий JSON-звіт у каталог `--output`
- * (`$6` у канонічному наборі аргументів) і виходить нулем.
+ * Тіло фейкового `jscpd`, що пише заданий JSON-звіт у каталог `--output` і
+ * виходить заданим кодом. Сканує `$@` за прапорцем `--output`, а не бере
+ * фіксовану позицію (`$6`/`$5`): канон кличе тул як `bunx jscpd . --reporters
+ * json --output <dir> --silent` (`--output` — шостий токен, `<dir>` —
+ * сьомий), wasm-порт (§2.100 — `npm:jscpd` без провідного `jscpd`-аргумента)
+ * — як `<jscpd-бінарник> . --reporters json --output <dir> --silent`
+ * (`<dir>` — п'ятий). Той самий фейковий скрипт обслуговує ОБИДВА виклики,
+ * тож фіксована позиція розійшлась би з одним із них.
  * @param {string} report вміст майбутнього `jscpd-report.json`
+ * @param {number} [exitCode] код виходу скрипта (дефолт 0)
  * @returns {string} тіло sh-скрипта для [`writeFakeTool`]
  */
-const jscpdToolWriting = report => `#!/bin/sh\ncat > "$6/jscpd-report.json" <<'JSON'\n${report}\nJSON\nexit 0\n`
+const fakeJscpdReport = (report, exitCode = 0) =>
+  `#!/bin/sh\nout=""\nwhile [ $# -gt 0 ]; do\n  case "$1" in\n    --output) shift; out="$1" ;;\n  esac\n  shift\ndone\ncat > "$out/jscpd-report.json" <<'JSON'\n${report}\nJSON\nexit ${exitCode}\n`
 
 describe('wasm-plugin parity — style/lint (JS канон vs wasm plugin-lang-js, спільний фейковий stylelint)', () => {
   test('exit 0 — тул мовчить → без порушень з обох реалізацій', async () => {
@@ -4780,7 +4796,7 @@ describe('wasm-plugin parity — js/jscpd_duplicates (JS канон vs wasm plug
           }
         ]
       })
-      const { js, wasm } = await runJscpdBoth(dir, jscpdToolWriting(report))
+      const { js, wasm } = await runJscpdBoth(dir, fakeJscpdReport(report))
       expect(wasm).toEqual(js)
       expect(js).toHaveLength(2)
       expect(js[0].reason).toBe('duplicate-clone')
@@ -4798,7 +4814,7 @@ describe('wasm-plugin parity — js/jscpd_duplicates (JS канон vs wasm plug
 
   test('порожній duplicates → без порушень з обох реалізацій', async () => {
     await withTmpDir(async dir => {
-      const { js, wasm } = await runJscpdBoth(dir, jscpdToolWriting(JSON.stringify({ duplicates: [] })))
+      const { js, wasm } = await runJscpdBoth(dir, fakeJscpdReport(JSON.stringify({ duplicates: [] })))
       expect(wasm).toEqual(js)
       expect(js).toEqual([])
     })
@@ -4806,7 +4822,7 @@ describe('wasm-plugin parity — js/jscpd_duplicates (JS канон vs wasm plug
 
   test('duplicates не масив → без порушень з обох реалізацій', async () => {
     await withTmpDir(async dir => {
-      const { js, wasm } = await runJscpdBoth(dir, jscpdToolWriting(JSON.stringify({ duplicates: 'nope' })))
+      const { js, wasm } = await runJscpdBoth(dir, fakeJscpdReport(JSON.stringify({ duplicates: 'nope' })))
       expect(wasm).toEqual(js)
       expect(js).toEqual([])
     })
@@ -4827,10 +4843,7 @@ describe('wasm-plugin parity — js/jscpd_duplicates (JS канон vs wasm plug
       // `.jscpd.json` цього репо має `"exitCode": 1` — реальний `jscpd`
       // виходить ненульовим САМЕ тоді, коли клони знайдено, тож ця гілка
       // (звіт є, код ≠ 0) і є типовою, а не крайньою.
-      const { js, wasm } = await runJscpdBoth(
-        dir,
-        `#!/bin/sh\ncat > "$6/jscpd-report.json" <<'JSON'\n${report}\nJSON\nexit 1\n`
-      )
+      const { js, wasm } = await runJscpdBoth(dir, fakeJscpdReport(report, 1))
       expect(wasm).toEqual(js)
       expect(js).toHaveLength(1)
       expect(js[0].file).toBe('docs/a.md')
@@ -4839,7 +4852,7 @@ describe('wasm-plugin parity — js/jscpd_duplicates (JS канон vs wasm plug
 
   test('wasm-порт не лишає звіту в дереві репо — він живе у scratch-каталозі хоста', async () => {
     await withTmpDir(async dir => {
-      await runJscpdBoth(dir, jscpdToolWriting(JSON.stringify({ duplicates: [] })))
+      await runJscpdBoth(dir, fakeJscpdReport(JSON.stringify({ duplicates: [] })))
       expect(existsSync(join(dir, 'jscpd-report.json'))).toBe(false)
     })
   })
@@ -5940,12 +5953,17 @@ const JS_ESLINT_CONCERN_KEY = 'js/eslint'
 const REAL_TEE_PATH = ['/usr/bin/tee', '/bin/tee'].find(candidate => existsSync(candidate)) ?? '/usr/bin/tee'
 
 /**
- * Фейковий `bunx`: `$1` — ім'я лінтера (`oxlint`/`eslint`), `$2` —
- * `--fix`, решта — файли. Дописує маркер у КОЖЕН переданий файл, тож
- * підсумковий вміст свідчить і про факт спавну, і про ПОРЯДОК кроків
- * гостя.
+ * Фейковий лінтер-скрипт (§2.100 — `npm:eslint`/`npm:oxlint`, кожен своїм
+ * бінарником, а не спільний `bunx`): `$1` — `--fix` (скидається), решта —
+ * файли. Дописує маркер `marker` у КОЖЕН переданий файл, тож підсумковий
+ * вміст свідчить і про факт спавну, і про ПОРЯДОК кроків гостя
+ * (`oxlint` → `eslint`, доккомент [`OXLINT_TOOL`]/[`ESLINT_TOOL`] у
+ * `crates/plugin-lang-js/src/lib.rs`).
+ * @param {string} marker текст маркера (ім'я лінтера)
+ * @returns {string} тіло sh-скрипта
  */
-const FAKE_BUNX_LINTERS = '#!/bin/sh\nlinter="$1"\nshift 2\nfor f in "$@"; do printf \'// %s\\n\' "$linter" >> "$f"; done\nexit 0\n'
+const fakeLinterBody = marker =>
+  `#!/bin/sh\nshift 1\nfor f in "$@"; do printf '// %s\\n' '${marker}' >> "$f"; done\nexit 0\n`
 
 /** Діагностика механічного правила — рівно та форма, що її дає `main.mjs` (`data: { line, tool }`). */
 const mechanicalDiagnostic = (file, line) => ({
@@ -5966,18 +5984,23 @@ const plainDiagnostic = file => ({
 })
 
 /**
- * Кладе фейковий `bunx` у tmp-дерево й повертає `toolPaths`, який для схем
- * `path:bunx`/`path:tee` побудувала б `ensureDeclaredTools`.
+ * Кладе фейкові `eslint`/`oxlint` у tmp-дерево й повертає `toolPaths`, який
+ * для схем `npm:eslint`/`npm:oxlint`/`path:tee` побудувала б
+ * `ensureDeclaredTools` (§2.100 замінила спільний `path:bunx` двома
+ * окремими записами — доккомент [`ESLINT_TOOL`]/[`OXLINT_TOOL`] у
+ * `crates/plugin-lang-js/src/lib.rs`).
  * @param {string} dir абсолютний шлях tmp-каталогу
- * @param {string} body тіло фейкового `bunx`
+ * @param {{ eslintBody?: string, oxlintBody?: string }} [opts] тіла фейкових скриптів (дефолт — маркер з іменем лінтера)
  * @returns {Promise<Record<string, string>>} мапа `toolPaths`
  */
-async function installEslintTools(dir, body = FAKE_BUNX_LINTERS) {
+async function installEslintTools(dir, opts = {}) {
+  const { eslintBody = fakeLinterBody('eslint'), oxlintBody = fakeLinterBody('oxlint') } = opts
   const { mkdir } = await import('node:fs/promises')
   const binDir = join(dir, 'fake-bin')
   await mkdir(binDir, { recursive: true })
-  const bunx = await writeFakeTool(join(binDir, 'bunx'), body)
-  return { bunx, tee: REAL_TEE_PATH }
+  const eslint = await writeFakeTool(join(binDir, 'eslint'), eslintBody)
+  const oxlint = await writeFakeTool(join(binDir, 'oxlint'), oxlintBody)
+  return { eslint, oxlint, tee: REAL_TEE_PATH }
 }
 
 describe('wasm-plugin — js/eslint T0-фікс через fix-міст (fix-only контрибуція, exec-tool + host-diff)', () => {
@@ -6033,7 +6056,10 @@ describe('wasm-plugin — js/eslint T0-фікс через fix-міст (fix-onl
   test('лінтери нічого не змінили — план порожній, JS-fallback лишається робочим', async () => {
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'a.mjs'), 'export const b = 1\n')
-      const toolPaths = await installEslintTools(dir, '#!/bin/sh\nexit 0\n')
+      const toolPaths = await installEslintTools(dir, {
+        eslintBody: '#!/bin/sh\nexit 0\n',
+        oxlintBody: '#!/bin/sh\nexit 0\n'
+      })
 
       const plan = loadNative().runWasmConcernFix(
         WASM_PATH,
@@ -6075,14 +6101,14 @@ describe('wasm-plugin — js/eslint T0-фікс через fix-міст (fix-onl
   test('tee не резолвиться — механічна заміна відпадає, лінтери працюють далі', async () => {
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'a.mjs'), 'export const ok = x => Number.isInteger(x)\n')
-      const { bunx } = await installEslintTools(dir)
+      const { eslint, oxlint } = await installEslintTools(dir)
 
       const plan = loadNative().runWasmConcernFix(
         WASM_PATH,
         JS_ESLINT_CONCERN_KEY,
         dir,
         [mechanicalDiagnostic('a.mjs', 1)],
-        { bunx },
+        { eslint, oxlint },
         ['a.mjs']
       )
       expect(plan.edits).toEqual([
@@ -6352,15 +6378,19 @@ const FIX_STAYS_IN_JS = {
   // §2.93 — ЄДИНИЙ канон партії, який зупинила ПОРЯДКОВА звірка, а не
   // відома незавершеність порту: канон гейтить на `bunx` лише `oxlint`, а
   // `eslint --fix` кличе programmatic API (`new ESLint({ cwd, fix: true })`
-  // + `ESLint.outputFixes`), тобто працює й БЕЗ `bunx`. Гість кличе обидва
-  // лінтери через `ESLINT_TOOL = "path:bunx"`, тож на дереві без `bunx`
-  // гість голосно каже про це й НЕ фіксить нічого. Гість повертає порожній
-  // план (клас host-diff), тож `guestFix`-брейк `applyT0` канон не глушить
-  // — драбина «гість, а якщо він нічого не зробив, канон» тут жива й
-  // потрібна.
+  // + `ESLint.outputFixes`), тобто резолвиться Node-модулем, не CLI-тулом
+  // взагалі. §2.100 зняла спільну залежність гостя від `bunx`
+  // (`ESLINT_TOOL`/`OXLINT_TOOL` тепер `npm:eslint`/`npm:oxlint` —
+  // `<cwd>/node_modules/.bin`, фолбек `PATH`, та сама асиметрія «eslint
+  // обов'язковий, oxlint best-effort», що в канону), але шляхи резолву
+  // лишились РІЗНИМИ (Node-модуль канону проти CLI-бінарника гостя) — не
+  // байт-у-байт той самий, тож канон і далі не збігається з гостем ПОРЯДКОВО.
+  // Гість повертає порожній план (клас host-diff), тож `guestFix`-брейк
+  // `applyT0` канон не глушить — драбина «гість, а якщо він нічого не
+  // зробив, канон» тут жива й потрібна.
   'js/eslint/fix-eslint.mjs':
-    '§2.93 — канон робить те, чого гість НЕ робить: `eslint --fix` через programmatic API, ' +
-    'без залежності від `bunx` (гість гейтить обидва лінтери на `path:bunx`)',
+    '§2.93/§2.100 — канон кличе `eslint --fix` через programmatic API (Node-модуль), гість — ' +
+    'через CLI-бінарник `npm:eslint`; різні шляхи резолву, не порт одне одного',
   'bun/package_json/fix-package_json.mjs':
     '§2.92 — концерн свідомо НЕ портований: fix-глоб масштабу `**/*` упирається ' +
     'у тип межі `source-file.content: string` (124 MiB на виклик при 1 MiB корисного)',

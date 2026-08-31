@@ -11956,6 +11956,140 @@ storybook-vitest-config` — цілком на JS-каноні, за підст�
 (`wasm-plugin-parity.test.mjs:6351`) і без цього запису вже коректно
 відображала стан трьох із трьох канонів — зміни до неї не потрібні.
 
+### 2.100. `crates/plugin-lang-js` знято з неявної гарантії `bun`/`bunx` — три `path:bunx`-записи стали `npm:`
+
+**Звідки:** пункт 2 `docs/plans/2026-08-29-js-rust-migration-completion-plan.md`,
+продовження §2.99 (яке знайшло вадý, але не виправляло її — «правка належить
+до окремого пункту зрізу 6»). **Стан:** виправлено.
+
+#### Точне формулювання (реєстр і план у §2.99 сказали це НЕТОЧНО)
+
+Сьогодні канонічний запуск — `bunx n-rules lint <surface>`, тож `bun`
+гарантовано присутній скрізь, де взагалі виконується `n-rules`. Зріз 6
+(§12 `docs/specs/2026-08-01-rules-cli-phase8-skeleton.md`, §2.96 цього
+реєстру) робить `n-rules` самостійним бінарем і прибирає npm як канал —
+канонічний рядок стає `n-rules lint <surface>`. Зникає не `bunx` сам по
+собі (`bunx` як утиліта нікуди не зникає), а **неявна гарантія його
+присутності** в консюмерському дереві. Задача — перестати на неї
+покладатись, не «прибрати `bunx`» буквально.
+
+#### Що було зачеплено
+
+Три декларації `manifest.tools` `crates/plugin-lang-js` резолвились
+схемою `path:` (по `PATH`, без ensure-tool контуру):
+
+- `crates/plugin-lang-js/src/lib.rs`: `ESLINT_TOOL` і (до цього запису)
+  ідентичний рядок `JSCPD_TOOL` — обидва `"path:bunx"` (та сама
+  константа-рядок, множина декларацій, не мапа «концерн → тул»);
+- `crates/plugin-lang-js/plugin.toml:36` — `tools = […, "path:bunx", …]`.
+
+`path:bun` (`LICENSEE_TOOL`, `bun/licensee`) — окремий і НЕ зачеплений:
+`bun licensee` — справжня `bun`-підкоманда, для якої не існує npm-пакета,
+тож `path:` тут єдиний коректний резолв, а не наслідок неуважності.
+
+#### Розвідка ПЕРЕД кодом — які варіанти взагалі є
+
+`crates/rules-contract/src/validators/tool.rs` (`ToolScheme`) і
+`npm/scripts/lib/lint-surface/wasm-plugins.mjs` (`TOOL_SCHEMES`,
+`ensureDeclaredTools`) уже мають ТРЕТЮ схему, яка вирішує рівно цей клас
+задач: `npm:<name>` — `<cwd-консюмера>/node_modules/.bin/<name>`, фолбек
+`PATH`, дослівне дзеркало `resolveStylelint` канону `style/lint`
+(`STYLELINT_TOOL = "npm:stylelint"`, зріз 6, доккомент §2.8). Жодної зміни
+контракту (WIT) не знадобилось — схема живе в рядку `manifest.tools`, не в
+`world.wit`.
+
+`ensureTool`-контур (`tools ensure`, `docs/specs/2026-08-04-tools-ensure-design.md`)
+тут НЕ застосовний: він забезпечує лише github-release-бінарники
+(реєстр `TOOLS`/`tool-pins.json`, 11 записів — `shellcheck`, `hk`,
+`conftest`, …), а `eslint`/`oxlint`/`jscpd` розповсюджуються виключно npm.
+
+Ключовий факт, що зробив `npm:` придатним рівно тут: `eslint`, `jscpd` і
+`stylelint` — реальні `dependencies` (не `devDependencies`) опублікованого
+`@7n/rules-lang-js` (`plugins/lang-js/package.json`), тобто транзитивно
+встановлюються в дерево консюмера разом із самим плагіном і хостяться в
+його `node_modules/.bin` (перевірено емпірично цим записом: `bun install`
+у корені монорепо кладе симлінки `eslint`/`jscpd`/`stylelint`/`oxlint` у
+корінний `node_modules/.bin/`). `oxlint` — виняток: до цього запису він
+не був `dependencies` ЖОДНОГО пакета монорепо (в `bun.lock` фігурував лише
+як `optionalPeers` чужих ESLint-плагінів), канон тягнув його `bunx`-мережевим
+on-demand встановленням без піна. Щоб `npm:oxlint` мав шанс резолвитись у
+консюмера, `oxlint` додано в `dependencies` `plugins/lang-js/package.json`
+(`^1.74.0` — версія, вже присутня в `bun.lock` монорепо як транзитивний
+piн) цим самим записом.
+
+#### Що зроблено
+
+1. `ESLINT_TOOL` → `"npm:eslint"`, новий `OXLINT_TOOL` → `"npm:oxlint"`
+   (раніше — один спільний `"path:bunx"` на обидва лінтери). Асиметрія
+   канону відтворена БУКВАЛЬНО: `run_js_eslint_fix` (обов'язковий крок,
+   ERROR-лог на нерезолвний тул — без `eslint` фікс не відбувається
+   взагалі, як і в канону) окремо від `run_js_oxlint_fix` (best-effort,
+   WARN-лог — точна калька `fix-eslint.mjs`: `if (bunx) spawnSync(bunx,
+   ['oxlint', '--fix', …])`, умовний виклик без падіння на відсутньому
+   `bunx`).
+2. `JSCPD_TOOL` → `"npm:jscpd"` (був `"path:bunx"`, спільний з
+   `ESLINT_TOOL` до п.1). `jscpd` — уже `dependencies` пакета, тож на
+   відміну від `oxlint` тут не знадобилось нічого додавати.
+3. `plugins/lang-js/package.json`: додано `"oxlint": "^1.74.0"` у
+   `dependencies` (алфавітний порядок, між `oxc-parser` і `stylelint`).
+   `bun install` перевірено — `node_modules/.bin/oxlint` резолвиться.
+4. `crates/plugin-lang-js/plugin.toml`, `describe()` (`src/lib.rs`,
+   `manifest.tools`) — оновлено список тулів: `path:bun`, `npm:stylelint`,
+   `npm:eslint`, `npm:oxlint`, `npm:jscpd`, `path:tee`.
+5. Тести оновлено під нову форму: `crates/rules-plugin-host/tests/plugin_lang_js.rs`
+   (гейт `manifest.tools`), `npm/scripts/lib/lint-surface/tests/wasm-plugins.test.mjs`
+   (`LANG_JS_DECLARED_TOOLS`), `npm/scripts/lib/lint-surface/tests/wasm-plugin-parity.test.mjs`
+   (фейкові `eslint`/`oxlint`-скрипти замість спільного фейкового `bunx`
+   для `js/eslint`-фікс-тестів; фейковий `jscpd`-бінарник поряд із
+   `bunx`-файлом для `js/jscpd_duplicates`-parity-тесту — канон-гілка
+   `goldenJs` і далі резолвить `bunx` з PATH, лише в режимі зняття
+   еталонів, wasm-гілка тепер резолвить `jscpd` через `toolPaths`).
+
+#### Що НЕ зроблено (свідомо, поза обсягом)
+
+- `plugins/lang-js/rules/js/eslint/fix-eslint.mjs` (JS-канон) НЕ знято.
+  §2.93/§2.99 лишили його як safety net саме тому, що гість глушив ОБИДВА
+  лінтери на відсутньому `bunx`; ця причина цим записом ЗНЯТА (гість більше
+  не залежить від `bunx`/`bun` для `js/eslint`), але канон і гість
+  резолвлять `eslint` РІЗНИМИ шляхами (Node programmatic API канону проти
+  CLI-бінарника `npm:eslint` гостя) — не байт-у-байт той самий порт, тож
+  зняття канону — окрема задача з окремою звіркою парності, не побічний
+  ефект цього запису.
+- `bun/licensee` (`LICENSEE_TOOL = "path:bun"`) — не чіпається: `bun`
+  сам по собі, як підкоманда `bun licensee`, не має npm-пакета-замінника.
+  Це не той самий клас вади: `path:` тут — єдина коректна схема, а не
+  наслідок відсутності альтернативи, яку хтось забув застосувати.
+- Регенерація `bun.lock` для `oxlint` як прямої (не лише транзитивної)
+  залежності — зроблено (`bun install` у цьому ж записі), окремого PR не
+  потрібно.
+
+#### Перевірено
+
+- `cargo test -p plugin-lang-js` — 473 passed.
+- `cargo build -p plugin-lang-js`, `cargo build --release -p rules-napi` —
+  чисто.
+- `cargo test -p rules-plugin-host --test plugin_lang_js` (реальний
+  зібраний `.wasm`, `node npm/scripts/build-wasm-plugins.mjs` перед цим) —
+  86 passed; гейт `manifest.tools` звіряє ТОЧНИЙ склад. Перший прогін
+  ловив саме той клас регресії, заради якого існує цей запис: п'ять
+  `jscpd`-інтеграційних тестів (`crates/rules-plugin-host/tests/plugin_lang_js.rs`)
+  явно реєстрували фейковий тул під ключем `"bunx"` і читали scratch-каталог
+  із позиційного `$6` (шостий аргумент старого виклику `bunx jscpd . …`) —
+  обидва деталі зникли разом зі схемою: ключ мапи тепер `"jscpd"`, а
+  провідний `jscpd`-аргумент (сам факт, що `bunx` — окремий раннер, а
+  `npm:jscpd` — уже бінарник) зсунув `--output`-значення на позицію `$5`.
+  Виправлено на місці, повторний прогін — зелений.
+- `N_RULES_NATIVE_ADDON=<репо>/target/release/librules_napi.dylib npx vitest run npm/scripts/lib/lint-surface/tests/wasm-plugin-parity.test.mjs`
+  — 317 passed. Та сама позиційна пастка (`$6` → `$5`) ловилась і тут:
+  спільний фейковий скрипт `js/jscpd_duplicates`-parity-тесту обслуговує І
+  канон (`bunx jscpd …`, лише в режимі зняття еталонів), І wasm-порт
+  (`npm:jscpd`, тепер без провідного `jscpd`-аргумента) — фіксовану
+  позицію замінено сканом `$@` за прапорцем `--output`
+  ([`fakeJscpdReport`]), бо той самий скрипт має коректно обслуговувати
+  ОБИДВА виклики з різним зсувом аргументів. `js/eslint` T0-фікс-тести —
+  фейкові `eslint`/`oxlint`-бінарники замість спільного `bunx`, порядок
+  маркерів (`oxlint` → `eslint`) підтверджує послідовність кроків гостя.
+
 ### 2.101. Д2 (публікація wasm-плагінів у OCI) заблокована структурно: `oci-dist-package` 0.1.6 приймає лише `wasm32-wasip3`, усі шість first-party гостей зібрані під `wasm32-wasip2`
 
 **Задача.** План `2026-08-29-js-rust-migration-completion-plan.md` (розділ

@@ -4089,19 +4089,28 @@ fn build_manifest() -> Manifest {
         // Перша реальна декларація тула first-party плагіном (до зрізу 5
         // контур `manifest.tools` → `ensureDeclaredTools` → `toolPaths` →
         // `ToolResolver` був наскрізним, але жодним продакшн-плагіном не вживаним).
-        // Зріз 6 добив набір до всіх ТРЬОХ схем рішення В: `path:` (`bun`,
-        // `bunx` — резолв по `PATH`) і `npm:` (`stylelint` —
-        // `node_modules/.bin` консюмера з фолбеком на `PATH`). Схема
-        // `pinned:` (github-реліз) у цьому компоненті поки не вживана — її
-        // споживач `js-run/runtime` (`pinned:conftest`, зріз 7).
+        // Зріз 6 добив набір до всіх ТРЬОХ схем рішення В: `path:` (`bun` —
+        // резолв по `PATH`, тул користувача, не npm-пакет) і `npm:`
+        // (`stylelint` — `node_modules/.bin` консюмера з фолбеком на `PATH`).
+        // Схема `pinned:` (github-реліз) у цьому компоненті поки не вживана
+        // — її споживач `js-run/runtime` (`pinned:conftest`, зріз 7).
         // §2.86 додала `path:tee` — єдиний тул, чий споживач не детектор, а
         // фіксер: `js/eslint` кладе ним механічно виправлений вміст на диск
-        // ДО спавну лінтерів (доккомент секції «§2.86»). `bunx` того самого
-        // концерну вже є у списку ([`JSCPD_TOOL`]) — декларації тулів це
-        // множина, не мапа «концерн → тул».
+        // ДО спавну лінтерів (доккомент секції «§2.86»).
+        //
+        // §2.100 замінила спільний `path:bunx` (ESLINT_TOOL == JSCPD_TOOL,
+        // той самий рядок) на три окремі `npm:`-записи (`npm:eslint`,
+        // `npm:oxlint`, `npm:jscpd`, доккомент [`ESLINT_TOOL`]): зріз 6
+        // контракту (`n-rules` — самостійний бінарем, npm-канал геть) знімає
+        // неявну гарантію присутності `bun`/`bunx` у консюмера, тож
+        // `js/eslint` і `js/jscpd_duplicates` більше не покладаються на цей
+        // рантайм. `path:bun` ([`LICENSEE_TOOL`]) лишається — `bun/licensee`
+        // виконує саме `bun`-підкоманду, для якої npm-пакета не існує.
         tools: vec![
             LICENSEE_TOOL.to_string(),
             STYLELINT_TOOL.to_string(),
+            ESLINT_TOOL.to_string(),
+            OXLINT_TOOL.to_string(),
             JSCPD_TOOL.to_string(),
             TEE_TOOL.to_string(),
         ],
@@ -12334,29 +12343,61 @@ const JS_ESLINT_GLOB: &str = "**/*.{js,mjs,cjs,jsx,ts,tsx,vue}";
 /// застосовує і на detect-, і на fix-боці.
 const JS_ESLINT_EXTENSIONS: [&str; 7] = [".mjs", ".cjs", ".js", ".jsx", ".ts", ".tsx", ".vue"];
 
-/// Декларація тула лінтерів — та сама `path:bunx`, що вже несе
-/// `js/jscpd_duplicates` ([`JSCPD_TOOL`]). Свідомо ТОЙ САМИЙ рядок, а не
-/// другий запис у `manifest.tools`: список тулів — множина декларацій, не
-/// мапа «концерн → тул».
+/// Декларація тула `eslint --fix` — `npm:`, не `path:bunx` (§2.100).
 ///
-/// # Розбіжність із каноном (§2.93) — ЄДИНА причина, чому `fix-eslint.mjs` живий
+/// # Чому `npm:eslint`, а не `bunx eslint`
 ///
-/// Попередня редакція цього доккомента стверджувала «канон теж кличе саме
-/// `bunx oxlint` / `bunx eslint`». Для oxlint це правда; для eslint —
-/// НІ: канон гейтить на `resolveCmd('bunx')` тільки oxlint, а
-/// `eslint --fix` кличе programmatic API (`new ESLint({ cwd, fix: true })`
-/// + `ESLint.outputFixes`) і тому працює й БЕЗ `bunx`. Гість такої гілки
-/// не має — за нерезолвного `bunx` він голосно логує
-/// ([`run_js_eslint_linter_fix`]) і НЕ фіксить нічого.
+/// Зріз 6 контракту (§12 `docs/specs/2026-08-01-rules-cli-phase8-skeleton.md`)
+/// робить `n-rules` самостійним бінарем поза npm-каналом: після нього
+/// JS-репозиторій на npm/pnpm/yarn може НІКОЛИ не мати `bun`/`bunx` —
+/// сьогоднішня гарантія «канонічний запуск `bunx n-rules …`, тож bun є
+/// скрізь» зникає разом із npm-каналом. `path:bunx` різнив би долю концерну
+/// від наявності стороннього рантайму, якого контракт більше не обіцяє.
 ///
-/// Тому §2.93, яка зняла девʼятнадцять JS-канонів фіксу цього плагіна,
-/// СВІДОМО лишила `plugins/lang-js/rules/js/eslint/fix-eslint.mjs`: гість
-/// віддає порожній `FixPlan` (клас host-diff), тож `guestFix`-брейк
-/// `applyT0` канон не глушить, і драбина «спершу гість, а якщо він нічого
-/// не зробив — канон» тут не залишок міграції, а робочий контур. Знімати
-/// канон можна лише разом із портом eslint-половини так, щоб вона не
-/// вимагала `bunx`.
-const ESLINT_TOOL: &str = "path:bunx";
+/// `eslint` — реальна `dependencies`-декларація `@7n/rules-lang-js`
+/// (`plugins/lang-js/package.json`), тобто вже лежить у дереві споживача
+/// після `npm install` — рівно та сама умова, що вже несе [`STYLELINT_TOOL`]
+/// (`npm:` = `<cwd>/node_modules/.bin/<name>`, фолбек `PATH`, дослівне
+/// дзеркало `resolveStylelint` канону). `bunx` тут був чужим інструментом
+/// заради ЧУЖОЇ мети — версія `eslint`, яку резолвить `npm:`, це рівно та,
+/// яку встановив `npm install @7n/rules-lang-js`, а не та, яку `bunx`
+/// (можливо) підтягнув би з мережі.
+///
+/// # Розбіжність із каноном (§2.93) — чому `fix-eslint.mjs` лишається живим
+///
+/// Канон (`plugins/lang-js/rules/js/eslint/fix-eslint.mjs`) кличе
+/// `eslint --fix` через programmatic API (`new ESLint({ cwd, fix: true })`
+/// + `ESLint.outputFixes`), не CLI — тож обидва боки тепер незалежні від
+/// `bunx`/`bun`, але не байт-у-байт той самий шлях резолву `eslint`
+/// (Node-модуль канону проти CLI-бінарника `npm:`-схеми гостя). Розбіжність
+/// §2.93 (гість глушив ОБИДВА лінтери на відсутньому `bunx`) цим ЗНЯТА:
+/// [`run_js_eslint_fix`] тепер завжди намагається резолвити `eslint`
+/// незалежно від `oxlint` ([`run_js_oxlint_fix`]) — рівно та сама
+/// асиметрія «eslint обов'язковий, oxlint best-effort», що в канону.
+/// Порт `fix-eslint.mjs` — окрема задача (поза обсягом §2.100): цей запис
+/// лише знімає implicit bun/bunx-гарантію, не саму драбину «гість →
+/// канон».
+const ESLINT_TOOL: &str = "npm:eslint";
+
+/// Декларація тула `oxlint --fix` (§2.100) — окремий запис від
+/// [`ESLINT_TOOL`], бо резолвиться в ІНШИЙ бінарник: до §2.100 обидва
+/// лінтери йшли через спільний `bunx` (`ESLINT_TOOL == JSCPD_TOOL ==
+/// "path:bunx"` — той самий рядок, множина декларацій, не мапа
+/// «концерн → тул»), тепер кожен лінтер має власне ім'я в `npm:`-мапі,
+/// тож спільний рядок більше не резолвить ОБОХ.
+///
+/// `oxlint` — best-effort, точна калька канону: `fix-eslint.mjs`
+/// (`if (bunx) spawnSync(bunx, ['oxlint', '--fix', …])`) сам не падає, коли
+/// `bunx` відсутній — `eslint --fix` нижче однаково довершує фікс. Тут та
+/// сама асиметрія: [`run_js_oxlint_fix`] пише WARN (не ERROR) на
+/// нерезолвний тул. `oxlint` НЕ є `dependencies` жодного пакета цього
+/// монорепо (канон тягнув його `bunx`-мережевим авто-встановленням
+/// on-demand, без версійного піна) — щоб `npm:oxlint` узагалі мав шанс
+/// резолвитись у споживача, `oxlint` додано в `dependencies`
+/// `plugins/lang-js/package.json` цим самим записом (§2.100): без цього
+/// кроку схема була б технічно коректною, але практично мертвою (немає
+/// пакета — немає бінарника в жодному `node_modules/.bin`).
+const OXLINT_TOOL: &str = "npm:oxlint";
 
 /// Декларація тула запису — `tee` з `PATH`. Потрібен рівно для одного:
 /// покласти механічно виправлений вміст на диск ДО спавну лінтерів
@@ -12482,12 +12523,14 @@ fn apply_js_eslint_mechanical_fixes(request: &FixRequest, targets: &[String]) ->
     written
 }
 
-/// Один спавн лінтера у fix-режимі через `bunx` — `oxlint --fix` /
-/// `eslint --fix`. Код виходу ІГНОРУЄТЬСЯ (як і в канону: обидва лінтери
-/// виходять ненульовим, коли лишились невиправні порушення), а от
-/// «процес не стартував» — гучна помилка: канон тут best-effort мовчав.
-fn run_js_eslint_linter_fix(linter: &str, targets: &[String]) {
-    let mut args = vec![linter.to_string(), "--fix".to_string()];
+/// Спавн `eslint --fix` (§2.100, [`ESLINT_TOOL`]) — ОБОВ'ЯЗКОВИЙ крок,
+/// точна калька канону (`fix-eslint.mjs` завжди кличе `eslint --fix`, без
+/// умовної гілки). Код виходу ІГНОРУЄТЬСЯ (як і в канону: `eslint --fix`
+/// виходить ненульовим, коли лишились невиправні порушення), а от «процес
+/// не стартував» (тул не резолвиться) — гучна помилка ERROR: без eslint цей
+/// крок не виправляє нічого, і мовчати про це не можна.
+fn run_js_eslint_fix(targets: &[String]) {
+    let mut args = vec!["--fix".to_string()];
     args.extend(targets.iter().cloned());
     let result = exec_tool(&ToolRequest {
         tool: ESLINT_TOOL.to_string(),
@@ -12501,10 +12544,36 @@ fn run_js_eslint_linter_fix(linter: &str, targets: &[String]) {
     if result.status.is_none() {
         log(
             LogLevel::Error,
-            &format!(
-                "plugin-lang-js: fix(js/eslint) — `bunx` не резолвиться, `{linter} --fix` НЕ \
-                 виконано, жоден файл цим лінтером не виправлено."
-            ),
+            "plugin-lang-js: fix(js/eslint) — `eslint` не резолвиться (ні node_modules/.bin, ні \
+             PATH), `eslint --fix` НЕ виконано, жоден файл цим лінтером не виправлено. \
+             `eslint` — залежність @7n/rules-lang-js; переустанови плагін.",
+        );
+    }
+}
+
+/// Спавн `oxlint --fix` (§2.100, [`OXLINT_TOOL`]) — BEST-EFFORT крок,
+/// точна калька канону (`fix-eslint.mjs`: `if (bunx) spawnSync(bunx,
+/// ['oxlint', '--fix', …])` — умовний, без падіння на відсутньому `bunx`).
+/// Нерезолвний тул тут WARN, не ERROR: [`run_js_eslint_fix`] однаково
+/// довершує фікс незалежно від цього кроку.
+fn run_js_oxlint_fix(targets: &[String]) {
+    let mut args = vec!["--fix".to_string()];
+    args.extend(targets.iter().cloned());
+    let result = exec_tool(&ToolRequest {
+        tool: OXLINT_TOOL.to_string(),
+        args,
+        stdin: None,
+        cwd: None,
+        env: vec![],
+        scratch_in: vec![],
+        scratch_out: vec![],
+    });
+    if result.status.is_none() {
+        log(
+            LogLevel::Warn,
+            "plugin-lang-js: fix(js/eslint) — `oxlint` не резолвиться (ні node_modules/.bin, ні \
+             PATH); крок best-effort, як і в канону (fix-eslint.mjs) — `eslint --fix` нижче \
+             виконається незалежно.",
         );
     }
 }
@@ -12536,8 +12605,8 @@ fn fix_js_eslint(request: &FixRequest) -> FixPlan {
     }
 
     apply_js_eslint_mechanical_fixes(request, &targets);
-    run_js_eslint_linter_fix("oxlint", &targets);
-    run_js_eslint_linter_fix("eslint", &targets);
+    run_js_oxlint_fix(&targets);
+    run_js_eslint_fix(&targets);
 
     FixPlan { edits: vec![] }
 }
@@ -12546,9 +12615,15 @@ fn fix_js_eslint(request: &FixRequest) -> FixPlan {
 /// реальний споживач `scratch-out`).
 const CONCERN_JSCPD_DUPLICATES: &str = "js/jscpd_duplicates";
 
-/// Декларація тула — схема `path:` (`bunx` резолвиться по PATH, як у
-/// `bun/licensee`).
-const JSCPD_TOOL: &str = "path:bunx";
+/// Декларація тула (§2.100) — схема `npm:`, не `path:bunx`: `jscpd` — реальна
+/// `dependencies`-декларація `@7n/rules-lang-js` (`plugins/lang-js/package.json`,
+/// `"jscpd": "^5.0.11"`), тобто вже лежить у дереві споживача після
+/// `npm install` (та сама умова, що [`STYLELINT_TOOL`]) — на відміну від
+/// `oxlint` ([`OXLINT_TOOL`]), тут НЕ треба нічого додавати в
+/// `dependencies`, пакет уже там. `bunx` різнив би долю концерну від
+/// наявності стороннього рантайму, якого зріз 6 контракту (npm-канал геть)
+/// більше не гарантує (доккомент [`ESLINT_TOOL`]).
+const JSCPD_TOOL: &str = "npm:jscpd";
 
 /// Ім'я JSON-звіту, яке `jscpd` дає репортеру `json` — воно ж
 /// `scratch-out`-глоб (без `**/`: звіт лежить рівно в каталозі `--output`).
@@ -12685,7 +12760,6 @@ fn detect_jscpd_duplicates() -> Vec<Diagnostic> {
     let result = exec_tool(&ToolRequest {
         tool: JSCPD_TOOL.to_string(),
         args: vec![
-            "jscpd".to_string(),
             ".".to_string(),
             "--reporters".to_string(),
             "json".to_string(),

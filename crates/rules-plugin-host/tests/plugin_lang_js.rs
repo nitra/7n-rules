@@ -170,7 +170,12 @@ fn describe_declares_all_concerns_with_expected_scopes() {
         vec![
             "path:bun".to_string(),
             "npm:stylelint".to_string(),
-            "path:bunx".to_string(),
+            // §2.100: замінено спільний "path:bunx" (ESLINT_TOOL ==
+            // JSCPD_TOOL до цього) на три окремі `npm:`-записи — зріз 6
+            // контракту знімає неявну гарантію присутності `bun`/`bunx`.
+            "npm:eslint".to_string(),
+            "npm:oxlint".to_string(),
+            "npm:jscpd".to_string(),
             // §2.86: `js/eslint` пише ним механічну заміну на диск ДО спавну
             // лінтерів — перший тул цього компонента, чий споживач фіксер.
             "path:tee".to_string()
@@ -2659,7 +2664,7 @@ fn jscpd_missing_report_degrades_to_warning_with_tool_output() {
     let dir = tempfile::tempdir().expect("tempdir має створитись");
     let host = tool_host(
         dir.path(),
-        "bunx",
+        "jscpd",
         "#!/bin/sh\necho 'jscpd: nothing to do'\nexit 0\n",
     );
     let path = require_fixture();
@@ -2679,13 +2684,15 @@ fn jscpd_missing_report_degrades_to_warning_with_tool_output() {
 #[test]
 fn jscpd_unparsable_report_degrades_to_warning() {
     let dir = tempfile::tempdir().expect("tempdir має створитись");
-    // `$6` — значення `--output` у канонічному наборі аргументів
-    // (`jscpd . --reporters json --output <scratch> --silent`), тобто сам
-    // scratch-каталог: тул пише звіт туди, куди його попросили.
+    // `$5` — значення `--output` у канонічному наборі аргументів
+    // (`. --reporters json --output <scratch> --silent`; §2.100 прибрала
+    // провідний `jscpd`-аргумент — тул тепер сам бінарник `npm:jscpd`, не
+    // пакет, який резолвив би `bunx`), тобто сам scratch-каталог: тул пише
+    // звіт туди, куди його попросили.
     let host = tool_host(
         dir.path(),
-        "bunx",
-        "#!/bin/sh\nprintf 'not json' > \"$6/jscpd-report.json\"\nexit 0\n",
+        "jscpd",
+        "#!/bin/sh\nprintf 'not json' > \"$5/jscpd-report.json\"\nexit 0\n",
     );
     let path = require_fixture();
     let mut plugin = host.load(&path, PLUGIN_WORLD_VERSION).unwrap();
@@ -2704,12 +2711,12 @@ fn jscpd_reads_report_written_into_the_scratch_dir() {
     let dir = tempfile::tempdir().expect("tempdir має створитись");
     let host = tool_host(
         dir.path(),
-        "bunx",
+        "jscpd",
         "#!/bin/sh\n\
-         case \"$6\" in /*) ;; *) exit 9 ;; esac\n\
+         case \"$5\" in /*) ;; *) exit 9 ;; esac\n\
          printf '{\"duplicates\":[{\"format\":\"javascript\",\"lines\":25,\
          \"firstFile\":{\"name\":\"a.mjs\",\"start\":1,\"end\":26},\
-         \"secondFile\":{\"name\":\"b.mjs\",\"start\":10,\"end\":35}}]}' > \"$6/jscpd-report.json\"\n\
+         \"secondFile\":{\"name\":\"b.mjs\",\"start\":10,\"end\":35}}]}' > \"$5/jscpd-report.json\"\n\
          exit 0\n",
     );
     let path = require_fixture();
@@ -2743,13 +2750,13 @@ fn jscpd_skips_clone_entries_that_do_not_match_the_report_schema() {
     let dir = tempfile::tempdir().expect("tempdir має створитись");
     let host = tool_host(
         dir.path(),
-        "bunx",
+        "jscpd",
         "#!/bin/sh\n\
          printf '{\"duplicates\":[{\"format\":\"javascript\",\"lines\":25,\
          \"firstFile\":{\"start\":1,\"end\":26},\"secondFile\":{\"name\":\"b.mjs\",\"start\":10,\"end\":35}},\
          {\"format\":\"vue\",\"lines\":30,\
          \"firstFile\":{\"name\":\"c.vue\",\"start\":2,\"end\":32},\
-         \"secondFile\":{\"name\":\"d.vue\",\"start\":5,\"end\":35}}]}' > \"$6/jscpd-report.json\"\n\
+         \"secondFile\":{\"name\":\"d.vue\",\"start\":5,\"end\":35}}]}' > \"$5/jscpd-report.json\"\n\
          exit 0\n",
     );
     let path = require_fixture();
