@@ -32,6 +32,58 @@ git ls-files '*.mjs' '*.js' '*.cjs' | grep -v '/tests\?/' | grep -v '\.test\.mjs
 | `coverage-provider` у чотирьох плагінах | 31 | — |
 | Rust у `crates/` для порівняння (17 крейтів) | — | 124 632 |
 
+## 1.1. Критерій завершення — перевірюваний, не лічильний
+
+**Міграція завершена тоді, коли `crates/rules-napi` можна видалити, і
+воркспейс збирається.**
+
+Це строгіше й чесніше за «немає JS-коду», бо не вимагає лічби файлів і не
+залежить від того, що вважати продуктивним кодом. Або аддон комусь
+потрібен — або міграція не завершена.
+
+### Чому саме цей крейт
+
+Зміряно 2026-08-31: **жоден крейт воркспейсу від нього не залежить**
+(`grep rules-napi crates/*/Cargo.toml` дає лише два коментарі). Він існує
+рівно в одному напрямку — щоб **JS міг покликати Rust**, — і всі 22 його
+експорти є цим рухом:
+
+```
+contract_version · resolve_changed_base · sanitize_worktree_name
+worktree_create/remove · collect_changed_files(_since) · walk_dir
+list_native_concerns · run_native_concern(_s_batch)
+list_native_fixes · run_native_concern_fix
+build_lint_plan · match_lint_globs · render_violations
+wasm_plugin_concerns/manifest · run_wasm_concern(_fix)
+```
+
+Коли JS-оркестрації не стане, `rules-cli` кличе `rules-core` і
+`rules-plugin-host` напряму — посередник між своїми ж крейтами не потрібен.
+
+### Межа — це чотири артефакти, і вони помирають разом
+
+| артефакт | напрямок | рядків |
+|---|---|---:|
+| `npm/scripts/lib/native.mjs` | JS → Rust (JS-бік) | 273 |
+| `crates/rules-napi` | JS → Rust (аддон) | 2 620 |
+| `npm/scripts/lib/lint-surface/bridge-host.mjs` | Rust → JS (JS-бік) | 298 |
+| `crates/rules-cli/src/js_fallback.rs` | Rust → JS (Rust-бік) | 176 |
+
+Жоден із них не робить корисної роботи — усі чотири лише переносять виклик
+через межу, якої після міграції не буде.
+
+Розвідка `lint-surface` дійшла до тієї самої форми незалежно: «зникнення
+`bridge-host.mjs` І Є критерій завершення міграції області». Два незалежні
+розбори зійшлись на тому, що межу треба міряти межею, а не обсягом.
+
+### Побічний наслідок, який знімає окремий клас вад
+
+З аддоном зникають **три платформні npm-пакети**
+(`npm/packages/rules-{darwin-arm64,linux-x64,win32-x64}`), чий `files`
+містить рівно один файл — `.node`-аддон, і жодного `bin`. Разом із ними
+зникає клас «застарілий registry-бінарь у `node_modules`», який за одну
+сесію тричі коштував годин діагностики.
+
 ## 2. Чинна межа Rust ↔ JS
 
 Межа проходить **в обидва боки**, і це головне, що треба тримати в голові:
