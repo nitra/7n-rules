@@ -74,10 +74,6 @@ fn build_manifest() -> Manifest {
         version: "0.1.0".to_string(),
         world_version: "5.0.0".to_string(),
         domains: vec![Domain::Lint],
-        // Мажор `5.0.0`: фікстура не оголошує жодного світу повноважень —
-        // порожній список і є перевіркою, що ядровий шлях лишається робочим
-        // без них (реєстр `KNOWN_CAPABILITY_WORLDS` поки порожній).
-        worlds: vec![],
         concerns: vec![ConcernContribution {
             key: CONCERN_KEY.to_string(),
             scope: ConcernScope::Full,
@@ -91,6 +87,11 @@ fn build_manifest() -> Manifest {
         },
         tools: vec![],
         fix_only_concerns: vec![],
+        // Фікстура свідомо не оголошує жодного світу повноважень: порожній
+        // список і є перевіркою, що ЯДРОВИЙ шлях лишається робочим без них.
+        // (`KNOWN_CAPABILITY_WORLDS` уже НЕ порожній — там `file-reader`,
+        // `llm-consumer` і `coverage-provider`, — тож саме порожнеча тут
+        // несе сенс, а не збіг зі станом реєстру.)
         worlds: vec![],
     }
 }
