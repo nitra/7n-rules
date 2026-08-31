@@ -12697,3 +12697,84 @@ default-шляху фіксу, доки `--native-fix` не стане дефо�
 припускав; це не помилка плану (він так само каже «висновок автора, а не
 запис із чинного плану»), радше нагадування не читати клас D як «готово до
 видалення» без окремої перевірки підключення.
+
+### 2.105. Крок 1 плану full-rust-migration — 894 рядки доведено мертвого JS з `npm/scripts/lib/**` (поза `lint-surface`) і `npm/scripts/*.mjs` знято; одна розбіжність з розвідкою знайдена і виправлена
+
+**Контекст.** `docs/plans/2026-08-31-full-rust-migration-plan.md`, крок 1, за
+розвідкою `docs/specs/2026-08-31-recon-orchestration.md` (§3, §9 «крок 0»):
+знести мертвий JS оркестраційного шару — 512 рядків із готовим Rust-портом
+(`gha-workflow.mjs`, `fix/template-deep-merge.mjs`, `fix/vscode-ext-add.mjs`)
+і 382 рядки без порту (вісім файлів §3.2), плюс закомічений бекап
+`adr/normalize-pipeline.mjs.orig` (38 КБ). Розвідка робилась іншим агентом;
+задача явно вимагала перевірити «мертвість» самостійно грепом по всьому
+репо, включно з динамічними формами імпорту, перш ніж видаляти.
+
+**Перевірка підтвердила мертвість десяти з одинадцяти файлів як є** —
+жодного продуктивного імпортера (лише власні `*.test.mjs`) ні статичним,
+ні динамічним (`await import(...)`) шляхом, ні через `concern.json`/рядкові
+специфікатори.
+
+**Розвідка спростована для одного файлу: `gha-workflow.mjs` мав живого
+споживача поза власним тестом.** `plugins/ci-github/rules/ga/tests/workflow-templates-actionlint.test.mjs:31`
+імпортував `parseWorkflowYaml` з `@7n/rules/scripts/lib/gha-workflow.mjs` —
+не як тест самого модуля, а як утиліту всередині окремого змістовного
+гейта (actionlint-перевірка канонічних `template/*.yml.snippet.yml`).
+Сама розвідка це передбачила (§3.1, рядок 115-118: «звірити, що
+`workflow-templates-actionlint.test.mjs` має чим замінити `parseWorkflowYaml`»),
+але не довела до кінця. `parseWorkflowYaml` виявився тонкою обгорткою
+(`try { parse(content) } catch { null }` навколо пакета `yaml`, який уже є
+прямою залежністю `plugins/ci-github/package.json`) — інших функцій
+`gha-workflow.mjs` цей тест не використовував. Фікс: інлайнено ту саму
+функцію прямо в тестовий файл (з докоментарем-посиланням на Rust-порт
+`crates/rules-template-merge/src/lib.rs:193`) замість імпорту з видаленого
+модуля. Ціль перевірено: `npx vitest run
+plugins/ci-github/rules/ga/tests/workflow-templates-actionlint.test.mjs` —
+зелений.
+
+**Окрема знахідка, яка НЕ стала блокером.** Доккоментар
+`crates/plugin-lang-php/src/lib.rs:1241` стверджує, що
+`npm/scripts/lib/fix/vscode-ext-add.mjs` «живий — його ще читають
+НЕпортовані `vscode_extensions`-концерни інших плагінів і ядра». Перевірка
+грепом (літеральний імпорт, рядковий специфікатор у `.json`, вміст усіх
+тринадцяти директорій `*/vscode_extensions/` у репозиторії) показала
+**нуль** файлових посилачів на цей модуль, крім самого доккоментаря — жоден
+з тринадцяти концернів `vscode_extensions` не має власного `.mjs`-фіксера,
+усі стоять на rego+`concern.json`. Твердження в Rust-доккоменті описує
+історичну підставу порту, а не чинний імпорт-граф; трактується як застаріле,
+не як спростування. `vscode-ext-add.mjs` видалено без заміни (тесту в
+модуля не було взагалі).
+
+**Що знято (37 файлів, git status):**
+
+- `npm/scripts/lib/gha-workflow.mjs` (220) + тест + доккоментар-доку +
+  запис в `docs/index.md`
+- `npm/scripts/lib/fix/template-deep-merge.mjs` (239) + тест + доку; разом з
+  ним спорожніла й видалена вся тека `npm/scripts/lib/fix/` (лишалась лише
+  `docs/`)
+- `npm/scripts/lib/fix/vscode-ext-add.mjs` (53) + доку (тесту не було)
+- вісім файлів §3.2 без порту (382 рядки): `npm/scripts/post-tool-use-check.mjs`,
+  `npm/scripts/lib/timing-summary.mjs`, `npm/scripts/lib/run-standard-lint.mjs`,
+  `npm/scripts/lib/run-lint-step.mjs`, `npm/scripts/lib/list-rule-ids.mjs`,
+  `npm/scripts/lib/discover-checkable-rules.mjs`,
+  `npm/scripts/lib/discover-check-rules-from-cursor.mjs`,
+  `npm/scripts/lib/check-reporter.mjs` — кожен разом з усіма своїми тестами
+  (для `discover-checkable-rules.mjs` їх було два: `npm/tests/discover-one-rule.test.mjs`
+  і `npm/scripts/lib/tests/discover-checkable-rules.test.mjs`) і доккоментарями-доками
+- `npm/scripts/lib/adr/normalize-pipeline.mjs.orig` (38 КБ, закомічений
+  бекап merge-конфлікту) — сам `normalize-pipeline.mjs` (925, живий, §5
+  розвідки) НЕ чіпався
+- індекси `npm/scripts/docs/index.md`, `npm/scripts/lib/docs/index.md`
+  оновлено (рядки видалених файлів прибрано); `npm/scripts/lib/fix/docs/index.md`
+  видалено разом з теками `fix/`
+
+**Не взято, свідомо:** `mirror-parity.mjs`, `blue-oak.mjs`,
+`collect-test-files.mjs` (розвідка не довела мертвість остаточно — §3.2
+розвідки), `adr/normalize-pipeline.mjs` (925, живий; клас D, залежить від
+зрізу 6 — §5 розвідки), усе в `npm/scripts/lib/lint-surface/**` і
+`crates/rules-docs` (чужі хвилі за умовами задачі).
+
+**Тести.** Цільовий прогін після зняття (єдиний живий тест, що торкався
+видаленого коду): `npx vitest run
+plugins/ci-github/rules/ga/tests/workflow-templates-actionlint.test.mjs` —
+PASS. Тести самих видалених модулів зникли разом з модулями — очікувано,
+названо тут явно.
