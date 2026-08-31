@@ -14706,5 +14706,96 @@ world-ів повноважень (`file-reader`, `llm-consumer`) і одног�
   `worlds = []`).
 - `cargo test -p rules-plugin-host` (повний, без фільтра) — регресія по
   всьому крейту після перезбірки контрольних фікстур вище.
+### 2.125. `taze`-скіл розібраний: JS-оркестратор (546 рядків) знесено, worktree-preflight і кроки 1/3/7 — у native-CLI, кроки 2/4-6 — у тексті `SKILL.md` для агента
 
+**Контекст.** Розбір `docs/specs/2026-08-31-recon-providers-rules-skills.md`
+§3 показав реальний блокер, не прибирання: `npx @7n/rules skill pi|cursor|codex
+taze` виконує НАШ CLI у власному процесі (`skills-cli.mjs:198-204` →
+`skills/taze/js/orchestrate.mjs`), а не агент, що читає `SKILL.md`.
+`js/`-підкаталог скіла НЕ копіюється в дерево консюмера
+(`n-rules-cli.mjs:957-961`) — виконується з `node_modules/@7n/rules/skills/…`
+через `npx`, доки npm-канал живий. Після зняття npm-канал-і-JS-CLI
+`js_fallback` шукав би `node_modules/@7n/rules/bin/n-rules.js`, якого не буде
+— `skill … taze` перестав би працювати мовчки-ламано. Заміряно: `taze/js/
+orchestrate.mjs` (456) + `migration-cache.mjs` (90) = 546 рядків, клас B
+(веде екосистеми через слот-шину `taze.provider@1`, той самий механізм, що
+`coverage-provider`).
+
+**Що зроблено.**
+
+1. **Worktree-lifecycle більше не власний.** Старий `orchestrate.mjs`
+   ре-експортував `bringChangesBackToOriginal`/`removeAutoCreatedWorktree` з
+   `auto-worktree.mjs` — програмний auto-create/auto-cleanup worktree в
+   ОБХІД агента. Розбір `docs/specs/2026-08-31-recon-orchestration-gap.md`
+   §2.3 назвав це справжнім блокером зняття файлу. Рішення — не портувати
+   цю логіку, а **прибрати потребу в ній**: `taze` (`main.json.worktree:
+   true`) тепер веде worktree так само, як БУДЬ-ЯКИЙ інший worktree-only
+   скіл — через загальний `n-rules:worktree:start`-блок, який агент
+   виконує сам (preflight + `mt worktree create`), лишається в
+   новоствореному worktree до кінця роботи (як ЦЯ сесія в
+   `.claude/worktrees/agent-adab0aa1d226ecdc3`) і сам відкриває PR. Жодного
+   "перенесення змін назад в оригінал" — немає окремого "оригіналу",
+   агент і є виконавець.
+2. **Кроки 1/3/7 (backup/diff/cleanup) — дельта до вже наявного
+   `n-rules taze diff`.** `npm/bin/n-rules-cli.mjs` мав `case 'taze':` лише
+   для `diff` (read-only semver-diff, вже спроєктований САМЕ для виклику
+   агентом — доккомент на місці: «агент отримує готовий список замість
+   ручного порівняння бекапів»). Додано `backup`/`cleanup` — той самий
+   слот `taze.provider@1` (contribution `id: "taze-js"`), той самий
+   `EcosystemProvider`-контракт (`detect`→`backup`/`cleanup`, без нового
+   плагінського коду — `plugins/lang-js/taze/provider.mjs` вже мав ці
+   методи, дельта суто у `n-rules-cli.mjs`). Це JS, і лишається JS
+   свідомо: `taze diff` вже задокументований у `main.rs:76` як «не
+   логіка, а dispatch слоту `taze.provider@1`… питання контракту плагінів,
+   не фази 8» — той самий клас, не новий борг.
+3. **Крок 2 (bump) і кроки 4-6 (breaking changes → сумісність →
+   рефакторинг) — текст `SKILL.md`, без коду.** Плагінські фрагменти
+   (`plugins/*/skills/taze/SKILL.fragment.md`) вже містили літеральні
+   шелл-команди для кроку 2 і були написані очікуючи одноходового
+   виконання — фактично вже готові для агента. Що змінилось у самому
+   `npm/skills/taze/SKILL.md` (і синхронізованій копії
+   `.cursor/skills/n-taze/SKILL.md`) — розділ «Оркестрація — не одним
+   промптом», який описував механіку `orchestrate.mjs`, замінено на
+   «Виконання — ти сам, крок за кроком»: явна інструкція, які команди
+   кликати на кожному кроці й що робити з кожним результатом (не переказ
+   того, що робив JS).
+4. **`ORCHESTRATED_SKILLS` (`crates/rules-cli/src/skill_cmd.rs`) тепер несе
+   лише `git-reconcile`.** `skill_runner_is_native` (`main.rs`) для `taze`
+   тепер повертає `true` без жодної зміни свого коду — предикат уже читав
+   список динамічно. `JS_ORCHESTRATED_SKILLS` (`skills-cli.mjs`) так само
+   звужено до `{git-reconcile}`; `isTazeOrchestratorSkillArgs` (мертвий
+   експорт — `n-rules-cli.mjs` вже імпортував лише
+   `isJsOrchestratedSkillArgs`, розбіжність між доккоментом і кодом, той
+   самий клас, що описаний у розборі §3.4 «документ проти коду») знесено.
+5. **Мовчазні відхилення, зафіксовані явно.** Міжрепозиторний кеш міграцій
+   `taze` (`~/.cache/n-rules/taze-migrations`, `migration-cache.mjs`) НЕ
+   перенесено — він мав сенс лише в архітектурі з ізольованим підвикликом
+   раннера на кожен major-пакет (кеш переживав один виклик і читався
+   наступним), якої більше немає: агент читає весь `SKILL.md` і код
+   проєкту в одному ході, кешу нема кому наповнювати чи читати між ходами.
+   Задокументовано в `CHANGELOG.md`/`SKILL.md`, не мовчки.
+
+**`git-reconcile` — окрема хвиля.** Той самий клас блокера
+(`skills-cli.mjs:225-231`, `ORCHESTRATED_SKILLS`), але `orchestrate.mjs`
+там — 3 484 рядки: Git inventory / patch-equivalence / worktree /
+cherry-pick / gates / push / PR детерміновано, LLM лише на semantic triage
+й розв'язанні конфліктів. Розбір §3.4 того самого документа кваліфікував
+це як «клас C для порту як є, B за наявності рішення» — новий крейт із
+нуля, не перенесення. У межах цієї задачі — НЕ розібраний, лишається
+JS-оркестрованим (`ORCHESTRATED_SKILLS = ["git-reconcile"]`). Один
+доведений розбір (`taze`) цінніший за два половинчасті — саме так
+записано в завданні.
+
+**Цільові прогони (синхронно, без фонових процесів):**
+- `cargo check -p rules-cli` — OK (547 крейтів).
+- `cargo test -p rules-cli --bin rules-cli -- orchestrat taze runner_branch
+  prompt_branch skill_takes foreign_commands` — 4 passed.
+- `npx vitest run bin/tests/n-rules-cli.test.mjs` (з `npm/`) — 21 passed,
+  0 failed (нові тести `taze backup`/`taze cleanup`/`taze` без дієслова).
+- `npx vitest run scripts/tests/skills-cli.test.mjs` (з `npm/`) — 27
+  passed, 0 failed.
+
+`npx @7n/rules lint` і `/doc-files` свідомо НЕ запускались (правило
+задачі) — CRC у frontmatter згенерованих доків (`skills-cli.md` тощо) після
+цієї правки стане застарілим; регенерація — окремим кроком.
 

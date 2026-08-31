@@ -7,11 +7,13 @@
  * pi-агент, чи зовнішній ACP-агент. `cursor`/`codex` — через `@7n/llm-lib/acp`
  * (napi-міст до `llm_lib::acp`, без власного JSON-RPC у JS).
  *
- * `skill <runner> taze|git-reconcile` — JS-оркестровані винятки із загального
- * шляху "весь SKILL.md одним промптом". `taze` детерміновано робить
- * backup/bump/diff/cleanup і викликає LLM лише для major-міграцій;
- * `git-reconcile` детерміновано інвентаризує Git-граф, готує worktree/PR і
- * викликає LLM лише для semantic triage та conflict resolution.
+ * `skill <runner> git-reconcile` — єдиний JS-оркестрований виняток із
+ * загального шляху "весь SKILL.md одним промптом": детерміновано інвентаризує
+ * Git-граф, готує worktree/PR і викликає LLM лише для semantic triage та
+ * conflict resolution. `taze` більше не оркестрований (§2.125, розбір
+ * `docs/specs/2026-08-31-recon-providers-rules-skills.md` §3) — іде загальним
+ * шляхом: `SKILL.md` інструктує агента напряму викликати
+ * `n-rules taze diff|backup|cleanup` для детермінованих кроків 1/3/7.
  *
  * Підтримувані формати:
  *   `npx \@7n/rules skill list`
@@ -32,7 +34,7 @@ import { readSkillMetaRaw, skillTier } from './lib/skill-meta.mjs'
 
 /** Виконавці скіла. `pi` — вбудований (рекомендований); `cursor`/`codex` — зовнішні ACP-агенти. */
 const RUNNERS = new Set(['pi', 'cursor', 'codex'])
-const JS_ORCHESTRATED_SKILLS = new Set(['taze', 'git-reconcile'])
+const JS_ORCHESTRATED_SKILLS = new Set(['git-reconcile'])
 
 const USAGE_LINES = [
   'Usage:',
@@ -184,32 +186,6 @@ async function runLlmCli(kind, prompt, projectDir, logError, deps = {}) {
 }
 
 /**
- * Виконує `taze` через оркестратор (`../skills/taze/js/orchestrate.mjs`) замість
- * загального одноходового шляху — детерміновані кроки без LLM (бекап/bump/diff/
- * прибирання) + по одному обмеженому виклику обраного `runner` на кожен major-пакет.
- * @param {'pi' | 'cursor' | 'codex'} runner раннер для per-пакетних викликів
- * @param {string} projectDir корінь проєкту (де лежить package.json)
- * @param {(line: string) => void} log вивід прогресу/звіту
- * @param {(line: string) => void} logError вивід помилок
- * @param {{ runTazeOrchestrator?: (opts: object) => Promise<{ ok: boolean, report: string }> }} [deps] інжект для тестів
- * @returns {Promise<number>} exit code (0 — усі major-пакети ok)
- */
-async function runTazeOrchestratorCli(runner, projectDir, log, logError, deps = {}) {
-  let orchestrate = deps.runTazeOrchestrator
-  if (!orchestrate) {
-    const orchestrateModule = await import('../skills/taze/js/orchestrate.mjs')
-    orchestrate = orchestrateModule.runTazeOrchestrator
-  }
-  try {
-    const result = await orchestrate({ cwd: projectDir, runner, log, deps })
-    return result.ok ? 0 : 1
-  } catch (error) {
-    logError(error instanceof Error ? error.message : String(error))
-    return 1
-  }
-}
-
-/**
  * Виконує `git-reconcile` через JS-оркестратор: Git inventory/patch-equivalence/
  * worktree/cherry-pick/gates/push/PR — детерміновано; LLM — лише semantic triage
  * та conflict resolution.
@@ -246,28 +222,14 @@ export function resolveBundledPackageRoot(fromModuleUrl = import.meta.url) {
 }
 
 /**
- * Чи `argv` (аргументи після `skill`) резолвиться в JS-оркестрований
- * worktree-only `taze`-шлях (`runTazeOrchestratorCli`) — той самий критерій,
- * що й нижче в `runSkillsCli`. Використовується `n-rules.js`, щоб не мутувати
- * root `package.json` (self-upgrade `@7n/rules`) ДО власного worktree-гейту
- * оркестратора: той сам створює worktree і перевіряє чистоту дерева
- * (`ensureRunningInWorktree`, `requireCleanTree: true`) — мутація package.json
- * прямо перед цим викликом примусово провалила б auto-create там, де дерево
- * інакше було б чисте.
- * @param {string[]} argv аргументи після `skill`
- * @returns {boolean} `true`, якщо запуск піде через `runTazeOrchestratorCli`
- */
-export function isTazeOrchestratorSkillArgs(argv) {
-  const [first, second] = argv
-  return RUNNERS.has(first) && first !== 'claude' && normalizeSkillId(second) === 'taze'
-}
-
-/**
  * Чи аргументи ведуть у будь-який JS-оркестрований skill. Потрібно верхньому
  * CLI, щоб не мутувати root package.json self-upgrade-ом до власного preflight
- * оркестратора.
+ * оркестратора. `taze` тут БІЛЬШЕ немає — розібраний скіл (§2.125): worktree-
+ * preflight несе загальний `n-rules:worktree:start`-блок SKILL.md, а кроки
+ * 1/3/7 виконує агент напряму через `n-rules taze diff|backup|cleanup`, без
+ * власного JS-оркестратора з окремим worktree-гейтом.
  * @param {string[]} argv аргументи після `skill`
- * @returns {boolean} true для taze/git-reconcile з pi/cursor/codex
+ * @returns {boolean} true для git-reconcile з pi/cursor/codex
  */
 export function isJsOrchestratedSkillArgs(argv) {
   const [first, second] = argv
@@ -309,15 +271,6 @@ export async function runSkillsCli(argv, options = {}) {
         throw new Error(`Skill name is required after "${first}"`)
       }
       const skillId = normalizeSkillId(second)
-      if (first !== 'claude' && skillId === 'taze') {
-        return await runTazeOrchestratorCli(
-          /** @type {'pi' | 'cursor' | 'codex'} */ (first),
-          projectDir,
-          log,
-          logError,
-          deps
-        )
-      }
       if (first !== 'claude' && skillId === 'git-reconcile') {
         return await runGitReconcileOrchestratorCli(
           /** @type {'pi' | 'cursor' | 'codex'} */ (first),

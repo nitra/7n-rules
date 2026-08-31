@@ -1971,14 +1971,26 @@ export async function runCli(argv) {
           break
         }
         case 'taze': {
-          // n-rules taze diff — read-only semver-diff package.json ↔ package.json.taze-bak
-          // (root + воркспейси) для скілу n-taze: скрипт класифікує major-оновлення,
-          // агент отримує готовий список замість ручного порівняння бекапів.
+          // n-rules taze diff|backup|cleanup — детерміновані кроки скілу n-taze
+          // (кроки 1/3/7 SKILL.md), викликані АГЕНТОМ напряму — без JS-оркестратора:
+          // `diff` — read-only semver-diff package.json ↔ package.json.taze-bak
+          // (root + воркспейси), агент отримує готовий список замість ручного
+          // порівняння бекапів; `backup`/`cleanup` — створення/прибирання цих
+          // `.taze-bak`-файлів по всьому монорепо (`EcosystemProvider.backup`/
+          // `.cleanup`). Крок 2 (bump) агент виконує напряму шелл-командами
+          // фрагмента плагіна (`bunx taze -w -r latest && bun install`) — там
+          // нема класифікаційної логіки, яку варто ховати за CLI.
           // Слот taze.provider@1 покриває обидва способи споживання handler-модуля
           // (default export EcosystemProvider і named export runTazeCli, spec
           // 2026-07-27-universal-plugin-slots-lang-php-extraction §4/§5.1.5) — беремо
           // contribution за стабільним id "taze-js" (конвенція taze-<name>), НЕ за
           // hardcoded npm-іменем плагіна.
+          const verb = args[0]
+          if (verb !== 'diff' && verb !== 'backup' && verb !== 'cleanup') {
+            console.error('Usage: n-rules taze <diff|backup|cleanup> [...]')
+            process.exitCode = 1
+            break
+          }
           const { getSlotContributions, resolveSlotGraph } = await import('../scripts/lib/plugin-slots.mjs')
           const { readNRulesConfigLite } = await import('../scripts/lib/read-n-rules-config-lite.mjs')
           const config = await readNRulesConfigLite(cwd())
@@ -1986,15 +1998,25 @@ export async function runCli(argv) {
           const contribution = getSlotContributions(graph, 'taze.provider', [1]).find(c => c.id === 'taze-js')
           if (!contribution) {
             console.error(
-              '❌ taze diff потребує npm/bun-провайдер (taze.provider "taze-js") — встанови @7n/rules-lang-js: запусти npx @7n/rules для авто-встановлення'
+              `❌ taze ${verb} потребує npm/bun-провайдер (taze.provider "taze-js") — встанови @7n/rules-lang-js: запусти npx @7n/rules для авто-встановлення`
             )
             process.exitCode = 1
             break
           }
           const { pathToFileURL } = await import('node:url')
           // eslint-disable-next-line no-unsanitized/method
-          const { runTazeCli } = await import(pathToFileURL(contribution.resourcePath).href)
-          process.exitCode = await runTazeCli(args)
+          const handlerModule = await import(pathToFileURL(contribution.resourcePath).href)
+          if (verb === 'diff') {
+            process.exitCode = await handlerModule.runTazeCli(args)
+            break
+          }
+          // `backup`/`cleanup` ідуть через default-export EcosystemProvider
+          // (той самий контракт, що й колишній `orchestrate.mjs`: `detect` дає
+          // список маніфестів, `backup`/`cleanup` — операції над ними).
+          const provider = handlerModule.default
+          const manifests = provider.detect(cwd(), { spawnFn: spawnSync })
+          await provider[verb](cwd(), manifests, {})
+          process.stdout.write(`${JSON.stringify({ ok: true, manifests })}\n`)
 
           break
         }
