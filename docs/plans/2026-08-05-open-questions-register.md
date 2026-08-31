@@ -13780,3 +13780,88 @@ gitignored бінарний build-артефакт, у якому рядок т�
   наявні гейти (`fs-read`-preopens, contract-test-kit, additive-сумісність)
   без регресії.
 
+### 2.118. Останній справжній залишок концернового портування закрито: `test/stryker_config` — fix-половина портована у `crates/plugin-lang-js`
+
+**Джерело.** Таблиця винятків `FIX_STAYS_IN_JS`
+(`npm/scripts/lib/lint-surface/tests/wasm-plugin-parity.test.mjs`) тримала
+запис `test/stryker_config/fix-stryker_config.mjs` із причиною «fix
+потребує ПОВТОРНОГО планування по дереву (`planStrykerActions`), а
+napi-міст будує `FixRequest::files` лише з полів `file` переданих
+violations». §2.102 уже перевірила цю причину й записала: «порт більше не
+заблокований формою мосту (сам порт — окрема хвиля, тут не робився)» —
+`explicit_fix_glob` (`crates/rules-napi/src/lib.rs`) дає контрибуції з
+непорожнім `fix_glob` повний full-scope батч (`build_full_scope_files`)
+плюс union із файлами діагностик, а не «лише `file` переданих violations».
+Ця задача перевірила оцінку §2.102 незалежно (дві попередні спроби впали
+не по суті — вотчдог і незаписаний стан) і виконала сам порт.
+
+**Що зроблено.**
+1. `crates/plugin-lang-js/src/lib.rs`: `fn fix_stryker_config` — повторно
+   кличе `plan_stryker_actions` (та сама чиста функція, що вже живить
+   `detect_stryker_config`) над `request.files` і транслює
+   `StrykerPlan` у `FixPlan`. Три baseline-джерела вшито `include_str!`
+   (`STRYKER_BASELINE_TEXT`/`STRYKER_VUE_BASELINE_TEXT`/
+   `STRYKER_VUE_PLUGIN_TEXT`/`VITEST_BASELINE_TEXT`) — той самий мотив, що
+   `OXLINT_CANONICAL_JSON` (зріз 2): гість і асет версіонуються одним
+   релізом. `BaselineAction`/`AugmentWrite` розширено полем `content` —
+   обчислюється РАЗОМ із планом (включно з `configFile`-transform-ом
+   регексом `STRYKER_CONFIG_FILE_RE`, порт `writeBaseline`
+   `fix-stryker_config.mjs:29-44`), а не окремо на записі, як робив JS T0.
+   `.gitignore`-секція — порт `ensureGitignoreEntries` (`gitignore_append_edit`).
+2. Контрибуція `CONCERN_STRYKER_CONFIG` дістала непорожній `fix_glob`
+   (ТОТОЖНИЙ detect-глобу — на відміну від storybook-пари §2.87, де
+   fix-глоб ширший, тут `plan_stryker_actions` не потребує нових шляхів
+   поза вже наявним детект-скоупом).
+3. **Правило проєкту «мовчазний пропуск — вада» застосовано:** JS T0 на
+   `plan.fatal` (кореневий `package.json` зник) тихо повертав
+   `{touchedFiles: []}` без жодного сліду; порт натомість голосно логує
+   причину (`LogLevel::Error`) перед порожнім планом.
+4. JS-канон знято: `fix-stryker_config.mjs`, а разом і `main.mjs` — після
+   видалення єдиного живого споживача (`fix-stryker_config.mjs`) `main.mjs`
+   лишався потрібним лише `wasm-plugin-parity.test.mjs`, а той давно звіряє
+   wasm НЕ з живим `main.mjs`, а зі знятим golden-еталоном
+   (`fixtures/wasm-parity/test/stryker_config.json`, вже існував — detect
+   був портований раніше). Файлові доки цих двох модулів (`docs/main.md`,
+   `docs/fix-stryker_config.md`, `docs/index.md` директорії) видалено разом
+   із джерелом.
+5. `FIX_STAYS_IN_JS` — запис знято (три записи лишилось замість чотирьох);
+   `FIX_ONLY_IN_GUEST` — додано `{ ruleId: 'test', concern: 'stryker_config' }`
+   (довжина таблиці 19 → 20); doc-коментарі й назва теста, що рахували
+   «чотири» винятки, виправлено на «три».
+6. **Характеризація перенесена, не викинута** (правило проєкту):
+   видалений `plugins/lang-js/rules/test/stryker_config/tests/stryker_config.test.mjs`
+   покривав сценарії, яких §2.93-гейт напряму не перевіряє (множинні
+   workspace-и, «наявний конфіг не перезаписується», augment-fail лишає
+   файл незайманим — і non-literal export, і syntax error, — ідемпотентність
+   другого прогону після augment-у). П'ять нових `#[cfg(test)]` у
+   `crates/plugin-lang-js/src/lib.rs` відтворюють ці сценарії напряму над
+   `fix_stryker_config`.
+
+**Розбіжність канону, задокументована, не відтворена.** `fix-stryker_config.mjs`
+на `plan.fatal` мовчав; порт логує. Жодних інших відхилень — фіксатор
+чистий (idempotent baseline-copy + augment + gitignore-append), сюрпризів
+канону немає.
+
+**Цільові прогони (усі синхронно, без фонових процесів):**
+- `cargo test -p plugin-lang-js` — 483 passed (20 стосуються
+  `stryker_config`, зокрема 15 detect + 5 перенесеної характеризації fix).
+- `node npm/scripts/build-wasm-plugins.mjs` — 6 плагінів зібрано під
+  `wasm32-wasip3`.
+- `cargo build --release -p rules-napi` — OK.
+- `N_RULES_NATIVE_ADDON=… npx vitest run
+  npm/scripts/lib/lint-surface/tests/wasm-plugin-parity.test.mjs` —
+  317 passed (увесь файл, включно з усіма 14 `test/stryker_config`-тестами
+  й усіма 16 тестами §2.93-гейта).
+- `N_RULES_NATIVE_ADDON=… npx vitest run
+  npm/scripts/lib/lint-surface/tests/wasm-plugins.test.mjs
+  npm/scripts/lib/tests/wasm-builtin-pins.test.mjs` — 64 passed.
+- `npx vitest run plugins/lang-js/rules/test/stryker_config/tests/stryker-vue-macros-ignorer.test.mjs`
+  (лишився неторкнутий тест плагіна даних, не детектора) — 11 passed.
+- Ручний смок-прогін РЕАЛЬНОГО napi-мосту (`runWasmConcern` →
+  `runWasmConcernFix` → запис едитів → повторний `runWasmConcern`) на
+  Vue-workspace: чотири violations → чотири edits (`stryker.config.mjs`,
+  `stryker-vue-macros-ignorer.mjs`, `vitest.config.mjs`, `.gitignore`) →
+  нуль violations після застосування — довів наскрізний шлях §2.102 живим,
+  а не лише в юніт-тестах.
+
+

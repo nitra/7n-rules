@@ -6,28 +6,27 @@
 //! створений за флоу скіла `npm/skills/wasm-plugin/` (scaffold → реалізація →
 //! golden-тести).
 //!
-//! # §2.93 — цей крейт ЄДИНА реалізація фіксу девʼятнадцяти концернів
+//! # §2.93 — цей крейт ЄДИНА реалізація фіксу двадцяти концернів
 //!
-//! Борг «спершу парність» для `plugins/lang-js` закрито: девʼятнадцять
+//! Борг «спершу парність» для `plugins/lang-js` закрито: двадцять
 //! `fix-<concern>.mjs` знято (`bun/layout`, `bun/licensee`, `js/check`,
 //! `js/doc_comments`, `js/jscpd_config`, `js/package_json`,
 //! `js/vscode_extensions`, `js-run/jsconfig`, `js-run/runtime`,
 //! `npm-module/emit_types_config`, `npm-module/npm_package_json`,
 //! `npm-module/root_package_json`, `style/lint`, `style/package_json`,
 //! `style/tooling`, `style/vscode_extensions`, `style/vscode_settings`,
-//! `test/storybook-ci`, `test/storybook-scaffold`). Для КОЖНОГО з них
-//! читання «порожній `FixPlan` → підхопить JS-канон» відтоді НЕПРАВДИВЕ:
-//! `loadT0Patterns` (`run-fix.mjs`) третього шару для них більше не має,
-//! тож кожна гілка, що віддає порожній план, мусить бути СВІДОМИМ no-op, а
-//! не «нехай доробить JS». Гейт складу резолву — `§2.93` у
-//! `npm/scripts/lib/lint-surface/tests/wasm-plugin-parity.test.mjs`.
+//! `test/storybook-ci`, `test/storybook-scaffold`, `test/stryker_config` —
+//! останній додано §2.118, доккомент секції «Зріз 1 контракту v3.1»). Для
+//! КОЖНОГО з них читання «порожній `FixPlan` → підхопить JS-канон» відтоді
+//! НЕПРАВДИВЕ: `loadT0Patterns` (`run-fix.mjs`) третього шару для них
+//! більше не має, тож кожна гілка, що віддає порожній план, мусить бути
+//! СВІДОМИМ no-op, а не «нехай доробить JS». Гейт складу резолву — `§2.93`
+//! у `npm/scripts/lib/lint-surface/tests/wasm-plugin-parity.test.mjs`.
 //!
-//! Чотири концерни плагіна фікс у JS ЗБЕРЕГЛИ, і кожен з іменованою
+//! Три концерни плагіна фікс у JS ЗБЕРЕГЛИ, і кожен з іменованою
 //! причиною: `js/eslint` (доккомент [`ESLINT_TOOL`] — канон робить те,
 //! чого гість не робить), `bun/package_json` (§2.92 — не портований),
-//! `test/storybook-vitest-config` (§2.87 — не портований),
-//! `test/stryker_config` (портовано лише detect-половину — доккомент
-//! секції «Зріз 1 контракту v3.1»).
+//! `test/storybook-vitest-config` (§2.87 — не портований).
 //!
 //! ТРИДЦЯТЬ ШІСТЬ концернів у контрибуції (перелік нижче —
 //! перші чотирнадцять; батчі 5–9 і зріз 1 описані в доккоментах однойменних секцій
@@ -3871,6 +3870,17 @@ fn build_manifest() -> Manifest {
             // читає повз `ctx.files` (`.n-rules.json` self-gate і
             // `.gitignore`), плюс сам vue-plugin-файл, чию наявність
             // перевіряє `planBaselineFile` (доккомент секції «Зріз 1»).
+            //
+            // §2.118 — fix-glob ТОТОЖНИЙ detect-глобу (на відміну від
+            // storybook-пари §2.87, де fix-глоб ШИРШИЙ): `plan_stryker_actions`
+            // читає рівно ті самі шляхи, що вже потрібні детекту (js-roots
+            // через `package.json`, наявність baseline-ів, вміст наявного
+            // `stryker.config.mjs` для augment, `.gitignore`), нового скоупу
+            // фіксу не потрібно. Непорожній `fix-glob` вмикає в napi-мосту
+            // full-scope fix-батч (`build_full_scope_files`,
+            // `crates/rules-napi/src/lib.rs`) — саме та форма, що зробила
+            // порт цього фіксу можливим (доккомент модуля, розбіжність
+            // застарілого запису `FIX_STAYS_IN_JS`).
             ConcernContribution {
                 key: CONCERN_STRYKER_CONFIG.to_string(),
                 scope: ConcernScope::Full,
@@ -3884,7 +3894,16 @@ fn build_manifest() -> Manifest {
                     "**/vitest.config.{mjs,js}".to_string(),
                     "**/src/**/*.vue".to_string(),
                 ],
-                fix_glob: vec![],
+                fix_glob: vec![
+                    ".n-rules.json".to_string(),
+                    ".n-cursor.json".to_string(),
+                    ".gitignore".to_string(),
+                    "**/package.json".to_string(),
+                    "**/stryker.config.mjs".to_string(),
+                    "**/stryker-vue-macros-ignorer.mjs".to_string(),
+                    "**/vitest.config.{mjs,js}".to_string(),
+                    "**/src/**/*.vue".to_string(),
+                ],
             },
             // Зріз 2 контракту v3.1: `js/check`. Глоб — `concern.json.lint.glob`
             // плюс `**/*.vue` (детекція vue-воркспейсів `isVueWorkspace`,
@@ -8965,7 +8984,8 @@ fn detect_vue_packages(files: &[SourceFile]) -> Vec<Diagnostic> {
 
 // =====================================================================
 // Зріз 1 контракту v3.1 (`docs/specs/2026-08-01-plugin-contract-v31-surfaces.md`,
-// §7): `test/stryker_config` — порт detect-половини.
+// §7): `test/stryker_config` — detect ПОРТОВАНО тут, fix ПОРТОВАНО §2.118
+// ([`fix_stryker_config`] нижче за текстом).
 //
 // # Чому цей концерн узагалі був заблокований — і чому блокер знявся
 //
@@ -8981,20 +9001,25 @@ fn detect_vue_packages(files: &[SourceFile]) -> Vec<Diagnostic> {
 // компонента зникнути не можуть. Тому гілка `plan.fatal =
 // "canonical baseline не знайдено (…) — перевстанови @7n/rules"` у порті
 // НЕДОСЯЖНА за конструкцією, а не «пропущена» (задокументована розбіжність 1
-// нижче), і жодного байта асетів у компонент вшивати не треба.
+// нижче).
 //
-// Вміст асетів потрібен ЛИШЕ fix-половині (T0 пише baseline у дерево). Її
-// цей зріз свідомо лишає в JS (`fix-stryker_config.mjs`, незмінний):
-// napi-міст будує `FixRequest::files` виключно з полів `file` переданих
-// violations (`crates/rules-napi::run_wasm_concern_fix`), тобто гість у
-// `export fix` бачить лише ВІДСУТНІ (нечитані) цільові файли й не може
-// повторити планувальник — а весь T0 цього концерну на повторному
-// плануванні й тримається (`planStrykerActions(cwd)` у `apply`). Це
-// обмеження host-мосту, не контракту, і воно поза бюджетом зрізу, який за
-// умовою контракту не торкається. Диспатч від цього не страждає:
-// `loadT0Patterns` (`run-fix.mjs`) ДОДАЄ wasm-патерн ПЕРЕД JS-патерном, а не
-// заміщає його, тож порожній `fix-plan` гостя (дефолтна гілка `Guest::fix`)
-// — це рівно «нічого не чиню», і фіксить далі JS-канон.
+// Вміст асетів потрібен fix-половині (T0 пише baseline у дерево) —
+// [`STRYKER_BASELINE_TEXT`]/[`STRYKER_VUE_BASELINE_TEXT`]/
+// [`STRYKER_VUE_PLUGIN_TEXT`]/[`VITEST_BASELINE_TEXT`], усі чотири
+// `include_str!`. Цей зріз (детект) їх свідомо не споживає (плану
+// потрібен лише факт «target відсутній», не вміст baseline-а); §2.118
+// прибрала причину, через яку fix лишався окремим JS-каноном
+// (`fix-stryker_config.mjs`, тоді незмінний): застарілий запис
+// `FIX_STAYS_IN_JS` стверджував, що napi-міст будує `FixRequest::files`
+// виключно з полів `file` переданих violations, тож гість у `export fix`
+// бачив би лише ВІДСУТНІ (нечитані) цільові файли й не міг повторити
+// планувальник. §2.102 показала, що це вже неправда: `explicit_fix_glob`
+// (`crates/rules-napi/src/lib.rs`) дає контрибуції з непорожнім `fix_glob`
+// full-scope батч (`build_full_scope_files`) плюс union із файлами
+// діагностик — рівно те, чого бракувало. Контрибуція нижче тепер оголошує
+// `fix_glob` (тотожний detect-глобу), і [`fix_stryker_config`] повторно
+// кличе [`plan_stryker_actions`] над цим full-scope батчем — той самий
+// прийом, що `planStrykerActions(cwd)` у видаленому JS T0.
 //
 // # Глоб контрибуції
 //
@@ -9088,6 +9113,43 @@ const VUE_MACROS_PLUGIN: &str = "./stryker-vue-macros-ignorer.mjs";
 
 /// `VUE_MACROS_IGNORER` (`main.mjs:66`).
 const VUE_MACROS_IGNORER: &str = "vue-macros";
+
+/// `STRYKER_CONFIG_FILE_RE` (`main.mjs:45`) — заміна literal `configFile` у
+/// скопійованому baseline-і на фактичне імʼя vitest-конфіга js-root-а
+/// (`fix_stryker_config`, §2.118). Non-global regex — `regex::Regex::replace`
+/// без `_all` заміняє лише ПЕРШИЙ збіг, точне дзеркало JS `String#replace`
+/// без прапорця `g`.
+const STRYKER_CONFIG_FILE_RE: &str = r"configFile: 'vitest\.config\.[cm]?js'";
+
+/// `GITIGNORE_SECTION_LABEL` (`main.mjs:246`) — header-коментар секції
+/// тест-артефактів у `.gitignore` (`ensureGitignoreEntries`, §2.118).
+const GITIGNORE_SECTION_LABEL: &str = "Test artifacts: Stryker + coverage (test.mdc)";
+
+/// Canonical non-Vue stryker-baseline (`STRYKER_BASELINE_PATH`,
+/// `main.mjs:19`) — вшитий асет замість читання з диска (той самий мотив, що
+/// [`OXLINT_CANONICAL_JSON`]: гість і асет версіонуються одним релізом,
+/// лишень fix-половина `test/stryker_config` (§2.118) споживає текст).
+const STRYKER_BASELINE_TEXT: &str = include_str!(
+    "../../../plugins/lang-js/rules/test/stryker_config/data/stryker_config/stryker.config.baseline.mjs"
+);
+
+/// Canonical Vue-варіант stryker-baseline (`STRYKER_VUE_BASELINE_PATH`,
+/// `main.mjs:21`) — plugins/ignorers уже містить обидва канонічні entries.
+const STRYKER_VUE_BASELINE_TEXT: &str = include_str!(
+    "../../../plugins/lang-js/rules/test/stryker_config/data/stryker_config/stryker.config.vue.baseline.mjs"
+);
+
+/// Canonical vue-macros ignorer-плагін (`STRYKER_VUE_PLUGIN_PATH`,
+/// `main.mjs:23`) — копіюється verbatim у Vue js-root.
+const STRYKER_VUE_PLUGIN_TEXT: &str = include_str!(
+    "../../../plugins/lang-js/rules/test/stryker_config/data/stryker_config/stryker-vue-macros-ignorer.mjs"
+);
+
+/// Canonical vitest-baseline (`VITEST_BASELINE_PATH`, `main.mjs:25`) —
+/// verbatim, без transform (лише stryker-baseline підставляє `configFile`).
+const VITEST_BASELINE_TEXT: &str = include_str!(
+    "../../../plugins/lang-js/rules/test/stryker_config/data/vitest_config/vitest.config.baseline.js"
+);
 
 /// `VUE_GLOB_IGNORE` (`main.mjs:85`) у формі імен сегментів — усі три
 /// патерни там мають вигляд `**/<dir>/**`.
@@ -9243,13 +9305,24 @@ fn missing_gitignore_entries(files: &[SourceFile]) -> Vec<String> {
         .collect()
 }
 
-/// Одна `BaselineAction` (`main.mjs:100-109`) у батч-просторі: detect-половині
-/// потрібні лише ціль (repo-relative — вона ж `relative(cwd, target)`
-/// діагностики) і людиночитна мітка. `baselinePath`/`transform` живуть у
-/// fix-половині, яка лишається в JS (доккомент секції).
+/// Одна `BaselineAction` (`main.mjs:100-109`) у батч-просторі: `target`
+/// (repo-relative — вона ж `relative(cwd, target)` діагностики) і людиночитна
+/// мітка живлять detect-половину; `content` — уже обчислений (baseline text +
+/// опційний `configFile`-transform) фінальний вміст файлу, який fix-половина
+/// (§2.118, `fix_stryker_config`) лише пише — на відміну від JS T0
+/// (`writeBaseline`), де transform рахувався ПІД ЧАС запису.
 struct BaselineAction {
     target: String,
     label: String,
+    content: String,
+}
+
+/// Одна `augmentWrites`-дія (`main.mjs:372`) у батч-просторі: `target` —
+/// repo-relative шлях наявного `stryker.config.mjs`, `content` — уже
+/// обчислений (`plan_vue_augment`) новий вміст файлу.
+struct AugmentWrite {
+    target: String,
+    content: String,
 }
 
 /// План `planStrykerActions` (`main.mjs:368-374`) у батч-просторі.
@@ -9257,20 +9330,27 @@ struct BaselineAction {
 struct StrykerPlan {
     fatal: Option<String>,
     baseline_actions: Vec<BaselineAction>,
-    augment_writes: Vec<String>,
+    augment_writes: Vec<AugmentWrite>,
     augment_fails: Vec<String>,
     gitignore_missing: Vec<String>,
 }
 
 /// Порт `planBaselineFile` (`main.mjs:119-125`): дія потрібна, лише якщо
-/// цілі ще немає (idempotent).
-fn plan_baseline_file(files: &[SourceFile], target: String, label: &str) -> Option<BaselineAction> {
+/// цілі ще немає (idempotent). `content` рахує викликач (джерело залежить
+/// від того, ЯКИЙ baseline-файл плануємо — доккомент [`BaselineAction`]).
+fn plan_baseline_file(
+    files: &[SourceFile],
+    target: String,
+    label: &str,
+    content: String,
+) -> Option<BaselineAction> {
     if batch_file(files, &target).is_some() {
         return None;
     }
     Some(BaselineAction {
         target,
         label: label.to_string(),
+        content,
     })
 }
 
@@ -9543,9 +9623,10 @@ fn plan_vue_root_actions(
     if !was_missing {
         match plan_vue_augment(files, root) {
             Err(message) => plan.augment_fails.push(message),
-            Ok(Some(_)) => plan
-                .augment_writes
-                .push(js_root_join(root, STRYKER_CONFIG_FILENAME)),
+            Ok(Some(content)) => plan.augment_writes.push(AugmentWrite {
+                target: js_root_join(root, STRYKER_CONFIG_FILENAME),
+                content,
+            }),
             Ok(None) => {}
         }
     }
@@ -9553,6 +9634,7 @@ fn plan_vue_root_actions(
         files,
         js_root_join(root, STRYKER_VUE_PLUGIN_FILENAME),
         STRYKER_VUE_PLUGIN_FILENAME,
+        STRYKER_VUE_PLUGIN_TEXT.to_string(),
     ) {
         plan.baseline_actions.push(action);
     }
@@ -9564,14 +9646,39 @@ fn plan_js_root_actions(plan: &mut StrykerPlan, files: &[SourceFile], root: &str
     let is_vue_root = has_vue_files(files, root);
     let stryker_target = js_root_join(root, STRYKER_CONFIG_FILENAME);
     let was_missing = batch_file(files, &stryker_target).is_none();
-    if let Some(action) = plan_baseline_file(files, stryker_target, STRYKER_CONFIG_FILENAME) {
+    // Порядок оригіналу (`main.mjs:409-429`) рахує `vitestName` РАНІШЕ за
+    // baseline-дію stryker-конфіга — тут так само, бо вміст цієї дії
+    // (§2.118, `content`) підставляє саме це імʼя у `configFile`.
+    let vitest_name = resolve_vitest_config_name(files, root);
+    let stryker_baseline = if is_vue_root {
+        STRYKER_VUE_BASELINE_TEXT
+    } else {
+        STRYKER_BASELINE_TEXT
+    };
+    // Порт `writeBaseline` (`fix-stryker_config.mjs:29-44`) гілки
+    // `a.transform`: `STRYKER_CONFIG_FILE_RE` — non-global, замінює лише
+    // ПЕРШИЙ збіг (обидва baseline-и мають рівно один `configFile`).
+    let stryker_content = regex::Regex::new(STRYKER_CONFIG_FILE_RE)
+        .expect("STRYKER_CONFIG_FILE_RE валідний")
+        .replace(stryker_baseline, format!("configFile: '{vitest_name}'"))
+        .into_owned();
+    if let Some(action) = plan_baseline_file(
+        files,
+        stryker_target,
+        STRYKER_CONFIG_FILENAME,
+        stryker_content,
+    ) {
         plan.baseline_actions.push(action);
     }
     if is_vue_root {
         plan_vue_root_actions(plan, files, root, was_missing);
     }
-    let vitest_name = resolve_vitest_config_name(files, root);
-    if let Some(action) = plan_baseline_file(files, js_root_join(root, vitest_name), vitest_name) {
+    if let Some(action) = plan_baseline_file(
+        files,
+        js_root_join(root, vitest_name),
+        vitest_name,
+        VITEST_BASELINE_TEXT.to_string(),
+    ) {
         plan.baseline_actions.push(action);
     }
 }
@@ -9622,13 +9729,14 @@ fn detect_stryker_config(files: &[SourceFile]) -> Vec<Diagnostic> {
             data: None,
         });
     }
-    for target in &plan.augment_writes {
+    for aw in &plan.augment_writes {
         out.push(Diagnostic {
             reason: STRYKER_VUE_AUGMENT_REASON.to_string(),
             message: format!(
-                "vue-macros ignorer не зареєстровано у stryker.config.mjs ({target}) — запусти `npx @7n/rules lint test` (test.mdc)"
+                "vue-macros ignorer не зареєстровано у stryker.config.mjs ({}) — запусти `npx @7n/rules lint test` (test.mdc)",
+                aw.target
             ),
-            file: Some(target.clone()),
+            file: Some(aw.target.clone()),
             severity: Severity::Error,
             data: None,
         });
@@ -9655,6 +9763,75 @@ fn detect_stryker_config(files: &[SourceFile]) -> Vec<Diagnostic> {
         });
     }
     out
+}
+
+/// Порт `ensureGitignoreEntries` (`ensure-gitignore-entries.mjs`) у
+/// batch-просторі — append-only секція під header-коментарем
+/// [`GITIGNORE_SECTION_LABEL`]. `missing` уже звужений до відсутніх entries
+/// ([`missing_gitignore_entries`], та сама перевірка, що детект робить
+/// read-only) — тут лише рендер блоку й конкатенація, без повторного
+/// фільтрування (JS-оригінал теж фільтрує вдруге всередині
+/// `ensureGitignoreEntries`, але за тим самим предикатом над тим самим
+/// снапшотом — результат ідентичний).
+fn gitignore_append_edit(files: &[SourceFile], missing: &[String]) -> FileEdit {
+    let existing = batch_file(files, ".gitignore")
+        .map(|f| f.content.as_str())
+        .unwrap_or("");
+    let prefix = if existing.is_empty() || existing.ends_with('\n') {
+        ""
+    } else {
+        "\n"
+    };
+    let block = format!(
+        "{prefix}\n# {GITIGNORE_SECTION_LABEL}\n{}\n",
+        missing.join("\n")
+    );
+    FileEdit::Write(WriteFile {
+        path: ".gitignore".to_string(),
+        content: format!("{existing}{block}"),
+    })
+}
+
+/// fix-половина `test/stryker_config` (§2.118) — порт `fix-stryker_config.mjs`.
+/// Дії резолвимо ПОВТОРНИМ прогоном чистого планувальника
+/// ([`plan_stryker_actions`], та сама функція, що й detect) над
+/// `request.files` — full-scope fix-глоб контрибуції (доккомент секції «Зріз
+/// 1», підрозділ про §2.118) дає РІВНО той самий набір шляхів, що вже читає
+/// detect, тож перепланування ідемпотентне: уже застосовані дії
+/// [`plan_baseline_file`] (idempotent-skip за наявністю цілі) і
+/// [`plan_vue_augment`] (no-op, якщо entries вже є) вдруге не поверне.
+///
+/// **Правило проєкту №1 (мовчазний пропуск — вада):** JS T0
+/// (`fix-stryker_config.mjs:56-57`) на `plan.fatal` тихо повертав
+/// `{touchedFiles: []}` — жодного сліду в логах чи діагностиках. Порт
+/// натомість голосно логує причину (`LogLevel::Error`) перед тим, як
+/// повернути порожній план: `plan.fatal` тут узагалі недосяжна в юніт-тесті
+/// на рівні батчу (fix кличеться лише коли є diagnostics, а причини
+/// `plan.fatal` — `js`-self-gate вимкнено чи відсутній кореневий
+/// `package.json` — обидві вже дали б `STRYKER_CONFIG_REASON`-діагностику на
+/// ТОМУ Ж БАТЧІ детекту), але захист лишається на випадок розбіжного знімка
+/// файлів між detect- і fix-викликом хоста.
+fn fix_stryker_config(request: &FixRequest) -> FixPlan {
+    let plan = plan_stryker_actions(&request.files);
+    if let Some(fatal) = plan.fatal {
+        log(
+            LogLevel::Error,
+            &format!("plugin-lang-js: fix(test/stryker_config) — {fatal}, нічого не виправлено"),
+        );
+        return FixPlan { edits: vec![] };
+    }
+
+    let mut edits: Vec<FileEdit> = Vec::new();
+    for action in &plan.baseline_actions {
+        push_write(&mut edits, action.target.clone(), action.content.clone());
+    }
+    for aw in &plan.augment_writes {
+        push_write(&mut edits, aw.target.clone(), aw.content.clone());
+    }
+    if !plan.gitignore_missing.is_empty() {
+        edits.push(gitignore_append_edit(&request.files, &plan.gitignore_missing));
+    }
+    FixPlan { edits }
 }
 
 // =====================================================================
@@ -14477,25 +14654,16 @@ const CONCERN_STYLE_PACKAGE_JSON: &str = "style/package_json";
 //   fix-половину ([`fix_style_tooling`]): три FS-патерни, жодного
 //   policy-шару.
 //
-// # Що СВІДОМО не портовано — `test/stryker_config`
+// # `test/stryker_config` — на момент §2.80 fix свідомо НЕ портовано, §2.118 це закрила
 //
-// Детект цього концерну переїхав зрізом 1 контракту v3.1; fix-половина
-// лишається в JS (`fix-stryker_config.mjs`), і §2.80 цього не змінює.
-// Причина та сама, що зафіксував зріз 1, і вона не в бюджеті задачі, а в
-// формі host-мосту: весь T0 концерну тримається на ПОВТОРНОМУ прогоні
-// планувальника (`planStrykerActions(cwd)` у `apply`), а `FixRequest::files`
-// хост будує з `file`-полів переданих violations
-// (`rules-napi::run_wasm_concern_fix`). Full-scope fallback на глоб
-// контрибуції там спрацьовує ЛИШЕ коли ЖОДНА діагностика не назвала файл —
-// а `stryker-config-missing` свій файл несе. Тобто гість дістав би батч із
-// самих (відсутніх) цільових файлів і не побачив би ні `package.json`
-// воркспейсів, ні `vitest.config.mjs`, ні `src/**/*.vue`, з яких
-// планувальник і будує план. Оголосити концерн заради fix і лишити його
-// half-wired не можна: ключ у реєстрі гостя ЗАТІНЮЄ JS-гілку
-// (`detect.mjs`, `if (wasmEntry !== undefined)`), і єдиний робочий автофікс
-// мовчки вимкнувся б. Порожній `fix-plan` гостя тут — коректне «нічого не
-// чиню», далі фіксить JS-канон (`loadT0Patterns` ДОДАЄ wasm-патерн перед
-// JS-патерном, а не заміщає його).
+// Ця секція (§2.80) свого часу лишала fix-половину `test/stryker_config` у
+// JS: тодішній запис `FIX_STAYS_IN_JS` стверджував, що `FixRequest::files`
+// хост будує лише з `file`-полів переданих violations, тож гість не
+// побачив би ні `package.json` воркспейсів, ні `vitest.config.mjs`, ні
+// `src/**/*.vue`, потрібних планувальнику. §2.102 показала цю причину
+// застарілою (`explicit_fix_glob` дає непорожньому `fix_glob` full-scope
+// батч), і §2.118 виконала сам порт — [`fix_stryker_config`], доккомент
+// секції «Зріз 1 контракту v3.1» вище за текстом.
 //
 // # Полагоджені дефекти канону (не відтворені заради парності)
 //
@@ -16196,6 +16364,11 @@ impl Guest for LangJs {
             // `fix-glob` контрибуції (доккомент секції §2.87).
             CONCERN_STORYBOOK_CI => fix_storybook_ci(&request),
             CONCERN_STORYBOOK_SCAFFOLD => fix_storybook_scaffold(&request),
+            // §2.118: `test/stryker_config` — ДРУГИЙ (після storybook-пари)
+            // споживач непорожнього `fix-glob`, і ПЕРШИЙ, чий fix — просте
+            // повторне планування (`plan_stryker_actions`) замість власного
+            // scope-обчислення (доккомент [`fix_stryker_config`]).
+            CONCERN_STRYKER_CONFIG => fix_stryker_config(&request),
             key if template_fix_cfg(key).is_some() => match template_fix_cfg(key) {
                 Some(cfg) => template_merge_fix(cfg, &request),
                 None => FixPlan { edits: vec![] },
@@ -19449,6 +19622,209 @@ mod tests {
             vec!["**/reports/stryker/"]
         );
     }
+
+    // --- §2.118: fix-половина `test/stryker_config` ---
+
+    fn stryker_fix_request(files: Vec<SourceFile>) -> FixRequest {
+        FixRequest {
+            concern_id: CONCERN_STRYKER_CONFIG.to_string(),
+            diagnostics: vec![],
+            files,
+        }
+    }
+
+    fn stryker_written<'a>(plan: &'a FixPlan, path: &str) -> Option<&'a str> {
+        plan.edits.iter().find_map(|e| match e {
+            FileEdit::Write(w) if w.path == path => Some(w.content.as_str()),
+            _ => None,
+        })
+    }
+
+    #[test]
+    fn fix_stryker_config_writes_baselines_and_gitignore_for_bare_repo() {
+        let request = stryker_fix_request(stryker_files(vec![]));
+        let plan = fix_stryker_config(&request);
+        assert_eq!(plan.edits.len(), 3, "stryker + vitest + .gitignore");
+
+        let stryker = stryker_written(&plan, "stryker.config.mjs").expect("stryker.config.mjs");
+        assert_eq!(stryker, STRYKER_BASELINE_TEXT, "single-package: configFile уже 'vitest.config.mjs' у baseline-і");
+
+        let vitest = stryker_written(&plan, "vitest.config.mjs").expect("vitest.config.mjs");
+        assert_eq!(vitest, VITEST_BASELINE_TEXT);
+
+        let gitignore = stryker_written(&plan, ".gitignore").expect(".gitignore");
+        assert_eq!(
+            gitignore,
+            "\n# Test artifacts: Stryker + coverage (test.mdc)\n**/reports/stryker/\n**/coverage/\n"
+        );
+    }
+
+    #[test]
+    fn fix_stryker_config_substitutes_legacy_vitest_config_name_in_stryker_baseline() {
+        let files = stryker_files(vec![source("vitest.config.js", "export default {}\n")]);
+        let plan = fix_stryker_config(&stryker_fix_request(files));
+        // vitest.config.js уже є → жодного edit-у на нього; лишаються stryker + .gitignore.
+        assert_eq!(plan.edits.len(), 2);
+        let stryker = stryker_written(&plan, "stryker.config.mjs").expect("stryker.config.mjs");
+        assert!(
+            stryker.contains("configFile: 'vitest.config.js'"),
+            "baseline мусить нести ІСНУЮЧЕ імʼя vitest-конфіга, не дефолтне: {stryker}"
+        );
+        assert!(stryker_written(&plan, "vitest.config.js").is_none());
+    }
+
+    #[test]
+    fn fix_stryker_config_writes_vue_variant_and_plugin_for_vue_root() {
+        let files = stryker_files(vec![
+            source("src/App.vue", "<template><div /></template>\n"),
+            source(".gitignore", "**/reports/stryker/\n**/coverage/\n"),
+        ]);
+        let plan = fix_stryker_config(&stryker_fix_request(files));
+        // stryker (vue baseline) + vue-plugin + vitest — .gitignore уже повний, без edit-у.
+        assert_eq!(plan.edits.len(), 3);
+        assert!(stryker_written(&plan, ".gitignore").is_none());
+
+        let stryker = stryker_written(&plan, "stryker.config.mjs").expect("stryker.config.mjs");
+        assert_eq!(stryker, STRYKER_VUE_BASELINE_TEXT);
+
+        let plugin =
+            stryker_written(&plan, "stryker-vue-macros-ignorer.mjs").expect("vue-plugin baseline");
+        assert_eq!(plugin, STRYKER_VUE_PLUGIN_TEXT);
+    }
+
+    #[test]
+    fn fix_stryker_config_augments_existing_vue_config_in_place() {
+        let files = stryker_files(vec![
+            source("src/App.vue", "<template><div /></template>\n"),
+            source(".gitignore", "**/reports/stryker/\n**/coverage/\n"),
+            source(
+                "stryker.config.mjs",
+                "export default {\n  plugins: ['@stryker-mutator/vitest-runner'],\n  ignorers: []\n}\n",
+            ),
+            source("stryker-vue-macros-ignorer.mjs", "// вже є\n"),
+            source("vitest.config.mjs", "export default {}\n"),
+        ]);
+        let plan = fix_stryker_config(&stryker_fix_request(files));
+        // Усе інше вже на місці — лишається лише augment наявного stryker.config.mjs.
+        assert_eq!(plan.edits.len(), 1);
+        let augmented = stryker_written(&plan, "stryker.config.mjs").expect("augment пише stryker.config.mjs");
+        assert_eq!(
+            augmented,
+            "export default {\n  plugins: ['@stryker-mutator/vitest-runner', './stryker-vue-macros-ignorer.mjs'],\n  ignorers: ['vue-macros']\n}\n"
+        );
+    }
+
+    #[test]
+    fn fix_stryker_config_is_idempotent_noop_on_fully_configured_repo() {
+        let files = stryker_files(vec![
+            source(".gitignore", "**/reports/stryker/\n**/coverage/\n"),
+            source("stryker.config.mjs", STRYKER_BASELINE_TEXT),
+            source("vitest.config.mjs", VITEST_BASELINE_TEXT),
+        ]);
+        let plan = fix_stryker_config(&stryker_fix_request(files));
+        assert!(plan.edits.is_empty(), "уже застосовані дії не мають повторюватись");
+    }
+
+    /// Перенесена характеризація JS-канону (`stryker_config.test.mjs`, «js
+    /// enabled + кілька workspaces — копіює обидва baseline у КОЖЕН»): доти,
+    /// доки характеризацію тримав живий `main.mjs`, порт не мав власного
+    /// покриття на множинні workspace-и — сценарій знято разом із канон-тестом
+    /// (§2.118), тож переноситься сюди, а не викидається (правило проєкту).
+    #[test]
+    fn fix_stryker_config_copies_baselines_into_every_workspace() {
+        let files = vec![
+            source(".n-rules.json", r#"{"rules":["js"]}"#),
+            source("package.json", r#"{"workspaces":["app","scripts"]}"#),
+            source("app/package.json", r#"{"name":"app"}"#),
+            source("scripts/package.json", r#"{"name":"scripts"}"#),
+        ];
+        let plan = fix_stryker_config(&stryker_fix_request(files));
+        for root in ["app", "scripts"] {
+            assert!(
+                stryker_written(&plan, &format!("{root}/stryker.config.mjs")).is_some(),
+                "{root}/stryker.config.mjs"
+            );
+            assert!(
+                stryker_written(&plan, &format!("{root}/vitest.config.mjs")).is_some(),
+                "{root}/vitest.config.mjs"
+            );
+        }
+        // Кореневого варіанта немає — корінь сам по собі НЕ js-root, коли є workspaces.
+        assert!(stryker_written(&plan, "stryker.config.mjs").is_none());
+    }
+
+    /// Перенесена характеризація («js enabled + stryker.config.mjs існує — не
+    /// перезаписує»): наявний файл — ЧУЖИЙ вміст, і fix його не чіпає
+    /// (idempotent-skip [`plan_baseline_file`], не augment — non-vue root).
+    #[test]
+    fn fix_stryker_config_does_not_overwrite_existing_custom_config() {
+        let files = stryker_files(vec![source("stryker.config.mjs", "// custom config")]);
+        let plan = fix_stryker_config(&stryker_fix_request(files));
+        assert!(stryker_written(&plan, "stryker.config.mjs").is_none());
+        // vitest.config.mjs і .gitignore — досі відсутні, тож ці два едити є.
+        assert_eq!(plan.edits.len(), 2);
+    }
+
+    /// Перенесена характеризація (`augment(f)`: non-literal default export) —
+    /// augment неможливий, `stryker.config.mjs` НЕ отримує edit (fail-гілка
+    /// не пише файл, лише голосно репортує причину через diagnostics/лог).
+    #[test]
+    fn fix_stryker_config_leaves_config_untouched_when_augment_fails_on_factory_export() {
+        let files = stryker_files(vec![
+            source("src/App.vue", "<template><div /></template>\n"),
+            source(
+                "stryker.config.mjs",
+                "export default defineConfig({ testRunner: 'vitest' })\n",
+            ),
+        ]);
+        let plan = fix_stryker_config(&stryker_fix_request(files));
+        assert!(
+            stryker_written(&plan, "stryker.config.mjs").is_none(),
+            "augment-fail не повинен писати stryker.config.mjs"
+        );
+        // vue-plugin baseline і .gitignore — усе ще застосовні дії (vitest.config.mjs теж).
+        assert!(stryker_written(&plan, "stryker-vue-macros-ignorer.mjs").is_some());
+    }
+
+    /// Перенесена характеризація (`augment(g)`: syntax error) — та сама
+    /// гарантія, іншим джерелом неможливості.
+    #[test]
+    fn fix_stryker_config_leaves_config_untouched_when_augment_fails_on_syntax_error() {
+        let files = stryker_files(vec![
+            source("src/App.vue", "<template><div /></template>\n"),
+            source("stryker.config.mjs", "export default { testRunner: "),
+        ]);
+        let plan = fix_stryker_config(&stryker_fix_request(files));
+        assert!(stryker_written(&plan, "stryker.config.mjs").is_none());
+    }
+
+    /// Перенесена характеризація (`augment(e)`: idempotency) — другий прогін
+    /// над РЕЗУЛЬТАТОМ першого augment-у не повертає ЖОДНОГО edit-у на
+    /// `stryker.config.mjs` (усі entries вже там).
+    #[test]
+    fn fix_stryker_config_augment_is_idempotent_across_two_runs() {
+        let augmented = "export default {\n  plugins: ['@stryker-mutator/vitest-runner', './stryker-vue-macros-ignorer.mjs'],\n  ignorers: ['vue-macros']\n}\n";
+        let files = stryker_files(vec![
+            source("src/App.vue", "<template><div /></template>\n"),
+            source(".gitignore", "**/reports/stryker/\n**/coverage/\n"),
+            source("stryker.config.mjs", augmented),
+            source("stryker-vue-macros-ignorer.mjs", "// вже є\n"),
+            source("vitest.config.mjs", "export default {}\n"),
+        ]);
+        let plan = fix_stryker_config(&stryker_fix_request(files));
+        assert!(plan.edits.is_empty(), "усе вже застосовано — другий прогін no-op");
+    }
+
+    // Правило проєкту №1 (мовчазний пропуск — вада): `plan.fatal` (кореневий
+    // `package.json` відсутній) не тихо no-op, як JS T0
+    // (`fix-stryker_config.mjs:56-57`), а `LogLevel::Error`-лог перед
+    // порожнім планом. Юніт-тест на host-таргеті цю гілку НЕ покриває —
+    // `log()` (host-імпорт `wit/world.wit`) абортує поза реальним хостом,
+    // той самий мотив, що вже задокументований для fix_style_lint (доккомент
+    // секції) і doc-коментаря модуля тестів вище; спостережувана поведінка
+    // (fatal → порожній `FixPlan`) покрита `plan_stryker_actions`-рівнем
+    // через [`detect_stryker_config_fatal_without_root_package_json`], яка
+    // виконує ТОЙ САМИЙ `plan_stryker_actions` без host-імпорту.
 
     // --- зріз 2 контракту v3.1: `js/check` ---
 

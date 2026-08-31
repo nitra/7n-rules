@@ -6365,11 +6365,18 @@ const FIX_ONLY_IN_GUEST = [
   { ruleId: 'style', concern: 'vscode_extensions' },
   { ruleId: 'style', concern: 'vscode_settings' },
   { ruleId: 'test', concern: 'storybook-ci' },
-  { ruleId: 'test', concern: 'storybook-scaffold' }
+  { ruleId: 'test', concern: 'storybook-scaffold' },
+  // §2.118 — ДРУГИЙ (після storybook-пари) споживач непорожнього `fix-glob`:
+  // застарілий запис `FIX_STAYS_IN_JS` («napi-міст будує `FixRequest::files`
+  // лише з полів `file` переданих violations») знято §2.102 — `explicit_fix_glob`
+  // (`crates/rules-napi/src/lib.rs`) уже давав full-scope fix-батч, порту
+  // бракувало лише самого коду (`fix_stryker_config`, доккомент у
+  // `crates/plugin-lang-js/src/lib.rs`).
+  { ruleId: 'test', concern: 'stryker_config' }
 ]
 
 /**
- * Чотири вцілілі `fix-<concern>.mjs` плагіна — кожен зі СВОЄЮ причиною, і
+ * Три вцілілі `fix-<concern>.mjs` плагіна — кожен зі СВОЄЮ причиною, і
  * жодна з них не «ще не дійшли руки». Ключі — шлях відносно
  * `plugins/lang-js/rules/`.
  * @type {Record<string, string>}
@@ -6395,11 +6402,7 @@ const FIX_STAYS_IN_JS = {
     '§2.92 — концерн свідомо НЕ портований: fix-глоб масштабу `**/*` упирається ' +
     'у тип межі `source-file.content: string` (124 MiB на виклик при 1 MiB корисного)',
   'test/storybook-vitest-config/fix-storybook-vitest-config.mjs':
-    '§2.87 — не портований: хірургічне string-splice редагування чужого `vitest.config.*`',
-  'test/stryker_config/fix-stryker_config.mjs':
-    'зріз 1 контракту v3.1 — портовано лише detect-половину; fix потребує ПОВТОРНОГО ' +
-    'планування по дереву (`planStrykerActions`), а napi-міст будує `FixRequest::files` ' +
-    'лише з полів `file` переданих violations (доккомент секції в `crates/plugin-lang-js/src/lib.rs`)'
+    '§2.87 — не портований: хірургічне string-splice редагування чужого `vitest.config.*`'
 }
 
 describe('§2.93 — plugins/lang-js: фікс кожного портованого концерну живе рівно в одному місці (JS-канони знято)', () => {
@@ -6435,7 +6438,7 @@ describe('§2.93 — plugins/lang-js: фікс кожного портовано
       ...manifest.concerns.map(c => c.key),
       ...(manifest.fix_only_concerns ?? []).map(c => c.key)
     ])
-    expect(FIX_ONLY_IN_GUEST).toHaveLength(19)
+    expect(FIX_ONLY_IN_GUEST).toHaveLength(20)
     const missing = FIX_ONLY_IN_GUEST.map(({ ruleId, concern }) => `${ruleId}/${concern}`).filter(
       key => !declared.has(key)
     )
@@ -6450,7 +6453,7 @@ describe('§2.93 — plugins/lang-js: фікс кожного портовано
     expect((manifest.fix_only_concerns ?? []).map(c => c.key)).toEqual(['js/eslint'])
   })
 
-  test('на диску не лишилось жодного зайвого fix-канону: рівно чотири іменовані винятки', async () => {
+  test('на диску не лишилось жодного зайвого fix-канону: рівно три іменовані винятки', async () => {
     const { glob } = await import('node:fs/promises')
     /** @type {string[]} */
     const found = []
