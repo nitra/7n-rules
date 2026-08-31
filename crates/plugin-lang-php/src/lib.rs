@@ -133,9 +133,20 @@
 // JSON-таргет.
 use rules_template_merge::{json_to_pretty_string, json_to_string, parse_jsonc_document, Json};
 
+// Крок 6 спеки `docs/specs/2026-08-31-plugin-contract-v5.md` §12,
+// «coverage-provider як перша слотова поверхня» (ТРЕТІЙ провайдер після
+// `rust`/`python`, доккомент `crates/plugin-lang-rust/src/lib.rs` пояснює
+// прийом повністю): world перемкнутий з голого `plugin` на КОМБІНОВАНИЙ
+// `php-coverage-provider-guest`
+// (`crates/rules-contract/wit/php-coverage-provider-guest.wit` — `include
+// plugin; include n-rules:surfaces/coverage-provider@1.0.0 with {
+// domain-error as coverage-domain-error }`). Це ЄДИНА зміна складу world-а
+// цього гостя — усі export-и/import-и `plugin` лишаються РІВНО тими самими
+// (`include` — адитивний, не замінює), додається лише ОДИН новий export —
+// `collect-coverage` ([`Guest::collect_coverage`] нижче).
 wit_bindgen::generate!({
     path: "../rules-contract/wit",
-    world: "plugin",
+    world: "php-coverage-provider-guest",
     generate_all,
 });
 
@@ -1306,6 +1317,402 @@ fn fix_vscode_extensions(request: &FixRequest) -> FixPlan {
     }
 }
 
+// =====================================================================
+// Крок 6 спеки `docs/specs/2026-08-31-plugin-contract-v5.md` §12,
+// «coverage-provider як перша слотова поверхня»: `collect-coverage` —
+// ПОРТ `plugins/lang-php/coverage-provider/provider.mjs::collect` (line/
+// function coverage через PHPUnit/Pest `--coverage-clover` + мутаційне
+// тестування через `infection/infection` `--logger-json`,
+// `clover.mjs`/`infection.mjs`).
+//
+// # Звуження — той самий одноконеневий мотив, що rust/python-провайдери
+//
+// JS-канон працює РІВНО з одним `cwd` (на відміну від python-сусіда, PHP не
+// має поняття «кілька PHP-коренів у моно-репо» в каноні взагалі — `collect`
+// перевіряє presence `composer.json` РІВНО в `cwd`), тож тут звуження не
+// зменшує покриття проти канону: `cwd: None` в `exec-tool`-запитах нижче —
+// той самий корінь, що вже несуть [`CONCERN_COMPOSER_MANIFEST`]/
+// [`CONCERN_PROJECT`].
+//
+// # `vendor/bin/<phpunit|pest>` — резолв через `composer exec`, не `path:`
+//
+// JS-канон перевіряє presence бінарника ПРЯМО на диску
+// (`existsSync(join(cwd, 'vendor', 'bin', name))`) — гість такої
+// спроможності не має (жодного fs-read, доккомент модуля). Замість цього
+// [`resolve_coverage_binary`] пробує `composer exec -- <name> --version`
+// (той самий `COMPOSER_TOOL`, що вже несуть [`CONCERN_COMPOSER_MANIFEST`]/
+// [`CONCERN_PROJECT`]) — Composer сам резолвить `vendor/bin/<name>` і
+// повертає ненульовий код / повідомлення «Command … is not defined», коли
+// бінарника немає. Pest пробується ПЕРШИМ (той самий пріоритет, що
+// `resolveRunnerBinary`, `provider.mjs`: Pest CLI-сумісний із PHPUNIT-
+// прапорами, включно з `--coverage-clover`). Жоден з двох не резолвиться —
+// [`CoverageDomainError::NotSupported`] (гість не може виміряти ХОЧ ЩОСЬ,
+// той самий канал, що відсутній `cargo`/`uv` у сусідніх провайдерах).
+//
+// # Мутаційне тестування — чесний skip (той самий мотив, що cargo-mutants)
+//
+// `infection` доступний не завжди: недоступний інструмент дає
+// [`CoverageArea::mutation`] `{caught: 0, total: 0}` і порожній
+// `survived_files`, а НЕ [`CoverageDomainError`] — рівно поведінка
+// `provider.mjs::collect` (`hasInfection` прапорець, «лише line coverage»).
+//
+// # Шляхи `survived_files`/clover — БЕЗ rebase відносно `cwd`
+//
+// JS-канон рібейзить і clover-шляхи (`rebaseCloverPath`), і
+// `originalFilePath` infection-звіту в relative-до-`cwd` через `node:path`.
+// Гість НЕ має аналога `path.relative`/`path.resolve` (жодного
+// path-крейта в цьому найлегшому з чотирьох гостей, доккомент
+// `Cargo.toml`) — [`parse_infection_report`] повертає шляхи ДОСЛІВНО, як їх
+// віддав `--logger-json` (типово вже project-relative в стандартній
+// PHPUnit/infection-конфігурації, де `source`/`directories` вказані
+// відносно кореня). Задокументована різниця, не мовчазна апроксимація:
+// консюмер із нетиповою (абсолютні шляхи в конфізі) конфігурацією отримає
+// `survived_files` в іншому форматі, ніж дав би JS-канон.
+
+/// Ім'я тула — той самий [`COMPOSER_TOOL`], що вже задекларований
+/// [`build_manifest`] для `php/composer_manifest`/`php/project`:
+/// `collect-coverage` теж кличе `composer exec`, друга декларація нічого не
+/// додала б.
+const COVERAGE_TOOL: &str = COMPOSER_TOOL;
+
+/// Слот host-context з абсолютним шляхом scratch-каталогу виклику — той
+/// самий слот, що `COVERAGE_SCRATCH_DIR_SLOT` у `crates/plugin-lang-rust`/
+/// `crates/plugin-lang-python`.
+const COVERAGE_SCRATCH_DIR_SLOT: &str = "scratch-dir@1";
+
+/// Ім'я clover-файлу, який `<bin> --coverage-clover <path>` пише В
+/// scratch-каталог (абсолютний шлях аргументом).
+const CLOVER_FILE_NAME: &str = "clover.xml";
+
+/// Ім'я JSON-звіту, який `infection --logger-json=<path>` пише В
+/// scratch-каталог.
+const INFECTION_REPORT_FILE_NAME: &str = "infection.json";
+
+/// Кандидати тестового бінарника в порядку пріоритету — точний відповідник
+/// `resolveRunnerBinary` (`provider.mjs`): Pest спершу (CLI-сумісний із
+/// PHPUnit), інакше PHPUnit.
+const COVERAGE_BINARY_CANDIDATES: &[&str] = &["pest", "phpunit"];
+
+/// Пробує `composer exec -- <name> --version` для кожного кандидата в
+/// [`COVERAGE_BINARY_CANDIDATES`] — перший, що резолвиться (`status ==
+/// Some(0)`), стає обраним бінарником. `None` — жоден не встановлений У
+/// vendor (Composer сам не резолвив жодного) АБО `composer` структурно
+/// недоступний (обидва проби провалились однаково — доккомент секції).
+fn resolve_coverage_binary() -> Option<&'static str> {
+    for candidate in COVERAGE_BINARY_CANDIDATES {
+        let probe = exec_composer(
+            vec![
+                "exec".to_string(),
+                "--".to_string(),
+                candidate.to_string(),
+                "--version".to_string(),
+            ],
+            vec![],
+        );
+        if probe.status == Some(0) {
+            return Some(candidate);
+        }
+    }
+    None
+}
+
+/// Спавнить `composer <args>` через `exec-tool` — рівно той самий нижній
+/// рівень, що [`detect_composer_manifest`]/[`detect_project`] уже кличуть.
+fn exec_composer(args: Vec<String>, scratch_out: Vec<String>) -> ToolResult {
+    exec_tool(&ToolRequest {
+        tool: COVERAGE_TOOL.to_string(),
+        args,
+        stdin: None,
+        cwd: None,
+        env: vec![],
+        scratch_in: vec![],
+        scratch_out,
+    })
+}
+
+/// Один блок `<file name="...">…</file>` clover-звіту: ім'я файлу + вміст
+/// між тегами (class-рівня `<metrics>`, `<line>`-записи, file-рівня
+/// `<metrics .../>`).
+fn iter_clover_file_blocks(text: &str) -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    let mut rest = text;
+    loop {
+        let Some(tag_start) = rest.find("<file ") else {
+            break;
+        };
+        let after_tag = &rest[tag_start..];
+        let Some(name_key_rel) = after_tag.find("name=\"") else {
+            break;
+        };
+        let name_start = tag_start + name_key_rel + "name=\"".len();
+        let Some(name_end_rel) = rest[name_start..].find('"') else {
+            break;
+        };
+        let name_end = name_start + name_end_rel;
+        let file_name = rest[name_start..name_end].to_string();
+
+        let Some(tag_close_rel) = rest[name_end..].find('>') else {
+            break;
+        };
+        let content_start = name_end + tag_close_rel + 1;
+        let Some(close_tag_rel) = rest[content_start..].find("</file>") else {
+            break;
+        };
+        let content_end = content_start + close_tag_rel;
+        out.push((file_name, rest[content_start..content_end].to_string()));
+
+        rest = &rest[content_end + "</file>".len()..];
+    }
+    out
+}
+
+/// Останній self-closing `<metrics .../>` у вмісті блоку `<file>` — точний
+/// порт `lastMetrics` (`clover.mjs`): class-рівня `<metrics>` йдуть
+/// першими, file-рівня — останній.
+fn last_clover_metrics_tag(file_block_inner: &str) -> Option<&str> {
+    let mut last: Option<(usize, usize)> = None;
+    let mut search_from = 0;
+    while let Some(rel) = file_block_inner[search_from..].find("<metrics") {
+        let start = search_from + rel;
+        let Some(end_rel) = file_block_inner[start..].find('>') else {
+            break;
+        };
+        let end = start + end_rel + 1;
+        last = Some((start, end));
+        search_from = end;
+    }
+    last.map(|(s, e)| &file_block_inner[s..e])
+}
+
+/// Числовий атрибут `<metrics .../>`-тегу — той самий контракт, що
+/// `readNumericAttr` (`clover.mjs`), АЛЕ пошук з ПРОВІДНИМ пробілом
+/// (`" {attr}=\""`, не голий `"{attr}=\""`): точний відповідник `\b`
+/// (word-boundary) у JS-регекспах (`STATEMENTS_RE`/`METHODS_RE`) — без
+/// провідного пробілу `"statements=\""` матчив би і всередині
+/// `"coveredstatements=\""` (підрядок), псуючи парність.
+fn clover_metrics_attr_u32(tag: &str, attr: &str) -> u32 {
+    let needle = format!(" {attr}=\"");
+    let Some(pos) = tag.find(&needle) else {
+        return 0;
+    };
+    let start = pos + needle.len();
+    let digits: String = tag[start..]
+        .chars()
+        .take_while(char::is_ascii_digit)
+        .collect();
+    digits.parse().unwrap_or(0)
+}
+
+/// Агрегує lines/functions totals по всіх файлах clover-звіту — точний
+/// порт `parseCloverTotals` (`clover.mjs`): `statements`/`coveredstatements`
+/// → lines, `methods`/`coveredmethods` → functions, файли БЕЗ file-рівня
+/// `<metrics>` пропускаються (`if (!metrics) continue`).
+fn parse_clover_totals(text: &str) -> (CoverageCounts, CoverageCounts) {
+    let mut lines = CoverageCounts {
+        covered: 0,
+        total: 0,
+    };
+    let mut functions = CoverageCounts {
+        covered: 0,
+        total: 0,
+    };
+    for (_file, inner) in iter_clover_file_blocks(text) {
+        let Some(tag) = last_clover_metrics_tag(&inner) else {
+            continue;
+        };
+        lines.total += clover_metrics_attr_u32(tag, "statements");
+        lines.covered += clover_metrics_attr_u32(tag, "coveredstatements");
+        functions.total += clover_metrics_attr_u32(tag, "methods");
+        functions.covered += clover_metrics_attr_u32(tag, "coveredmethods");
+    }
+    (lines, functions)
+}
+
+/// Ціле невід'ємне числове поле [`JsonValue::Number`] обʼєкта — `0`, якщо
+/// поле відсутнє, не число, чи від'ємне (той самий `?? 0`-дефолт, що
+/// `infection.mjs`).
+fn json_u32_field(value: &JsonValue, key: &str) -> u32 {
+    match value.get(key) {
+        Some(JsonValue::Number(n)) if *n >= 0.0 => *n as u32,
+        _ => 0,
+    }
+}
+
+/// Розбирає JSON-звіт `infection --logger-json` — точний порт
+/// `parseInfectionReport` (`infection.mjs`): `killed`+`timeout` → caught,
+/// `escaped`+`notCovered` → survived (об'єднаний список записів, файл —
+/// `originalFilePath` кожного запису, `"unknown"` як дефолт), `errored`
+/// поза знаменником (аналог `Unviable` у cargo-mutants). WIT
+/// [`CoverageArea::survived_files`] несе лише шляхи файлів (доккомент
+/// `coverage-provider.wit`) — дедупльовані, той самий `Vec::contains`-дедуп
+/// стиль, що python/rust-сусіди.
+fn parse_infection_report(report: &JsonValue) -> (MutationCounts, Vec<String>) {
+    let stats = report.get("stats");
+    let killed = stats.map(|s| json_u32_field(s, "killedCount")).unwrap_or(0);
+    let timed_out = stats.map(|s| json_u32_field(s, "timedOutCount")).unwrap_or(0);
+    let escaped = stats.map(|s| json_u32_field(s, "escapedCount")).unwrap_or(0);
+    let not_covered = stats
+        .map(|s| json_u32_field(s, "notCoveredByTestsCount"))
+        .unwrap_or(0);
+
+    let mutation = MutationCounts {
+        caught: killed + timed_out,
+        total: killed + timed_out + escaped + not_covered,
+    };
+
+    let mut survived_files: Vec<String> = Vec::new();
+    let empty: Vec<JsonValue> = Vec::new();
+    let escaped_entries = report.get("escaped").and_then(JsonValue::as_array).unwrap_or(&empty);
+    let not_covered_entries = report
+        .get("notCovered")
+        .and_then(JsonValue::as_array)
+        .unwrap_or(&empty);
+    for entry in escaped_entries.iter().chain(not_covered_entries.iter()) {
+        let file = entry
+            .get("originalFilePath")
+            .and_then(JsonValue::as_str)
+            .unwrap_or("unknown")
+            .to_string();
+        if !survived_files.contains(&file) {
+            survived_files.push(file);
+        }
+    }
+
+    (mutation, survived_files)
+}
+
+/// `collect-coverage` — доккомент секції вище пояснює звуження й
+/// happy-path. Повертає [`CoverageDomainError::NotSupported`] лише коли
+/// ЖОДЕН тестовий бінарник (Pest/PHPUnit) не резолвиться через Composer
+/// (гість не може виміряти ХОЧ ЩОСЬ); будь-який ІНШИЙ провал
+/// line-coverage-кроку (бінарник резолвився, але спав дав ненульовий код;
+/// clover-файл, який тул мав лишити, відсутній) — [`CoverageDomainError::Failed`]
+/// з людиночитним повідомленням, НЕ порожній звіт (правило проєкту
+/// «мовчазний пропуск — вада»). Мутаційний вимір — окремий, м'якший канал:
+/// недоступність `infection` НЕ провалює весь виклик.
+fn collect_coverage_impl(request: &CoverageRequest) -> Result<CoverageReport, CoverageDomainError> {
+    let Some(bin) = resolve_coverage_binary() else {
+        return Err(CoverageDomainError::NotSupported);
+    };
+
+    let Some(scratch_dir) = host_context(COVERAGE_SCRATCH_DIR_SLOT) else {
+        return Err(CoverageDomainError::Failed(
+            "collect-coverage: хост не надав scratch-каталогу (слот scratch-dir@1)".to_string(),
+        ));
+    };
+    let clover_path = format!("{scratch_dir}/{CLOVER_FILE_NAME}");
+
+    let run = exec_composer(
+        vec![
+            "exec".to_string(),
+            "--".to_string(),
+            bin.to_string(),
+            "--coverage-clover".to_string(),
+            clover_path,
+        ],
+        vec![CLOVER_FILE_NAME.to_string()],
+    );
+    let status = run.status.unwrap_or(1);
+    if status != 0 {
+        return Err(CoverageDomainError::Failed(format!(
+            "composer exec -- {bin} --coverage-clover завершився кодом {status}: {}{}",
+            run.stdout, run.stderr
+        )));
+    }
+    let Some(clover_file) = run.scratch_out.iter().find(|f| f.path == CLOVER_FILE_NAME) else {
+        return Err(CoverageDomainError::Failed(format!(
+            "composer exec -- {bin} --coverage-clover відзвітував успіхом, але не лишив clover-файл у scratch-каталозі"
+        )));
+    };
+    let (lines, functions) = parse_clover_totals(&clover_file.content);
+
+    // Мутаційне тестування — чесний skip, доккомент секції: probe
+    // `composer exec -- infection --version` без scratch (нічого читати),
+    // лише `status`.
+    let infection_probe = exec_composer(
+        vec![
+            "exec".to_string(),
+            "--".to_string(),
+            "infection".to_string(),
+            "--version".to_string(),
+        ],
+        vec![],
+    );
+    let infection_available = infection_probe.status == Some(0);
+
+    let (mutation, survived_files) = if infection_available {
+        let infection_path = format!("{scratch_dir}/{INFECTION_REPORT_FILE_NAME}");
+        let infection_run = exec_composer(
+            vec![
+                "exec".to_string(),
+                "--".to_string(),
+                "infection".to_string(),
+                format!("--logger-json={infection_path}"),
+                "--no-interaction".to_string(),
+            ],
+            vec![INFECTION_REPORT_FILE_NAME.to_string()],
+        );
+        // Ненульовий exit `infection` сам по собі не помилка (MSI нижче
+        // порогу теж дає ненульовий код) — точний порт: JS-канон теж
+        // ігнорує його (`provider.mjs::collect`), правду каже лише наявність
+        // JSON-звіту.
+        let Some(report_file) = infection_run
+            .scratch_out
+            .iter()
+            .find(|f| f.path == INFECTION_REPORT_FILE_NAME)
+        else {
+            return Err(CoverageDomainError::Failed(format!(
+                "infection не лишив JSON-звіт у scratch-каталозі (код {})",
+                infection_run.status.unwrap_or(1)
+            )));
+        };
+        let parsed = parse_json(&report_file.content).map_err(|err| {
+            CoverageDomainError::Failed(format!("infection.json — невалідний JSON: {err}"))
+        })?;
+        parse_infection_report(&parsed)
+    } else {
+        (
+            MutationCounts {
+                caught: 0,
+                total: 0,
+            },
+            Vec::new(),
+        )
+    };
+
+    log(
+        LogLevel::Info,
+        &format!(
+            "plugin-lang-php: collect-coverage(cwd={}) lines={}/{} functions={}/{} mutation={}/{}",
+            request.cwd,
+            lines.covered,
+            lines.total,
+            functions.covered,
+            functions.total,
+            mutation.caught,
+            mutation.total
+        ),
+    );
+
+    // Той самий свідомий "нічого не виміряно" → порожній звіт, що
+    // `provider.mjs::collect` (`if (coverage.lines.total === 0 &&
+    // mutation.total === 0) return []`) — ЛЕГІТИМНИЙ успіх (немає PHP-коду
+    // під виміром), а не помилка.
+    if lines.total == 0 && mutation.total == 0 {
+        return Ok(CoverageReport { areas: vec![] });
+    }
+
+    Ok(CoverageReport {
+        areas: vec![CoverageArea {
+            area: "PHP".to_string(),
+            lines,
+            functions,
+            mutation,
+            survived_files,
+        }],
+    })
+}
+
 /// Чиста (без host-імпортів `log`/`report-progress`) конструктор
 /// маніфеста — винесений з [`Guest::describe`] окремо, щоб host-таргет
 /// unit-тести могли звірити форму маніфеста без реального wasmtime-хоста
@@ -1386,11 +1793,16 @@ fn build_manifest() -> Manifest {
         },
         tools: vec![COMPOSER_TOOL.to_string(), MAGO_TOOL.to_string()],
         fix_only_concerns: vec![],
-        // ТИМЧАСОВО порожньо: мажор `5.0.0` (§2.109 реєстру відкритих
-        // питань) додав поле `worlds`, реальна міграція гостей — крок 4
-        // спеки `docs/specs/2026-08-31-plugin-contract-v5.md` §12, окрема
-        // задача. До неї гість однаково НЕ інстанціюється на `5.x`-хості.
-        worlds: vec![],
+        // Крок 6 спеки §12 («coverage-provider як перша слотова поверхня»)
+        // додав ТРЕТІЙ реальний запис (перший — `crates/plugin-lang-rust`,
+        // другий — `crates/plugin-lang-python`): цей гість тепер ЕКСПОРТУЄ
+        // `collect-coverage` (`Guest::collect_coverage`,
+        // `world: "php-coverage-provider-guest"` у бінгден-виклику вище) —
+        // заявляти світ ОБОВʼЯЗКОВО, інакше хост відмовляє будь-якому виклику
+        // цього export-у гучно, навіть коли він реально є в типі компонента
+        // (`PluginHostError::SurfaceNotDeclared`). `tool-runner` тут і далі
+        // НЕ заявляється — `run-tool`/`exec-tool` лишаються в ядровому world.
+        worlds: vec!["n-rules:surfaces/coverage-provider@1.0.0".to_string()],
     }
 }
 
@@ -1471,6 +1883,19 @@ impl Guest for LangPhp {
 
     fn docgen_render(_request: DocgenRequest) -> Result<DocOutput, DomainError> {
         Err(DomainError::NotSupported)
+    }
+
+    /// Крок 6 спеки §12 — `n-rules:surfaces/coverage-provider@1.0.0`,
+    /// ТРЕТІЙ реальний export цієї слотової поверхні (перший —
+    /// `crates/plugin-lang-rust`, другий — `crates/plugin-lang-python`).
+    /// Уся семантика — [`collect_coverage_impl`] (доккомент секції перед
+    /// [`build_manifest`]) — винесена окремо лише заради читабельності
+    /// сигнатури `Guest`-методу; сама функція кличе
+    /// `host_context`/`exec_tool`/`log` і тому, як і `detect_project`,
+    /// тестована лише живим end-to-end прогоном через `PluginHost` (поза
+    /// обсягом цього кроку), НЕ юніт-тестом host-таргета.
+    fn collect_coverage(request: CoverageRequest) -> Result<CoverageReport, CoverageDomainError> {
+        collect_coverage_impl(&request)
     }
 }
 
