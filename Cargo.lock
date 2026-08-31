@@ -6029,6 +6029,7 @@ dependencies = [
  "anyhow",
  "globset",
  "libc",
+ "n7n-llm-lib",
  "rules-contract",
  "rules-core",
  "rules-rego-engine",

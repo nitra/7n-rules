@@ -16,6 +16,7 @@ use wasmtime_wasi::{FsPerms, WasiCtxBuilder};
 
 use rules_contract::manifest::{Capabilities, Manifest};
 
+use crate::caps_llm_consumer::{self, LlmCaller};
 use crate::convert;
 use crate::error::PluginHostError;
 use crate::host_state::HostState;
@@ -66,6 +67,15 @@ pub struct PluginHost {
     /// таймера/резервує ресурси), а `PluginHost` уже живе процес-довго
     /// (доккомент вище: `Engine`+`base_linker` будуються раз).
     runtime: Arc<tokio::runtime::Runtime>,
+    /// Реалізація `llm-call` для `n-rules:caps/llm-consumer@1.0.0`
+    /// (крок 4.1, застосований ДРУГИЙ раз) — той самий мотив, що
+    /// `tool_resolver`: побудований раз на `PluginHost`, клонується в
+    /// кожен `HostState` (`Self::build_host_state`). [`Self::new`] кладе
+    /// сюди `caps_llm_consumer::RealLlmCaller`; [`Self::new_with_llm_caller`]
+    /// — довільний двійник (доккомент `caps_llm_consumer::LlmCaller`,
+    /// «навіщо `pub`» — точка ін'єкції гейт-тесту, що не робить реальний
+    /// мережевий виклик).
+    llm_caller: Arc<dyn LlmCaller>,
 }
 
 impl PluginHost {
@@ -76,6 +86,20 @@ impl PluginHost {
     /// tool ще не резолвлений (кожен `run-tool`-виклик просто отримає
     /// типізовану помилку в `tool-output`, доккомент `ToolResolver::run`).
     pub fn new(tool_resolver: ToolResolver) -> Result<Self, PluginHostError> {
+        Self::new_with_llm_caller(tool_resolver, Arc::new(caps_llm_consumer::RealLlmCaller))
+    }
+
+    /// Те саме, що [`Self::new`], але з ЯВНОЮ реалізацією
+    /// `n-rules:caps/llm-consumer@1.0.0::llm-call`
+    /// (`crate::caps_llm_consumer::LlmCaller`) — точка ін'єкції для
+    /// гейт-тесту цього кроку (`tests/caps_llm_consumer_gate.rs`), якому
+    /// заборонено робити реальний мережевий виклик моделі. Продакшн-
+    /// викликачі (`rules-cli`/`rules-napi`) лишаються на [`Self::new`] —
+    /// жоден із них не змінюється цим кроком.
+    pub fn new_with_llm_caller(
+        tool_resolver: ToolResolver,
+        llm_caller: Arc<dyn LlmCaller>,
+    ) -> Result<Self, PluginHostError> {
         let mut config = Config::new();
         config.wasm_component_model(true);
         // `component-model-async` (спека, розділ 10.1) — потрібна БУДЬ-ЯКОМУ
@@ -146,6 +170,7 @@ impl PluginHost {
             base_linker: linker,
             tool_resolver: Arc::new(tool_resolver),
             runtime: Arc::new(runtime),
+            llm_caller,
         })
     }
 
@@ -478,6 +503,11 @@ impl PluginHost {
             // `LoadedPlugin` собі памʼятає нижче (`load_impl`), незалежно
             // від `capabilities.fs_read` (доккомент поля `HostState::fs_read_root`).
             fs_read_root: preopen_root.map(Path::to_path_buf),
+            // `n-rules:caps/llm-consumer@1.0.0` (крок 4.1, застосований
+            // ДРУГИЙ раз) — клон `Arc` побудованого раз на `PluginHost`
+            // (доккомент поля `Self::llm_caller`), той самий прийом, що
+            // `tool_resolver` вище.
+            llm_caller: Arc::clone(&self.llm_caller),
         })
     }
 }

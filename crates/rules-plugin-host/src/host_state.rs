@@ -13,6 +13,7 @@ use wasmtime_wasi::{WasiCtx, WasiCtxView, WasiView};
 use rules_contract::tool::{LogLevel, ScratchFile, ToolRequest, ToolResult};
 
 use crate::caps_file_reader;
+use crate::caps_llm_consumer;
 use crate::scratch::ScratchDir;
 use crate::tool_resolver::ToolResolver;
 use crate::wit;
@@ -81,6 +82,16 @@ pub(crate) struct HostState {
     /// помилки в WIT) повертає порожній перелік і лишає слід у логах —
     /// доккомент [`HostState::list_files`]/[`HostState::read_file_bytes`].
     pub(crate) fs_read_root: Option<PathBuf>,
+    /// Реалізація `llm-call` для `n-rules:caps/llm-consumer@1.0.0`
+    /// (`crate::caps_llm_consumer`, крок 4.1 спеки
+    /// `docs/specs/2026-08-31-plugin-contract-v5.md` §12.1, застосований
+    /// ДРУГИЙ раз). `Arc<dyn LlmCaller>`, не пряме `LocalCloud` — той самий
+    /// DI-мотив, що `tool_resolver` вище, і той самий, що робить цей світ
+    /// тестовним без реального мережевого виклику (доккомент
+    /// `caps_llm_consumer::LlmCaller`, «навіщо `pub`»):
+    /// `PluginHost::new` кладе сюди [`caps_llm_consumer::RealLlmCaller`],
+    /// `PluginHost::new_with_llm_caller` — довільний тестовий двійник.
+    pub(crate) llm_caller: std::sync::Arc<dyn caps_llm_consumer::LlmCaller>,
 }
 
 impl HostState {
@@ -293,6 +304,23 @@ impl caps_file_reader::FileReaderImports for HostState {
         std::fs::read(root.join(&path)).map_err(|err| {
             caps_file_reader::DomainError::Failed(format!("не вдалось прочитати `{path}`: {err}"))
         })
+    }
+}
+
+// Реалізація `n-rules:caps/llm-consumer@1.0.0` (крок 4.1 спеки
+// `docs/specs/2026-08-31-plugin-contract-v5.md` §12.1, застосований ДРУГИЙ
+// раз): окремий `Host`-трейт `crate::caps_llm_consumer`, реалізований на
+// ТОМУ САМОМУ `HostState` — той самий приймач, лінкер поєднує обидва
+// вибірково (`crate::world_linker`). Уся семантика (тир, таксономія
+// помилок) живе в `crate::caps_llm_consumer` (доккомент модуля); тут —
+// лише міст WIT ⇄ [`caps_llm_consumer::LlmCaller`].
+impl caps_llm_consumer::LlmConsumerImports for HostState {
+    async fn llm_call(
+        &mut self,
+        request: caps_llm_consumer::LlmRequest,
+    ) -> Result<caps_llm_consumer::LlmResponse, caps_llm_consumer::DomainError> {
+        let text = self.llm_caller.call(request.prompt).await?;
+        Ok(caps_llm_consumer::LlmResponse { text })
     }
 }
 
