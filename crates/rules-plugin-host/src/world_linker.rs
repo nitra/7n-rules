@@ -82,6 +82,21 @@ fn link_file_reader(linker: &mut Linker<HostState>) -> Result<(), PluginHostErro
         .map_err(|err| PluginHostError::Instantiate(err.into()))
 }
 
+/// Реєстрація `n-rules:surfaces/coverage-provider@1.0.0` (крок 6 спеки
+/// §12, «перша слотова поверхня») — НАВМИСНИЙ no-op, на відміну від
+/// [`link_file_reader`] вище: `coverage-provider` world не має ЖОДНОГО
+/// import-у (доккомент `crate::surfaces_coverage_provider` — це
+/// ЕКСПОРТНИЙ world, хост КЛИЧЕ `collect-coverage`, а не РЕАЛІЗУЄ якийсь
+/// його імпорт), тож нічого долінковувати. Запис усе одно потрібен: без
+/// нього [`extend_linker_for_worlds`] гучно відхилив би рядок як
+/// [`PluginHostError::UnknownWorld`] для БУДЬ-ЯКОГО гостя, що заявив цей
+/// world у `manifest.worlds` (`plugin-lang-rust`, крок 6) — реєстр цього
+/// файлу відповідає на питання «хост ЗНАЄ цей world» незалежно від того,
+/// чи є для нього що лінкувати.
+fn link_coverage_provider(_linker: &mut Linker<HostState>) -> Result<(), PluginHostError> {
+    Ok(())
+}
+
 /// Реєстр відомих світів повноважень/поверхонь: WIT-ідентифікатор світу →
 /// функція, що долінковує його імпорти. Перший непорожній запис —
 /// `n-rules:caps/file-reader@1.0.0` (крок 4.1 спеки §12.1, перший
@@ -95,8 +110,18 @@ fn link_file_reader(linker: &mut Linker<HostState>) -> Result<(), PluginHostErro
 /// каже «ядровий світ `n-rules:plugin` не перелічується — його реалізують
 /// усі», і [`PluginHost::base_linker`](crate::host::PluginHost) вже несе
 /// його імпорти безумовно, до будь-якого запиту цього реєстру.
-const KNOWN_CAPABILITY_WORLDS: &[(&str, LinkFn)] =
-    &[("n-rules:caps/file-reader@1.0.0", link_file_reader as LinkFn)];
+/// WIT-ідентифікатор world-а `coverage-provider` (крок 6 спеки §12) —
+/// `pub(crate)`, а не приватний рядковий літерал усередині цього масиву:
+/// `crate::host`/`crate::loaded_plugin` звіряють `declared_worlds` проти
+/// РІВНО цього рядка (доккомент [`crate::loaded_plugin::LoadedPlugin::collect_coverage`]),
+/// і дублювання його як окремого літерала в трьох місцях — той самий клас
+/// дрейфу, від якого рятує єдина крапка правди.
+pub(crate) const COVERAGE_PROVIDER_WORLD: &str = "n-rules:surfaces/coverage-provider@1.0.0";
+
+const KNOWN_CAPABILITY_WORLDS: &[(&str, LinkFn)] = &[
+    ("n-rules:caps/file-reader@1.0.0", link_file_reader as LinkFn),
+    (COVERAGE_PROVIDER_WORLD, link_coverage_provider as LinkFn),
+];
 
 /// Розширює `linker` (очікується клон `PluginHost::base_linker` — ядро вже
 /// прилінковане) імпортами кожного світу з `declared_worlds`, звіряючи
@@ -154,6 +179,24 @@ mod tests {
         let mut linker = Linker::<HostState>::new(&engine);
         extend_linker_for_worlds(&mut linker, &["n-rules:caps/file-reader@1.0.0".to_string()])
             .expect("file-reader має бути відомим реєстру після цього кроку");
+    }
+
+    /// Реєстрація `n-rules:surfaces/coverage-provider@1.0.0` (крок 6 спеки
+    /// §12) — той самий одинична-механічна перевірка, що
+    /// `file_reader_world_is_known`: рядок розпізнається, лінкер (тут —
+    /// без жодної зміни, доккомент [`link_coverage_provider`]) не падає.
+    /// Наскрізний доказ, що хост РЕАЛЬНО кличе `collect-coverage` через
+    /// цей world, живе окремо (`tests/surfaces_coverage_provider_gate.rs`).
+    #[test]
+    fn coverage_provider_world_is_known() {
+        let engine = wasmtime::Engine::new(wasmtime::Config::new().wasm_component_model(true))
+            .expect("Engine::new");
+        let mut linker = Linker::<HostState>::new(&engine);
+        extend_linker_for_worlds(
+            &mut linker,
+            &["n-rules:surfaces/coverage-provider@1.0.0".to_string()],
+        )
+        .expect("coverage-provider має бути відомим реєстру після цього кроку");
     }
 
     /// Будь-який непорожній рядок, відмінний від зареєстрованих, лишається

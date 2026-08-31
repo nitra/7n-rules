@@ -5304,7 +5304,12 @@ dependencies = [
  "rules-rego-engine",
  "rules-template-merge",
  "serde",
+<<<<<<< HEAD
  "toml 0.8.23",
+=======
+ "serde_json",
+ "toml",
+>>>>>>> 5a79cbd18 (feat(rules-plugin-host,plugin-lang-rust): coverage-provider — перша слотова поверхня (§2.120))
  "wit-bindgen 0.60.0",
 ]
 

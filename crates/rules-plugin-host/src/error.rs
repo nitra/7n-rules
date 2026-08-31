@@ -97,4 +97,26 @@ pub enum PluginHostError {
          для нього (перевір версію хоста й пакети n-rules:caps/n-rules:surfaces)"
     )]
     UnknownWorld { world: String },
+
+    /// Виклик функції слотової поверхні (напр. `collect-coverage`,
+    /// `n-rules:surfaces/coverage-provider@1.0.0`) на плагіні, що НЕ
+    /// оголосив цей world у `manifest.worlds` — типізована відмова, не
+    /// порожній звіт (правило проєкту «мовчазний пропуск — вада», крок 6
+    /// спеки `docs/specs/2026-08-31-plugin-contract-v5.md` §12: «гість, що
+    /// не вміє зібрати покриття, має віддати типізовану помилку, а не
+    /// порожній звіт: порожній звіт не відрізнити від "покриття нульове"»).
+    /// Відрізняється від [`Self::UnknownWorld`]: там хост не знає РЯДКА
+    /// world-а взагалі, тут хост world знає, але ЦЕЙ плагін його не
+    /// заявив — виклик відповідного акцесора (`LoadedPlugin::collect_coverage`)
+    /// просто не має чого викликати (`Option::None`, доккомент поля
+    /// `LoadedPlugin::coverage_provider`).
+    #[error(
+        "плагін `{plugin_id}` не оголосив world `{world}` у manifest.worlds — виклик `{function}` \
+         неможливий (плагін не реалізує цю слотову поверхню)"
+    )]
+    SurfaceNotDeclared {
+        plugin_id: String,
+        world: &'static str,
+        function: &'static str,
+    },
 }

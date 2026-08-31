@@ -32,6 +32,7 @@ mod host_state;
 mod loaded_plugin;
 mod rego_engine;
 mod scratch;
+mod surfaces_coverage_provider;
 mod tool_resolver;
 mod wit;
 mod world_linker;

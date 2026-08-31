@@ -13953,6 +13953,123 @@ violations». §2.102 уже перевірила цю причину й зап�
   нуль violations після застосування — довів наскрізний шлях §2.102 живим,
   а не лише в юніт-тестах.
 
+### 2.120. Крок 6 спеки v5 (§12) — `coverage-provider` як перша слотова поверхня: доведена ДРУГА половина механізму (хост кличе export гостя)
+
+**Контекст.** §2.116 (крок 4.1) довела ПЕРШУ половину механізму «повноваження
+як world-и» — гість ІМПОРТУЄ, хост РЕАЛІЗУЄ (`n-rules:caps/file-reader@1.0.0`).
+`coverage-provider` — принципово інша форма: **слотовий** world (спека §7),
+де гість ЕКСПОРТУЄ `collect-coverage`, а хост його КЛИЧЕ. Ця половина
+механізму НЕ була доведена нічим у цьому дереві до цього кроку —
+`docgen-stage`/`knowledge-extractor` (рішення 1, крок 7) спираються на неї
+структурно, тож §12.1 явно вимагала зупинитись і задокументувати, якби вона
+не спрацювала.
+
+**Вона спрацювала з першої спроби, без застережень.** Гіпотеза (доккомент
+`crates/rules-plugin-host/src/surfaces_coverage_provider.rs`): типізований
+bindgen-акцесор (`CoverageProvider::new(&mut store, &instance)`) шукає в
+`Instance` ЛИШЕ ІМЕНОВАНІ export-и СВОГО world-а, толерантно ігноруючи решту
+типу компонента — той самий факт, що вже неявно доводить `wit::Plugin::new`
+для ядрового world на кожному з шести гостей. Перший же `cargo check -p
+rules-plugin-host` після написання коду відкомпілювався БЕЗ жодної правки;
+гейт (`tests/surfaces_coverage_provider_gate.rs`, три тести) підтвердив це
+живим `.wasm`, зібраним під `wasm32-wasip3`.
+
+**Що зроблено.**
+1. **`crates/rules-contract/src/coverage.rs`** — DTO слотового world-а
+   (`CoverageCounts`/`MutationCounts`/`CoverageArea`/`CoverageReport`/
+   `CoverageRequest`), дослівний переніс `coverage-provider.wit` (крок 1,
+   `#603`). Помилка домен-функції — НЕ новий тип: `coverage-domain-error`
+   структурно ідентичний ядровому `DomainError` (`not-supported`/
+   `failed(string)`), тож конверсія мапить у `rules_contract::domain::DomainError`,
+   без дублікату.
+2. **`crates/rules-contract/wit/rust-coverage-provider-guest.wit`** — НОВИЙ
+   файл (поза формально заявленою зоною задачі — `coverage-provider.wit`,
+   але необхідний: без комбінованого world гість не може одночасно
+   експортувати ядрові `describe`/`detect`/`fix` і `collect-coverage`).
+   `include plugin; include n-rules:surfaces/coverage-provider@1.0.0 with {
+   domain-error as coverage-domain-error }` — синтаксис і резолв звірені
+   `wasm-tools component wit` ДО написання коду (той самий порядок дій, що
+   тимчасовий `GATE_WIT` §2.116), але, на відміну від нього, файл
+   ПОСТІЙНИЙ: `crates/plugin-lang-rust` вказує на нього напряму, тимчасова
+   копія дерева в tempdir тут НЕ потрібна.
+3. **`crates/rules-plugin-host/src/surfaces_coverage_provider.rs`** —
+   другий `wasmtime::component::bindgen!` у крейті (`exports: { default:
+   async }`, world без жодного import-у), дзеркало `caps_file_reader.rs`
+   з протилежним напрямком виклику.
+4. **`crates/rules-plugin-host/src/world_linker.rs`** — новий запис
+   `KNOWN_CAPABILITY_WORLDS` для `n-rules:surfaces/coverage-provider@1.0.0`
+   — навмисний NO-OP `LinkFn` (нічого лінкувати, world не має import-ів;
+   запис усе одно обов'язковий, інакше `extend_linker_for_worlds` гучно
+   відхиляє world як невідомий для БУДЬ-ЯКОГО гостя, що його заявив).
+5. **`crates/rules-plugin-host/src/host.rs`/`loaded_plugin.rs`** — акцесор
+   `CoverageProvider` будується РАЗ у `load_impl` (поки `Instance` живий),
+   лише коли `declared_worlds` несе цей world; `LoadedPlugin::collect_coverage`
+   гучно відмовляє типізовано (`PluginHostError::SurfaceNotDeclared`), коли
+   акцесора нема — «мовчазний пропуск — вада» застосовано буквально:
+   `collect_coverage` НІКОЛИ не повертає порожній `CoverageReport` замість
+   помилки на недекларованому плагіні.
+6. **`crates/rules-plugin-host/tests/surfaces_coverage_provider_gate.rs`** —
+   гейт кроку 6, дзеркало `caps_file_reader_gate.rs`: ОДИН `.wasm`
+   (реально ЕКСПОРТУЄ `collect-coverage`) інстанціюється і з
+   `declared_worlds`, і без — на відміну від file-reader, тут «без» НЕ
+   валить інстанціацію (export нікуди не дівається), а `collect_coverage`
+   свідомо відмовляється ним скористатись. Три тести: позитивний
+   round-trip (звіт із маркером + echo `cwd`), типізована помилка від
+   гостя (`domain-error::failed` доїжджає крізь ABI), негативна половина
+   (`SurfaceNotDeclared`).
+7. **`crates/plugin-lang-rust`** — РЕАЛЬНИЙ `collect_coverage`, порт
+   `plugins/lang-rust/coverage-provider/provider.mjs::collect` +
+   `mutants.mjs::parseMutantsOutcomes`: `cargo llvm-cov` (lcov через
+   `exec-tool`+scratch-out) → `parse_lcov_totals` (текстовий `LF:`/`LH:`/
+   `FNF:`/`FNH:`), опційно `cargo mutants` (probe `--version`, чесний skip
+   БЕЗ помилки, коли недоступний — той самий `hasMutants`-прапорець
+   канону) → `parse_mutants_outcomes` (`serde_json`, нова залежність
+   крейта). **Свідоме звуження проти JS-канону, задокументоване, не
+   приховане:** ОДИН корінь (кореневий `Cargo.toml` консюмера), не повний
+   `findRustRoots`-обхід дерева — гість не має доступу до файлової системи
+   для такого обходу без ЩЕ одного заявленого world-а
+   (`n-rules:caps/file-reader`), що розширило б доказ кроку 6 далеко за
+   «один провайдер як доказ, не всі чотири» (преамбула задачі). `plugin.toml`
+   і `build_manifest()` синхронізовані (`worlds`), anti-drift тест
+   розширено на це поле.
+8. **Неправдивий доккомент `docs/provider.md:15`/`provider.mjs:7-8`**
+   («fix-hooks для Rust не реалізовані») ЗАЛИШЕНИЙ незайманим за прямою
+   вказівкою задачі (не спиратись на нього, не виправляти в межах цього
+   кроку) — заведено окремим фоновим таском для JS-доки, не тут.
+
+**Обсяг — один провайдер, не чотири** (преамбула задачі): `lang-js`/
+`lang-python`/`lang-php` НЕ чіпались — та сама хвиля, окремим кроком, після
+цього.
+
+**Середовищна пастка під час роботи.** Диск хоста впав до
+`123 MiB`–`1.0 GiB` вільного місця під час прогону (спільна машина, `12
+GiB` у системному `/var/folders/.../T/`, чужі процеси) — `cargo test -p
+rules-plugin-host` БЕЗ фільтра падав на лінкуванні НЕПОВʼЯЗАНИХ
+integration-тестів (`ld: write() failed, errno=28`). Це не регресія цього
+кроку: усі ЦІЛЬОВІ прогони нижче пройшли; повний `node
+npm/scripts/build-wasm-plugins.mjs` (перезбирає ВСІ шість гостей) свідомо
+НЕ запускався — ризик того самого краху на спільному диску без користі
+для доказу кроку (єдиний ЗМІНЕНИЙ гість — `plugin-lang-rust` — зібраний і
+перевірений напряму, доккомент нижче).
+
+**Цільові прогони (усі синхронно, без фонових процесів):**
+- `cargo check -p rules-plugin-host` — 0 помилок (перший прогін після
+  написання коду, без жодної правки під компілятор).
+- `cargo test -p rules-plugin-host --lib` — 21 passed (включно з двома
+  новими тестами `world_linker`).
+- `cargo test -p rules-plugin-host --test caps_file_reader_gate` — 2
+  passed (контрольна група, крок 4.1 не зачеплений).
+- `cargo test -p rules-plugin-host --test surfaces_coverage_provider_gate`
+  — 3 passed (новий гейт кроку 6).
+- `cargo check -p plugin-lang-rust` / `cargo test -p plugin-lang-rust --lib`
+  — 0 помилок, 94 passed (90 наявних + 4 нових: `parse_lcov_totals` × 2,
+  `parse_mutants_outcomes` × 2; один наявний anti-drift тест
+  (`plugin_toml_concern_keys_match_describe`) розширено перевіркою `worlds`,
+  без приросту кількості тестів).
+- `bash crates/plugin-lang-rust/build.sh` — РЕАЛЬНА збірка
+  `wasm32-wasip3`-компонента з новим export-ом OK
+  (`target/wasm32-wasip3/release/plugin_lang_rust.wasm`).
+
 ### 2.121. Д2 (публікація wasm-плагінів у OCI) — третя спроба, обидва структурні блокери зняті: `embed-manifest`/`publish` живуть у `crates/rules-cli`, звірено наскрізно на всіх шести гостях
 
 **Контекст.** §2.101 задокументувала перший блокер (`oci-dist-package` 0.1.6
