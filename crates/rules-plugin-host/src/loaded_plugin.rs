@@ -8,16 +8,20 @@ use std::sync::Arc;
 
 use wasmtime::Store;
 
+use rules_contract::coverage::{CoverageReport, CoverageRequest};
 use rules_contract::detect::DetectBatch;
 use rules_contract::diagnostic::Diagnostic;
+use rules_contract::domain::DomainError;
 use rules_contract::fix::{FixPlan, FixRequest};
 use rules_contract::manifest::Manifest;
 
 use crate::convert;
 use crate::error::PluginHostError;
 use crate::host_state::{CapturedLog, CapturedProgress, HostState};
+use crate::surfaces_coverage_provider;
 use crate::tool_resolver::ToolResolver;
 use crate::wit;
+use crate::world_linker::COVERAGE_PROVIDER_WORLD;
 
 /// Завантажений і готовий до виклику плагін — публічний тип, єдина точка
 /// взаємодії з wasm-компонентом поза цим крейтом (рішення М спеки: жоден
@@ -42,15 +46,26 @@ pub struct LoadedPlugin {
     /// `crate::wit`), незалежно від того, чи КОНКРЕТНИЙ гість (`p2` чи
     /// `p3`) реально суспендиться.
     runtime: Arc<tokio::runtime::Runtime>,
+    /// Акцесор на export `collect-coverage` (крок 6 спеки §12) — `Some`
+    /// ЛИШЕ коли `manifest.worlds` заявляв [`COVERAGE_PROVIDER_WORLD`] (і
+    /// компонент реально інстанціювався з цим world-ом, `crate::host`),
+    /// `None` — плагін не реалізує цю слотову поверхню. `Option`, а не
+    /// «пробувати й ловити помилку при кожному виклику»: акцесор будується
+    /// РАЗ, у `load_impl` (там, де вже є `Instance`), і саме його
+    /// відсутність — типізований сигнал [`PluginHostError::SurfaceNotDeclared`]
+    /// у [`Self::collect_coverage`], а не повторний провал інстанціації.
+    coverage_provider: Option<surfaces_coverage_provider::CoverageProvider>,
 }
 
 impl LoadedPlugin {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         store: Store<HostState>,
         plugin: wit::Plugin,
         manifest: Manifest,
         preopen_root: Option<PathBuf>,
         runtime: Arc<tokio::runtime::Runtime>,
+        coverage_provider: Option<surfaces_coverage_provider::CoverageProvider>,
     ) -> Self {
         Self {
             store,
@@ -58,6 +73,7 @@ impl LoadedPlugin {
             manifest,
             preopen_root,
             runtime,
+            coverage_provider,
         }
     }
 
@@ -198,5 +214,67 @@ impl LoadedPlugin {
     /// хоста).
     pub fn take_progress(&mut self) -> Vec<CapturedProgress> {
         self.store.data().progress.borrow_mut().drain(..).collect()
+    }
+
+    /// Слотова поверхня `n-rules:surfaces/coverage-provider@1.0.0` (крок 6
+    /// спеки `docs/specs/2026-08-31-plugin-contract-v5.md` §12): кличе
+    /// export `collect-coverage` ЦЬОГО плагіна.
+    ///
+    /// # Гучна відмова, не порожній звіт (правило проєкту)
+    ///
+    /// `self.coverage_provider.is_none()` означає ОДНЕ з двох: плагін
+    /// узагалі не декларував цей world у `manifest.worlds`, або
+    /// декларував, але компонент реально не мав відповідного export-у
+    /// (обидва випадки вже відсіяні раніше — перший тим, що
+    /// `crate::host::PluginHost::load_impl` просто не будує акцесор, другий
+    /// — тим, що акцесор ТОДІ впав би `PluginHostError::Instantiate` ще на
+    /// завантаженні, доккомент `crate::host`). Тобто на момент виклику
+    /// цього методу `None` означає РІВНО «цей плагін не вміє збирати
+    /// покриття» — і повертає типізовану [`PluginHostError::SurfaceNotDeclared`],
+    /// а НЕ [`CoverageReport`] з порожнім `areas` (крок 6 спеки: «порожній
+    /// звіт не відрізнити від "покриття нульове"»).
+    pub fn collect_coverage(
+        &mut self,
+        request: &CoverageRequest,
+    ) -> Result<CoverageReport, PluginHostError> {
+        let Some(provider) = self.coverage_provider.as_ref() else {
+            return Err(PluginHostError::SurfaceNotDeclared {
+                plugin_id: self.manifest.id.clone(),
+                world: COVERAGE_PROVIDER_WORLD,
+                function: "collect-coverage",
+            });
+        };
+        let wit_request = convert::coverage_request_to_wit(request);
+        let result = self
+            .runtime
+            .block_on(provider.call_collect_coverage(&mut self.store, &wit_request));
+        let result = result.map_err(|err| PluginHostError::Execution {
+            function: "collect-coverage",
+            source: err.into(),
+        })?;
+        match result {
+            Ok(report) => Ok(convert::coverage_report_from_wit(report)),
+            Err(error) => {
+                let error = convert::coverage_domain_error_from_wit(error);
+                Err(PluginHostError::Execution {
+                    function: "collect-coverage",
+                    source: anyhow::anyhow!("{}", domain_error_message(&error)),
+                })
+            }
+        }
+    }
+}
+
+/// Людиночитний текст [`DomainError`] — той самий формат, що варіанти
+/// `PluginHostError` уже дають через `#[error(...)]`, лише тут поза
+/// `thiserror`-макросом, бо `DomainError` — тип `rules-contract`, не цього
+/// крейта (жодного `impl Display` там немає — свідомо, доккомент
+/// `rules_contract::domain`: DTO-шар, без format-логіки).
+fn domain_error_message(error: &DomainError) -> String {
+    match error {
+        DomainError::NotSupported => {
+            "плагін не підтримує collect-coverage (domain-error::not-supported)".to_string()
+        }
+        DomainError::Failed { message } => format!("collect-coverage провалився: {message}"),
     }
 }

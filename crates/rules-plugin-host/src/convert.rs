@@ -6,8 +6,12 @@
 //! (JSON-рядок) — та сама межа, що задокументована в
 //! `rules_contract::diagnostic`.
 
+use rules_contract::coverage::{
+    CoverageArea, CoverageCounts, CoverageReport, CoverageRequest, MutationCounts,
+};
 use rules_contract::detect::{DetectBatch, SourceFile};
 use rules_contract::diagnostic::{Diagnostic, Severity};
+use rules_contract::domain::DomainError;
 use rules_contract::fix::{FileEdit, FixPlan, FixRequest, WriteBytesFile, WriteFile};
 use rules_contract::manifest::{Capabilities, ConcernContribution, ConcernScope, Domain, Manifest};
 use rules_contract::slots::ci_artifact::{
@@ -16,6 +20,7 @@ use rules_contract::slots::ci_artifact::{
 use rules_contract::tool::LogLevel;
 
 use crate::error::PluginHostError;
+use crate::surfaces_coverage_provider;
 use crate::wit;
 
 pub(crate) fn log_level_from_wit(level: wit::LogLevel) -> LogLevel {
@@ -245,5 +250,75 @@ fn file_edit_from_wit(edit: wit::FileEdit) -> FileEdit {
 pub(crate) fn fix_plan_from_wit(plan: wit::FixPlan) -> FixPlan {
     FixPlan {
         edits: plan.edits.into_iter().map(file_edit_from_wit).collect(),
+    }
+}
+
+// =====================================================================
+// `n-rules:surfaces/coverage-provider@1.0.0` (крок 6 спеки
+// `docs/specs/2026-08-31-plugin-contract-v5.md` §12) — окремий бінгден
+// (`crate::surfaces_coverage_provider`), тож окремі WIT-типи з ТОЧНО тими
+// самими іменами полів, що ядровий `wit` (жодного зіткнення тут немає:
+// модулі різні).
+
+/// Вхід `collect-coverage` (крейт-споживач → guest) — дослівний переніс
+/// [`CoverageRequest`].
+pub(crate) fn coverage_request_to_wit(
+    request: &CoverageRequest,
+) -> surfaces_coverage_provider::CoverageRequest {
+    surfaces_coverage_provider::CoverageRequest {
+        cwd: request.cwd.clone(),
+        mutation_refresh_files: request.mutation_refresh_files.clone(),
+    }
+}
+
+fn coverage_counts_from_wit(
+    counts: surfaces_coverage_provider::CoverageCounts,
+) -> CoverageCounts {
+    CoverageCounts {
+        covered: counts.covered,
+        total: counts.total,
+    }
+}
+
+fn mutation_counts_from_wit(
+    counts: surfaces_coverage_provider::MutationCounts,
+) -> MutationCounts {
+    MutationCounts {
+        caught: counts.caught,
+        total: counts.total,
+    }
+}
+
+fn coverage_area_from_wit(area: surfaces_coverage_provider::CoverageArea) -> CoverageArea {
+    CoverageArea {
+        area: area.area,
+        lines: coverage_counts_from_wit(area.lines),
+        functions: coverage_counts_from_wit(area.functions),
+        mutation: mutation_counts_from_wit(area.mutation),
+        survived_files: area.survived_files,
+    }
+}
+
+/// Результат `collect-coverage` guest → публічний `CoverageReport`.
+pub(crate) fn coverage_report_from_wit(
+    report: surfaces_coverage_provider::CoverageReport,
+) -> CoverageReport {
+    CoverageReport {
+        areas: report.areas.into_iter().map(coverage_area_from_wit).collect(),
+    }
+}
+
+/// `coverage-domain-error` (перейменований локальний `domain-error` цього
+/// world-а, доккомент `crate::surfaces_coverage_provider`) → спільний
+/// [`DomainError`] (доккомент `rules_contract::coverage`: структурно
+/// ідентичний, другого типу не заводимо).
+pub(crate) fn coverage_domain_error_from_wit(
+    error: surfaces_coverage_provider::DomainError,
+) -> DomainError {
+    match error {
+        surfaces_coverage_provider::DomainError::NotSupported => DomainError::NotSupported,
+        surfaces_coverage_provider::DomainError::Failed(message) => {
+            DomainError::Failed { message }
+        }
     }
 }

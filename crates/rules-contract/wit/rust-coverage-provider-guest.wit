@@ -1,0 +1,28 @@
+// Комбінований world РЕАЛЬНОГО гостя `crates/plugin-lang-rust` (крок 6 спеки
+// `docs/specs/2026-08-31-plugin-contract-v5.md` §12, «coverage-provider як
+// перша слотова поверхня»). Без `package`-рядка — файл лежить поряд із
+// `world.wit`, тож належить ТІЙ САМІЙ директорійній package-групі
+// (`n-rules:plugin@5.0.0`), і `include plugin;` резолвиться НЕКВАЛІФІКОВАНО
+// (той самий прийом, що тимчасовий `GATE_WIT` у
+// `crates/rules-plugin-host/tests/caps_file_reader_gate.rs` — тут просто
+// зроблений ПОСТІЙНИМ, бо `plugin-lang-rust` — не тестова фікстура, а
+// реальний гість, зібраний цим репозиторієм і завантажений
+// `PluginHost::load_in_root_for_worlds`).
+//
+// Синтаксис і резолв перевірено `wasm-tools component wit` ДО того, як
+// `crates/plugin-lang-rust/src/lib.rs` почав на нього спиратись (той самий
+// порядок дій, що доккомент `GATE_WIT`).
+//
+// `with { domain-error as coverage-domain-error }` — ОБОВ'ЯЗКОВЕ
+// перейменування: `plugin` (world.wit:524) і `n-rules:surfaces/
+// coverage-provider@1.0.0` (`deps/surfaces/coverage-provider.wit`) кожен
+// оголошує ВЛАСНИЙ локальний `variant domain-error` (структурно ідентичний
+// — `not-supported`/`failed(string)`, доккомент `coverage-provider.wit`) У
+// ТІЛІ world-а, а не в спільному інтерфейсі. Без перейменування
+// `wasm-tools`/`wit-bindgen` бачать два одноіменних локальних типи при
+// об'єднанні («import of `domain-error` shadows previously imported
+// items») — та сама пастка, що вже задокументована в `GATE_WIT`.
+world rust-coverage-provider-guest {
+  include plugin;
+  include n-rules:surfaces/coverage-provider@1.0.0 with { domain-error as coverage-domain-error }
+}

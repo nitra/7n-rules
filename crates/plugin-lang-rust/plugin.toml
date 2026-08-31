@@ -15,12 +15,16 @@ id = "rust/wasm-concerns"
 version = "0.1.0"
 world_version = "5.0.0"
 domains = ["lint"]
-# ТИМЧАСОВО порожньо: мажор `5.0.0` (§2.109 реєстру відкритих питань) додав
-# поле `worlds`, реальна міграція шести гостей на декларації `caps`/
-# `surfaces` — крок 4 спеки `docs/specs/2026-08-31-plugin-contract-v5.md`
-# §12, окрема задача. До неї гість однаково НЕ інстанціюється на
-# `5.x`-хості (`check_world_version` major-only).
-worlds = []
+# Крок 6 спеки `docs/specs/2026-08-31-plugin-contract-v5.md` §12,
+# «coverage-provider як перша слотова поверхня»: цей гість тепер ЕКСПОРТУЄ
+# `collect-coverage` (`src/lib.rs::Guest::collect_coverage`, world
+# `rust-coverage-provider-guest` у бінгден-виклику) — заявляти world тут
+# ОБОВ'ЯЗКОВО, інакше хост відмовляє будь-якому виклику цього export-у
+# гучно, навіть коли він реально є в типі компонента
+# (`rules-plugin-host::PluginHostError::SurfaceNotDeclared`).
+# `tool-runner` СВІДОМО не заявлений — `run-tool`/`exec-tool` лишаються
+# ядровими до окремого винесення (спека §11 п.2).
+worlds = ["n-rules:surfaces/coverage-provider@1.0.0"]
 # Top-level поля маніфеста — ОБОВʼЯЗКОВО перед першим `[[concerns]]`: після
 # array-of-tables заголовка TOML відніс би їх до останнього елемента масиву,
 # а не до кореня (та сама пастка, задокументована в

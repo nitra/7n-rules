@@ -63,6 +63,18 @@ serde = { version = "1", default-features = false, features = ["derive"] }
 # концерну лише `.vscode/extensions.json`, `saphyr` у граф не входить.
 rules-template-merge = { path = "../rules-template-merge" }
 
+# Крок 6 спеки `docs/specs/2026-08-31-plugin-contract-v5.md` §12
+# (`collect-coverage`, `world n-rules:surfaces/coverage-provider@1.0.0`):
+# розбір `mutants.out/outcomes.json` (`cargo mutants`) — та сама схема, що
+# JS-канон `plugins/lang-rust/coverage-provider/mutants.mjs::parseMutantsOutcomes`
+# (`outcomes[].scenario.Mutant`/`summary`, звірено на живому 27.0-прогоні,
+# доккомент того файлу). Той самий крейт, що `crates/plugin-lang-js`
+# (`serde_json = "1"`, вище в цьому Cargo.toml-родоводі): lcov (line
+# coverage) навпаки має ТРИВІАЛЬНИЙ текстовий формат (`LF:`/`LH:`/`FNF:`/
+# `FNH:` — рядковий парсинг, доккомент `parse_lcov_totals` у `src/lib.rs`)
+# і НЕ потребує JSON-крейта взагалі.
+serde_json = "1"
+
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 # §2.66: `regorus` виконується IN-PROCESS лише на host-таргеті (нативні
 # `cargo test` цього крейта) — той самий `rules-rego-engine`, що

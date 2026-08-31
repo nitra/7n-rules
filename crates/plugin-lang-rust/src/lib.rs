@@ -414,9 +414,24 @@
 // JSON-таргет.
 use rules_template_merge::{json_to_pretty_string, json_to_string, parse_jsonc_document, Json};
 
+// Крок 6 спеки `docs/specs/2026-08-31-plugin-contract-v5.md` §12,
+// «coverage-provider як перша слотова поверхня»: world перемкнутий з
+// голого `plugin` на КОМБІНОВАНИЙ `rust-coverage-provider-guest`
+// (`crates/rules-contract/wit/rust-coverage-provider-guest.wit` — `include
+// plugin; include n-rules:surfaces/coverage-provider@1.0.0 with {
+// domain-error as coverage-domain-error }`, доккомент того файлу пояснює,
+// чому перейменування ОБОВ'ЯЗКОВЕ). Це ЄДИНА зміна складу world-а цього
+// гостя — усі export-и `plugin` (`describe`/`detect`/`fix`/
+// `ecosystem-outdated`/`docgen-render`) і всі import-и (`log`/
+// `report-progress`/`host-context`/`run-tool`/`exec-tool`) лишаються
+// РІВНО тими самими (`include` — адитивний, не замінює), додається лише
+// ОДИН новий export — `collect-coverage`
+// ([`Guest::collect_coverage`] нижче). Синтаксис і резолв world-а
+// перевірено `wasm-tools component wit` ДО написання цього рядка
+// (доккомент `rust-coverage-provider-guest.wit`).
 wit_bindgen::generate!({
     path: "../rules-contract/wit",
-    world: "plugin",
+    world: "rust-coverage-provider-guest",
     generate_all,
 });
 
@@ -2888,8 +2903,299 @@ fn build_manifest() -> Manifest {
         // питань) додав поле `worlds`, реальна міграція гостей — крок 4
         // спеки `docs/specs/2026-08-31-plugin-contract-v5.md` §12, окрема
         // задача. До неї гість однаково НЕ інстанціюється на `5.x`-хості.
-        worlds: vec![],
+        //
+        // Крок 6 спеки §12 («coverage-provider як перша слотова
+        // поверхня») додав ПЕРШИЙ реальний запис: цей гість тепер
+        // ЕКСПОРТУЄ `collect-coverage` (`Guest::collect_coverage`,
+        // `world: "rust-coverage-provider-guest"` у бінгден-виклику
+        // вище) — заявляти світ ОБОВʼЯЗКОВО, інакше хост відмовляє
+        // будь-якому виклику цього export-у гучно, навіть коли він
+        // реально є в типі компонента (доккомент
+        // `crates/rules-plugin-host/src/loaded_plugin.rs::collect_coverage`,
+        // `PluginHostError::SurfaceNotDeclared`). `tool-runner` тут і
+        // далі НЕ заявляється — `run-tool`/`exec-tool` лишаються в
+        // ядровому world (винесення в `caps:tool-runner` — окрема задача
+        // §11 п.2 спеки v5, не цього кроку).
+        worlds: vec!["n-rules:surfaces/coverage-provider@1.0.0".to_string()],
     }
+}
+
+// =====================================================================
+// Крок 6 спеки `docs/specs/2026-08-31-plugin-contract-v5.md` §12,
+// «coverage-provider як перша слотова поверхня»: `collect-coverage` —
+// ПОРТ `plugins/lang-rust/coverage-provider/provider.mjs::collect` (line
+// coverage через `cargo llvm-cov` + мутаційне тестування через `cargo
+// mutants`, `mutants.mjs::parseMutantsOutcomes`).
+//
+// # Свідоме звуження проти JS-канону — ОДИН корінь, не `findRustRoots`
+//
+// JS-канон (`roots.mjs::findRustRoots`) обходить УСЕ дерево репозиторію в
+// пошуках КОЖНОГО Cargo-крейта (моно-репо може мати кілька незалежних
+// Rust-коренів) і агрегує покриття по всіх. Гість НЕ має доступу до
+// файлової системи консюмера для такого обходу (жоден концерн цього
+// крейта не читає диск сам, доккомент модуля, розділ «Обхід дерева») —
+// `n-rules:caps/file-reader@1.0.0` дав би такий доступ, але заявляти ЩЕ
+// один world заради ПЕРШОЇ слотової поверхні розширило б доказ кроку 6
+// далеко за «один провайдер як доказ, не всі чотири» (преамбула задачі).
+// Тому цей порт працює з РІВНО одним коренем — кореневим `Cargo.toml`
+// консюмера (`cwd: none` у `exec-tool`-запитах нижче, той самий корінь,
+// що вже несе [`CONCERN_CHECK`]/[`CONCERN_CARGO_MUTANTS_CONFIG`]). Для
+// репозиторіїв з одним Rust-коренем (більшість консюмерів) результат
+// ідентичний JS-канону; для моно-репо з кількома незалежними коренями
+// покриття інших коренів не агрегується — задокументована різниця, не
+// мовчазний пропуск (правило проєкту).
+//
+// # Мутаційне тестування — чесний skip, не помилка (той самий мотив, що canon)
+//
+// `cargo mutants` доступний не завжди (`TOOL_HINT` JS-канону): недоступний
+// інструмент дає [`CoverageArea::mutation`] `{caught: 0, total: 0}` і
+// порожній `survived_files`, а НЕ [`CoverageDomainError`] — рівно
+// поведінка `provider.mjs::collect` (`hasMutants` прапорець, «лише line
+// coverage»). Відсутність `cargo`/`cargo-llvm-cov` — інша річ:
+// [`CoverageDomainError::NotSupported`] (canon: `detect()` повертає
+// `false`), бо БЕЗ line coverage взагалі нема що агрегувати.
+
+/// Ім'я тула — той самий `CHECK_TOOL` (`path:cargo`), уже задекларований
+/// [`build_manifest`] для `rust/check`: `collect-coverage` теж кличе
+/// `cargo`, друга декларація нічого не додала б.
+const COVERAGE_TOOL: &str = "path:cargo";
+
+/// Слот host-context з абсолютним шляхом scratch-каталогу виклику — той
+/// самий слот, що `CONCERN_JSCPD_DUPLICATES` у `crates/plugin-lang-js/src/lib.rs`
+/// (перший реальний споживач `scratch-out` цього репозиторію).
+const COVERAGE_SCRATCH_DIR_SLOT: &str = "scratch-dir@1";
+
+/// Ім'я lcov-файлу, який `cargo llvm-cov --output-path` пише В
+/// scratch-каталог (абсолютний шлях аргументом — `--output-path`
+/// приймає ПОВНИЙ шлях, на відміну від `jscpd --output <dir>`, тож тут
+/// НЕ треба окремого підкаталогу).
+const LCOV_FILE_NAME: &str = "coverage.lcov";
+
+/// Підкаталог-ціль `cargo mutants --output` у scratch-каталозі — окремий
+/// підкаталог (не корінь scratch), бо `cargo mutants` сам створює
+/// структуру (`mutants.out/outcomes.json` УСЕРЕДИНІ переданого
+/// `--output`), а не пише єдиний файл.
+const MUTANTS_OUTPUT_SUBDIR: &str = "mutants-coverage";
+
+/// Агрегує `LF:`/`LH:`/`FNF:`/`FNH:` по всіх записах lcov — точний порт
+/// `parseLcovTotals` (`npm/rules/test/coverage/lib/lcov.mjs`), який ЦЕЙ
+/// провайдер (як і всі мовні провайдери `coverage`) використовує в
+/// каноні через спільний імпорт.
+fn parse_lcov_totals(text: &str) -> (CoverageCounts, CoverageCounts) {
+    let mut lines = CoverageCounts {
+        covered: 0,
+        total: 0,
+    };
+    let mut functions = CoverageCounts {
+        covered: 0,
+        total: 0,
+    };
+    for line in text.lines() {
+        if let Some(rest) = line.strip_prefix("LF:") {
+            lines.total += rest.trim().parse::<u32>().unwrap_or(0);
+        } else if let Some(rest) = line.strip_prefix("LH:") {
+            lines.covered += rest.trim().parse::<u32>().unwrap_or(0);
+        } else if let Some(rest) = line.strip_prefix("FNF:") {
+            functions.total += rest.trim().parse::<u32>().unwrap_or(0);
+        } else if let Some(rest) = line.strip_prefix("FNH:") {
+            functions.covered += rest.trim().parse::<u32>().unwrap_or(0);
+        }
+    }
+    (lines, functions)
+}
+
+/// Розбирає `mutants.out/outcomes.json` — точний порт
+/// `parseMutantsOutcomes` (`plugins/lang-rust/coverage-provider/mutants.mjs`):
+/// `CaughtMutant`/`Timeout` рахуються як caught (мутант зупинив suite),
+/// `Unviable`/`Success`/будь-що інше, крім `MissedMutant`, виключається зі
+/// знаменника, `MissedMutant` дає ОДИН запис `survived-files` (шлях,
+/// не деталізований мутант — доккомент `coverage-provider.wit`: детальна
+/// форма мутанта не портовна без узгодження між мовами).
+fn parse_mutants_outcomes(report: &serde_json::Value) -> (MutationCounts, Vec<String>) {
+    let mut mutation = MutationCounts {
+        caught: 0,
+        total: 0,
+    };
+    let mut survived_files: Vec<String> = Vec::new();
+    let outcomes = report
+        .get("outcomes")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+    for outcome in outcomes {
+        let Some(mutant) = outcome.pointer("/scenario/Mutant") else {
+            continue;
+        };
+        let summary = outcome.get("summary").and_then(|v| v.as_str()).unwrap_or("");
+        match summary {
+            "CaughtMutant" | "Timeout" => {
+                mutation.caught += 1;
+                mutation.total += 1;
+            }
+            "MissedMutant" => {
+                mutation.total += 1;
+                let file = mutant
+                    .get("file")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown")
+                    .to_string();
+                if !survived_files.contains(&file) {
+                    survived_files.push(file);
+                }
+            }
+            _ => {}
+        }
+    }
+    (mutation, survived_files)
+}
+
+/// Спавнить `cargo <args>` через `exec-tool` із scratch-обміном — рівно
+/// той самий нижній рівень, що [`exec_cargo`], АЛЕ з `scratch-out`, тож не
+/// переюзаний напряму (сигнатура [`exec_cargo`] лишає `scratch_out`
+/// порожнім навмисно, доккомент модуля «Обхід дерева» не про це — просто
+/// інший виклик).
+fn exec_cargo_with_scratch(args: Vec<String>, scratch_out: Vec<String>) -> ToolResult {
+    exec_tool(&ToolRequest {
+        tool: COVERAGE_TOOL.to_string(),
+        args,
+        stdin: None,
+        cwd: None,
+        env: vec![],
+        scratch_in: vec![],
+        scratch_out,
+    })
+}
+
+/// `collect-coverage` — доккомент секції вище пояснює звуження й
+/// happy-path. Повертає [`CoverageDomainError::NotSupported`] лише коли
+/// `cargo`/`cargo-llvm-cov` структурно недоступні (гість не може виміряти
+/// ХОЧ ЩОСЬ); будь-який ІНШИЙ провал (тул резолвився, але спав дав
+/// ненульовий код; scratch-файл, який тул мав лишити, відсутній) —
+/// [`CoverageDomainError::Failed`] з людиночитним повідомленням, НЕ
+/// порожній звіт (правило проєкту «мовчазний пропуск — вада», крок 6
+/// спеки §12 дослівно: «порожній звіт не відрізнити від "покриття
+/// нульове"»).
+fn collect_coverage_impl(request: &CoverageRequest) -> Result<CoverageReport, CoverageDomainError> {
+    let Some(scratch_dir) = host_context(COVERAGE_SCRATCH_DIR_SLOT) else {
+        return Err(CoverageDomainError::Failed(
+            "collect-coverage: хост не надав scratch-каталогу (слот scratch-dir@1)".to_string(),
+        ));
+    };
+    let lcov_path = format!("{scratch_dir}/{LCOV_FILE_NAME}");
+
+    let llvm_cov = exec_cargo_with_scratch(
+        vec![
+            "llvm-cov".to_string(),
+            "--lcov".to_string(),
+            "--output-path".to_string(),
+            lcov_path,
+        ],
+        vec![LCOV_FILE_NAME.to_string()],
+    );
+    let Some(status) = llvm_cov.status else {
+        return Err(CoverageDomainError::NotSupported);
+    };
+    if status != 0 {
+        return Err(CoverageDomainError::Failed(format!(
+            "cargo llvm-cov завершився кодом {status}: {}{}",
+            llvm_cov.stdout, llvm_cov.stderr
+        )));
+    }
+    let Some(lcov_file) = llvm_cov
+        .scratch_out
+        .iter()
+        .find(|f| f.path == LCOV_FILE_NAME)
+    else {
+        return Err(CoverageDomainError::Failed(
+            "cargo llvm-cov відзвітував успіхом, але не лишив lcov-файл у scratch-каталозі"
+                .to_string(),
+        ));
+    };
+    let (lines, functions) = parse_lcov_totals(&lcov_file.content);
+
+    // Мутаційне тестування — чесний skip, доккомент секції: probe
+    // `cargo mutants --version` НЕ через scratch (нічого читати), лише
+    // `status`.
+    let mutants_probe = exec_cargo_with_scratch(
+        vec!["mutants".to_string(), "--version".to_string()],
+        vec![],
+    );
+    let mutants_available = mutants_probe.status == Some(0);
+
+    let (mutation, survived_files) = if mutants_available {
+        let outcomes_rel = format!("{MUTANTS_OUTPUT_SUBDIR}/outcomes.json");
+        let mutants_run = exec_cargo_with_scratch(
+            vec![
+                "mutants".to_string(),
+                "--no-times".to_string(),
+                "--output".to_string(),
+                format!("{scratch_dir}/{MUTANTS_OUTPUT_SUBDIR}"),
+            ],
+            vec![outcomes_rel.clone()],
+        );
+        // `cargo mutants` повертає НЕНУЛЬОВИЙ код і на missed-мутантах
+        // (не помилка сама по собі, той самий канон-коментар
+        // `mutants.mjs`) — статус тут НЕ перевіряється, лише наявність
+        // артефакту (точний порт: JS-канон теж ігнорує exit-код цього
+        // кроку, `provider.mjs::collect`).
+        let Some(outcomes_file) = mutants_run
+            .scratch_out
+            .iter()
+            .find(|f| f.path == outcomes_rel)
+        else {
+            return Err(CoverageDomainError::Failed(
+                "cargo mutants не лишив mutants.out/outcomes.json — перевір прогін".to_string(),
+            ));
+        };
+        let parsed: serde_json::Value =
+            serde_json::from_str(&outcomes_file.content).map_err(|err| {
+                CoverageDomainError::Failed(format!(
+                    "outcomes.json cargo mutants — невалідний JSON: {err}"
+                ))
+            })?;
+        parse_mutants_outcomes(&parsed)
+    } else {
+        (
+            MutationCounts {
+                caught: 0,
+                total: 0,
+            },
+            Vec::new(),
+        )
+    };
+
+    log(
+        LogLevel::Info,
+        &format!(
+            "plugin-lang-rust: collect-coverage(cwd={}) lines={}/{} functions={}/{} mutation={}/{}",
+            request.cwd,
+            lines.covered,
+            lines.total,
+            functions.covered,
+            functions.total,
+            mutation.caught,
+            mutation.total
+        ),
+    );
+
+    // Той самий свідомий "нічого не виміряно" → порожній звіт, що
+    // `provider.mjs::collect` (`if (coverage.lines.total === 0 &&
+    // mutation.total === 0) return []`) — ЛЕГІТИМНИЙ успіх (немає Rust-коду
+    // під виміром), а не помилка: канал помилки лишається за структурними
+    // провалами (тул недоступний/зламаний), не за «нічого рахувати».
+    if lines.total == 0 && mutation.total == 0 {
+        return Ok(CoverageReport { areas: vec![] });
+    }
+
+    Ok(CoverageReport {
+        areas: vec![CoverageArea {
+            area: "Rust".to_string(),
+            lines,
+            functions,
+            mutation,
+            survived_files,
+        }],
+    })
 }
 
 /// Guest-реалізація `n-rules:plugin@4.0.0` для `rust/wasm-concerns` — три
@@ -2995,6 +3301,18 @@ impl Guest for LangRust {
 
     fn docgen_render(_request: DocgenRequest) -> Result<DocOutput, DomainError> {
         Err(DomainError::NotSupported)
+    }
+
+    /// Крок 6 спеки §12 — `n-rules:surfaces/coverage-provider@1.0.0`,
+    /// ПЕРШИЙ реальний export цієї слотової поверхні. Уся семантика —
+    /// [`collect_coverage_impl`] (доккомент секції вище) — винесена окремо
+    /// лише заради читабельності сигнатури `Guest`-методу; сама функція
+    /// кличе `host_context`/`exec_tool`/`log` (`crate::host_context` тощо)
+    /// і тому, як і `fix_check`/`detect_check`, тестована лише живим
+    /// end-to-end прогоном через `PluginHost` (поза обсягом цього кроку —
+    /// доккомент модуля `#[cfg(test)]`), НЕ юніт-тестом host-таргета.
+    fn collect_coverage(request: CoverageRequest) -> Result<CoverageReport, CoverageDomainError> {
+        collect_coverage_impl(&request)
     }
 }
 
@@ -4368,6 +4686,22 @@ mod tests {
             runtime.tools.iter().map(String::as_str).collect::<Vec<_>>(),
             "plugin.toml розійшовся з describe() по tools"
         );
+
+        // Крок 6 спеки §12 (`worlds`) — той самий anti-drift мотив: без
+        // цієї перевірки `plugin.toml`/`build_manifest()` могли б розійтись
+        // мовчки (обидва компілюються, обидва проходять решту тестів).
+        let declared_worlds: Vec<&str> = manifest
+            .get("worlds")
+            .and_then(|v| v.as_array())
+            .expect("`worlds` мусить бути top-level масивом маніфеста")
+            .iter()
+            .map(|w| w.as_str().expect("елемент `worlds` — рядок"))
+            .collect();
+        assert_eq!(
+            declared_worlds,
+            runtime.worlds.iter().map(String::as_str).collect::<Vec<_>>(),
+            "plugin.toml розійшовся з describe() по worlds"
+        );
     }
 
     // --- rust/vscode_extensions (§2.77) ---
@@ -4559,5 +4893,52 @@ mod tests {
         assert!(fix_vscode_extensions(&vscode_request(files, diagnostics))
             .edits
             .is_empty());
+    }
+
+    // --- collect-coverage (крок 6 спеки §12) — лише ЧИСТІ парсери,
+    // `collect_coverage_impl` кличе host_context/exec_tool/log і тому не
+    // тестований тут (доккомент `Guest::collect_coverage`).
+
+    #[test]
+    fn parse_lcov_totals_sums_lf_lh_fnf_fnh_across_records() {
+        let text = "SF:src/a.rs\nLF:10\nLH:7\nFNF:3\nFNH:2\nend_of_record\n\
+                     SF:src/b.rs\nLF:5\nLH:5\nFNF:1\nFNH:1\nend_of_record\n";
+        let (lines, functions) = parse_lcov_totals(text);
+        assert_eq!((lines.covered, lines.total), (12, 15));
+        assert_eq!((functions.covered, functions.total), (3, 4));
+    }
+
+    #[test]
+    fn parse_lcov_totals_empty_text_is_all_zero() {
+        let (lines, functions) = parse_lcov_totals("");
+        assert_eq!((lines.covered, lines.total), (0, 0));
+        assert_eq!((functions.covered, functions.total), (0, 0));
+    }
+
+    #[test]
+    fn parse_mutants_outcomes_counts_caught_timeout_and_missed() {
+        let report = serde_json::json!({
+            "outcomes": [
+                { "scenario": "Baseline", "summary": "Success" },
+                { "scenario": { "Mutant": { "file": "src/a.rs" } }, "summary": "CaughtMutant" },
+                { "scenario": { "Mutant": { "file": "src/a.rs" } }, "summary": "Timeout" },
+                { "scenario": { "Mutant": { "file": "src/b.rs" } }, "summary": "MissedMutant" },
+                { "scenario": { "Mutant": { "file": "src/b.rs" } }, "summary": "MissedMutant" },
+                { "scenario": { "Mutant": { "file": "src/c.rs" } }, "summary": "Unviable" },
+            ]
+        });
+        let (mutation, survived_files) = parse_mutants_outcomes(&report);
+        assert_eq!((mutation.caught, mutation.total), (2, 4));
+        // `src/b.rs` дав ДВА missed-мутанти, але один запис у survived-files
+        // (доккомент [`parse_mutants_outcomes`]: список файлів, не мутантів).
+        assert_eq!(survived_files, vec!["src/b.rs".to_string()]);
+    }
+
+    #[test]
+    fn parse_mutants_outcomes_missing_outcomes_key_is_empty() {
+        let report = serde_json::json!({});
+        let (mutation, survived_files) = parse_mutants_outcomes(&report);
+        assert_eq!((mutation.caught, mutation.total), (0, 0));
+        assert!(survived_files.is_empty());
     }
 }

@@ -20,6 +20,7 @@ use crate::convert;
 use crate::error::PluginHostError;
 use crate::host_state::HostState;
 use crate::loaded_plugin::LoadedPlugin;
+use crate::surfaces_coverage_provider;
 use crate::tool_resolver::ToolResolver;
 use crate::wit;
 use crate::world_linker;
@@ -331,7 +332,10 @@ impl PluginHost {
         // компонента»), а не запис у відкинутому probe-`Store`.
         let host_state = self.build_host_state(&probe_manifest.capabilities, preopen_root)?;
         let mut store = Store::new(&self.engine, host_state);
-        let (plugin, manifest) = self.runtime.block_on(async {
+        let declares_coverage_provider = declared_worlds
+            .iter()
+            .any(|world| world == world_linker::COVERAGE_PROVIDER_WORLD);
+        let (plugin, manifest, coverage_provider) = self.runtime.block_on(async {
             let instance = linker
                 .instantiate_async(&mut store, &component)
                 .await
@@ -346,7 +350,23 @@ impl PluginHost {
                         function: "describe",
                         source: err.into(),
                     })?;
-            Ok::<_, PluginHostError>((plugin, manifest))
+            // Акцесор на export `collect-coverage` (крок 6 спеки §12,
+            // `crate::surfaces_coverage_provider`) — будується РАЗ тут,
+            // ПОКИ `instance` ще живий (`LoadedPlugin` його не памʼятає,
+            // доккомент поля `LoadedPlugin::coverage_provider`), і ЛИШЕ
+            // коли world реально заявлений: спроба побудувати акцесор на
+            // компоненті, що `collect-coverage` не експортує, впала б тут
+            // же `Instantiate`-помилкою — гучно, на завантаженні, а не
+            // мовчазним `None` при першому виклику.
+            let coverage_provider = if declares_coverage_provider {
+                Some(
+                    surfaces_coverage_provider::CoverageProvider::new(&mut store, &instance)
+                        .map_err(|err| PluginHostError::Instantiate(err.into()))?,
+                )
+            } else {
+                None
+            };
+            Ok::<_, PluginHostError>((plugin, manifest, coverage_provider))
         })?;
         let manifest = convert::manifest_from_wit(manifest);
 
@@ -356,6 +376,7 @@ impl PluginHost {
             manifest,
             preopen_root.map(Path::to_path_buf),
             Arc::clone(&self.runtime),
+            coverage_provider,
         ))
     }
 

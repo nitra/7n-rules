@@ -31,6 +31,11 @@
 //!      `rules-core`-детектори з JS-оригіналами під час міграції (план
 //!      злиття зафіксовано саме в цьому коментарі, окремого ADR не заведено).
 
+/// `CoverageCounts`/`CoverageReport`/`CoverageRequest` — DTO слотового
+/// світу `n-rules:surfaces/coverage-provider@1.0.0` (крок 6 спеки
+/// `docs/specs/2026-08-31-plugin-contract-v5.md` §12, «перша слотова
+/// поверхня»).
+pub mod coverage;
 /// `SourceFile`/`DetectBatch` — вхід lint-домену (`export detect`, WIT
 /// `world plugin`): хост передає вміст файлів inline, плагін не читає диск.
 pub mod detect;
