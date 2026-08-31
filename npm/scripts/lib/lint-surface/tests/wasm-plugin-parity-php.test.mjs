@@ -68,7 +68,7 @@ import { pathToFileURL } from 'node:url'
 import { describe, expect, test, vi } from 'vitest'
 
 import { loadNative } from '../../native.mjs'
-import { realRepoRoot, withTmpDir } from '../../../utils/test-helpers.mjs'
+import { realRepoRoot, stagedWasmPath, withTmpDir } from '../../../utils/test-helpers.mjs'
 import { createGoldenJs } from './wasm-parity-golden.mjs'
 import { WASM_SIZE_BUDGET_BYTES, WASM_SIZE_BUDGET_LABEL } from './wasm-size-budget.mjs'
 
@@ -87,14 +87,8 @@ vi.mock('@7n/rules/scripts/lib/ensure-tool.mjs', async importOriginal => {
 })
 
 const REPO_ROOT = realRepoRoot()
-const WASM_PATH = join(REPO_ROOT, 'target', 'wasm32-wasip3', 'release', 'plugin_lang_php.wasm')
+const WASM_PATH = stagedWasmPath('plugin-lang-php')
 
-if (!existsSync(WASM_PATH)) {
-  throw new Error(
-    `wasm-plugin-parity-php.test.mjs: wasm-компонент plugin-lang-php не зібраний: ${WASM_PATH} відсутній.\n` +
-      'Зберіть його командою: bash crates/plugin-lang-php/build.sh'
-  )
-}
 
 const PHP_RULES_DIR = join(REPO_ROOT, 'plugins', 'lang-php', 'rules', 'php')
 const TOOLING_MAIN_MJS_PATH = join(PHP_RULES_DIR, 'tooling', 'main.mjs')

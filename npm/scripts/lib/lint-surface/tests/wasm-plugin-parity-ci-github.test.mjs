@@ -77,7 +77,7 @@ import { describe, expect, test, vi } from 'vitest'
 import { parse as parseYaml } from 'yaml'
 
 import { loadNative } from '../../native.mjs'
-import { realRepoRoot, withBinRemovedFromPath, withTmpDir } from '../../../utils/test-helpers.mjs'
+import { realRepoRoot, stagedWasmPath, withBinRemovedFromPath, withTmpDir } from '../../../utils/test-helpers.mjs'
 import { resolveCmd } from '../../../utils/resolve-cmd.mjs'
 import { createGoldenJs } from './wasm-parity-golden.mjs'
 import { WASM_SIZE_BUDGET_BYTES, WASM_SIZE_BUDGET_LABEL } from './wasm-size-budget.mjs'
@@ -100,14 +100,8 @@ vi.mock('@7n/rules/scripts/lib/ensure-tool.mjs', async importOriginal => {
 })
 
 const REPO_ROOT = realRepoRoot()
-const WASM_PATH = join(REPO_ROOT, 'target', 'wasm32-wasip3', 'release', 'plugin_ci_github.wasm')
+const WASM_PATH = stagedWasmPath('plugin-ci-github')
 
-if (!existsSync(WASM_PATH)) {
-  throw new Error(
-    `wasm-plugin-parity-ci-github.test.mjs: wasm-компонент plugin-ci-github не зібраний: ${WASM_PATH} відсутній.\n` +
-      'Зберіть його командою: bash crates/plugin-ci-github/build.sh'
-  )
-}
 
 const MAIN_MJS_PATH = join(REPO_ROOT, 'plugins', 'ci-github', 'rules', 'rust', 'toolchain_cache', 'main.mjs')
 const CONCERN_KEY = 'rust/toolchain_cache'

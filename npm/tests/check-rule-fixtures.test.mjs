@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url'
 
 import { runConcernDetector } from '../scripts/lib/lint-surface/detect.mjs'
 import { loadNative } from '../scripts/lib/native.mjs'
-import { ensureDir, linkPackageRoot, realRepoRoot, withTmpDir, writeJson } from '../scripts/utils/test-helpers.mjs'
+import { ensureDir, linkPackageRoot, realRepoRoot, stagedWasmPath, withTmpDir, writeJson } from '../scripts/utils/test-helpers.mjs'
 
 const TEST_DIR = fileURLToPath(new URL('.', import.meta.url))
 
@@ -27,13 +27,7 @@ const NGINX_CONCERN_DIR = join(TEST_DIR, '..', 'rules/nginx-default-tpl/template
 // npm-релізу, якого в чистому dev-checkout немає; замість нього — прямий
 // `runWasmConcern` на щойно зібраний `target/wasm32-wasip3/release/plugin_lang_js.wasm`
 // (той самий шлях, що `npm/scripts/lib/lint-surface/tests/wasm-plugin-parity.test.mjs`).
-const WASM_PATH = join(realRepoRoot(), 'target', 'wasm32-wasip3', 'release', 'plugin_lang_js.wasm')
-if (!existsSync(WASM_PATH)) {
-  throw new Error(
-    `check-rule-fixtures.test.mjs: wasm-компонент plugin-lang-js не зібраний: ${WASM_PATH} відсутній.\n` +
-      'Зберіть його командою: bash crates/plugin-lang-js/build.sh'
-  )
-}
+const WASM_PATH = stagedWasmPath('plugin-lang-js')
 
 // Адаптери під unified lint surface: detector → 0 (чисто) / 1 (є violations).
 //

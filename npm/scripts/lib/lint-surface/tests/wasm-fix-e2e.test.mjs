@@ -31,19 +31,13 @@ import { beforeEach, describe, expect, test } from 'vitest'
 import { loadT0Patterns, runFixPipeline } from '../run-fix.mjs'
 import { createSnapshot } from '../snapshot.mjs'
 import { resetWasmConcernMapForTests } from '../wasm-plugins.mjs'
-import { realRepoRoot, withTmpDir, writeJson } from '../../../utils/test-helpers.mjs'
+import { realRepoRoot, stagedWasmPath, withTmpDir, writeJson } from '../../../utils/test-helpers.mjs'
 
 const REPO_ROOT = realRepoRoot()
-const WASM_PATH = join(REPO_ROOT, 'target', 'wasm32-wasip3', 'release', 'plugin_lang_js.wasm')
+const WASM_PATH = stagedWasmPath('plugin-lang-js')
 const BUILTIN_PINS_PATH = join(REPO_ROOT, 'npm', 'wasm-plugins', 'builtin-pins.json')
 const hasBuiltinPins = existsSync(BUILTIN_PINS_PATH)
 
-if (!existsSync(WASM_PATH)) {
-  throw new Error(
-    `wasm-fix-e2e.test.mjs: wasm-компонент plugin-lang-js не зібраний: ${WASM_PATH} відсутній.\n` +
-      'Зберіть його командою: bash crates/plugin-lang-js/build.sh'
-  )
-}
 
 if (!hasBuiltinPins) {
   console.warn(

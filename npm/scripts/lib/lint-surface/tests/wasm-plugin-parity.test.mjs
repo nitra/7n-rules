@@ -91,19 +91,13 @@ import { beforeAll, describe, expect, test } from 'vitest'
 
 import { loadNative } from '../../native.mjs'
 import { applyPlanEdit } from '../run-fix.mjs'
-import { realRepoRoot, withTmpDir } from '../../../utils/test-helpers.mjs'
+import { realRepoRoot, stagedWasmPath, withTmpDir } from '../../../utils/test-helpers.mjs'
 import { createGoldenJs } from './wasm-parity-golden.mjs'
 import { WASM_SIZE_BUDGET_BYTES, WASM_SIZE_BUDGET_LABEL } from './wasm-size-budget.mjs'
 
 const REPO_ROOT = realRepoRoot()
-const WASM_PATH = join(REPO_ROOT, 'target', 'wasm32-wasip3', 'release', 'plugin_lang_js.wasm')
+const WASM_PATH = stagedWasmPath('plugin-lang-js')
 
-if (!existsSync(WASM_PATH)) {
-  throw new Error(
-    `wasm-plugin-parity.test.mjs: wasm-компонент plugin-lang-js не зібраний: ${WASM_PATH} відсутній.\n` +
-      'Зберіть його командою: bash crates/plugin-lang-js/build.sh'
-  )
-}
 
 const TFM_CONCERN_KEY = 'vue/tfm-translations'
 const GAP_CONCERN_KEY = 'style/gap'

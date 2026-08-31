@@ -38,19 +38,13 @@ import { describe, expect, test } from 'vitest'
 import { loadNative } from '../../native.mjs'
 import { runFixPipeline } from '../run-fix.mjs'
 import { resetWasmConcernMapForTests } from '../wasm-plugins.mjs'
-import { linkPackageRoot, realRepoRoot, withTmpDir, writeJson } from '../../../utils/test-helpers.mjs'
+import { linkPackageRoot, realRepoRoot, stagedWasmPath, withTmpDir, writeJson } from '../../../utils/test-helpers.mjs'
 
 const REPO_ROOT = realRepoRoot()
-const WASM_PATH = join(REPO_ROOT, 'target', 'wasm32-wasip3', 'release', 'plugin_lang_python.wasm')
+const WASM_PATH = stagedWasmPath('plugin-lang-python')
 const BUILTIN_PINS_PATH = join(REPO_ROOT, 'npm', 'wasm-plugins', 'builtin-pins.json')
 const hasBuiltinPins = existsSync(BUILTIN_PINS_PATH)
 
-if (!existsSync(WASM_PATH)) {
-  throw new Error(
-    `wasm-fix-exec-tool-python-ruff.test.mjs: wasm-компонент plugin-lang-python не зібраний: ${WASM_PATH} відсутній.\n` +
-      'Зберіть його командою: bash crates/plugin-lang-python/build.sh'
-  )
-}
 
 const RULE_ID = 'python'
 const CONCERN_ID = 'ruff'

@@ -27,17 +27,11 @@ import { join } from 'node:path'
 import { describe, expect, test } from 'vitest'
 
 import { loadNative } from '../../native.mjs'
-import { realRepoRoot, withTmpDir } from '../../../utils/test-helpers.mjs'
+import { realRepoRoot, stagedWasmPath, withTmpDir } from '../../../utils/test-helpers.mjs'
 
 const REPO_ROOT = realRepoRoot()
-const WASM_PATH = join(REPO_ROOT, 'target', 'wasm32-wasip3', 'release', 'plugin_ci_azure.wasm')
+const WASM_PATH = stagedWasmPath('plugin-ci-azure')
 
-if (!existsSync(WASM_PATH)) {
-  throw new Error(
-    `wasm-plugin-parity-ci-azure.test.mjs: wasm-компонент plugin-ci-azure не зібраний: ${WASM_PATH} відсутній.\n` +
-      'Зберіть його командою: bash crates/plugin-ci-azure/build.sh'
-  )
-}
 
 const LINT_PIPELINE_CONCERN = 'azure-pipelines/lint_pipeline'
 const VSCODE_EXTENSIONS_CONCERN = 'azure-pipelines/vscode_extensions'
