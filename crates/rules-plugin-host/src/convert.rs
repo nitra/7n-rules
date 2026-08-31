@@ -121,6 +121,11 @@ pub(crate) fn manifest_from_wit(manifest: wit::Manifest) -> Manifest {
         version: manifest.version,
         world_version: manifest.world_version,
         domains: manifest.domains.into_iter().map(domain_from_wit).collect(),
+        // Мажор `5.0.0`: світи повноважень і слотові світи, які компонент
+        // реалізує. Тут — прямий перенос без інтерпретації: рішення «чи
+        // вміємо ми такий світ» належить побудові лінкера
+        // (спека `2026-08-31-plugin-contract-v5.md`, розділ 9), не конверсії.
+        worlds: manifest.worlds,
         concerns: manifest
             .concerns
             .into_iter()
