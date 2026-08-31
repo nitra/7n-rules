@@ -27,7 +27,6 @@ import { loadNative } from '../native.mjs'
 import { resolveWasmConcernMap, resolveWasmFixOnlyConcernMap } from './wasm-plugins.mjs'
 import { buildDetectPlan } from './run-detectors.mjs'
 import { runConcernDetector, DetectorError } from './detect.mjs'
-import { renderViolations } from './render.mjs'
 import { createSnapshot } from './snapshot.mjs'
 import {
   findCollateralEdits,
@@ -780,7 +779,7 @@ async function runRung(rung, worker, violations, feedback, rungDeps) {
       } catch (detectError) {
         return { ok: false, output: `detector error: ${detectError.message}` }
       }
-      return { ok: after.length === 0, output: renderViolations(after) }
+      return { ok: after.length === 0, output: loadNative().renderViolations(after) }
     },
     // Local-тири повільні — одна додаткова ітерація; cloud тягне дві.
     verifyMax: isLocalModel(rung.model) ? 1 : 2
@@ -1169,7 +1168,7 @@ async function renderRemaining(failing, cwd, log, verbose = false) {
       /* DetectorError на фінальному render — ігноруємо, основний verdict уже worst=1 */
     }
   }
-  if (remaining.length > 0) log(renderViolations(remaining))
+  if (remaining.length > 0) log(loadNative().renderViolations(remaining))
   return remaining
 }
 

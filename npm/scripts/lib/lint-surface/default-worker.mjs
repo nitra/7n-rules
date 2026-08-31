@@ -11,7 +11,7 @@
 import { resolve } from 'node:path'
 import { env } from 'node:process'
 
-import { renderViolations } from './render.mjs'
+import { loadNative } from '../native.mjs'
 
 /**
  * Anchored-edits профіль (Фаза A2). Дефолт `cloud` — за bench A/B 2026-07-11
@@ -38,7 +38,7 @@ export async function fixWorker(violations, ctx) {
     import('@7n/llm-lib/model-tiers'),
     import('../../utils/ast-extract.mjs')
   ])
-  const violationText = renderViolations(violations)
+  const violationText = loadNative().renderViolations(violations)
   // Target-set порушення → явний перелік у промпті (semantic-collateral guard §12,
   // addendum 2026-07-05); verdict-veto runner-а звіряє фактичні правки з тим самим набором.
   const targetFiles = [...new Set(violations.map(v => v.file).filter(Boolean))]
