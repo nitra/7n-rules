@@ -252,17 +252,20 @@ impl caps_file_reader::FileReaderImports for HostState {
     /// тож єдина чесна відповідь — порожній перелік, а слід лишається в
     /// логах (той самий формат, що [`Self::ensure_scratch`] пише при
     /// провалі створення scratch-каталогу).
-    async fn list_files(&mut self, globs: Vec<String>) -> Vec<String> {
+    async fn list_files(&mut self, globs: Vec<String>) -> Result<Vec<String>, caps_file_reader::DomainError> {
         let Some(root) = self.fs_read_root.clone() else {
-            self.logs.borrow_mut().push(CapturedLog {
-                level: LogLevel::Warn,
-                message: "n-rules:caps/file-reader: list-files викликано без кореня preopen-ів \
-                          (PluginHost::load_in_root) — повертаю порожній перелік"
+            // Раніше тут був warn + порожній перелік — бо WIT не давав каналу
+            // помилки. Порожній результат при збої НЕ відрізнити від «нічого
+            // не знайшлось», і саме це правила проєкту називають вадою; форму
+            // WIT виправлено (доккомент `file-reader.wit`), тож відмова тепер
+            // типізована, як і в `read-file-bytes`.
+            return Err(caps_file_reader::DomainError::Failed(
+                "n-rules:caps/file-reader: list-files викликано без кореня preopen-ів \
+                 (потрібен PluginHost::load_in_root*)"
                     .to_string(),
-            });
-            return Vec::new();
+            ));
         };
-        caps_file_reader::list_files_under_root(&root, &globs)
+        Ok(caps_file_reader::list_files_under_root(&root, &globs))
     }
 
     /// `read-file-bytes` — вміст ОДНОГО файлу байтами. На відміну від

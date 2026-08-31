@@ -152,7 +152,29 @@ impl Guest for GuestPlugin {
     }
 
     fn detect(_batch: DetectBatch) -> Vec<Diagnostic> {
-        let listed = list_files(&[PROBE_FILE.to_string()]);
+        // `list-files` тепер має канал помилки (див. `file-reader.wit`):
+        // збій обходу більше не виглядає як «нічого не знайшлось».
+        let listed = match list_files(&[PROBE_FILE.to_string()]) {
+            Ok(paths) => paths,
+            Err(FileReaderDomainError::Failed(msg)) => {
+                return vec![Diagnostic {
+                    reason: "file-reader-gate-probe".to_string(),
+                    message: format!("list-err:{msg}"),
+                    file: None,
+                    severity: Severity::Warn,
+                    data: None,
+                }];
+            }
+            Err(FileReaderDomainError::NotSupported) => {
+                return vec![Diagnostic {
+                    reason: "file-reader-gate-probe".to_string(),
+                    message: "list-err:not-supported".to_string(),
+                    file: None,
+                    severity: Severity::Warn,
+                    data: None,
+                }];
+            }
+        };
         let message = match read_file_bytes(PROBE_FILE) {
             Ok(bytes) => format!(
                 "read-ok:{} listed={}",
