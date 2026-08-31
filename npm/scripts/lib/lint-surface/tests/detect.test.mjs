@@ -1,3 +1,21 @@
+/**
+ * Тести маршрутизації `runConcernDetector` СВІДОМО беруть синтетичні
+ * `ruleId`/`concernId`, яких не контрибутить жоден плагін — ані native, ані
+ * wasm.
+ *
+ * Раніше вони брали реальні ключі (`ga/lint_ga`, `ga/git_ai`), і після
+ * портування `plugin-ci-github` у wasm поведінка тесту почала залежати від
+ * ОТОЧЕННЯ: якщо `npm/wasm-plugins/builtin-pins.json` зібраний локально —
+ * диспатч іде у wasm і стаб `main.mjs` не викликається взагалі; якщо ні —
+ * працює JS-шлях, який тест і описує. Тобто той самий комміт давав різний
+ * результат на різних машинах, і на зібраному дереві чотири тести падали
+ * мовчки-хибно — не через ваду в тому, що вони перевіряють.
+ *
+ * Синтетичний ключ прибирає цю залежність за конструкцією: перевіряється
+ * саме fail-open/policy-adapter поведінка `runConcernDetector`, а не те,
+ * кому належить конкретний ключ. Що реальні ключі йдуть у wasm — доводять
+ * окремі гейти (`wasm-plugin-e2e.test.mjs`, `wasm-plugin-parity-*.test.mjs`).
+ */
 import { describe, expect, test } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -8,10 +26,10 @@ import { withTmpDir } from '../../../utils/test-helpers.mjs'
 describe('runConcernDetector — policy-concern без main.mjs', () => {
   test('required:single відсутній → policy-file-missing, без main.mjs на диску', async () => {
     await withTmpDir(async dir => {
-      const concernDir = join(dir, 'rules', 'ga', 'lint_ga')
+      const concernDir = join(dir, 'rules', 'fixture', 'fixture_concern')
       await mkdir(concernDir, { recursive: true })
       const concern = {
-        name: 'lint_ga',
+        name: 'fixture_concern',
         dir: concernDir,
         policy: {
           engine: 'rego',
@@ -19,11 +37,11 @@ describe('runConcernDetector — policy-concern без main.mjs', () => {
           missingMessage: 'не існує'
         }
       }
-      const r = await runConcernDetector(concern, { cwd: dir, ruleId: 'ga', concernId: 'lint_ga' })
+      const r = await runConcernDetector(concern, { cwd: dir, ruleId: 'fixture', concernId: 'fixture_concern' })
       expect(r.violations).toEqual([
         {
-          ruleId: 'ga',
-          concernId: 'lint_ga',
+          ruleId: 'fixture',
+          concernId: 'fixture_concern',
           reason: 'policy-file-missing',
           message: 'не існує',
           severity: 'error',
@@ -48,7 +66,7 @@ describe('runConcernDetector — policy-concern без main.mjs', () => {
 describe('runConcernDetector — fail-open на ToolProvisionError', () => {
   test('lint() кидає ToolProvisionError → порожні violations + warn-діагностика, без DetectorError', async () => {
     await withTmpDir(async dir => {
-      const concernDir = join(dir, 'rules', 'ga', 'lint_ga')
+      const concernDir = join(dir, 'rules', 'fixture', 'fixture_concern')
       await mkdir(concernDir, { recursive: true })
       // Помилка розпізнається за name — саме так вона приходить з іншого інстансу ensure-tool.mjs
       await writeFile(
@@ -56,8 +74,8 @@ describe('runConcernDetector — fail-open на ToolProvisionError', () => {
         "export function lint() { const e = new Error('GitHub API: tag_name missing for open-policy-agent/conftest'); e.name = 'ToolProvisionError'; throw e }\n",
         'utf8'
       )
-      const concern = { name: 'lint_ga', dir: concernDir }
-      const r = await runConcernDetector(concern, { cwd: dir, ruleId: 'ga', concernId: 'lint_ga' })
+      const concern = { name: 'fixture_concern', dir: concernDir }
+      const r = await runConcernDetector(concern, { cwd: dir, ruleId: 'fixture', concernId: 'fixture_concern' })
       expect(r.violations).toEqual([])
       expect(r.diagnostics).toHaveLength(1)
       expect(r.diagnostics[0].level).toBe('warn')
@@ -68,11 +86,11 @@ describe('runConcernDetector — fail-open на ToolProvisionError', () => {
 
   test('звичайна помилка lint() далі кидає DetectorError (fail-open лише для ToolProvisionError)', async () => {
     await withTmpDir(async dir => {
-      const concernDir = join(dir, 'rules', 'ga', 'lint_ga')
+      const concernDir = join(dir, 'rules', 'fixture', 'fixture_concern')
       await mkdir(concernDir, { recursive: true })
       await writeFile(join(concernDir, 'main.mjs'), "export function lint() { throw new Error('boom') }\n", 'utf8')
-      const concern = { name: 'lint_ga', dir: concernDir }
-      await expect(runConcernDetector(concern, { cwd: dir, ruleId: 'ga', concernId: 'lint_ga' })).rejects.toThrow(
+      const concern = { name: 'fixture_concern', dir: concernDir }
+      await expect(runConcernDetector(concern, { cwd: dir, ruleId: 'fixture', concernId: 'fixture_concern' })).rejects.toThrow(
         'lint() кинув: boom'
       )
     })
@@ -101,7 +119,7 @@ describe('runConcernDetector — ручний main.mjs як escape-hatch', () =>
 
   test('застарілий @generated main.mjs ігнорується — оцінка все одно напряму з concern.json', async () => {
     await withTmpDir(async dir => {
-      const concernDir = join(dir, 'rules', 'ga', 'git_ai')
+      const concernDir = join(dir, 'rules', 'fixture', 'fixture_template')
       await mkdir(concernDir, { recursive: true })
       const targetFile = join(dir, '.github', 'workflows', 'git-ai.yml')
       await mkdir(join(dir, '.github', 'workflows'), { recursive: true })
@@ -112,13 +130,13 @@ describe('runConcernDetector — ручний main.mjs як escape-hatch', () =>
         'utf8'
       )
       const concern = {
-        name: 'git_ai',
+        name: 'fixture_template',
         dir: concernDir,
         // engine:'template' без template/ каталогу → evaluatePolicyConcern повертає 0 violations
         // без спроби реального conftest — саме тому цей тест і детермінований.
         policy: { engine: 'template', files: { single: '.github/workflows/git-ai.yml', required: true } }
       }
-      const r = await runConcernDetector(concern, { cwd: dir, ruleId: 'ga', concernId: 'git_ai' })
+      const r = await runConcernDetector(concern, { cwd: dir, ruleId: 'fixture', concernId: 'fixture_template' })
       expect(r.violations).toEqual([])
     })
   })
