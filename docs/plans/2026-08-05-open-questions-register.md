@@ -15248,3 +15248,101 @@ stryker.config.baseline.mjs:13`, `jsonReporter.fileName`). Не апроксим
 задачі, worktree-хвиля для JS-варіанта відкладена) — CRC у frontmatter
 доки `crates/plugin-lang-js/docs/*.md` (за наявності) стане застарілим;
 регенерація — окремим кроком, поза обсягом цієї задачі.
+
+### 2.129. Крок 1 плану full-rust-migration («зняти мертвий код, ≈1 790 рядків») — усі чотири позиції вже зняті раніше, PR #595/#596; нового видалення не було
+
+**Задача.** Виконати крок 1 `docs/plans/2026-08-31-full-rust-migration-plan.md`
+(§5) — зняти чотири названі позиції мертвого коду (≈1 790 рядків):
+`tier-sampling-bench`/`-experiment` (747), `policy-test-step.mjs` (149),
+«мертвий JS оркестрації» (894, з них 512 із готовим портом),
+`adr/normalize-pipeline.mjs.orig` (~38 КБ). Умова задачі — не вірити плану
+на слово, довести мертвість самостійно грепом (статичні й динамічні
+імпорти, `package.json`, скіли, `.claude-template`, CI, дококоментарі), і
+окремо перевірити клас «порт написаний, але недосяжний за замовчуванням»
+(приклад хвилі #595 — `run-fix.mjs` імпортує JS напряму, napi не віддає
+Rust-еквівалента).
+
+**Знахідка до будь-якого видалення: усі чотири позиції вже відсутні в
+дереві.** `git ls-files` не знаходить жодного з файлів: `gha-workflow.mjs`,
+`fix/template-deep-merge.mjs`, `fix/vscode-ext-add.mjs`,
+`post-tool-use-check.mjs`, `timing-summary.mjs`, `run-standard-lint.mjs`,
+`run-lint-step.mjs`, `list-rule-ids.mjs`, `discover-checkable-rules.mjs`,
+`discover-check-rules-from-cursor.mjs`, `check-reporter.mjs`,
+`adr/normalize-pipeline.mjs.orig`, `lint-surface/tier-sampling-bench.mjs`,
+`lint-surface/tier-sampling-experiment.mjs`,
+`lint-surface/policy-test-step.mjs`. `git log --oneline --all -- <шлях>`
+для кожного веде до двох комітів, обидва вже на `main`
+(`git merge-base --is-ancestor … HEAD` — true для обох):
+
+- `236d87b10` — «chore(lint-surface): зняти доведено мертвий JS і тонкий
+  факад над native (кроки 1-2 плану повної міграції) (#595)» — зняв
+  `tier-sampling-bench.mjs` + `tier-sampling-experiment.mjs` +
+  `policy-test-step.mjs` (896 рядків) і `render.mjs` (40, крок 2, поза
+  обсягом цього запису). Записано в реєстрі як **§2.104**.
+- `56b47daac` — «chore: знято 894 рядки мертвого JS з оркестраційного шару
+  (крок 1 full-rust-migration) (#596)» — зняв 512 рядків із готовим
+  Rust-портом (`gha-workflow.mjs`, `fix/template-deep-merge.mjs`,
+  `fix/vscode-ext-add.mjs`) + 382 рядки без порту (вісім файлів §3.2
+  розвідки) + закомічений `adr/normalize-pipeline.mjs.orig` (38 КБ).
+  Записано в реєстрі як **§2.105**.
+
+Обидва коміти датовані 2026-08-31 10:39–10:43, тобто **до** цієї задачі, і
+кожен несе власний цільовий прогін і власну перевірку класу «написано, але
+недосяжне» (§2.104 явно НЕ зняла `ladder`/`snapshot`/`collateral-veto`/
+`test-gate` — 408 рядків — саме з причини, яку ця задача просила
+перевірити: `run-fix.mjs` кличе їх напряму, napi-моста немає, дефолтний
+fix-конвеєр без `--native-fix` зламався б мовчки).
+
+**По кожній із чотирьох позицій брифу:**
+
+| позиція | рядків заявлено | стан | де записано |
+|---|---:|---|---|
+| `tier-sampling-bench` + `-experiment` | 747 | знято (#595, разом із `policy-test-step` — 896) | §2.104 |
+| `policy-test-step.mjs` | 149 | знято (#595) | §2.104 |
+| мертвий JS оркестрації | 894 | знято (#596) | §2.105 |
+| `adr/normalize-pipeline.mjs.orig` | ~38 КБ | знято (#596) | §2.105 |
+
+Сума фактично знятого двома комітами — 896 + 894 = **1 790 рядків** (без
+`.orig`, порахованого окремо в кілобайтах) — **точно збігається** із
+сумою, яку план заявляв як мету кроку 1. Розбіжність лише косметична:
+план рахує `tier-sampling-*` окремо від `policy-test-step` (747+149=896),
+а фактичний коміт зняв усі три одним PR.
+
+**Нового видалення в цій задачі немає** — діфф порожній щодо коду.
+Перевірка обмежилась підтвердженням: (1) відсутність файлів, (2) що
+коміти-видалювачі є предками `HEAD`, (3) що поточне дерево збирається й
+проходить цільові тести, які супроводжували ці два PR.
+
+**Побічна знахідка — стаття плану вже відстала від коду.** `docs/plans/2026-08-31-full-rust-migration-plan.md`
+§5 «Крок 1» і §7 «Стан виконання» (останній оновлено пізнішим `33043895c`
+(#627), **після** `#595`/`#596`) не фіксують крок 1 як закритий — секція
+«Закрито» стрибає з §2.124 на §2.125–§2.126, оминаючи §2.104/§2.105. Це
+той самий клас вади, який план сам називає в §5.1 («рація пережила свою
+причину») — тут не причина застаріла, а **факт виконання не заведено в
+той самий реєстр стану**, хоча в `open-questions-register.md` він уже
+записаний двома окремими секціями. Виправлення тексту плану — поза
+обсягом цього запису (задача вимагала лише реєстр); варто окремим дрібним
+PR дописати рядок «Крок 1 (§5) — закрито §595/§596, §2.104/§2.105» у
+таблицю §7.
+
+**Цільові прогони (усі синхронно, без фонових процесів; підтверджують,
+що дерево після вже виконаного кроку 1 і надалі здорове, а не що
+щось нове видалено):**
+
+- `cargo build --release -p rules-cli` — OK.
+- `cargo build --release -p rules-napi` — OK.
+- `N_RULES_NATIVE_ADDON=$PWD/target/release/librules_napi.dylib npx vitest
+  run plugins/ci-github/rules/ga/tests/workflow-templates-actionlint.test.mjs`
+  (запущено з кореня, бо шлях поза `npm/`-воркспейсом vitest) — 1 passed.
+- той самий override, `cd npm && npx vitest run
+  scripts/lib/lint-surface/tests/policy-codegen.test.mjs
+  scripts/lib/lint-surface/tests/lint-render-native-parity.test.mjs
+  scripts/lib/lint-surface/tests/default-worker.test.mjs
+  scripts/lib/lint-surface/tests/run-detectors.test.mjs
+  scripts/lib/lint-surface/tests/run-fix.test.mjs` — 118 passed (5 файлів).
+- `cargo test -p rules-cli` — 123 passed (2 suites).
+- `cargo test -p rules-cli --test cli` — 35 passed.
+
+`npx @7n/rules lint` і `/doc-files` свідомо НЕ запускались (правило
+задачі) — діфф цієї задачі не чіпає жодного кодового файлу, лише реєстр,
+тому CRC-дрейф доків не застосовний.
