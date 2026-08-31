@@ -12930,3 +12930,63 @@ scoop-manifest) **реверс-делегує в JS**: `LazyBridge::ensure` →
 істини «що вже закрито» без цього виправлення — інакше крок 4 порахує
 `tools ensure` за вже готову роботу, хоча провізіонінг для
 Linux-мажоритарного випадку досі виконує JS.
+
+### 2.108. Крок 1 контракту v5 — пакети `caps`/`surfaces` заведені поруч із ядром, WIT парситься, ядро не чіпалось
+
+**Джерело:** `docs/specs/2026-08-31-plugin-contract-v5.md` (розділи 3, 6, 7,
+12 п.1). Перший крок мажора `n-rules:plugin@5.0.0`: два нові WIT-пакети
+`n-rules:caps@1.0.0` (`crates/rules-contract/wit/deps/caps/`:
+`tool-runner.wit`, `file-reader.wit`, `llm-consumer.wit`) і
+`n-rules:surfaces@1.0.0` (`crates/rules-contract/wit/deps/surfaces/`:
+`coverage-provider.wit`, `knowledge-extractor.wit`, `docgen-stage.wit`) —
+шість world-ів повноважень/слотових поверхонь. Лише WIT, без Rust-коду,
+без міграції гостей; `wit/world.wit` не змінено — ядро й далі несе
+`run-tool`/`exec-tool`/`ecosystem-outdated`/`docgen-render` як
+`n-rules:plugin@4.0.0`, винесення — крок 3 спеки.
+
+**Форма типів — з реального коду, не вигадана.** `tool-output`/
+`tool-request`/`tool-result`/`scratch-file` у `tool-runner.wit` —
+структурні дзеркала однойменних типів `wit/world.wit` (задокументовано як
+тимчасове дублювання до кроку 3, коли імпорти переїдуть із ядра сюди
+назавжди). `coverage-request`/`coverage-report` у `coverage-provider.wit`
+зведені з дослівного коду чотирьох `plugins/{lang-js,lang-rust,lang-
+python,lang-php}/coverage-provider/provider.mjs` (усі чотири збігаються на
+формі `{area, coverage: {lines, functions}, mutation: {caught, total},
+survived}`) і виклику `provider.collect(cwd, {mutationRefreshFiles})`
+(`npm/rules/test/coverage/main.mjs:119`) — розвідка
+`2026-08-31-recon-providers-rules-skills.md` називала цю поверхню класом
+B («потрібна нова, місця в контракті нема»), тепер місце є. `extract-
+request`/`knowledge-candidate` у `knowledge-extractor.wit` — дзеркало вже
+наявного Rust-трейту `KnowledgeExtractor` (`crates/rules-docs/src/
+candidate.rs`); `fragment-json` навмисно рядок, не record, бо той самий
+файл документує, чому фрагменти екстракторів structurally не зводяться в
+одну типізовану форму («Чому блокери — це `Value`, а не типова
+структура»). `stage-request`/`stage-output` у `docgen-stage.wit` —
+розширення наявних `docgen-request`/`doc-output` (`wit/world.wit`) одним
+полем `stage` (вільний рядок, не enum — перелік стадій відкритий до
+порту `docgen`, крок 7). `llm-request`/`llm-response` у `llm-consumer.wit`
+— мінімальна форма (`prompt`/`text`), спека прямо називає її відкритою до
+порту `docgen`; жодного вигаданого поля (`model`/`temperature`/`stream`)
+не додано.
+
+**Пастка wit-parser: doc-коментар пакета — лише в ОДНОМУ файлі
+багатофайлового пакета.** `wasm-tools component wit` (і `wit-parser`,
+яким користується `tests/wit_parity.rs`) відхиляє директорію з помилкою
+`found doc comments on multiple 'package' items`, якщо коментар
+безпосередньо передує рядку `package …;` більш ніж в одному файлі одного
+пакета — і порожній рядок МІЖ коментарем і `package` не рятує (парсер
+збирає всі суміжні `//`-токени, ігноруючи пробіли/переноси рядків, аж
+поки не натрапить на не-коментар; token-adjacency, не текстова відстань).
+Робочий патерн для нового багатофайлового пакета: у РІВНО одному файлі
+(тут — `tool-runner.wit`, `coverage-provider.wit`) `package` йде одразу
+під поясненням пакета; у решті файлів `package n-rules:…@1.0.0;` —
+буквально перший рядок файлу, БЕЗ коментаря перед ним, а файл-специфічне
+пояснення переноситься нижче, як doc-коментар самого `world`-item (а не
+пакета).
+
+**Перевірено:** `cargo check -p rules-contract` (компілюється),
+`cargo test -p rules-contract` (80 passed, 3 suites — `wit_parity.rs`
+парсить `wit/` через `wit-parser`, ядрові інваріанти v3.0/v4.0 не
+порушені), `wasm-tools component wit crates/rules-contract/wit` (exit 0,
+надрукований мердж усіх пакетів показує всі шість нових world-ів поряд із
+`n-rules:plugin@4.0.0` і незмінним `n-rules:slots@1.0.0`).
