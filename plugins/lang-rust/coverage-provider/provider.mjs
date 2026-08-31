@@ -4,8 +4,10 @@
  * мутаційне тестування через `cargo mutants` (`mutants.out/outcomes.json`).
  * Методи викликає концерн `coverage` правила `test` ядра — CLI-оркестрації
  * тут немає. Відсутні тулзи (`cargo-llvm-cov`/`cargo-mutants`) — чесний
- * skip з одноразовим hint, не помилка. Fix-hooks (LLM-генерація тестів) для
- * Rust поки не реалізовані — fix-worker пропускає провайдер без хуків.
+ * skip з одноразовим hint, не помилка. Fix-hooks реалізовані: `generateTests`
+ * (догенерація тестів для файлів нижче порогу) і `fixSurvived` (тести проти
+ * survived-мутантів) lazy-делегують у `./fix-hooks.mjs`, тому detect/collect-шлях
+ * не вантажить LLM-стек.
  */
 import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, realpathSync } from 'node:fs'
