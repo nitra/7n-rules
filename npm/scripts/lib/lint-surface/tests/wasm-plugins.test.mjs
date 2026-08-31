@@ -926,7 +926,7 @@ describe('resolveWasmFixOnlyConcernMap — окремий список fix-only 
    * detect-мапою, бо саме її читає `detect.mjs` — ключ, що туди потрапив,
    * мовчки замінює `main.mjs` гостем.
    */
-  test('реальний plugin-lang-js: fix-only мапа — рівно js/eslint, і його НЕМАЄ в detect-мапі', async () => {
+  test('реальний plugin-lang-js: fix-only мапа — js/eslint + bun/package_json, і жодного з них НЕМАЄ в detect-мапі', async () => {
     await withTmpDir(async dir => {
       await writeFile(
         join(dir, '.n-rules.json'),
@@ -940,11 +940,17 @@ describe('resolveWasmFixOnlyConcernMap — окремий список fix-only 
         env: {}
       })
 
-      expect([...fixOnlyMap.keys()]).toEqual(['js/eslint'])
+      // Крок 5 спеки `docs/specs/2026-08-31-plugin-contract-v5.md`
+      // (§2.92/§2.94/§2.119): `bun/package_json` — ДРУГИЙ запис
+      // `fix_only_concerns` (detect лишається чистим rego-policy, поза цим
+      // гостем).
+      expect([...fixOnlyMap.keys()]).toEqual(['js/eslint', 'bun/package_json'])
       expect(fixOnlyMap.get('js/eslint')).toEqual({ wasmPath: WASM_PATH, toolPaths: LANG_JS_TOOL_PATHS })
+      expect(fixOnlyMap.get('bun/package_json')).toEqual({ wasmPath: WASM_PATH, toolPaths: LANG_JS_TOOL_PATHS })
       expect(detectMap.has('js/eslint')).toBe(false)
-      // Число — той самий анти-дрейф-гейт, що вище: fix-only контрибуція
-      // НЕ мусить збільшувати детект-мапу.
+      expect(detectMap.has('bun/package_json')).toBe(false)
+      // Число — той самий анти-дрейф-гейт, що вище: fix-only контрибуції
+      // НЕ мусять збільшувати детект-мапу.
       expect(detectMap.size).toBe(50)
     })
   })

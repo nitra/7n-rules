@@ -133,7 +133,13 @@ const EXPECTED_LANG_JS_CONCERNS = [
  * `main.mjs` концерну.
  * @type {string[]}
  */
-const EXPECTED_LANG_JS_FIX_ONLY_CONCERNS = ['js/eslint']
+const EXPECTED_LANG_JS_FIX_ONLY_CONCERNS = [
+  'js/eslint',
+  // Крок 5 спеки `docs/specs/2026-08-31-plugin-contract-v5.md`
+  // (§2.92/§2.94/§2.119) — detect лишається чистим rego-policy, поза цим
+  // гостем.
+  'bun/package_json'
+]
 
 /** Валідний sha256-hex — той самий канон, що `SHA256_HEX_RE` у `wasm-plugins.mjs` (module-scope, без пере-компіляції на кожен виклик). */
 const SHA256_HEX_RE = /^[0-9a-f]{64}$/

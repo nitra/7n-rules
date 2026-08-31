@@ -6,7 +6,7 @@
 //! створений за флоу скіла `npm/skills/wasm-plugin/` (scaffold → реалізація →
 //! golden-тести).
 //!
-//! # §2.93 — цей крейт ЄДИНА реалізація фіксу двадцяти концернів
+//! # §2.93/§2.119 — цей крейт ЄДИНА реалізація фіксу двадцяти одного концерну
 //!
 //! Борг «спершу парність» для `plugins/lang-js` закрито: двадцять
 //! `fix-<concern>.mjs` знято (`bun/layout`, `bun/licensee`, `js/check`,
@@ -23,10 +23,16 @@
 //! СВІДОМИМ no-op, а не «нехай доробить JS». Гейт складу резолву — `§2.93`
 //! у `npm/scripts/lib/lint-surface/tests/wasm-plugin-parity.test.mjs`.
 //!
-//! Три концерни плагіна фікс у JS ЗБЕРЕГЛИ, і кожен з іменованою
-//! причиною: `js/eslint` (доккомент [`ESLINT_TOOL`] — канон робить те,
-//! чого гість не робить), `bun/package_json` (§2.92 — не портований),
-//! `test/storybook-vitest-config` (§2.87 — не портований).
+//! Двадцять ПЕРШИЙ концерн приєднався кроком 5 спеки
+//! `docs/specs/2026-08-31-plugin-contract-v5.md`: `bun/package_json`
+//! (§2.92/§2.94/§2.119 реєстру відкритих питань), розблокований
+//! `n-rules:caps/file-reader@1.0.0` — доккомент секції «`bun/package_json`
+//! — історична нотатка» пояснює блокер, який зняв цей world, і доккомент
+//! [`fix_bun_package_json`] — сам порт.
+//!
+//! Два концерни плагіна фікс у JS лишили, і кожен з іменованою причиною:
+//! `js/eslint` (доккомент [`ESLINT_TOOL`] — канон робить те, чого гість не
+//! робить), `test/storybook-vitest-config` (§2.87 — не портований).
 //!
 //! ТРИДЦЯТЬ ШІСТЬ концернів у контрибуції (перелік нижче —
 //! перші чотирнадцять; батчі 5–9 і зріз 1 описані в доккоментах однойменних секцій
@@ -224,9 +230,19 @@
 //! syntax-error пропускається цілком (0 offenders), не аналізується
 //! best-effort (точний порт, не спрощення).
 
+// Крок 5 спеки `docs/specs/2026-08-31-plugin-contract-v5.md`: цей гість —
+// ПЕРШИЙ продакшн-споживач `n-rules:caps/file-reader@1.0.0`
+// (`bun/package_json`, доккомент [`fix_bun_package_json`]). Тому world тут
+// — не голий `plugin`, а комбінований `plugin-file-reader`
+// (`crates/rules-contract/wit/plugin-file-reader.wit`, `include plugin +
+// include n-rules:caps/file-reader@1.0.0`): усі імпорти/експорти ядра
+// лишаються без змін, плюс два нові host-імпорти — `list_files`/
+// `read_file_bytes`. Component Model не має «опціональних» імпортів: якщо
+// компонент їх реально викликає, вони мають бути в його типі, тож голий
+// `world: "plugin"` тут неможливий структурно, не лише за зручністю.
 wit_bindgen::generate!({
     path: "../rules-contract/wit",
-    world: "plugin",
+    world: "plugin-file-reader",
     generate_all,
 });
 
@@ -4138,20 +4154,40 @@ fn build_manifest() -> Manifest {
         // лишається за `main.mjs` («вічний JS», доккомент секції «§2.86»).
         // Ключ у цьому списку НЕ шедоуїть detect — `detect.mjs` читає лише
         // `concerns`.
-        fix_only_concerns: vec![ConcernContribution {
-            key: CONCERN_JS_ESLINT.to_string(),
-            scope: ConcernScope::PerFile,
-            glob: vec![JS_ESLINT_GLOB.to_string()],
-            fix_glob: vec![],
-        }],
-        // ТИМЧАСОВО порожньо: мажор `5.0.0` (§2.109 реєстру відкритих
-        // питань) додав поле `worlds`, але міграція шести гостей на реальні
-        // world-декларації — крок 4 спеки
-        // `docs/specs/2026-08-31-plugin-contract-v5.md` §12, ОКРЕМА задача,
-        // не ця. До неї гість однаково НЕ інстанціюється на `5.x`-хості
-        // (`check_world_version` major-only), тож порожній список нічого
-        // не приховує.
-        worlds: vec![],
+        fix_only_concerns: vec![
+            ConcernContribution {
+                key: CONCERN_JS_ESLINT.to_string(),
+                scope: ConcernScope::PerFile,
+                glob: vec![JS_ESLINT_GLOB.to_string()],
+                fix_glob: vec![],
+            },
+            // Крок 5 спеки `docs/specs/2026-08-31-plugin-contract-v5.md` —
+            // §2.92/§2.94 реєстру відкритих питань: `bun/package_json`.
+            // Detect лишається чистим rego-policy (JS-бік,
+            // `package_json.rego`, поза цим гостем — той самий клас, що
+            // `js/package_json` ДО §2.78, лише без порту), тож ключ тут
+            // — у `fix_only_concerns`, не в `concerns`. `fix_glob`
+            // навмисно ПОРОЖНІЙ: на відміну від storybook-пари/
+            // `stryker_config` (§2.87/§2.118), цьому фіксу НЕ треба
+            // full-scope batch від хоста — він читає репо сам через
+            // `list_files`/`read_file_bytes` (доккомент
+            // [`fix_bun_package_json`]), і саме це знімає блокер §2.92
+            // (`**/*` як `fix-glob` упирався в `source-file.content:
+            // string`, 124 MiB на виклик).
+            ConcernContribution {
+                key: CONCERN_BUN_PACKAGE_JSON.to_string(),
+                scope: ConcernScope::Full,
+                glob: vec!["package.json".to_string()],
+                fix_glob: vec![],
+            },
+        ],
+        // Крок 5 спеки `docs/specs/2026-08-31-plugin-contract-v5.md`:
+        // ПЕРША реальна декларація world-а повноважень будь-яким
+        // first-party гостем — `n-rules:caps/file-reader@1.0.0`,
+        // єдиний споживач якого сьогодні — `fix_bun_package_json`.
+        // Решта пʼяти гостей і далі несуть `worlds = []` (їхня міграція —
+        // окрема задача поза цим кроком).
+        worlds: vec!["n-rules:caps/file-reader@1.0.0".to_string()],
     }
 }
 
@@ -12183,6 +12219,576 @@ fn fix_bun_licensee(request: &FixRequest) -> FixPlan {
     FixPlan { edits }
 }
 
+// =====================================================================
+// Крок 5 спеки `docs/specs/2026-08-31-plugin-contract-v5.md` — `bun/package_json`
+// (§2.92/§2.94 реєстру відкритих питань), ПЕРШИЙ концерн цього гостя й
+// ПЕРШИЙ у проєкті, чий fix кличе `n-rules:caps/file-reader@1.0.0`.
+//
+// # Чому це стало можливим лише тепер
+//
+// §2.92 тримала концерн непортовним із двох причин, і `file-reader` знімає
+// ОБИДВІ: тип межі (`read_file_bytes` дає `list<u8>`, не `source-file.content:
+// string` — бінарні файли більше не ламають скан) і обсяг (`list_files`
+// дає гостю перелік БЕЗ вмісту, а `read_file_bytes` читає ЛИШЕ ті файли, що
+// реально потрібні — не 124 MiB `**/*`-батч при ~1 MiB корисного).
+//
+// # Що робить канон (`fix-package_json.mjs`, знятий цим портом)
+//
+// Дві операції в одному патерні: (а) видалення заборонених top-level полів
+// (канон — [`BUN_PACKAGE_JSON_DENY_TEMPLATE_JSON`]); (б) видалення
+// `scripts.lint`/`scripts.lint-*` — CROSS-FILE: перед видаленням скрипта
+// канон обходить УСЕ дерево (тут — [`pkg_json_usage_candidates`]),
+// переписує знайдені виклики `bun|yarn|pnpm [run] <script>`/`npm run
+// <script>` у workflow-yml і чужих `package.json` на канонічний
+// `bunx n-rules lint <surface>`, і видаляє скрипт лише тоді, коли НЕ
+// лишилось жодного нерозпізнаного виклику — у ЖОДНОМУ файлі репо, включно
+// з тими, які фікс свідомо НЕ переписує (`PkgJsonFileKind::Other` —
+// Makefile, README, довільний shell). Саме ця консервативність і є суттю
+// фіксу: `other`-збіг БЛОКУЄ видалення (доккомент [`compute_pkg_json_plan`]).
+//
+// # Атомарність (§2.94: «план → застосувати цілком або нічого»)
+//
+// [`compute_pkg_json_plan`] — READ-ONLY фаза, дзеркало `computePlan()`
+// канону: рахує ПОВНИЙ план (усі edits у памʼяті) ДО того, як
+// [`fix_bun_package_json`] щось поверне. `removed.is_empty()` → план
+// порожній, [`fix_bun_package_json`] не пише НІЧОГО — half-apply
+// (дефект 1 §2.92: чужі workflow вже переписані, а мутація `pkg.scripts`
+// викинута) структурно неможливий, бо немає окремого «запису» етапу, який
+// міг би зупинитись на півдорозі.
+//
+// # Канонічний рядок мігрує разом із Д4, не в цій хвилі
+//
+// `bunx n-rules lint <surface>` — той самий рядок, що й досі писав канон.
+// Зріз 6 (`docs/specs/2026-08-01-rules-cli-phase8-skeleton.md` §12, робота
+// Д4) замінить його на `n-rules lint <surface>` (npm-канал геть) — це
+// РІШЕННЯ ВЛАСНИКА поза обсягом цього кроку: заміна рядка тут ДО того, як
+// Д4 реально знімає `bunx`-залежність консюмера, зламала б чужі workflow
+// мовчки (вони й далі отримали б виклик, що не резолвиться без
+// `bun`/`bunx`). [`pkg_json_rewrite_canonical`] несе цей рядок — єдине
+// місце зміни, коли Д4 доїде.
+// =====================================================================
+
+const CONCERN_BUN_PACKAGE_JSON: &str = "bun/package_json";
+
+/// Канон заборонених top-level полів `bun/package_json` — ТОЙ САМИЙ файл,
+/// що читає rego-детект (`data.template.deny`, `package_json.rego`) і
+/// раніше читав JS-фіксер через `ctx.concernDir` (`readDenyTemplate`,
+/// §2.94). Гість вшиває його `include_str!`-ом — канонічне місце, не
+/// копія: дрейф між детектом і фіксом неможливий за побудовою (той самий
+/// мотив, що [`OXLINT_CANONICAL_JSON`]/[`LICENSEE_CANONICAL_CONFIG`]).
+const BUN_PACKAGE_JSON_DENY_TEMPLATE_JSON: &str = include_str!(
+    "../../../plugins/lang-js/rules/bun/package_json/template/package.json.deny.json"
+);
+
+/// Імена заборонених top-level полів (документний порядок канону) — лише
+/// ключі, значення (`reason`) фіксу не потрібні, їх бачить лише rego-детект.
+fn bun_package_json_deny_field_names() -> Vec<String> {
+    match parse_json_ordered(BUN_PACKAGE_JSON_DENY_TEMPLATE_JSON)
+        .expect("вшитий deny-template bun/package_json — валідний JSON")
+    {
+        JsonOrdered::Object(entries) => entries.into_iter().map(|(k, _)| k).collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// Категорія файлу-кандидата на переписування викликів lint-скрипта —
+/// порт `FileKind` (`fix-package_json.mjs`). `Other` (Makefile, README,
+/// довільний shell) — детектується, але НЕ переписується: немає надійного
+/// canonical-заміщення для довільного формату, і саме такий збіг блокує
+/// видалення скрипта (доккомент [`compute_pkg_json_plan`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PkgJsonFileKind {
+    Workflow,
+    PackageJson,
+    Other,
+}
+
+fn pkg_json_lint_script_re() -> &'static regex::Regex {
+    static RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    RE.get_or_init(|| regex::Regex::new(r"^lint(-.*)?$").expect("LINT_SCRIPT_RE валідний"))
+}
+
+fn pkg_json_workflow_yml_re() -> &'static regex::Regex {
+    static RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    RE.get_or_init(|| {
+        regex::Regex::new(r"^\.github/workflows/.*\.ya?ml$").expect("WORKFLOW_YML_RE валідний")
+    })
+}
+
+fn pkg_json_lockfile_re() -> &'static regex::Regex {
+    static RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    RE.get_or_init(|| {
+        regex::Regex::new(r"(^|/)(bun\.lockb?|package-lock\.json|yarn\.lock|pnpm-lock\.yaml)$")
+            .expect("LOCKFILE_RE валідний")
+    })
+}
+
+fn pkg_json_package_manager_script_prefix_re() -> &'static regex::Regex {
+    static RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    RE.get_or_init(|| {
+        regex::Regex::new(r"\b(?:(?:bun|yarn|pnpm)(?:\s+run)?|npm\s+run)\s+")
+            .expect("PACKAGE_MANAGER_SCRIPT_PREFIX_RE валідний")
+    })
+}
+
+fn pkg_json_first_key_indent_re() -> &'static regex::Regex {
+    static RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    RE.get_or_init(|| {
+        regex::Regex::new(r#"\n([ \t]+)""#).expect("FIRST_KEY_INDENT_RE валідний")
+    })
+}
+
+/// Порт `SCRIPT_NAME_CONTINUATION_RE` (`/[\w-]/u`) — right-boundary
+/// перевірка [`pkg_json_invocation_ranges`]: символ одразу після імені
+/// скрипта не може бути словотвірним чи дефісом, інакше `lint` «зжер» би
+/// префікс `lint-js`.
+fn is_pkg_json_script_name_continuation(c: char) -> bool {
+    c.is_ascii_alphanumeric() || c == '_' || c == '-'
+}
+
+/// Порт `surfaceArgFor` (`fix-package_json.mjs`): суфікс аргументу
+/// `n-rules lint` для скрипта `lint`/`lint-<suffix>` (порожній рядок для
+/// bare `lint`). `SURFACE_MAP` канону має рівно один запис.
+fn pkg_json_surface_arg_for(script_name: &str) -> String {
+    let suffix = &script_name[4.min(script_name.len())..];
+    if suffix.is_empty() {
+        return String::new();
+    }
+    let normalized = suffix.strip_prefix('-').unwrap_or(suffix);
+    let mapped = match normalized {
+        "image" => "image-compress",
+        other => other,
+    };
+    format!(" {mapped}")
+}
+
+/// Порт `invocationRanges` — байтові діапазони повного виклику
+/// package-manager-ом `script_name` у `content` (`bun[ run] X`,
+/// `yarn[ run] X`, `pnpm[ run] X`, `npm run X`). Right boundary —
+/// [`is_pkg_json_script_name_continuation`], не `\b` (дефіс — не
+/// словотвірний символ, тож `lint\b` матчив би всередині `lint-js`).
+fn pkg_json_invocation_ranges(content: &str, script_name: &str) -> Vec<(usize, usize)> {
+    let mut ranges = Vec::new();
+    for m in pkg_json_package_manager_script_prefix_re().find_iter(content) {
+        let script_start = m.end();
+        if !content[script_start..].starts_with(script_name) {
+            continue;
+        }
+        let script_end = script_start + script_name.len();
+        if content[script_end..]
+            .chars()
+            .next()
+            .is_some_and(is_pkg_json_script_name_continuation)
+        {
+            continue;
+        }
+        ranges.push((m.start(), script_end));
+    }
+    ranges
+}
+
+/// Порт `rewriteUsages` — замінює КОЖЕН виклик `script_name` у `content` на
+/// канонічний `bunx n-rules lint<surface>` (workflow — з `--no-fix`).
+/// `(content, false)` — жодного матчу, `content` повертається без змін.
+fn pkg_json_rewrite_usages(content: &str, script_name: &str, is_workflow: bool) -> (String, bool) {
+    let ranges = pkg_json_invocation_ranges(content, script_name);
+    if ranges.is_empty() {
+        return (content.to_string(), false);
+    }
+    // TODO(slice-6-д4): канонічний рядок мігрує на `n-rules lint<surface>`
+    // разом із Д4 (доккомент секції вище) — НЕ раніше.
+    let canonical = format!(
+        "bunx n-rules lint{}{}",
+        pkg_json_surface_arg_for(script_name),
+        if is_workflow { " --no-fix" } else { "" }
+    );
+    let mut next = String::new();
+    let mut last_index = 0usize;
+    for (start, end) in ranges {
+        next.push_str(&content[last_index..start]);
+        next.push_str(&canonical);
+        last_index = end;
+    }
+    next.push_str(&content[last_index..]);
+    (next, true)
+}
+
+/// Порт `byLengthDesc`: найдовші імена скриптів — першими, щоб `lint-js` не
+/// зачепився коротшим префіксом `lint` (defense-in-depth поряд із
+/// right-boundary-перевіркою [`pkg_json_invocation_ranges`]). Стабільне
+/// сортування — той самий контракт, що `Array.prototype.toSorted`.
+fn pkg_json_by_length_desc(mut names: Vec<String>) -> Vec<String> {
+    names.sort_by_key(|name| std::cmp::Reverse(name.len()));
+    names
+}
+
+/// Порт `classifyCandidate`: `rel == target_rel` — сам таргет (виключений,
+/// [`compute_pkg_json_plan`] обробляє його внутрішні cross-refs окремо).
+fn pkg_json_classify_candidate(rel: &str, target_rel: &str) -> Option<PkgJsonFileKind> {
+    if pkg_json_lockfile_re().is_match(rel) {
+        return None;
+    }
+    if pkg_json_workflow_yml_re().is_match(rel) {
+        return Some(PkgJsonFileKind::Workflow);
+    }
+    if rel.ends_with("package.json") {
+        return if rel == target_rel {
+            None
+        } else {
+            Some(PkgJsonFileKind::PackageJson)
+        };
+    }
+    Some(PkgJsonFileKind::Other)
+}
+
+/// Людяне повідомлення про `FileReaderDomainError` — той самий формат, що
+/// решта host-import помилок цього гостя (`LogLevel::Error` + текст).
+fn pkg_json_file_reader_error_message(err: &FileReaderDomainError) -> String {
+    match err {
+        FileReaderDomainError::NotSupported => "not-supported".to_string(),
+        FileReaderDomainError::Failed(msg) => msg.clone(),
+    }
+}
+
+/// Порт `findUsageCandidateFiles` — УСІ файли репо (крім таргета) як
+/// кандидати на пошук викликів, через `list_files(["**/*"])`
+/// (`n-rules:caps/file-reader@1.0.0`). Хост відповідає за скоуп: не
+/// виходить за корінь репо й поважає `.n-rules.json:ignore` — той самий
+/// обхід, що `loadCursorIgnorePaths`/`walkDir` канону (доккомент
+/// `crate::caps_file_reader::list_files_under_root`, `rules-plugin-host`).
+/// `Err` — гучний лог, порожній перелік (WIT дає `list-files` канал
+/// помилки саме на цей випадок, доккомент `wit/deps/caps/file-reader.wit`).
+fn pkg_json_usage_candidates(target_rel: &str) -> Vec<(String, PkgJsonFileKind)> {
+    match list_files(&["**/*".to_string()]) {
+        Ok(all) => all
+            .into_iter()
+            .filter_map(|rel| pkg_json_classify_candidate(&rel, target_rel).map(|kind| (rel, kind)))
+            .collect(),
+        Err(err) => {
+            log(
+                LogLevel::Error,
+                &format!(
+                    "plugin-lang-js: fix(bun/package_json) — list-files провалився ({}), \
+                     репо-вайд пошук викликів lint-скриптів пропущено.",
+                    pkg_json_file_reader_error_message(&err)
+                ),
+            );
+            Vec::new()
+        }
+    }
+}
+
+/// Порт `findBlockedScripts` — READ-ONLY: які з `script_names` мають
+/// виклик у файлі формату [`PkgJsonFileKind::Other`] (для якого немає
+/// canonical-заміщення). Нечитний/не-UTF-8 кандидат випадає з розгляду
+/// (`read_file_bytes`-помилка чи неваліден UTF-8) — той самий контракт, що
+/// `readTextOrNull` канону.
+fn pkg_json_find_blocked_scripts(
+    script_names: &[String],
+    candidates: &[(String, PkgJsonFileKind)],
+) -> Vec<String> {
+    let mut blocked: Vec<String> = Vec::new();
+    if script_names.is_empty() {
+        return blocked;
+    }
+    for (rel, kind) in candidates {
+        if *kind != PkgJsonFileKind::Other {
+            continue;
+        }
+        let Ok(bytes) = read_file_bytes(rel) else {
+            continue;
+        };
+        let Ok(content) = String::from_utf8(bytes) else {
+            continue;
+        };
+        for name in script_names {
+            if !blocked.contains(name) && !pkg_json_invocation_ranges(&content, name).is_empty() {
+                blocked.push(name.clone());
+            }
+        }
+    }
+    blocked
+}
+
+/// Стиль наявного JSON-файлу — порт `detectJsonFormat`: відступ першого
+/// ключа (дефолт — два пробіли, канон `FIRST_KEY_INDENT_RE` не знайдений)
+/// і наявність кінцевого переводу рядка.
+fn pkg_json_detect_format(raw: &str) -> (String, &'static str) {
+    let indent = pkg_json_first_key_indent_re()
+        .captures(raw)
+        .and_then(|c| c.get(1))
+        .map(|m| m.as_str().to_string())
+        .unwrap_or_else(|| "  ".to_string());
+    let trailing_newline = if raw.ends_with("\r\n") {
+        "\r\n"
+    } else if raw.ends_with('\n') {
+        "\n"
+    } else {
+        ""
+    };
+    (indent, trailing_newline)
+}
+
+/// [`js_json_stringify_pretty`] узагальнений на ДОВІЛЬНИЙ рядок відступу
+/// (не фіксовані два пробіли) — потрібно [`pkg_json_serialize`], щоб
+/// зберегти 4-пробільний/табуляційний стиль ЧУЖОГО `package.json`
+/// (дефект 4 §2.92).
+fn pkg_json_stringify_pretty(value: &JsonOrdered, indent_unit: &str, depth: usize) -> String {
+    let pad = indent_unit.repeat(depth);
+    let child_pad = indent_unit.repeat(depth + 1);
+    match value {
+        JsonOrdered::Null => "null".to_string(),
+        JsonOrdered::Bool(true) => "true".to_string(),
+        JsonOrdered::Bool(false) => "false".to_string(),
+        JsonOrdered::Number(n) => n.to_string(),
+        JsonOrdered::Str(s) => json_escape_string(s),
+        JsonOrdered::Array(items) => {
+            if items.is_empty() {
+                return "[]".to_string();
+            }
+            let inner: Vec<String> = items
+                .iter()
+                .map(|item| format!("{child_pad}{}", pkg_json_stringify_pretty(item, indent_unit, depth + 1)))
+                .collect();
+            format!("[\n{}\n{pad}]", inner.join(",\n"))
+        }
+        JsonOrdered::Object(entries) => {
+            if entries.is_empty() {
+                return "{}".to_string();
+            }
+            let inner: Vec<String> = entries
+                .iter()
+                .map(|(k, v)| {
+                    format!(
+                        "{child_pad}{}: {}",
+                        json_escape_string(k),
+                        pkg_json_stringify_pretty(v, indent_unit, depth + 1)
+                    )
+                })
+                .collect();
+            format!("{{\n{}\n{pad}}}", inner.join(",\n"))
+        }
+    }
+}
+
+/// Порт `serializePkg`: серіалізує `package.json`, зберігаючи форматування
+/// вихідного файлу (доккомент [`pkg_json_detect_format`]).
+fn pkg_json_serialize(pkg: &JsonOrdered, raw: &str) -> String {
+    let (indent, trailing_newline) = pkg_json_detect_format(raw);
+    format!("{}{trailing_newline}", pkg_json_stringify_pretty(pkg, &indent, 0))
+}
+
+/// Результат [`compute_pkg_json_plan`] — порт `FixPlan` (JSDoc `@typedef`
+/// канону): `edits` — повний вміст кожного файлу для запису
+/// (`(rel, content)`), `removed` — видалені ключі (для повідомлення),
+/// `blocked` — lint-скрипти, що лишились через нерозпізнаний виклик,
+/// `note` — діагностика, коли план порахувати не вдалось (нечитний/
+/// непарсний `target_rel`).
+struct PkgJsonComputedPlan {
+    edits: Vec<(String, String)>,
+    removed: Vec<String>,
+    blocked: Vec<String>,
+    note: Option<String>,
+}
+
+impl PkgJsonComputedPlan {
+    fn empty(blocked: Vec<String>, note: Option<String>) -> Self {
+        Self { edits: Vec::new(), removed: Vec::new(), blocked, note }
+    }
+}
+
+/// READ-ONLY: рахує ПОВНИЙ план фіксу ОДНОГО `package.json` — порт
+/// `computePlan()` канону, атомарність §2.94 («план → застосувати цілком
+/// або нічого»). Жодного запису тут — [`fix_bun_package_json`] пише лише
+/// ПІСЛЯ того, як цей план порахований цілком.
+fn compute_pkg_json_plan(target_rel: &str, deny_fields: &[String]) -> PkgJsonComputedPlan {
+    let raw = match read_file_bytes(target_rel).ok().and_then(|b| String::from_utf8(b).ok()) {
+        Some(raw) => raw,
+        None => return PkgJsonComputedPlan::empty(Vec::new(), Some(format!("{target_rel}: не читається — пропускаю"))),
+    };
+    let Some(pkg) = parse_json_ordered(&raw) else {
+        return PkgJsonComputedPlan::empty(
+            Vec::new(),
+            Some(format!("{target_rel}: не парситься як JSON — пропускаю")),
+        );
+    };
+    let JsonOrdered::Object(entries) = &pkg else {
+        return PkgJsonComputedPlan::empty(
+            Vec::new(),
+            Some(format!("{target_rel}: не парситься як JSON — пропускаю")),
+        );
+    };
+
+    let lint_script_names: Vec<String> = match pkg.get("scripts") {
+        Some(JsonOrdered::Object(script_entries)) => script_entries
+            .iter()
+            .filter(|(name, _)| pkg_json_lint_script_re().is_match(name))
+            .map(|(name, _)| name.clone())
+            .collect(),
+        _ => Vec::new(),
+    };
+
+    let candidates = if lint_script_names.is_empty() {
+        Vec::new()
+    } else {
+        pkg_json_usage_candidates(target_rel)
+    };
+    let blocked = pkg_json_find_blocked_scripts(&lint_script_names, &candidates);
+
+    let removed_fields: Vec<String> = deny_fields
+        .iter()
+        .filter(|field| entries.iter().any(|(k, _)| k == *field))
+        .cloned()
+        .collect();
+    let removed_scripts: Vec<String> = lint_script_names
+        .iter()
+        .filter(|name| !blocked.contains(name))
+        .cloned()
+        .collect();
+
+    let mut removed: Vec<String> = removed_fields.clone();
+    removed.extend(removed_scripts.iter().map(|name| format!("scripts.{name}")));
+
+    // Гейт атомарності: видаляти нічого — отже й переписувати чужі виклики
+    // нема за що (§2.94, дефект 1).
+    if removed.is_empty() {
+        return PkgJsonComputedPlan::empty(blocked, None);
+    }
+
+    let removing = pkg_json_by_length_desc(removed_scripts.clone());
+    let mut next_entries = entries.clone();
+
+    // Виклики видаленого скрипта всередині ІНШИХ скриптів ТОГО Ж
+    // package.json (напр. `precommit: "bun run lint-js && bun test"`) — цей
+    // файл не потрапляє у `pkg_json_usage_candidates` (він же ціль
+    // видалення), тож переписуємо його окремо, ДО видалення полів.
+    if !removing.is_empty() {
+        if let Some((_, JsonOrdered::Object(scripts))) =
+            next_entries.iter_mut().find(|(key, _)| key == "scripts")
+        {
+            for (key, value) in scripts.iter_mut() {
+                if removed_scripts.contains(key) {
+                    continue;
+                }
+                if let JsonOrdered::Str(text) = value {
+                    let mut next_value = text.clone();
+                    for name in &removing {
+                        next_value = pkg_json_rewrite_usages(&next_value, name, false).0;
+                    }
+                    if next_value != *text {
+                        *value = JsonOrdered::Str(next_value);
+                    }
+                }
+            }
+        }
+    }
+
+    next_entries.retain(|(key, _)| !removed_fields.iter().any(|field| field == key));
+    if !removed_scripts.is_empty() {
+        if let Some((_, JsonOrdered::Object(scripts))) =
+            next_entries.iter_mut().find(|(key, _)| key == "scripts")
+        {
+            scripts.retain(|(key, _)| !removed_scripts.contains(key));
+        }
+    }
+
+    let mut edits = vec![(
+        target_rel.to_string(),
+        pkg_json_serialize(&JsonOrdered::Object(next_entries), &raw),
+    )];
+
+    // Зовнішні виклики — ВИКЛЮЧНО для скриптів, які цей самий план реально
+    // видаляє (§2.94, дефект 2: НЕ переписувати виклики заблокованого
+    // скрипта).
+    if !removing.is_empty() {
+        for (rel, kind) in &candidates {
+            if *kind == PkgJsonFileKind::Other {
+                continue;
+            }
+            let Ok(bytes) = read_file_bytes(rel) else {
+                continue;
+            };
+            let Ok(content) = String::from_utf8(bytes) else {
+                continue;
+            };
+            let mut next = content.clone();
+            for name in &removing {
+                next = pkg_json_rewrite_usages(&next, name, *kind == PkgJsonFileKind::Workflow).0;
+            }
+            if next != content {
+                edits.push((rel.clone(), next));
+            }
+        }
+    }
+
+    PkgJsonComputedPlan { edits, removed, blocked, note: None }
+}
+
+/// T0-фіксер `bun/package_json` — доккомент секції вище пояснює блокер,
+/// що зняв цей крок, і атомарність, яку відтворює [`compute_pkg_json_plan`].
+///
+/// Групує `request.diagnostics` за унікальним `file` серед `reason ==
+/// "policy-deny"` — той самий фільтр, що `patterns[0].test`/`apply` канону
+/// (`violations.some(v => v.reason === 'policy-deny' && v.file)`), — і для
+/// кожного рахує ПОВНИЙ план ДО будь-якого запису. `blocked`/`note` йдуть
+/// у лог (`LogLevel::Error`/`Warn`) замість `message`-поля JS-результату:
+/// WIT `fix-plan` несе лише `edits`, повідомлення — той самий канал, що
+/// решта портів цього гостя (`fix_bun_licensee` тощо).
+fn fix_bun_package_json(request: &FixRequest) -> FixPlan {
+    let deny_fields = bun_package_json_deny_field_names();
+
+    let mut files: Vec<String> = Vec::new();
+    for diagnostic in &request.diagnostics {
+        if diagnostic.reason != "policy-deny" {
+            continue;
+        }
+        if let Some(file) = &diagnostic.file {
+            if !files.contains(file) {
+                files.push(file.clone());
+            }
+        }
+    }
+
+    let mut edits = Vec::new();
+    for rel in &files {
+        let plan = compute_pkg_json_plan(rel, &deny_fields);
+
+        if let Some(note) = &plan.note {
+            log(LogLevel::Warn, &format!("plugin-lang-js: fix(bun/package_json) — {note}"));
+        }
+        if !plan.blocked.is_empty() {
+            log(
+                LogLevel::Error,
+                &format!(
+                    "plugin-lang-js: fix(bun/package_json) — {rel}: не видаляю scripts.{} — \
+                     знайдено нерозпізнаний виклик деінде; виклики цих скриптів лишились \
+                     недоторканими.",
+                    plan.blocked.join(", scripts.")
+                ),
+            );
+        }
+        if plan.edits.is_empty() {
+            continue;
+        }
+        // Порт `messages.push(\`${rel}: -${plan.removed.join(', -')}\`)` —
+        // WIT `fix-plan` не несе `message`-поля (лише `edits`), тож
+        // підсумок іде тим самим `LogLevel::Info`-каналом, що
+        // `describe()`/решта портів цього гостя.
+        log(
+            LogLevel::Info,
+            &format!(
+                "plugin-lang-js: fix(bun/package_json) — {rel}: -{}",
+                plan.removed.join(", -")
+            ),
+        );
+        for (path, content) in plan.edits {
+            edits.push(FileEdit::Write(WriteFile { path, content }));
+        }
+    }
+
+    FixPlan { edits }
+}
+
 // cspell:ignore jscpd stylelint
 // =====================================================================
 // Зріз 6 контракту v3.1 — решта дрібних обгорток на `exec-tool`:
@@ -15613,94 +16219,31 @@ fn fix_style_tooling(request: &FixRequest) -> FixPlan {
 // half-wired заглушка тут заборонена (`guestFix` зупиняє `applyT0` на
 // першому непорожньому плані гостя).
 
-// # `bun/package_json` СВІДОМО не портовано — блокує форма `source-file`
+// # `bun/package_json` — ІСТОРИЧНА нотатка: чому НЕ портувався до кроку 5
 //
-// Розвідка §2.92. Концерн НЕ оголошений у [`build_manifest`] взагалі — ані
-// в `concerns`, ані в `fix_only_concerns`. Це рішення, а не пропуск.
+// §2.92 назвала два структурні блокери (розвідка того часу), обидва
+// зафіксовані там докладно й тут НЕ повторюються:
 //
-// ## Що робить канон (`fix-package_json.mjs`)
+// 1. **тип межі** — `source-file.content: string` ламав би `**/*`-batch на
+//    першому ж не-UTF-8 байті (навіть шести бінарників цього репо
+//    достатньо, щоб завалити КОЖЕН fix-виклик);
+// 2. **обсяг** — той самий `**/*`-batch коштував би 124 MiB на виклик при
+//    ~1 MiB реально корисного (три копії за прохід: батч +
+//    `before_snapshot` + `after_snapshot`).
 //
-// Дві операції в одному патерні: (а) видалення заборонених top-level полів
-// за `template/package.json.deny.json`; (б) видалення `scripts.lint*`. Друга
-// — cross-file: ПЕРЕД видаленням скрипта канон обходить УСЕ дерево
-// (`walkDir` + `loadCursorIgnorePaths`), переписує знайдені виклики
-// `bun|yarn|pnpm [run] <script>` / `npm run <script>` у workflow-yml і чужих
-// `package.json` на `bunx n-rules lint <surface>`, робить ДРУГИЙ прохід і
-// видаляє скрипт лише тоді, коли не лишилось жодного нерозпізнаного виклику
-// — у ЖОДНОМУ файлі репо, включно з тими, які канон свідомо НЕ переписує
-// (`kind: 'other'` — Makefile, README, довільний shell). Саме ця
-// консервативність і є суттю фіксу: `other`-збіг БЛОКУЄ видалення.
+// Крок 5 спеки `docs/specs/2026-08-31-plugin-contract-v5.md`
+// (`n-rules:caps/file-reader@1.0.0`, §6.2) знімає ОБИДВА одним рухом:
+// `read-file-bytes` дає `list<u8>` (бінарні файли не ламають нічого), а
+// `list-files` дає перелік БЕЗ вмісту — гість читає вибірково, не весь
+// батч наперед. Порт живе нижче (доккомент [`fix_bun_package_json`]),
+// concern-декларація — `fix_only_concerns` у [`build_manifest`] (detect
+// лишається чистим rego-policy, поза цим гостем — той самий клас, що
+// `js/package_json` до §2.78).
 //
-// ## Дві межі, що виявились НЕ блокерами
-//
-// 1. **`.cursorignore`-фільтрація.** Не розбіжність: `loadCursorIgnorePaths`
-//    читає `.n-rules.json:ignore` (fallback `.n-cursor.json`), і рівно те
-//    саме робить хост — `build_full_scope_files` іде через
-//    `rules_core::concerns::cursor_ignore::walk_repo`, порт того ж
-//    `loadCursorIgnorePaths` + inline-нормалізації `walkDir.mjs`. Скоупи
-//    збігаються.
-// 2. **Другий верифікаційний прохід.** Теж не блокер, і не потребує
-//    перестановки кроків §2.86: гість САМ обчислює переписаний вміст, тож
-//    другий прохід виконується над in-memory мапою (переписаний вміст для
-//    workflow/`package.json`, вихідний — для `other`), а не над диском.
-//    Результат тотожний, ще й детермінований.
-//
-// ## Блокер: `**/*` як `fix-glob` неможливий у чинному контракті
-//
-// Щоб відтворити «`other`-збіг блокує видалення», `fix-glob` мусить
-// покривати ВСІ текстові файли репо — тобто `**/*`. Але `source-file.content`
-// у `wit/world.wit` — `string`, і `read_source_files` (`crates/rules-napi`)
-// на першому ж не-UTF-8 байті повертає `non_utf8_source_file_err` (§2.83)
-// — навмисне гучна відмова: до неї тут стояв `from_utf8_lossy`, чий
-// покалічений вміст ішов у знімки host-diff і фікс ПЕРЕЗАПИСАВ БИ бінарник
-// мозаїкою. Отже `**/*` завалює КОЖЕН fix-виклик у будь-якому репо з хоча
-// б одним бінарником. У цьому репо таких файлів шість (три
-// `rules-napi.*.node`, `welcome.png`, `welcome.png.avif`,
-// `.codex/hooks/capture-decisions.log`).
-//
-// Обійти `!`-виключеннями не можна: денилист бінарних розширень для ЧУЖОГО
-// репо принципово неповний, і кожне неперелічене (`.ico`, `.woff2`, `.pdf`,
-// `.zip`, …) знову валить фікс. Звузити `fix-glob` до алловліста текстових
-// розширень — ще гірше: extensionless `Makefile`/`Justfile`/`Dockerfile` і
-// будь-який shell без розширення стають НЕВИДИМИМИ, гість видаляє скрипт,
-// який канон лишив би, і мовчки ламає консюмера. Це рівно та шкода, задля
-// уникнення якої канон і має свою `other`-гілку.
-//
-// ## Другий блокер: ціна батчу
-//
-// Замір на цьому репо: `**/*` після gitignore-обходу — 3389 файлів,
-// 130 118 732 Б (124,09 MiB); лише валідний UTF-8 — 3383 файли,
-// 30,37 MiB. `run_wasm_concern_fix` із непорожнім `fix-glob` читає цей
-// скоуп ТРИЧІ за виклик (батч + `before_snapshot` + `after_snapshot`), тож
-// ~91 MiB IO і ~30 MiB копії у лінійну памʼять гостя на КОЖЕН fix одного
-// `package.json`. Для порівняння цільові файли важать 985 331 Б
-// (13 `package.json` = 929 212 Б + 15 workflow = 56 119 Б) — тобто
-// ~1 % корисного скоупу до ~99 % накладних.
-//
-// ## Чому не `capabilities.fs_read`
-//
-// Формально preopen існує (`PluginHost::build_host_state`), і `fs_read:
-// ["."]` дав би гостю власний обхід із байтовим читанням. Три «ні»: (а)
-// capability оголошується на ВЕСЬ плагін, тобто всі 25+ концернів
-// `lang-js` дістали б read-доступ до цілого репо заради одного; (б) гість
-// мусив би вдруге реалізувати gitignore-обхід усередині wasm, дублюючи
-// `rules_core::scan` і породжуючи саме той дрейф скоупу, який §2.72/§2.87
-// робили гучним; (в) preopen резолвиться від `std::env::current_dir()`
-// ХОСТ-ПРОЦЕСУ, а не від `cwd`-параметра `run_wasm_concern_fix` — для
-// `lint --path <інше-дерево>` гість дивився б не туди. Останнє — окремий
-// латентний дефект хоста, зафіксований у §2.92; чинних споживачів
-// `fs_read` немає, тож він досі не спостерігався.
-//
-// ## Чому НЕ half-порт «лише deny-поля»
-//
-// Технічно безпечний варіант існує: оголосити концерн, віддавати план лише
-// коли в цільовому `package.json` НЕМАЄ `scripts.lint*`, інакше — порожній
-// план, який `applyT0` підхопить JS-каноном. Він не half-wired (порожній
-// план не зупиняє `applyT0`), але й не наближає мету: канон лишається
-// обовʼязковим НАЗАВЖДИ, а в дерево лягає міна для хвилі зняття канонів
-// (§2.88, урок 9) — оголошений гість-фікс виглядає як завершений порт, і
-// зняття канону тихо вимкне саме lint-скриптову гілку. Тому концерн не
-// оголошений узагалі.
+// `capabilities.fs_read` і half-порт «лише deny-поля» лишаються
+// відкинутими варіантами (§2.92 назвала обидва й обидва відкинула
+// свідомо) — жоден із них не був блокером, який file-reader знімає, тож
+// цей крок їх не переглядає.
 
 /// Токен матриці пакетів у `lint-storybook.yml.snippet.yml` — точний порт
 /// `PACKAGE_DIRS_TOKEN` (`fix-storybook-ci.mjs:21`).
@@ -16369,6 +16912,12 @@ impl Guest for LangJs {
             // повторне планування (`plan_stryker_actions`) замість власного
             // scope-обчислення (доккомент [`fix_stryker_config`]).
             CONCERN_STRYKER_CONFIG => fix_stryker_config(&request),
+            // Крок 5 спеки `docs/specs/2026-08-31-plugin-contract-v5.md`:
+            // ПЕРШИЙ концерн, чий fix іде через `n-rules:caps/file-reader`
+            // (доккомент [`fix_bun_package_json`]) — не через
+            // `request.files`, тож `glob`/`fix_glob` контрибуції нижче
+            // (`build_manifest`) навмисно НЕ несуть `**/*`.
+            CONCERN_BUN_PACKAGE_JSON => fix_bun_package_json(&request),
             key if template_fix_cfg(key).is_some() => match template_fix_cfg(key) {
                 Some(cfg) => template_merge_fix(cfg, &request),
                 None => FixPlan { edits: vec![] },
@@ -20771,6 +21320,111 @@ mod tests {
             vec![licensee_diagnostic("licensee-tool-error", None)],
         ));
         assert!(plan.edits.is_empty());
+    }
+
+    // =====================================================================
+    // `bun/package_json` — чисті хелпери (доккомент [`fix_bun_package_json`]).
+    // `compute_pkg_json_plan`/`fix_bun_package_json` самі кличуть
+    // `list_files`/`read_file_bytes` (host-імпорти `n-rules:caps/
+    // file-reader@1.0.0`) — поза реальним хостом ці виклики недоступні, тож
+    // наскрізна характеризація (§2.94, перенесена з
+    // `plugins/lang-js/rules/bun/package_json/tests/fix-package_json.test.mjs`)
+    // живе в `crates/rules-plugin-host/tests/plugin_lang_js.rs`, не тут —
+    // той самий поділ, що решта host-import-фіксів цього гостя (напр.
+    // `style/lint`/`js/jscpd_duplicates`, `exec-tool`). Тут — лише те, що
+    // не потребує host-виклику взагалі.
+    // =====================================================================
+
+    #[test]
+    fn pkg_json_deny_field_names_match_canonical_template_order() {
+        assert_eq!(
+            bun_package_json_deny_field_names(),
+            vec!["packageManager".to_string(), "dependencies".to_string()]
+        );
+    }
+
+    #[test]
+    fn pkg_json_surface_arg_for_mirrors_canon() {
+        assert_eq!(pkg_json_surface_arg_for("lint"), "");
+        assert_eq!(pkg_json_surface_arg_for("lint-js"), " js");
+        assert_eq!(pkg_json_surface_arg_for("lint-image"), " image-compress");
+    }
+
+    #[test]
+    fn pkg_json_classify_candidate_mirrors_classify_candidate() {
+        let target = "package.json";
+        assert_eq!(pkg_json_classify_candidate("bun.lock", target), None);
+        assert_eq!(pkg_json_classify_candidate("yarn.lock", target), None);
+        assert_eq!(
+            pkg_json_classify_candidate(".github/workflows/ci.yml", target),
+            Some(PkgJsonFileKind::Workflow)
+        );
+        assert_eq!(
+            pkg_json_classify_candidate(".github/workflows/ci.yaml", target),
+            Some(PkgJsonFileKind::Workflow)
+        );
+        assert_eq!(pkg_json_classify_candidate(target, target), None);
+        assert_eq!(
+            pkg_json_classify_candidate("packages/ui/package.json", target),
+            Some(PkgJsonFileKind::PackageJson)
+        );
+        assert_eq!(
+            pkg_json_classify_candidate("Makefile", target),
+            Some(PkgJsonFileKind::Other)
+        );
+        assert_eq!(
+            pkg_json_classify_candidate("run.sh", target),
+            Some(PkgJsonFileKind::Other)
+        );
+    }
+
+    #[test]
+    fn pkg_json_invocation_ranges_finds_full_calls_only() {
+        let content = "jobs:\n  a:\n    steps:\n      - run: bun run lint-js\n";
+        let ranges = pkg_json_invocation_ranges(content, "lint-js");
+        assert_eq!(ranges.len(), 1);
+        let (start, end) = ranges[0];
+        assert_eq!(&content[start..end], "bun run lint-js");
+
+        // Right-boundary: `lint` НЕ матчить усередині `lint-js`.
+        assert!(pkg_json_invocation_ranges(content, "lint").is_empty());
+    }
+
+    #[test]
+    fn pkg_json_rewrite_usages_replaces_every_call_with_canonical() {
+        let (rewritten, matched) = pkg_json_rewrite_usages("bun run lint-js && bun test", "lint-js", false);
+        assert!(matched);
+        assert_eq!(rewritten, "bunx n-rules lint js && bun test");
+
+        let (workflow, _) = pkg_json_rewrite_usages("run: bun run lint-js", "lint-js", true);
+        assert_eq!(workflow, "run: bunx n-rules lint js --no-fix");
+
+        let (unchanged, matched) = pkg_json_rewrite_usages("bun test", "lint-js", false);
+        assert!(!matched);
+        assert_eq!(unchanged, "bun test");
+    }
+
+    #[test]
+    fn pkg_json_by_length_desc_orders_longest_first() {
+        assert_eq!(
+            pkg_json_by_length_desc(vec!["lint".to_string(), "lint-js".to_string(), "lint-css".to_string()]),
+            vec!["lint-css".to_string(), "lint-js".to_string(), "lint".to_string()]
+        );
+    }
+
+    #[test]
+    fn pkg_json_detect_format_reads_indent_and_trailing_newline() {
+        assert_eq!(pkg_json_detect_format("{\n  \"name\": \"x\"\n}\n"), ("  ".to_string(), "\n"));
+        assert_eq!(pkg_json_detect_format("{\n    \"name\": \"x\"\n}\n"), ("    ".to_string(), "\n"));
+        assert_eq!(pkg_json_detect_format("{\n\t\"name\": \"x\"\n}"), ("\t".to_string(), ""));
+        assert_eq!(pkg_json_detect_format("{\n\t\"name\": \"x\"\n}\r\n"), ("\t".to_string(), "\r\n"));
+    }
+
+    #[test]
+    fn pkg_json_serialize_preserves_source_style() {
+        let raw = "{\n    \"name\": \"x\"\n}\n";
+        let pkg = parse_json_ordered(raw).expect("валідний JSON");
+        assert_eq!(pkg_json_serialize(&pkg, raw), raw);
     }
 
     #[test]

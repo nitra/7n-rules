@@ -6326,7 +6326,7 @@ describe('wasm-plugin parity — §2.87 storybook-пара T0-фікс чере�
 //   знятий у гості ключ валить гейт, а не тихо проходить через
 //   «нуль патернів» разом із рештою;
 // - твердження 3 — з боку ДИСКА: набір уцілілих `fix-*.mjs` плагіна
-//   мусить дорівнювати рівно чотирьом ІМЕНОВАНИМ винятками. Новий канон для
+//   мусить дорівнювати рівно ДВОМ ІМЕНОВАНИМ винятками. Новий канон для
 //   портованого концерну (чи повернений старий) валить гейт навіть якщо
 //   його ключа в таблиці немає — саме та дірка, яку сама лише таблиця
 //   лишає відкритою.
@@ -6372,13 +6372,21 @@ const FIX_ONLY_IN_GUEST = [
   // (`crates/rules-napi/src/lib.rs`) уже давав full-scope fix-батч, порту
   // бракувало лише самого коду (`fix_stryker_config`, доккомент у
   // `crates/plugin-lang-js/src/lib.rs`).
-  { ruleId: 'test', concern: 'stryker_config' }
+  { ruleId: 'test', concern: 'stryker_config' },
+  // §2.92/§2.94/§2.119 — крок 5 спеки `docs/specs/2026-08-31-plugin-
+  // contract-v5.md`: `n-rules:caps/file-reader@1.0.0` знімає ОБИДВА
+  // блокери §2.92 (тип межі `source-file.content: string`, 124 MiB
+  // `**/*`-batch), тож ЄДИНИЙ канон партії, зупинений НЕ порядковою
+  // звіркою (як `js/eslint`), а структурним блокером — портований.
+  { ruleId: 'bun', concern: 'package_json' }
 ]
 
 /**
- * Три вцілілі `fix-<concern>.mjs` плагіна — кожен зі СВОЄЮ причиною, і
+ * Два вцілілі `fix-<concern>.mjs` плагіна — кожен зі СВОЄЮ причиною, і
  * жодна з них не «ще не дійшли руки». Ключі — шлях відносно
- * `plugins/lang-js/rules/`.
+ * `plugins/lang-js/rules/`. `bun/package_json` (§2.92 — колишній третій
+ * запис) портований кроком 5 спеки `docs/specs/2026-08-31-plugin-
+ * contract-v5.md` — запис знято, канон видалено разом із JS-каноном.
  * @type {Record<string, string>}
  */
 const FIX_STAYS_IN_JS = {
@@ -6398,9 +6406,6 @@ const FIX_STAYS_IN_JS = {
   'js/eslint/fix-eslint.mjs':
     '§2.93/§2.100 — канон кличе `eslint --fix` через programmatic API (Node-модуль), гість — ' +
     'через CLI-бінарник `npm:eslint`; різні шляхи резолву, не порт одне одного',
-  'bun/package_json/fix-package_json.mjs':
-    '§2.92 — концерн свідомо НЕ портований: fix-глоб масштабу `**/*` упирається ' +
-    'у тип межі `source-file.content: string` (124 MiB на виклик при 1 MiB корисного)',
   'test/storybook-vitest-config/fix-storybook-vitest-config.mjs':
     '§2.87 — не портований: хірургічне string-splice редагування чужого `vitest.config.*`'
 }
@@ -6438,7 +6443,7 @@ describe('§2.93 — plugins/lang-js: фікс кожного портовано
       ...manifest.concerns.map(c => c.key),
       ...(manifest.fix_only_concerns ?? []).map(c => c.key)
     ])
-    expect(FIX_ONLY_IN_GUEST).toHaveLength(20)
+    expect(FIX_ONLY_IN_GUEST).toHaveLength(21)
     const missing = FIX_ONLY_IN_GUEST.map(({ ruleId, concern }) => `${ruleId}/${concern}`).filter(
       key => !declared.has(key)
     )
@@ -6447,13 +6452,14 @@ describe('§2.93 — plugins/lang-js: фікс кожного портовано
       'ключ таблиці зник із маніфеста гостя — або перейменований (онови таблицю), ' +
         'або контрибуцію знято, і концерн лишився БЕЗ жодного фіксера'
     ).toEqual([])
-    // `js/eslint` — ЄДИНИЙ ключ, що приходить із ДРУГОГО списку (§2.86):
-    // гість дає лише fix, detect лишається за `main.mjs`. Твердження явне,
-    // щоб перенесення ключа між списками не пройшло тихо.
-    expect((manifest.fix_only_concerns ?? []).map(c => c.key)).toEqual(['js/eslint'])
+    // `js/eslint`/`bun/package_json` — ДВА ключі, що приходять із ДРУГОГО
+    // списку (§2.86/§2.92-§2.94-§2.119): гість дає лише fix, detect
+    // лишається за `main.mjs`/rego-policy. Твердження явне, щоб
+    // перенесення ключа між списками не пройшло тихо.
+    expect((manifest.fix_only_concerns ?? []).map(c => c.key)).toEqual(['js/eslint', 'bun/package_json'])
   })
 
-  test('на диску не лишилось жодного зайвого fix-канону: рівно три іменовані винятки', async () => {
+  test('на диску не лишилось жодного зайвого fix-канону: рівно два іменовані винятки', async () => {
     const { glob } = await import('node:fs/promises')
     /** @type {string[]} */
     const found = []
