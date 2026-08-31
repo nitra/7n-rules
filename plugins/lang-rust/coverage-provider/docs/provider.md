@@ -3,7 +3,7 @@ type: JS Module
 title: provider.mjs
 resource: plugins/lang-rust/coverage-provider/provider.mjs
 docgen:
-  crc: 513de495
+  crc: 3c0cbe96
   model: openai-codex/gpt-5.4-mini
   tier: cloud-min
   score: 100
@@ -12,7 +12,7 @@ docgen:
 
 ## Огляд
 
-Провайдер `coverage` для Rust-крейтів підтримує line coverage через `cargo llvm-cov` у форматі lcov і мутаційне тестування через `cargo mutants` з читанням `mutants.out/outcomes.json`. Ядро `test` отримує від нього coverage-сигнали для Rust без окремої CLI-оркестрації в цьому шарі. Якщо `cargo-llvm-cov` або `cargo-mutants` недоступні, провайдер робить чесний skip з одноразовим hint, а не падає з помилкою. Для Rust fix-hooks генерації тестів ще не реалізовані, тому fix-worker цей провайдер пропускає.
+Провайдер `coverage` для Rust-крейтів підтримує line coverage через `cargo llvm-cov` у форматі lcov і мутаційне тестування через `cargo mutants` з читанням `mutants.out/outcomes.json`. Ядро `test` отримує від нього coverage-сигнали для Rust без окремої CLI-оркестрації в цьому шарі. Якщо `cargo-llvm-cov` або `cargo-mutants` недоступні, провайдер робить чесний skip з одноразовим hint, а не падає з помилкою. Fix-hooks для Rust реалізовані: провайдер надає `generateTests` для файлів нижче порогу покриття і `fixSurvived` для survived-мутантів, підвантажуючи їх реалізацію лише в момент виклику — detect- і collect-шлях лишається без LLM-стека.
 
 ## Поведінка
 
@@ -26,7 +26,7 @@ docgen:
 
 5. Якщо потрібних Rust-інструментів немає, провайдер чесно пропускає крок із одноразовою підказкою замість помилки.
 
-6. Fix-hooks для генерації тестів у Rust не підключені, тому цей провайдер працює без них.
+6. На fix-шляху провайдер догенеровує Rust-тести для файлів нижче порогу покриття і тести проти survived-мутантів cargo-mutants; LLM-стек підвантажується лише тоді, коли такий хук справді викликано.
 
 ## Публічний API
 
