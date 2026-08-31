@@ -13442,3 +13442,114 @@ wasip3-міграції, не цій задачі.
 **Цільові прогони.** `cargo test -p rules-plugin-host --test
 wasm_plugin_skill_smoke` — 1 passed (тест сам скаффолдить/збирає/вантажить
 шаблон і перевіряє `manifest.world_version == "5.0.0"`), 0 провалів.
+
+### 2.114. Розвідка P3-переходу на боці хоста: «лише перемкнути прапорець» — хибно, preopens — уціліли, пін WASI 0.3.1 — не задовольняється
+
+**Задача:** перевірити засновки розділу 10.1 спеки
+`docs/specs/2026-08-31-plugin-contract-v5.md` (перехід гостей на
+`wasm32-wasip3`) із боку хоста — рішення ухвалили, спираючись на «`wasmtime`
+48 підтримує обидва профілі», але що саме зміниться в
+`crates/rules-plugin-host`, ніхто не дивився. Розвідка, коду не писано.
+Повний звіт: `docs/specs/2026-08-31-recon-wasi-p3-host.md`.
+
+**Головний вирок: перехід дорожчий, ніж вважає спека.** Формулювання «хост
+уміє P3 сьогодні — треба лише перемкнути прапорець»
+(`plugin-contract-v5.md:288`) не витримує перевірки. У `wasmtime-wasi`
+48.0.1 модуль `p3` **не має** синхронного лінкера: `grep "pub fn
+add_to_linker"` дає `p2::add_to_linker_sync`/`add_to_linker_async` проти
+єдиного `p3::add_to_linker` (`p3/mod.rs:170`). Далі — механіка відмови,
+простежена по коду: WIT-`async func` → `func_wrap_concurrent`
+(`wasmtime-internal-wit-bindgen-48.0.1/src/lib.rs:2745`) → `Asyncness::Yes`
+(`component/func/host.rs:133,145`) → `InstancePre` OR-ить asyncness по всіх
+імпортах (`component/instance.rs:1094-1100`) і виставляє
+`set_async_required` (`:1148,1175`) → будь-який синхронний вхід падає
+`bail!("store configuration requires that \`*_async\` functions are used
+instead")` (`runtime/store.rs:2247`), причому саме через
+`Linker::instantiate` (`component/linker.rs:314`) і `TypedFunc::call`
+(`component/func/typed.rs:150`) — обидва наші.
+
+Вибірково прилінкувати «нешкідливу» підмножину не вийде:
+`wasi:clocks@0.3.0` оголошує `wait-until`/`wait-for` як `async func`
+(`p3/wit/deps/clocks.wit:48,52`), а `wasi:clocks/monotonic-clock`
+імпортують **усі шість** гостей уже сьогодні (заміряно `wasm-tools
+component wit` по кожному `.wasm`). Отже зачеплені `host.rs:66,82,277,281,309,313`,
+`loaded_plugin.rs:120,159`, `src/wit.rs` (`bindgen!`) і — головне —
+синхронний napi-міст `crates/rules-napi/src/lib.rs:468-488`, чия
+синхронність СВІДОМА (доккомент пояснює: вона уникає `Send`/`Sync`-вимог до
+`PluginHost`/`LoadedPlugin`).
+
+**Найцінніша знахідка навпаки — preopens уціліли.** `WasiCtxBuilder::preopened_dir`,
+`FsPerms`, `WasiCtx` живуть у КОРЕНІ `wasmtime-wasi` (`src/ctx.rs:297`), не
+в `p2`; p3-реалізація `wasi:filesystem` читає той самий
+`crate::filesystem::WasiFilesystem` (`p3/filesystem/mod.rs:62-68`). А сама
+§2.95-семантика («корінь ВИКЛИКУ, не процесу») взагалі не належить WASI —
+це наш `preopen_root.join(rel)` (`host.rs:346-348`). P3 не має де це
+зламати. Гейт `tests/fs_read_preopen_root.rs` (4 тести) під P3 не змінить
+поведінку — він перестане ЗБИРАТИСЬ, доки фікстуру не переведуть на
+`wasm32-wasip3`; ризик у тому, що його на час міграції вимкнуть.
+
+**Три менші знахідки, кожна з доказом.**
+
+1. **`wasmtime_wasi::p3` — експериментальний за власною документацією.**
+   Дослівно (`p3/mod.rs:1-9`): «not compliant with semver and is not ready
+   for production use. Bug and security fixes limited to wasip3 will not be
+   given patch releases». Спека цього не згадує; при цьому наша політика
+   «мережа заборонена за замовчуванням» (`host.rs:71-81`) спирається саме на
+   `WasiCtx`-реалізацію цього модуля.
+2. **Пін «WASI 0.3.1» (`plugin-contract-v5.md:304`) не задовольняється
+   жодною половиною стека.** `wasmtime-wasi-48.0.1/src/p3/wit/deps/` — усе
+   `@0.3.0`; `std` пінованого `nightly-2026-08-27` при `-Z build-std`
+   тягне крейт `wasip3 v0.7.1+wasi-0.3.0` (рядок із реального прогону),
+   чиї WIT-депи — теж `@0.3.0`.
+3. **`wit-bindgen` 0.60 — НЕ блокер.** `[features]` 0.60.0 і 0.61.1
+   збігаються рядок у рядок, `async` у `default` обох; wasip3-рантайм
+   (`rt/wit_bindgen_cabi_wasip3.c`, `cabi::wasip3_task`) є вже в 0.60.
+   Дельта 0.61 — `async_support/wasip3_context.rs`, потрібний async-гостю,
+   а наші світи синхронні. Оновлення до `=0.61.1` (як у `r-plugin`) —
+   окреме рішення, не передумова.
+
+**Взірець сусіда покриває половину.** `r-plugin` справді збирає P3-гостей
+і кличе їх через `instantiate_async` + `run_concurrent`
+(`crates/r-plugin-runtime/src/platform_info.rs:38-67`). Але `grep -rn
+preopen r-plugin/crates/` дає **нуль** входжень — його WASI-контекст
+`WasiCtxBuilder::new().build()`. Тобто саме тієї половини хоста, яку ми
+найбільше боїмось зламати (preopens, capabilities, синхронний контур),
+взірця немає.
+
+**Що вдалось і не вдалось заміряти.** `-Z build-std` під `wasm32-wasip3`
+доходить до лінкування й падає `rust-lld: error: unable to find library
+-lc` — компіляція `std` працює (`rust-src` є на пінованому nightly),
+бракує рівно wasi-sysroot з WASI SDK, якого на машині немає
+(`/opt/wasi-sdk` відсутній, `which wasm-component-ld` — not found). Тому
+розмір P3-гостя **не заміряно**; для заміру треба розпакований
+`wasi-sdk-34`. Час заміряно на мінімальному зонді з чистим `target/`:
+wasip2 без build-std — **0,26 с**, wasip3 з `-Z build-std=std,panic_abort` —
+**16,62 с**, тобто ≈ +16 с фіксованої вартості на чисту збірку кожного
+гостя. Запас за розміром великий і блокером бути не мусить: при стелі
+10 MiB (`npm/scripts/lib/lint-surface/tests/wasm-size-budget.mjs:46`)
+найбільший гість `plugin_lang_js` — 2 449 475 Б (23,4 %).
+
+**Побічно:** `r-plugin` вимагає рівно `wasm-component-ld 0.5.27`
+(`scripts/test-component-spike.sh:74-76`), а наш пінований toolchain везе
+свій **0.5.30** — конкретний випадок того класу, про який спека вже
+попереджає («переноситься за формою, не дослівно»). І механічний обсяг:
+`grep -rln "wasm32-wasip2"` — **60 файлів**, серед них три CI-workflow,
+шаблон скіла й лінт-правило
+`plugins/lang-rust/rules/rust/wasm_component/wasm_component.mdc:11`.
+
+**Рекомендація.** Пункт 5 складу мажора (`plugin-contract-v5.md:369-370`)
+сформульований як одна зміна, а містить три незалежні: (1) гість — інша
+ціль плюс SDK і пін toolchain (механічно велика, ризиково мала); (2) хост —
+перехід на асинхронну виконавчу модель до самого napi (ризиково велика, без
+взірця в `r-plugin`); (3) прийняття експериментального `wasmtime_wasi::p3`
+у продакшн-граф — рішення, якого спека не ухвалювала, бо не знала про
+нього. Розділити хоча б у §12 (порядок реалізації) і в оцінці.
+
+**Відкрито після розвідки:** чи `p3` у wasmtime 48 узагалі проводить наш
+світ (перевіряється лише прогоном, тобто після появи WASI SDK); чи
+`run_concurrent` сумісний із кешем `LoadedPlugin` per-path у napi; чи
+тримати `p2` паралельно з `p3` на час міграції (власні тести
+`wasmtime-wasi` лінкують обидва — `tests/all/p3/mod.rs:31-34`, але тоді й
+p2-контур стає асинхронним); чи діє між `0.3.0` і `0.3.1` та сама
+minor-поблажливість, що між `0.2.9` і `0.2.12` сьогодні.
+
