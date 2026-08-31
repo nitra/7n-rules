@@ -1,0 +1,379 @@
+//! Native-контур `n-rules plugin embed-manifest`/`n-rules plugin publish` —
+//! задача Д2 плану `docs/specs/2026-08-31-full-rust-migration-plan.md`
+//! (третя колія дистрибуції): вбудувати авторитетний маніфест
+//! (`oci_dist_package::embed_manifest`) у кожного з шести first-party
+//! wasm-гостей і дати команду публікації поверх
+//! `oci_dist_oci::publish_plugin_component`. Третя спроба (перші дві —
+//! §2.101 і §2.117 реєстру `docs/plans/2026-08-05-open-questions-register.md`
+//! — упирались у структурні блокери самого `oci-dist`, обидва зняті у
+//! `0.3.1`).
+//!
+//! Поверхні в JS-CLI немає взагалі — команда нативна цілком (той самий
+//! мотив, що [`crate::tools_cmd`]), тож `plugin` — власна поверхня бінаря:
+//! невідомий аргумент тут usage-помилка, не делегація (`OWNED_SURFACES` у
+//! `main.rs`).
+//!
+//! # Ідентичність — з наявних джерел, не вигадана
+//!
+//! - `publisher_id` — namespace world-пакета контракту
+//!   (`package n-rules:plugin@5.0.0;`, `crates/rules-contract/wit/world.wit`)
+//!   → `n-rules`. Читається з файлу, а не константа тут, щоб дрейф namespace
+//!   контракту вивалився гучно, а не мовчки розійшовся з реальністю;
+//! - `package` — короткий суфікс, переданий `--package` (той самий рядок,
+//!   що `FIRST_PARTY_WASM_PLUGINS[].name` у
+//!   `npm/scripts/build-wasm-plugins.mjs` — саме той скрипт володіє мапою
+//!   crateDir→name, дублювати її тут значило б завести другу таблицю, яка
+//!   розійдеться на першому ж новому гості);
+//! - `version` — `version = "..."` з `<--crate-dir>/Cargo.toml` гостя;
+//! - `component_profile` — `oci_dist_package::COMPONENT_PROFILE`
+//!   (`wasm32-wasip3`) — реальний профіль збірки, той самий `WASM_TARGET`,
+//!   що в `build-wasm-plugins.mjs` (перевіряється, не постулюється: сам
+//!   `embed_manifest` відмовляє невідповідному компоненту нижче за течією);
+//! - `entrypoints` — `describe`/`detect`/`fix`, world-функції
+//!   `world.wit:647,650,667`, спільні для всіх шести гостей РІВНО тому, що
+//!   кожен `plugin.toml` заявляє `domains = ["lint"]` і нічого понад це
+//!   ([`ONLY_SUPPORTED_DOMAIN`]) — команда звіряє це явно й гучно відмовляє
+//!   для гіпотетичного сьомого гостя з іншим доменом, а не мовчки вішає ті
+//!   самі три entrypoints на контракт, якого не перевіряла.
+//!
+//! # Реєстр — обов'язковий параметр виклику, не константа
+//!
+//! `n-rules plugin publish --registry <реєстр>` передає рядок як є в
+//! `oci_dist_oci::publish_plugin_component` — жодного дефолту, жодного
+//! вшитого імені. Гібридна вимога обсягу Д2 (ядро публічно з анонімним
+//! pull, плагіни можуть бути приватними) задоволена самою формою виклику:
+//! той самий реєстр, куди пушить `crates-7n` (`.cargo/config.toml`), тут
+//! ніде не постулюється — виклик приймає БУДЬ-ЯКИЙ реєстр.
+//!
+//! # Async — той самий прийом, що `fix_cmd`
+//!
+//! `publish_plugin_component` асинхронна (мережевий push); [`run_blocking`]
+//! — односторінковий `tokio::runtime::Builder::new_multi_thread().build().
+//! block_on(...)`, ідентичний прийом до `fix_cmd::run_blocking` і
+//! `crates/rules-plugin-host` після хвилі `#610` — жодного нового способу
+//! заводити рантайм тут не винаходилось. `embed-manifest` лишається
+//! повністю синхронною: `oci_dist_package::embed_manifest` не async.
+
+use std::path::{Path, PathBuf};
+use std::process::ExitCode;
+
+use oci_dist_oci::publish_plugin_component;
+use oci_dist_package::{COMPONENT_PROFILE, MANIFEST_SCHEMA, PluginManifest, embed_manifest};
+
+use crate::cli::{PluginEmbedManifestArgs, PluginPublishArgs};
+
+/// Єдиний домен, для якого ця команда знає відповідність entrypoints
+/// (`describe`/`detect`/`fix`, world-функції `world.wit:647,650,667`).
+/// Кожен із шести first-party `plugin.toml` заявляє рівно цей домен —
+/// перевірено `grep '^domains' crates/plugin-*/plugin.toml` на момент
+/// написання команди. Інший домен (`ecosystem-outdated`/`docgen-render`) —
+/// інші world-функції, яких ця команда не заявляє, щоб не вигадати
+/// entrypoints для контракту, якого не перевіряла.
+const ONLY_SUPPORTED_DOMAIN: &str = "lint";
+
+/// Entrypoints лінт-домену — дослівно world-функції `world.wit`, логічне
+/// ім'я збігається з іменем експорту (жодного перейменування).
+const LINT_ENTRYPOINTS: [&str; 3] = ["describe", "detect", "fix"];
+
+/// `n-rules plugin embed-manifest --crate-dir <dir> --package <name> \
+/// --component <шлях> [--out <шлях>]`.
+pub fn run_embed_manifest(args: &PluginEmbedManifestArgs) -> ExitCode {
+    match embed_manifest_component(args) {
+        Ok((out_path, manifest)) => {
+            println!(
+                "✅ маніфест вбудовано: {} → {} ({}, {})",
+                args.component.display(),
+                out_path.display(),
+                manifest.package_identity(),
+                manifest.version
+            );
+            ExitCode::SUCCESS
+        }
+        Err(message) => {
+            eprintln!("❌ n-rules plugin embed-manifest: {message}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// `n-rules plugin publish --registry <реєстр> --component <шлях> [--dry-run]`.
+pub fn run_publish(args: &PluginPublishArgs) -> ExitCode {
+    match run_blocking(publish_plugin_component(
+        &args.registry,
+        &args.component,
+        args.dry_run,
+    )) {
+        Ok(release) => {
+            let verb = if args.dry_run { "розраховано" } else { "опубліковано" };
+            println!(
+                "✅ {verb}: {} ({}) → {}",
+                release.release.package, release.release.version, release.reference
+            );
+            if !release.release.digest.is_empty() {
+                println!("   digest {}", release.release.digest);
+            }
+            ExitCode::SUCCESS
+        }
+        Err(error) => {
+            eprintln!("❌ n-rules plugin publish: {error:#}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// Заводить односторінковий multi-thread рантайм і виконує один async-виклик
+/// до завершення — той самий прийом, що `fix_cmd::run_blocking`.
+fn run_blocking<T>(future: impl std::future::Future<Output = anyhow::Result<T>>) -> anyhow::Result<T> {
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .expect("не вдалось завести tokio-рантайм для plugin publish");
+    runtime.block_on(future)
+}
+
+fn embed_manifest_component(
+    args: &PluginEmbedManifestArgs,
+) -> Result<(PathBuf, PluginManifest), String> {
+    let publisher_id = read_world_publisher_id(&args.crate_dir)?;
+    let version = read_cargo_version(&args.crate_dir)?;
+    validate_lint_only_domain(&args.crate_dir)?;
+
+    let manifest_toml = render_manifest_toml(&publisher_id, &args.package, &version);
+    let manifest = PluginManifest::from_toml(&manifest_toml)
+        .map_err(|error| format!("маніфест не пройшов валідацію: {error}"))?;
+
+    let component = std::fs::read(&args.component).map_err(|error| {
+        format!(
+            "не вдалось прочитати компонент `{}`: {error}",
+            args.component.display()
+        )
+    })?;
+    let embedded = embed_manifest(&component, &manifest)
+        .map_err(|error| format!("не вдалось вбудувати маніфест: {error}"))?;
+
+    let out_path = args.out.clone().unwrap_or_else(|| args.component.clone());
+    std::fs::write(&out_path, &embedded).map_err(|error| {
+        format!(
+            "не вдалось записати результат `{}`: {error}",
+            out_path.display()
+        )
+    })?;
+
+    Ok((out_path, manifest))
+}
+
+/// Рендерить authoring-TOML для `PluginManifest::from_toml` — єдиний
+/// публічний шлях побудувати валідний маніфест (`ComponentProfile`/
+/// `WitExportRef` мають приватні поля, конструктор лише через
+/// `from_toml`/`from_json`, доккомент `oci-dist-package`).
+fn render_manifest_toml(publisher_id: &str, package: &str, version: &str) -> String {
+    let mut toml = format!(
+        "schema = \"{MANIFEST_SCHEMA}\"\n\
+         component_profile = \"{COMPONENT_PROFILE}\"\n\
+         publisher_id = \"{publisher_id}\"\n\
+         package = \"{package}\"\n\
+         version = \"{version}\"\n\n\
+         [entrypoints]\n"
+    );
+    for entrypoint in LINT_ENTRYPOINTS {
+        toml.push_str(&format!("{entrypoint} = \"{entrypoint}\"\n"));
+    }
+    toml
+}
+
+/// `package n-rules:plugin@5.0.0;` → `n-rules` — namespace world-пакета
+/// контракту, спільного для всіх шести гостей
+/// (`<crate-dir>/../rules-contract/wit/world.wit`, сусідній крейт).
+fn read_world_publisher_id(crate_dir: &Path) -> Result<String, String> {
+    let wit_path = crate_dir.join("../rules-contract/wit/world.wit");
+    let source = std::fs::read_to_string(&wit_path).map_err(|error| {
+        format!(
+            "не вдалось прочитати контракт `{}`: {error}",
+            wit_path.display()
+        )
+    })?;
+    for line in source.lines() {
+        let line = line.trim();
+        let Some(rest) = line.strip_prefix("package ") else {
+            continue;
+        };
+        let identity = rest.trim_end_matches(';').trim();
+        let Some((namespace, _)) = identity.split_once(':') else {
+            continue;
+        };
+        return Ok(namespace.to_owned());
+    }
+    Err(format!(
+        "не знайшов `package <namespace>:...;` у `{}`",
+        wit_path.display()
+    ))
+}
+
+/// `version = "..."` з `<crate-dir>/Cargo.toml` — той самий парсинг, що
+/// `build-wasm-plugins.mjs` (`CARGO_PACKAGE_NAME_RE`) застосовує до `name`.
+fn read_cargo_version(crate_dir: &Path) -> Result<String, String> {
+    let cargo_toml_path = crate_dir.join("Cargo.toml");
+    let source = std::fs::read_to_string(&cargo_toml_path).map_err(|error| {
+        format!(
+            "не вдалось прочитати `{}`: {error}",
+            cargo_toml_path.display()
+        )
+    })?;
+    for line in source.lines() {
+        let line = line.trim();
+        let Some(rest) = line.strip_prefix("version") else {
+            continue;
+        };
+        let rest = rest.trim_start();
+        let Some(rest) = rest.strip_prefix('=') else {
+            continue;
+        };
+        let value = rest.trim();
+        if let Some(value) = value.strip_prefix('"').and_then(|v| v.strip_suffix('"')) {
+            return Ok(value.to_owned());
+        }
+    }
+    Err(format!(
+        "не знайшов `version = \"...\"` у `{}`",
+        cargo_toml_path.display()
+    ))
+}
+
+/// Звіряє, що гість заявляє РІВНО `domains = ["lint"]` — єдиний домен, для
+/// якого ця команда знає мапу entrypoints. Гучна відмова замість мовчазного
+/// припущення (правило проєкту, CLAUDE.md): майбутній гість з іншим доменом
+/// мусить дістати свою мапу, не успадкувати цю.
+fn validate_lint_only_domain(crate_dir: &Path) -> Result<(), String> {
+    let plugin_toml_path = crate_dir.join("plugin.toml");
+    let source = std::fs::read_to_string(&plugin_toml_path).map_err(|error| {
+        format!(
+            "не вдалось прочитати `{}`: {error}",
+            plugin_toml_path.display()
+        )
+    })?;
+    for line in source.lines() {
+        let line = line.trim();
+        let Some(rest) = line.strip_prefix("domains") else {
+            continue;
+        };
+        let rest = rest.trim_start();
+        let Some(rest) = rest.strip_prefix('=') else {
+            continue;
+        };
+        let declared = rest.trim();
+        let expected = format!("[\"{ONLY_SUPPORTED_DOMAIN}\"]");
+        return if declared == expected {
+            Ok(())
+        } else {
+            Err(format!(
+                "`{}` заявляє `domains = {declared}`, а ця команда знає entrypoints лише для \
+                 `{expected}` — додай мапу для нового домену, перш ніж embed-manifest",
+                plugin_toml_path.display()
+            ))
+        };
+    }
+    Err(format!(
+        "не знайшов `domains = [...]` у `{}`",
+        plugin_toml_path.display()
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use super::{
+        embed_manifest_component, read_cargo_version, read_world_publisher_id,
+        render_manifest_toml, validate_lint_only_domain,
+    };
+    use crate::cli::PluginEmbedManifestArgs;
+
+    fn repo_root() -> PathBuf {
+        // `crates/rules-cli` — двічі вгору до кореня workspace.
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .to_path_buf()
+    }
+
+    #[test]
+    fn reads_publisher_id_from_shared_contract() {
+        let crate_dir = repo_root().join("crates/plugin-lang-js");
+        assert_eq!(read_world_publisher_id(&crate_dir).unwrap(), "n-rules");
+    }
+
+    #[test]
+    fn reads_cargo_version_of_each_guest() {
+        for crate_name in [
+            "plugin-lang-js",
+            "plugin-lang-python",
+            "plugin-lang-rust",
+            "plugin-lang-php",
+            "plugin-ci-github",
+            "plugin-ci-azure",
+        ] {
+            let crate_dir = repo_root().join("crates").join(crate_name);
+            let version = read_cargo_version(&crate_dir)
+                .unwrap_or_else(|error| panic!("{crate_name}: {error}"));
+            assert!(!version.is_empty(), "{crate_name}: порожня версія");
+        }
+    }
+
+    #[test]
+    fn every_first_party_guest_declares_lint_only_domain() {
+        for crate_name in [
+            "plugin-lang-js",
+            "plugin-lang-python",
+            "plugin-lang-rust",
+            "plugin-lang-php",
+            "plugin-ci-github",
+            "plugin-ci-azure",
+        ] {
+            let crate_dir = repo_root().join("crates").join(crate_name);
+            validate_lint_only_domain(&crate_dir)
+                .unwrap_or_else(|error| panic!("{crate_name}: {error}"));
+        }
+    }
+
+    #[test]
+    fn rendered_manifest_toml_parses_and_validates() {
+        let toml = render_manifest_toml("n-rules", "lang-js", "0.1.0");
+        let manifest = oci_dist_package::PluginManifest::from_toml(&toml).expect("валідний TOML");
+
+        assert_eq!(manifest.package_identity(), "n-rules:lang-js");
+        assert_eq!(manifest.version, "0.1.0");
+        assert_eq!(manifest.entrypoints.len(), 3);
+        for key in ["describe", "detect", "fix"] {
+            assert_eq!(manifest.entrypoints[key].as_str(), key);
+        }
+    }
+
+    /// Наскрізний прогін embed-manifest на РЕАЛЬНОМУ (мінімальному)
+    /// Component Model `.wasm` — той самий фікстур, що тести `oci-dist`
+    /// самі використовують (`wasm_encoder::Component::new().finish()`),
+    /// щоб не тягнути реальну збірку в юніт-тест.
+    #[test]
+    fn embeds_manifest_into_a_minimal_component() {
+        let bytes = wasm_encoder::Component::new().finish();
+        let dir = tempfile::tempdir().expect("temp dir");
+        let component_path = dir.path().join("guest.wasm");
+        std::fs::write(&component_path, &bytes).unwrap();
+
+        let args = PluginEmbedManifestArgs {
+            crate_dir: repo_root().join("crates/plugin-lang-js"),
+            package: "lang-js".to_owned(),
+            component: component_path.clone(),
+            out: None,
+        };
+
+        let (out_path, manifest) = embed_manifest_component(&args).expect("embed succeeds");
+        assert_eq!(out_path, component_path);
+        assert_eq!(manifest.package_identity(), "n-rules:lang-js");
+
+        let packaged = std::fs::read(&out_path).unwrap();
+        let inspected = oci_dist_package::inspect_component(&packaged).expect("inspects");
+        assert_eq!(inspected.manifest, manifest);
+    }
+}

@@ -170,12 +170,87 @@ fn owned_commands_have_generated_ukrainian_help() {
         vec!["changed-files", "--help"],
         vec!["rename-yaml-extensions", "-h"],
         vec!["tools", "ensure", "--help"],
+        vec!["plugin", "--help"],
+        vec!["plugin", "embed-manifest", "--help"],
+        vec!["plugin", "publish", "--help"],
     ] {
         let label = args.join(" ");
         let out = bin().args(&args).output().unwrap();
         assert!(out.status.success(), "{label}: {}", stderr(&out));
         assert!(stdout(&out).contains("Використання: n-rules"), "{label}");
     }
+}
+
+/// `plugin` — власна поверхня (Д2, доккомент `plugin_cmd`), без JS-двійника:
+/// невідома підкоманда й брак обовʼязкового `--registry` — usage-помилка
+/// код 2, а не мовчазна делегація в JS-entrypoint.
+#[test]
+fn plugin_is_an_owned_surface_not_a_js_delegate() {
+    let out = bin().args(["plugin", "whatever"]).output().unwrap();
+    assert!(!out.status.success());
+    assert_eq!(out.status.code(), Some(2));
+    assert!(stderr(&out).contains("plugin"), "{}", stderr(&out));
+
+    let out = bin()
+        .args(["plugin", "publish", "--component", "x.wasm"])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    assert_eq!(out.status.code(), Some(2));
+    assert!(stderr(&out).contains("--registry"), "{}", stderr(&out));
+}
+
+/// Наскрізний прогін Д2 на реальному щойно зібраному гості: `embed-manifest`
+/// вбудовує маніфест з ідентичністю, читаною з `Cargo.toml`/`plugin.toml`/
+/// спільного `world.wit`, а `publish --dry-run` рахує OCI-реліз без мережі.
+/// Пропускається, якщо `crates/plugin-lang-js` ще не зібраний під
+/// `wasm32-wasip3` (`node npm/scripts/build-wasm-plugins.mjs`) — той самий
+/// компроміс, що інші native-тести, які залежать від зовнішньої збірки.
+#[test]
+fn embed_manifest_then_publish_dry_run_round_trips_a_real_guest() {
+    let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap();
+    let built = repo_root
+        .join("target/wasm32-wasip3/release/plugin_lang_js.wasm");
+    if !built.exists() {
+        eprintln!(
+            "пропущено: {} відсутній — запусти `node npm/scripts/build-wasm-plugins.mjs`",
+            built.display()
+        );
+        return;
+    }
+
+    let tmp = TempDir::new().unwrap();
+    let component = tmp.path().join("guest.wasm");
+    std::fs::copy(&built, &component).unwrap();
+
+    let embed = bin()
+        .args(["plugin", "embed-manifest", "--crate-dir"])
+        .arg(repo_root.join("crates/plugin-lang-js"))
+        .args(["--package", "lang-js", "--component"])
+        .arg(&component)
+        .output()
+        .unwrap();
+    assert!(embed.status.success(), "{}", stderr(&embed));
+    assert!(stdout(&embed).contains("n-rules:lang-js"), "{}", stdout(&embed));
+
+    let publish = bin()
+        .args(["plugin", "publish", "--registry", "crates.7n.ai", "--component"])
+        .arg(&component)
+        .arg("--dry-run")
+        .output()
+        .unwrap();
+    assert!(publish.status.success(), "{}", stderr(&publish));
+    let publish_out = stdout(&publish);
+    assert!(publish_out.contains("n-rules:lang-js"), "{publish_out}");
+    assert!(
+        publish_out.contains("crates.7n.ai/n-rules/lang-js:"),
+        "{publish_out}"
+    );
+    assert!(publish_out.contains("digest sha256:"), "{publish_out}");
 }
 
 /// Фейковий встановлений пакет `@7n/rules`: каталог зі `skills/<id>/SKILL.md`

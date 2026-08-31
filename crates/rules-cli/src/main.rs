@@ -105,6 +105,7 @@ mod hook_cmd;
 mod js_fallback;
 mod lint_cmd;
 mod paths;
+mod plugin_cmd;
 mod rename_yaml_cmd;
 mod skill_cmd;
 mod tool_lock;
@@ -116,7 +117,7 @@ use std::process::ExitCode;
 use clap::error::{ContextKind, ErrorKind};
 use clap::{CommandFactory as _, Parser as _};
 
-use cli::{CiCommand, Cli, NativeCommand, ToolsCommand};
+use cli::{CiCommand, Cli, NativeCommand, PluginCommand, ToolsCommand};
 
 /// Довідка `lint --help` — байт-у-байт вивід `printLintHelp` з
 /// `npm/bin/n-rules-cli.mjs` (включно з двома фінальними `\n`: один із
@@ -131,7 +132,12 @@ fn main() -> ExitCode {
 /// Команди, чию argv-поверхню володіє САМЕ цей бінар: невідомий аргумент там
 /// — usage-помилка. Решта (`lint`, `hook`, `ci`, `skill`) ще ділить поверхню з
 /// JS-CLI, тож нерозібраний argv туди й їде (доккомент [`cli`]).
-const OWNED_SURFACES: [&str; 3] = ["changed-files", "rename-yaml-extensions", "tools"];
+const OWNED_SURFACES: [&str; 4] = [
+    "changed-files",
+    "rename-yaml-extensions",
+    "tools",
+    "plugin",
+];
 
 /// Код виходу usage-помилки — той самий `2`, що вже був у `tools`
 /// (і що дає `clap` за замовчуванням).
@@ -285,6 +291,12 @@ fn dispatch(command: NativeCommand, args: &[String]) -> ExitCode {
         // бере лише `domains`/`index`/`slice`/`validate` за `--native-docs`;
         // `build` лишається JS-поверхнею цілком (доккомент `docs_cmd`).
         NativeCommand::Docs(parsed) => docs_cmd::run(&parsed, args),
+        // Д2: жодного JS-двійника — власна поверхня цілком, нативна
+        // безумовно ([`plugin_cmd`]).
+        NativeCommand::Plugin(parsed) => match parsed.command {
+            PluginCommand::EmbedManifest(embed) => plugin_cmd::run_embed_manifest(&embed),
+            PluginCommand::Publish(publish) => plugin_cmd::run_publish(&publish),
+        },
     }
 }
 

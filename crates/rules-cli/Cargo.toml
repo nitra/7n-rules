@@ -49,9 +49,26 @@ rules-adr = { path = "../rules-adr" }
 rules-docs = { path = "../rules-docs" }
 harness = { version = "0.3", package = "n7n-harness" }
 llm-lib = { version = "0.5", package = "n7n-llm-lib" }
-# Рантайм заводиться лише під `--native-fix` (`fix_cmd::run_blocking`) —
-# решта native-команд CLI повністю синхронна.
+# Рантайм заводиться лише під `--native-fix` (`fix_cmd::run_blocking`) і
+# `plugin embed-manifest`/`plugin publish` (`plugin_cmd::run_blocking`,
+# той самий прийом) — решта native-команд CLI повністю синхронна.
 tokio = { version = "1", features = ["rt-multi-thread"] }
+# Д2 (публікація first-party wasm-плагінів у OCI): вбудова маніфесту
+# (`oci_dist_package::embed_manifest`) і команда публікації
+# (`oci_dist_oci::publish_plugin_component`). Реєстр `crates-7n`
+# (`.cargo/config.toml`) — перший і єдиний споживач цього реєстру в
+# workspace. `=0.3.1` — перша опублікована версія, чий `serde_json` уже
+# діапазон (`"1.0"`, не точний пін), сумісний із транзитивним
+# `rig-agent` (`llm-lib`) — §2.117/§2.121 реєстру відкритих питань.
+oci-dist-package = { version = "=0.3.1", registry = "crates-7n" }
+oci-dist-oci = { version = "=0.3.1", registry = "crates-7n" }
+# `publish_plugin_component` повертає `anyhow::Result` — той самий тип
+# помилки лишається наскрізним у `plugin_cmd::run_blocking`, без обгортки.
+anyhow = "1"
 
 [dev-dependencies]
 tempfile = "3"
+# Тест наскрізного `embed-manifest` (`plugin_cmd::tests`) конструює
+# мінімальний Component Model `.wasm` тим самим фікстуром, що тести
+# `oci-dist-package`, замість тягнути реальну збірку в юніт-тест.
+wasm-encoder = "0.255"
