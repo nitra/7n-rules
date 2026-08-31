@@ -1,0 +1,94 @@
+// Пакет `n-rules:surfaces@1.0.0` — слотові світи (спека
+// `docs/specs/2026-08-31-plugin-contract-v5.md`, розділ 7): поверхня, яку
+// реалізує лише ПІДМНОЖИНА гостей (критерій 3, розділ 4 спеки), стає новим
+// world у цьому пакеті — нуль змін наявного. Гості, що world не оголосили,
+// не зачеплені (той самий принцип, що `caps`, доккомент пакета в
+// `deps/caps/tool-runner.wit`).
+//
+// `coverage-provider` закриває §2.2 спеки: слот `coverage.provider@1`
+// сьогодні резолвиться ЛИШЕ JS-шиною (`npm/scripts/lib/plugin-slots.mjs`,
+// `getSlotContributions(graph, 'coverage.provider', [1])`) — у WIT для
+// нього немає навіть заглушки (розвідка
+// `docs/specs/2026-08-31-recon-providers-rules-skills.md`, розділ
+// «Родина 1»: 31 файл / 7 671 рядок у чотирьох мовних плагінах, клас
+// портовності B — «потрібна НОВА поверхня, і в контракті для неї немає
+// місця»).
+//
+// # Форма нижче — з реального коду чотирьох провайдерів, не вигадана
+//
+// Усі чотири `plugins/{lang-js,lang-rust,lang-python,lang-php}/coverage-
+// provider/provider.mjs` збігаються на одній формі результату:
+// `{ area, coverage: { lines: {covered,total}, functions: {covered,total} },
+// mutation: { caught, total }, survived: [...] }` (перевірено дослівно в
+// коді всіх чотирьох `provider.mjs`). Вхід — `provider.collect(cwd,
+// { mutationRefreshFiles })` (`npm/rules/test/coverage/main.mjs:119`).
+//
+// Свідомо НЕ перенесено: детальна структура `survived` (в rust —
+// `{file, mutants: [{line, col, mutantType, original, replacement}]}`, у
+// php/python — інша форма з clover/mutmut-парсерів) — спільний знаменник
+// чотирьох реалізацій це лише шлях файлу, тому `survived-files: list<string>`
+// тут, а не типізований mutant-запис; детальніша форма без узгодження між
+// мовами була б вигадкою, не портом. Так само `detect`/`collectPerFile` —
+// окремі методи качиного контракту JS (`plugin-api.mjs:127-128`) — тут не
+// заведені: спека §7 називає РІВНО один export `collect-coverage`, і
+// розширення на delta-вимір (`collectPerFile`) — рішення кроку 6 порядку
+// реалізації («coverage-provider як перша слотова поверхня»), не цього.
+package n-rules:surfaces@1.0.0;
+
+world coverage-provider {
+  /// Помилка домен-функції цього world-а. Форма ідентична
+  /// `world.wit::domain-error` (див. доккомент вибору не-`use` у
+  /// `deps/caps/file-reader.wit`).
+  variant domain-error {
+    not-supported,
+    failed(string),
+  }
+
+  /// Пара covered/total — та сама форма, що `coverage.lines`/
+  /// `coverage.functions` у чотирьох `provider.mjs`.
+  record coverage-counts {
+    covered: u32,
+    total: u32,
+  }
+
+  /// Мутаційний рахунок — `caught`/`total`, той самий вимір, що
+  /// `mutation` у чотирьох `provider.mjs` (rust `mutants.mjs`, php
+  /// `infection`, python `mutmut.mjs`).
+  record mutation-counts {
+    caught: u32,
+    total: u32,
+  }
+
+  /// Один вимір результату `collect` — `{area, coverage, mutation,
+  /// survived}` у провайдерів JS/Rust/Python/PHP (JS додає ще Storybook
+  /// як другий елемент списку `areas` нижче — звідси `list`, а не один
+  /// record).
+  record coverage-area {
+    /// Людинозрозуміла назва виміру (`'Rust'`, `'PHP'`, `'JS/TS'`,
+    /// `'Storybook'`) — дослівно з `provider.mjs` (`area: 'Rust'` тощо).
+    area: string,
+    lines: coverage-counts,
+    functions: coverage-counts,
+    mutation: mutation-counts,
+    /// Шляхи файлів із survived-мутантами — спільний знаменник чотирьох
+    /// реалізацій (доккомент пакета: детальна форма мутанта не портовна
+    /// без узгодження між мовами).
+    survived-files: list<string>,
+  }
+
+  /// Повний результат `collect-coverage` — список вимірів (JS повертає
+  /// до двох елементів: JS/TS і, за наявності Storybook, окремий вимір).
+  record coverage-report {
+    areas: list<coverage-area>,
+  }
+
+  /// Запит `collect-coverage`. `cwd`/`mutation-refresh-files` — дослівні
+  /// параметри `provider.collect(cwd, { mutationRefreshFiles })`
+  /// (`npm/rules/test/coverage/main.mjs:119`).
+  record coverage-request {
+    cwd: string,
+    mutation-refresh-files: list<string>,
+  }
+
+  export collect-coverage: func(request: coverage-request) -> result<coverage-report, domain-error>;
+}

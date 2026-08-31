@@ -1,0 +1,65 @@
+package n-rules:surfaces@1.0.0;
+
+// Той самий пакет `n-rules:surfaces@1.0.0`, що `coverage-provider.wit`
+// (доккомент пакета живе там; `package` тут навмисно без коментаря перед
+// ним — `wasm-tools component wit` відхиляє директорію, якщо doc-коментар
+// на `package` є більш ніж в одному файлі багатофайлового пакета).
+//
+// `knowledge-extractor` закриває другу половину §2.2 спеки
+// (`docs/specs/2026-08-31-plugin-contract-v5.md`): `rules-docs docs build`
+// (`crates/rules-docs/src/lib.rs:30-33`) уже чекає на мовні екстрактори
+// через slot-dispatch — точка підключення в Rust-порту є
+// (`crates/rules-docs/src/candidate.rs`, трейт `KnowledgeExtractor`), самі
+// екстрактори ще ні.
+//
+// # Форма нижче — дзеркало вже наявного Rust-трейту, не вигадка
+//
+// `crates/rules-docs/src/candidate.rs::KnowledgeExtractor::analyze_file`:
+// `fn analyze_file(&self, domain: &Domain, file: &ExtractorFile) ->
+// Result<Value, String>`, де `ExtractorFile { path, content, content_hash }`
+// (той самий файл, `struct ExtractorFile`) і `Domain::id` — стабільна
+// ідентичність домену, незалежна від шляху (обидва варіанти `Domain` у
+// `crates/rules-docs/src/{graph,domains}.rs` несуть поле `id`).
+//
+// Результат — `Value` (serde_json), СВІДОМО не типізована структура: той
+// самий файл (`candidate.rs`, доккомент модуля «Чому блокери — це `Value`,
+// а не типова структура») пояснює, що фрагменти екстракторів мають різні
+// форми діагностик `{code, detail, path}`/`{code, message, claimId}`/…, і
+// звести їх в одну структуру можна лише вигадавши чи відкинувши поля. Той
+// самий аргумент застосовується тут дослівно: `fragment-json` нижче несе
+// JSON-серіалізований фрагмент `{ok, ...}` рядком, а не record-ом — WIT не
+// типізує вміст, який уже свідомо не типізує сам Rust-порт.
+world knowledge-extractor {
+  /// Помилка домен-функції цього world-а. Форма ідентична
+  /// `world.wit::domain-error` (див. доккомент вибору не-`use` у
+  /// `deps/caps/file-reader.wit`). `analyze_file` у Rust-порту повертає
+  /// `Err(String)` для гілки «екстрактор впав і не має що сказати
+  /// структуровано» (доккомент трейту, `# Errors`) — тут це `failed`.
+  variant domain-error {
+    not-supported,
+    failed(string),
+  }
+
+  /// Запит на розбір одного файлу. Дзеркало `ExtractorFile` +
+  /// `Domain::id` (`crates/rules-docs/src/candidate.rs`).
+  record extract-request {
+    /// `Domain::id` — `<ecosystem>:<canonical-name>`, незалежна від шляху.
+    domain-id: string,
+    /// POSIX-шлях відносно кореня домену.
+    path: string,
+    content: string,
+    /// `sha256:`-відбиток `content`, обчислений оркестратором ДО виклику
+    /// (той самий `content_hash`, що `ExtractorFile`).
+    content-hash: string,
+  }
+
+  /// Результат розбору одного файлу — фрагмент екстрактора.
+  record knowledge-candidate {
+    /// JSON-серіалізований фрагмент `{ok, ...}`, дослівно як повертає
+    /// `analyze_file` у Rust-порту. Доккомент пакета пояснює, чому рядок,
+    /// а не record.
+    fragment-json: string,
+  }
+
+  export extract: func(request: extract-request) -> result<knowledge-candidate, domain-error>;
+}

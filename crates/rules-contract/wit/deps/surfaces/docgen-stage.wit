@@ -1,0 +1,59 @@
+package n-rules:surfaces@1.0.0;
+
+// Той самий пакет `n-rules:surfaces@1.0.0`, що `coverage-provider.wit`
+// (доккомент пакета живе там; `package` тут навмисно без коментаря перед
+// ним — див. `knowledge-extractor.wit` про правило wit-parser-а «doc-
+// коментар пакета — лише в одному файлі»).
+//
+// `docgen-stage` — цільове місце для напівживого `docgen-render`
+// (`wit/world.wit:606`): усі шість гостей повертають
+// `domain-error::not-supported` (§2.2 спеки
+// `docs/specs/2026-08-31-plugin-contract-v5.md`), форма оголошена,
+// механізм не добудований. Мажор `5.0.0` виносить його з ядра сюди
+// (розділ 11 спеки, п.3 «Що входить у мажор») — не видаляє, а перетворює
+// на слотовий world, бо реалізує його підмножина гостей (майбутній
+// `docgen`-гість, рішення 1 спеки), не всі шість (критерій 3, розділ 4
+// спеки).
+//
+// # Форма нижче — розширення наявного `docgen-render`, не вигадка
+//
+// `stage-request`/`stage-output` структурно ІДЕНТИЧНІ `docgen-request`/
+// `doc-output` у `wit/world.wit` (`source-path`/`source-content`/
+// `source-crc` → `content`/`content-crc`, звірка застарілості доки за CRC —
+// конвенція `n-doc-files`, `CLAUDE.md` цього репо). Єдине додане поле —
+// `stage`: `run-stage` замінює ОДИН `docgen-render` на диспетчер стадій,
+// бо `crates/rules-docs/src/lib.rs` (доккомент модуля) називає ЧОТИРИ
+// LLM-стадії конвеєра `docs build` під одним `wave::ChainRef`
+// (`entailment`/`gap-mappings` — вже реалізовані Rust-верифікатори,
+// `candidate`/`claims` — стадії того самого конвеєра). Перелік стадій і
+// поля, потрібні кожній, — ВІДКРИТЕ питання, розвʼязується разом із
+// портом `docgen` (крок 7 порядку реалізації спеки), тому `stage` тут —
+// вільний рядок-ідентифікатор, не enum: enum зафіксував би перелік стадій
+// зараз, коли для цього немає підстави.
+world docgen-stage {
+  /// Помилка домен-функції цього world-а. Форма ідентична
+  /// `world.wit::domain-error` (див. доккомент вибору не-`use` у
+  /// `deps/caps/file-reader.wit`).
+  variant domain-error {
+    not-supported,
+    failed(string),
+  }
+
+  /// Запит однієї стадії `docgen`-конвеєра. Дзеркало
+  /// `world.wit::docgen-request` плюс ідентифікатор стадії (доккомент
+  /// пакета — чому рядок, не enum).
+  record stage-request {
+    stage: string,
+    source-path: string,
+    source-content: string,
+    source-crc: string,
+  }
+
+  /// Результат стадії. Дзеркало `world.wit::doc-output`.
+  record stage-output {
+    content: string,
+    content-crc: string,
+  }
+
+  export run-stage: func(request: stage-request) -> result<stage-output, domain-error>;
+}
