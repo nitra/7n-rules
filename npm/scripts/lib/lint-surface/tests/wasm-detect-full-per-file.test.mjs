@@ -47,11 +47,11 @@ const REPO_ROOT = realRepoRoot()
 
 /** Абсолютні шляхи зібраних `.wasm`-гостей — усі пʼять first-party плагінів. */
 const WASM = {
-  js: join(REPO_ROOT, 'target', 'wasm32-wasip2', 'release', 'plugin_lang_js.wasm'),
-  python: join(REPO_ROOT, 'target', 'wasm32-wasip2', 'release', 'plugin_lang_python.wasm'),
-  rust: join(REPO_ROOT, 'target', 'wasm32-wasip2', 'release', 'plugin_lang_rust.wasm'),
-  php: join(REPO_ROOT, 'target', 'wasm32-wasip2', 'release', 'plugin_lang_php.wasm'),
-  ciGithub: join(REPO_ROOT, 'target', 'wasm32-wasip2', 'release', 'plugin_ci_github.wasm')
+  js: join(REPO_ROOT, 'target', 'wasm32-wasip3', 'release', 'plugin_lang_js.wasm'),
+  python: join(REPO_ROOT, 'target', 'wasm32-wasip3', 'release', 'plugin_lang_python.wasm'),
+  rust: join(REPO_ROOT, 'target', 'wasm32-wasip3', 'release', 'plugin_lang_rust.wasm'),
+  php: join(REPO_ROOT, 'target', 'wasm32-wasip3', 'release', 'plugin_lang_php.wasm'),
+  ciGithub: join(REPO_ROOT, 'target', 'wasm32-wasip3', 'release', 'plugin_ci_github.wasm')
 }
 
 for (const [name, path] of Object.entries(WASM)) {

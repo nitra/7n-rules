@@ -3032,7 +3032,7 @@ fn build_manifest() -> Manifest {
     Manifest {
         id: "ci-github/wasm-concerns".to_string(),
         version: "0.3.0".to_string(),
-        world_version: "4.0.0".to_string(),
+        world_version: "5.0.0".to_string(),
         domains: vec![Domain::Lint],
         concerns: vec![
             ConcernContribution {

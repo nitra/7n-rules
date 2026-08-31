@@ -21,7 +21,16 @@ use rules_plugin_host::{PluginHost, ToolResolver};
 
 mod common;
 
-const PLUGIN_WORLD_VERSION: &str = "4.0.0";
+/// Очікувана версія world-а береться з КОНТРАКТУ, не дублюється тут.
+///
+/// До §2.115 кожен golden-тест тримав власну копію рядка й передавав ЇЇ
+/// у `load()` як очікуване значення — тобто звіряв гостя із самим собою,
+/// а не з вимогою хоста. Такий гейт лишається зеленим і тоді, коли
+/// контракт розійшовся з гостем: саме так мажор `5.0.0` проїхав повз
+/// 141 зелений тест і зламав продуктовий JS-шлях. Тест має стверджувати
+/// ПРИЧИНУ (вимогу контракту), а не наслідок (свою ж константу) —
+/// рішення 11 спеки `2026-08-31-slice6-consumer-surfaces.md`.
+use rules_contract::version::PLUGIN_WORLD_VERSION;
 const CONCERN_LINT_PIPELINE: &str = "azure-pipelines/lint_pipeline";
 const CONCERN_VSCODE_EXTENSIONS: &str = "azure-pipelines/vscode_extensions";
 
@@ -60,7 +69,7 @@ fn describe_returns_three_concerns() {
         .expect("завантаження plugin_ci_azure.wasm не мало провалитись");
     let manifest = plugin.describe();
     assert_eq!(manifest.id, "ci-azure/wasm-concerns");
-    assert_eq!(manifest.world_version, "4.0.0");
+    assert_eq!(manifest.world_version, "5.0.0");
     assert_eq!(manifest.concerns.len(), 3);
     let keys: Vec<&str> = manifest.concerns.iter().map(|c| c.key.as_str()).collect();
     assert!(keys.contains(&CONCERN_LINT_PIPELINE));

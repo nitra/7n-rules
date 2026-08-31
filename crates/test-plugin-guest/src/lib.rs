@@ -6,14 +6,15 @@
 //! (лише перевірка ABI/серіалізації DTO і host-функцій `log`/
 //! `report-progress`/`run-tool`/`exec-tool`/`host-context`).
 //!
-//! Фікстура заявляє `world_version: "4.0.0"` — рівно ту версію, з якої
+//! Фікстура заявляє `world_version: "5.0.0"` — рівно ту версію, з якої
 //! збирається (`../rules-contract/wit`). До мажора `4.0.0` (§2.84) тут
-//! стояло `"3.0.0"`: negotiation major-only, і той рядок додатково фіксував,
-//! що хост v3.1 приймає плагін зі старою МІНОРНОЮ версією. Після мажора те
-//! саме твердження вже не тримається — `3` != `4`, `check_world_version`
-//! відхилив би фікстуру, і contract-test-kit падав би цілком. «Стара
-//! мінорна версія приймається» перевіряється не тут, а там, де це
-//! твердження й живе: у гейті negotiation-у (`host.rs`, unit-тести
+//! стояло `"3.0.0"`, до мажора `5.0.0` (§2.115, JS-side wasip3 хвиля) —
+//! `"4.0.0"`: negotiation major-only, і той рядок додатково фіксував,
+//! що хост v3.1 приймає плагін зі старою МІНОРНОЮ версією. Після кожного
+//! мажора те саме твердження вже не тримається — `check_world_version`
+//! відхилив би фікстуру зі старим мажором, і contract-test-kit падав би
+//! цілком. «Стара мінорна версія приймається» перевіряється не тут, а там,
+//! де це твердження й живе: у гейті negotiation-у (`host.rs`, unit-тести
 //! `check_world_version`), а бінарний доказ ПРОТИЛЕЖНОГО — що гість
 //! попереднього МАЖОРА більше не вантажиться — у
 //! `crates/rules-plugin-host/tests/guest_additive_compat.rs`.
@@ -143,7 +144,7 @@ impl Guest for GuestEcho {
         Manifest {
             id: "test/guest-echo".to_string(),
             version: "0.1.0".to_string(),
-            world_version: "4.0.0".to_string(),
+            world_version: "5.0.0".to_string(),
             domains: vec![Domain::Lint],
             concerns: vec![
                 ConcernContribution {

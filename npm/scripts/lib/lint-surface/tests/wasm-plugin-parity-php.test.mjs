@@ -87,7 +87,7 @@ vi.mock('@7n/rules/scripts/lib/ensure-tool.mjs', async importOriginal => {
 })
 
 const REPO_ROOT = realRepoRoot()
-const WASM_PATH = join(REPO_ROOT, 'target', 'wasm32-wasip2', 'release', 'plugin_lang_php.wasm')
+const WASM_PATH = join(REPO_ROOT, 'target', 'wasm32-wasip3', 'release', 'plugin_lang_php.wasm')
 
 if (!existsSync(WASM_PATH)) {
   throw new Error(

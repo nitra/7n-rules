@@ -3,7 +3,7 @@
  * `docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md` §3.4,
  * рішення Н) — увесь `cargo`/`build.sh`-тулчейн ін'єктується фейковим
  * `spawnFn` (той самий DI-мотив, що `release-smoke.test.mjs`): жодного
- * реального `cargo build`/wasm32-wasip2 тулчейну тут не потрібно, лише
+ * реального `cargo build`/wasm32-wasip3 тулчейну тут не потрібно, лише
  * перевірка, що скрипт правильно оркеструє build.sh → `cargo metadata` →
  * копіювання артефакту → `builtin-pins.json`.
  */
@@ -36,7 +36,7 @@ function writeCargoToml(crateDir, name) {
 /**
  * Фейковий `spawnFn` для [`buildAndStage`]: перший виклик (build.sh за шляхом
  * `buildScript`) симулює успішну збірку, записуючи `wasmBytes` за очікуваним
- * шляхом cargo-виводу (`<targetDir>/wasm32-wasip2/release/<stem>.wasm`);
+ * шляхом cargo-виводу (`<targetDir>/wasm32-wasip3/release/<stem>.wasm`);
  * другий (`cargo metadata`) повертає `targetDir` у JSON-виводі.
  * @param {{ buildScript: string, targetDir: string, wasmStem: string, wasmBytes: string, buildStatus?: number, produceArtifact?: boolean }} cfg параметри фейкового сценарію збірки
  * @returns {import('vitest').Mock} фейк `spawnFn`
@@ -45,7 +45,7 @@ function fakeSpawn(cfg) {
   return vi.fn((cmd, args, opts) => {
     if (cmd === cfg.buildScript) {
       if ((cfg.buildStatus ?? 0) === 0 && cfg.produceArtifact !== false) {
-        const dir = join(cfg.targetDir, 'wasm32-wasip2', 'release')
+        const dir = join(cfg.targetDir, 'wasm32-wasip3', 'release')
         mkdirSync(dir, { recursive: true })
         writeFileSync(join(dir, `${cfg.wasmStem}.wasm`), cfg.wasmBytes)
       }
