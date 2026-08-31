@@ -334,6 +334,26 @@ fn privacy_diagnostics(graph: &Value, human_projection: Option<&str>) -> Vec<Dia
         .collect()
 }
 
+/// Лише схемний гейт (draft 2020-12, вендорена `SCHEMA`) — перший крок
+/// [`validate_knowledge_graph`], винесений окремо заради CLI-поверхні
+/// `docs validate`/`index`/`slice`, якій семантичні гейти (посилання,
+/// coverage, privacy) не потрібні: JS-двійник (`cli.mjs:validateManifest`)
+/// теж перевіряє лише схему й identity домену, не кличучи `validator.mjs`
+/// узагалі. Одна помилка, не всі — той самий контракт, що й нижче.
+#[must_use]
+pub fn validate_schema(graph: &Value) -> ValidationReport {
+    match VALIDATOR.validate(graph) {
+        Err(error) => ValidationReport {
+            ok: false,
+            diagnostics: vec![schema_diagnostic(&error)],
+        },
+        Ok(()) => ValidationReport {
+            ok: true,
+            diagnostics: Vec::new(),
+        },
+    }
+}
+
 /// Запускає гейти схеми, ідентичності, посилань, покриття і приватності —
 /// порт `validateKnowledgeGraph`.
 #[must_use]
@@ -341,11 +361,9 @@ pub fn validate_knowledge_graph(input: ValidationInput<'_>) -> ValidationReport 
     // Одна помилка схеми, не всі: JS створює Ajv без `allErrors`, тобто
     // зупиняється на першій. Видавати тут повний список означало б інший
     // контракт, а не «кращу діагностику».
-    if let Err(error) = VALIDATOR.validate(input.graph) {
-        return ValidationReport {
-            ok: false,
-            diagnostics: vec![schema_diagnostic(&error)],
-        };
+    let schema_report = validate_schema(input.graph);
+    if !schema_report.ok {
+        return schema_report;
     }
 
     let mut diagnostics = Vec::new();
