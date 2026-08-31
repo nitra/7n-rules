@@ -25,9 +25,9 @@ const NGINX_CONCERN_DIR = join(TEST_DIR, '..', 'rules/nginx-default-tpl/template
 // `runConcernDetector` (через `resolveWasmConcernMap`) тут НЕ підходить —
 // той резолв читає `npm/wasm-plugins/builtin-pins.json`, білд-артефакт
 // npm-релізу, якого в чистому dev-checkout немає; замість нього — прямий
-// `runWasmConcern` на щойно зібраний `target/wasm32-wasip2/release/plugin_lang_js.wasm`
+// `runWasmConcern` на щойно зібраний `target/wasm32-wasip3/release/plugin_lang_js.wasm`
 // (той самий шлях, що `npm/scripts/lib/lint-surface/tests/wasm-plugin-parity.test.mjs`).
-const WASM_PATH = join(realRepoRoot(), 'target', 'wasm32-wasip2', 'release', 'plugin_lang_js.wasm')
+const WASM_PATH = join(realRepoRoot(), 'target', 'wasm32-wasip3', 'release', 'plugin_lang_js.wasm')
 if (!existsSync(WASM_PATH)) {
   throw new Error(
     `check-rule-fixtures.test.mjs: wasm-компонент plugin-lang-js не зібраний: ${WASM_PATH} відсутній.\n` +

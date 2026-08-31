@@ -35,7 +35,7 @@ use rules_plugin_host::{PluginHost, ToolResolver};
 
 mod common;
 
-const PLUGIN_WORLD_VERSION: &str = "4.0.0";
+const PLUGIN_WORLD_VERSION: &str = "5.0.0";
 const CONCERN_WORKFLOWS: &str = "ga/workflows";
 
 /// Абсолютний шлях до зібраного `.wasm`-компонента

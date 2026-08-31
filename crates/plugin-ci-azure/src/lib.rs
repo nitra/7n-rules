@@ -818,7 +818,7 @@ fn build_manifest() -> Manifest {
     Manifest {
         id: "ci-azure/wasm-concerns".to_string(),
         version: "0.1.0".to_string(),
-        world_version: "4.0.0".to_string(),
+        world_version: "5.0.0".to_string(),
         domains: vec![Domain::Lint],
         concerns: vec![
             ConcernContribution {
@@ -1097,7 +1097,7 @@ mod tests {
     fn build_manifest_declares_three_concerns() {
         let manifest = build_manifest();
         assert_eq!(manifest.id, "ci-azure/wasm-concerns");
-        assert_eq!(manifest.world_version, "4.0.0");
+        assert_eq!(manifest.world_version, "5.0.0");
         assert_eq!(manifest.domains, vec![Domain::Lint]);
         assert_eq!(manifest.concerns.len(), 3);
         for c in &manifest.concerns {

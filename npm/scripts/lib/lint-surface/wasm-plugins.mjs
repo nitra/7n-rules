@@ -24,7 +24,7 @@
  * Формат конфігу — дві форми запису (schema `npm/schemas/n-rules.json`):
  * ```json
  * "wasmPlugins": [
- *   { "name": "lang-js", "path": "./target/wasm32-wasip2/release/plugin_lang_js.wasm" },
+ *   { "name": "lang-js", "path": "./target/wasm32-wasip3/release/plugin_lang_js.wasm" },
  *   { "name": "acme-plugin", "url": "https://…/plugin.wasm", "sha256": "…64 hex…" }
  * ]
  * ```

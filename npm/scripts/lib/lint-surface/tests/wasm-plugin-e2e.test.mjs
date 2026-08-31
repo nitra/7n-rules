@@ -38,7 +38,7 @@ import { resetWasmConcernMapForTests } from '../wasm-plugins.mjs'
 import { realRepoRoot, withTmpDir } from '../../../utils/test-helpers.mjs'
 
 const REPO_ROOT = realRepoRoot()
-const WASM_PATH = join(REPO_ROOT, 'target', 'wasm32-wasip2', 'release', 'plugin_lang_js.wasm')
+const WASM_PATH = join(REPO_ROOT, 'target', 'wasm32-wasip3', 'release', 'plugin_lang_js.wasm')
 const BUILTIN_PINS_PATH = join(REPO_ROOT, 'npm', 'wasm-plugins', 'builtin-pins.json')
 const hasBuiltinPins = existsSync(BUILTIN_PINS_PATH)
 

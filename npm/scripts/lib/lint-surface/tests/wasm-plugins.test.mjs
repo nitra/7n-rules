@@ -34,7 +34,7 @@ import {
 } from '../wasm-plugins.mjs'
 
 const REPO_ROOT = realRepoRoot()
-const WASM_PATH = join(REPO_ROOT, 'target', 'wasm32-wasip2', 'release', 'plugin_lang_js.wasm')
+const WASM_PATH = join(REPO_ROOT, 'target', 'wasm32-wasip3', 'release', 'plugin_lang_js.wasm')
 
 if (!existsSync(WASM_PATH)) {
   throw new Error(

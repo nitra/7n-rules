@@ -19,8 +19,8 @@ use rules_plugin_host::{PluginHost, PluginHostError, ToolResolver};
 mod common;
 
 /// Версія world, під яку зібрана фікстура (`crates/test-plugin-guest`
-/// заявляє `world_version: "4.0.0"` — `Manifest`, `src/lib.rs`).
-const PLUGIN_WORLD_VERSION: &str = "4.0.0";
+/// заявляє `world_version: "5.0.0"` — `Manifest`, `src/lib.rs`).
+const PLUGIN_WORLD_VERSION: &str = "5.0.0";
 /// `concern-id` fs-preopen тест-хука — дзеркало
 /// `test_plugin_guest::FS_PROBE_CONCERN_ID` (окремі крейти, дублюється як
 /// рядковий літерал: контракт — рядок з `Manifest::concerns`/`DetectBatch`,

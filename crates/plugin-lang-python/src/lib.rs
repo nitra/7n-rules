@@ -2617,7 +2617,7 @@ fn build_manifest() -> Manifest {
     Manifest {
         id: "python/wasm-concerns".to_string(),
         version: "0.1.0".to_string(),
-        world_version: "4.0.0".to_string(),
+        world_version: "5.0.0".to_string(),
         domains: vec![Domain::Lint],
         concerns: vec![
             ConcernContribution {
@@ -3255,7 +3255,7 @@ mod tests {
     fn build_manifest_declares_all_concerns_with_expected_scopes() {
         let manifest = build_manifest();
         assert_eq!(manifest.id, "python/wasm-concerns");
-        assert_eq!(manifest.world_version, "4.0.0");
+        assert_eq!(manifest.world_version, "5.0.0");
         assert_eq!(manifest.domains, vec![Domain::Lint]);
         // Вісім — увесь `lang-python`: `applies`/`tooling`/`doc_comments`
         // (перша хвиля), `mypy`/`ruff` (друга), `workspace_root`/`project`

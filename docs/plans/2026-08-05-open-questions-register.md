@@ -13553,3 +13553,142 @@ wasip2 без build-std — **0,26 с**, wasip3 з `-Z build-std=std,panic_abort
 p2-контур стає асинхронним); чи діє між `0.3.0` і `0.3.1` та сама
 minor-поблажливість, що між `0.2.9` і `0.2.12` сьогодні.
 
+### 2.115. JS-бік хвилі `#610` лишився на `wasip2`/`world_version 4.0.0` — половинчаста міграція добита, разом із самозамкненим гейтом `rules-plugin-host`
+
+**Джерело.** Хвиля `#610` (§2.112) перевела шість first-party wasm-гостей і
+хост на `wasm32-wasip3` — Rust-бік мігровано повністю, `cargo test
+-p rules-plugin-host` показував 141 passed. JS-бік не потрапив у скоуп
+жодної хвилі — помилка розподілу задач, не хвилі `#610` самої по собі.
+Наслідок: `npm/scripts/lib/lint-surface/wasm-plugins.mjs` і всі
+`wasm-plugin-parity-*`/`wasm-plugins`/`wasm-fix-*`/`wasm-detect-*`-тести й
+далі шукали `.wasm` за старим шляхом `target/wasm32-wasip2/release/…`,
+тобто буквально інший файл, ніж той, що збирає `build-wasm-plugins.mjs`
+(уже перемкнений на `wasm32-wasip3` тією ж хвилею `#610`) — падали з
+`плагін заявляє world-версію 4.0.0 — несумісна за major з очікуваною
+5.0.0`, підхоплюючи залишкові wasip2-артефакти з диску.
+
+**Чому Rust-суїт цього не спіймав.** Шість `crates/plugin-*/plugin.toml` і
+їхні `src/lib.rs` і далі декларували `world_version = "4.0.0"`, хоча хост
+(`rules-contract/src/version.rs:57`, `PLUGIN_WORLD_VERSION`) вимагає
+`5.0.0` — окремий, незалежний від wasip-цілі пропуск того самого кроку
+хвилі `#610`. Про це сигналило б будь-яке `PluginHost::load` з реальним
+очікуваним `5.0.0` — але кожен golden-тест
+`crates/rules-plugin-host/tests/{plugin_lang_js,plugin_lang_php,
+plugin_ci_github,plugin_ci_azure,contract_test_kit}.rs` тримав власну
+локальну константу `PLUGIN_WORLD_VERSION = "4.0.0"` і передавав ЇЇ як
+`expected` у `host().load(&path, PLUGIN_WORLD_VERSION)` — тобто звіряв
+щойно зібраний гість (`4.0.0`) із очікуванням, яке сам собі й поставив
+(теж `4.0.0`), а не з реальною вимогою хоста. Фікстура
+`crates/test-plugin-guest` — той самий контур: декларувала `4.0.0`
+власним `describe()`. Звідси й «141 passed» на дереві, де жоден гість
+насправді не інстанціювався б реальним `5.0.0`-хостом поза тестовим
+контуром: **гейт перевіряв те, що сам створив**, а не контракт, який
+задає `rules-contract::version::PLUGIN_WORLD_VERSION`.
+
+**Що зроблено.**
+1. `wasm32-wasip2` → `wasm32-wasip3` у ВСІХ живих JS-шляхах: `wasm-plugins.mjs`
+   (приклад конфігу в доккоменті), `build-wasm-plugins.test.mjs` (фейковий
+   `spawnFn`, писав артефакт під wasip2, тоді як код під тестом уже читав
+   wasip3 — сам тест був би червоним при реальному прогоні), увесь набір
+   `wasm-plugin-parity-{php,python,rust,ci-github,ci-azure}.test.mjs`,
+   `wasm-plugin-parity.test.mjs`, `wasm-plugin-e2e.test.mjs`,
+   `wasm-plugins.test.mjs`, `wasm-fix-e2e.test.mjs`,
+   `wasm-fix-exec-tool-python-ruff.test.mjs`,
+   `wasm-detect-full-per-file.test.mjs`, `npm/tests/check-rule-fixtures.test.mjs`,
+   `npm/tests/integration-repo-checks.test.mjs` і
+   `plugins/lang-php/rules/php/mago_lint/tests/security-fixtures.test.mjs`
+   (єдиний живий шлях поза `npm/`, не впіймався першим `grep`-скоупом
+   задачі, бо той обмежувався `npm plugins .cursor`, а цей файл лежить у
+   `plugins/lang-php/…`).
+2. `world_version = "4.0.0"` → `"5.0.0"` у шести `crates/plugin-{lang-js,
+   lang-python,lang-rust,lang-php,ci-github,ci-azure}/plugin.toml` і
+   відповідних `Manifest`-літералах `src/lib.rs` (плюс `assert_eq!` на
+   `manifest.world_version` там, де тест його звіряв).
+3. Самозамкнений гейт полагоджено: `PLUGIN_WORLD_VERSION` у
+   `crates/rules-plugin-host/tests/{plugin_lang_js,plugin_lang_php,
+   plugin_ci_github,plugin_ci_azure,contract_test_kit}.rs` →
+   `"5.0.0"`; `crates/test-plugin-guest/src/lib.rs` (декларація в
+   `describe()` + доккомент модуля, який явно стверджував «версія, з якої
+   збирається») → `"5.0.0"`, фікстуру перезібрано
+   (`bash crates/test-plugin-guest/build.sh`). Без цього кроку бамп п.2
+   ламав би `cargo test -p rules-plugin-host` — `IncompatibleVersion {
+   found: "5.0.0", expected: "4.0.0" }` — реально відтворено проміжним
+   прогоном під час роботи над цією задачею.
+
+**Свідомо НЕ чіпалось — не історичні коментарі, а живі, документовано
+відкладені рішення поза цим скоупом:**
+- `npm/skills/wasm-plugin/template/{build.sh,Cargo.toml.tpl}` і
+  `npm/skills/wasm-plugin/SKILL.md` — шаблон скіла лишається на
+  `wasm32-wasip2` до окремої хвилі: рішення вже зафіксоване й обґрунтоване
+  §2.113 (WASI SDK provisioning, `rust-toolchain.toml`) і задокументоване
+  в самому `.cursor/rules/n-rust.mdc:104-107` — переносити його вручну
+  сюди означало б розійтись із задокументованим планом, не полагодити
+  дрейф. `crates/rules-plugin-host/tests/wasm_plugin_skill_smoke.rs`
+  (хардкодить `wasm32-wasip2/release`) — той самий контур, звіряє
+  ЦЕЙ шаблон, і лишається зеленим на цій цілі.
+- `plugins/lang-rust/rules/rust/wasm_component/wasm_component.mdc:11` і
+  `npm/scripts/lib/lint-surface/tests/fixtures/wasm-parity/rust/wasm_component.json` —
+  обидва відтворюють дослівний рядок-підказку
+  `WASM_COMPONENT_WASM_BINDGEN_HINT` з `crates/plugin-lang-rust/src/lib.rs:2153`
+  («Порт на Component Model: `wit-bindgen` + ціль wasm32-wasip2»), яка й
+  досі стоїть у Rust-джерелі незмінною. Це golden-еталон, звірений
+  біт-у-біт з РЕАЛЬНИМ виводом плагіна (`wasm-parity-golden.mjs`) — зміна
+  тексту в `.mdc`/фікстурі без зміни рядка в `lib.rs` розсинхронила б
+  парність, а сам рядок у `lib.rs` — поза межею JS-side задачі (Rust-код
+  правила, не JS-резолвер шляху збірки) і поза `grep npm plugins .cursor`.
+  Залишається окремим, добре видимим боргом.
+- `npm/CHANGELOG.md`, `plugins/lang-rust/CHANGELOG.md`,
+  `npm/scripts/build-wasm-plugins.mjs:79` — фактична історія (записи про
+  вже випущені версії, доккомент «до цієї хвилі було wasip2»), не поточний
+  стан; правка зіпсувала б історичний запис.
+- `npm/scripts/lib/lint-surface/docs/wasm-plugins.md:37` — файлова
+  документація `wasm-plugins.mjs` (CRC-звірка frontmatter), НЕ
+  регенерована свідомо: задача прямо забороняє запуск `/doc-files`.
+  Приклад шляху в доці після цієї правки короткочасно розходиться з
+  джерелом (`wasm-plugins.mjs`, п.1) — очікуваний, задокументований тут
+  борг до наступного регену.
+
+**Побічна знахідка під час цільових прогонів (не зі скоупу задачі, не
+торкалось).** `npm/tests/integration-repo-checks.test.mjs` (тест
+«узгоджені з поточним деревом cursor») падає на РЕАЛЬНОМУ dev-дереві з
+`non_utf8_source_file_err` — концерн `js/check` (глоб `**/*`) через
+`runWasmConcern` зачіпає локально зібрані/встановлені бінарні
+`.node`-аддони під `npm/packages/rules-{darwin-arm64,linux-x64,win32-x64}/`
+(gitignored, зʼявляються після `npm install`/native build). Відтворено
+незалежно від правок цієї задачі: підміна/вилучення одного `.node`-файлу
+просто виявляє наступний під іншою платформою — сама природа §2.83
+(`non_utf8_source_file_err` — свідомо гучний, не `from_utf8_lossy`) у
+поєднанні з надто широким глобом `js/check`. Існував би на `main` так само
+за тих самих умов диска (локальний build native-аддону перед прогоном
+тестів). Полагодження — звуження глоба концерну `js/check`
+(`crates/plugin-lang-js`) — окрема задача, не JS-side wasip3.
+
+**Цільові прогони (усі синхронно, без фонових процесів):**
+- `cargo build --release -p rules-napi` — OK.
+- `node npm/scripts/build-wasm-plugins.mjs` — 6 плагінів зібрано під
+  `wasm32-wasip3`, `builtin-pins.json` записано.
+- `bash crates/test-plugin-guest/build.sh` — OK.
+- `cargo test -p rules-plugin-host` — **141 passed, 1 ignored** (10 suites,
+  259.17s) — інваріант, заданий задачею, збережено.
+- `N_RULES_NATIVE_ADDON=… npx vitest run
+  npm/scripts/lib/lint-surface/tests/wasm-plugin-parity-{php,python,rust,
+  ci-github,ci-azure}.test.mjs npm/scripts/lib/lint-surface/tests/
+  wasm-plugin-parity.test.mjs npm/scripts/lib/lint-surface/tests/
+  wasm-plugins.test.mjs` — 590 passed (7 test files).
+- той самий `N_RULES_NATIVE_ADDON=…` для `wasm-plugin-e2e.test.mjs`,
+  `wasm-fix-e2e.test.mjs`, `wasm-detect-full-per-file.test.mjs`,
+  `wasm-fix-exec-tool-python-ruff.test.mjs` — 22 passed, 1 skipped.
+- `npm/tests/check-rule-fixtures.test.mjs`,
+  `npm/scripts/tests/build-wasm-plugins.test.mjs` — 34 passed.
+- `plugins/lang-php/rules/php/mago_lint/tests/security-fixtures.test.mjs` —
+  4 passed.
+- `npm/tests/integration-repo-checks.test.mjs` — 34 passed, 1 failed
+  (побічна знахідка вище, не регресія цієї задачі).
+
+**Механічний контроль скоупу:** `grep -rl "wasm32-wasip2" npm plugins
+.cursor` після правки — 11 файлів, усі перелічені в розділі «свідомо не
+чіпалось» вище (плюс `npm/wasm-plugins/plugin-lang-rust.wasm` —
+gitignored бінарний build-артефакт, у якому рядок трапляється як байти
+секції, не джерело). Жодного мовчазного пропуску: кожен файл, що лишився
+у списку, названо і обґрунтовано.
+

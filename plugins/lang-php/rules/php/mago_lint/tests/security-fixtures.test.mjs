@@ -60,7 +60,7 @@ const hasMago = Boolean(magoPath)
  * нашого детектора (та вкладається в «exit≠0 → порушення» і повністю
  * покрита юніт-тестами гостя). Змінилось лише те, ЧИМ виконується прогін.
  */
-const WASM_PATH = join(realRepoRoot(), 'target', 'wasm32-wasip2', 'release', 'plugin_lang_php.wasm')
+const WASM_PATH = join(realRepoRoot(), 'target', 'wasm32-wasip3', 'release', 'plugin_lang_php.wasm')
 
 const FIXTURES_DIR = join(fileURLToPath(import.meta.url), '..', 'fixtures', 'security')
 
