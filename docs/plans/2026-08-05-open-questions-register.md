@@ -14962,3 +14962,132 @@ JS `ensureToolAsync` через той самий unix-socket-міст, що й 
 жодних паралельних PR між ними не влилось) останній наявний запис реєстру
 — §2.125, тож коректний наступний номер за конвенцією файлу (без розривів
 у нумерації) — **§2.126**, не §2.128. Записано під §2.126.
+### 2.127. Крок 7 порядку реалізації спеки v5 — `docgen` як гість, ФАЗА 1: розвідка + скелет + `docgen/judge` портований наскрізь через `n-rules:caps/llm-consumer@1.0.0`
+
+**Контекст.** Блокер знято — §2.124 реалізувала host-бік
+`n-rules:caps/llm-consumer@1.0.0` (PR #625). Разом із раніше реалізованим
+`n-rules:caps/file-reader@1.0.0` (§2.116) `docgen` тепер має обидва
+world-и повноважень, названі своїми заявленими споживачами. Крок 7 порядку
+реалізації спеки `docs/specs/2026-08-31-plugin-contract-v5.md` §12 названий
+«найбільша одинична робота» — ця задача НЕ закриває його цілком, а робить
+ПЕРШУ фазу: розвідку, скелет гостя-крейта і ОДИН портований етап із
+наскрізним гейтом. Свідоме звуження, не мовчазне — карта решти обсягу й
+явний перелік непортованого живуть у
+`docs/specs/2026-08-31-recon-docgen-surface.md`.
+
+**Розвідка.** Чинна реалізація `docgen` — `npm/rules/doc-files/`
+(12 639 рядків з тестами, 3 870 без — НЕ `crates/rules-docs`, окрема й уже
+мертва поверхня під схожою назвою, §3 плану міграції). Карта десяти
+етапів (`docs/specs/2026-08-31-recon-docgen-surface.md` §2): шість
+детерміновані (`scan`/`ignore`/`crc`/`extract-anchors`/`test-context`/
+`prompts`, 1 291 рядок, жодного мережевого виклику), чотири реально
+кличуть модель (`judge`/`gen`/`files-batch`/`wave-batch`). З чотирьох
+LLM-етапів `docgen-judge` (135 рядків) — ЄДИНИЙ, що робить це РІВНО одним
+`one-shot`-викликом на одиницю роботи — пряме дзеркало мінімальної форми
+`llm-consumer.wit` (`prompt`→`text`, без system/тир/стрімінг). Три інші
+(`gen`/`files-batch`/`wave-batch`, 2 444 рядки) оркеструють КІЛЬКА
+викликів моделі (ланцюг стадій або паралельний batch) — за межами цієї
+фази, названо явно (розвідка §5.1).
+
+**Що зроблено.**
+
+1. **`crates/plugin-docgen/`** — новий first-party wasm-гість, контракт
+   `n-rules:plugin@5.0.0`. Структура — той самий канон, що
+   `crates/plugin-lang-rust` (`Cargo.toml`/`plugin.toml`/`build.sh`/
+   `src/lib.rs`), `build.sh` — похідна копія (генеричний скрипт, читає ім'я
+   пакета з `Cargo.toml`, `wasm32-wasip3` + `-Z build-std` + WASI SDK,
+   спільна з рештою first-party гостей).
+2. **`crates/rules-contract/wit/docgen-guest.wit`** (новий, ПОСТІЙНИЙ
+   файл, не tempdir-скаффолд) — комбінований world `docgen-guest`
+   (`include plugin; include n-rules:caps/llm-consumer@1.0.0 with
+   { domain-error as llm-consumer-domain-error }`), той самий прийом, що
+   `plugin-file-reader.wit`/`rust-coverage-provider-guest.wit`. Синтаксис
+   перевірено `wasm-tools component wit` ДО того, як `plugin-docgen`
+   почав на нього спиратись.
+3. **Концерн `docgen/judge` — порт 1:1** `npm/rules/doc-files/docgen-judge/main.mjs`:
+   `detectRefusalFiller` (курований пре-гейт 0 токенів, обидва живі
+   кейси JS-доккоменту збережено), `parseDocVerdict` (валідація
+   JSON-verdict-у), `judgeFailsDoc` (поріг впевненості), `judgeMessages`
+   (система+user злиті в ОДИН `prompt` — форма `llm-consumer.wit`
+   свідомо не несе окремого `system`-поля, той самий підхід, що
+   `RealLlmCaller::call` на host-боці), `judgeDoc` (сам виклик, тепер
+   крізь host-імпорт `llm-call`, а не `runOneShot` з `@7n/llm-lib`).
+   11 нативних юніт-тестів на чисті функції (`cargo test -p plugin-docgen
+   --lib`) + anti-drift `plugin_toml_matches_describe` (той самий мотив,
+   що `plugin-lang-rust`).
+4. **`crates/rules-plugin-host/tests/plugin_docgen_judge_gate.rs`** —
+   гейт кроку, дзеркало `caps_llm_consumer_gate.rs`, АЛЕ БЕЗ tempdir-
+   скаффолда: `plugin-docgen` — постійний крейт, тож гейт просто збирає
+   його НА МІСЦІ (`bash crates/plugin-docgen/build.sh`, той самий прийом,
+   що `crates/test-plugin-guest/build.sh`). `FakeLlmCaller` — офлайновий
+   двійник (`PluginHost::new_with_llm_caller`, точка ін'єкції §2.124),
+   повертає ВАЛІДНИЙ verdict-JSON і звіряє, що prompt реально несе ОБИДВА
+   тексти з батчу (джерело + дока) — доводить, що гість реально пройшов
+   `judge_messages`→`llm-call`→`parse_doc_verdict`→`judge_fails_doc`, не
+   заглушку. Дві половини критерію готовності §12.1: гість з оголошеним
+   `n-rules:caps/llm-consumer@1.0.0` інстанціюється й дістає діагностику з
+   verdict-ом крізь host-імпорт; ТОЙ САМИЙ `.wasm` без оголошення world-а
+   падає гучно (`PluginHostError::Instantiate`), не деградує мовчки.
+
+**Свідомо звужено — названо, не сховано (`docs/specs/2026-08-31-recon-docgen-surface.md`
+§5, детально там).**
+
+1. `docgen-gen`/`docgen-files-batch`/`docgen-wave-batch` (2 444 рядки) —
+   НЕ портовані: `llm-consumer.wit` дає лише один синхронний `llm-call`,
+   а ці три оркеструють кілька викликів (ланцюг/batch). Рішення —
+   розширювати WIT чи циклити `llm-call` — навмисно відкладене до
+   вимірювання на реальному ланцюгу (той самий принцип, що вже
+   застосований до самого `llm-consumer`, §2.124: «не вигадувати потребу»).
+2. **`n-rules:caps/file-reader@1.0.0` НЕ включений** у `docgen-guest.wit`
+   цим кроком. Портований `docgen/judge` не читає диск сам — `src`/`doc`
+   приходять як JSON-пара в `SourceFile.content`
+   (`parse_judge_pair` — явна, названа демонстраційна форма, НЕ
+   продакшн-контракт `docgen-scan`, який сам обходить дерево й потребує
+   `file-reader`).
+3. `docgen-scan`/`docgen-ignore`/`docgen-crc`/`docgen-extract-anchors`/
+   `docgen-test-context`/`docgen-prompts` (1 291 рядок) — детерміновані,
+   не потребують нового world-а, кандидати на звичайний Rust-порт
+   (той самий шлях, що `plugin-lang-*`), поза обсягом цієї фази.
+4. **`docgen/judge` НЕ додано в `FIRST_PARTY_WASM_PLUGINS`**
+   (`npm/scripts/build-wasm-plugins.mjs`) — гість не підключений до
+   живого lint-конвеєра (`plugin.toml:glob = []`, жоден консюмерський
+   `main.json`/`concern.json` на нього не посилається). Це ПЕРША фаза
+   (розвідка + скелет + гейт), не готовий продакшн-концерн — свідомо, щоб
+   не видавати незакінчену поверхню як живу. `node
+   npm/scripts/build-wasm-plugins.mjs` перевірено — шість НАЯВНИХ гостей
+   не зачеплені (доккомент §2.124 повторює той самий регресійний
+   принцип).
+5. **`docgen-stage`** (слотовий world, `crates/rules-contract/wit/deps/surfaces/docgen-stage.wit`)
+   — не задіяний. Host-бік диспетчера `run-stage` (дзеркало
+   `collect-coverage`) лишається майбутньою роботою.
+
+**Цільові прогони (усі синхронно, без фонових процесів):**
+- `cargo build --release -p rules-cli` — успішно (передумова
+  `build-wasm-plugins.mjs`, `embedManifest` шукає `rules-cli`-бінар).
+- `cargo build --release -p rules-napi` — успішно (передумова JS-парності,
+  цим кроком не використана — жодних JS-тестів не запускалось, JS-код не
+  чіпався).
+- `node npm/scripts/build-wasm-plugins.mjs` — успішно, усі шість наявних
+  first-party гостей перезібрані й вбудували маніфест без змін
+  (`plugin-docgen` навмисно НЕ в списку, п.4 вище).
+- `bash crates/test-plugin-guest/build.sh` — успішно.
+- `bash crates/plugin-docgen/build.sh` (запускався і напряму, і зсередини
+  гейт-тесту) — успішно, `target/wasm32-wasip3/release/plugin_docgen.wasm`.
+- `cargo test -p plugin-docgen --lib` — 11 passed (усі чисті функції +
+  anti-drift).
+- `cargo test -p rules-plugin-host --test plugin_docgen_judge_gate` —
+  2 passed (обидві половини критерію готовності §12.1).
+- `cargo test -p rules-plugin-host` (повний, без фільтра) — 166 passed,
+  1 ignored, 16 суїтів — регресія по всьому крейту, жоден наявний тест не
+  зачеплений.
+- `cargo check --workspace` — 616 крейтів, 0 помилок.
+- `npx @7n/rules lint`/`/doc-files` свідомо НЕ запускались (правило
+  задачі) — файлова дока `crates/plugin-docgen/docs/lib.md` після цієї
+  правки відсутня; регенерація — окремим кроком (`n-doc-files`
+  обов'язковий крок, CLAUDE.md цього репо).
+
+**Наступний крок (не цей PR).** `docs/specs/2026-08-31-recon-docgen-surface.md`
+§6: `docgen-scan`+`docgen-ignore` на `file-reader` першими (годують решту),
+потім чиста трансформація, потім розширення `llm-consumer.wit` під
+ланцюг/batch (виміряне рішення, не заздалегідь), потім `docgen-gen`, і
+насамкінець host-бік `docgen-stage`.

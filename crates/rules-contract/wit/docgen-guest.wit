@@ -1,0 +1,32 @@
+// Комбінований world РЕАЛЬНОГО гостя `crates/plugin-docgen` (крок 7 порядку
+// реалізації спеки `docs/specs/2026-08-31-plugin-contract-v5.md` §12,
+// «docgen як гість — найбільша одинична робота»; перша фаза — розвідка +
+// один портований етап, `docs/specs/2026-08-31-recon-docgen-surface.md`).
+// Без `package`-рядка — файл лежить поряд із `world.wit`, тож належить ТІЙ
+// САМІЙ директорійній package-групі (`n-rules:plugin@5.0.0`), і `include
+// plugin;` резолвиться НЕКВАЛІФІКОВАНО (той самий прийом, що
+// `plugin-file-reader.wit`/`rust-coverage-provider-guest.wit` — тут
+// зроблений ПОСТІЙНИМ одразу, бо `plugin-docgen` — не тестова фікстура, а
+// реальний гість, зібраний цим репозиторієм).
+//
+// `with { domain-error as llm-consumer-domain-error }` — ОБОВ'ЯЗКОВЕ
+// перейменування: `plugin` (world.wit) і `n-rules:caps/llm-consumer@1.0.0`
+// (`deps/caps/llm-consumer.wit`) кожен оголошує ВЛАСНИЙ локальний `variant
+// domain-error` у тілі world-а, а не в спільному інтерфейсі. Без
+// перейменування `wasm-tools`/`wit-bindgen` бачать два одноіменних
+// локальних типи при об'єднанні («import of `domain-error` shadows
+// previously imported items») — та сама пастка, задокументована
+// `crates/rules-plugin-host/tests/caps_llm_consumer_gate.rs::GATE_WIT`,
+// синтаксис перевірено тим самим гейтом ДО того, як цей файл почав на
+// нього спиратись.
+//
+// `file-reader` НЕ включений цим кроком — портований етап (`docgen/judge`)
+// приймає джерело й доку як уже готовий текст (доккомент
+// `docs/specs/2026-08-31-recon-docgen-surface.md` §5.2), диск сам не читає.
+// Наступний етап, що читає дерево (`docgen-scan`), додасть `include
+// n-rules:caps/file-reader@1.0.0` окремим PR — адитивна зміна цього самого
+// файлу, не breaking.
+world docgen-guest {
+  include plugin;
+  include n-rules:caps/llm-consumer@1.0.0 with { domain-error as llm-consumer-domain-error }
+}

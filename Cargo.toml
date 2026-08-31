@@ -18,6 +18,7 @@ members = [
   "crates/plugin-lang-php",
   "crates/plugin-ci-github",
   "crates/plugin-ci-azure",
+  "crates/plugin-docgen",
 ]
 # `crates/rules-rego-engine` — тонка спільна обгортка над `regorus`
 # (задача «rego-двигун на хості», реєстр §2.66): ЄДИНЕ джерело істини для

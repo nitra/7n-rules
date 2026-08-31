@@ -1,0 +1,46 @@
+# Маніфест wasm-плагіна `docgen` — крок 7 порядку реалізації спеки
+# `docs/specs/2026-08-31-plugin-contract-v5.md` §12 («docgen як гість —
+# найбільша одинична робота»), ПЕРША фаза: розвідка +
+# один портований етап (карта — `docs/specs/2026-08-31-recon-docgen-surface.md`).
+# Поля 1:1 відповідають `rules_contract::manifest::Manifest`
+# (crates/rules-contract/src/manifest.rs, без serde-перейменувань — назви
+# полів тотожні Rust-структурі). Хост читає цей файл лише як довідник для
+# людини й дистрибуційний supplement — джерело правди в рантаймі завжди
+# `describe()` (не парситься назад у `PluginHost`, спека §3.1).
+
+id = "docgen/judge"
+version = "0.1.0"
+world_version = "5.0.0"
+domains = ["lint"]
+# `n-rules:caps/llm-consumer@1.0.0` — ЄДИНИЙ world, оголошений цим гостем.
+# `file-reader` НЕ оголошений цим кроком (доккомент
+# `crates/rules-contract/wit/docgen-guest.wit` — портований етап приймає
+# джерело/доку як готовий текст, диск сам не читає; наступний етап, що
+# читає дерево, додасть його окремо).
+worlds = ["n-rules:caps/llm-consumer@1.0.0"]
+ci_artifacts = []
+tools = []
+
+[[concerns]]
+# `docgen/judge` — порт `npm/rules/doc-files/docgen-judge/main.mjs`
+# (135 рядків, ЄДИНИЙ `runOneShot`-виклик на одиницю роботи — доккомент
+# `docs/specs/2026-08-31-recon-docgen-surface.md` §3). PerFile: кожен
+# елемент батчу — окрема пара (джерело, дока), закодована як
+# JSON `{"source": ..., "doc": ...}` (доккомент
+# `src/lib.rs::parse_judge_pair` — тимчасова демонстраційна форма, доки
+# `file-reader` не портований на `docgen-scan`, §5.2 розвідки). Glob
+# навмисно порожній: цей концерн НЕ підключений до живого lint-конвеєра
+# цим кроком (жоден `main.json`/`concern.json` консюмера на нього не
+# посилається) — гість існує для гейт-тесту й майбутнього кроку 2 порядку
+# продовження розвідки, не для продакшн-виклику.
+key = "docgen/judge"
+scope = "per-file"
+glob = []
+
+[capabilities]
+# `llm-call` НЕ капабіліті `network` — окремий world повноважень (§9 спеки
+# «що лишається від `capabilities`»: рівень world-а, не булевий прапорець).
+# Гість не читає диск сам (fs_read порожній — той самий мотив, що
+# `worlds` вище).
+fs_read = []
+network = false
