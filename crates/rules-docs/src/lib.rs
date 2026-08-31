@@ -109,7 +109,7 @@ pub use runner::{
 };
 pub use sources::{discover_domain_code_extensions, load_domain_sources, DomainScope, SourceFile};
 pub use topics::{collect_reachable_node_ids, discover_topics, resolve_topic, Topic};
-pub use validator::{validate_knowledge_graph, ValidationInput, ValidationReport};
+pub use validator::{validate_knowledge_graph, validate_schema, ValidationInput, ValidationReport};
 pub use wave::{
     default_model_policy, native_submit_batch, new_chain, ChainRef, SubmitBatchFn, WaveItem,
     WaveResult,

@@ -98,6 +98,7 @@ mod changed_files_cmd;
 mod ci_cmd;
 mod cli;
 mod cursor_ignore;
+mod docs_cmd;
 mod fix_cmd;
 mod git_policy;
 mod hook_cmd;
@@ -279,6 +280,11 @@ fn dispatch(command: NativeCommand, args: &[String]) -> ExitCode {
         // вмикається явно (`--native-detect`/`N_RULES_NATIVE_LINT=1`) і сам
         // делегує все, де паритет недосяжний — доккомент `lint_cmd`.
         NativeCommand::Lint(parsed) => lint_cmd::run(&parsed, &args[1..]),
+        // `docs` — крок 2 плану повного переходу на Rust: `rules-docs` мав
+        // увесь потрібний код, підключення тут — `docs_cmd`. Native-шлях
+        // бере лише `domains`/`index`/`slice`/`validate` за `--native-docs`;
+        // `build` лишається JS-поверхнею цілком (доккомент `docs_cmd`).
+        NativeCommand::Docs(parsed) => docs_cmd::run(&parsed, args),
     }
 }
 

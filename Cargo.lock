@@ -5600,6 +5600,7 @@ dependencies = [
  "n7n-llm-lib",
  "rules-adr",
  "rules-core",
+ "rules-docs",
  "rules-fix",
  "serde",
  "serde_json",

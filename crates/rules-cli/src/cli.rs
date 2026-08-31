@@ -92,8 +92,10 @@ pub struct Cli {
 }
 
 /// Підкоманди, які бінар розбирає сам. Усе інше (дефолтний sync без
-/// підкоманди, legacy-аліаси `lint-*`, `docs`, `release`, `taze`…) до `clap`
+/// підкоманди, legacy-аліаси `lint-*`, `release`, `taze`…) до `clap`
 /// не доходить: роутер віддає такий argv у JS-entrypoint незміненим.
+/// `docs` — частковий виняток: грамотика тут парситься (як і `skill`), але
+/// native-шлях бере лише підмножину (`docs_cmd`).
 #[derive(Subcommand, Debug)]
 pub enum NativeCommand {
     /// Змінені файли (plumbing).
@@ -110,6 +112,9 @@ pub enum NativeCommand {
     Hook(HookArgs),
     /// Лінт.
     Lint(LintArgs),
+    /// Package knowledge (`crates/rules-docs`, нативний лише
+    /// `domains`/`index`/`slice`/`validate` за `--native-docs`).
+    Docs(DocsArgs),
 }
 
 /// `changed-files [--cwd <dir>] [--delta] [--base <ref>]`.
@@ -301,6 +306,23 @@ pub struct LintArgs {
     pub rules: Vec<String>,
 }
 
+/// `docs <domains|build|index|slice|validate> …` — нативний лише
+/// read-only/без-LLM зріз (`domains`/`index`/`slice`/`validate`), і лише за
+/// власним прапорцем `--native-docs`; `build` (LLM-стадії claims/entailment,
+/// мовні екстрактори за slot-каналом, якого в контракті ще нема) лишається
+/// JS-поверхнею цілком, незалежно від прапорця. Розбір ручний, як у
+/// [`SkillArgs`]: JS-CLI сама розбирає свої флаги (`flagValue`) без
+/// потреби в `--`, тож дублювати цю граматику в `clap` означало б другий
+/// контракт над тим самим argv, який розійдеться на першому ж рідкісному
+/// прапорці.
+#[derive(Args, Debug)]
+#[command(disable_help_flag = true)]
+pub struct DocsArgs {
+    /// Усе після `docs`, без розбору.
+    #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+    pub rest: Vec<String>,
+}
+
 /// Розбір argv спільною граматикою для юніт-тестів команд: вони мають
 /// перевіряти РЕАЛЬНУ граматику, а не власну копію її правил. Помилка
 /// зводиться до [`clap::error::ErrorKind`] — саме він визначає, чи роутер
@@ -368,19 +390,16 @@ mod tests {
     }
 
     /// Команда поза граматикою (дефолтний sync, legacy-аліаси `lint-*`,
-    /// `docs`, `taze`…) — не помилка, а сигнал роутеру делегувати.
+    /// `release`, `taze`…) — не помилка, а сигнал роутеру делегувати.
     ///
-    /// Перелік не випадковий: це рівно пʼять поверхонь, які фаза 8 свідомо
-    /// лишає в JS (інвентаризація — §3.5 реєстру відкладених питань), плюс
-    /// legacy-аліас і кореневий `--help`. Якщо котрась із них колись почне
-    /// РОЗБИРАТИСЬ тут, роутер перестане делегувати — і зламається це мовчки,
-    /// бо delegate-шлях не має власного сигналу.
+    /// `docs` тут більше НЕМА: воно в граматиці (як `skill`), і його
+    /// делегація — рішення `docs_cmd` за підкомандою й `--native-docs`,
+    /// не clap-парсера (окремі тести нижче).
     #[test]
     fn foreign_commands_do_not_parse() {
         for argv in [
             &[][..],
             &["release"][..],
-            &["docs", "domains"][..],
             &["taze", "diff"][..],
             &["adr-normalize-local", "--batch", "batch.txt"][..],
             &["lint-ga"][..],
@@ -388,5 +407,25 @@ mod tests {
         ] {
             assert!(parse_for_test(argv).is_err(), "{argv:?}");
         }
+    }
+
+    /// `docs` — грамотика бере argv як є (як `skill`): підкоманда і
+    /// `--native-docs` розбираються в `docs_cmd`, не тут.
+    #[test]
+    fn docs_takes_argv_verbatim() {
+        let NativeCommand::Docs(parsed) = parse_for_test(&[
+            "docs",
+            "index",
+            "--domain",
+            "npm:@7n/rules",
+            "--native-docs",
+        ])
+        .unwrap() else {
+            panic!("очікувався docs");
+        };
+        assert_eq!(
+            parsed.rest,
+            vec!["index", "--domain", "npm:@7n/rules", "--native-docs"]
+        );
     }
 }
