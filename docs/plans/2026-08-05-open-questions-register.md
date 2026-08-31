@@ -14474,5 +14474,128 @@ T0-фікс `bun/package_json`), новий файл
   npm/scripts/lib/lint-surface/tests/wasm-declared-worlds-gate.test.mjs` —
   3 passed (новий гейт, доккомент вище).
 
+### 2.123. Крок 6 спеки v5 (§12) — `coverage-provider`: РЕШТА трьох провайдерів (`python`/`php`), `lang-js` свідомо винесений в окрему хвилю
+
+**Контекст.** §2.120 довела механізм слотового world-а («хост кличе export
+гостя») на ОДНОМУ провайдері — `plugin-lang-rust`, свідомо звузивши обсяг
+задачі («один провайдер як доказ, не всі чотири»). Ця задача — наступний
+крок того самого §12: повторити ДОВЕДЕНИЙ механізм на решті трьох, а не
+винаходити його заново.
+
+**Обсяг закрито наполовину, як і радила преамбула задачі.** `lang-python`
+і `lang-php` (по 7 файлів `coverage-provider` кожен, малі й структурно
+схожі на `lang-rust`) — портовані повністю, обидва з реальним
+`collect_coverage`, обидва звірені живим `.wasm`-гейтом. `lang-js` (46
+файлів, вп'ятеро більший обсяг за решту трьох разом) — СВІДОМО НЕ
+розпочатий у цій хвилі: преамбула задачі прямо дозволяла зупинитись після
+двох («два доведені провайдери цінніші за три половинчасті») і мати чесний
+залишок, а не поспішний недопорт п'ятикратно більшого канону. `lang-js`
+coverage-provider — окрема задача, наступна хвиля.
+
+**Що зроблено (той самий шаблон, що §2.120, двічі).**
+
+1. **`crates/rules-contract/wit/python-coverage-provider-guest.wit`** і
+   **`…/php-coverage-provider-guest.wit`** — два нові комбіновані world-и,
+   byte-структурно ті самі, що `rust-coverage-provider-guest.wit`
+   (`include plugin; include n-rules:surfaces/coverage-provider@1.0.0 with
+   { domain-error as coverage-domain-error }`), лише інша назва world-а.
+   Резолв звірено `wasm-tools component wit crates/rules-contract/wit` (усі
+   три world-и одночасно, exit 0) ДО написання коду гостей — той самий
+   порядок дій, що §2.120.
+2. **`crates/plugin-lang-python/src/lib.rs`** — `wit_bindgen::generate!`
+   перемкнутий з голого `plugin` на `python-coverage-provider-guest`;
+   `Guest::collect_coverage` — порт
+   `plugins/lang-python/coverage-provider/provider.mjs::collect` +
+   `mutmut.mjs`: `uv run --with pytest-cov pytest --cov
+   --cov-report=lcov:<scratch>` (lcov через `exec-tool`+scratch-out,
+   `parse_lcov_totals` — той самий текстовий парсер, що rust-провайдер,
+   продубльований — крейти не діляться кодом через wasm-межу) →
+   опційно `uv run --with mutmut mutmut run`+`results --all true` (probe
+   `--version`, чесний skip БЕЗ помилки, коли недоступний — той самий
+   `hasMutants`-дух, що rust) → `parse_mutmut_results` (порт
+   `RESULT_LINE_RE`-циклу) → до 50 `mutmut show <name>` для
+   `survived_files` (стеля `SURVIVED_SHOW_CAP`, той самий канон-ліміт).
+   **Друге свідоме звуження, задокументоване поруч із першим (доккомент
+   `crates/plugin-lang-python/src/lib.rs`, секція перед `build_manifest`):**
+   на відміну від rust (де в канону й так один корінь), python-канон
+   (`findPythonRoots`) обходить дерево в пошуках КІЛЬКОХ Python-коренів
+   моно-репо — гість звужений до ОДНОГО кореня (кореня консюмера), тим
+   самим мотивом, що rust: ще один заявлений world (`caps/file-reader`)
+   заради ДРУГОГО провайдера не додав би нової демонстрації механізму.
+   **Третє звуження, СПЕЦИФІЧНЕ для python, якого в rust не було:**
+   `hasMutmutConfig` JS-канону читає ВМІСТ `pyproject.toml`
+   (`[tool.mutmut].source_paths`) ПЕРЕД запуском mutmut — гість цього
+   precheck-у не має (жодної fs-read спроможності) і просто СПРОБУЄ `mutmut
+   run`; неконфігурований mutmut природно не лишає result-рядків,
+   `parse_mutmut_results` дає той самий нульовий вимір, що явний
+   precheck канону, — семантика збігається, ТЕКСТ hint-повідомлення (лог,
+   не діагностика) — ні. Задокументовано на місці, не мовчки.
+3. **`crates/plugin-lang-php/src/lib.rs`** — той самий перемикач world-а
+   (`php-coverage-provider-guest`); `Guest::collect_coverage` — порт
+   `plugins/lang-php/coverage-provider/provider.mjs::collect` +
+   `clover.mjs`/`infection.mjs`: `composer exec -- <pest|phpunit>
+   --coverage-clover <scratch>` → `parse_clover_totals` (РУЧНИЙ XML-парсинг
+   без нового XML-крейта — цей гість НАЙЛЕГШИЙ з чотирьох, доккомент
+   `Cargo.toml`: жодного `regex`/`basic-toml`/`serde_json` до цього кроку —
+   рішення НЕ додавати жодного з них навіть заради coverage-provider,
+   `last_clover_metrics_tag`+`clover_metrics_attr_u32` замість) → опційно
+   `composer exec -- infection --logger-json=<scratch> --no-interaction`
+   (probe `--version`, той самий чесний skip) → `parse_infection_report`
+   через ВЖЕ наявний рекурсивно-спусковий `JsonValue`/`parse_json`
+   цього крейта (§2.19, `composer.json`-парсер) — жодної нової залежності.
+   **Звуження, специфічне для php:** `resolveRunnerBinary` JS-канону
+   перевіряє `existsSync(vendor/bin/<name>)` НАПРЯМУ на диску; гість
+   натомість пробує `composer exec -- <name> --version` (Composer сам
+   резолвить `vendor/bin/<name>` і віддає ненульовий код/`status: none`,
+   коли бінарника нема) — функціонально еквівалентний сигнал БЕЗ fs-read,
+   не апроксимація. **Друге звуження:** JS-канон рібейзить усі шляхи
+   (clover/`originalFilePath`) в relative-до-`cwd` через `node:path`; гість
+   (НАЙЛЕГШИЙ із чотирьох, жодного path-крейта) повертає шляхи ДОСЛІВНО, як
+   їх віддав інструмент — задокументовано в доккоменті модуля, не приховано.
+4. **`crates/plugin-lang-python/plugin.toml`**/**`…/php/plugin.toml`** —
+   `worlds = ["n-rules:surfaces/coverage-provider@1.0.0"]` синхронізовано з
+   `build_manifest()` (anti-drift тести обох крейтів звіряють це поле, той
+   самий гейт, що вже покривав rust у §2.120).
+5. **`crates/rules-plugin-host/tests/surfaces_coverage_provider_python_gate.rs`**
+   і **`…_php_gate.rs`** — два НОВІ гейт-файли (НЕ дописані в спільний
+   `surfaces_coverage_provider_gate.rs` — той файл лишається rust-гейтом,
+   спільним із паралельною хвилею `llm-consumer`, доккомент задачі прямо
+   попереджав не переписувати чужі файли каталогу `tests/`), кожен —
+   структурне дзеркало rust-гейта на своєму world-і: та сама мінімальна
+   guest-фікстура (НЕ реальний `plugin-lang-{python,php}` — ізольований
+   доказ САМОГО контракту «declared_worlds → доступ до collect-coverage» на
+   world-рівні, той самий підхід, що rust-гейт), ті самі три тести
+   (позитивний round-trip з мовним маркером в `area`, типізована
+   `domain-error::failed` крізь ABI, негативна половина
+   `SurfaceNotDeclared`).
+
+**`declared_worlds`/`crates/rules-napi`/скіли/`llm-consumer`
+(caps_llm_*) — НЕ чіпались**, паралельні хвилі того самого кроку 6,
+позначені в задачі як чужа територія.
+
+**Цільові прогони (усі синхронно, без фонових процесів):**
+- `cargo build -p plugin-lang-python --lib` / `cargo test -p
+  plugin-lang-python --lib` — 0 помилок, 80 passed (наявні, без
+  приросту — `collect_coverage_impl` кличе host-імпорти й тому, як і
+  `detect_mypy`/`detect_ruff`, тестований лише живим гейтом, не юніт-тестом
+  host-таргета, той самий підхід, що rust).
+- `cargo build -p plugin-lang-php --lib` / `cargo test -p plugin-lang-php
+  --lib` — 0 помилок, 34 passed (наявні, без приросту, той самий мотив).
+- `cargo build -p rules-plugin-host --lib` — 0 помилок (перевірка, що
+  спільні DTO/акцесор коверейджу не зачеплені).
+- `cargo test -p rules-plugin-host --test
+  surfaces_coverage_provider_python_gate` — 3 passed (новий гейт).
+- `cargo test -p rules-plugin-host --test surfaces_coverage_provider_php_gate`
+  — 3 passed (новий гейт).
+- `cargo test -p rules-plugin-host --test surfaces_coverage_provider_gate`
+  — 3 passed (контрольна група: наявний rust-гейт не зачеплений).
+- `cargo test -p rules-plugin-host --test plugin_lang_php` — 2 passed
+  (контрольна група: наявний php-специфічний інтеграційний тест не
+  зачеплений).
+- `node npm/scripts/build-wasm-plugins.mjs` — усі шість гостей зібрані під
+  `wasm32-wasip3` (включно з двома зміненими — `plugin-lang-python`/
+  `plugin-lang-php` — з новим export-ом `collect-coverage`), кожен дав
+  `OK: …wasm` + sha256; `npm/wasm-plugins/builtin-pins.json` перегенеровано
+  локально (gitignored build-артефакт, не комітиться).
 
 

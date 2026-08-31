@@ -1,0 +1,22 @@
+// Комбінований world РЕАЛЬНОГО гостя `crates/plugin-lang-python` — крок 6
+// спеки `docs/specs/2026-08-31-plugin-contract-v5.md` §12, «coverage-
+// provider як перша слотова поверхня», ДРУГИЙ провайдер після `rust`
+// (`rust-coverage-provider-guest.wit`, той файл несе повний доккомент
+// прийому — тут повторено лише те, що відрізняється).
+//
+// Без `package`-рядка — файл лежить поряд із `world.wit`, тож належить ТІЙ
+// САМІЙ директорійній package-групі (`n-rules:plugin@5.0.0`), і `include
+// plugin;` резолвиться НЕКВАЛІФІКОВАНО (той самий прийом, що
+// `rust-coverage-provider-guest.wit`).
+//
+// `with { domain-error as coverage-domain-error }` — ОБОВ'ЯЗКОВЕ
+// перейменування з ТІЄЇ САМОЇ причини, що rust-версія: `plugin`
+// (world.wit:524) і `n-rules:surfaces/coverage-provider@1.0.0`
+// (`deps/surfaces/coverage-provider.wit`) кожен оголошує ВЛАСНИЙ локальний
+// `variant domain-error` у тілі world-а, а не в спільному інтерфейсі —
+// без перейменування `wasm-tools`/`wit-bindgen` бачать два одноіменних
+// локальних типи при об'єднанні.
+world python-coverage-provider-guest {
+  include plugin;
+  include n-rules:surfaces/coverage-provider@1.0.0 with { domain-error as coverage-domain-error }
+}

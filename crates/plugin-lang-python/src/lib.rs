@@ -173,9 +173,20 @@
 // JSON-таргет.
 use rules_template_merge::{json_to_pretty_string, json_to_string, parse_jsonc_document, Json};
 
+// Крок 6 спеки `docs/specs/2026-08-31-plugin-contract-v5.md` §12,
+// «coverage-provider як перша слотова поверхня» (ДРУГИЙ провайдер після
+// `rust`, доккомент `crates/plugin-lang-rust/src/lib.rs` пояснює прийом
+// повністю): world перемкнутий з голого `plugin` на КОМБІНОВАНИЙ
+// `python-coverage-provider-guest`
+// (`crates/rules-contract/wit/python-coverage-provider-guest.wit` —
+// `include plugin; include n-rules:surfaces/coverage-provider@1.0.0 with {
+// domain-error as coverage-domain-error }`). Це ЄДИНА зміна складу world-а
+// цього гостя — усі export-и/import-и `plugin` лишаються РІВНО тими
+// самими (`include` — адитивний, не замінює), додається лише ОДИН новий
+// export — `collect-coverage` ([`Guest::collect_coverage`] нижче).
 wit_bindgen::generate!({
     path: "../rules-contract/wit",
-    world: "plugin",
+    world: "python-coverage-provider-guest",
     generate_all,
 });
 
@@ -2609,6 +2620,336 @@ fn fix_vscode_extensions(request: &FixRequest) -> FixPlan {
     }
 }
 
+// =====================================================================
+// Крок 6 спеки `docs/specs/2026-08-31-plugin-contract-v5.md` §12,
+// «coverage-provider як перша слотова поверхня»: `collect-coverage` —
+// ПОРТ `plugins/lang-python/coverage-provider/provider.mjs::collect`
+// (line coverage через `uv run --with pytest-cov pytest --cov` + мутаційне
+// тестування через mutmut 4.x, `mutmut.mjs::parseMutmutResults`/
+// `parseMutantShow`).
+//
+// # Звуження — ОДИН корінь, той самий мотив, що rust-провайдер
+//
+// JS-канон (`findPythonRoots` → `findManifestRoots(cwd, ['pyproject.toml',
+// 'setup.py'])`) обходить дерево репозиторію в пошуках КОЖНОГО Python-кореня
+// (моно-репо може мати кілька) і агрегує покриття по всіх. Гість НЕ має
+// доступу до файлової системи консюмера (доккомент модуля, розділ «Обхід
+// дерева») — заявляти ще й `n-rules:caps/file-reader@1.0.0` заради ДРУГОГО
+// провайдера розширило б доказ кроку 6 далеко за «доведений механізм на
+// кожному з провайдерів окремо», не додавши нової демонстрації самого
+// механізму. Тому цей порт працює з РІВНО одним коренем — коренем
+// консюмера (`cwd: None` в `exec-tool`-запитах нижче, той самий корінь, що
+// вже несуть [`CONCERN_MYPY`]/[`CONCERN_RUFF`]/[`CONCERN_PROJECT`]). Для
+// репозиторіїв з одним Python-коренем (більшість консюмерів) результат
+// ідентичний JS-канону; моно-репо з кількома незалежними коренями — покриття
+// інших коренів не агрегується. Задокументована різниця, не мовчазний
+// пропуск (правило проєкту, той самий підхід, що rust-провайдер).
+//
+// # Мутаційне тестування — без precheck конфігурації, СВІДОМА відмінність
+//
+// JS-канон ПЕРЕД запуском mutmut читає ВМІСТ `pyproject.toml` і матчить
+// [`MUTMUT_SECTION_RE`]-подібний патерн ([`hasMutmutConfig`],
+// `provider.mjs`) — mutmut 4.x без секції `[tool.mutmut].source_paths`
+// відмовляється працювати, і канон уникає марного прогону з попереднім
+// hint-ом. Гість цей precheck ВІДТВОРИТИ НЕ МОЖЕ — жодної fs-read
+// спроможності (той самий структурний бар'єр, що обмежив кількість
+// коренів вище). Замість precheck-у гість просто СПРОБУЄ `mutmut run` і
+// прочитає `mutmut results --all true`: якщо секція відсутня чи мутація
+// неможлива з іншої причини, mutmut природно не лишає жодного result-рядка
+// (`RESULT_LINE_RE` [`parse_mutmut_results`] нічого не матчить),
+// [`parse_mutmut_results`] повертає `caught: 0, total: 0` — ТОЙ САМИЙ
+// нульовий вимір, що канон дає explicit precheck-ом, лише без окремого
+// hint-повідомлення в лозі. Це різниця в ТЕКСТІ діагностики, не в
+// СЕМАНТИЦІ результату (мутаційний вимір коректно нульовий в обох
+// випадках) — задокументована свідомо, не мовчазна апроксимація.
+//
+// `mutmut`, на відміну від `cargo mutants`, доступний лише опційно через
+// `--with` (немає окремого пробного бінарника у PATH): [`MUTMUT_PROBE_ARGS`]
+// пробує `uv run --with mutmut --with pytest mutmut --version` — недоступний
+// `uv`/пакет mutmut дає [`CoverageArea::mutation`] `{caught: 0, total: 0}` і
+// порожній `survived_files`, а НЕ [`CoverageDomainError`] (рівно та сама
+// «чесний skip» семантика, що cargo-mutants у rust-провайдері). Відсутність
+// `uv` для САМОГО line-coverage-кроку — інша річ: [`CoverageDomainError::NotSupported`]
+// (без pytest-cov взагалі нема що агрегувати).
+
+/// Ім'я тула — той самий [`UV_TOOL`], що вже задекларований [`build_manifest`]
+/// для `python/mypy`+`python/ruff`: `collect-coverage` теж кличе `uv`, друга
+/// декларація нічого не додала б.
+const COVERAGE_TOOL: &str = UV_TOOL;
+
+/// Слот host-context з абсолютним шляхом scratch-каталогу виклику — той
+/// самий слот, що `COVERAGE_SCRATCH_DIR_SLOT` у `crates/plugin-lang-rust`.
+const COVERAGE_SCRATCH_DIR_SLOT: &str = "scratch-dir@1";
+
+/// Ім'я lcov-файлу, який `pytest --cov-report=lcov:<path>` пише В
+/// scratch-каталог (абсолютний шлях аргументом).
+const LCOV_FILE_NAME: &str = "coverage.lcov";
+
+/// Стеля кількості survived-мутантів, для яких гість тягне `mutmut show` —
+/// точний відповідник `SURVIVED_SHOW_CAP` (`provider.mjs`).
+const MUTMUT_SURVIVED_SHOW_CAP: usize = 50;
+
+/// Агрегує `LF:`/`LH:`/`FNF:`/`FNH:` по всіх записах lcov — той самий
+/// формат/парсер, що `crates/plugin-lang-rust::parse_lcov_totals`
+/// (продубльований тут: крейти не діляться кодом через wasm-межу).
+fn parse_lcov_totals(text: &str) -> (CoverageCounts, CoverageCounts) {
+    let mut lines = CoverageCounts {
+        covered: 0,
+        total: 0,
+    };
+    let mut functions = CoverageCounts {
+        covered: 0,
+        total: 0,
+    };
+    for line in text.lines() {
+        if let Some(rest) = line.strip_prefix("LF:") {
+            lines.total += rest.trim().parse::<u32>().unwrap_or(0);
+        } else if let Some(rest) = line.strip_prefix("LH:") {
+            lines.covered += rest.trim().parse::<u32>().unwrap_or(0);
+        } else if let Some(rest) = line.strip_prefix("FNF:") {
+            functions.total += rest.trim().parse::<u32>().unwrap_or(0);
+        } else if let Some(rest) = line.strip_prefix("FNH:") {
+            functions.covered += rest.trim().parse::<u32>().unwrap_or(0);
+        }
+    }
+    (lines, functions)
+}
+
+/// Розбирає вивід `mutmut results --all true` — точний порт
+/// `parseMutmutResults` (`mutmut.mjs`): `killed`/`timeout` рахуються як
+/// caught, `survived` дає ОДНЕ ім'я в результуючому списку (подальший
+/// `mutmut show <name>` резолвить файл), `suspicious`/`skipped`/`no tests`
+/// поза знаменником.
+fn parse_mutmut_results(text: &str) -> (MutationCounts, Vec<String>) {
+    let mut mutation = MutationCounts {
+        caught: 0,
+        total: 0,
+    };
+    let mut survived_names = Vec::new();
+    for line in text.lines() {
+        let trimmed = line.trim_start();
+        if trimmed.len() == line.len() {
+            // JS `RESULT_LINE_RE = /^\s+(\S+): (…)$/` вимагає ХОЧА Б ОДИН
+            // провідний пробіл — рядки без відступу (заголовки/пусті) не
+            // матчать, той самий контракт тут.
+            continue;
+        }
+        let Some((name, status)) = trimmed.split_once(": ") else {
+            continue;
+        };
+        if name.is_empty() {
+            continue;
+        }
+        match status {
+            "killed" | "timeout" => {
+                mutation.caught += 1;
+                mutation.total += 1;
+            }
+            "survived" => {
+                mutation.total += 1;
+                survived_names.push(name.to_string());
+            }
+            _ => {}
+        }
+    }
+    (mutation, survived_names)
+}
+
+/// Шлях джерела мутанта з `mutmut show <name>` — точний порт гілки
+/// `findDiffSource` (`mutmut.mjs::parseMantShow`, `DIFF_SOURCE_RE = /^---
+/// (\S+)/`). WIT [`CoverageArea::survived_files`] несе лише шлях файлу
+/// (доккомент `coverage-provider.wit`: детальна форма мутанта не портовна
+/// без узгодження між мовами) — решту `parseMutantShow` (hunk/line/
+/// original/replacement) гість НЕ парсить, той спожив би лише повний
+/// `survived`-запис, якого в цій поверхні немає.
+fn parse_mutant_show_file(text: &str) -> Option<String> {
+    for line in text.lines() {
+        if let Some(rest) = line.strip_prefix("--- ") {
+            let file = rest.split_whitespace().next().unwrap_or(rest);
+            if !file.is_empty() {
+                return Some(file.to_string());
+            }
+        }
+    }
+    None
+}
+
+/// Спавнить `uv <args>` через `exec-tool` — рівно той самий нижній рівень,
+/// що [`prepare_python_run`] уже кличе для `mypy`/`ruff`.
+fn exec_uv(args: Vec<String>, scratch_out: Vec<String>) -> ToolResult {
+    exec_tool(&ToolRequest {
+        tool: COVERAGE_TOOL.to_string(),
+        args,
+        stdin: None,
+        cwd: None,
+        env: vec![],
+        scratch_in: vec![],
+        scratch_out,
+    })
+}
+
+/// `collect-coverage` — доккомент секції вище пояснює звуження й
+/// happy-path. Повертає [`CoverageDomainError::NotSupported`] лише коли
+/// `uv`/`pytest-cov` структурно недоступні (гість не може виміряти ХОЧ
+/// ЩОСЬ); будь-який ІНШИЙ провал line-coverage-кроку (тул резолвився, але
+/// спав дав ненульовий код; lcov-файл, який тул мав лишити, відсутній) —
+/// [`CoverageDomainError::Failed`] з людиночитним повідомленням, НЕ
+/// порожній звіт (правило проєкту «мовчазний пропуск — вада»). Мутаційний
+/// вимір — окремий, м'якший канал (доккомент секції, «без precheck
+/// конфігурації»): недоступність mutmut НЕ провалює весь виклик.
+fn collect_coverage_impl(request: &CoverageRequest) -> Result<CoverageReport, CoverageDomainError> {
+    let Some(scratch_dir) = host_context(COVERAGE_SCRATCH_DIR_SLOT) else {
+        return Err(CoverageDomainError::Failed(
+            "collect-coverage: хост не надав scratch-каталогу (слот scratch-dir@1)".to_string(),
+        ));
+    };
+    let lcov_path = format!("{scratch_dir}/{LCOV_FILE_NAME}");
+
+    let pytest_cov = exec_uv(
+        vec![
+            "run".to_string(),
+            "--with".to_string(),
+            "pytest-cov".to_string(),
+            "pytest".to_string(),
+            "--cov".to_string(),
+            format!("--cov-report=lcov:{lcov_path}"),
+            "-q".to_string(),
+        ],
+        vec![LCOV_FILE_NAME.to_string()],
+    );
+    let Some(status) = pytest_cov.status else {
+        return Err(CoverageDomainError::NotSupported);
+    };
+    if status != 0 {
+        return Err(CoverageDomainError::Failed(format!(
+            "uv run pytest --cov завершився кодом {status}: {}{}",
+            pytest_cov.stdout, pytest_cov.stderr
+        )));
+    }
+    let Some(lcov_file) = pytest_cov
+        .scratch_out
+        .iter()
+        .find(|f| f.path == LCOV_FILE_NAME)
+    else {
+        return Err(CoverageDomainError::Failed(
+            "pytest --cov відзвітував успіхом, але не лишив lcov-файл у scratch-каталозі"
+                .to_string(),
+        ));
+    };
+    let (lines, functions) = parse_lcov_totals(&lcov_file.content);
+
+    // Мутаційне тестування — чесний skip без precheck-у (доккомент секції).
+    let mutmut_probe = exec_uv(
+        vec![
+            "run".to_string(),
+            "--with".to_string(),
+            "mutmut".to_string(),
+            "--with".to_string(),
+            "pytest".to_string(),
+            "mutmut".to_string(),
+            "--version".to_string(),
+        ],
+        vec![],
+    );
+    let mutmut_available = mutmut_probe.status == Some(0);
+
+    let (mutation, survived_files) = if mutmut_available {
+        // Ненульовий exit `mutmut run` сам по собі не помилка (survived-мутанти
+        // дають ненульовий код) — точний порт: JS-канон теж ігнорує його
+        // (`provider.mjs::collectMutation`), правду каже лише `mutmut results`.
+        exec_uv(
+            vec![
+                "run".to_string(),
+                "--with".to_string(),
+                "mutmut".to_string(),
+                "--with".to_string(),
+                "pytest".to_string(),
+                "mutmut".to_string(),
+                "run".to_string(),
+            ],
+            vec![],
+        );
+        let results = exec_uv(
+            vec![
+                "run".to_string(),
+                "--with".to_string(),
+                "mutmut".to_string(),
+                "--with".to_string(),
+                "pytest".to_string(),
+                "mutmut".to_string(),
+                "results".to_string(),
+                "--all".to_string(),
+                "true".to_string(),
+            ],
+            vec![],
+        );
+        let (mutation, survived_names) = parse_mutmut_results(&results.stdout);
+
+        let mut survived_files: Vec<String> = Vec::new();
+        for name in survived_names.iter().take(MUTMUT_SURVIVED_SHOW_CAP) {
+            let show = exec_uv(
+                vec![
+                    "run".to_string(),
+                    "--with".to_string(),
+                    "mutmut".to_string(),
+                    "--with".to_string(),
+                    "pytest".to_string(),
+                    "mutmut".to_string(),
+                    "show".to_string(),
+                    name.clone(),
+                ],
+                vec![],
+            );
+            if let Some(file) = parse_mutant_show_file(&show.stdout) {
+                if !survived_files.contains(&file) {
+                    survived_files.push(file);
+                }
+            }
+        }
+        (mutation, survived_files)
+    } else {
+        (
+            MutationCounts {
+                caught: 0,
+                total: 0,
+            },
+            Vec::new(),
+        )
+    };
+
+    log(
+        LogLevel::Info,
+        &format!(
+            "plugin-lang-python: collect-coverage(cwd={}) lines={}/{} functions={}/{} mutation={}/{}",
+            request.cwd,
+            lines.covered,
+            lines.total,
+            functions.covered,
+            functions.total,
+            mutation.caught,
+            mutation.total
+        ),
+    );
+
+    // Той самий свідомий "нічого не виміряно" → порожній звіт, що
+    // `provider.mjs::collect` (`if (coverage.lines.total === 0 &&
+    // mutation.total === 0) return []`) — ЛЕГІТИМНИЙ успіх (немає
+    // Python-коду під виміром), а не помилка.
+    if lines.total == 0 && mutation.total == 0 {
+        return Ok(CoverageReport { areas: vec![] });
+    }
+
+    Ok(CoverageReport {
+        areas: vec![CoverageArea {
+            area: "Python".to_string(),
+            lines,
+            functions,
+            mutation,
+            survived_files,
+        }],
+    })
+}
+
 /// Чистий (без host-імпортів `log`/`report-progress`) конструктор
 /// маніфеста — винесений з [`Guest::describe`] окремо, щоб host-таргет
 /// unit-тести могли звірити форму маніфеста без реального wasmtime-хоста
@@ -2709,11 +3050,15 @@ fn build_manifest() -> Manifest {
         // через `uv run --frozen`, тож ОДНА декларація [`UV_TOOL`] на двох.
         tools: vec![UV_TOOL.to_string()],
         fix_only_concerns: vec![],
-        // ТИМЧАСОВО порожньо: мажор `5.0.0` (§2.109 реєстру відкритих
-        // питань) додав поле `worlds`, реальна міграція гостей — крок 4
-        // спеки `docs/specs/2026-08-31-plugin-contract-v5.md` §12, окрема
-        // задача. До неї гість однаково НЕ інстанціюється на `5.x`-хості.
-        worlds: vec![],
+        // Крок 6 спеки §12 («coverage-provider як перша слотова поверхня»)
+        // додав ДРУГИЙ реальний запис (перший — `crates/plugin-lang-rust`):
+        // цей гість тепер ЕКСПОРТУЄ `collect-coverage` (`Guest::collect_coverage`,
+        // `world: "python-coverage-provider-guest"` у бінгден-виклику вище) —
+        // заявляти світ ОБОВʼЯЗКОВО, інакше хост відмовляє будь-якому виклику
+        // цього export-у гучно, навіть коли він реально є в типі компонента
+        // (`PluginHostError::SurfaceNotDeclared`). `tool-runner` тут і далі
+        // НЕ заявляється — `run-tool`/`exec-tool` лишаються в ядровому world.
+        worlds: vec!["n-rules:surfaces/coverage-provider@1.0.0".to_string()],
     }
 }
 
@@ -2827,6 +3172,18 @@ impl Guest for LangPython {
 
     fn docgen_render(_request: DocgenRequest) -> Result<DocOutput, DomainError> {
         Err(DomainError::NotSupported)
+    }
+
+    /// Крок 6 спеки §12 — `n-rules:surfaces/coverage-provider@1.0.0`,
+    /// ДРУГИЙ реальний export цієї слотової поверхні (перший —
+    /// `crates/plugin-lang-rust`). Уся семантика — [`collect_coverage_impl`]
+    /// (доккомент секції перед [`build_manifest`]) — винесена окремо лише
+    /// заради читабельності сигнатури `Guest`-методу; сама функція кличе
+    /// `host_context`/`exec_tool`/`log` і тому, як і `detect_mypy`/`detect_ruff`,
+    /// тестована лише живим end-to-end прогоном через `PluginHost` (поза
+    /// обсягом цього кроку), НЕ юніт-тестом host-таргета.
+    fn collect_coverage(request: CoverageRequest) -> Result<CoverageReport, CoverageDomainError> {
+        collect_coverage_impl(&request)
     }
 }
 
