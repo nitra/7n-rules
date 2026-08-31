@@ -115,6 +115,10 @@ pub enum NativeCommand {
     /// Package knowledge (`crates/rules-docs`, нативний лише
     /// `domains`/`index`/`slice`/`validate` за `--native-docs`).
     Docs(DocsArgs),
+    /// Д2: вбудова маніфесту й публікація first-party wasm-плагінів у OCI
+    /// (`plugin_cmd`) — поверхні в JS-CLI немає взагалі, команда нативна
+    /// цілком.
+    Plugin(PluginArgs),
 }
 
 /// `changed-files [--cwd <dir>] [--delta] [--base <ref>]`.
@@ -321,6 +325,74 @@ pub struct DocsArgs {
     /// Усе після `docs`, без розбору.
     #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
     pub rest: Vec<String>,
+}
+
+/// `plugin <embed-manifest|publish>`.
+#[derive(Args, Debug)]
+#[command(
+    help_template = HELP_TEMPLATE,
+    override_usage = "n-rules plugin <embed-manifest|publish>",
+    subcommand_help_heading = "Підкоманди"
+)]
+pub struct PluginArgs {
+    /// Підкоманда `plugin`.
+    #[command(subcommand)]
+    pub command: PluginCommand,
+}
+
+/// Підкоманди `plugin`.
+#[derive(Subcommand, Debug)]
+pub enum PluginCommand {
+    /// Вбудувати авторитетний маніфест (identity + `component_profile`) у
+    /// вже зібраний Component Model `.wasm`.
+    EmbedManifest(PluginEmbedManifestArgs),
+    /// Опублікувати вже зманіфестований `.wasm` через direct OCI transport.
+    Publish(PluginPublishArgs),
+}
+
+/// `plugin embed-manifest --crate-dir <dir> --package <name> --component
+/// <шлях> [--out <шлях>]`.
+#[derive(Args, Debug)]
+#[command(
+    help_template = HELP_TEMPLATE,
+    override_usage = "n-rules plugin embed-manifest --crate-dir <dir> --package <name> \
+                       --component <шлях> [--out <шлях>]",
+    next_help_heading = FLAGS_HEADING
+)]
+pub struct PluginEmbedManifestArgs {
+    /// Корінь крейта-гостя (`Cargo.toml`/`plugin.toml` поряд).
+    #[arg(long, value_name = "dir")]
+    pub crate_dir: std::path::PathBuf,
+    /// Короткий package-суфікс (`FIRST_PARTY_WASM_PLUGINS[].name` у
+    /// `npm/scripts/build-wasm-plugins.mjs`, напр. `lang-js`).
+    #[arg(long, value_name = "name")]
+    pub package: String,
+    /// Уже зібраний Component Model `.wasm` без маніфесту.
+    #[arg(long, value_name = "шлях")]
+    pub component: std::path::PathBuf,
+    /// Куди писати результат — дефолт перезаписує `--component` на місці.
+    #[arg(long, value_name = "шлях")]
+    pub out: Option<std::path::PathBuf>,
+}
+
+/// `plugin publish --registry <реєстр> --component <шлях> [--dry-run]`.
+#[derive(Args, Debug)]
+#[command(
+    help_template = HELP_TEMPLATE,
+    override_usage = "n-rules plugin publish --registry <реєстр> --component <шлях> [--dry-run]",
+    next_help_heading = FLAGS_HEADING
+)]
+pub struct PluginPublishArgs {
+    /// Реєстр призначення — обов'язковий, без дефолту (гібридна вимога Д2:
+    /// ядро публічно, плагіни можуть бути приватними).
+    #[arg(long, value_name = "реєстр")]
+    pub registry: String,
+    /// Компонент із уже вбудованим маніфестом (`embed-manifest`).
+    #[arg(long, value_name = "шлях")]
+    pub component: std::path::PathBuf,
+    /// Лише порахувати реліз (package/version/digest/reference), не пушити.
+    #[arg(long)]
+    pub dry_run: bool,
 }
 
 /// Розбір argv спільною граматикою для юніт-тестів команд: вони мають

@@ -13953,4 +13953,98 @@ violations». §2.102 уже перевірила цю причину й зап�
   нуль violations після застосування — довів наскрізний шлях §2.102 живим,
   а не лише в юніт-тестах.
 
+### 2.121. Д2 (публікація wasm-плагінів у OCI) — третя спроба, обидва структурні блокери зняті: `embed-manifest`/`publish` живуть у `crates/rules-cli`, звірено наскрізно на всіх шести гостях
+
+**Контекст.** §2.101 задокументувала перший блокер (`oci-dist-package` 0.1.6
+приймав лише `component_profile = "wasm32-wasip3"`, усі шість гостей були
+`wasip2`) — знятий хвилею `#610`, обидві сторони на `wasip3`. §2.117
+задокументувала другий блокер (`serde_json = "=1.0.149"` у `oci-dist-package`
+конфліктував із транзитивним `rig-agent` `^1.0.150` через `llm-lib`) —
+знятий `oci-dist` `0.3.1`: `serde_json.workspace = true` тепер `"1.0"`
+(діапазон), а не точний пін. Обидва підтверджені знятими читанням
+опублікованого коду `crates-7n` (kellnr, sparse-індекс) і живим `cargo
+build`, не лише зі слів попередніх записів.
+
+**Що зроблено.**
+
+1. **`crates/rules-cli/Cargo.toml`** — додано `oci-dist-package = "=0.3.1"` і
+   `oci-dist-oci = "=0.3.1"` (реєстр `crates-7n`, дисципліна транспорту:
+   лише `=version`) плюс `anyhow = "1"` (наскрізний тип помилки
+   `publish_plugin_component`). Резолв самого додавання зажадав підняти
+   Cargo.lock трьох транзитивних пакетів у ЄДИНОМУ workspace-локу
+   (`tokio` 1.52.3→1.53.1, `tokio-util` 0.7.18→0.7.19, `futures`/
+   `futures-util` 0.3.32→0.3.34 — усі в межах заявлених `^`-вимог самих
+   пакетів, не форсований бамп) — циклічна вимога між `wasm-pkg-client`
+   (нова транзитивна залежність `oci-dist-oci`) і вже наявним `reqwest`
+   (через `llm-lib`). `cargo check --workspace` після цього — чисто (643
+   крейти), жоден інший крейт workspace не зачеплений кодом, лише спільний
+   лок.
+2. **`crates/rules-cli/src/plugin_cmd.rs`** (нове) — `n-rules plugin
+   embed-manifest`/`n-rules plugin publish`, підключені в `cli.rs`/`main.rs`
+   як власна поверхня (`OWNED_SURFACES` += `"plugin"`, JS-двійника немає
+   взагалі, невідомий аргумент — usage-помилка код `2`, не делегація).
+   Ідентичність — з наявних джерел, не вигадана:
+   - `publisher_id` читається з `package n-rules:plugin@5.0.0;`
+     (`<crate-dir>/../rules-contract/wit/world.wit`, спільний контракт усіх
+     шести гостей) — namespace до `:`, не константа в коді;
+   - `package` — `--package` (той самий короткий рядок, що
+     `FIRST_PARTY_WASM_PLUGINS[].name` у `build-wasm-plugins.mjs` — мапа
+     crateDir→name свідомо лишена ТАМ, а не задубльована тут);
+   - `version` — `version = "..."` з `<crate-dir>/Cargo.toml` гостя;
+   - `component_profile` — `oci_dist_package::COMPONENT_PROFILE`
+     (`"wasm32-wasip3"`, той самий `WASM_TARGET`, що
+     `build-wasm-plugins.mjs`);
+   - `entrypoints` — `describe`/`detect`/`fix` (world-функції
+     `world.wit:647,650,667`) — команда СПОЧАТКУ звіряє, що
+     `<crate-dir>/plugin.toml` заявляє рівно `domains = ["lint"]`
+     (`validate_lint_only_domain`), і гучно відмовляє інакше: мапа
+     entrypoints написана для одного домену, а не вгадана для будь-якого.
+   - маніфест будується як authoring-TOML і йде через
+     `PluginManifest::from_toml` — єдиний публічний конструктор
+     (`ComponentProfile`/`WitExportRef` мають приватні поля, прямий білд
+     структури неможливий за межами крейта).
+3. **Реєстр — обов'язковий `--registry`**, без дефолту й без константи:
+   `publish_plugin_component(registry, component_path, dry_run)` бере рядок
+   як є. `dry_run` прокинутий прапорцем `--dry-run` (рахує package/version/
+   digest/reference без мережі — саме цим шляхом звірено цю задачу, у
+   реальний реєстр нічого не пушилось).
+4. **Async** — `run_blocking` у `plugin_cmd.rs`: той самий прийом, що
+   `fix_cmd::run_blocking` (`tokio::runtime::Builder::new_multi_thread()`,
+   не `#[tokio::main]`). `embed_manifest` сам синхронний (без мережі),
+   рантайм заводиться лише для `publish`.
+
+**Наскрізна перевірка на РЕАЛЬНИХ шести гостях**, не лише юніт-тестами:
+`node npm/scripts/build-wasm-plugins.mjs` зібрав усі шість під
+`wasm32-wasip3`; `plugin embed-manifest` прогнано на кожному
+(`lang-js`/`lang-python`/`lang-rust`/`lang-php`/`ci-github`/`ci-azure`) —
+усі шість дали `✅ маніфест вбудовано: … (n-rules:<name>, 0.1.0)`; повторний
+запуск на вже зманіфестованому файлі падає гучно (`Component already
+contains`, не мовчазний no-op); `plugin publish --registry crates.7n.ai
+--component … --dry-run` для `lang-js` дав `✅ розраховано: n-rules:lang-js
+(0.1.0) → crates.7n.ai/n-rules/lang-js:0.1.0` з `digest sha256:…` —
+детермінований (повторний прогін embed дає той самий байтовий результат,
+перевірено тестом `embeds_and_inspects_one_raw_component_manifest`
+самого `oci-dist-package`, і окремо власним `rendered_manifest_toml_parses_
+and_validates`/`embeds_manifest_into_a_minimal_component`).
+
+**Публікацію в реальний реєстр НЕ запускав** — задача прямо це забороняла
+(`push` у чужий реєстр робить власник); `--dry-run`-шлях — це і є доведена
+межа обсягу.
+
+**Цільові прогони (синхронно, без фонових процесів):**
+- `cargo build -p rules-cli` — OK (547 крейтів після бампу локу).
+- `cargo test -p rules-cli` — 117 passed (2 suites): 110 наявних +
+  7 нових (5 юніт-тестів `plugin_cmd` — читання `publisher_id`/`version` з
+  усіх шести гостей, звірка `domains = ["lint"]` на всіх шести, рендер і
+  валідація authoring-TOML, наскрізний `embed_manifest` на мінімальному
+  Component-фікстурі — і 2 інтеграційні в `tests/cli.rs`: `plugin` як
+  власна поверхня, наскрізний `embed-manifest`→`publish --dry-run` на
+  реальному щойно зібраному `plugin-lang-js`).
+- `cargo check --workspace` — OK (643 крейти) — підтвердження, що бамп
+  спільного `Cargo.lock` (пункт 1) не зачепив жоден інший крейт workspace.
+- `node npm/scripts/build-wasm-plugins.mjs` — 6 плагінів зібрано під
+  `wasm32-wasip3` (передумова наскрізної перевірки вище).
+- Ручний прогін `rules-cli plugin embed-manifest`/`publish --dry-run` на
+  всіх шести реальних гостях — вивід наведено вище в тексті запису.
+
 
