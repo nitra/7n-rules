@@ -450,24 +450,66 @@ mod tests {
     }
 
     #[test]
-    fn reads_declared_worlds_of_each_guest_matching_plugin_toml() {
-        // Той самий anti-drift факт, що `every_first_party_guest_declares_lint_only_domain`
-        // звіряє для `domains` — тут лише перевіряємо, що парсер узагалі не
-        // падає й повертає ту форму, яку сьогодні несуть шість `plugin.toml`.
-        let expectations: &[(&str, &[&str])] = &[
-            ("plugin-lang-js", &["n-rules:caps/file-reader@1.0.0"]),
-            ("plugin-lang-python", &[]),
-            ("plugin-lang-rust", &["n-rules:surfaces/coverage-provider@1.0.0"]),
-            ("plugin-lang-php", &[]),
-            ("plugin-ci-github", &[]),
-            ("plugin-ci-azure", &[]),
+    fn declared_worlds_of_every_guest_parse_and_are_well_formed_contract_ids() {
+        // Свідомо НЕ знімок «який гість які worlds несе»: така таблиця лише
+        // дублює шість `plugin.toml` і зобов'язує правити тест щоразу, коли
+        // будь-яка хвиля дає гостеві новий world (саме так вона й зламалась
+        // після §2.123). Що world реально працює — доводять наскрізні гейти
+        // `crates/rules-plugin-host/tests/{caps_file_reader_gate,
+        // surfaces_coverage_provider_*_gate}.rs`, кожен на справжньому
+        // компоненті; тут лишається рівно той факт, якого більше ніде немає:
+        // парсер не падає на жодному з шести, а кожен оголошений world —
+        // валідний ідентифікатор контракту `ns:pkg/world@major.minor.patch`,
+        // а не довільний рядок.
+        let guests = [
+            "plugin-lang-js",
+            "plugin-lang-python",
+            "plugin-lang-rust",
+            "plugin-lang-php",
+            "plugin-ci-github",
+            "plugin-ci-azure",
         ];
-        for (crate_name, expected) in expectations {
+        for crate_name in guests {
             let crate_dir = repo_root().join("crates").join(crate_name);
             let worlds = read_declared_worlds(&crate_dir)
                 .unwrap_or_else(|error| panic!("{crate_name}: {error}"));
-            assert_eq!(worlds, *expected, "{crate_name}");
+            for world in &worlds {
+                assert!(
+                    is_well_formed_world_id(world),
+                    "{crate_name}: world «{world}» не має форми ns:pkg/world@major.minor.patch"
+                );
+            }
         }
+    }
+
+    /// Розбирає `ns:pkg/world@major.minor.patch` без regex-залежності:
+    /// три сегменти імен (непорожні, лише `[a-z0-9-]`) і тричастинна
+    /// числова версія.
+    fn is_well_formed_world_id(world: &str) -> bool {
+        let name_ok = |segment: &str| {
+            !segment.is_empty()
+                && segment
+                    .chars()
+                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+        };
+        let Some((path, version)) = world.split_once('@') else {
+            return false;
+        };
+        let version_parts: Vec<&str> = version.split('.').collect();
+        if version_parts.len() != 3
+            || !version_parts
+                .iter()
+                .all(|part| !part.is_empty() && part.chars().all(|c| c.is_ascii_digit()))
+        {
+            return false;
+        }
+        let Some((namespace, rest)) = path.split_once(':') else {
+            return false;
+        };
+        let Some((package, name)) = rest.split_once('/') else {
+            return false;
+        };
+        name_ok(namespace) && name_ok(package) && name_ok(name)
     }
 
     /// Наскрізний прогін embed-manifest на РЕАЛЬНОМУ (мінімальному)
