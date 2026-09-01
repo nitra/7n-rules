@@ -251,10 +251,15 @@ describe('rules-cli hook: --post-tool-use паритет із detectAll на с�
   test('full-scope концерн (glob "**/*") виконується через міст без делегації', async () => {
     await withTmpDir(dir => {
       const rulesDir = join(dir, 'synthetic-rules')
+      // Ключ СВІДОМО не збігається з реальним `npm-module/package_structure`:
+      // синтетичний каталог його НЕ перекриває — обидва боки (native і
+      // JS-референс) резолвлять справжній концерн, і тест міряв би його
+      // поведінку замість своєї. Форма ж (`scope: full`, `glob: **/*`) —
+      // та сама, а саме вона тут і перевіряється.
       writeConcern(
         rulesDir,
-        'npm-module',
-        'package_structure',
+        'synthetic-full',
+        'whole_repo',
         { scope: 'full', glob: ['**/*'] },
         `export function lint() {
            return { violations: [{ reason: 'whole-repo', message: 'весь репо перевірено' }] }
@@ -262,7 +267,7 @@ describe('rules-cli hook: --post-tool-use паритет із detectAll на с�
       )
       const repo = join(dir, 'repo')
       mkdirSync(repo, { recursive: true })
-      initRepo(repo, ['npm-module'])
+      initRepo(repo, ['synthetic-full'])
       writeFileSync(join(repo, 'any.txt'), 'x\n', 'utf8')
 
       const payload = JSON.stringify({ tool_name: 'Edit', tool_input: { file_path: 'any.txt' } })
