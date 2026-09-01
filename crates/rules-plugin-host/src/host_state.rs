@@ -14,6 +14,7 @@ use rules_contract::tool::{LogLevel, ScratchFile, ToolRequest, ToolResult};
 
 use crate::caps_file_reader;
 use crate::caps_llm_consumer;
+use crate::caps_registry_reader;
 use crate::scratch::ScratchDir;
 use crate::tool_resolver::ToolResolver;
 use crate::wit;
@@ -92,6 +93,15 @@ pub(crate) struct HostState {
     /// `PluginHost::new` кладе сюди [`caps_llm_consumer::RealLlmCaller`],
     /// `PluginHost::new_with_llm_caller` — довільний тестовий двійник.
     pub(crate) llm_caller: std::sync::Arc<dyn caps_llm_consumer::LlmCaller>,
+    /// Реалізація `active-domains`/`resolve-ci-artifacts` для
+    /// `n-rules:caps/registry-reader@1.0.0` (S1 карти
+    /// `docs/specs/2026-08-30-contract-roadmap-blocked-concerns.md`) — той
+    /// самий DI-мотив, що `llm_caller`/`tool_resolver`: `PluginHost::new`
+    /// кладе сюди `caps_registry_reader::NoRegistryProvider` (хост без
+    /// ін'єктованого реєстру — легітимний `None` на обидва запити, не
+    /// помилка), `PluginHost::new_with_registry_provider` — довільний
+    /// провайдер (продакшн-граф чи тестовий двійник).
+    pub(crate) registry_provider: std::sync::Arc<dyn caps_registry_reader::RegistryProvider>,
 }
 
 impl HostState {
@@ -263,7 +273,10 @@ impl caps_file_reader::FileReaderImports for HostState {
     /// тож єдина чесна відповідь — порожній перелік, а слід лишається в
     /// логах (той самий формат, що [`Self::ensure_scratch`] пише при
     /// провалі створення scratch-каталогу).
-    async fn list_files(&mut self, globs: Vec<String>) -> Result<Vec<String>, caps_file_reader::DomainError> {
+    async fn list_files(
+        &mut self,
+        globs: Vec<String>,
+    ) -> Result<Vec<String>, caps_file_reader::DomainError> {
         let Some(root) = self.fs_read_root.clone() else {
             // Раніше тут був warn + порожній перелік — бо WIT не давав каналу
             // помилки. Порожній результат при збої НЕ відрізнити від «нічого
@@ -321,6 +334,37 @@ impl caps_llm_consumer::LlmConsumerImports for HostState {
     ) -> Result<caps_llm_consumer::LlmResponse, caps_llm_consumer::DomainError> {
         let text = self.llm_caller.call(request.prompt).await?;
         Ok(caps_llm_consumer::LlmResponse { text })
+    }
+}
+
+// Реалізація `n-rules:caps/registry-reader@1.0.0` (S1 карти
+// `docs/specs/2026-08-30-contract-roadmap-blocked-concerns.md`): окремий
+// `Host`-трейт `crate::caps_registry_reader`, реалізований на ТОМУ САМОМУ
+// `HostState`, що `wit::PluginImports`/`caps_file_reader::FileReaderImports`/
+// `caps_llm_consumer::LlmConsumerImports` вище — той самий приймач, лінкер
+// поєднує всі вибірково (`crate::world_linker`). Уся семантика (легітимність
+// `None`, колізійна перевірка ci-artifact) живе в
+// `caps_registry_reader::RegistryProvider`/`rules_core::ci_artifact_registry`;
+// тут — лише міст WIT ⇄ провайдер і конверсія DTO → WIT-record.
+impl caps_registry_reader::RegistryReaderImports for HostState {
+    async fn active_domains(&mut self, path: String) -> Option<Vec<String>> {
+        self.registry_provider.active_domains(&path).await
+    }
+
+    async fn resolve_ci_artifacts(
+        &mut self,
+        target_capability: String,
+    ) -> Option<Vec<caps_registry_reader::ResolvedCiArtifact>> {
+        let resolved = self
+            .registry_provider
+            .resolve_ci_artifacts(&target_capability)
+            .await?;
+        Some(
+            resolved
+                .into_iter()
+                .map(caps_registry_reader::resolved_ci_artifact_to_wit)
+                .collect(),
+        )
     }
 }
 

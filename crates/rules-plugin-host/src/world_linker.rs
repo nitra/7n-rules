@@ -62,6 +62,7 @@ use wasmtime::component::{HasSelf, Linker};
 
 use crate::caps_file_reader::FileReader;
 use crate::caps_llm_consumer::LlmConsumer;
+use crate::caps_registry_reader::RegistryReader;
 use crate::error::PluginHostError;
 use crate::host_state::HostState;
 
@@ -88,6 +89,15 @@ fn link_file_reader(linker: &mut Linker<HostState>) -> Result<(), PluginHostErro
 /// прийом, що [`link_file_reader`] вище.
 fn link_llm_consumer(linker: &mut Linker<HostState>) -> Result<(), PluginHostError> {
     LlmConsumer::add_to_linker_imports::<_, HasSelf<_>>(linker, |state| state)
+        .map_err(|err| PluginHostError::Instantiate(err.into()))
+}
+
+/// Обгортка `RegistryReader::add_to_linker_imports::<_, HasSelf<_>>` (S1
+/// карти `docs/specs/2026-08-30-contract-roadmap-blocked-concerns.md`,
+/// `crate::caps_registry_reader`) — той самий прийом, що
+/// [`link_file_reader`]/[`link_llm_consumer`].
+fn link_registry_reader(linker: &mut Linker<HostState>) -> Result<(), PluginHostError> {
+    RegistryReader::add_to_linker_imports::<_, HasSelf<_>>(linker, |state| state)
         .map_err(|err| PluginHostError::Instantiate(err.into()))
 }
 
@@ -135,7 +145,20 @@ const KNOWN_CAPABILITY_WORLDS: &[(&str, LinkFn)] = &[
     // `crate::caps_llm_consumer::RealLlmCaller` через `n7n-llm-lib`,
     // зафіксований на `Tier::Local` (доккомент модуля `caps_llm_consumer`,
     // «ціна виклику»).
-    ("n-rules:caps/llm-consumer@1.0.0", link_llm_consumer as LinkFn),
+    (
+        "n-rules:caps/llm-consumer@1.0.0",
+        link_llm_consumer as LinkFn,
+    ),
+    // `n-rules:caps/registry-reader@1.0.0` (S1 карти
+    // `docs/specs/2026-08-30-contract-roadmap-blocked-concerns.md` §2.2/§2.3):
+    // `active-domains`/`resolve-ci-artifacts` реалізує
+    // `crate::caps_registry_reader::RegistryProvider`, ін'єктований через
+    // `PluginHost::new_with_registry_provider` (дефолт `PluginHost::new` —
+    // `NoRegistryProvider`, легітимний `None` на обидва запити).
+    (
+        "n-rules:caps/registry-reader@1.0.0",
+        link_registry_reader as LinkFn,
+    ),
 ];
 
 /// Розширює `linker` (очікується клон `PluginHost::base_linker` — ядро вже
@@ -172,10 +195,8 @@ mod tests {
     /// декларує `worlds` — міграція крок 4, після цього кроку).
     #[test]
     fn empty_declared_worlds_is_noop() {
-        let engine = wasmtime::Engine::new(
-            wasmtime::Config::new().wasm_component_model(true),
-        )
-        .expect("Engine::new");
+        let engine = wasmtime::Engine::new(wasmtime::Config::new().wasm_component_model(true))
+            .expect("Engine::new");
         let mut linker = Linker::<HostState>::new(&engine);
         extend_linker_for_worlds(&mut linker, &[]).expect("порожній вхід не мав відмовити");
     }
@@ -232,6 +253,23 @@ mod tests {
         .expect("coverage-provider має бути відомим реєстру після цього кроку");
     }
 
+    /// Реєстрація `n-rules:caps/registry-reader@1.0.0` (S1 карти) — та сама
+    /// одинична-механічна перевірка, що `file_reader_world_is_known`.
+    /// Наскрізний доказ, що хост РЕАЛЬНО кличе `active-domains`/
+    /// `resolve-ci-artifacts` через цей world, живе окремо
+    /// (`tests/caps_registry_reader_gate.rs`).
+    #[test]
+    fn registry_reader_world_is_known() {
+        let engine = wasmtime::Engine::new(wasmtime::Config::new().wasm_component_model(true))
+            .expect("Engine::new");
+        let mut linker = Linker::<HostState>::new(&engine);
+        extend_linker_for_worlds(
+            &mut linker,
+            &["n-rules:caps/registry-reader@1.0.0".to_string()],
+        )
+        .expect("registry-reader має бути відомим реєстру після цього кроку");
+    }
+
     /// Будь-який непорожній рядок, відмінний від зареєстрованих, лишається
     /// невідомим — [`PluginHostError::UnknownWorld`], а не тиха відмова чи
     /// паніка. `tool-runner` навмисно НЕ реєструється цим кроком (спека
@@ -239,16 +277,12 @@ mod tests {
     /// задача §11 п.2).
     #[test]
     fn unknown_world_is_rejected_loudly() {
-        let engine = wasmtime::Engine::new(
-            wasmtime::Config::new().wasm_component_model(true),
-        )
-        .expect("Engine::new");
+        let engine = wasmtime::Engine::new(wasmtime::Config::new().wasm_component_model(true))
+            .expect("Engine::new");
         let mut linker = Linker::<HostState>::new(&engine);
-        let err = extend_linker_for_worlds(
-            &mut linker,
-            &["n-rules:caps/tool-runner@1.0.0".to_string()],
-        )
-        .expect_err("невідомий світ мав відхилитись");
+        let err =
+            extend_linker_for_worlds(&mut linker, &["n-rules:caps/tool-runner@1.0.0".to_string()])
+                .expect_err("невідомий світ мав відхилитись");
         match err {
             PluginHostError::UnknownWorld { world } => {
                 assert_eq!(world, "n-rules:caps/tool-runner@1.0.0");
