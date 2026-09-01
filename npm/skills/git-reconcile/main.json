@@ -1,1 +1,1 @@
-{ "requireRoot": true, "tier": "min", "worktree": false }
+{ "requireRoot": true, "tier": "max", "worktree": false }

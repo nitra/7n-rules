@@ -25,7 +25,6 @@ const runHookCliMock = vi.fn(() => 0)
 const runCiPlanCliMock = vi.fn(() => 0)
 const runReleaseCliMock = vi.fn(() => 0)
 const runSkillsCliMock = vi.fn(() => 0)
-const isJsOrchestratedSkillArgsMock = vi.fn(() => false)
 const runAdrNormalizeLocalCliMock = vi.fn(() => 0)
 const assertCwdIsProjectRootMock = vi.fn()
 const ensureNRulesInRootDevDependenciesMock = vi.fn()
@@ -46,8 +45,7 @@ vi.mock('../../scripts/hook.mjs', () => ({ runHookCli: runHookCliMock }))
 vi.mock('../../scripts/lib/lint-surface/ci-plan.mjs', () => ({ runCiPlanCli: runCiPlanCliMock }))
 vi.mock('../../rules/release/release.mjs', () => ({ runReleaseCli: runReleaseCliMock }))
 vi.mock('../../scripts/skills-cli.mjs', () => ({
-  runSkillsCli: runSkillsCliMock,
-  isJsOrchestratedSkillArgs: isJsOrchestratedSkillArgsMock
+  runSkillsCli: runSkillsCliMock
 }))
 vi.mock('../../scripts/lib/adr/normalize-cli.mjs', () => ({
   runAdrNormalizeLocalCli: runAdrNormalizeLocalCliMock

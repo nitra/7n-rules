@@ -119,6 +119,11 @@ pub enum NativeCommand {
     /// (`plugin_cmd`) — поверхні в JS-CLI немає взагалі, команда нативна
     /// цілком.
     Plugin(PluginArgs),
+    /// Безпечний lifecycle локальних Git-артефактів для скіла
+    /// `git-reconcile` (`git_reconcile_cmd`) — поверхні в JS-CLI немає
+    /// взагалі (JS-оркестратор `orchestrate.mjs` знесено разом із декомпозицією
+    /// скіла, §2.125-патерн): команда нативна цілком.
+    GitReconcile(GitReconcileArgs),
 }
 
 /// `changed-files [--cwd <dir>] [--delta] [--base <ref>]`.
@@ -402,6 +407,136 @@ pub struct PluginPublishArgs {
     /// Лише порахувати реліз (package/version/digest/reference), не пушити.
     #[arg(long)]
     pub dry_run: bool,
+}
+
+/// `git-reconcile <archive|cleanup|gc|restore|status>`.
+#[derive(Args, Debug)]
+#[command(
+    help_template = HELP_TEMPLATE,
+    override_usage = "n-rules git-reconcile <archive|cleanup|gc|restore|status>",
+    subcommand_help_heading = "Підкоманди"
+)]
+pub struct GitReconcileArgs {
+    /// Підкоманда `git-reconcile`.
+    #[command(subcommand)]
+    pub command: GitReconcileCommand,
+}
+
+/// Підкоманди `git-reconcile`.
+#[derive(Subcommand, Debug)]
+pub enum GitReconcileCommand {
+    /// Архівувати branch/worktree/stash у `origin/tempo/git-reconcile/*`
+    /// ПЕРЕД локальним видаленням (ADR-вимога, `git_reconcile_cmd`).
+    Archive(GitReconcileArchiveArgs),
+    /// Видалити локальний branch/worktree/stash — лише за наявності вже
+    /// перевіреного архіву.
+    Cleanup(GitReconcileCleanupArgs),
+    /// Прибрати прострочені (>45 днів, дефолт) архіви на `origin` —
+    /// dry-run за замовчуванням.
+    Gc(GitReconcileGcArgs),
+    /// Відновити локальну гілку з архівної.
+    Restore(GitReconcileRestoreArgs),
+    /// Показати стан (активні архіви цього репозиторію).
+    Status(GitReconcileStatusArgs),
+}
+
+/// Джерело архівування — узгоджено з ADR (`branch`/`worktree`/`stash`).
+#[derive(Debug, Clone, Copy, clap::ValueEnum)]
+pub enum GitReconcileKind {
+    Branch,
+    Worktree,
+    Stash,
+}
+
+/// `git-reconcile archive --kind <branch|worktree|stash> --ref <name>
+/// [--worktree-path <path>] --reason <text>`.
+#[derive(Args, Debug)]
+#[command(
+    help_template = HELP_TEMPLATE,
+    override_usage = "n-rules git-reconcile archive --kind <branch|worktree|stash> --ref <name> [--worktree-path <path>] --reason <text>",
+    next_help_heading = FLAGS_HEADING
+)]
+pub struct GitReconcileArchiveArgs {
+    /// Тип джерела.
+    #[arg(long, value_enum)]
+    pub kind: GitReconcileKind,
+    /// Ім'я гілки, шлях worktree (як checked-out branch) або повний sha
+    /// stash-коміту — залежно від `--kind`.
+    #[arg(long = "ref", value_name = "name")]
+    pub reference: String,
+    /// Шлях worktree — обов'язковий для `--kind worktree`.
+    #[arg(long, value_name = "path")]
+    pub worktree_path: Option<String>,
+    /// Людська причина архівування (потрапляє в manifest/`ARCHIVE.md`).
+    #[arg(long, value_name = "text")]
+    pub reason: String,
+}
+
+/// `git-reconcile cleanup --kind <branch|worktree|stash> --ref <name>
+/// [--worktree-path <path>]`.
+#[derive(Args, Debug)]
+#[command(
+    help_template = HELP_TEMPLATE,
+    override_usage = "n-rules git-reconcile cleanup --kind <branch|worktree|stash> --ref <name> [--worktree-path <path>]",
+    next_help_heading = FLAGS_HEADING
+)]
+pub struct GitReconcileCleanupArgs {
+    /// Тип джерела.
+    #[arg(long, value_enum)]
+    pub kind: GitReconcileKind,
+    /// Той самий ідентифікатор, що передавався в `archive --ref`.
+    #[arg(long = "ref", value_name = "name")]
+    pub reference: String,
+    /// Шлях worktree — обов'язковий для `--kind worktree`.
+    #[arg(long, value_name = "path")]
+    pub worktree_path: Option<String>,
+}
+
+/// `git-reconcile gc [--apply] [--max-age-days <N>]`.
+#[derive(Args, Debug)]
+#[command(
+    help_template = HELP_TEMPLATE,
+    override_usage = "n-rules git-reconcile gc [--apply] [--max-age-days <N>]",
+    next_help_heading = FLAGS_HEADING
+)]
+pub struct GitReconcileGcArgs {
+    /// Реально видалити прострочені архіви (дефолт — dry-run, ADR).
+    #[arg(long)]
+    pub apply: bool,
+    /// Поріг днів замість дефолтних 45 (ADR).
+    #[arg(long, value_name = "N")]
+    pub max_age_days: Option<u32>,
+}
+
+/// `git-reconcile restore --archive-branch <tempo/git-reconcile/…> [--as
+/// <name>]`.
+#[derive(Args, Debug)]
+#[command(
+    help_template = HELP_TEMPLATE,
+    override_usage = "n-rules git-reconcile restore --archive-branch <tempo/git-reconcile/…> [--as <name>]",
+    next_help_heading = FLAGS_HEADING
+)]
+pub struct GitReconcileRestoreArgs {
+    /// Повне ім'я архівної гілки на `origin` (`archiveBranch` зі `state.json`
+    /// або друку `archive`).
+    #[arg(long, value_name = "branch")]
+    pub archive_branch: String,
+    /// Ім'я локальної гілки — дефолт: `archive_branch` зі слешами як `-`.
+    #[arg(long = "as", value_name = "name")]
+    pub as_branch: Option<String>,
+}
+
+/// `git-reconcile status [--json]`.
+#[derive(Args, Debug)]
+#[command(
+    help_template = HELP_TEMPLATE,
+    override_usage = "n-rules git-reconcile status [--json]",
+    next_help_heading = FLAGS_HEADING
+)]
+pub struct GitReconcileStatusArgs {
+    /// Машинна форма виводу.
+    #[arg(long)]
+    pub json: bool,
 }
 
 /// Розбір argv спільною граматикою для юніт-тестів команд: вони мають

@@ -8,7 +8,6 @@ import { describe, expect, test } from 'vitest'
 
 import {
   buildSkillPrompt,
-  isJsOrchestratedSkillArgs,
   listSkillIds,
   normalizeSkillId,
   resolveBundledPackageRoot,
@@ -35,18 +34,6 @@ describe('normalizeSkillId', () => {
   test('null/undefined → порожній рядок', () => {
     expect(normalizeSkillId(/** @type {string} */ (null))).toBe('')
     expect(normalizeSkillId(/** @type {string} */)).toBe('')
-  })
-})
-
-describe('isJsOrchestratedSkillArgs', () => {
-  test('codex git-reconcile → true', () => {
-    expect(isJsOrchestratedSkillArgs(['codex', 'n-git-reconcile'])).toBe(true)
-  })
-
-  test('claude та generic skill (включно з taze, розібраним §2.125) → false', () => {
-    expect(isJsOrchestratedSkillArgs(['claude', 'git-reconcile'])).toBe(false)
-    expect(isJsOrchestratedSkillArgs(['pi', 'lint'])).toBe(false)
-    expect(isJsOrchestratedSkillArgs(['pi', 'taze'])).toBe(false)
   })
 })
 
@@ -224,8 +211,9 @@ describe('runSkillsCli', () => {
   test('pi runner: викликає runPiAgentSkill і повертає 0 при ok', async () => {
     const root = join(tmpdir(), `skills-cli-pi-ok-${Date.now()}`)
     const skillsRoot = join(root, 'skills')
-    // "widget" — довільна назва фікстури; НЕ "taze" (той спеціалізований шлях
-    // через оркестратор — див. окремий describe нижче).
+    // "widget" — довільна назва фікстури, аби не плутати з `taze`/
+    // `git-reconcile`-специфічними тестами нижче (ті перевіряють ІМ'Я
+    // скіла, не окремий оркестраторний шлях — такого шляху більше нема).
     mkdirSync(join(skillsRoot, 'widget'), { recursive: true })
     writeFileSync(join(skillsRoot, 'widget', 'SKILL.md'), '# Widget\n')
     writeFileSync(join(skillsRoot, 'widget', 'main.json'), '{ "worktree": true, "tier": "avg" }')
@@ -390,9 +378,10 @@ describe('runSkillsCli', () => {
   // підтвердження handshake", коли фонова transport-задача перемагала гонку
   // з нашим `connect_with`-замиканням. Фікс — `create_session` завжди
   // повертає РЕАЛЬНИЙ текст помилки (включно зі stderr дочірнього процесу).
-  // Тут перевіряється, що `runLlmCli` (єдиний одноходовий ACP-виклик поза
-  // `git-reconcile`-циклом) не маскує/не обрізає це повідомлення — просто
-  // forward-ить `error.message` як є через `logError`.
+  // Тут перевіряється, що `runLlmCli` (єдиний одноходовий ACP-виклик — жоден
+  // скіл більше не веде власного JS-циклу поверх нього) не маскує/не
+  // обрізає це повідомлення — просто forward-ить `error.message` як є через
+  // `logError`.
   test('cursor runner: реальне ACP auth-повідомлення (не generic-фолбек) доходить до logError без обрізання', async () => {
     const root = join(tmpdir(), `skills-cli-cursor-auth-${Date.now()}`)
     const skillsRoot = join(root, 'skills')
@@ -421,9 +410,19 @@ describe('runSkillsCli', () => {
     expect(errors.join('\n')).not.toContain('до підтвердження handshake')
   })
 
-  test('git-reconcile: JS-оркестратор отримує runner, cwd і task', async () => {
+  // `git-reconcile` більше НЕ має власного JS-оркестратора (§2.135
+  // реєстру, §2.125-патерн): `pi git-reconcile` іде тим самим шляхом, що й
+  // будь-який звичайний скіл — `buildSkillPrompt` + `runPiAgentSkill`, без
+  // `runGitReconcileOrchestrator` deps. Дзеркало
+  // `pi runner: викликає runPiAgentSkill і повертає 0 при ok` вище, для
+  // КОЛИШНЬОГО оркестрованого id — саме та поведінка, що довела б регресію,
+  // якби delegate-гілка десь лишилась.
+  test('git-reconcile: pi runner іде звичайним шляхом (без оркестратора)', async () => {
     const root = join(tmpdir(), `skills-cli-git-reconcile-${Date.now()}`)
-    mkdirSync(join(root, 'skills'), { recursive: true })
+    const skillsRoot = join(root, 'skills')
+    mkdirSync(join(skillsRoot, 'git-reconcile'), { recursive: true })
+    writeFileSync(join(skillsRoot, 'git-reconcile', 'SKILL.md'), '# Git Reconcile\n')
+
     const calls = []
     const code = await runSkillsCli(['pi', 'n-git-reconcile', 'аналізуй', 'stash'], {
       packageRoot: root,
@@ -432,31 +431,35 @@ describe('runSkillsCli', () => {
         /* noop: тест перевіряє dispatch */
       },
       deps: {
-        runGitReconcileOrchestrator: opts => {
-          calls.push(opts)
-          return Promise.resolve({ ok: true, report: 'ok' })
+        runPiAgentSkill: (prompt, opts) => {
+          calls.push({ prompt, opts })
+          return Promise.resolve({ ok: true, telemetry: {}, error: null })
         }
       }
     })
 
     expect(code).toBe(0)
     expect(calls).toHaveLength(1)
-    expect(calls[0].runner).toBe('pi')
-    expect(calls[0].cwd).toBe(root)
-    expect(calls[0].task).toBe('аналізуй stash')
+    expect(calls[0].prompt).toContain('# Git Reconcile')
+    expect(calls[0].prompt).toContain('аналізуй stash')
+    expect(calls[0].opts.skillId).toBe('git-reconcile')
+    expect(calls[0].opts.cwd).toBe(root)
   })
 
-  test('git-reconcile: провальний оркестратор → exit 1', async () => {
+  test('git-reconcile: провал pi-агента → exit 1 (без спеціального оркестраторного шляху)', async () => {
     const root = join(tmpdir(), `skills-cli-git-reconcile-fail-${Date.now()}`)
-    mkdirSync(join(root, 'skills'), { recursive: true })
-    const code = await runSkillsCli(['cursor', 'git-reconcile'], {
+    const skillsRoot = join(root, 'skills')
+    mkdirSync(join(skillsRoot, 'git-reconcile'), { recursive: true })
+    writeFileSync(join(skillsRoot, 'git-reconcile', 'SKILL.md'), '# Git Reconcile\n')
+
+    const code = await runSkillsCli(['pi', 'git-reconcile'], {
       packageRoot: root,
       projectDir: root,
       log: () => {
         /* noop */
       },
       deps: {
-        runGitReconcileOrchestrator: () => Promise.resolve({ ok: false, report: 'failed' })
+        runPiAgentSkill: () => Promise.resolve({ ok: false, telemetry: null, error: 'модель не знайдена' })
       }
     })
 

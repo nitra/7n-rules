@@ -319,32 +319,25 @@ fn skill_prompt_branch_names_available_skills_on_typo() {
     );
 }
 
-/// Скіли з власним JS-оркестратором лишаються делегованими: їхній прогін —
-/// конвеєр кроків, а не один агентний хід, і підміна мовчки з'їла б кроки.
+/// `ORCHESTRATED_SKILLS` тепер порожній (§2.125-патерн застосований і до
+/// `git-reconcile` — реєстр §2.135, рішення власника §7 плану
+/// `full-rust-migration-plan.md`): жоден skill id більше не веде власного
+/// JS-конвеєра. Позитивна перевірка — `skill <id>` (без раннера, LLM-free
+/// друк промпта) для КОЛИШНЬОГО оркестрованого скіла працює нативно, як і
+/// для будь-якого звичайного: раніше ця гілка не консультувала
+/// `is_orchestrated` взагалі (лише `skill <runner> <id>` це робив), тож
+/// різниця — не в цій гілці, а в тому, що runner-гілка більше НІКОГО не
+/// делегує (unit-тест `main.rs::runner_branch_is_native_except_claude`).
 #[test]
-fn orchestrated_skills_still_delegate_to_js() {
-    // `taze` більше НЕ в цьому списку: §2.125 розібрала його оркестратор —
-    // кроки живуть у native-CLI й тексті `SKILL.md`, тож делегувати нічого.
-    // `git-reconcile` лишається єдиним оркестрованим скілом (його 3 484-рядковий
-    // оркестратор — окрема хвиля), і саме він тут за екземпляр.
+fn git_reconcile_skill_prompt_branch_is_native_and_llm_free() {
     let package = fake_package(&["git-reconcile"]);
-    for skill in ["git-reconcile"] {
-        let out = bin()
-            .env("N_RULES_JS_ENTRY", fake_entry(&package))
-            .args(["skill", "pi", skill])
-            .output()
-            .unwrap();
-        // Делегація йде у неіснуючий фейковий entrypoint — важливий сам факт
-        // спроби (native-шлях не друкував би нічого про node/модуль).
-        assert!(
-            !out.status.success(),
-            "{skill}: очікували делегацію, а не native-шлях"
-        );
-        assert!(
-            !stderr(&out).contains("невідомий раннер"),
-            "{skill}: native-раннер не мав братися за оркестрований скіл"
-        );
-    }
+    let out = bin()
+        .env("N_RULES_JS_ENTRY", fake_entry(&package))
+        .args(["skill", "git-reconcile"])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "stderr: {}", stderr(&out));
+    assert!(stdout(&out).contains("# Skill\n"), "{}", stdout(&out));
 }
 
 /// Deprecated раннер `claude` Rust не моделює — він теж делегується.
@@ -535,41 +528,27 @@ fn rename_yaml_extensions_respects_config_ignore() {
     assert!(tmp.path().join("k8s/web.yml").exists());
 }
 
-/// Оркестрований скіл їде в JS із незміненим argv і його exit-кодом.
-///
-/// Раніше цей тест звався «будь-яка не-`list` підкоманда делегується» — межа
-/// зсунулась: тепер делегуються рівно оркестровані скіли й `claude`, а
-/// звичайні раннери йдуть нативним ACP-шляхом.
-#[cfg(unix)]
-#[test]
-fn orchestrated_skill_delegates_argv_and_exit_code() {
-    use std::os::unix::fs::PermissionsExt;
-
-    let tmp = TempDir::new().unwrap();
-    let stub = tmp.path().join("runtime.sh");
-    std::fs::write(&stub, "#!/bin/sh\necho \"$@\"\nexit 7\n").unwrap();
-    std::fs::set_permissions(&stub, std::fs::Permissions::from_mode(0o755)).unwrap();
-
-    let out = bin()
-        .current_dir(tmp.path())
-        .env("N_RULES_JS_ENTRY", "/fake/n-rules.js")
-        .env("N_RULES_JS_RUNTIME", &stub)
-        .args(["skill", "pi", "git-reconcile"])
-        .output()
-        .unwrap();
-    assert_eq!(out.status.code(), Some(7));
-    assert_eq!(stdout(&out), "/fake/n-rules.js skill pi git-reconcile\n");
-}
-
-// Позитивної перевірки «звичайний скіл під раннером іде нативно» тут НЕМАЄ
-// свідомо: цей шлях спавнить справжнього ACP-агента, і процесний тест на
-// нього означав би живий агент у тестовому наборі — з мережею, підпискою і
-// довільними діями в робочій теці. Спроба такого тесту це й довела: агент
-// піднявся, побачив у теці стаб-скрипт і ВИКОНАВ його.
+// Тест «оркестрований скіл їде в JS із незміненим argv» тут БІЛЬШЕ НЕМАЄ:
+// `ORCHESTRATED_SKILLS` (`skill_cmd.rs`) — порожній список (§2.125-патерн
+// застосований і до `git-reconcile`, реєстр §2.135), тож `skill <runner>
+// <id>` для БУДЬ-ЯКОГО skill id (окрім legacy `claude`) тепер бере
+// native-ACP-гілку, не JS-делегацію. Позитивної процесної перевірки «скіл
+// під раннером іде нативно» тут НЕМАЄ свідомо — той самий інваріант, що вже
+// був задокументований для звичайних скілів ДО цієї задачі: цей шлях
+// спавнить справжнього ACP-агента, і процесний тест на нього означав би
+// живий агент у тестовому наборі — з мережею, підпискою і довільними діями
+// в робочій теці. Спроба такого тесту це й довела: агент піднявся, побачив
+// у теці стаб-скрипт і ВИКОНАВ його. Раніше ця межа стосувалась лише
+// звичайних скілів (для `git-reconcile` делегація в JS давала безпечний
+// процесний тест — видалений разом із делегацією); тепер вона стосується
+// ВСІХ skill id без винятку.
 //
 // Рішення роутера (яка гілка native, яка делегується) перевіряється
 // детерміновано юніт-тестами `skill_runner_is_native`/`skill_prompt_is_native`
-// у `main.rs`, а делегаційний бік — тестами вище.
+// у `main.rs` (`runner_branch_is_native_except_claude` явно перевіряє, що
+// `git-reconcile`/`n-git-reconcile` більше НЕ виняток), а делегаційний бік —
+// тестами вище (`claude_runner_still_delegates_to_js`) і нижче
+// (`unknown_command_delegates_argv_and_exit_code_to_js_entrypoint`).
 
 #[cfg(unix)]
 #[test]

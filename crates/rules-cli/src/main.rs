@@ -101,6 +101,7 @@ mod cursor_ignore;
 mod docs_cmd;
 mod fix_cmd;
 mod git_policy;
+mod git_reconcile_cmd;
 mod hook_cmd;
 mod js_fallback;
 mod lint_cmd;
@@ -117,7 +118,7 @@ use std::process::ExitCode;
 use clap::error::{ContextKind, ErrorKind};
 use clap::{CommandFactory as _, Parser as _};
 
-use cli::{CiCommand, Cli, NativeCommand, PluginCommand, ToolsCommand};
+use cli::{CiCommand, Cli, GitReconcileCommand, NativeCommand, PluginCommand, ToolsCommand};
 
 /// Довідка `lint --help` — байт-у-байт вивід `printLintHelp` з
 /// `npm/bin/n-rules-cli.mjs` (включно з двома фінальними `\n`: один із
@@ -217,13 +218,14 @@ fn resolve_subcommand(args: &[String]) -> (String, clap::Command) {
 
 /// Чи бере native-шлях гілку `skill <runner> <id> …`.
 ///
-/// Два винятки лишаються за JS. `claude` — legacy-ім'я, якого JS-раннером уже
-/// НЕ вважає (`RUNNERS` там — `{pi, cursor, codex}`): віддаємо його туди, щоб
-/// JS лишався власником свого usage-повідомлення на це ім'я. Скіл з оркестратором
-/// (`git-reconcile`) — конвеєр детермінованих кроків із точковими
-/// LLM-викликами, і підмінити його одним агентним ходом означало б мовчки
-/// втратити ті кроки. `taze` тут БІЛЬШЕ немає (§2.125, `skill_cmd::ORCHESTRATED_SKILLS`) —
-/// іде native-шляхом нижче, як звичайний скіл.
+/// Один виняток лишається за JS: `claude` — legacy-ім'я, якого JS-раннером
+/// уже НЕ вважає (`RUNNERS` там — `{pi, cursor, codex}`), віддаємо його туди,
+/// щоб JS лишався власником свого usage-повідомлення на це ім'я.
+/// `skill_cmd::ORCHESTRATED_SKILLS` тепер ПОРОЖНІЙ (§2.125-патерн, реєстр
+/// §2.135): `taze` пішла раніше, `git-reconcile` — цим PR, і обидва
+/// звичайним native-шляхом нижче, як будь-який інший скіл (їхній колишній
+/// JS-конвеєр став текстом `SKILL.md` + native-verb-и власної поверхні —
+/// `taze diff|backup|cleanup`, `git-reconcile archive|cleanup|gc|restore|status`).
 fn skill_runner_is_native(rest: &[String]) -> bool {
     let (Some(runner), Some(skill)) = (rest.first(), rest.get(1)) else {
         return false;
@@ -258,10 +260,10 @@ fn dispatch(command: NativeCommand, args: &[String]) -> ExitCode {
             ToolsCommand::Ensure(ensure) => tools_cmd::run_ensure(&ensure),
         },
         // `skill list` — перелік; `skill <runner> <id>` — ACP-раннер;
-        // `skill <id>` — друк промпта. Делегованими лишаються рівно дві
-        // гілки: скіл із власним JS-оркестратором (`git-reconcile` —
-        // конвеєр, а не один хід) і legacy-ім'я `claude`, чиє usage-повідомлення
-        // лишається за JS.
+        // `skill <id>` — друк промпта. Делегованою лишається рівно одна
+        // гілка: legacy-ім'я `claude`, чиє usage-повідомлення лишається за
+        // JS. `ORCHESTRATED_SKILLS` порожній — жоден скіл більше не веде
+        // власного JS-конвеєра.
         NativeCommand::Skill(parsed) if parsed.rest.first().map(String::as_str) == Some("list") => {
             skill_cmd::run_list()
         }
@@ -298,6 +300,30 @@ fn dispatch(command: NativeCommand, args: &[String]) -> ExitCode {
             PluginCommand::EmbedManifest(embed) => plugin_cmd::run_embed_manifest(&embed),
             PluginCommand::Publish(publish) => plugin_cmd::run_publish(&publish),
         },
+        // `git-reconcile` — декомпозиція скіла (§2.125-патерн, §7 плану
+        // full-rust-migration): безпечний lifecycle Git-артефактів
+        // (archive/cleanup/gc/restore/status), єдина частина колишнього
+        // `orchestrate.mjs`, що лишається кодом зі своїм станом — доккомент
+        // [`git_reconcile_cmd`]. Поверхні в JS-CLI немає взагалі, делегувати
+        // нікуди.
+        NativeCommand::GitReconcile(parsed) => {
+            let cwd = env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+            match parsed.command {
+                GitReconcileCommand::Archive(archive) => {
+                    git_reconcile_cmd::run_archive(&archive, &cwd)
+                }
+                GitReconcileCommand::Cleanup(cleanup) => {
+                    git_reconcile_cmd::run_cleanup(&cleanup, &cwd)
+                }
+                GitReconcileCommand::Gc(gc) => git_reconcile_cmd::run_gc(&gc, &cwd),
+                GitReconcileCommand::Restore(restore) => {
+                    git_reconcile_cmd::run_restore(&restore, &cwd)
+                }
+                GitReconcileCommand::Status(status) => {
+                    git_reconcile_cmd::run_status(&status, &cwd)
+                }
+            }
+        }
     }
 }
 
@@ -344,25 +370,19 @@ mod tests {
 
     /// Межа native/JS для гілки `skill <runner> <id>` — саме те рішення, яке
     /// процесним тестом не перевірити: він спавнив би справжнього ACP-агента.
+    /// `ORCHESTRATED_SKILLS` тепер порожній (§2.125-патерн застосований до
+    /// ОБОХ скілів, що його мали — `taze`, потім `git-reconcile`, реєстр
+    /// §2.135): жоден skill id більше не веде в JS-конвеєр, лишається лише
+    /// legacy-раннер `claude`.
     #[test]
-    fn runner_branch_is_native_except_orchestrated_and_claude() {
+    fn runner_branch_is_native_except_claude() {
         let args = |parts: &[&str]| parts.iter().map(|s| (*s).to_string()).collect::<Vec<_>>();
 
         for runner in ["pi", "cursor", "codex"] {
-            assert!(
-                skill_runner_is_native(&args(&[runner, "lint"])),
-                "{runner}: звичайний скіл має йти нативно"
-            );
-            for orchestrated in ["git-reconcile", "n-git-reconcile"] {
+            for skill in ["lint", "taze", "n-taze", "git-reconcile", "n-git-reconcile"] {
                 assert!(
-                    !skill_runner_is_native(&args(&[runner, orchestrated])),
-                    "{runner} {orchestrated}: конвеєр лишається в JS"
-                );
-            }
-            for decomposed in ["taze", "n-taze"] {
-                assert!(
-                    skill_runner_is_native(&args(&[runner, decomposed])),
-                    "{runner} {decomposed}: розібраний скіл (§2.125) — звичайний native-хід, без JS-конвеєра"
+                    skill_runner_is_native(&args(&[runner, skill])),
+                    "{runner} {skill}: жоден скіл більше не веде JS-конвеєр (ORCHESTRATED_SKILLS порожній)"
                 );
             }
         }
@@ -385,7 +405,7 @@ mod tests {
         assert!(skill_prompt_is_native(&arg("lint")));
         assert!(
             skill_prompt_is_native(&arg("n-git-reconcile")),
-            "оркестрований скіл БЕЗ раннера — це лише друк промпта, без конвеєра"
+            "розібраний скіл БЕЗ раннера — це лише друк промпта, без конвеєра"
         );
         for reserved in ["pi", "cursor", "codex", "claude", "list"] {
             assert!(

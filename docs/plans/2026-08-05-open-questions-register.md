@@ -15744,3 +15744,187 @@ JS-докоментарів/тестів (де вони існували): CRC-3
 зроблена статичним аналізом (`wc -l`, `grep -rn`) над поточним деревом, не
 збіркою — збірка/тести нічого не додали б до перевірки текстових тверджень.
 `npx @7n/rules lint`/`/doc-files` свідомо НЕ запускались (правило задачі).
+
+### 2.133. `git-reconcile`-скіл розібраний за патерном §2.125: JS-оркестратор (3 484 рядки) знесено, archive/cleanup/gc — native-verb-и зі своїм персистентним станом (ADR #334), решта — текст `SKILL.md`
+
+**Номер параграфа.** Бриф просив записати під §2.135. На момент виконання
+останній зайнятий підрозділ §2 — **§2.132** (звірено `grep -n "^### 2\."`),
+тож наступний вільний за конвенцією файлу «без розривів» (та сама
+конвенція, що вже застосовувалась у §2.130/§2.131) — **§2.133**, не §2.135.
+Записано під §2.133.
+
+**Контекст.** §2.125 розібрала `taze` і свідомо лишила `git-reconcile`
+(`skills/git-reconcile/js/orchestrate.mjs`, 3 484 рядки) окремою хвилею —
+розбір `docs/specs/2026-08-31-recon-providers-rules-skills.md` §3.4
+кваліфікував його як «клас C для порту як є, B за наявності рішення».
+Рішення власника з'явилось 2026-09-01 (§7 «Ухвалені рішення»
+`docs/plans/2026-08-31-full-rust-migration-plan.md`): декомпозиція за тим
+самим патерном, що й `taze`, а не цільова архітектура незмердженого ADR
+#334 («WASM resumable orchestration harness», PR #334,
+`docs/adr/260731-безпечне-віддалене-архівування-git-стану.md`,
+2026-07-31) — той ADR писався ДО контракту `5.0.0`/WASI P3 і до досвіду
+§2.125, і сам факт, що `taze` (порівнянний за складністю оркестрації)
+розібрався БЕЗ WASM-harness, зняв підставу ADR-у ще до його мерджу.
+
+**Що зроблено.**
+
+1. **Native CLI verb-и `git-reconcile <archive|cleanup|gc|restore|status>`**
+   (`crates/rules-cli/src/git_reconcile_cmd.rs`, нова команда в
+   `cli.rs`/`main.rs`, доккомент модуля пояснює межу текст/код детально):
+   - `archive` — читає `read-tree`/`update-index`/`write-tree`/
+     `commit-tree` git-plumbing напряму (без `gix`, той самий підхід, що
+     вже в `tool_lock.rs`/`rules_core::worktree` — прямі виклики `git`),
+     будує metadata-коміт із `.git-reconcile/archive.json` +
+     `ARCHIVE.md` поверх `sourceOid` і пушить у
+     `origin/tempo/git-reconcile/<YYYY-MM-DD>/<kind>-<slug>-<sha12>` —
+     буквально формат namespace з ADR. Ідемпотентний: повторний виклик з
+     тим самим `ref`/`sourceOid` і вже перевіреним (`ls-remote`) архівом —
+     no-op, не дублює push;
+   - `cleanup` — видаляє локальний branch/worktree/stash ЛИШЕ за
+     наявності перевіреного (`ls-remote`, не з кешу) архіву в стані;
+     відмовляє видаляти поточну гілку чи worktree поточного процесу
+     (ADR: «поточний worktree процесу не є кандидатом як технічний
+     інваріант»); для stash приймає повний sha stash-коміту (не
+     `stash@{N}`, чий індекс зсувається між ходами агента) і шукає
+     поточний `stash@{N}` для цього sha прямо перед `drop`;
+   - `gc [--apply] [--max-age-days 45]` — dry-run за замовчуванням (ADR:
+     «GC працюватиме лише у dry-run за замовчуванням»), пропускає
+     fail-closed будь-який `tempo/git-reconcile/*`-ref без відповідного
+     запису в локальному стані (ADR: «відсутній або невалідний manifest…
+     є причиною пропустити ref, а не видаляти його»);
+   - `restore` — відновлює локальну гілку з parent-коміту archive-tip
+     (сам metadata-коміт має рівно одного parent-а — `sourceOid`).
+2. **Персистентний стан** — `<git-common-dir>/n-rules/git-reconcile/state.json`
+   (та сама конвенція каталогу, що `tool_lock::lock_cache_dir`), ключ
+   `"<kind>:<sourceRef>"`, записи: `archiveBranch`/`archiveSha`/
+   `sourceOid`/`createdAtSecs`/`deleteAfterSecs`/`cleanedLocally`. Це
+   ЄДИНА причина, з якої ці чотири verb-и лишились кодом, а не текстом
+   `SKILL.md` (детально — доккомент модуля): якщо агентська сесія
+   обірветься МІЖ «заархівовано в origin» і «видалено локально», текстова
+   інструкція SKILL.md не несе стан між ходами (агент читає файл наново
+   щоразу) — лише файл на диску може сказати наступному запуску, чи архів
+   уже підтверджений на `origin`, і чи локальний артефакт ще єдина копія.
+   Кожен деструктивний крок (`cleanup`) ПОВТОРНО звіряє архів через
+   `ls-remote` перед видаленням, а не довіряє кешованому стану мовчки —
+   fail-closed, якщо push не підтверджений.
+3. **Решта колишнього конвеєра — текст `SKILL.md`**
+   (`npm/skills/git-reconcile/SKILL.md`, переписаний цілком). Inventory
+   (Git-факти: merged/patch-equivalent/protected/synced/ahead/diverged —
+   `git fetch`+`for-each-ref`+`merge-base`+`patch-id`+`gh pr list`),
+   semantic triage і розв'язання конфліктів (агент — і є той самий LLM,
+   що раніше викликався ІЗ JS двома tier-ами min→max; тепер один
+   безперервний хід агента, tier скіла піднято `min`→`max` у `main.json`
+   — обґрунтування нижче), підготовка worktree й cherry-pick/stash-apply,
+   gates (`lint --no-fix`, doc-files, тести відносно baseline чистого
+   `origin/<base>`), `gh pr create` і PR-опис за bounded фактами diff,
+   верифікація PR checks проти base — усе стало покроковими інструкціями
+   `SKILL.md`, які агент виконує сам, без вкладеного ACP-виклику. Той
+   самий перехід, що §2.125 зробила для `taze`.
+4. **`main.json.tier`: `min` → `max`.** Старий JS керував tier-ом
+   ДИНАМІЧНО: bulk-кроки (inventory, дедуп) — `min`, лише validation-
+   критичні кроки (triage, conflict resolution, PR-опис) ескалювались до
+   `max` через `callWithValidatedFallback`. Native-шлях фіксує один
+   `Strength` на весь агентний хід (`skill_cmd::run_runner`, той самий
+   механізм, що для будь-якого скіла) — без per-крокової ескалації
+   найдешевший коректний вибір для скіла, що веде semantic triage,
+   розв'язує конфлікти й ініціює незворотні Git-мутації, — фіксований
+   `max` на всю сесію, не `min` (котрий раніше НІКОЛИ не бачив
+   найскладніші рішення сам). Явне, назване рішення, не мовчазний
+   дефолт.
+5. **`ORCHESTRATED_SKILLS` (`crates/rules-cli/src/skill_cmd.rs`) —
+   порожній.** `skill_runner_is_native` (`main.rs`) для `git-reconcile`
+   тепер повертає `true` без зміни свого коду (предикат і раніше читав
+   список динамічно, як зафіксувала §2.125). Юніт-тест
+   `runner_branch_is_native_except_orchestrated_and_claude` перейменовано
+   на `runner_branch_is_native_except_claude` й переписано: раніше
+   параметризований по «оркестровані vs розібрані» skill id, тепер — по
+   одному інваріанту («жоден skill id більше не виняток, крім legacy
+   `claude`»), бо різниці між ними більше нема.
+6. **JS-бік дзеркалить те саме.** `JS_ORCHESTRATED_SKILLS` (`skills-cli.mjs`)
+   спорожнів; `runGitReconcileOrchestratorCli` і сам виклик `import(git-
+   reconcile/js/orchestrate.mjs)` видалено разом із файлом (`npm/skills/
+   git-reconcile/js/` — 5 940 рядків: 3 484 оркестратор + 2 456 його
+   власних тестів). `isJsOrchestratedSkillArgs` (`n-rules-cli.mjs`,
+   гейтив self-upgrade root `package.json` перед власним preflight
+   оркестратора) видалено ЦІЛКОМ разом з усіма викликами й моками —
+   на відміну від §2.125, де аналогічну функцію (`isTazeOrchestratorSkillArgs`)
+   довелось прибирати як «мертвий, недосяжний» бо `taze` була НЕ останнім
+   членом множини; тут `git-reconcile` — останній, тож сама функція, а не
+   лише один її consumer, стала мертвою.
+7. **Тести `crates/rules-cli/tests/cli.rs` переосмислені, не підігнані.**
+   `orchestrated_skills_still_delegate_to_js` і
+   `orchestrated_skill_delegates_argv_and_exit_code` (обидва брали
+   `git-reconcile` за останній екземпляр оркестрованого скіла) видалено —
+   їхня передумова («є скіл, що делегується під раннером») більше не
+   існує. Замінено на `git_reconcile_skill_prompt_branch_is_native_and_llm_free`
+   (дзеркало вже наявного `skill_prompt_branch_is_native_and_llm_free` для
+   `taze`, тепер і для колишнього оркестрованого id) і розширений
+   коментар, що явно пояснює, чому позитивного процесного тесту «`skill
+   pi git-reconcile` іде нативно» тут СВІДОМО немає (той самий інваріант,
+   що вже був задокументований ДО цієї задачі для звичайних скілів: шлях
+   спавнить справжнього ACP-агента — «агент піднявся, побачив у теці
+   стаб-скрипт і ВИКОНАВ його»). Розв'язання роутера лишається доведеним
+   юніт-тестами `main.rs`.
+
+**Метрики (було → стало).**
+
+| | було | стало |
+|---|---:|---:|
+| `npm/skills/git-reconcile/js/` (оркестратор + тести + docs) | 5 940 рядків | 0 (каталог знесено) |
+| `ORCHESTRATED_SKILLS` (Rust) | `["git-reconcile"]` | `[]` |
+| `JS_ORCHESTRATED_SKILLS` (JS) | `{'git-reconcile'}` | не існує |
+| `isJsOrchestratedSkillArgs`/`isTazeOrchestratorSkillArgs`-клас функцій | 1 жива | 0 |
+| Native-verb-и `git-reconcile` | 0 | 5 (`archive`/`cleanup`/`gc`/`restore`/`status`), 793 рядки з тестами |
+
+**Що збережено з ADR #334, що відпало.** Збережено буквально: namespace
+`tempo/git-reconcile/<date>/<kind>-<slug>-<sha12>`, окремий metadata-коміт
+із `.git-reconcile/archive.json` + `ARCHIVE.md` поверх `sourceOid`,
+45-денний `deleteAfter`, dry-run-за-замовчуванням GC, «поточний worktree
+процесу — не кандидат» як інваріант. Відпало — сама WASM-harness
+архітектура (resumable orchestration component, WIT-домен
+`repository-lifecycle` з `start`/`resume`, LLM-effect через host-checkpoint)
+і `Gix`/`mt-core` як обов'язковий виконавчий шар (тут — прямі виклики
+`git`, той самий підхід, що вже в `tool_lock.rs`). Причина — рішення
+власника §7 плану, не технічна відмова: контракту `5.0.0`/WASI P3 не
+існувало на момент ADR (2026-07-31), а §2.125 довела дешевший робочий
+патерн ще до мерджу ADR.
+
+**Свідомо звужено відносно ADR (названо, не приховано).**
+
+- Архів stash пушить сам stash-commit (він і так повноцінний, часто
+  multi-parent commit-об'єкт git) плюс ОДИН metadata-коміт зверху, а не
+  «materialize у новий commit» — той самий кінцевий результат
+  («відтворюваний з `origin`») без ручного tree-rewrite.
+- Перевірка «немає open PR на цей ref» перед `gc`/`cleanup` — за агентом
+  (`SKILL.md` явно каже перевірити `gh pr list --head` ПЕРЕД цими
+  кроками), не за native-командою: `tempo/git-reconcile/*` НІКОЛИ не є
+  head PR-а за конструкцією (PR відкривається з підготовленого worktree,
+  не з архівної гілки), а мережевий виклик `gh` додав би GitHub-залежність
+  у код, що інакше працює повністю на локальному/`origin`-git.
+
+**Цільові прогони (синхронно, без фонових процесів; `N_RULES_NATIVE_ADDON`
+вказував на щойно зібраний `target/release/librules_napi.dylib` — інакше
+застарілий registry-бінар у `node_modules` дає хибні фейли, не повʼязані
+з цією задачею):**
+
+- `cargo build --release -p rules-cli` — OK, без попереджень.
+- `cargo build --release -p rules-napi` — OK.
+- `cargo test --release -p rules-cli --bins` — 97 passed, 0 failed
+  (включно з 9 новими тестами `git_reconcile_cmd`, проти локального
+  bare-репо як `origin`-фікстури — без мережі, як вимагало правило
+  задачі).
+- `cargo test --release -p rules-cli --test cli` — 34 passed, 0 failed.
+- `cargo test --release -p rules-cli` (усі target-и разом) — той самий
+  підсумок (97 + 34), без розбіжностей між окремим і спільним прогоном.
+- `npx vitest run bin/tests/n-rules-cli.test.mjs` (з `npm/`) — 21 passed,
+  0 failed.
+- `npx vitest run scripts/tests/skills-cli.test.mjs` (з `npm/`) — 25
+  passed, 0 failed (дві старі `git-reconcile: JS-оркестратор …`-тести
+  замінені на `git-reconcile: pi runner іде звичайним шляхом`/`…провал
+  pi-агента`, describe-блок `isJsOrchestratedSkillArgs` видалено разом із
+  самою функцією).
+
+`npx @7n/rules lint`/`/doc-files` свідомо НЕ запускались (правило
+задачі — власник запускає окремо). Change-файл для `npm`-воркспейсу
+створено штатно (`npx @7n/n ch`, не ручний CHANGELOG.md):
+`npm/.changes/260901-0836.md`, `bump: minor`.
