@@ -9,7 +9,14 @@ import { fileURLToPath } from 'node:url'
 
 import { runConcernDetector } from '../scripts/lib/lint-surface/detect.mjs'
 import { loadNative } from '../scripts/lib/native.mjs'
-import { ensureDir, linkPackageRoot, realRepoRoot, stagedWasmPath, withTmpDir, writeJson } from '../scripts/utils/test-helpers.mjs'
+import {
+  ensureDir,
+  linkPackageRoot,
+  realRepoRoot,
+  stagedWasmPath,
+  withTmpDir,
+  writeJson
+} from '../scripts/utils/test-helpers.mjs'
 
 const TEST_DIR = fileURLToPath(new URL('.', import.meta.url))
 
@@ -23,10 +30,17 @@ const NGINX_CONCERN_DIR = join(TEST_DIR, '..', 'rules/nginx-default-tpl/template
 // (`crates/plugin-lang-js/src/lib.rs`, детектори `detect_style_tooling`/
 // `detect_vue_packages`): `main.mjs` видалено, лишається wasm-контрибуція.
 // `runConcernDetector` (через `resolveWasmConcernMap`) тут НЕ підходить —
-// той резолв читає `npm/wasm-plugins/builtin-pins.json`, білд-артефакт
-// npm-релізу, якого в чистому dev-checkout немає; замість нього — прямий
-// `runWasmConcern` на щойно зібраний `target/wasm32-wasip3/release/plugin_lang_js.wasm`
-// (той самий шлях, що `npm/scripts/lib/lint-surface/tests/wasm-plugin-parity.test.mjs`).
+// той резолв читає `npm/wasm-plugins/builtin-pins.json` і мапить концерн на
+// плагін через піни, а цьому тесту потрібен прямий виклик конкретного
+// концерну; замість нього — прямий `runWasmConcern` на ВИРОБЛЕНИЙ артефакт
+// `npm/wasm-plugins/plugin-lang-js.wasm` ([`stagedWasmPath`], той самий
+// шлях, що `npm/scripts/lib/lint-surface/tests/wasm-plugin-parity.test.mjs`).
+// Саме ставлена копія несе вбудований маніфест (`n-rules plugin
+// embed-manifest` у `npm/scripts/build-wasm-plugins.mjs`), без якого
+// `declared_worlds` (`crates/rules-napi/src/lib.rs`) гучно відхиляє гостя;
+// сирий `target/wasm32-wasip3/release/*.wasm` — проміжний вихід `cargo`,
+// не готовий артефакт. Відсутність збірки — гучна відмова [`stagedWasmPath`]
+// з підказкою, не мовчазний skip.
 const WASM_PATH = stagedWasmPath('plugin-lang-js')
 
 // Адаптери під unified lint surface: detector → 0 (чисто) / 1 (є violations).
