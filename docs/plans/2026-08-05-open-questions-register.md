@@ -16261,3 +16261,126 @@ S0 (`test/stryker_config`, §2.1) — блокер знятий раніше, п
 - `N_RULES_NATIVE_ADDON=$PWD/target/release/librules_napi.dylib npx vitest run scripts/lib/lint-surface/tests/path-scope.test.mjs` (з `npm/`) — 13 passed, без регресій (JS-файл незмінний, лише звірка, що Rust-порт не зламав JS-бік).
 
 `npx @7n/rules lint` і `/doc-files` свідомо НЕ запускались (правило задачі).
+### 2.139. Крок 3 плану full-rust-migration — `--native-docs` став дефолтом для `domains`/`index`/`slice`/`validate`; `build` лишається JS завжди
+
+**Номер запису.** Бриф просив писати під §2.140. На момент виконання
+останній зайнятий підрозділ реєстру — §2.137 (`git-reconcile`, кінець
+файлу); §2.138/§2.139/§2.140 ніде в репозиторії не згадуються. Записано під
+**§2.138** — наступний вільний без розриву, той самий прецедент, що вже
+неодноразово траплявся в цьому реєстрі (§2.129/§2.130, §2.131, §2.133,
+§2.136).
+
+**Задача.** Останній незакритий пункт кроку 3 плану
+(`docs/plans/2026-08-31-full-rust-migration-plan.md`, §7, «Лишилось»):
+зробити `--native-docs` дефолтом. `--native-fix` вже дефолт для
+`rule/concern`-виклику (§2.126), ADR-хук уже без `npx` (§2.126), `hook`
+добито (§2.135) — `docs` лишався останнім.
+
+**Що виміряно ПЕРЕД зміною коду (правило задачі — не підганяй, спершу
+зміряй).** `crates/rules-cli/src/docs_cmd.rs` (доккомент модуля, до правки)
+прямо визнавав: `domains` була звірена вручну на цьому репозиторії (29
+доменів, 0 діагностик), а `index`/`slice`/`validate` — НЕ звірені на
+реальних даних, лише читанням коду (дзеркальна побудова JSON з `cli.mjs`) —
+у репозиторії немає жодного закомiченого `docs/.docgen/manifest.json`.
+Перемикання дефолту на непідтвердженому паритеті суперечило б прямій
+вимозі задачі. `build` — окремий і незмінний випадок: оркестратор чотирьох
+LLM-стадій + мовні екстрактори, яких slot-канал WIT-контракту сьогодні не
+несе (доккомент `docs_cmd.rs` це вже пояснював, спираючись на
+`docs/specs/2026-08-31-recon-providers-rules-skills.md`) — підстава ще
+чинна, паритету доводити нема чим.
+
+**Гейт побудовано ПЕРШИМ, дефолт перемкнуто ДРУГИМ.** Новий
+`describe('rules-cli parity: docs (крок 3 — --native-docs стає дефолтом)')`
+у `npm/scripts/lib/tests/rules-cli-parity.test.mjs` (той самий патерн, що
+`lint`/`ci plan`/`hook`-parity вище в тому ж файлі): synthetic domain
+(package.json + committed manifest, JSON ІДЕНТИЧНИЙ фікстурі
+`package_knowledge/tests/cli.test.mjs::writeDomain` — свідомо, щоб
+розбіжність фікстур сама не стала джерелом хибного паритету), 11 тестів —
+byte-exact stdout/stderr/exit-код для `domains`/`index`/`validate`/`slice`
+(включно з alias-резолвом і private-symbol leak), структуровані коди помилок
+для `topic-not-found`/`topic-required`/`manifest-unavailable`/
+`domain-not-found`, і два тести на сам факт делегації (`--no-native-docs`
+і `build` — недосяжний `N_RULES_JS_RUNTIME` робить спробу спавну видимою
+в stderr).
+
+**Перший прогін гейта проти НЕЗМІНЕНОГО дефолту (домени/індекс/валідація
+вже проходили за старим прапорцем `--native-docs`, слайс — ні) знайшов ДВІ
+реальні розбіжності — не форсовано, виправлено джерело:**
+
+1. **`slice` губив порядок ключів у `evidence`.** `object.remove("symbolId")`
+   у `crates/rules-cli/src/docs_cmd.rs` — це `IndexMap::swap_remove` (не
+   `shift_remove`): фіча `preserve_order` для `serde_json`, яку вмикає
+   `rules-template-merge` (§2.87) і яка через feature-уніфікацію Cargo діє
+   на ввесь воркспейс, робить звичайний `Map::remove` swap-based —
+   останній ключ мапи займає позицію видаленого. У фікстурі це переставляло
+   `role` на місце вилученого `symbolId`, тоді як JS-деструктуризація
+   (`{ symbolId, ...item }`) лишає решту ключів у вихідному порядку.
+   Виправлено на `object.shift_remove("symbolId")` — порядок-зберігаючий
+   варіант того самого API.
+2. **`slice` без `--topic` мав зайве поле `"ok": false`.** JS
+   (`cli.mjs:280`, `writeJson(stderr, { code: 'topic-required', message })`)
+   цього поля не пише — на відміну від решти структурованих відмов файлу.
+   Rust-порт додав його «за аналогією» з іншими гілками. Прибрано.
+
+**Обидві правки — у джерелі (`docs_cmd.rs`), НЕ в тесті**: розбіжність була
+результатом вимірювання, а не приводом підігнати очікування гейта під
+чинну поведінку (пряма вимога задачі).
+
+**Після виправлення — гейт зелений (11/11)** — паритет `domains`/`index`/
+`slice`/`validate` доведено ПРОГОНОМ на синтетичних даних, не лише читанням
+коду. Це закриває конкретний розрив, який доккомент модуля сам називав
+недостатнім доказом.
+
+**Зміна дефолту** (`crates/rules-cli/src/docs_cmd.rs`): `domains`/`index`/
+`slice`/`validate` тепер native БЕЗ прапорця. `--native-docs` лишився явним
+форсером (сумісність зі скриптами, які вже його ставлять) — на `build` він,
+як і раніше, жорстка відмова, не мовчазний native-прогін без мовних
+фрагментів. Новий `--no-native-docs` — аварійний люк назад у JS, той самий
+патерн, що `--no-native-fix` у `crate::fix_cmd` (крок 3, §2.126). Обидва
+власні прапорці вирізаються з argv перед делегацією (`delegate()`) — інакше
+`build` впав би на власному `unknown-build-option`, побачивши прапорець,
+якого не очікує.
+
+**Оновлено два існуючі тести `crates/rules-cli/tests/cli.rs`, що
+припускали старий дефолт, — не підігнано мовчки, а переосмислено з новим
+поясненням у коментарі:**
+`commands_kept_in_js_delegate_argv_verbatim` більше не тримає `docs domains`
+у списку «свідомо лишених у JS» (лишився `docs build`); `delegation_without_
+entrypoint_fails_with_hint` перемкнуто з `docs domains` на `docs build`, бо
+саме вона тепер доводить факт делегації.
+
+**Цільові прогони (синхронно, без фонових процесів):**
+
+1. `cargo build --release -p rules-cli` — OK.
+2. `cargo build --release -p rules-napi` — OK.
+3. `cargo test -p rules-cli --bins` — 101 passed.
+4. `cargo test -p rules-cli --test cli` — 37 passed.
+5. `cargo test -p rules-cli` (обидва suite разом) — 138 passed.
+6. `cargo test -p rules-docs` — 186 passed (24 suites).
+7. `N_RULES_NATIVE_ADDON=$PWD/target/release/librules_napi.dylib npx vitest
+   run npm/scripts/lib/tests/rules-cli-parity.test.mjs -t docs` — 11 passed
+   (новий гейт кроку 3, обидва прогони — до і після виправлення джерела).
+8. `N_RULES_NATIVE_ADDON=$PWD/target/release/librules_napi.dylib npx vitest
+   run npm/scripts/lib/tests/rules-cli-parity.test.mjs` (весь файл, регрес
+   на сусідні parity-suite) — 70 passed, **1 failed**: `rules-cli parity:
+   hook > --stop делегується завжди (payload тут ні до чого)` (очікує код 1,
+   отримує 2). Звірено на `HEAD` БЕЗ жодної правки цього PR (`git stash`,
+   той самий бінар) — падає так само; diff цього PR не чіпає `hook_cmd.rs`/
+   `js_fallback.rs`/цей тест. Схоже на застарілий тест: `hook --stop`
+   (`hook_cmd.rs:230`) свідомо колапсує БУДЬ-ЯКИЙ ненульовий код у `2`
+   (задокументовано §2.135, «перекодовує exit 1→2»), тест же й досі очікує
+   старий контракт `1`. **Не виправлено — поза скоупом цієї задачі**
+   (`docs`-поверхня, не `hook`); прапорцем для окремої задачі.
+9. `N_RULES_NATIVE_ADDON=$PWD/target/release/librules_napi.dylib npx vitest
+   run npm/rules/doc-files/package_knowledge/tests/cli.test.mjs` — 7 passed
+   (JS-бік не чіпався, регрес чистий).
+
+`npx @7n/rules lint` і `/doc-files` свідомо НЕ запускались (правило
+задачі) — CRC у frontmatter згенерованих доків після цієї правки стане
+застарілим; регенерація — окремим кроком.
+
+**Наслідок для плану.** Рядок «крок 3: `--native-docs` не дефолт» у §7
+таблиці плану `2026-08-31-full-rust-migration-plan.md` закрито. Крок 3 §5
+плану лишається відкритим лише щодо голого `lint` без native-фіксу
+(окрема причина — потрібен оркестратор план→fix, якого немає, §2.126) —
+`docs` і `hook` тепер обидва закриті.
