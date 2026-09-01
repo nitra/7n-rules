@@ -28,6 +28,14 @@ mod caps_file_reader;
 mod caps_llm_consumer;
 mod caps_registry_reader;
 mod convert;
+// `pub` (на відміну від решти модулів цього списку) — доккомент
+// `crate::docgen_scan`: жоден wasmtime/wit-bindgen тип сюди не
+// просочується (рішення М спеки лишається неушкодженим), але БЕЗ жодного
+// консюмера (docgen-stage — майбутня робота) `pub` — єдиний спосіб не
+// зробити [`docgen_scan::list_docgen_candidate_paths`] «мертвим кодом» у
+// значенні лінтера: той самий прийом, що `crates/plugin-docgen`'s
+// `pub mod scan;`.
+pub mod docgen_scan;
 mod error;
 mod host;
 mod host_state;

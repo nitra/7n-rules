@@ -11,7 +11,10 @@
 id = "docgen/judge"
 version = "0.1.0"
 world_version = "5.0.0"
-domains = ["lint"]
+# `docgen-render` — доданий фазою 3 (крок 7 СПЕКИ): `docgen_render`
+# тепер реально генерує через `oneShotDoc`-зріз (доккомент
+# `src/lib.rs::generate_fallback_doc`), не `NotSupported`-заглушку.
+domains = ["lint", "docgen-render"]
 # `n-rules:caps/llm-consumer@1.0.0` — ЄДИНИЙ world, оголошений цим гостем.
 # `file-reader` НЕ оголошений цим кроком (доккомент
 # `crates/rules-contract/wit/docgen-guest.wit` — портований етап приймає
