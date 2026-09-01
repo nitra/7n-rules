@@ -101,6 +101,7 @@
 //! доккомент модуля [`cli`].
 
 mod adr_cmd;
+mod auto_worktree;
 mod bridge;
 mod changed_files_cmd;
 mod ci_cmd;
@@ -113,6 +114,9 @@ mod git_reconcile_cmd;
 mod hook_cmd;
 mod js_fallback;
 mod lint_cmd;
+mod lint_full_lock;
+mod lint_scheduler;
+mod lock_sys;
 mod paths;
 mod plugin_cmd;
 mod rename_yaml_cmd;

@@ -16420,3 +16420,106 @@ entrypoint_fails_with_hint` перемкнуто з `docs domains` на `docs bu
 - `N_RULES_NATIVE_ADDON=$PWD/target/release/librules_napi.dylib npx vitest run scripts/lib/lint-surface/tests/wasm-plugins.test.mjs scripts/lib/lint-surface/tests/wasm-plugin-parity-ci-github.test.mjs scripts/lib/lint-surface/tests/wasm-plugin-parity-ci-azure.test.mjs` (з `npm/`) — 3 файли, 110 passed, зелено, без змін.
 
 `npx @7n/rules lint`/`/doc-files` свідомо НЕ запускались (правило задачі).
+### 2.141. Крок 4 плану full-rust-migration добито — `lint-lock.mjs`+`progress.mjs`+`scheduler.mjs` (638, одним блоком) + алгоритмічна частина `auto-worktree.mjs` (~230) портовані, без живого CLI-споживача
+
+**Задача.** Другу половину класу A кроку 4 плану
+(`docs/plans/2026-08-31-full-rust-migration-plan.md`, §7, «Лишилось», рядок
+«4. клас A»), яку §2.138 свідомо лишила ОДНИМ пакетом: `lint-lock.mjs`
+(332) + `progress.mjs` (210) + `scheduler.mjs` (96) = 638 рядків
+`lint-surface`, плюс ~230 з 279 рядків `auto-worktree.mjs`
+(алгоритмічна частина навколо вже нативного worktree-lifecycle).
+
+**Виміряно ПЕРЕД кодом (правило задачі).** `wc -l` підтвердив усі чотири
+числа з реєстру байт-у-байт: `lint-lock.mjs` 332, `progress.mjs` 210,
+`scheduler.mjs` 96, `auto-worktree.mjs` 279 — розходжень із планом не
+знайдено (уперше за цю міграцію звірка нічого не виправила).
+
+**Чому одним блоком.** `progress.mjs`'s `renderProgressLine` — міжпроцесний
+контракт: `lint-lock.mjs` імпортує її, щоб намалювати ЧУЖИЙ прогрес-бар зі
+знімка `progress.json`, який пише `createProgressPublisher`. Порт лише
+одного з двох файлів дав би або формат без читача (progress без lock), або
+читач без формату (lock без progress) — застереження §2.138 при плануванні
+кроку 4 підтвердилось точним: файли справді довелось портувати в одному PR.
+`scheduler.mjs` самостійний (без спільного стану з іншими двома), портовано
+до того самого пакету лише тому, що названий тим самим рядком реєстру.
+
+**Що портовано, куди.**
+
+| файл (JS) | рядків | Rust-модуль | нових рядків (з тестами) |
+|---|---:|---|---:|
+| `worktree-fingerprint.mjs` (залежність `lint-lock.mjs`, не рахувалась окремо в §2.138) | 38 | `crates/rules-core/src/worktree_fingerprint.rs` | 152 |
+| `progress.mjs` (обчислювальне ядро — `renderProgressLine` + семантика лічильників; TTY `MultiBar` НЕ портовано, доккомент модуля) | 210 | `crates/rules-core/src/lint_progress.rs` | 298 |
+| `lint-lock.mjs` | 332 | `crates/rules-cli/src/lint_full_lock.rs` | 989 |
+| `scheduler.mjs` | 96 | `crates/rules-cli/src/lint_scheduler.rs` | 291 |
+| `auto-worktree.mjs` (алгоритмічна частина: git-статус-гейт, confirm-флоу, copy-back, спавн `bun install`/`npx @7n/n push`; worktree lifecycle сам — уже нативний `rules_core::worktree` до цього кроку) | ~230 з 279 | `crates/rules-cli/src/auto_worktree.rs` | 518 |
+| спільні OS-примітиви (`hostname`/`is_pid_alive`/`current_pid`/`now_ms`), винесені з `tool_lock.rs` заради повторного використання, а не задубльовані | — | `crates/rules-cli/src/lock_sys.rs` | 48 |
+
+**JS-файли НЕ видалені.** Той самий gap, що вже задокументовано для
+`codegen-opa-wrapper.mjs` (§2.138): порт без live-споживача. Єдиний
+чинний споживач і `lint-lock.mjs`/`progress.mjs`/`scheduler.mjs`, і
+`auto-worktree.mjs` — `npm/bin/n-rules-cli.mjs`'s `lint --full` (без
+`--no-fix`) через JS-CLI-роутер — сам зникає на кроці Д1 (зріз 6), той
+самий крок, який `docs/specs/2026-08-31-recon-orchestration-gap.md` §2.3
+називає межею саме для `auto-worktree.mjs`. `lint_cmd.rs`'s native
+detect-only `--full`-шлях свідомо НЕ бере чергу (нічого не мутує) —
+доккомент модуля уточнено: розбіжність тепер не «порту нема», а
+«детермінований шлях нема чого серіалізувати чергою».
+
+**Що НЕ портовано в межах цих чотирьох файлів і чому — назване явно, не
+приховане в коді:**
+- сигнальний cleanup (`SIGINT`/`SIGTERM` → release лока перед re-raise) —
+  `lint_full_lock.rs`'s доккомент: `Drop` звільняє лок при нормальному
+  поверненні, але НЕ при дефолтній обробці OS-сигналу; ризик не
+  матеріалізується без живого виконавчого `--full`-шляху;
+- візуальний TTY `MultiBar` (`cli-progress`) — `lint_progress.rs`'s
+  доккомент: portовано обчислювальне ядро (рядок-рендерер + лічильники),
+  не presentation-шар, живий лише всередині JS fix-конвеєра.
+
+**Тести — нові, не підігнані під старі.** Кожен модуль ніс власний
+`#[cfg(test)]` набір, побудований як прямий переклад відповідного
+`*.test.mjs` (ті самі сценарії, ті самі очікувані рядки — наприклад
+`renderWaitLine`/`renderProgressLine`-фікстури `lint-lock.test.mjs` заведені
+в Rust дослівно): `worktree_fingerprint` 5, `lint_progress` 11,
+`lint_full_lock` 16, `lint_scheduler` 5, `auto_worktree` 10 — разом 47
+нових тестів. Жоден наявний JS-тест ЦИХ чотирьох файлів не редагувався:
+`grep -rln` по `делегується|не портовано|завжди` в
+`lint-lock.test.mjs`/`progress.test.mjs`/`scheduler.test.mjs`/
+`auto-worktree.test.mjs`/`n-rules-cli.test.mjs`/`lint-full-in-worktree.test.mjs`
+не знайшов тверджень, зав'язаних на стару поведінку, яку цей порт міняв би
+— бо жодної делегації порт не прибрав (нульове живе підключення, як і
+`codegen-opa-wrapper.mjs`).
+
+**Цільові прогони (синхронно, без фонових процесів):**
+
+1. `cargo build --release -p rules-cli` — OK.
+2. `cargo build --release -p rules-napi` — OK (0 попереджень; нові модулі без
+   live-споживача позначені `#![allow(dead_code)]` з поясненням у доккоменті
+   модуля, а не мовчазним придушенням).
+3. `cargo test -p rules-cli` (обидва suite) — 174 passed (143 наявних + 31
+   нових: `lint_full_lock` 16, `lint_scheduler` 5, `auto_worktree` 10).
+4. `cargo test -p rules-core --lib` — 1308 passed (усі наявні + нові
+   `worktree_fingerprint` 5, `lint_progress` 11).
+5. `bun install` (worktree був щойно створений, `node_modules` порожній —
+   без цього кроку `mirror-parity.test.mjs` падає на відсутніх плагінах,
+   що не має стосунку до цього PR).
+6. `N_RULES_NATIVE_ADDON=<CARGO_TARGET_DIR>/release/librules_napi.dylib
+   N_RULES_CLI_BIN=<CARGO_TARGET_DIR>/release/rules-cli npx vitest run
+   npm/scripts/lib/tests/ npm/scripts/lib/lint-surface/tests/` — 949 passed,
+   1 skipped; 12 файлів `wasm-plugin-parity-*`/`wasm-plugins.test.mjs`
+   падають на відсутньому `node npm/scripts/build-wasm-plugins.mjs` — той
+   самий передвиконаний крок, що й в інших задачах цього реєстру (§2.140),
+   не регрес цього PR (жоден із чотирьох портованих файлів не в цих
+   тест-файлах).
+7. `N_RULES_NATIVE_ADDON=… N_RULES_CLI_BIN=… npx vitest run
+   npm/bin/tests/n-rules-cli.test.mjs
+   npm/scripts/tests/lint-full-in-worktree.test.mjs` (файли, що згадують
+   портовані `.mjs` за назвою) — 22 passed, без регресів.
+
+`npx @7n/rules lint` і `/doc-files` свідомо НЕ запускались (правило
+задачі).
+
+**Наслідок для плану.** Рядок «4. клас A» у §7 таблиці плану
+`2026-08-31-full-rust-migration-plan.md` закрито повністю. Крок 4 §5 плану
+завершено. Лишок класу B (3 646 рядків `lint-surface` + родини провайдерів)
+переходить у крок 5, порядок усередині якого задає
+`2026-08-30-contract-roadmap-blocked-concerns.md`, не цей план.

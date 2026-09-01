@@ -49,10 +49,17 @@
 //! - **Глобальна черга `--full`** (`lint-lock.mjs`) і worktree-ізоляція:
 //!   detect-only прогін нічого не мутує, тож чергу native-шлях не бере.
 //!   Не стосується `--path` — той не бере чергу і в JS (лишається scoped
-//!   прогоном одного сервісу, не machine-wide `--full`).
-//! - **Progress-бар TTY** (`progress.mjs`) — вивід прогресу не відтворюється.
+//!   прогоном одного сервісу, не machine-wide `--full`). Механіка лока/черги
+//!   й `renderProgressLine`-контракт УЖЕ портовані ([`crate::lint_full_lock`],
+//!   [`rules_core::lint_progress`], крок 4 плану, §2.141 реєстру) — розбіжність
+//!   тут не про відсутність порту, а про те, що детермінований detect-only
+//!   шлях нічого не мутує, тож нема чого серіалізувати чергою.
+//! - **Progress-бар TTY** (`progress.mjs`) — обчислювальне ядро портовано
+//!   ([`rules_core::lint_progress`]), візуальний `MultiBar` — ні (доккомент
+//!   модуля `lint_progress`).
 //! - **`N_RULES_LINT_CONCURRENCY>1`** (experimental two-lane scheduler) —
-//!   native-шлях завжди послідовний, як і дефолт JS.
+//!   native-шлях завжди послідовний, як і дефолт JS; сам планувальник
+//!   портовано без live-споживача ([`crate::lint_scheduler`]).
 //! - **Self-upgrade `devDependencies`** — та сама свідома розбіжність, що
 //!   для зрізів 2–4 (розділ 8.2 мінідизайну): read-only команда лишається
 //!   read-only.
