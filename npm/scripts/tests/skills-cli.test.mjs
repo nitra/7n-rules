@@ -212,7 +212,7 @@ describe('runSkillsCli', () => {
     const root = join(tmpdir(), `skills-cli-pi-ok-${Date.now()}`)
     const skillsRoot = join(root, 'skills')
     // "widget" — довільна назва фікстури, без семантичного значення (жоден
-    // скіл більше не йде спеціалізованим оркестраторним шляхом — §2.135).
+    // скіл більше не йде спеціалізованим оркестраторним шляхом — §2.136).
     mkdirSync(join(skillsRoot, 'widget'), { recursive: true })
     writeFileSync(join(skillsRoot, 'widget', 'SKILL.md'), '# Widget\n')
     writeFileSync(join(skillsRoot, 'widget', 'main.json'), '{ "worktree": true, "tier": "avg" }')
@@ -408,7 +408,7 @@ describe('runSkillsCli', () => {
     expect(errors.join('\n')).not.toContain('до підтвердження handshake')
   })
 
-  // §2.135: `git-reconcile` більше не має власного JS-оркестратора
+  // §2.136: `git-reconcile` більше не має власного JS-оркестратора
   // (`runGitReconcileOrchestrator` знесено разом із 3 484-рядковим
   // `skills/git-reconcile/js/orchestrate.mjs`) — той самий загальний шлях,
   // що будь-який інший скіл: `pi` кличе `runPiAgentSkill` з ОДНИМ промптом

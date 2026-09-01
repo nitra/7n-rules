@@ -1788,7 +1788,7 @@ export async function runCli(argv) {
       }
       // `ci` (plan) — read-only гейт-команда для CI-джоб: не мутує package.json
       // (ensure дописав би devDependency прямо в чекауті pipeline-агента).
-      // Жодного JS-оркестрованого скіла більше немає (§2.135 — `git-reconcile`
+      // Жодного JS-оркестрованого скіла більше немає (§2.136 — `git-reconcile`
       // пішов за `taze`, §2.125): `skill` тут БІЛЬШЕ не потребує власного
       // preflight-винятку — усі скіли йдуть агентним ходом, worktree-preflight
       // (де потрібен) несе загальний `n-rules:worktree:start`-блок SKILL.md.

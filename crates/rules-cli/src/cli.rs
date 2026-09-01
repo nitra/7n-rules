@@ -122,7 +122,7 @@ pub enum NativeCommand {
     /// Ефекти скіла `git-reconcile` (`git_reconcile_cmd`) — inventory, safe
     /// cleanup (архів `origin/tempo/git-reconcile/*` перед видаленням,
     /// ADR #334) і його GC. Поверхні в JS-CLI немає взагалі (JS-оркестратор
-    /// git-reconcile знесений, §2.135) — команда нативна цілком.
+    /// git-reconcile знесений, §2.136) — команда нативна цілком.
     GitReconcile(GitReconcileArgs),
 }
 
@@ -460,7 +460,7 @@ pub struct GitReconcileArgs {
     pub command: GitReconcileCommand,
 }
 
-/// Підкоманди `git-reconcile` — рівно ефекти, названі §2.135 як такі, що не
+/// Підкоманди `git-reconcile` — рівно ефекти, названі §2.136 як такі, що не
 /// лягають у текст `SKILL.md`: детермінована класифікація Git-фактів
 /// (`inventory`) і atomic-ish archive→verify→delete lifecycle (`cleanup`,
 /// `gc`), обидва fail-closed на будь-якій непідтвердженій верифікації.

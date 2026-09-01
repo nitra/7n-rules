@@ -204,7 +204,7 @@ fn plugin_is_an_owned_surface_not_a_js_delegate() {
     assert!(stderr(&out).contains("--registry"), "{}", stderr(&out));
 }
 
-/// `git-reconcile` (§2.135 — ефекти скіла, `git_reconcile_cmd`) — власна
+/// `git-reconcile` (§2.136 — ефекти скіла, `git_reconcile_cmd`) — власна
 /// поверхня без JS-двійника: невідома підкоманда й брак `--kind` для
 /// `cleanup` — usage-помилка код 2, не делегація.
 #[test]
@@ -419,7 +419,7 @@ fn skill_prompt_branch_names_available_skills_on_typo() {
     );
 }
 
-/// `ORCHESTRATED_SKILLS` тепер порожній (§2.135): `git-reconcile` пішов за
+/// `ORCHESTRATED_SKILLS` тепер порожній (§2.136): `git-reconcile` пішов за
 /// `taze` (§2.125) — його 3 484-рядковий JS-оркестратор знесено, ефекти
 /// живуть у `n-rules git-reconcile <verb>`, оркестрація — текст
 /// `SKILL.md`. Раніше цей тест звався `orchestrated_skills_still_delegate_to_js`
@@ -634,7 +634,7 @@ fn rename_yaml_extensions_respects_config_ignore() {
 
 /// `claude` (deprecated раннер, Rust не моделює) їде в JS із незміненим argv
 /// і його exit-кодом — ЄДИНИЙ лишок делегації в гілці `skill <runner> <id>`
-/// після §2.135: раніше цей самий тест (тоді — `orchestrated_skill_delegates_
+/// після §2.136: раніше цей самий тест (тоді — `orchestrated_skill_delegates_
 /// argv_and_exit_code`) стояв на `git-reconcile` як екземплярі оркестрованого
 /// скіла; тепер оркестрованих скілів немає взагалі (`ORCHESTRATED_SKILLS`
 /// порожній), і `claude` — єдина причина, з якої ця гілка ще може делегувати.

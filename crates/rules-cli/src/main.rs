@@ -61,7 +61,7 @@
 //! `docs/specs/2026-08-04-tools-ensure-design.md`).
 //!
 //! Так само окремо — [`git_reconcile_cmd`] (`git-reconcile inventory|cleanup|
-//! gc`, §2.135 реєстру): ефекти скіла `git-reconcile`, чий 3 484-рядковий
+//! gc`, §2.136 реєстру): ефекти скіла `git-reconcile`, чий 3 484-рядковий
 //! JS-оркестратор (`skills/git-reconcile/js/orchestrate.mjs`) знесено за тим
 //! самим патерном, що вже довів себе на `taze` (§2.125) — `ORCHESTRATED_SKILLS`
 //! ([`skill_cmd`]) тепер порожній.
@@ -230,7 +230,7 @@ fn resolve_subcommand(args: &[String]) -> (String, clap::Command) {
 /// Один виняток лишається за JS: `claude` — legacy-ім'я, якого JS-раннером уже
 /// НЕ вважає (`RUNNERS` там — `{pi, cursor, codex}`): віддаємо його туди, щоб
 /// JS лишався власником свого usage-повідомлення на це ім'я.
-/// `skill_cmd::ORCHESTRATED_SKILLS` тепер порожній (§2.135, `taze` пішов
+/// `skill_cmd::ORCHESTRATED_SKILLS` тепер порожній (§2.136, `taze` пішов
 /// раніше — §2.125): `git-reconcile` більше не потребує окремого винятку й
 /// іде native-шляхом нижче, як будь-який інший скіл — LLM-хід агент виконує
 /// сам, крок за кроком, за текстом `SKILL.md`, а не одним вкладеним
@@ -270,7 +270,7 @@ fn dispatch(command: NativeCommand, args: &[String]) -> ExitCode {
         },
         // `skill list` — перелік; `skill <runner> <id>` — ACP-раннер;
         // `skill <id>` — друк промпта. Делегованою лишається рівно ОДНА
-        // гілка (§2.135 спорожнила `ORCHESTRATED_SKILLS`): legacy-ім'я
+        // гілка (§2.136 спорожнила `ORCHESTRATED_SKILLS`): legacy-ім'я
         // `claude`, чиє usage-повідомлення лишається за JS.
         NativeCommand::Skill(parsed) if parsed.rest.first().map(String::as_str) == Some("list") => {
             skill_cmd::run_list()
@@ -309,7 +309,7 @@ fn dispatch(command: NativeCommand, args: &[String]) -> ExitCode {
             PluginCommand::Publish(publish) => plugin_cmd::run_publish(&publish),
             PluginCommand::Fetch(fetch) => plugin_cmd::run_fetch(&fetch),
         },
-        // Ефекти скіла `git-reconcile` (§2.135) — жодного JS-двійника,
+        // Ефекти скіла `git-reconcile` (§2.136) — жодного JS-двійника,
         // нативна безумовно ([`git_reconcile_cmd`]).
         NativeCommand::GitReconcile(parsed) => match parsed.command {
             cli::GitReconcileCommand::Inventory(inventory) => {
@@ -365,7 +365,7 @@ mod tests {
     /// Межа native/JS для гілки `skill <runner> <id>` — саме те рішення, яке
     /// процесним тестом не перевірити: він спавнив би справжнього ACP-агента.
     ///
-    /// `ORCHESTRATED_SKILLS` тепер порожній (§2.135 — `git-reconcile` пішов
+    /// `ORCHESTRATED_SKILLS` тепер порожній (§2.136 — `git-reconcile` пішов
     /// за `taze`, §2.125): жоден скіл більше не потребує винятку "конвеєр
     /// лишається в JS", тож усі йдуть нативно.
     #[test]
@@ -380,7 +380,7 @@ mod tests {
             for decomposed in ["taze", "n-taze", "git-reconcile", "n-git-reconcile"] {
                 assert!(
                     skill_runner_is_native(&args(&[runner, decomposed])),
-                    "{runner} {decomposed}: розібраний скіл (§2.125/§2.135) — звичайний native-хід, без JS-конвеєра"
+                    "{runner} {decomposed}: розібраний скіл (§2.125/§2.136) — звичайний native-хід, без JS-конвеєра"
                 );
             }
         }
@@ -396,13 +396,13 @@ mod tests {
     }
 
     /// `ORCHESTRATED_SKILLS` спорожнів разом із декомпозицією `git-reconcile`
-    /// (§2.135) — прямо на предикаті, а не лише через маршрутизацію вище.
+    /// (§2.136) — прямо на предикаті, а не лише через маршрутизацію вище.
     #[test]
     fn no_skill_is_orchestrated_anymore() {
         for skill in ["git-reconcile", "n-git-reconcile", "taze", "lint"] {
             assert!(
                 !skill_cmd::is_orchestrated(skill),
-                "{skill}: ORCHESTRATED_SKILLS має бути порожнім (§2.135)"
+                "{skill}: ORCHESTRATED_SKILLS має бути порожнім (§2.136)"
             );
         }
     }
