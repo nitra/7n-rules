@@ -30,7 +30,9 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, Instant};
+
+use crate::lock_sys::{current_pid, hostname, is_pid_alive, now_ms};
 
 /// Скільки чекати на звільнення лока перед fail-closed — `DEFAULTS.waitTimeout`
 /// (`with-lock.mjs`), 20 хв.
@@ -79,46 +81,22 @@ pub fn lock_cache_dir(key: &str, cwd: &Path) -> PathBuf {
     }
 }
 
-/// Власник лока з `owner.json` — рівно ті поля, що пише JS.
+/// Власник лока з `owner.json` — рівно ті поля, що пише JS. `pub(crate)`:
+/// той самий формат (без fingerprint-семантики) використовує
+/// [`crate::lint_full_lock`] для СВОГО, окремого лока — спільна структура
+/// замість двох ідентичних копій.
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
-struct LockOwner {
-    pid: i32,
-    host: String,
+pub(crate) struct LockOwner {
+    pub(crate) pid: i32,
+    pub(crate) host: String,
     #[serde(rename = "startedAt")]
-    started_at: u128,
-    /// Завжди `null` для цього ключа (дедуп вимкнено) — поле тримається лише
-    /// заради сумісності формату з JS-читачем.
-    fingerprint: Option<String>,
-    cwd: String,
-}
-
-/// Імʼя хоста — еквівалент `os.hostname()` у JS-власнику лока. Порожній рядок
-/// при збої: тоді перевірка живості PID просто не застосовується (лишається
-/// stale-поріг), як і в JS для лока з чужого хоста.
-fn hostname() -> String {
-    let mut buf = vec![0_u8; 256];
-    // SAFETY: буфер валідний і достатньо великий; `gethostname` пише не більше
-    // `buf.len()` байтів і сам термінує рядок нулем при успіху.
-    let rc = unsafe { libc::gethostname(buf.as_mut_ptr().cast(), buf.len()) };
-    if rc != 0 {
-        return String::new();
-    }
-    let end = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
-    String::from_utf8_lossy(&buf[..end]).into_owned()
-}
-
-/// Чи процес живий — еквівалент `process.kill(pid, 0)` (`isPidAlive`).
-fn is_pid_alive(pid: i32) -> bool {
-    // SAFETY: `kill` із сигналом 0 нічого не надсилає, лише перевіряє
-    // існування процесу й права на нього; побічних ефектів немає.
-    unsafe { libc::kill(pid, 0) == 0 }
-}
-
-/// Мілісекунди від epoch — та сама шкала, що `Date.now()` в `owner.json`.
-fn now_ms() -> u128 {
-    SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .map_or(0, |d| d.as_millis())
+    pub(crate) started_at: u128,
+    /// Завжди `null` для `ensure-tool`-лока (дедуп вимкнено) — поле
+    /// тримається лише заради сумісності формату з JS-читачем. Лок
+    /// `lint --full` ([`crate::lint_full_lock`]) пише сюди РЕАЛЬНИЙ
+    /// fingerprint дерева — той самий формат `owner.json`, інша семантика поля.
+    pub(crate) fingerprint: Option<String>,
+    pub(crate) cwd: String,
 }
 
 /// Результат однієї спроби взяти лок — порт `tryAcquireOnce`.
@@ -137,7 +115,7 @@ fn try_acquire_once(lock_dir: &Path, cwd: &Path) -> Result<Attempt, String> {
     match fs::create_dir(lock_dir) {
         Ok(()) => {
             let owner = LockOwner {
-                pid: std::process::id() as i32,
+                pid: current_pid(),
                 host: hostname(),
                 started_at: now_ms(),
                 fingerprint: None,

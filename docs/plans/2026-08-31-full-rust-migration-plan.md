@@ -428,6 +428,7 @@ JS-боком мосту, що існує заради інших JS-файлі�
 | Крок 8 §5 повністю: 799 рядків (`native.mjs`/`auto-worktree.mjs`/`worktree-notice.mjs`/`root-notice.mjs`) класифіковано, плюс `ensure-tool.mjs` (592) | §2.107 (`docs/specs/2026-08-31-recon-orchestration-gap.md`), звірено повторно й скориговано §2.132 |
 | Крок 4 §5 — почато: `path-scope.mjs` (104) + `codegen-opa-wrapper.mjs` (30) портовано в `rules-core`, `ci-plan.mjs` (276) звірено як УЖЕ повністю портований (нуль нового коду) | §2.138 |
 | `--native-docs` — дефолт для `domains`/`index`/`slice`/`validate`; `build` свідомо лишається JS (slot-каналу нема) | §2.139 |
+| Крок 4 §5 добито: `lint-lock.mjs`+`progress.mjs`+`scheduler.mjs` (638, одним блоком через `renderProgressLine`-контракт) + ~230 рядків `auto-worktree.mjs` портовано в `rules-core`/`rules-cli` (2 296 рядків нового Rust з тестами); без живого CLI-споживача (той самий gap, що `codegen-opa-wrapper.mjs`, §2.138) — єдиний консюмер `auto-worktree.mjs`/`lint-lock.mjs` (`lint --full` через JS-CLI-роутер) зникає на Д1 | §2.141 |
 
 ### Лишилось — звірено з кодом 2026-09-01
 
@@ -439,7 +440,7 @@ JS-боком мосту, що існує заради інших JS-файлі�
 | 3. дефолти | ~~`--native-docs` не дефолт~~ — **закрито** (§2.138): `domains`/`index`/`slice`/`validate` тепер native за замовчуванням, паритет доведено vitest-гейтом на синтетичних даних, `build` свідомо лишився JS | — |
 | 3. дефолти | голий `lint` не вміє native-fix | `fix_cmd::concern_keys` вимагає непорожній `rule/concern`; потрібен оркестратор plan→fix, якого немає (§2.126) |
 | 3. дефолти | ~~`hook`~~ — **закрито** (§2.135) | — |
-| 4. клас A | 914 рядків `lint-surface` (`lint-lock.mjs` 332 + `progress.mjs` 210 + `scheduler.mjs` 96 — один блок, `progress.mjs`'s `renderProgressLine` є міжпроцесним контрактом із `lint-lock.mjs`), **плюс ~230 з 279 рядків `auto-worktree.mjs`** (алгоритмічна частина навколо вже нативного worktree-lifecycle: git-статус-гейт, confirm-флоу, copy-back, спавн `bun install`/`npx @7n/n push`) | §2.138 закрило 134 з 1 048 рядків (`path-scope.mjs` + `codegen-opa-wrapper.mjs`, + звірка `ci-plan.mjs`); лишок — прямий порт, нових поверхонь не треба; `auto-worktree.mjs` не рахувалась у §2 (`docs/specs/2026-08-31-recon-orchestration.md`), клас присвоєно §2.107 — без цього рядка крок 4 спланує себе неповно, рівно те, від чого мав захистити крок 8 |
+| 4. клас A | ~~914 рядків `lint-surface` + ~230 рядків `auto-worktree.mjs`~~ — **закрито** (§2.141): `lint-lock.mjs`/`progress.mjs`/`scheduler.mjs`/алгоритмічна частина `auto-worktree.mjs` портовані в `rules-core`/`rules-cli` з тестами (32+5+10 нових тестів, byte-сумісний `renderProgressLine`-контракт) | JS-файли НЕ видалені (лишаються чинним виконавцем — JS-CLI-роутер `lint --full` і далі кличе їх); Rust-порт без live-споживача до Д1 (JS-CLI-роутер), той самий gap, що `codegen-opa-wrapper.mjs` (§2.138) |
 | 5. клас B | ~~S1 дорожньої карти~~ — **закрито** (§2.136): `caps/registry-reader@1.0.0`, споживача ще немає | всі три поверхні карти (S0/S1/S2) закриті |
 | 5. клас B | 3 646 рядків `lint-surface` + родини провайдерів | порядок задає `2026-08-30-contract-roadmap-blocked-concerns.md`, не цей план |
 | 6. останні JS | `npm/rules/**` — 12 `main.mjs` + 3 воркери | — |

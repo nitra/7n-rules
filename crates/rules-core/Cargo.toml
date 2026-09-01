@@ -12,6 +12,9 @@ name = "rules_core"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "1"
+# sha256 fingerprint робочого дерева (`worktree_fingerprint`, крок 4 плану) —
+# та сама версія, що вже в `rules-docs`.
+sha2 = "0.11"
 # Спільні DTO fix-домену (`FixPlan`/`FileEdit`/`WriteFile`) — злиття дзеркала
 # `concerns/fix.rs` ⇄ `rules_contract::fix` (доккомент модуля
 # `concerns/fix.rs`): напрямок залежності `rules-core` → `rules-contract` —

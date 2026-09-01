@@ -37,6 +37,9 @@ serde = { version = "1", features = ["derive"] }
 # `os.hostname()` і `process.kill(pid, 0)` JS-версії. Крейт уже транзитивно в
 # графі збірки (`gix`, `tempfile`), пряма залежність нового крейта не додає.
 libc = "0.2"
+# sha256 fingerprint дедуп-ключа `lint --full` (`lint_full_lock`) — та сама
+# версія, що вже в `rules-core`/`rules-docs`.
+sha2 = "0.11"
 # Native-контур фіксу (`--native-fix`, `src/fix_cmd.rs`): склейка циклу `fix`
 # з lint-доменом. Важкий async/rig-стек входить саме сюди — у бінар, який
 # фікс і виконує, а не в `rules-core`, що навмисно лишається легким

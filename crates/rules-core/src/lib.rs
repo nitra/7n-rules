@@ -59,6 +59,10 @@ pub mod lint_plan;
 /// `lint_plan`: `sortViolations`/`renderViolations`/exit-code гілка
 /// `detectAll` з `run-detectors.mjs`/`render.mjs`).
 pub mod lint_render;
+/// `render_progress_line`/`ProgressCounters` — обчислювальне ядро
+/// `npm/scripts/lib/lint-surface/progress.mjs` (клас A, крок 4 плану
+/// `docs/plans/2026-08-31-full-rust-migration-plan.md`, §2.141 реєстру).
+pub mod lint_progress;
 /// `locale_compare` — наближення ICU root collation
 /// (`String.prototype.localeCompare`) для портів JS-сортувань списків, які
 /// потрапляють у вивід CLI (зріз 2 фази 8).
@@ -90,6 +94,10 @@ pub mod tool_registry;
 pub mod tool_resolve;
 /// Worktree lifecycle через `mt-core` (Р3 спеки, фаза 2 задача B1).
 pub mod worktree;
+/// `worktree_fingerprint` — sha256 fingerprint git-робочого дерева, порт
+/// `npm/scripts/utils/worktree-fingerprint.mjs` (клас A, крок 4 плану
+/// `docs/plans/2026-08-31-full-rust-migration-plan.md`, §2.141 реєстру).
+pub mod worktree_fingerprint;
 
 /// Помилка `rules-core`. Навмисно плоска, за зразком `llm_lib::LlmError` —
 /// категорії додаються варіантами по мірі міграції use case-ів.
