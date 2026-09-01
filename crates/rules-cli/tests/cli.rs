@@ -672,23 +672,6 @@ fn unknown_flag_on_a_shared_surface_still_reaches_the_js_entrypoint() {
     }
 }
 
-/// Виконуваний shell-стаб замість bun/node: друкує argv, віддає stdin у
-/// stdout і завершується заданим кодом. Дозволяє перевіряти делегацію
-/// (включно з переграним stdin) без залежності від рантайму.
-#[cfg(unix)]
-fn runtime_stub(dir: &Path, exit_code: u8) -> std::path::PathBuf {
-    use std::os::unix::fs::PermissionsExt;
-
-    let stub = dir.join("runtime.sh");
-    std::fs::write(
-        &stub,
-        format!("#!/bin/sh\necho \"$@\"\ncat\nexit {exit_code}\n"),
-    )
-    .unwrap();
-    std::fs::set_permissions(&stub, std::fs::Permissions::from_mode(0o755)).unwrap();
-    stub
-}
-
 /// Запускає бінар із заданим stdin (`Command::output` дає stdin=null, чого
 /// для hook-гілок замало).
 fn run_with_stdin(mut command: Command, input: &[u8]) -> Output {
@@ -744,51 +727,61 @@ fn hook_post_tool_use_without_paths_exits_zero_without_delegating() {
     }
 }
 
-#[cfg(unix)]
+/// Доводить, що гілка зі шляхами БІЛЬШЕ НЕ спавнить цілу команду `hook
+/// --post-tool-use` дочірнім JS-процесом ([`crate::js_fallback::delegate_with_stdin`],
+/// колишня поведінка) — вона йде через [`crate::bridge::Bridge`], як і
+/// `lint --native-detect`. Диференціюємо шляхи без реального bun/node:
+/// `Bridge::start` спершу перевіряє, що `<package_root>/scripts/lib/
+/// lint-surface/bridge-host.mjs` існує ФАЙЛОМ, і падає МИТТЄВО (без спавна
+/// рантайму й без таймауту очікування сокета), якщо ні. `N_RULES_JS_ENTRY`
+/// тут вказує на неіснуючий шлях — старий код спробував би спавнити РІВНО
+/// цей шлях аргументом рантайму (і впав би на «не вдалося запустити»);
+/// новий — падає з текстом про сам міст РАНІШЕ, ніж узагалі торкнеться
+/// рантайму (`N_RULES_JS_RUNTIME` тут навіть не виставлено).
 #[test]
-fn hook_post_tool_use_with_paths_delegates_argv_and_stdin() {
+fn hook_post_tool_use_with_paths_uses_bridge_not_full_command_delegation() {
     let tmp = TempDir::new().unwrap();
-    let stub = runtime_stub(tmp.path(), 2);
     let payload = br#"{"tool_name":"Edit","tool_input":{"file_path":"a.js"}}"#;
 
     let mut command = bin();
     command
         .current_dir(tmp.path())
         .env("N_RULES_JS_ENTRY", "/fake/n-rules.js")
-        .env("N_RULES_JS_RUNTIME", &stub)
         .args(["hook", "--post-tool-use"]);
     let out = run_with_stdin(command, payload);
 
     assert_eq!(out.status.code(), Some(2));
-    assert_eq!(
-        stdout(&out),
-        format!(
-            "/fake/n-rules.js hook --post-tool-use\n{}",
-            String::from_utf8_lossy(payload)
-        )
+    assert_eq!(stdout(&out), "");
+    assert!(
+        stderr(&out).contains("не знайдено JS-виконавця мосту"),
+        "stderr: {}",
+        stderr(&out)
     );
 }
 
-#[cfg(unix)]
+/// Той самий доказ для `--stop` (доккомент попереднього тесту):
+/// [`crate::hook_cmd::run_detect`] піднімає міст РАНІШЕ, ніж дивиться на
+/// (можливо порожній) файловий набір, тож навіть чисте дерево без жодної
+/// зміни падає на тій самій перевірці наявності `bridge-host.mjs`.
 #[test]
-fn hook_stop_delegates_regardless_of_stdin() {
-    let tmp = TempDir::new().unwrap();
-    let stub = runtime_stub(tmp.path(), 0);
+fn hook_stop_uses_bridge_not_full_command_delegation() {
+    let tmp = init_repo();
 
     let mut command = bin();
     command
         .current_dir(tmp.path())
         .env("N_RULES_JS_ENTRY", "/fake/n-rules.js")
-        .env("N_RULES_JS_RUNTIME", &stub)
         .args(["hook", "--stop"]);
-    // Payload без жодного шляху: для `--stop` він нічого не вирішує.
+    // Payload не читається взагалі для `--stop` — той самий контракт, що
+    // раніше.
     let out = run_with_stdin(command, br#"{"tool_name":"Bash"}"#);
 
-    assert_eq!(out.status.code(), Some(0));
+    assert_eq!(out.status.code(), Some(2));
+    assert_eq!(stdout(&out), "");
     assert!(
-        stdout(&out).starts_with("/fake/n-rules.js hook --stop\n"),
-        "stdout: {}",
-        stdout(&out)
+        stderr(&out).contains("не знайдено JS-виконавця мосту"),
+        "stderr: {}",
+        stderr(&out)
     );
 }
 

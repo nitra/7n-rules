@@ -1,80 +1,117 @@
 //! cspell:ignore портовні портовна
 //!
-//! Native-шар команди `hook` — порт `runHookCli` (`npm/scripts/hook.mjs`)
-//! у частині, яка НЕ вимагає detect-контуру (зріз 4 фази 8,
-//! `docs/specs/2026-08-01-rules-cli-phase8-skeleton.md`).
+//! Native-шар команди `hook` — повний порт `runHookCli` (`npm/scripts/hook.mjs`),
+//! включно з гілкою, що доходить до `detectAll`. Рішення власника
+//! (`docs/plans/2026-08-31-full-rust-migration-plan.md` §7 «Ухвалені
+//! рішення»): добити порт, попри те що вимірювання зрізу 4 (нижче) спростувало
+//! ПЕРВІСНУ підставу зрізу («node-старт — головна вартість хука»). Підстава
+//! добивання — не швидкість, а однорідність: критерій завершення §1.1 плану
+//! лишається бінарним («нуль JS», без названих виключень), а команда, що
+//! лишається за `js_fallback`, зробила б цей критерій недосяжним.
 //!
-//! # Межа native-шляху (вимірювана, а не оцінна)
+//! # Що саме портовано зараз (звірено з кодом 2026-09-01)
 //!
-//! `runHookCli` — три гілки, і лише дві з них портовні:
+//! `runHookCli` — три гілки; усі три тепер native:
 //!
-//! | Гілка JS | Native | Чому |
+//! | Гілка JS | Native | Як |
 //! |---|---|---|
-//! | немає ні `--post-tool-use`, ні `--stop` | ✅ | чистий рядок у stderr + код 1 |
-//! | `--post-tool-use`, зі stdin не дістається жодного шляху | ✅ | код 0 без виводу — робити нічого |
-//! | `--post-tool-use` зі шляхами, `--stop` | ❌ делегація | обидві кінчаються `detectAll` |
+//! | немає ні `--post-tool-use`, ні `--stop` | ✅ | чистий рядок у stderr + код 1 (без змін) |
+//! | `--post-tool-use`, зі stdin не дістається жодного шляху | ✅ | код 0 без виводу — без змін |
+//! | `--post-tool-use` зі шляхами, `--stop` | ✅ | [`run_detect`] — той самий detect-конвеєр, що `lint --native-detect` ([`crate::lint_cmd`]) |
 //!
-//! `detectAll` (`npm/scripts/lib/lint-surface/run-detectors.mjs`) недосяжний
-//! з Rust не «поки не написали», а за конструкцією: більшість concern-детекторів
-//! ядра — ВИКОНУВАНІ JS-модулі `<rule>/<concern>/main.mjs` (частина ще й спавнить
-//! зовнішні тули: eslint, cspell, oxfmt), а вибір самого набору концернів
-//! проходить через `resolveRulesDirs`/`getActiveCapabilities`. Порт «приблизно»
-//! дав би мовчазну розбіжність на найгарячішому шляху продукту, тож межа
-//! проходить рівно там, де паритет доводиться, а не припускається.
+//! `detectAll` (`npm/scripts/lib/lint-surface/run-detectors.mjs`) сам не
+//! портований у Rust ЦІЛКОМ — і не мусить бути: більшість concern-детекторів
+//! ядра лишаються ВИКОНУВАНИМИ JS-модулями (`<rule>/<concern>/main.mjs`,
+//! частина спавнить зовнішні тули — eslint/cspell/oxfmt), а частина —
+//! wasm-компоненти contract v3. Порт зрізу 5 (`crate::lint_cmd`) уже розв'язав
+//! ЦЮ саму задачу для `lint --native-detect`: план/диспатч/сортування/рендер
+//! рахує `rules-core`, а концерни без native-порту виконує ОДИН довгоживучий
+//! JS-процес через [`crate::bridge`] (`bridge-host.mjs`) — НЕ через
+//! [`js_fallback`] (повна делегація команди), а через вузький RPC-канал на
+//! конкретні операції (`discover`/`applies`/`detect`), який план сам називає
+//! окремим боундарі-артефактом, що зникає лише разом із рештою `lint-surface`
+//! (крок 6 плану, `bridge-host.mjs` — 298 рядків). Цей модуль переиспользує
+//! РІВНО ту саму інфраструктуру ([`crate::lint_cmd::discover_by_rule`],
+//! [`crate::lint_cmd::filter_by_capabilities`],
+//! [`crate::lint_cmd::filter_by_applies`], [`crate::lint_cmd::to_plan_dto`],
+//! [`crate::lint_cmd::enabled_rule_ids`], [`crate::lint_cmd::execute_plan`]) —
+//! `hook` не будує другу реалізацію detect-конвеєра.
 //!
-//! **Rule-level gate більше НЕ блокер цієї команди.** Донедавна їх було два, і
-//! другим був `<rule>/applies/main.mjs`; зріз 3 контракту плагінів v3.1
-//! (рішення Д) зробив гейт декларативним предикатом `main.json:applies`, який
-//! [`rules_core::rule_applies`] читає як дані. Делегація гілки зі шляхами
-//! лишається — але тепер рівно з ДВОХ причин, названих вище, а не з трьох.
-//! Тобто зняття гейта саме по собі латентності хука не змінює: її тримають
-//! самі детектори (див. числа нижче), і виграш прийде разом із їхнім портом.
+//! # Режим плану — завжди `delta`, з явним файловим набором
 //!
-//! **Чого це коштує за годинником** (macOS arm64, медіана 7 прогонів, цей репо):
-//! гілки, які тут стали native, у JS коштували 40 мс (bun) / 55 мс (node);
-//! делегована гілка коштує 1.7–7.1 с, з яких понад 98 % — виконання самих
-//! детекторів, а не старт рантайму. Тобто теза плану зрізу 4 («головний виграш
-//! інверсії — node-старт зникає з найчастішого виклику») вимірюванням НЕ
-//! підтверджується: node-старт — це <3 % латентності хука, і виграш зʼявиться
-//! лише разом із портом самих детекторів. Числа й методика — у PR зрізу.
+//! JS `buildPlan` для `detectAll({ files, ... })` (обидві гілки хука дають
+//! непорожній `opts.files`: `--post-tool-use` — шляхи зі stdin,
+//! `--stop` — `collectChangedFiles(cwd)`) завжди потрапляє в гілку
+//! `delta / explicit-files` (`rules.length === 0`, `repoWide` і `full` —
+//! `false`): `mode: 'delta'`, `changed: explicitFiles`, `pathMode: false`.
+//! Це рівно [`rules_core::lint_plan::BuildLintPlanInput`] з `mode: "delta"`
+//! і `changed` = вже native-обчислений файловий набір — жодного з інших
+//! чотирьох режимів (`scoped`/`scopedDelta`/`repoWide`/`full`) `hook` не
+//! використовує, бо не має ні `--rules`, ні `--repo-wide`, ні `--full`.
 //!
-//! # Делегація не має права зʼїсти stdin
+//! # Wasm-концерни: без гейта-делегації, на відміну від `lint`
 //!
-//! Щоб вирішити, чи гілка портовна, native мусить ПРОЧИТАТИ stdin — а
-//! делегований JS-процес читає його ж. Тому байти stdin захоплюються й
-//! переграються в дочірній процес ([`js_fallback::delegate_with_stdin`]);
-//! `--stop` payload-незалежний і делегується зі stdio як є, як решта
-//! команд. На TTY stdin не читається взагалі (дзеркало `process.stdin.isTTY`
-//! у `readStdin`), тож інтерактивний запуск не блокується.
+//! `lint_cmd::run_native` бачить wasm-концерн у плані й делегує ВЕСЬ `lint`
+//! назад у JS (доккомент [`crate::lint_cmd`]) — консервативний вибір першого
+//! зрізу мосту, не структурна межа: `bridge-host.mjs::opDetect` виконує
+//! wasm-концерн через ТОЙ САМИЙ `runConcernDetector`, яким його виконав би
+//! JS-оркестратор напряму (`detect.mjs` викликає `loadNative().runWasmConcern`
+//! незалежно від того, хто саме дійшов до цього виклику — `detectAll` чи
+//! `opDetect`). Для `hook` немає команди, у яку можна відступити, тож він
+//! пропускає wasm-items крізь [`crate::lint_cmd::execute_plan`] так само, як
+//! будь-який інший неnative concern (сегмент мосту, доккомент
+//! `partition`/`run_bridge_segment` у [`crate::lint_cmd`]) — без жодного
+//! гейта. Це не «менш обережно», а точна відповідність тому, що вже робить
+//! `detectAll` у JS: `npm-module/package_structure` (full-scope, `glob:
+//! ["**/*"]`) і сьогодні виконується на КОЖНОМУ реальному виклику хука з
+//! непорожнім `files` — [`run_detect`] лише переносить це виконання з
+//! підпроцесу `n-rules.js hook` у виклик мосту, не додає й не прибирає
+//! жодної роботи.
 //!
-//! # Свідома розбіжність (та сама, що в зрізі 2)
+//! # Делегація в JS-CLI ([`js_fallback`]) для цієї команди більше не існує
+//!
+//! `js_fallback::delegate`/`delegate_with_stdin` тут БІЛЬШЕ НЕ
+//! викликаються — `hook` зникає з переліку команд, які [`main`](crate)
+//! маршрутизує туди. [`js_fallback::package_root`] лишається (потрібен, щоб
+//! знайти `bridge-host.mjs` у встановленому пакеті) — це інша, вужча
+//! поверхня меж (резолв шляху, не спавн повної команди).
+//!
+//! # Свідома розбіжність (та сама, що була в зрізі 2)
 //!
 //! JS-роутер перед `case 'hook'` кличе `ensureNRulesInRootDevDependencies(cwd)`
 //! — self-upgrade піна `@7n/rules` у workspace-root `package.json`. Native-шлях
-//! його не відтворює (обґрунтування — розділ 8.2 мінідизайну: це поверхня
-//! sync/дистрибуції, не семантика команди, і вона зникає у зрізі 5). Практичний
-//! наслідок для `hook` нульовий: обидві native-гілки — це «нічого не робити»,
-//! а будь-який реальний виклик із файлом делегується, і ensure відпрацьовує в
-//! дочірньому JS-процесі як раніше. Розбіжність зафіксована окремим тестом у
+//! його НЕ відтворює (обґрунтування — розділ 8.2 мінідизайну
+//! `docs/specs/2026-08-01-rules-cli-phase8-skeleton.md`: це поверхня
+//! sync/дистрибуції, не семантика команди). `hook` лишається read-only
+//! командою в обох гілках — та сама розбіжність, зафіксована тестом у
 //! `npm/scripts/lib/tests/rules-cli-parity.test.mjs`.
 
+use std::collections::HashSet;
 use std::io::{IsTerminal, Read};
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
+use rules_core::lint_plan::BuildLintPlanInput;
+use rules_core::lint_render::SortAndRenderInput;
+use serde_json::json;
+
+use crate::bridge::Bridge;
 use crate::cli::HookArgs;
 use crate::js_fallback;
+use crate::lint_cmd::{self, Bail};
+use crate::paths;
 
 /// Текст помилки «режим не вказано» — байт-у-байт із `runHookCli`
 /// (`process.stderr.write`, тобто без додаткового `\n` від `console.error`).
 const MISSING_MODE: &str = "hook: потрібен --post-tool-use або --stop\n";
 
-/// Виконує `hook <argv>`: `args` — ПОВНИЙ argv (з `hook` на нульовій позиції),
-/// щоб делегація віддала його в JS без змін. Прапорці розбирає спільна
-/// `clap`-граматика ([`crate::cli::HookArgs`]); порядок і повтори, як і в
-/// JS (`argv.includes`), значення не мають, `--post-tool-use` має пріоритет.
-/// Невідомий аргумент до цієї функції не доходить — роутер віддає такий argv
-/// у JS-CLI, який його ігнорує і виконує реальну гілку.
-pub fn run(parsed: &HookArgs, args: &[String]) -> ExitCode {
+/// Виконує `hook <argv>`. Прапорці розбирає спільна `clap`-граматика
+/// ([`crate::cli::HookArgs`]); порядок і повтори, як і в JS
+/// (`argv.includes`), значення не мають, `--post-tool-use` має пріоритет.
+/// `args` більше не споживається (не залишилось жодної гілки, яка делегує
+/// його кудись) — лишається в сигнатурі для однорідності з рештою
+/// `NativeCommand`-обробників у [`main`](crate).
+pub fn run(parsed: &HookArgs, _args: &[String]) -> ExitCode {
     let post_tool_use = parsed.post_tool_use;
     let stop = parsed.stop;
 
@@ -82,19 +119,115 @@ pub fn run(parsed: &HookArgs, args: &[String]) -> ExitCode {
         eprint!("{MISSING_MODE}");
         return ExitCode::from(1);
     }
-    if !post_tool_use {
-        // `--stop` читає не stdin, а робоче дерево — делегуємо як є.
-        return js_fallback::delegate(args);
-    }
 
-    // TTY → `readStdin` у JS одразу віддає '' і не чекає на ввід.
-    let Some(raw) = read_stdin_bytes() else {
-        return ExitCode::SUCCESS;
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+
+    let files = if post_tool_use {
+        // TTY → `readStdin` у JS одразу віддає '' і не чекає на ввід.
+        let Some(raw) = read_stdin_bytes() else {
+            return ExitCode::SUCCESS;
+        };
+        let raw_paths = extract_file_paths(&String::from_utf8_lossy(&raw));
+        if raw_paths.is_empty() {
+            return ExitCode::SUCCESS;
+        }
+        // Порт `toRelativePosix` (`hook.mjs`): `file_path` буває абсолютним
+        // (Claude Code) — конкретні детектори (напр. `text/run-v8r`)
+        // вимагають posix-relative до `cwd`, як і решта `ctx.files`.
+        raw_paths
+            .iter()
+            .map(|fp| paths::relative_posix(&cwd, &paths::resolve(&cwd, fp)))
+            .collect::<Vec<_>>()
+    } else {
+        // `--stop` читає не stdin, а робоче дерево vs HEAD — той самий
+        // виклик, що `changed-files` без бази.
+        rules_core::changed_files::collect_changed_files(&cwd)
     };
-    if extract_file_paths(&String::from_utf8_lossy(&raw)).is_empty() {
-        return ExitCode::SUCCESS;
+
+    match run_detect(&cwd, files) {
+        Ok(exit_code) => ExitCode::from(exit_code),
+        Err(message) => {
+            eprintln!("❌ {message}");
+            ExitCode::from(2)
+        }
     }
-    js_fallback::delegate_with_stdin(args, Some(&raw))
+}
+
+/// [`Bail`] → голе повідомлення: `hook` не має куди делегувати (на відміну
+/// від `lint`), тож обидва варіанти — `Delegate`/`Fail` — тут однаково
+/// фінальна відмова, надрукована як `❌ …` (доккомент [`run`]).
+fn bail_message(bail: Bail) -> String {
+    match bail {
+        Bail::Delegate(message) | Bail::Fail(message) => message,
+    }
+}
+
+/// Native detect-прогін для непорожнього файлового набору — той самий
+/// конвеєр, що `lint --no-fix --native-detect` (доккомент модуля,
+/// [`crate::lint_cmd`]), спеціалізований під єдиний режим плану `delta` з
+/// явним `changed`. Повертає hook-протокольний exit-код (`0` — чисто,
+/// `2` — є порушення ЧИ інфра-помилка, той самий колапс, що
+/// `exitCode === 0 ? 0 : 2` у `runHookCli`).
+fn run_detect(cwd: &Path, files: Vec<String>) -> Result<u8, String> {
+    let config = rules_core::config::read_n_rules_config_lite(cwd)
+        .map_err(|error| format!("конфіг не читається ({error})"))?;
+
+    let package_root = js_fallback::package_root(cwd)?;
+    let mut bridge = Bridge::start(&package_root)?;
+
+    // `N_RULES_RULES_DIR` — той самий тестовий seam, що в `lint_cmd::run_native`
+    // (дзеркало `opts.rulesDir` у `detectAll`, якого `hook.mjs` не виставляє
+    // прапорцем): дає parity-тесту прогнати синтетичний rules-каталог.
+    let mut discover_payload = json!({ "cwd": cwd.to_string_lossy() });
+    if let Ok(rules_dir) = std::env::var("N_RULES_RULES_DIR") {
+        if !rules_dir.is_empty() {
+            discover_payload["rulesDir"] = json!(rules_dir);
+        }
+    }
+    let discovered = bridge.call("discover", discover_payload)?;
+    let rules_dirs: Vec<PathBuf> = lint_cmd::string_array(&discovered, "rulesDirs")
+        .into_iter()
+        .map(PathBuf::from)
+        .collect();
+    let capabilities: HashSet<String> = lint_cmd::string_array(&discovered, "capabilities")
+        .into_iter()
+        .collect();
+
+    let by_rule = lint_cmd::discover_by_rule(&rules_dirs);
+    let by_rule = lint_cmd::filter_by_capabilities(by_rule, &capabilities);
+    let by_rule =
+        lint_cmd::filter_by_applies(by_rule, cwd, &mut bridge).map_err(bail_message)?;
+
+    let enabled_rule_ids = lint_cmd::enabled_rule_ids(&by_rule, &config, &rules_dirs);
+    let by_rule_dto = lint_cmd::to_plan_dto(&by_rule);
+
+    let plan = rules_core::lint_plan::build_lint_plan(&BuildLintPlanInput {
+        mode: "delta".to_string(),
+        by_rule: by_rule_dto,
+        rules: Vec::new(),
+        explicit_files: Vec::new(),
+        enabled_rule_ids,
+        changed: files,
+        path_mode: false,
+    });
+
+    // Wasm-гейт лінту тут СВІДОМО не повторюється — доккомент модуля,
+    // розділ «Wasm-концерни».
+    let (violations, infra_message) =
+        lint_cmd::execute_plan(&plan, cwd, false, &by_rule, &mut bridge).map_err(bail_message)?;
+
+    let result = rules_core::lint_render::sort_and_render_violations(&SortAndRenderInput {
+        violations,
+        infra_message: infra_message.clone(),
+    });
+    // `logToStderr` у JS: Claude Code при exit 2 показує агенту лише stderr
+    // (доккомент `hook.mjs`) — увесь вивід прогону йде туди, не в stdout.
+    if let Some(message) = infra_message {
+        eprintln!("💥 {message}");
+    } else if !result.sorted.is_empty() {
+        eprint!("{}", result.rendered);
+    }
+    Ok(if result.exit_code == 0 { 0 } else { 2 })
 }
 
 /// Читає stdin повністю. `None` — stdin є терміналом (JS-гілка `isTTY`) або
