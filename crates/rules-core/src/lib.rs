@@ -19,6 +19,11 @@ pub mod changed_base;
 /// `collect_changed_files`/`collect_changed_files_since` — перелік
 /// changed files через porcelain (C1 фази 3).
 pub mod changed_files;
+/// `split_collisions`/`resolve_ci_artifacts` — host-side резолв графа
+/// `ci.artifact@1` для `n-rules:caps/registry-reader@1.0.0` (S1b карти
+/// `docs/specs/2026-08-30-contract-roadmap-blocked-concerns.md` §2.3),
+/// порт `splitCiArtifactCollisions` (`ci-artifact-collect.mjs`).
+pub mod ci_artifact_registry;
 /// `compute_active_domains`/`build_ci_plan`/рендери — обчислювальне ядро
 /// `n-rules ci plan` (зріз 3 фази 8, `ci-plan.mjs`).
 pub mod ci_plan;

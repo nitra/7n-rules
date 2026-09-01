@@ -15975,3 +15975,230 @@ JS-прогонів):
 закриває розрив МІЖ Rust-бінарем і JS для `hook`-поверхні; коли крок 0
 закриється, `hook.mjs` стане мертвим кодом РАЗОМ з рештою JS-оркестрації,
 а не окремо.
+### 2.136. S1 дорожньої карти (`2026-08-30-contract-roadmap-blocked-concerns.md`) закрито — `n-rules:caps/registry-reader@1.0.0`, не бампи `world.wit`
+
+**Розбіжність із текстом задачі, зафіксована явно.** Задача (координатор)
+просила писати підсумок під §2.133. Поки ця задача виконувалась, дві ІНШІ
+паралельні хвилі влились у `origin/main` і зайняли **§2.132** і **§2.134**
+(§2.133 лишився вільним номером у їхньому проміжку — не моя правка, стан
+`origin/main` на момент rebase цієї гілки). Найвищий зайнятий номер після
+rebase — **§2.134**, тож коректний наступний номер за конвенцією файлу (без
+розривів нумерації, той самий принцип, що вже застосований §2.129–§2.132) —
+**§2.135**, не §2.133 (лишається діркою, не моя знахідка й не моя
+відповідальність заповнювати заднім числом) і не §2.132 (зайнятий).
+Записано під §2.135.
+
+**Контекст.** `docs/specs/2026-08-30-contract-roadmap-blocked-concerns.md`
+§2.2/§2.3/§3 назвала S1 — останню незакриту з трьох поверхонь дорожньої
+карти — «хост знає, гість не має права знати»: `azure-pipelines/
+service_deploy_pipeline` (реєстр увімкнених lint-правил) і `ci_artifact/
+consume` (слот-граф `ci.artifact@1` ІНШИХ плагінів + їхні canonical-шаблони).
+Карта рекомендувала два bare-імпорти НАПРЯМУ на `wit/world.wit`
+(`import active-domains`, `import resolve-ci-artifacts` + один новий
+record).
+
+**Перевірка премʼєри карти, а не сліпе виконання (правило задачі).** Карта
+писалась 2026-08-30, ДО доповнення від 2026-08-31 в тому самому файлі
+(розділ «Доповнення 2026-08-31: форма контракту `5.0.0`»), яке ЯВНО
+скасовує рекомендацію «вузькі імпорти на `world.wit`» на користь Рішення 3
+(«слотові поверхні: кілька світів, маніфест як дискавері») — і ця нова форма
+вже РЕАЛІЗОВАНА в чинному коді, не гіпотеза: `crates/rules-contract/wit/
+world.wit` сьогодні `n-rules:plugin@5.0.0` з полем `manifest.worlds`
+(дискавері-канал), `crates/rules-contract/wit/deps/caps/{tool-runner,
+file-reader,llm-consumer}.wit` — три вже реалізовані world-и повноважень, і
+`crates/rules-plugin-host/src/{world_linker.rs,caps_file_reader.rs,
+caps_llm_consumer.rs}` — вибіркове долінкування під `manifest.worlds`,
+доведене гейтами `tests/caps_file_reader_gate.rs`/`tests/caps_llm_consumer_gate.rs`.
+Отже виконання карти буквально (два bare-імпорти на `world.wit`) означало б
+МАЖОР — саме той бамп, від якого відходить уже ухвалене рішення 3, і другий,
+конкуруючий спосіб оголошувати повноваження в тому самому дереві. Замість
+цього S1 портовано за вже встановленим зразком: **новий caps-world
+`n-rules:caps/registry-reader@1.0.0`, нуль змін `world.wit`, нуль bump-у**.
+
+Обидва блокери, які §2.2/§2.3 назвали «реальними», перевірено на чинному
+коді — ще чинні: `host_context` (`crates/rules-plugin-host/src/host_state.rs`)
+має рівно два слоти (`repo-root@1`/`scratch-dir@1`), жоден не віддає реєстр
+правил чи слот-граф; `record descriptor` слоту `ci.artifact@1`
+(`wit/deps/slots/ci-artifact.wit`) з'являється лише як `manifest.ci-artifacts`
+(гість ЗАЯВЛЯЄ власні contributions, не читає чужі). Обидва блокери реальні —
+на відміну від S0 (`test/stryker_config`, §2.1 карти), де блокер виявився вже
+знятим.
+
+**Що саме додано в WIT (один новий файл, нуль змін наявних).**
+`crates/rules-contract/wit/deps/caps/registry-reader.wit` — четвертий файл
+пакета `n-rules:caps@1.0.0` (поруч із `tool-runner`/`file-reader`/
+`llm-consumer`), world `registry-reader`:
+
+```wit
+use n-rules:slots/ci-artifact@1.0.0.{descriptor as ci-artifact-descriptor};
+
+record resolved-ci-artifact {
+  descriptor: ci-artifact-descriptor,
+  template-content: string,
+  provenance: string,
+}
+
+import active-domains: func(path: string) -> option<list<string>>;
+import resolve-ci-artifacts: func(target-capability: string) -> option<list<resolved-ci-artifact>>;
+```
+
+Два вузькі імпорти В ОДНОМУ world-і (не два world-и) — той самий принцип
+гранулярності, що вже звів `list-files`+`read-file-bytes` в один
+`file-reader` і `run-tool`+`exec-tool` в один `tool-runner` (розділ 4 спеки
+`docs/specs/2026-08-31-plugin-contract-v5.md`: один клас повноважень = один
+world; обидва запити тут — доступ до host-рівневого реєстру поза межами
+переданих даних, критерій 1). Карта окремо застерігала (§3) НЕ робити один
+import `registry-query(variant) -> variant` замість двох вузьких — те
+застереження лишається чинним і виконаним: `active-domains`/
+`resolve-ci-artifacts` — два незалежні `func`, не один `variant`-запит; §2.83
+вже зміряла, що додати case до наявного `variant` неможливо мінором.
+
+`option`, не `result` — навмисно (доккомент файлу): на відміну від
+`file-reader`/`llm-consumer`, тут немає проміжного стану «виконання», лише
+«хост має реєстр чи ні» — та сама семантика, що вже несе `host-context`.
+`none` = хост не має реєстру; `some([])` = реєстр Є й каже «нічого». Обидва
+стани розрізнювані окремим гейтом (нижче).
+
+**Host-side механізм (S1a `active-domains` + S1b `resolve-ci-artifacts`
+одним PR — §5 карти дозволяє «мінор тут безкоштовний, ділити можна за
+зручністю рев'ю»):**
+
+1. `crates/rules-plugin-host/src/caps_registry_reader.rs` (новий) —
+   `wasmtime::component::bindgen!` на `registry-reader`, trait
+   `RegistryProvider` (ін'єктований провайдер — той самий DI-мотив, що
+   `ToolResolver`/`LlmCaller`; §2.2 карти прямо назвала цей контур
+   «наявний патерн»), `NoRegistryProvider` (дефолт `PluginHost::new` —
+   легітимний `None` на обидва запити), `StaticRegistryProvider` (провайдер
+   над уже зібраним входом — граф підключених плагінів лишається JS/
+   оркестраційним шаром, цей крок його НЕ discovers, той самий принцип, що
+   `rules_core::ci_artifact_registry`, п.4 нижче, явно документує).
+2. `crates/rules-plugin-host/src/host_state.rs` — поле `registry_provider`
+   + `impl caps_registry_reader::RegistryReaderImports for HostState`.
+3. `crates/rules-plugin-host/src/world_linker.rs` — `KNOWN_CAPABILITY_WORLDS`
+   дістав четвертий запис (`n-rules:caps/registry-reader@1.0.0`) + unit-тест
+   `registry_reader_world_is_known` (дзеркало трьох наявних).
+4. `crates/rules-core/src/ci_artifact_registry.rs` (новий) — 1:1 семантичний
+   порт `splitCiArtifactCollisions` (`npm/scripts/lib/ci-artifact-collect.mjs`):
+   групування candidate-ів за `artifact-id`, колізія = той самий id від ДВОХ
+   РІЗНИХ `provenance`; `resolve_ci_artifacts` — колізії + читання
+   canonical-шаблону з `package_root` candidate-а (не-UTF-8/небезпечний
+   `template`-шлях/відсутній файл — типізована відмова ЦЬОГО candidate-а, не
+   паніка й не мовчазний пропуск усього виклику). 8 юніт-тестів.
+5. `crates/rules-plugin-host/src/host.rs` — `PluginHost::new_with_registry_provider`
+   (та сама точка ін'єкції, що `new_with_llm_caller`), спільне тіло
+   конструктора несе обидва провайдери одразу.
+6. `crates/rules-plugin-host/src/lib.rs` — публічний реекспорт
+   `RegistryProvider`/`StaticRegistryProvider`/`RegistryCiArtifactCandidate`.
+
+**Свідомо НЕ зроблено цим PR (явно, не мовчки, той самий принцип, що
+§2.131).**
+
+1. `load_enabled_lint_rules` НЕ переїхав з `rules-cli` у `rules-core` —
+   карта (§2.2) називала цей переїзд передумовою `active-domains`, але
+   перевірка чинного коду показала, що навіть Rust-версія цієї функції
+   (`crates/rules-cli/src/ci_cmd.rs:272`) — «discovery-фасад для випадку
+   «плагінів немає»» (доккомент функції дослівно): вона НЕ резолвить npm-
+   плагінний граф (`resolveSlotGraph`/`getSlotContributions`,
+   `npm/scripts/lib/plugin-slots.mjs`), тож перенесення саме цієї функції
+   не дало б production-придатної реалізації `active-domains` для
+   консюмерів із плагінами — половина роботи видала б хибне відчуття
+   завершеності. Замість цього — `StaticRegistryProvider`: production
+   caller (`rules-napi`), коли дістане РЕАЛЬНИЙ граф (свій, повний, і
+   npm-, і wasm-плагіни), передає вже готову відповідь у конструктор; сам
+   `rules-plugin-host` жодного discovery не робить (те саме розмежування,
+   що вже встановлене для `file-reader`: хост читає передане дерево, не
+   шукає його сам).
+2. `rules-napi`/`rules-cli` production-виклики (`run_wasm_concern`/
+   `run_wasm_concern_fix`) НЕ переведено на `PluginHost::new_with_registry_provider`
+   — жоден із шести first-party гостей ще не оголошує
+   `n-rules:caps/registry-reader@1.0.0` у `manifest.worlds`/`plugin.toml`
+   (`plugin-ci-azure`/`plugin-ci-github` — майбутні консюмери
+   `active-domains`/`resolve-ci-artifacts`, окрема задача порту гостя). Той
+   самий стан, що `file-reader`/`llm-consumer` мали одразу після свого
+   кроку 4.1 (`docgen`/`bun-package-json` — досі не підключені consumers,
+   §2.131 явно це називає «наступний крок, не цей PR»).
+3. npm-плагінний граф (`plugin-slots.mjs`) НЕ портовано в Rust — лишається
+   JS-оркестрацією, як і сьогодні; `rules_core::ci_artifact_registry` явно
+   документує це в доккоменті модуля, а не замовчує.
+
+**Гейти за §6 карти — усі виконані одним файлом
+`crates/rules-plugin-host/tests/caps_registry_reader_gate.rs`
+(3 тести, доводять на РЕАЛЬНОМУ wasm-компоненті, зібраному проти
+`registry-reader-gate` world):**
+
+- `declares_world_resolves_registry_through_host_import` — гість, що
+  оголосив `n-rules:caps/registry-reader@1.0.0`, інстанціюється й дістає
+  РЕАЛЬНУ відповідь: (а) `active-domains` повертає реальний домен через
+  `StaticRegistryProvider`; (б) два candidate-и з ОДНАКОВИМ `artifact-id`
+  РІЗНОЮ `provenance` — колізія, ЖОДЕН не доїжджає до гостя (host-side
+  відмова ДО виклику гостя); (в) третій, неколізійний candidate доїжджає з
+  `template-content`, прочитаним хостом ІЗ ЧУЖОГО кореня (`package_root` ≠
+  `preopen_root` консюмер-дерева) — унікальний маркер підтверджує «дослівно
+  те», не «щось».
+- `active_domains_none_and_empty_are_distinct` — `StaticRegistryProvider::new(None,
+  None)` дає `domains-none`/`artifacts-none`; `StaticRegistryProvider::new(Some(vec![]),
+  Some(vec![]))` дає `domains-some:`/`artifacts-some:` (порожній хвіст) —
+  `none`/`some([])` НЕ злились у той самий текст, розрізнення станів не
+  втрачено (§6 карти: S1a-рядок «розрізнення двох станів не злилось у
+  порожній список»).
+- `undeclared_world_fails_instantiation_loudly` — ТОЙ САМИЙ `.wasm`,
+  завантажений БЕЗ world-а в `declared_worlds` — `PluginHostError::Instantiate`,
+  не мовчазна деградація (§6 карти: додатковий доказ, що механізм
+  «структурна типізація, не рантайм-перевірка», той самий клас, що вже
+  доводять `file-reader`/`llm-consumer`-гейти).
+- «Гість БЕЗ виклику `active-domains` інстанціюється без перезбірки»
+  (S1a-рядок §6) — покривається ІСНУЮЧИМ генеричним гейтом
+  `v50_guest_loads_and_detects_on_current_host`
+  (`crates/rules-plugin-host/tests/v30_guest_additive_compat.rs`), не новим:
+  цей PR НЕ чіпає `world.wit`, тож заморожена v5.0-фікстура й так лишається
+  чинним доказом додаткової властивості — заводити новий гейт не було
+  потреби.
+- Host-side колізія й дослівність шаблону (S1b-рядки §6) ЩЕ й покриті
+  окремими юніт-тестами `rules_core::ci_artifact_registry`
+  (`collision_detected_for_same_artifact_id_different_provenance`,
+  `resolve_reads_template_content_from_package_root`,
+  `resolve_rejects_non_utf8_template_loudly`,
+  `resolve_rejects_unsafe_template_path`) — подвійне покриття (юніт +
+  наскрізний гейт), не заміна одне одного.
+
+**Цільові прогони (синхронно, без фонових процесів; спочатку впав таймінг
+через ENOSPC на хості під час паралельної роботи інших агентів — власник
+звільнив 43 ГБ в `.worktrees` із уже змерженими PR, не чіпаючи цей
+worktree, — усі прогони нижче ПОВТОРЕНІ ПІСЛЯ звільнення й пройшли чисто):**
+
+- `cargo build --release -p rules-cli` — OK.
+- `cargo build --release -p rules-napi` — OK (263 крейти, код Rust не
+  чіплявся — контрольний прогін).
+- `node npm/scripts/build-wasm-plugins.mjs` — OK, усі шість first-party
+  wasm-гостей зібрались і вбудували маніфест без змін (жоден ще не
+  декларує `n-rules:caps/registry-reader@1.0.0`, доккомент вище).
+- `bash crates/test-plugin-guest/build.sh` — OK.
+- `cargo test -p rules-plugin-host --lib` — 24 passed (23 було, +1
+  `registry_reader_world_is_known`).
+- `cargo test -p rules-plugin-host --test caps_registry_reader_gate` —
+  3 passed (усі три гейти вище).
+- `cargo test -p rules-plugin-host` (повний, БЕЗ фільтра — умисно, не
+  `--lib`, за прямою вказівкою брифу: «саме там ховались фейли від сусідніх
+  хвиль») — 173 passed, 1 ignored, 18 суїтів (було 169 passed, 1 ignored,
+  17 суїтів за §2.131 — +1 суїта, +4 тести: 3 гейти нового файлу + 1 юніт у
+  `world_linker`; `caps_registry_reader` бібліотечні юніт-тести теж
+  включені в підрахунок `--lib`).
+- `cargo test -p rules-core ci_artifact_registry --lib` — 7 passed (усі
+  юніт-тести нового модуля колізій/читання шаблону).
+- `cargo check --workspace` — 0 помилок.
+- JS-тести НЕ запускались — жоден JS-файл, `plugin.toml` чи вбудований
+  маніфест ЦИМ PR не змінено (лише 4 нові Rust-файли + правки 5 наявних
+  Rust-файлів + один новий `.wit`), тож `N_RULES_NATIVE_ADDON`-обхід
+  застарілого registry-бінаря не був потрібен — той самий висновок, що
+  §2.131 зробила для свого чисто-Rust кроку.
+- `npx @7n/rules lint`/`/doc-files` свідомо НЕ запускались (правило
+  задачі).
+
+**Наслідок для дорожньої карти.** Усі три поверхні
+(`2026-08-30-contract-roadmap-blocked-concerns.md`) тепер портовані:
+S0 (`test/stryker_config`, §2.1) — блокер знятий раніше, порт лишився
+окремою задачею; S1 (`azure-pipelines/service_deploy_pipeline` +
+`ci_artifact/consume`, §2.2/§2.3) — цей PR, форма замінена на caps-world за
+доповненням 2026-08-31; S2 (`bun/package_json`, §2.4) — вже реалізована
+раніше як `n-rules:caps/file-reader@1.0.0`. Контракт лишається на
+`n-rules:plugin@5.0.0` — жоден бамп не знадобився.

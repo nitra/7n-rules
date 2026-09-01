@@ -26,6 +26,7 @@
 
 mod caps_file_reader;
 mod caps_llm_consumer;
+mod caps_registry_reader;
 mod convert;
 mod error;
 mod host;
@@ -39,6 +40,10 @@ mod wit;
 mod world_linker;
 
 pub use caps_llm_consumer::{BoxFuture as LlmCallFuture, DomainError as LlmDomainError, LlmCaller};
+pub use caps_registry_reader::{
+    BoxFuture as RegistryProviderFuture, RegistryCiArtifactCandidate, RegistryProvider,
+    StaticRegistryProvider,
+};
 pub use error::PluginHostError;
 pub use host::PluginHost;
 pub use host_state::{CapturedLog, CapturedProgress};

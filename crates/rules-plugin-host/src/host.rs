@@ -17,6 +17,7 @@ use wasmtime_wasi::{FsPerms, WasiCtxBuilder};
 use rules_contract::manifest::{Capabilities, Manifest};
 
 use crate::caps_llm_consumer::{self, LlmCaller};
+use crate::caps_registry_reader::{self, RegistryProvider};
 use crate::convert;
 use crate::error::PluginHostError;
 use crate::host_state::HostState;
@@ -76,6 +77,15 @@ pub struct PluginHost {
     /// «навіщо `pub`» — точка ін'єкції гейт-тесту, що не робить реальний
     /// мережевий виклик).
     llm_caller: Arc<dyn LlmCaller>,
+    /// Реалізація `n-rules:caps/registry-reader@1.0.0`
+    /// (`active-domains`/`resolve-ci-artifacts`, S1 карти
+    /// `docs/specs/2026-08-30-contract-roadmap-blocked-concerns.md`) — той
+    /// самий мотив, що `llm_caller`: побудований раз на `PluginHost`,
+    /// клонується в кожен `HostState` (`Self::build_host_state`).
+    /// [`Self::new`] кладе сюди `caps_registry_reader::NoRegistryProvider`
+    /// (легітимний `None` на обидва запити — хост без ін'єктованого
+    /// реєстру); [`Self::new_with_registry_provider`] — довільний двійник.
+    registry_provider: Arc<dyn RegistryProvider>,
 }
 
 impl PluginHost {
@@ -85,6 +95,10 @@ impl PluginHost {
     /// конструктора; `ToolResolver::empty()` — валідний дефолт, коли жоден
     /// tool ще не резолвлений (кожен `run-tool`-виклик просто отримає
     /// типізовану помилку в `tool-output`, доккомент `ToolResolver::run`).
+    ///
+    /// `llm_caller`/`registry_provider` дістають безпечні продакшн/no-op
+    /// дефолти (`RealLlmCaller`/`NoRegistryProvider`) — явна ін'єкція обох
+    /// лишається [`Self::new_with_llm_caller`]/[`Self::new_with_registry_provider`].
     pub fn new(tool_resolver: ToolResolver) -> Result<Self, PluginHostError> {
         Self::new_with_llm_caller(tool_resolver, Arc::new(caps_llm_consumer::RealLlmCaller))
     }
@@ -99,6 +113,37 @@ impl PluginHost {
     pub fn new_with_llm_caller(
         tool_resolver: ToolResolver,
         llm_caller: Arc<dyn LlmCaller>,
+    ) -> Result<Self, PluginHostError> {
+        Self::new_with_llm_caller_and_registry_provider(
+            tool_resolver,
+            llm_caller,
+            Arc::new(caps_registry_reader::NoRegistryProvider),
+        )
+    }
+
+    /// Те саме, що [`Self::new`], але з ЯВНОЮ реалізацією
+    /// `n-rules:caps/registry-reader@1.0.0` (`crate::caps_registry_reader::RegistryProvider`)
+    /// — точка ін'єкції для `tests/caps_registry_reader_gate.rs` і для
+    /// продакшн-викликачів, коли вони дістануть реальний граф (S1 карти,
+    /// §5: провайдерний контур, який S1b перевикористовує).
+    pub fn new_with_registry_provider(
+        tool_resolver: ToolResolver,
+        registry_provider: Arc<dyn RegistryProvider>,
+    ) -> Result<Self, PluginHostError> {
+        Self::new_with_llm_caller_and_registry_provider(
+            tool_resolver,
+            Arc::new(caps_llm_consumer::RealLlmCaller),
+            registry_provider,
+        )
+    }
+
+    /// Спільна точка обох ін'єкцій вище — `Engine`/`base_linker` будуються
+    /// РІВНО тут, незалежно від того, скільки з двох провайдерів викликач
+    /// підмінив.
+    fn new_with_llm_caller_and_registry_provider(
+        tool_resolver: ToolResolver,
+        llm_caller: Arc<dyn LlmCaller>,
+        registry_provider: Arc<dyn RegistryProvider>,
     ) -> Result<Self, PluginHostError> {
         let mut config = Config::new();
         config.wasm_component_model(true);
@@ -171,6 +216,7 @@ impl PluginHost {
             tool_resolver: Arc::new(tool_resolver),
             runtime: Arc::new(runtime),
             llm_caller,
+            registry_provider,
         })
     }
 
@@ -367,14 +413,12 @@ impl PluginHost {
                 .map_err(|err| PluginHostError::Instantiate(err.into()))?;
             let plugin = wit::Plugin::new(&mut store, &instance)
                 .map_err(|err| PluginHostError::Instantiate(err.into()))?;
-            let manifest =
-                plugin
-                    .call_describe(&mut store)
-                    .await
-                    .map_err(|err| PluginHostError::Execution {
-                        function: "describe",
-                        source: err.into(),
-                    })?;
+            let manifest = plugin.call_describe(&mut store).await.map_err(|err| {
+                PluginHostError::Execution {
+                    function: "describe",
+                    source: err.into(),
+                }
+            })?;
             // Акцесор на export `collect-coverage` (крок 6 спеки §12,
             // `crate::surfaces_coverage_provider`) — будується РАЗ тут,
             // ПОКИ `instance` ще живий (`LoadedPlugin` його не памʼятає,
@@ -508,6 +552,9 @@ impl PluginHost {
             // (доккомент поля `Self::llm_caller`), той самий прийом, що
             // `tool_resolver` вище.
             llm_caller: Arc::clone(&self.llm_caller),
+            // `n-rules:caps/registry-reader@1.0.0` (S1 карти) — той самий
+            // прийом, що `llm_caller` вище.
+            registry_provider: Arc::clone(&self.registry_provider),
         })
     }
 }
