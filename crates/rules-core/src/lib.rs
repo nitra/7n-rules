@@ -27,6 +27,10 @@ pub mod ci_artifact_registry;
 /// `compute_active_domains`/`build_ci_plan`/рендери — обчислювальне ядро
 /// `n-rules ci plan` (зріз 3 фази 8, `ci-plan.mjs`).
 pub mod ci_plan;
+/// `is_generated_file`/`has_resolvable_files` — порт
+/// `npm/scripts/lib/lint-surface/codegen-opa-wrapper.mjs` (клас A, крок 4
+/// плану `docs/plans/2026-08-31-full-rust-migration-plan.md`).
+pub mod codegen_opa_wrapper;
 /// `read_concern_meta`/`list_concerns`/`list_detector_concerns` — парсер
 /// `concern.json` і discovery поверхонь правила (зріз 3 фази 8,
 /// `concern-meta.mjs` + `asDetectorConcern` з `run-detectors.mjs`).
@@ -65,6 +69,10 @@ pub mod rename_yaml;
 /// Декларативний rule-level гейт `main.json:applies` — дзеркало
 /// `npm/scripts/lib/rule-applies.mjs` (зріз 3 контракту плагінів v3.1).
 pub mod rule_applies;
+/// Резолвер explicit-files для `lint --path` — порт
+/// `npm/scripts/lib/lint-surface/path-scope.mjs` (клас A, крок 4 плану
+/// `docs/plans/2026-08-31-full-rust-migration-plan.md`).
+pub mod path_scope;
 /// `package_root`/`rules_root` — резолв кореня встановленого `@7n/rules`,
 /// потрібний концернам, що читають вбудовані rego-полісі.
 pub mod rules_package;
