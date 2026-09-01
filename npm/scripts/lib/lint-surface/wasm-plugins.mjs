@@ -360,7 +360,7 @@ function resolvePluginLockPath(cwd, env) {
  * @returns {string} складений ключ
  */
 function lockEntryKey(pkg, requirement) {
-  return `${pkg} ${requirement}`
+  return `${pkg}\u0000${requirement}`
 }
 
 /**
