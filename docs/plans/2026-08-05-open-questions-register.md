@@ -16561,3 +16561,159 @@ detect-only `--full`-шлях свідомо НЕ бере чергу (нічо�
 `npx @7n/rules lint` і `/doc-files` свідомо НЕ запускались (правило задачі).
 
 **Наслідок для плану.** Рядок «крок 7 СПЕКИ: `docgen-scan` на хості» у §7 таблиці плану закрито повністю. Рядок «`docgen` фаза 3: чотири LLM-споживачі» — портовано ОДИН з чотирьох (`docgen_render`), решта (`orchestratedDoc`+judge-гейт+best-of-2 із `docgen-gen`, `docgen-files-batch`, `docgen-wave-batch`, ~2 290 рядків) лишається явним «Лишилось», не мовчки звуженим обсягом.
+
+### 2.143. Крок 6 плану full-rust-migration — `npm/rules/**` (12 `main.mjs` + 3 `fix-worker.mjs`) звірено виміром; жодного файлу не можна безпечно видалити в цьому PR
+
+**Задача.** Крок 6 плану `2026-08-31-full-rust-migration-plan.md` (§5, §7)
+називає `npm/rules/**` — «12 `main.mjs` + 3 воркери» — одним нерозкритим
+рядком. Задача цього PR: зміряти склад, визначити долю кожного файлу
+(порт/wasm-гість/мертвий) і довести до зеленого все, що доводиться.
+
+**Номер запису.** Бриф просив писати під §2.143. За час виконання ЦЬОГО
+PR номер §2.142 встиг зайняти НЕ ОДНА, а ДВІ різні конкурентні хвилі,
+комітовані в той самий (спільний, не ізольований) чекаут: спершу «Крок 7
+СПЕКИ, фаза 3 (частина)» (`docgen_render` + `docgen-scan` на хості), потім
+ще одна — «Канал доставки native-бінаря `n-rules`» (передумова Д3/Д4,
+«Крок 0»). Перша хвиля змінила частину фактів, на яких спирався перший
+чернетковий варіант цього запису (написаний ДО того, як вона landing);
+текст нижче звіряно ЗАНОВО проти коду вже ПІСЛЯ обох. Проміжна спроба
+записати це під §2.143 теж зіткнулася з тим, що номер зайняли раніше, ніж
+цей запис комітився — тому фінальний номер саме той, що просив бриф із
+самого початку: **§2.143**, вільний на момент цього комміту. Урок ширший
+за один запис: у спільному (не ізольованому) чекауті послідовна нумерація
+реєстру — гонка, яку не можна виграти звіркою «наступний вільний» ПЕРЕД
+кодом — лише ПІСЛЯ, безпосередньо перед комітом.
+
+**Виміряно ПЕРЕД кодом.** `find npm/rules -name main.mjs | wc -l` → 12,
+байт-у-байт як у плані. Повний список і рядки:
+
+| файл | рядків |
+|---|---:|
+| `doc-files/docgen-ignore/main.mjs` | 53 |
+| `doc-files/docgen-extract-anchors/main.mjs` | 118 |
+| `doc-files/check/main.mjs` | 119 |
+| `doc-files/docgen-judge/main.mjs` | 135 |
+| `test/coverage/main.mjs` | 164 |
+| `doc-files/docgen-test-context/main.mjs` | 212 |
+| `doc-files/docgen-crc/main.mjs` | 219 |
+| `doc-files/docgen-scan/main.mjs` | 237 |
+| `doc-files/docgen-prompts/main.mjs` | 341 |
+| `doc-files/docgen-wave-batch/main.mjs` | 541 |
+| `doc-files/docgen-files-batch/main.mjs` | 797 |
+| `doc-files/docgen-gen/main.mjs` | 1 106 |
+| **12 `main.mjs` разом** | **4 042** |
+| `text/cspell-fix/fix-worker.mjs` | 175 |
+| `doc-files/check/fix-worker.mjs` | 67 |
+| `test/coverage/fix-worker.mjs` | 144 |
+| **3 воркери разом** | **386** |
+| **15 файлів разом** | **4 428** |
+
+`npm/rules/doc-files/docgen-fix-worker/` — лише `concern.json`, `main.mjs`
+там немає (не рахується як четвертий воркер; каталог — метадані концерну,
+не виконуваний код). `npm/rules/doc-files/package_knowledge/**` (21 файл,
+модулі `candidate.mjs`/`claims.mjs`/…/`cli.mjs`) до цього рядку НЕ входить:
+у ньому немає `main.mjs`, вхід — `cli.mjs`, і його доля вже розписана
+окремо (`crates/rules-docs`, непідключений; §1.1 розвідки
+`2026-08-31-recon-providers-rules-skills.md`) — не предмет цього запису.
+
+**Класифікація — і головна знахідка: 7 із 12 `main.mjs` УЖЕ мають Rust-порт,
+написаний НЕДАВНО (комміт `0dcf94c28`, «фаза 2»), і жоден з них НЕ
+підключений до живого конвеєра.**
+
+| клас | файли | де Rust-порт |
+|---|---|---|
+| написано, wasm-гість є, СВІДОМО не підключений | `docgen-judge` (135), `docgen-ignore` (53), `docgen-crc` (219), `docgen-extract-anchors` (118), `docgen-test-context` (212), `docgen-prompts` (341), `docgen-scan` (237) — разом 1 315 рядків | `crates/plugin-docgen/src/{lib,ignore,crc,extract_anchors,test_context,prompts,scan}.rs`, 73 юніт-тести |
+| не портовано, блокується `crates/plugin-docgen` фазою 3 (СПЕКА, крок 7, не цей план) | `docgen-gen` (1 106), `docgen-wave-batch` (541), `docgen-files-batch` (797) — разом 2 444 рядки | немає; `docs/specs/2026-08-31-plugin-contract-v5.md` §12, «Нове» п.7 реєстру: зміни контракту не треба, але робота непочата |
+| не портовано, блокується відсутнім WIT-доменом `coverage` (крок 5 плану, клас B, поза цим PR) | `test/coverage/main.mjs` (164) | немає; `world.wit` не має слова `coverage` (звірено `grep -rn coverage --include='*.wit'` → 0) |
+| клас A, native-двійник Є, недосяжний за замовчуванням | `text/cspell-fix/fix-worker.mjs` (175) | `crates/rules-fix/src/workers.rs::build_cspell_worker`, кличе лише `n-rules lint --native-fix`, а `crates/rules-cli` — не жива вхідна точка (крок 0 плану не закритий) |
+| без власного порту, дисп. над іншими родинами | `doc-files/check/fix-worker.mjs` (67) — кличе `docgen-scan`/`docgen-test-context`/`docgen-files-batch`; `test/coverage/fix-worker.mjs` (144) — кличе `coverage.provider`-слот | зникають РАЗОМ із портом кластерів, на які спираються; рахувати окремо — подвійний облік (той самий висновок, що розвідка дала для `test/coverage/fix-worker.mjs`) |
+
+`docgen-judge` — не просто «написано», а повноцінний wasm-компонент
+`n-rules:plugin@5.0.0`, `crates/plugin-docgen/plugin.toml` каже про це
+прямим текстом: «глоб навмисно порожній: цей концерн НЕ підключений до
+живого lint-конвеєра цим кроком… гість існує для гейт-тесту й майбутнього
+кроку, не для продакшн-виклику». Тобто відсутність підключення — не
+недогляд, а свідоме рішення попереднього PR, задокументоване в самому
+маніфесті.
+
+**Чому жодного файлу не можна видалити сьогодні.** Продуктивний вхід і
+зараз — `npm/bin/n-rules-cli.mjs` (2 089 рядків, окремий JS CLI, НЕ
+обгортка над `crates/rules-cli`), який кличе `npm/rules/**/main.mjs`
+напряму. `crates/rules-cli` — паралельний, ще не живий бінар (крок 0 плану
+не закритий). Видалити будь-який із 15 файлів сьогодні означало б зламати
+чинний виконуваний шлях, бо жоден із написаних Rust-портів не має
+підключення: ані слот-диспетчера `docgen-stage` для семи готових гостей,
+ані домену `coverage` для `test/coverage`, ані живого `--native-fix` за
+замовчуванням для `cspell-fix`. Це той самий стан, що план назвав для
+кроку 2 («написано, але мосту немає взагалі») і що вже застосовувався
+свідомо в §2.131/§2.138/§2.141 — принцип «не вигадувати підключення, доки
+немає справжнього споживача».
+
+**Тести/склад — перевірено, стороннього дрейфу не знайдено.**
+`grep -rln` за назвами `docgen-judge`/`docgen-ignore`/`docgen-crc`/
+`docgen-scan`/`docgen-prompts`/`docgen-test-context`/`docgen-extract-anchors`
+у `npm/scripts/lib/` і `npm/tests/` дав 0 збігів — жоден JS-тест і жоден
+резолвер (`lint-surface/detect.mjs`) не знає про ці wasm-гості, що
+підтверджує «не підключено» з іншого боку (не лише доккоментарем
+`plugin.toml`). `FIX_STAYS_IN_JS`/`wasm-plugin-parity.test.mjs`
+(`npm/scripts/lib/lint-surface/tests/wasm-plugin-parity.test.mjs:6386`)
+стосується виключно `plugins/lang-js/rules/**`, жодного перетину з
+`npm/rules/doc-files/**` немає — оновлення не потрібне.
+
+**Цільові прогони (синхронно, без фонових процесів):**
+
+1. `CARGO_TARGET_DIR=<repo>/target cargo build --release -p rules-cli` — OK.
+2. `CARGO_TARGET_DIR=<repo>/target cargo build --release -p rules-napi` — OK.
+3. `CARGO_TARGET_DIR=<repo>/target cargo test -p rules-core --lib` — 1308
+   passed.
+4. `CARGO_TARGET_DIR=<repo>/target cargo test -p rules-cli` — 37+ passed
+   (обидва suite, увесь набір зелений).
+5. `CARGO_TARGET_DIR=<repo>/target cargo test -p plugin-docgen` — 73
+   passed (підтверджує, що вже написаний порт фази 2 сам по собі
+   справний — падіння тут означало б регрес незалежно від підключення).
+6. `node npm/scripts/build-wasm-plugins.mjs` — OK, 6 плагінів.
+7. `N_RULES_NATIVE_ADDON=<repo>/target/release/librules_napi.dylib npx
+   vitest run npm/rules/doc-files npm/rules/test/coverage
+   npm/rules/text/cspell-fix` — 48 файлів, 432 passed.
+8. той самий override, `npx vitest run
+   npm/scripts/lib/lint-surface/tests/` — 35 файлів, 1010 passed, 1
+   skipped.
+9. той самий override, `npx vitest run npm/scripts/lib/tests/` — 43
+   файли, 588 passed.
+10. той самий override, `npx vitest run npm/tests/` — 196 passed, 1
+    ПОПЕРЕДНЬО-ІСНУЮЧИЙ фейл (`integration-repo-checks.test.mjs`,
+    `.node`-бінарник не проходить UTF-8 межу контракту, §2.83) — не
+    зачіпає жоден із 15 файлів цього запису, дерево було чистим (`git
+    status --short` порожній) до цього PR, тобто фейл існував ще ДО
+    вимірювання.
+
+`npx @7n/rules lint` і `/doc-files` свідомо НЕ запускались (правило
+задачі).
+
+**Наслідок для плану.** Рядок «6. останні JS — `npm/rules/**`» у §7
+таблиці плану лишається ВІДКРИТИМ — розкладка тепер названа явно (замість
+одного рядка «12+3»), а не закрита. Явний порядок для наступної хвилі,
+за дешевизною:
+
+1. Слот-диспетчер `docgen-stage` (host-канал, що кличе сім уже написаних
+   гостей) — після нього 1 315 рядків JS (`docgen-judge` + шість
+   детермінованих етапів) стають видаленими БЕЗ жодного нового
+   Rust-коду.
+2. Порт `docgen-gen`/`docgen-wave-batch`/`docgen-files-batch` (2 444
+   рядки, крок 7 СПЕКИ фаза 3) — зміни контракту не треба (реєстр,
+   «Нове» п.7), робота не почата.
+3. Домен `coverage` у WIT (крок 5 плану, клас B) — розблоковує
+   `test/coverage/main.mjs` + `test/coverage/fix-worker.mjs`; окрема, вже
+   виміряна робота на 7 671 рядок провайдерів (`2026-08-31-recon-
+   providers-rules-skills.md` §1).
+4. `doc-files/check/fix-worker.mjs` зникає автоматично слідом за п. 1-2
+   (він лише диспетчер над докген-функціями).
+5. Крок 0 плану (бінар — жива вхідна точка) — після нього `--native-fix`
+   стає досяжним за замовчуванням, і `text/cspell-fix/fix-worker.mjs`
+   (175 рядків) можна видаляти без жодного нового порту — двійник уже є.
+
+Жоден із п'яти пунктів не зроблено в цьому PR: кожен вимагає host-канал
+або окремий крок плану, якого немає, а писати JS-заміну без живого
+споживача — саме та помилка, від якої §5.1 плану будує гейт («рація
+пережила свою причину» у зворотний бік: тут не застаріла причина, а
+причина, підтверджена свіжим виміром і кодом).
