@@ -21,6 +21,7 @@ import { delimiter, dirname, isAbsolute, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { tmpdir } from 'node:os'
 import { env, platform } from 'node:process'
+import { nativeCliBinaryChain } from '../lib/native-cli-binary.mjs'
 
 /**
  * Абсолютний корінь реального монорепо (тека, де лежать і `npm/`, і `plugins/`),
@@ -54,22 +55,23 @@ export function jsEntryPath() {
 }
 
 /**
- * Резолвить шлях до зібраного бінаря `rules-cli` — той самий каскад, що loader
- * native-аддона (`npm/scripts/lib/native.mjs`): явний override
- * `N_RULES_CLI_BIN` → dev-збірка `target/{release,debug}`. Відсутність бінаря —
- * hard error з підказкою, а НЕ мовчазний skip: дірка в parity-гейті була б
- * невидимою (той самий Р1-мотив, що в loader-а аддона).
+ * Резолвить шлях до зібраного бінаря `rules-cli` — тонка обгортка над
+ * спільним каскадом [`nativeCliBinaryChain`]
+ * (`npm/scripts/lib/native-cli-binary.mjs`, задача «канал доставки бінаря»,
+ * `docs/specs/2026-09-01-native-binary-distribution-channel.md`): явний
+ * override `N_RULES_CLI_BIN` → dev-збірка `target/{release,debug}`.
+ * Обгортка існує, щоб зберегти текст помилки, звичний parity-гейтам цього
+ * файлу (`grep`-і в описах PR шукають саме цей рядок), не як другий контур
+ * логіки — сам ланцюг кандидатів більше не дублюється між цим модулем і
+ * `native-cli-binary.mjs` (до цієї задачі обидва рахували його окремо).
+ * Відсутність бінаря — hard error з підказкою, а НЕ мовчазний skip: дірка в
+ * parity-гейті була б невидимою (той самий Р1-мотив, що в loader-а аддона).
  * @returns {string} абсолютний шлях до бінаря `rules-cli`
  * @throws {Error} якщо бінар не зібрано і override не заданий
  */
 export function resolveRulesCliBin() {
-  const override = env.N_RULES_CLI_BIN
-  if (override) return override
-  const name = platform === 'win32' ? 'rules-cli.exe' : 'rules-cli'
-  for (const profile of ['release', 'debug']) {
-    const candidate = join(realRepoRoot(), 'target', profile, name)
-    if (existsSync(candidate)) return candidate
-  }
+  const chain = nativeCliBinaryChain({ repoRoot: realRepoRoot() })
+  if (chain.length > 0) return chain[0]
   throw new Error(
     'rules-cli parity: немає збірки бінаря. Постав N_RULES_CLI_BIN=/шлях/до/rules-cli ' +
       'або збери локально: cargo build --release -p rules-cli'

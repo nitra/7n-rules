@@ -1,0 +1,77 @@
+name: wasm-plugin-oci-publish
+
+# Підключає вже готовий, протестований Д1/Д2-код
+# (`n-rules plugin embed-manifest`/`publish`, `crates/rules-cli/src/plugin_cmd.rs`,
+# §2.121/§2.134 реєстру `docs/plans/2026-08-05-open-questions-register.md`)
+# до реального (нехай спершу manual) кроку релізу — вимога 1 зі
+# `docs/specs/2026-09-01-distribution-d3-d4-scope-check.md` §6: до цього
+# workflow ЖОДЕН конвеєр не викликав `plugin publish`/`fetch` жодного разу,
+# тож шість first-party wasm-плагінів (lang-js/lang-python/lang-rust/
+# lang-php/ci-github/ci-azure) ніколи не публікувались в OCI. Мінідизайн —
+# `docs/specs/2026-09-01-native-binary-distribution-channel.md`, розділ 3.
+#
+# СВІДОМО manual-only (лише `workflow_dispatch`), `dry_run` типово `true`:
+# доки власний OCI-реєстр з анонімним читанням (Рішення 9,
+# `docs/specs/2026-08-31-slice6-consumer-surfaces.md`) не існує, будь-який
+# запуск за замовчуванням лише РОЗРАХОВУЄ реліз (`n-rules plugin publish
+# --dry-run`), не пушить нічого. Цей файл — НЕ один із 15
+# `disabled_manually` воркфлоу репозиторію і не вмикає й не вимикає жоден
+# із них.
+on:
+  workflow_dispatch:
+    inputs:
+      registry:
+        description: 'OCI-реєстр призначення (без дефолту — той самий мотив, що сам n-rules plugin publish: гібридна вимога Д2, ядро публічно, плагіни можуть бути приватними)'
+        required: true
+        type: string
+      dry_run:
+        description: 'Лише розрахувати реліз (package/version/digest/reference), не пушити'
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      # wasm32-wasip3 не роздається через rustup target list (доккомент
+      # crates/plugin-lang-js/build.sh) — build.sh кожного гостя сам додає
+      # -Z build-std, тож тут лише nightly-компонент, не сам target.
+      - name: Build + embed-manifest шести first-party wasm-плагінів
+        run: node npm/scripts/build-wasm-plugins.mjs
+
+      - name: Публікація кожного плагіна через n-rules plugin publish
+        env:
+          REGISTRY: ${{ inputs.registry }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          cargo build --release -p rules-cli
+          CLI="target/release/rules-cli"
+          shopt -s nullglob
+          components=(npm/wasm-plugins/*.wasm)
+          if [ ${#components[@]} -eq 0 ]; then
+            echo "::error::npm/wasm-plugins/*.wasm порожньо — build-wasm-plugins.mjs не вивів жодного компонента"
+            exit 1
+          fi
+          FLAGS=()
+          if [ "$DRY_RUN" = "true" ]; then FLAGS+=(--dry-run); fi
+          for component in "${components[@]}"; do
+            echo "== n-rules plugin publish ($component) =="
+            "$CLI" plugin publish --registry "$REGISTRY" --component "$component" "${FLAGS[@]}"
+          done
