@@ -47,6 +47,41 @@
 //!   тож [`JUDGE_CONFIDENCE`] тут — константа `0.7` (той самий дефолт, що
 //!   JS-оригінал БЕЗ env-перевизначення), а вибір моделі — рішення хоста
 //!   (`RealLlmCaller`, `Tier::Local`), не гостя (доккомент `judge_doc`).
+//!
+//! # Фаза 3 (крок 7 СПЕКИ) — другий портований LLM-споживач
+//!
+//! `docgen_render` (WIT-export ядрового world-а `plugin`, `wit/world.wit`)
+//! тепер реалізує ВУЗЬКИЙ зріз `docgen-gen/main.mjs` (1 106 рядків) — лише
+//! `oneShotDoc` (доккомент [`crate::generate`]/[`generate_fallback_doc`]).
+//! Контракту НЕ змінено (план `docs/plans/2026-08-31-full-rust-migration-plan.md`
+//! §7 «Нове» п.7: `docgen` ніколи не використовував `startChain`, це N
+//! незалежних `llm-call`) — `docgen_render` уже був у world-і, лише
+//! повертав `NotSupported`.
+//!
+//! НЕ портовано цим кроком (лишається `docgen-gen/main.mjs`, ~950 рядків
+//! з решти 1 106):
+//! - `orchestratedDoc` — N окремих `llm-call` по секціях (Поведінка →
+//!   Публічний API → Огляд), критик/refine цикл (`critiqueRefineSection`),
+//!   best-of-2 retry (E4) — шлях для файлів З мовним екстрактором
+//!   (`facts.unsupported === false`), мінімальна WIT-форма `docgen-request`
+//!   не несе факт-листа, тож цей шлях недосяжний без розширення запиту
+//!   (не контракту `llm-call`, а самого `docgen-request`/`stage-request` —
+//!   окреме питання, поза рішенням 1);
+//! - `commentDocumentationMode`/`commentOnlyDoc`/`hasCompleteCommentDocumentation`
+//!   — 0-LLM гібридний режим (повністю прокоментований source);
+//! - `scoreDoc` (det-скоринг Stage 2.5) і весь judge-гейт оркестрації
+//!   (`runJudgeGate`/`judgeRefinePass`, №6 refine-прохід) — генерація тут НЕ
+//!   поєднана з `docgen/judge` (перший LLM-споживач цього крейта) в один
+//!   pipeline;
+//! - `docgen-files-batch`/`docgen-wave-batch` (797+541 рядків) —
+//!   batch-оркестрація по багатьох файлах: не портовані взагалі (план §7
+//!   «Лишилось», крок 7 СПЕКИ).
+//!
+//! `docgen-scan` — перелічення кандидатів (обхід дерева + git-ignore
+//! фільтр) переїхало на ХОСТ (план §7 «Нове» п.1: гість не може обійти
+//! дерево в межах батчу/preopen), реалізація —
+//! `crates/rules-plugin-host/src/docgen_scan.rs`, БЕЗ жодних змін у цьому
+//! крейті (гість і так ніколи не читав диск сам, доккомент [`crate::scan`]).
 
 wit_bindgen::generate!({
     path: "../rules-contract/wit",
@@ -66,6 +101,7 @@ use std::sync::OnceLock;
 // власне рішення "диск читає файл-рідер чи параметр" у своєму заголовку.
 pub mod crc;
 pub mod extract_anchors;
+pub mod generate;
 pub mod ignore;
 pub mod prompts;
 pub mod scan;
@@ -212,6 +248,48 @@ pub fn judge_messages(src: &str, doc: &str) -> String {
     )
 }
 
+/// Помилка [`generate_fallback_doc`] — той самий поділ, що [`JudgeError`]
+/// (доккомент нижче): обгортка над `LlmConsumerDomainError` плюс локальна
+/// гілка (тут не використовується — [`generate::finish_one_shot_doc`] не
+/// може провалитись, на відміну від [`parse_doc_verdict`], — але тип
+/// лишається симетричним `JudgeError`, щоб `docgen_render` мав ОДНАКОВУ
+/// форму помилки з `detect(docgen/judge)`; майбутні гілки постобробки
+/// (напр. score-гейт) матимуть куди рости без зміни сигнатури).
+#[derive(Debug, Clone, PartialEq)]
+pub enum GenerateError {
+    /// Дзеркало [`JudgeError::NotSupported`].
+    NotSupported,
+    /// Дзеркало [`JudgeError::Failed`].
+    Failed(String),
+}
+
+/// Порт зрізу `oneShotDoc` (`npm/rules/doc-files/docgen-gen/main.mjs:551-556`)
+/// — доккомент [`crate::generate`] пояснює, чому саме цей зріз. `facts` —
+/// мінімальний факт-лист (гість не резолвить мовний екстрактор сам, той
+/// самий підхід, що [`crate::scan`]/[`crate::crc`]): `docgen_render`
+/// (WIT-export, мінімальна форма `docgen-request`) будує `Facts` із
+/// ПОРОЖНІМИ `exports`/`header` — семантично ТОЙ САМИЙ шлях, що JS
+/// `facts.unsupported === true` (немає мовного екстрактора → `oneShotDoc`,
+/// не `orchestratedDoc`), а не наближення.
+pub fn generate_fallback_doc(
+    facts: &prompts::Facts,
+    src: &str,
+    test_scenario_files: &[test_context::TestFileScenarios],
+    intent: Option<&str>,
+) -> Result<String, GenerateError> {
+    let prompt = generate::messages_to_prompt(&prompts::one_shot_messages(facts, src));
+    let response = llm_call(&LlmRequest { prompt }).map_err(|err| match err {
+        LlmConsumerDomainError::NotSupported => GenerateError::NotSupported,
+        LlmConsumerDomainError::Failed(msg) => GenerateError::Failed(msg),
+    })?;
+    Ok(generate::finish_one_shot_doc(
+        &response.text,
+        facts,
+        test_scenario_files,
+        intent,
+    ))
+}
+
 /// Помилка [`judge_doc`] — обгортка над `LlmConsumerDomainError`
 /// (host-канал) плюс власна гілка для локальної помилки парсингу verdict-у
 /// (JS-оригінал це просто `throw`, тут — окремий варіант, бо
@@ -298,7 +376,11 @@ fn build_manifest() -> Manifest {
         id: "docgen/judge".to_string(),
         version: "0.1.0".to_string(),
         world_version: "5.0.0".to_string(),
-        domains: vec![Domain::Lint],
+        // `DocgenRender` — доданий цим кроком (`docgen_render` тепер реально
+        // генерує через `oneShotDoc`-зріз, доккомент `generate_fallback_doc`),
+        // на відміну від решти пʼяти гостей, які лишають цей домен
+        // `NotSupported`-заглушкою (доккомент `docgen_render` нижче).
+        domains: vec![Domain::Lint, Domain::DocgenRender],
         concerns: vec![ConcernContribution {
             key: CONCERN_DOCGEN_JUDGE.to_string(),
             scope: ConcernScope::PerFile,
@@ -368,8 +450,46 @@ impl Guest for DocgenJudge {
         Err(DomainError::NotSupported)
     }
 
-    fn docgen_render(_request: DocgenRequest) -> Result<DocOutput, DomainError> {
-        Err(DomainError::NotSupported)
+    /// Порт зрізу `oneShotDoc` (доккомент [`generate_fallback_doc`]):
+    /// мінімальна WIT-форма `docgen-request` (`source-path`/`source-content`/
+    /// `source-crc`, БЕЗ факт-листа) відповідає РІВНО тому шляху JS-оригіналу,
+    /// де `facts.unsupported === true` — тому мінімальний `Facts` тут не
+    /// наближення, а точний відповідник. `source-crc` не перераховується
+    /// (доккомент `crc.rs`: гість не читає диск, `source-crc` приходить
+    /// готовим від хоста) — той самий `crc`, що [`crate::crc::stamp_doc`]
+    /// вкарбовує у frontmatter і що повертається як `content-crc`.
+    fn docgen_render(request: DocgenRequest) -> Result<DocOutput, DomainError> {
+        log(LogLevel::Info, "plugin-docgen: docgen_render() — oneShotDoc-зріз");
+        let facts = prompts::Facts {
+            rel_path: request.source_path.clone(),
+            header: None,
+            exports: vec![],
+            internal_symbols: vec![],
+            markers: prompts::Markers::default(),
+        };
+        match generate_fallback_doc(&facts, &request.source_content, &[], None) {
+            Ok(md) => {
+                let stamped = crc::stamp_doc(
+                    &md,
+                    &request.source_path,
+                    &request.source_crc,
+                    None,
+                    None,
+                    None,
+                    // `type_label` — гість не резолвить `typeForSource` сам
+                    // (доккомент `crc.rs::build_doc_frontmatter`); "Module" —
+                    // той самий фіксований-літерал підхід, документований
+                    // там же для параметрів, яких WIT-форма не несе.
+                    "Module",
+                );
+                Ok(DocOutput {
+                    content: stamped,
+                    content_crc: request.source_crc,
+                })
+            }
+            Err(GenerateError::NotSupported) => Err(DomainError::NotSupported),
+            Err(GenerateError::Failed(msg)) => Err(DomainError::Failed(msg)),
+        }
     }
 }
 

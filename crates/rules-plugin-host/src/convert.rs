@@ -11,7 +11,7 @@ use rules_contract::coverage::{
 };
 use rules_contract::detect::{DetectBatch, SourceFile};
 use rules_contract::diagnostic::{Diagnostic, Severity};
-use rules_contract::domain::DomainError;
+use rules_contract::domain::{DocOutput, DocgenRequest, DomainError};
 use rules_contract::fix::{FileEdit, FixPlan, FixRequest, WriteBytesFile, WriteFile};
 use rules_contract::manifest::{Capabilities, ConcernContribution, ConcernScope, Domain, Manifest};
 use rules_contract::slots::ci_artifact::{
@@ -312,6 +312,36 @@ pub(crate) fn coverage_report_from_wit(
 /// world-а, доккомент `crate::surfaces_coverage_provider`) → спільний
 /// [`DomainError`] (доккомент `rules_contract::coverage`: структурно
 /// ідентичний, другого типу не заводимо).
+/// Вхід `docgen-render` (крейт-споживач → guest) — дослівний переніс
+/// [`DocgenRequest`] у ЯДРОВИЙ `wit::DocgenRequest` (на відміну від
+/// `coverage_request_to_wit`, це не окремий слотовий world — `wit::Plugin`
+/// генерується для `world.wit`-типів напряму).
+pub(crate) fn docgen_request_to_wit(request: &DocgenRequest) -> wit::DocgenRequest {
+    wit::DocgenRequest {
+        source_path: request.source_path.clone(),
+        source_content: request.source_content.clone(),
+        source_crc: request.source_crc.clone(),
+    }
+}
+
+/// Результат `docgen-render` guest → публічний [`DocOutput`].
+pub(crate) fn doc_output_from_wit(output: wit::DocOutput) -> DocOutput {
+    DocOutput {
+        content: output.content,
+        content_crc: output.content_crc,
+    }
+}
+
+/// `domain-error` ЯДРОВОГО world-а (не `coverage-provider`'s, доккомент
+/// [`coverage_domain_error_from_wit`]) → спільний [`DomainError`] — та сама
+/// структурна тотожність, інший namespace-джерело.
+pub(crate) fn plugin_domain_error_from_wit(error: wit::DomainError) -> DomainError {
+    match error {
+        wit::DomainError::NotSupported => DomainError::NotSupported,
+        wit::DomainError::Failed(message) => DomainError::Failed { message },
+    }
+}
+
 pub(crate) fn coverage_domain_error_from_wit(
     error: surfaces_coverage_provider::DomainError,
 ) -> DomainError {

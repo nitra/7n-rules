@@ -11,7 +11,7 @@ use wasmtime::Store;
 use rules_contract::coverage::{CoverageReport, CoverageRequest};
 use rules_contract::detect::DetectBatch;
 use rules_contract::diagnostic::Diagnostic;
-use rules_contract::domain::DomainError;
+use rules_contract::domain::{DocOutput, DocgenRequest, DomainError};
 use rules_contract::fix::{FixPlan, FixRequest};
 use rules_contract::manifest::Manifest;
 
@@ -258,6 +258,40 @@ impl LoadedPlugin {
                 let error = convert::coverage_domain_error_from_wit(error);
                 Err(PluginHostError::Execution {
                     function: "collect-coverage",
+                    source: anyhow::anyhow!("{}", domain_error_message(&error)),
+                })
+            }
+        }
+    }
+
+    /// `docgen-render`-домен (рішення К спеки, `Domain::DocgenRender`):
+    /// кличе export `docgen-render` ЦЬОГО плагіна напряму — на відміну від
+    /// [`Self::collect_coverage`], тут НЕМАЄ окремого слотового акцесора:
+    /// `docgen-render` живе в ЯДРОВОМУ world-і `plugin` (`wit/world.wit`),
+    /// тож `wit::Plugin` завжди має `call_docgen_render` для БУДЬ-ЯКОГО
+    /// інстанційованого плагіна — незадеклароване підтримання домену
+    /// сигналить не відсутність export-у (як `coverage-provider`), а
+    /// `DomainError::NotSupported` у ВІДПОВІДІ (доккомент `rules_contract::domain`:
+    /// «непідтримані домени повертають `NotSupported` — захисна заглушка»).
+    /// Викликач звіряє `manifest.domains` заздалегідь, якщо хоче уникнути
+    /// зайвого виклику.
+    pub fn docgen_render(&mut self, request: &DocgenRequest) -> Result<DocOutput, PluginHostError> {
+        let wit_request = convert::docgen_request_to_wit(request);
+        self.reset_scratch();
+        let result = self
+            .runtime
+            .block_on(self.plugin.call_docgen_render(&mut self.store, &wit_request));
+        self.reset_scratch();
+        let result = result.map_err(|err| PluginHostError::Execution {
+            function: "docgen-render",
+            source: err.into(),
+        })?;
+        match result {
+            Ok(output) => Ok(convert::doc_output_from_wit(output)),
+            Err(error) => {
+                let error = convert::plugin_domain_error_from_wit(error);
+                Err(PluginHostError::Execution {
+                    function: "docgen-render",
                     source: anyhow::anyhow!("{}", domain_error_message(&error)),
                 })
             }
