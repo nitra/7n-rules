@@ -57,10 +57,11 @@
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use oci_dist_oci::publish_plugin_component;
-use oci_dist_package::{COMPONENT_PROFILE, MANIFEST_SCHEMA, PluginManifest, embed_manifest};
+use anyhow::Context;
+use oci_dist_oci::{OciLockEntry, OciPluginLock, fetch_plugin_component, publish_plugin_component};
+use oci_dist_package::{COMPONENT_PROFILE, MANIFEST_SCHEMA, PluginManifest, embed_manifest, inspect_component};
 
-use crate::cli::{PluginEmbedManifestArgs, PluginPublishArgs};
+use crate::cli::{PluginEmbedManifestArgs, PluginFetchArgs, PluginPublishArgs};
 
 /// Єдиний домен, для якого ця команда знає відповідність entrypoints
 /// (`describe`/`detect`/`fix`, world-функції `world.wit:647,650,667`).
@@ -119,6 +120,178 @@ pub fn run_publish(args: &PluginPublishArgs) -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+/// `n-rules plugin fetch --lock <шлях> --registry <реєстр> --package <ідентичність>
+/// --requirement <=X.Y.Z> [--cache-root <тека>]` — задача Д1 третьої колії
+/// дистрибуції (`docs/specs/2026-09-01-wasm-plugin-lock-resolve.md`): єдине
+/// місце `n-rules`, де відбувається мережевий OCI-виклик заради
+/// консюмерського резолву `wasmPlugins` (`npm/scripts/lib/lint-surface/wasm-plugins.mjs`,
+/// форма `{name,package,requirement}` — читає лише lock+кеш, БЕЗ мережі).
+pub fn run_fetch(args: &PluginFetchArgs) -> ExitCode {
+    match run_blocking(fetch_and_lock(args)) {
+        Ok((path, cache_hit)) => {
+            let verb = if cache_hit { "вже закешовано" } else { "завантажено й закешовано" };
+            println!(
+                "✅ {} {} → {} ({verb})",
+                args.package,
+                args.requirement,
+                path.display()
+            );
+            ExitCode::SUCCESS
+        }
+        Err(error) => {
+            eprintln!("❌ n-rules plugin fetch: {error:#}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// Реалізація `plugin fetch` — окрема async-функція, щоб `run_fetch`
+/// лишався тонким адаптером до `ExitCode` (той самий прийом, що
+/// `run_publish`/`publish_plugin_component`).
+///
+/// Дзеркалить `DirectOciResolutionBackend::resolve_dependency`/
+/// `resolve_locked_dependency` (`oci_dist_oci::graph`, приватні там) на
+/// рівні ОДНОГО пакета без графу залежностей (доккомент модуля §Д1,
+/// розділ 2 спеки — `collect_graph` розв'язує граф WIT-залежностей ОДНОГО
+/// компонента, не плоский список незалежних `wasmPlugins`):
+/// 1. Lock уже пінить `package`+`requirement` → кеш-хіт за digest без
+///    мережі; кеш-промах чи пошкоджений кеш → мережевий фетч, звірений
+///    ПРОТИ вже запінованого digest (fail loud на дрейфі — ніколи не
+///    довіряти мовчки новому вмісту під тим самим піном).
+/// 2. Lock ще не має запису → trust-on-first-use фетч (той самий мотив, що
+///    `resolve_dependency` при першому резолві): digest із embedded-релізу
+///    йде в кеш і в lock без звірки — звіряти нема з чим, це саме той
+///    виклик, що встановлює пін.
+async fn fetch_and_lock(args: &PluginFetchArgs) -> anyhow::Result<(std::path::PathBuf, bool)> {
+    let version = args
+        .requirement
+        .strip_prefix('=')
+        .filter(|rest| !rest.is_empty())
+        .context("--requirement має бути точним `=X.Y.Z` (те саме M0-обмеження, що oci-dist-oci валідує)")?;
+    let cache_root = resolve_plugin_cache_dir(args.cache_root.as_deref())?;
+    std::fs::create_dir_all(&cache_root)
+        .with_context(|| format!("не вдалось створити кеш-теку `{}`", cache_root.display()))?;
+
+    let mut lock = OciPluginLock::load_or_empty(&args.lock)?;
+    let pinned = lock
+        .packages
+        .iter()
+        .find(|entry| entry.package == args.package && entry.requirement == args.requirement)
+        .cloned();
+
+    if let Some(entry) = pinned {
+        let cache_path = cache_path_for_digest(&cache_root, &entry.digest)?;
+        if let Some(hit) = read_valid_cache_hit(&cache_path, &entry.digest) {
+            return Ok((hit, true));
+        }
+        let fetched = fetch_plugin_component(&args.registry, &args.package, version).await?;
+        let digest = fetched.release.release.digest.clone();
+        if digest != entry.digest {
+            anyhow::bail!(
+                "digest дрейфонув: lock `{}` пінить `{}` для `{} {}`, реєстр щойно віддав `{digest}` — \
+                 можлива компрометація реєстру чи lock застарів, не довіряю мовчки",
+                args.lock.display(),
+                entry.digest,
+                args.package,
+                args.requirement
+            );
+        }
+        publish_to_cache(&cache_path, fetched.component())?;
+        return Ok((cache_path, false));
+    }
+
+    // Trust-on-first-use: немає попереднього піна, звіряти нема з чим —
+    // цей виклик його встановлює (той самий мотив, що
+    // `DirectOciResolutionBackend::resolve_dependency` при першому резолві).
+    let fetched = fetch_plugin_component(&args.registry, &args.package, version).await?;
+    let digest = fetched.release.release.digest.clone();
+    let cache_path = cache_path_for_digest(&cache_root, &digest)?;
+    publish_to_cache(&cache_path, fetched.component())?;
+    lock.packages.push(OciLockEntry {
+        package: args.package.clone(),
+        requirement: args.requirement.clone(),
+        version: fetched.release.release.version.clone(),
+        digest,
+        reference: fetched.release.reference.clone(),
+        signature: None,
+    });
+    lock.write(&args.lock)?;
+    Ok((cache_path, false))
+}
+
+/// Кеш-директорія `.wasm`-компонентів — дзеркало `resolvePluginCacheDir`
+/// (`wasm-plugins.mjs`, JS-бік): `--cache-root` явний, інакше
+/// `N_RULES_PLUGIN_CACHE_DIR` (той самий канал ізоляції тестів, що JS),
+/// інакше платформна конвенція (`~/.cache/@7n/rules/plugins` mac/linux,
+/// `%LOCALAPPDATA%\@7n\rules\plugins` win32). Той самий кеш-неймспейс, що
+/// JS читає для `url`+`sha256`- і lock-форм — обидва боки звіряють один
+/// вміст за одним `sha256`-hex іменем файлу, джерело піна значення не має.
+fn resolve_plugin_cache_dir(explicit: Option<&std::path::Path>) -> anyhow::Result<std::path::PathBuf> {
+    if let Some(dir) = explicit {
+        return Ok(dir.to_path_buf());
+    }
+    if let Ok(over) = std::env::var("N_RULES_PLUGIN_CACHE_DIR") {
+        if !over.is_empty() {
+            return Ok(std::path::PathBuf::from(over));
+        }
+    }
+    if cfg!(windows) {
+        let local_app_data =
+            std::env::var("LOCALAPPDATA").context("LOCALAPPDATA не встановлено — потрібен для дефолтної кеш-теки на Windows")?;
+        Ok(std::path::PathBuf::from(local_app_data).join("@7n").join("rules").join("plugins"))
+    } else {
+        let home = std::env::var("HOME").context("HOME не встановлено — потрібен для дефолтної кеш-теки")?;
+        Ok(std::path::PathBuf::from(home)
+            .join(".cache")
+            .join("@7n")
+            .join("rules")
+            .join("plugins"))
+    }
+}
+
+/// `sha256:<hex>` → `<cacheDir>/<hex>.wasm` — той самий файл-неймспейс, що
+/// `wasm-plugins.mjs` (`<cacheDir>/${sha256}.wasm`), лише без префікса
+/// `sha256:` у файловому імені (JS-бік теж не несе префікс, доккомент
+/// `resolveLockEntryPath`).
+fn cache_path_for_digest(cache_root: &std::path::Path, digest: &str) -> anyhow::Result<std::path::PathBuf> {
+    let hex = digest
+        .strip_prefix("sha256:")
+        .with_context(|| format!("digest `{digest}` не має префікса `sha256:` — пошкоджений lock чи реліз"))?;
+    Ok(cache_root.join(format!("{hex}.wasm")))
+}
+
+/// Кеш-хіт — це наявний файл, чия ВБУДОВАНА ідентичність
+/// (`inspect_component(bytes).release.digest`, той самий authoritative
+/// digest, що обчислює сам `oci-dist-package` при публікації) збігається з
+/// очікуваним — ім'я файлу саме по собі не є довірою (той самий мотив, що
+/// `readValidCacheHit` у `wasm-plugins.mjs`).
+fn read_valid_cache_hit(cache_path: &std::path::Path, expected_digest: &str) -> Option<std::path::PathBuf> {
+    let bytes = std::fs::read(cache_path).ok()?;
+    let inspected = inspect_component(&bytes).ok()?;
+    (inspected.release.digest == expected_digest).then(|| cache_path.to_path_buf())
+}
+
+/// Атомарно публікує завантажені байти в кеш — tmp-файл у тій самій теці
+/// (спільний filesystem, без EXDEV на `rename`) + rename на фінальне ім'я,
+/// той самий патерн, що JS-бік (`publishToCache`, `wasm-plugins.mjs`).
+fn publish_to_cache(cache_path: &std::path::Path, bytes: &[u8]) -> anyhow::Result<()> {
+    let parent = cache_path
+        .parent()
+        .context("шлях кешу без батьківської теки")?;
+    std::fs::create_dir_all(parent)
+        .with_context(|| format!("не вдалось створити кеш-теку `{}`", parent.display()))?;
+    let tmp_path = parent.join(format!(".tmp-{}", std::process::id()));
+    std::fs::write(&tmp_path, bytes)
+        .with_context(|| format!("не вдалось записати тимчасовий кеш-файл `{}`", tmp_path.display()))?;
+    std::fs::rename(&tmp_path, cache_path).with_context(|| {
+        format!(
+            "не вдалось опублікувати кеш `{}` → `{}`",
+            tmp_path.display(),
+            cache_path.display()
+        )
+    })
 }
 
 /// Заводить односторінковий multi-thread рантайм і виконує один async-виклик
@@ -369,10 +542,11 @@ mod tests {
     use std::path::PathBuf;
 
     use super::{
-        embed_manifest_component, read_cargo_version, read_declared_worlds,
-        read_world_publisher_id, render_manifest_toml, validate_lint_only_domain,
+        cache_path_for_digest, embed_manifest_component, fetch_and_lock, publish_to_cache,
+        read_cargo_version, read_declared_worlds, read_valid_cache_hit, read_world_publisher_id,
+        render_manifest_toml, resolve_plugin_cache_dir, run_blocking, validate_lint_only_domain,
     };
-    use crate::cli::PluginEmbedManifestArgs;
+    use crate::cli::{PluginEmbedManifestArgs, PluginFetchArgs};
 
     fn repo_root() -> PathBuf {
         // `crates/rules-cli` — двічі вгору до кореня workspace.
@@ -537,5 +711,108 @@ mod tests {
         let packaged = std::fs::read(&out_path).unwrap();
         let inspected = oci_dist_package::inspect_component(&packaged).expect("inspects");
         assert_eq!(inspected.manifest, manifest);
+    }
+
+    /// Мінімальний манiфестований компонент — той самий фікстур, що
+    /// [`embeds_manifest_into_a_minimal_component`], без файлової системи
+    /// (`render_manifest_toml`+`embed_manifest` напряму, без `crate_dir` з
+    /// реального гостя) — тести `plugin fetch` нижче потребують лише
+    /// байтів із валідною embedded-ідентичністю, не конкретного гостя.
+    fn manifested_component_and_digest() -> (Vec<u8>, String) {
+        let bytes = wasm_encoder::Component::new().finish();
+        let toml = render_manifest_toml("n-rules", "test-plugin", "0.1.0", &[]);
+        let manifest = oci_dist_package::PluginManifest::from_toml(&toml).expect("валідний TOML");
+        let component = oci_dist_package::embed_manifest(&bytes, &manifest).expect("embed succeeds");
+        let digest = oci_dist_package::inspect_component(&component)
+            .expect("inspects")
+            .release
+            .digest;
+        (component, digest)
+    }
+
+    #[test]
+    fn cache_path_for_digest_strips_sha256_prefix_and_rejects_missing_one() {
+        let root = std::path::Path::new("/cache/root");
+        let path = cache_path_for_digest(root, &format!("sha256:{}", "a".repeat(64))).unwrap();
+        assert_eq!(path, root.join(format!("{}.wasm", "a".repeat(64))));
+
+        let error = cache_path_for_digest(root, "not-a-sha256-digest").unwrap_err();
+        assert!(format!("{error:#}").contains("sha256:"));
+    }
+
+    #[test]
+    fn publish_to_cache_and_read_valid_cache_hit_roundtrip() {
+        let (component, digest) = manifested_component_and_digest();
+        let dir = tempfile::tempdir().expect("temp dir");
+        let cache_path = cache_path_for_digest(dir.path(), &digest).unwrap();
+
+        // Кеш-промах до публікації.
+        assert!(read_valid_cache_hit(&cache_path, &digest).is_none());
+
+        publish_to_cache(&cache_path, &component).expect("publish succeeds");
+        assert_eq!(read_valid_cache_hit(&cache_path, &digest), Some(cache_path.clone()));
+
+        // Підмінений вміст під правильним ім'ям — ім'я саме по собі не є
+        // довірою (той самий мотив, що JS-бік, доккомент `readValidCacheHit`).
+        std::fs::write(&cache_path, "підмінений вміст, не справжній wasm").unwrap();
+        assert!(read_valid_cache_hit(&cache_path, &digest).is_none());
+    }
+
+    #[test]
+    fn resolve_plugin_cache_dir_prefers_explicit_argument() {
+        let explicit = std::path::Path::new("/explicit/cache/root");
+        assert_eq!(resolve_plugin_cache_dir(Some(explicit)).unwrap(), explicit);
+    }
+
+    #[test]
+    fn fetch_and_lock_rejects_non_exact_requirement_without_any_network_call() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let args = PluginFetchArgs {
+            lock: dir.path().join(".oci-dist.lock"),
+            registry: "unreachable.invalid".to_owned(),
+            package: "n-rules:test-plugin".to_owned(),
+            requirement: "^1.0.0".to_owned(),
+            cache_root: Some(dir.path().join("cache")),
+        };
+        let error = run_blocking(fetch_and_lock(&args)).unwrap_err();
+        assert!(format!("{error:#}").contains("=X.Y.Z"));
+        // Жодного lock-файлу не мало з'явитись — валідація вимоги стається
+        // ДО будь-якого читання/запису lock чи мережевого виклику.
+        assert!(!args.lock.exists());
+    }
+
+    /// Lock уже пінить пакет за digest'ом реального кеш-файлу — резолв
+    /// мусить взяти кеш-хіт і НІКОЛИ не дійти до мережі (реєстр
+    /// `unreachable.invalid` це б підтвердив падінням, якби дійшло).
+    #[test]
+    fn fetch_and_lock_uses_cache_hit_without_touching_the_network() {
+        let (component, digest) = manifested_component_and_digest();
+        let dir = tempfile::tempdir().expect("temp dir");
+        let cache_root = dir.path().join("cache");
+        let cache_path = cache_path_for_digest(&cache_root, &digest).unwrap();
+        publish_to_cache(&cache_path, &component).unwrap();
+
+        let lock_path = dir.path().join(".oci-dist.lock");
+        let mut lock = oci_dist_oci::OciPluginLock::empty();
+        lock.packages.push(oci_dist_oci::OciLockEntry {
+            package: "n-rules:test-plugin".to_owned(),
+            requirement: "=0.1.0".to_owned(),
+            version: "0.1.0".to_owned(),
+            digest: digest.clone(),
+            reference: "registry.invalid/n-rules/test-plugin:0.1.0".to_owned(),
+            signature: None,
+        });
+        lock.write(&lock_path).unwrap();
+
+        let args = PluginFetchArgs {
+            lock: lock_path,
+            registry: "unreachable.invalid".to_owned(),
+            package: "n-rules:test-plugin".to_owned(),
+            requirement: "=0.1.0".to_owned(),
+            cache_root: Some(cache_root),
+        };
+        let (resolved_path, cache_hit) = run_blocking(fetch_and_lock(&args)).expect("cache-hit resolve succeeds");
+        assert_eq!(resolved_path, cache_path);
+        assert!(cache_hit);
     }
 }

@@ -297,6 +297,7 @@ fn dispatch(command: NativeCommand, args: &[String]) -> ExitCode {
         NativeCommand::Plugin(parsed) => match parsed.command {
             PluginCommand::EmbedManifest(embed) => plugin_cmd::run_embed_manifest(&embed),
             PluginCommand::Publish(publish) => plugin_cmd::run_publish(&publish),
+            PluginCommand::Fetch(fetch) => plugin_cmd::run_fetch(&fetch),
         },
     }
 }

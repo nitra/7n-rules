@@ -340,7 +340,7 @@ pub struct DocsArgs {
 #[derive(Args, Debug)]
 #[command(
     help_template = HELP_TEMPLATE,
-    override_usage = "n-rules plugin <embed-manifest|publish>",
+    override_usage = "n-rules plugin <embed-manifest|publish|fetch>",
     subcommand_help_heading = "Підкоманди"
 )]
 pub struct PluginArgs {
@@ -357,6 +357,10 @@ pub enum PluginCommand {
     EmbedManifest(PluginEmbedManifestArgs),
     /// Опублікувати вже зманіфестований `.wasm` через direct OCI transport.
     Publish(PluginPublishArgs),
+    /// Резолвити один пакет за lock-піном (задача Д1 третьої колії
+    /// дистрибуції) — єдине місце `n-rules`, де відбувається мережевий
+    /// OCI-виклик заради консюмерського резолву `wasmPlugins`.
+    Fetch(PluginFetchArgs),
 }
 
 /// `plugin embed-manifest --crate-dir <dir> --package <name> --component
@@ -402,6 +406,40 @@ pub struct PluginPublishArgs {
     /// Лише порахувати реліз (package/version/digest/reference), не пушити.
     #[arg(long)]
     pub dry_run: bool,
+}
+
+/// `plugin fetch --lock <шлях> --registry <реєстр> --package <ідентичність>
+/// --requirement <=X.Y.Z> [--cache-root <тека>]`.
+#[derive(Args, Debug)]
+#[command(
+    help_template = HELP_TEMPLATE,
+    override_usage = "n-rules plugin fetch --lock <шлях> --registry <реєстр> --package <ідентичність> \
+                       --requirement <=X.Y.Z> [--cache-root <тека>]",
+    next_help_heading = FLAGS_HEADING
+)]
+pub struct PluginFetchArgs {
+    /// Абсолютний чи відносний до `cwd` шлях `.oci-dist.lock` (дефолт
+    /// консюмера — `oci_dist_oci::LOCK_FILE_NAME`, той самий, що читає
+    /// `wasm-plugins.mjs`).
+    #[arg(long, value_name = "шлях")]
+    pub lock: std::path::PathBuf,
+    /// Реєстр джерела — обов'язковий, без дефолту (той самий мотив, що
+    /// `plugin publish`).
+    #[arg(long, value_name = "реєстр")]
+    pub registry: String,
+    /// OCI-ідентичність пакета (`OciLockEntry.package`, напр. `"n-rules:lang-js"`).
+    #[arg(long, value_name = "ідентичність")]
+    pub package: String,
+    /// Точний `=X.Y.Z` (`OciLockEntry.requirement` — те саме M0-обмеження,
+    /// що сам `oci-dist-oci` валідує).
+    #[arg(long, value_name = "=X.Y.Z")]
+    pub requirement: String,
+    /// Кеш-директорія `.wasm`-компонентів, ключована за `sha256`-hex вмісту
+    /// — той самий кеш-неймспейс, що `wasm-plugins.mjs`
+    /// (`<cacheDir>/<sha256-hex>.wasm`). Дефолт — `resolvePluginCacheDir`
+    /// конвенція JS-боку (`~/.cache/@7n/rules/plugins` mac/linux).
+    #[arg(long, value_name = "тека")]
+    pub cache_root: Option<std::path::PathBuf>,
 }
 
 /// Розбір argv спільною граматикою для юніт-тестів команд: вони мають

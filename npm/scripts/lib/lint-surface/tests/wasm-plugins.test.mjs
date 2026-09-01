@@ -429,6 +429,259 @@ describe('resolveWasmConcernMap — url+sha256 retrieval (канонічний �
   })
 })
 
+/**
+ * Тести lock-форми `wasmPlugins` (задача Д1 третьої колії дистрибуції,
+ * спека `docs/specs/2026-09-01-wasm-plugin-lock-resolve.md`) — резолв
+ * ЧИСТО з `.oci-dist.lock` + локального кешу, БЕЗ жодного мережевого
+ * виклику (мережевий OCI-фетч живе виключно в `n-rules plugin fetch`,
+ * `crates/rules-cli`, звірено окремими Rust-тестами
+ * `crates/rules-cli/src/plugin_cmd.rs`). Тому на відміну від блоку
+ * `url+sha256` тут немає `fetchFn` — жоден тест цього блоку не має права
+ * його викликати.
+ */
+describe('resolveWasmConcernMap — lock-пін (задача Д1, package+requirement)', () => {
+  const LOCK_PACKAGE = 'n-rules:lang-js'
+  const LOCK_REQUIREMENT = '=0.1.0'
+  const LOCK_SCHEMA = 'nitra.plugin-lock/v1'
+
+  /**
+   * Записує `.oci-dist.lock` у корені `dir` — формат дослівно
+   * `oci_dist_oci::OciPluginLock` (доккомент модуля §Д1).
+   * @param {string} dir абсолютний cwd тесту
+   * @param {Array<Record<string, unknown>>} packages записи `packages`
+   * @returns {Promise<void>}
+   */
+  function writeLock(dir, packages) {
+    return writeFile(join(dir, '.oci-dist.lock'), JSON.stringify({ schema: LOCK_SCHEMA, packages }), 'utf8')
+  }
+
+  /**
+   * Кладе реальні байти plugin-lang-js у кеш під канонічним іменем
+   * (`<cacheDir>/<sha256-hex>.wasm`) — той самий кеш-неймспейс, що
+   * `url`+`sha256`-форма, підготовлений тестом напряму (жодного мережевого
+   * `fetchFn` для lock-форми, доккомент блоку).
+   * @param {string} cacheDir абсолютний шлях кеш-директорії
+   * @returns {Promise<void>}
+   */
+  async function primeCache(cacheDir) {
+    await mkdir(cacheDir, { recursive: true })
+    await writeFile(join(cacheDir, `${WASM_SHA256}.wasm`), WASM_BYTES)
+  }
+
+  test('happy-path: lock пінить package+requirement, кеш-хіт → мапа містить ключ концерну', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(
+        join(dir, '.n-rules.json'),
+        JSON.stringify({
+          wasmPlugins: [{ name: 'lang-js', package: LOCK_PACKAGE, requirement: LOCK_REQUIREMENT }]
+        }),
+        'utf8'
+      )
+      const cacheDir = join(dir, 'cache')
+      await primeCache(cacheDir)
+      await writeLock(dir, [
+        {
+          package: LOCK_PACKAGE,
+          requirement: LOCK_REQUIREMENT,
+          version: '0.1.0',
+          digest: `sha256:${WASM_SHA256}`,
+          reference: 'registry.invalid/n-rules/lang-js:0.1.0'
+        }
+      ])
+
+      const map = await resolveMap(dir, { cacheDir, env: {} })
+      const cachePath = join(cacheDir, `${WASM_SHA256}.wasm`)
+      expect(map.get('vue/tfm-translations')).toEqual({ wasmPath: cachePath, toolPaths: LANG_JS_TOOL_PATHS })
+    })
+  })
+
+  test('немає .oci-dist.lock → skip+warn із підказкою "n-rules plugin fetch"', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(
+        join(dir, '.n-rules.json'),
+        JSON.stringify({
+          wasmPlugins: [{ name: 'lang-js', package: LOCK_PACKAGE, requirement: LOCK_REQUIREMENT }]
+        }),
+        'utf8'
+      )
+      const warnSpy = vi.spyOn(console, 'warn').mockReturnValue()
+      const map = await resolveMap(dir, { cacheDir: join(dir, 'cache'), env: {} })
+      expect(map.size).toBe(0)
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('немає валідного lock-файлу'))
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('n-rules plugin fetch'))
+      warnSpy.mockRestore()
+    })
+  })
+
+  test('lock є, але без запису для цього package+requirement → skip+warn', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(
+        join(dir, '.n-rules.json'),
+        JSON.stringify({
+          wasmPlugins: [{ name: 'lang-js', package: LOCK_PACKAGE, requirement: LOCK_REQUIREMENT }]
+        }),
+        'utf8'
+      )
+      await writeLock(dir, [
+        {
+          package: LOCK_PACKAGE,
+          requirement: '=0.2.0', // інша вимога — не збігається з декларованою в `.n-rules.json`
+          version: '0.2.0',
+          digest: `sha256:${WASM_SHA256}`,
+          reference: 'registry.invalid/n-rules/lang-js:0.2.0'
+        }
+      ])
+      const warnSpy = vi.spyOn(console, 'warn').mockReturnValue()
+      const map = await resolveMap(dir, { cacheDir: join(dir, 'cache'), env: {} })
+      expect(map.size).toBe(0)
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining(`немає запису "${LOCK_PACKAGE}" "${LOCK_REQUIREMENT}"`))
+      warnSpy.mockRestore()
+    })
+  })
+
+  test('lock пінить запис, але кеш-промах (n-rules plugin fetch ще не запускали) → skip+warn', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(
+        join(dir, '.n-rules.json'),
+        JSON.stringify({
+          wasmPlugins: [{ name: 'lang-js', package: LOCK_PACKAGE, requirement: LOCK_REQUIREMENT }]
+        }),
+        'utf8'
+      )
+      await writeLock(dir, [
+        {
+          package: LOCK_PACKAGE,
+          requirement: LOCK_REQUIREMENT,
+          version: '0.1.0',
+          digest: `sha256:${WASM_SHA256}`,
+          reference: 'registry.invalid/n-rules/lang-js:0.1.0'
+        }
+      ])
+      const warnSpy = vi.spyOn(console, 'warn').mockReturnValue()
+      const map = await resolveMap(dir, { cacheDir: join(dir, 'cache'), env: {} })
+      expect(map.size).toBe(0)
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('не закешовано'))
+      warnSpy.mockRestore()
+    })
+  })
+
+  test("пошкоджений кеш-файл (підмінений вміст під правильним ім'ям) → skip+warn, БЕЗ спроби мережі", async () => {
+    await withTmpDir(async dir => {
+      await writeFile(
+        join(dir, '.n-rules.json'),
+        JSON.stringify({
+          wasmPlugins: [{ name: 'lang-js', package: LOCK_PACKAGE, requirement: LOCK_REQUIREMENT }]
+        }),
+        'utf8'
+      )
+      const cacheDir = join(dir, 'cache')
+      await mkdir(cacheDir, { recursive: true })
+      await writeFile(join(cacheDir, `${WASM_SHA256}.wasm`), 'підмінений вміст, не справжній wasm', 'utf8')
+      await writeLock(dir, [
+        {
+          package: LOCK_PACKAGE,
+          requirement: LOCK_REQUIREMENT,
+          version: '0.1.0',
+          digest: `sha256:${WASM_SHA256}`,
+          reference: 'registry.invalid/n-rules/lang-js:0.1.0'
+        }
+      ])
+      const warnSpy = vi.spyOn(console, 'warn').mockReturnValue()
+      const map = await resolveMap(dir, { cacheDir, env: {} })
+      expect(map.size).toBe(0)
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('не закешовано'))
+      warnSpy.mockRestore()
+    })
+  })
+
+  test('невалідна схема lock (не "nitra.plugin-lock/v1") → skip+warn, lock-піни пропущено', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(
+        join(dir, '.n-rules.json'),
+        JSON.stringify({
+          wasmPlugins: [{ name: 'lang-js', package: LOCK_PACKAGE, requirement: LOCK_REQUIREMENT }]
+        }),
+        'utf8'
+      )
+      await writeFile(join(dir, '.oci-dist.lock'), JSON.stringify({ schema: 'якась-інша-схема', packages: [] }), 'utf8')
+      const warnSpy = vi.spyOn(console, 'warn').mockReturnValue()
+      const map = await resolveMap(dir, { cacheDir: join(dir, 'cache'), env: {} })
+      expect(map.size).toBe(0)
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('невідома чи відсутня схема lock'))
+      warnSpy.mockRestore()
+    })
+  })
+
+  test('пошкоджений (невалідний JSON) lock → skip+warn', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(
+        join(dir, '.n-rules.json'),
+        JSON.stringify({
+          wasmPlugins: [{ name: 'lang-js', package: LOCK_PACKAGE, requirement: LOCK_REQUIREMENT }]
+        }),
+        'utf8'
+      )
+      await writeFile(join(dir, '.oci-dist.lock'), '{ не валідний json', 'utf8')
+      const warnSpy = vi.spyOn(console, 'warn').mockReturnValue()
+      const map = await resolveMap(dir, { cacheDir: join(dir, 'cache'), env: {} })
+      expect(map.size).toBe(0)
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('пошкоджено (невалідний JSON)'))
+      warnSpy.mockRestore()
+    })
+  })
+
+  test('N_RULES_PLUGIN_LOCK_PATH override — читає lock не з дефолтного шляху', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(
+        join(dir, '.n-rules.json'),
+        JSON.stringify({
+          wasmPlugins: [{ name: 'lang-js', package: LOCK_PACKAGE, requirement: LOCK_REQUIREMENT }]
+        }),
+        'utf8'
+      )
+      const cacheDir = join(dir, 'cache')
+      await primeCache(cacheDir)
+      const customLockPath = join(dir, 'custom.lock.json')
+      await writeFile(
+        customLockPath,
+        JSON.stringify({
+          schema: LOCK_SCHEMA,
+          packages: [
+            {
+              package: LOCK_PACKAGE,
+              requirement: LOCK_REQUIREMENT,
+              version: '0.1.0',
+              digest: `sha256:${WASM_SHA256}`,
+              reference: 'registry.invalid/n-rules/lang-js:0.1.0'
+            }
+          ]
+        }),
+        'utf8'
+      )
+
+      const map = await resolveMap(dir, { cacheDir, env: { N_RULES_PLUGIN_LOCK_PATH: customLockPath } })
+      const cachePath = join(cacheDir, `${WASM_SHA256}.wasm`)
+      expect(map.get('vue/tfm-translations')).toEqual({ wasmPath: cachePath, toolPaths: LANG_JS_TOOL_PATHS })
+    })
+  })
+
+  test('невалідний requirement (не точний "=X.Y.Z") — запис відфільтровано ще на читанні конфігу', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(
+        join(dir, '.n-rules.json'),
+        JSON.stringify({
+          wasmPlugins: [{ name: 'lang-js', package: LOCK_PACKAGE, requirement: '^0.1.0' }]
+        }),
+        'utf8'
+      )
+      const map = await resolveMap(dir, { cacheDir: join(dir, 'cache'), env: {} })
+      // Немає ні lock-файлу, ні warn — запис невалідний за формою (`isValidEntry`),
+      // той самий skip-not-crash дух, що невалідний `sha256` у `url`-формі.
+      expect(map.size).toBe(0)
+    })
+  })
+})
+
 describe('resolveWasmConcernMap — builtin-таблиця first-party пінів (задача O1, спека §3.4 рішення Н)', () => {
   test('немає builtin-pins.json (repo-дерево без збірки) → тиша, порожня мапа', async () => {
     await withTmpDir(async dir => {

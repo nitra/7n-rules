@@ -37,7 +37,7 @@
     },
     "wasmPlugins": {
       "type": "array",
-      "description": "Wasm-плагіни plugin contract (n-rules:plugin@4.0.0, docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md §3.3/§3.4). Кожен запис — АБО dev-форма (name+path на вже зібраний .wasm-компонент, лише поза CI), АБО канонічний hash-пін дистрибуції (name+url+sha256, спека §3.4 рішення Ж). Окреме поле від `plugins` (Plugin API v2, npm-пакети) — різні формати запису й різний конвеєр резолву.",
+      "description": "Wasm-плагіни plugin contract (n-rules:plugin@4.0.0, docs/specs/2026-07-31-plugin-contract-v3-wasm-component.md §3.3/§3.4). Кожен запис — dev-форма (name+path на вже зібраний .wasm-компонент, лише поза CI), канонічний hash-пін дистрибуції (name+url+sha256, спека §3.4 рішення Ж), АБО lock-пін (name+package+requirement, задача Д1 третьої колії дистрибуції — резолв за пакетною ідентичністю через .oci-dist.lock консюмера, docs/specs/2026-09-01-wasm-plugin-lock-resolve.md). Окреме поле від `plugins` (Plugin API v2, npm-пакети) — різні формати запису й різний конвеєр резолву.",
       "items": {
         "type": "object",
         "oneOf": [
@@ -75,6 +75,28 @@
                 "type": "string",
                 "pattern": "^[0-9a-f]{64}$",
                 "description": "Очікуваний sha256-hex (64 hex-символи, нижній регістр) вмісту .wasm — модель довіри retrieval-контуру."
+              }
+            }
+          },
+          {
+            "additionalProperties": false,
+            "required": ["name", "package", "requirement"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Ідентифікатор плагіна (лише для diagnostics-повідомлень)."
+              },
+              "package": {
+                "type": "string",
+                "minLength": 1,
+                "description": "OCI-ідентичність пакета (OciLockEntry.package у .oci-dist.lock консюмера, напр. \"n-rules:lang-js\")."
+              },
+              "requirement": {
+                "type": "string",
+                "pattern": "^=",
+                "minLength": 2,
+                "description": "Точний =X.Y.Z (те саме M0-обмеження, що сам oci-dist-oci валідує) — ключ пошуку разом із package у .oci-dist.lock."
               }
             }
           }

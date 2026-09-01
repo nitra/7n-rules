@@ -15744,3 +15744,105 @@ JS-докоментарів/тестів (де вони існували): CRC-3
 зроблена статичним аналізом (`wc -l`, `grep -rn`) над поточним деревом, не
 збіркою — збірка/тести нічого не додали б до перевірки текстових тверджень.
 `npx @7n/rules lint`/`/doc-files` свідомо НЕ запускались (правило задачі).
+### 2.134. Д1 (резолв wasm-плагінів за lock) третьої колії дистрибуції — вимір показав недовизначену форму lock-файлу, мінідизайн ухвалив дослівний формат `oci-dist-oci`, реалізовано четверта форма `wasmPlugins` + `n-rules plugin fetch`
+
+**Контекст.** План `docs/plans/2026-08-31-full-rust-migration-plan.md`
+§6/§7 називає Д1 одним рядком — «резолв за lock» — без форми файлу. Задача
+явно вимагала СПЕРШУ виміряти обсяг і, якщо формулювання недовизначене,
+зафіксувати це мінідизайном, а не мовчки звузити чи вигадати. Так і
+сталось: форма lock-файлу знайдена не в плані-адресаті, а в його
+попереднику (`docs/plans/2026-08-29-js-rust-migration-completion-plan.md:108`)
+і в самому крейті-транспорті `oci-dist-oci` (`=0.3.1`, реєстр `crates-7n`),
+який уже несе повний, протестований формат (`OciPluginLock`/`OciLockEntry`,
+схема `nitra.plugin-lock/v1`, файл `.oci-dist.lock`) — переписувати його під
+власний канон означало б завести другий lock-формат, чого Д3 прямо
+забороняє («переродити `builtin-pins.json` в lock-формат `oci-dist`, не
+заводити другий»).
+
+**Вимір — мінідизайн `docs/specs/2026-09-01-wasm-plugin-lock-resolve.md`.**
+
+1. Джерело правди сьогодні — `npm/scripts/lib/lint-surface/wasm-plugins.mjs`:
+   три форми запису `wasmPlugins` (`path` dev-петля, `url+sha256`
+   канонічний пін, `file+sha256` builtin-таблиця `npm/wasm-plugins/builtin-pins.json`,
+   найнижчий пріоритет, НЕ комітиться).
+2. Бракувало: жодної форми запису за пакетною ідентичністю
+   (`package`+`requirement`), жодного lock-файлу в репозиторії взагалі.
+   `oci-dist-oci` несе й повний граф-резолвер (`DirectOciResolutionBackend::collect_graph`)
+   — але він розв'язує WIT-типізований граф залежностей ОДНОГО компонента
+   (композиція), не наш сценарій (плоский список незалежних `wasmPlugins`
+   консюмера). Придатний примітив — публічна `fetch_plugin_component(registry,
+   package, version)`, точковий фетч одного релізу.
+3. Lock vs `builtin-pins.json`: заміна — робота Д3 (послідовність
+   Д2→Д1→Д3→Д4, `2026-08-29-...:274`), НЕ ця задача. Зараз lock — ЧЕТВЕРТА,
+   паралельна форма запису, що співіснує з наявними трьома.
+4. Реально потрібне зараз: (а) четверта форма `wasmPlugins`
+   `{name,package,requirement}`, резолв ЧИСТО з `.oci-dist.lock`+локального
+   кешу, БЕЗ мережі в JS; (б) `n-rules plugin fetch` (Rust,
+   `crates/rules-cli`) — ЄДИНЕ місце `n-rules`, де відбувається мережевий
+   OCI-виклик, що заповнює і lock, і кеш. Свідомо НЕ зараз: мережа в JS
+   (дублювало б довірений OCI-контур `oci-dist-oci` другим, недовіреним),
+   повний граф залежностей (не наш сценарій), заміна/видалення
+   `builtin-pins.json` (Д3), авто-fetch з JS (той самий "PATH → кеш →
+   явний hard-fail" принцип, що вже застосований до `ensure-tool.mjs`).
+
+**Що реалізовано.**
+
+1. **`npm/scripts/lib/lint-surface/wasm-plugins.mjs`** — четверта форма
+   `{name,package,requirement}` (`requirement` — точний `=X.Y.Z`, те саме
+   M0-обмеження, що сам `oci-dist-oci` валідує, `isValidEntry`).
+   `readPluginLock`/`resolveLockEntryPath` (нові): читає й валідує
+   `.oci-dist.lock` (схема `nitra.plugin-lock/v1`, `N_RULES_PLUGIN_LOCK_PATH`
+   override — той самий мотив ізоляції тестів, що `N_RULES_PLUGIN_CACHE_DIR`),
+   шукає `package`+`requirement`, кеш-хіт за `<cacheDir>/<sha256-hex>.wasm`
+   (той самий кеш-неймспейс, що `url`+`sha256`-форма — спільний за вмістом,
+   не за джерелом). Відсутній/пошкоджений lock, відсутній запис, кеш-промах
+   — skip-not-crash `console.warn` із точною командою відновлення
+   (`n-rules plugin fetch --lock … --package … --requirement …`), НІКОЛИ
+   мовчки й НІКОЛИ мережевий виклик. `npm/schemas/n-rules.json` — третя
+   `oneOf`-гілка `wasmPlugins` дзеркалить нову форму.
+2. **`crates/rules-cli/src/plugin_cmd.rs`** — `n-rules plugin fetch --lock
+   <шлях> --registry <реєстр> --package <ідентичність> --requirement
+   <=X.Y.Z> [--cache-root <тека>]` (нова власна поверхня `plugin`,
+   `crates/rules-cli/src/cli.rs`/`main.rs`). Lock уже пінить пакет → кеш-хіт
+   без мережі (звірка через `oci_dist_package::inspect_component` на
+   вбудованій ідентичності, не голий `sha256` байтів — той самий
+   authoritative digest, що сам крейт обчислює при публікації), кеш-промах
+   → мережевий `fetch_plugin_component`, звірений ПРОТИ вже запінованого
+   digest (fail loud на дрейфі — компрометація реєстру чи застарілий lock
+   ніколи не проходять мовчки). Немає піна — trust-on-first-use (той самий
+   мотив, що приватний `DirectOciResolutionBackend::resolve_dependency` при
+   першому резолві), lock зростає й атомарно пишеться
+   (`OciPluginLock::write`, вже крейта).
+3. **Тести** — `npm/scripts/lib/lint-surface/tests/wasm-plugins.test.mjs`:
+   11 нових тестів (happy-path кеш-хіт, відсутній/пошкоджений/невалідна-схема
+   lock, відсутній запис, кеш-промах, пошкоджений кеш, `N_RULES_PLUGIN_LOCK_PATH`
+   override, невалідний `requirement`) — жоден не викликає мережу.
+   `crates/rules-cli/src/plugin_cmd.rs::tests`: 7 нових (кеш-шлях/roundtrip
+   публікації-читання кешу, дефолт кеш-теки, non-exact `--requirement`
+   падає ДО будь-якого lock/мережевого доступу, кеш-хіт резолвиться без
+   мережі — реєстр `unreachable.invalid` це б підтвердив, якби виклик туди
+   дійшов).
+
+**Свідомо лишилось поза цим PR (Д3/Д4, не вигадана потреба).**
+
+- Заміна/видалення `npm/wasm-plugins/builtin-pins.json` на lock-формат — Д3,
+  явно наступний крок послідовності, не цей.
+- Автоматичний виклик `n-rules plugin fetch` з JS-резолву (авто-install) —
+  суперечив би вже усталеному в репозиторії принципу
+  (`ensure-tool.mjs`/`tools ensure`): PATH → кеш → явний hard-fail з
+  підказкою команди, не побічний ефект резолву.
+- Публікація в реальний registry чи мережеві завантаження в тестах —
+  задача це прямо забороняла; усі тести цього кроку — стаби/фікстури,
+  жоден не торкається мережі (звірено окремо для JS- і Rust-боку вище).
+
+**Прогнані команди.**
+
+```
+cargo build --release -p rules-cli           # 547 крейтів, чисто
+cargo build --release -p rules-napi          # 263 крейти, чисто
+node npm/scripts/build-wasm-plugins.mjs      # 6/6 гостей, OK
+cargo test --release -p rules-cli            # 128 passed (2 suites)
+N_RULES_NATIVE_ADDON=<staged librules_napi.dylib> \
+  npx vitest run npm/scripts/lib/lint-surface/tests/wasm-*.test.mjs
+                                              # 12 test files, 624 passed | 1 skipped
+```

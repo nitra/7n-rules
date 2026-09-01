@@ -24,11 +24,13 @@
  * wasm-компоненті просто отримає типізовану помилку в `tool-output`
  * (`ToolResolver::run`, доккомент host-боку), не крашиться.
  *
- * Формат конфігу — дві форми запису (schema `npm/schemas/n-rules.json`):
+ * Формат конфігу — три явні форми запису (schema `npm/schemas/n-rules.json`),
+ * плюс четверта вбудована (`builtin-pins.json`, розділ нижче):
  * ```json
  * "wasmPlugins": [
  *   { "name": "lang-js", "path": "./target/wasm32-wasip3/release/plugin_lang_js.wasm" },
- *   { "name": "acme-plugin", "url": "https://…/plugin.wasm", "sha256": "…64 hex…" }
+ *   { "name": "acme-plugin", "url": "https://…/plugin.wasm", "sha256": "…64 hex…" },
+ *   { "name": "acme-lock", "package": "acme:plugin", "requirement": "=1.2.0" }
  * ]
  * ```
  * `path` — dev-петля: repo-relative чи абсолютний шлях до вже зібраного
@@ -36,6 +38,16 @@
  * (`env.CI` truthy) — у CI dev-шлях пропускається з warn (спека §3.4: «`file:`
  * без hash-перевірки — лише поза CI»); детермінований CI-прогін мусить
  * резолвити канонічний пін.
+ *
+ * `package`+`requirement` — lock-пін (задача Д1 третьої колії дистрибуції,
+ * спека `docs/specs/2026-09-01-wasm-plugin-lock-resolve.md`): резолв за
+ * пакетною ідентичністю через `.oci-dist.lock` консюмера (формат дослівно
+ * `oci_dist_oci::OciPluginLock`, `=0.3.1`), ЧИСТО з локального кешу — БЕЗ
+ * мережі в JS ([`resolveLockEntryPath`]). Мережевий OCI-виклик, що заповнює
+ * і lock, і кеш, живе виключно в `n-rules plugin fetch`
+ * (`crates/rules-cli/src/plugin_cmd.rs`); кеш-промах чи відсутній
+ * lock-запис — skip-not-crash `console.warn` із точною командою відновлення
+ * (`n-rules plugin fetch --lock … --package … --requirement …`), НЕ авто-fetch.
  *
  * `url`+`sha256` — канонічний пін дистрибуції (спека §3.4, рішення Ж).
  * Retrieval-модель, дзеркало `ensure-tool.mjs` (`getCacheDir`/`installFromGithub`):
@@ -146,7 +158,17 @@ const WASM_PLUGINS_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..
  * @property {string} sha256 очікуваний sha256-hex (64 символи) вмісту `.wasm`
  */
 
-/** @typedef {WasmPluginPathEntry | WasmPluginUrlEntry} WasmPluginConfigEntry */
+/**
+ * @typedef {object} WasmPluginLockEntry lock-пін (задача Д1, спека
+ *   `docs/specs/2026-09-01-wasm-plugin-lock-resolve.md` §6) — резолв за
+ *   пакетною ідентичністю через `.oci-dist.lock`, не за прямим транспортним
+ *   адресом.
+ * @property {string} name ідентифікатор плагіна (лише для diagnostics-повідомлень)
+ * @property {string} package OCI-ідентичність пакета (`OciLockEntry.package`, напр. `"n-rules:lang-js"`)
+ * @property {string} requirement точний `=X.Y.Z` (`OciLockEntry.requirement` — те саме M0-обмеження, що сам `oci-dist-oci` валідує)
+ */
+
+/** @typedef {WasmPluginPathEntry | WasmPluginUrlEntry | WasmPluginLockEntry} WasmPluginConfigEntry */
 
 /**
  * @typedef {object} WasmPluginBuiltinEntry вбудований пін first-party плагіна з `builtin-pins.json` (задача O1, рішення Н)
@@ -166,6 +188,32 @@ const WASM_PLUGINS_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..
 const SHA256_HEX_RE = /^[0-9a-f]{64}$/
 
 /**
+ * Валідний digest у формі `.oci-dist.lock` (`OciLockEntry.digest`,
+ * `oci_dist_oci` `=0.3.1`) — префікс `sha256:` + 64 hex-символи. Відмінно
+ * від [`SHA256_HEX_RE`] (гол hex, конвенція `url`+`sha256`-форми і
+ * `builtin-pins.json`) навмисно: це поле дослівний DTO чужого крейта, не
+ * наш формат, — переписувати його під наш канон означало б завести другий
+ * lock-формат (задача Д1, спека `docs/specs/2026-09-01-wasm-plugin-lock-resolve.md`).
+ */
+const SHA256_DIGEST_RE = /^sha256:[0-9a-f]{64}$/
+
+/**
+ * Схема `.oci-dist.lock`, яку валідує сам `OciPluginLock::validate`
+ * (`oci_dist_oci`, `graph.rs`) — читач тут звіряє те саме поле, щоб
+ * несумісна майбутня схема впала гучним `warn`, а не мовчки віддала
+ * структурно інший `packages`.
+ */
+const PLUGIN_LOCK_SCHEMA = 'nitra.plugin-lock/v1'
+
+/**
+ * Дефолтна назва lock-файлу (`oci_dist_oci::LOCK_FILE_NAME`) — крейт прямо
+ * дозволяє консюмеру тримати іншу назву (доккомент константи в
+ * `graph.rs`: «Consumers may keep their own historical file name»), але
+ * `n-rules` дефолтить саме на цю, без вигаданого другого імені.
+ */
+const DEFAULT_PLUGIN_LOCK_FILE = '.oci-dist.lock'
+
+/**
  * Мапа «ключ концерну → [`WasmConcernMapEntry`]», один на процес (той самий
  * мотив, що `nativeConcernKeys` у `detect.mjs`) — резолв конфігу, retrieval,
  * `wasmPluginManifest()` і ensure-tool контур виконуються раз. Зберігаємо
@@ -176,10 +224,15 @@ const SHA256_HEX_RE = /^[0-9a-f]{64}$/
 let wasmConcernMapPromise = null
 
 /**
- * Чи є значення валідним записом `wasmPlugins` — АБО `{ name, path }`, АБО
- * `{ name, url, sha256 }` (`sha256` мусить бути валідним hex-рядком — інакше
- * запис відфільтровується тут же, до retrieval, той самий skip-not-crash дух,
- * що й для `{name,path}` без реального файлу).
+ * Чи є значення валідним записом `wasmPlugins` — `{ name, path }` (dev),
+ * `{ name, package, requirement }` (lock-пін, задача Д1) АБО
+ * `{ name, url, sha256 }` (канонічний hash-пін; `sha256` мусить бути
+ * валідним hex-рядком — інакше запис відфільтровується тут же, до
+ * retrieval, той самий skip-not-crash дух, що й для `{name,path}` без
+ * реального файлу). `requirement` для lock-форми мусить бути точним
+ * `=X.Y.Z` — те саме M0-обмеження, що сам `oci-dist-oci` валідує
+ * (`exact_requirement`, `graph.rs`); менш строга форма тут відфільтрувалась
+ * би так само тихо, як невалідний `sha256`.
  * @param {unknown} entry елемент масиву `wasmPlugins`
  * @returns {entry is WasmPluginConfigEntry} true — валідний запис
  */
@@ -188,6 +241,9 @@ function isValidEntry(entry) {
   const e = /** @type {Record<string, unknown>} */ (entry)
   if (typeof e.name !== 'string') return false
   if (typeof e.path === 'string') return true
+  if (typeof e.package === 'string' && typeof e.requirement === 'string') {
+    return e.requirement.startsWith('=') && e.requirement.length > 1
+  }
   return typeof e.url === 'string' && typeof e.sha256 === 'string' && SHA256_HEX_RE.test(e.sha256)
 }
 
@@ -281,6 +337,108 @@ function mergeWithBuiltinEntries(builtinEntries, configEntries) {
   const byName = new Map(builtinEntries.map(entry => [entry.name, entry]))
   for (const entry of configEntries) byName.set(entry.name, entry)
   return byName.values().toArray()
+}
+
+/**
+ * Абсолютний шлях lock-файлу консюмера (задача Д1, спека
+ * `docs/specs/2026-09-01-wasm-plugin-lock-resolve.md` §5): `N_RULES_PLUGIN_LOCK_PATH`
+ * — explicit override (той самий мотив ізоляції тестів, що `N_RULES_PLUGIN_CACHE_DIR`),
+ * інакше [`DEFAULT_PLUGIN_LOCK_FILE`] у корені consumer-репо (`oci_dist_oci::LOCK_FILE_NAME`).
+ * @param {string} cwd абсолютний корінь consumer-репо
+ * @param {Record<string, string | undefined>} env джерело env-змінних (ін'єкція для тестів)
+ * @returns {string} абсолютний шлях до lock-файлу
+ */
+function resolvePluginLockPath(cwd, env) {
+  return env['N_RULES_PLUGIN_LOCK_PATH'] ?? join(cwd, DEFAULT_PLUGIN_LOCK_FILE)
+}
+
+/**
+ * `package`+`requirement` → ключ пошуку в розпарсеному lock-файлі — один
+ * канон ключа для читача й для резолву (доккомент модуля §Д1).
+ * @param {string} pkg `OciLockEntry.package`
+ * @param {string} requirement `OciLockEntry.requirement`
+ * @returns {string} складений ключ
+ */
+function lockEntryKey(pkg, requirement) {
+  return `${pkg} ${requirement}`
+}
+
+/**
+ * Читає й валідує `.oci-dist.lock` (задача Д1, формат дослівно
+ * `oci_dist_oci::OciPluginLock`, схема [`PLUGIN_LOCK_SCHEMA`]) — той самий
+ * skip-not-crash дух, що [`readBuiltinPinsConfig`]: відсутній файл — очікуваний
+ * стан (консюмер ще не резолвив жодного lock-піна), тиша, `null`. Пошкоджений
+ * JSON, невідома схема чи не-масив `packages` — вже аномалія: `console.warn`,
+ * `null` (той самий предикат, що «нема жодного валідного піна», — виклик-сайт
+ * не розрізняє «файлу нема» від «файл є, але зіпсований», обидва veдуть до
+ * того самого skip-повідомлення на рівні запису нижче).
+ * @param {string} lockPath абсолютний шлях до lock-файлу
+ * @returns {Map<string, {package: string, requirement: string, digest: string}> | null} мапа `package\0requirement → запис`, або `null`
+ */
+function readPluginLock(lockPath) {
+  if (!existsSync(lockPath)) return null
+  /** @type {unknown} */
+  let raw
+  try {
+    raw = JSON.parse(readFileSync(lockPath, 'utf8'))
+  } catch (error) {
+    console.warn(`⚠️ ${lockPath} пошкоджено (невалідний JSON), lock-піни пропущено: ${error.message}`)
+    return null
+  }
+  if (typeof raw !== 'object' || raw === null) return null
+  const r = /** @type {Record<string, unknown>} */ (raw)
+  if (r.schema !== PLUGIN_LOCK_SCHEMA || !Array.isArray(r.packages)) {
+    console.warn(
+      `⚠️ ${lockPath}: невідома чи відсутня схема lock (очікується "${PLUGIN_LOCK_SCHEMA}"), lock-піни пропущено`
+    )
+    return null
+  }
+  const byKey = new Map()
+  for (const entry of r.packages) {
+    if (typeof entry !== 'object' || entry === null) continue
+    const e = /** @type {Record<string, unknown>} */ (entry)
+    if (typeof e.package !== 'string' || typeof e.requirement !== 'string' || typeof e.digest !== 'string') continue
+    if (!SHA256_DIGEST_RE.test(e.digest)) continue
+    byKey.set(lockEntryKey(e.package, e.requirement), { package: e.package, requirement: e.requirement, digest: e.digest })
+  }
+  return byKey
+}
+
+/**
+ * Резолвить абсолютний шлях lock-запису (задача Д1) — ЧИСТО з `.oci-dist.lock`
+ * і локального кешу, БЕЗ мережі (доккомент модуля §Д1, розділ 4: мережевий
+ * OCI-виклик живе виключно в `n-rules plugin fetch`, `crates/rules-cli`).
+ * Кеш-хіт перевіряється тим самим [`readValidCacheHit`], що `url`+`sha256`-форма
+ * — спільний кеш-неймспейс за вмістом (`<cacheDir>/<sha256-hex>.wasm`), не за
+ * джерелом піна. Відсутній/пошкоджений lock, відсутній запис для
+ * `package`+`requirement`, чи кеш-промах — skip-not-crash: `console.warn` із
+ * точною командою відновлення, `null`.
+ * @param {WasmPluginLockEntry} entry запис `{name,package,requirement}`
+ * @param {{lockPath: string, cacheDir: string, readLockFn: typeof readPluginLock}} ctx ін'єктовані залежності
+ * @returns {string | null} абсолютний шлях до валідного `.wasm` у кеші, або `null`
+ */
+function resolveLockEntryPath(entry, ctx) {
+  const remedy = `n-rules plugin fetch --lock ${ctx.lockPath} --package ${entry.package} --requirement ${entry.requirement}`
+  const lock = ctx.readLockFn(ctx.lockPath)
+  if (lock === null) {
+    console.warn(`⚠️ wasm-плагін "${entry.name}" пропущено: немає валідного lock-файлу (${ctx.lockPath}) — ${remedy}`)
+    return null
+  }
+  const lockEntry = lock.get(lockEntryKey(entry.package, entry.requirement))
+  if (lockEntry === undefined) {
+    console.warn(
+      `⚠️ wasm-плагін "${entry.name}" пропущено: немає запису "${entry.package}" "${entry.requirement}" у ${ctx.lockPath} — ${remedy}`
+    )
+    return null
+  }
+  const digestHex = lockEntry.digest.slice('sha256:'.length)
+  const cachePath = join(ctx.cacheDir, `${digestHex}.wasm`)
+  const cacheHit = readValidCacheHit(cachePath, digestHex)
+  if (cacheHit === null) {
+    console.warn(`⚠️ wasm-плагін "${entry.name}" пропущено: не закешовано (${cachePath}) — ${remedy}`)
+    return null
+  }
+  return cacheHit
 }
 
 /**
@@ -408,11 +566,13 @@ function resolveBuiltinEntryPath(entry, builtinPinsDir) {
 /**
  * Резолвить `.wasm`-шлях одного запису `wasmPlugins` — builtin first-party пін
  * (`file`+`sha256`, найнижчий пріоритет, доккомент модуля), dev-форма (`path`,
- * лише поза CI) чи канонічний пін (`url`+`sha256`, retrieval-модель doc-коментаря
- * модуля). `null` — запис пропущено (skip-not-crash), причина вже в `console.warn`.
+ * лише поза CI), lock-пін (`package`+`requirement`, задача Д1 — БЕЗ мережі,
+ * [`resolveLockEntryPath`]) чи канонічний пін (`url`+`sha256`, retrieval-модель
+ * doc-коментаря модуля). `null` — запис пропущено (skip-not-crash), причина
+ * вже в `console.warn`.
  * @param {WasmPluginConfigEntry | WasmPluginBuiltinEntry} entry валідний запис
  *   (після `isValidEntry` для конфігу консюмера, чи з `readBuiltinPinsConfig`)
- * @param {{cwd: string, fetchFn: typeof fetch, cacheDir: string, env: Record<string, string | undefined>, builtinPinsDir: string}} ctx ін'єктовані залежності
+ * @param {{cwd: string, fetchFn: typeof fetch, cacheDir: string, env: Record<string, string | undefined>, builtinPinsDir: string, lockPath: string, readLockFn: typeof readPluginLock}} ctx ін'єктовані залежності
  * @returns {Promise<string | null>} абсолютний шлях `.wasm`, або `null`
  */
 async function resolveEntryPath(entry, ctx) {
@@ -430,8 +590,9 @@ async function resolveEntryPath(entry, ctx) {
     }
     return wasmPath
   }
+  if ('package' in entry && 'requirement' in entry) return resolveLockEntryPath(entry, ctx)
   // `await` тут не зайвий: він тримає функцію `async`, а отже — єдиний
-  // `Promise<string|null>` контракт для ВСІХ гілок (builtin/dev повертають
+  // `Promise<string|null>` контракт для ВСІХ гілок (builtin/dev/lock повертають
   // синхронні значення, url-гілка — проміс).
   return await resolveUrlEntry(entry, ctx)
 }
@@ -622,12 +783,14 @@ async function buildWasmConcernMaps(cwd, ctx) {
  * неминуче асинхронні; єдиний виклик-сайт (`detect.mjs`) вже `async`,
  * контракт виклику не ламається.
  * @param {string} cwd абсолютний корінь consumer-репо (звідки читається `.n-rules.json`)
- * @param {{fetchFn?: typeof fetch, cacheDir?: string, env?: Record<string, string | undefined>, ensureToolFn?: (toolId: string) => Promise<string>, resolveCmdFn?: (cmd: string) => string | null, nativeFn?: typeof loadNative, builtinPinsDir?: string}} [opts] ін'єкції для тестів:
+ * @param {{fetchFn?: typeof fetch, cacheDir?: string, env?: Record<string, string | undefined>, ensureToolFn?: (toolId: string) => Promise<string>, resolveCmdFn?: (cmd: string) => string | null, nativeFn?: typeof loadNative, builtinPinsDir?: string, lockPath?: string, readLockFn?: typeof readPluginLock}} [opts] ін'єкції для тестів:
  *   `fetchFn` (дефолт — глобальний `fetch`), `cacheDir` (дефолт — `resolvePluginCacheDir`), `env` (дефолт — `process.env`),
  *   `ensureToolFn` (дефолт — `ensureToolProvisioned`), `resolveCmdFn` (дефолт — `resolveCmd`; тести підміняють, бо інакше
  *   схеми `path:`/`npm:` давали б різний `toolPaths` залежно від PATH машини), `nativeFn` (дефолт — `loadNative`, wiring-тести підміняють фейковим addon-ом),
  *   `builtinPinsDir` (дефолт — [`WASM_PLUGINS_DIR`], реальна `npm/wasm-plugins/`; тести ізолюють неіснуючим каталогом,
- *   щоб локальна wasm-збірка в робочому дереві не підмішувала builtin-контрибуції в контрольовані сценарії)
+ *   щоб локальна wasm-збірка в робочому дереві не підмішувала builtin-контрибуції в контрольовані сценарії),
+ *   `lockPath` (дефолт — [`resolvePluginLockPath`], задача Д1), `readLockFn` (дефолт — [`readPluginLock`]; тести
+ *   підміняють, щоб перевірити резолв lock-піна без реального `.oci-dist.lock` на диску)
  * @returns {Promise<Map<string, WasmConcernMapEntry>>} ключ концерну (`ruleId/concernId`) → `{ wasmPath, toolPaths }`
  */
 export async function resolveWasmConcernMap(cwd, opts = {}) {
@@ -671,7 +834,9 @@ function resolveWasmConcernMaps(cwd, opts = {}) {
     ensureToolFn: opts.ensureToolFn ?? ensureToolProvisioned,
     resolveCmdFn: opts.resolveCmdFn ?? resolveCmd,
     nativeFn: opts.nativeFn ?? loadNative,
-    builtinPinsDir: opts.builtinPinsDir ?? WASM_PLUGINS_DIR
+    builtinPinsDir: opts.builtinPinsDir ?? WASM_PLUGINS_DIR,
+    lockPath: opts.lockPath ?? resolvePluginLockPath(cwd, env),
+    readLockFn: opts.readLockFn ?? readPluginLock
   }
   wasmConcernMapPromise = buildWasmConcernMaps(cwd, ctx)
   return wasmConcernMapPromise
