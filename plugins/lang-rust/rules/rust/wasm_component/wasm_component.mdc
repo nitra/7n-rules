@@ -8,7 +8,12 @@
   depend-таблиці: `[dependencies]`, `[build-dependencies]`, `[dev-dependencies]`,
   включно з `[target.'cfg(...)'.*]`) — заборонено. Це браузерний
   `wasm32-unknown-unknown` cdylib-таргет без WASI і без Component Model ABI.
-  Гостьовий wasm-код — через `wit-bindgen` + ціль `wasm32-wasip2`.
+  Гостьовий wasm-код — через `wit-bindgen` + ціль `wasm32-wasip3` (WASI 0.3,
+  спека `docs/specs/2026-08-31-plugin-contract-v5.md`, розділ 10.1 — до цієї
+  хвилі було `wasm32-wasip2`; шість first-party гостей репозиторію й
+  `crates/test-plugin-guest` мігрували, шаблон скіла `wasm-plugin`
+  (`npm/skills/wasm-plugin/template/`) лишається на `wasm32-wasip2` до
+  окремої хвилі).
 - **`wasmtime`** на боці хоста — `component-model` є дефолтною feature крейта,
   тож просте `wasmtime = "…"` (дефолтні features увімкнені) вже проходить.
   Порушення — лише коли маніфест явно вимкнув дефолти

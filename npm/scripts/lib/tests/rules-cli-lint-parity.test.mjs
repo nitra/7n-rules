@@ -174,7 +174,14 @@ describe('rules-cli lint: гейт вмикання native-шляху', () => {
     })
   })
 
-  test('з --path — делегація (перетин піддерева з дельтою не портовано)', async () => {
+  // §2.138 портувала `path-scope.mjs` у `rules-core::path_scope` і підключила
+  // його в `lint_cmd`, тож `--path` БІЛЬШЕ не вибиває команду в JS цілком.
+  //
+  // Доводиться саме відсутність делегації: JS-рантайм тут і далі потрібен
+  // (його вимагає МІСТ для неnative-концернів), тож «впало на недосяжному
+  // рантаймі» нічого не розрізняє. Розрізняє ПРИЧИНА — «для мосту» замість
+  // «для делегації» — і зникнення відмовного повідомлення про `--path`.
+  test('з --path — native-шлях, а не делегація команди цілком (§2.138)', async () => {
     await withTmpDir(dir => {
       initRepo(dir, [])
       const result = spawnSync(resolveRulesCliBin(), ['lint', '--no-fix', '--native-detect', '--path', 'src'], {
@@ -182,8 +189,8 @@ describe('rules-cli lint: гейт вмикання native-шляху', () => {
         encoding: 'utf8',
         env: { ...env, N_RULES_JS_RUNTIME: '/nonexistent/runtime-xyz', N_RULES_JS_ENTRY: JS_ENTRY }
       })
-      expect(result.stderr).toContain('--path не покрито native-шляхом')
-      expect(result.stderr).toContain('не вдалося запустити /nonexistent/runtime-xyz')
+      expect(result.stderr).not.toContain('--path не покрито native-шляхом')
+      expect(result.stderr).not.toContain('для делегації')
     })
   })
 })
