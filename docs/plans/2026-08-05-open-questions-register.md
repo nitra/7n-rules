@@ -15846,3 +15846,132 @@ N_RULES_NATIVE_ADDON=<staged librules_napi.dylib> \
   npx vitest run npm/scripts/lib/lint-surface/tests/wasm-*.test.mjs
                                               # 12 test files, 624 passed | 1 skipped
 ```
+
+### 2.135. `hook` добито в native — жодна гілка більше не делегує ЦІЛУ команду в JS-CLI
+
+**Задача.** Власник обрав (§7 плану `2026-08-31-full-rust-migration-plan.md`,
+«Ухвалені рішення») добити порт `hook`, попри те що вимір зрізу 4
+(`hook_cmd.rs`) спростував ПЕРВІСНУ підставу зрізу (старт JS-рантайму —
+<3 % латентності). Підстава добивання — НЕ швидкість, а однорідність:
+критерій завершення §1.1 лишається бінарним («нуль JS»), і команда, що
+лишається за `js_fallback`, зробила б його недосяжним.
+
+**Номер запису.** Бриф просив писати під §2.136. На момент виконання
+останній зайнятий — §2.132 (`docs/plans/2026-08-05-open-questions-register.md`,
+кінець файлу). Наступний вільний — **§2.133**. Записано під §2.133, за
+тим самим прецедентом, що вже двічі стався в цьому реєстрі (§2.129/§2.130,
+§2.131) — номер із брифу передбачає лінійний порядок задач, якого паралельні
+хвилі не тримають.
+
+**Що виміряно ДО зміни коду (правило задачі — «не переказуй план, перевір»).**
+`crates/rules-cli/src/hook_cmd.rs` (до правки) мав РІВНО три гілки JS
+(`runHookCli`, `npm/scripts/hook.mjs`):
+
+| гілка | до | після |
+|---|---|---|
+| немає ні `--post-tool-use`, ні `--stop` | native (код 1, чистий рядок) | без змін |
+| `--post-tool-use`, зі stdin не дістається жодного шляху | native (код 0, без виводу) | без змін |
+| `--post-tool-use` зі шляхами | `js_fallback::delegate_with_stdin` — субпроцес `n-rules.js hook --post-tool-use` з переграним stdin | **native**: `run_detect` — той самий detect-конвеєр, що `lint --native-detect` |
+| `--stop` | `js_fallback::delegate` — субпроцес `n-rules.js hook --stop` | **native**: `run_detect` з `files = rules_core::changed_files::collect_changed_files(cwd)` |
+
+Третя й четверта гілка обидві впирались у `detectAll`
+(`npm/scripts/lib/lint-surface/run-detectors.mjs`) — і саме тут план
+(§5, крок 3) сам ставив питання, чи не варто повернути команду в JS замість
+добивання порту.
+
+**Ключове виявлення: `detectAll` уже мав готовий native-двійник, просто
+не для `hook`.** Зріз 5 плану (`crates/rules-cli/src/lint_cmd.rs`) уже
+розв'язав РІВНО ту саму задачу для `lint --no-fix --native-detect`: план/
+диспатч/сортування/рендер рахує `rules-core`, а концерни без native-порту
+виконує один довгоживучий JS-процес через `crate::bridge` (`bridge-host.mjs`)
+— вузький RPC-канал на операції `discover`/`applies`/`detect`, СТРУКТУРНО
+відмінний від `js_fallback` (повна делегація команди). `hook` для обох своїх
+функціональних гілок завжди потрапляє в РІВНО ОДИН режим плану JS-диспетчера
+(`buildPlan` у `run-detectors.mjs`) — `mode: 'delta'` з явним `changed`
+(`--post-tool-use`: шляхи зі stdin; `--stop`: `collectChangedFiles(cwd)`),
+бо в `hook` немає ні `--rules`, ні `--repo-wide`, ні `--full`. Тобто `hook`
+не потребував другої реалізації detect-конвеєра — лише переиспользування
+вже готового.
+
+**Зроблено.** `crates/rules-cli/src/lint_cmd.rs`: сім функцій/тип зроблено
+`pub(crate)` (`Bail`, `string_array`, `discover_by_rule`,
+`filter_by_capabilities`, `filter_by_applies`, `to_plan_dto`,
+`enabled_rule_ids`, `execute_plan`), `execute_plan`/`run_bridge_segment`
+розв'язано від `LintRun` (беруть голі `cwd: &Path, verbose: bool` — `hook`
+не має решти полів `LintRun`: `rules`/`full`/`repo_wide`/`base_ref`).
+`crates/rules-cli/src/hook_cmd.rs` переписано: обидві функціональні гілки
+йдуть через `run_detect` (discover через міст → capability/applies-фільтр →
+`rules_core::lint_plan::build_lint_plan` з `mode: "delta"` → `lint_cmd::execute_plan`
+→ `rules_core::lint_render::sort_and_render_violations`), вивід — у stderr
+(`logToStderr` JS-контракту: Claude Code при exit 2 показує агенту лише
+stderr), exit-код колапсується `0 → 0, інакше → 2` (той самий контракт, що
+`runHookCli`). `js_fallback::delegate`/`delegate_with_stdin` тут БІЛЬШЕ НЕ
+викликаються.
+
+**Wasm-концерни: гейт `lint_cmd` СВІДОМО не повторено для `hook`.**
+`lint_cmd::run_native` бачить wasm-концерн у плані й делегує ВЕСЬ `lint`
+назад у JS — консервативний вибір першого зрізу мосту, не структурна межа:
+`bridge-host.mjs::opDetect` виконує wasm-концерн через ТОЙ САМИЙ
+`runConcernDetector`, яким його виконав би JS-оркестратор напряму
+(`detect.mjs` кличе `loadNative().runWasmConcern` незалежно від того, хто
+дійшов до виклику — `detectAll` чи `opDetect`). Для `hook` немає команди, у
+яку можна відступити, тож wasm-items ідуть крізь `execute_plan` як будь-який
+інший неnative concern (bridge-сегмент) — без жодного гейта. Це не «менш
+обережно»: `npm-module/package_structure` (full-scope, `glob: ["**/*"]`) і
+сьогодні виконується на КОЖНОМУ реальному виклику хука з непорожнім `files`
+(підтверджено параметром `KNOWN_DELEGATION_REASONS` у
+`rules-cli-lint-parity.test.mjs`, де делегація лінту на брудному дереві
+документована саме цим концерном) — зміна лише переносить це виконання з
+підпроцесу `n-rules.js hook` у виклик мосту, не додає й не прибирає роботи.
+Тест `full-scope концерн (glob "**/*") виконується через міст без делегації`
+(`npm/scripts/lib/tests/rules-cli-hook-parity.test.mjs`) доводить це
+синтетичним концерном тієї самої форми (без реальної збірки wasm-плагінів,
+яка для цього не потрібна — обидві реалізації йдуть крізь ОДИН і той самий
+`runConcernDetector`, wasm чи ні).
+
+**Побічно знайдений і виправлений реальний edge-case.** Перша версія
+vitest-тесту на абсолютний `file_path` (типовий формат Claude Code) впала:
+`toRelativePosix`-конвертація (порт `relative(cwd, resolve(cwd, fp))`) дає
+довгий `../../…`-шлях, коли `fp` — логічний шлях під symlink (macOS `/tmp`
+→ `/private/tmp`), а `cwd` — фізичний (`std::env::current_dir()`/Node
+`process.cwd()` обидва резолвлять symlink). Звірено вручну
+(`node -e "path.relative(cwd, path.resolve(cwd, fp))"` з тим самим
+логічним/фізичним розсинхроном) — Rust-порт дає БАЙТ-У-БАЙТ ту саму
+відповідь, що чинний `hook.mjs`: це існуюча властивість оригінальної
+конвертації, не регресія порту. Тест поправлено (`realpathSync` перед
+побудовою абсолютного шляху), сам edge-case не чіпався — не входив у
+скоуп задачі.
+
+**Наслідок для `main.rs`/`js_fallback.rs`.** `hook` більше не фігурує в
+жодній гілці, що веде до `js_fallback::delegate`/`delegate_with_stdin`.
+`js_fallback::package_root` лишається (потрібен для резолву кореня пакета,
+щоб знайти `bridge-host.mjs`) — це інша, вужча поверхня меж (резолв шляху,
+не спавн повної команди), яку так само використовує `lint_cmd`.
+
+**Цільові прогони й результати** (усі — `.claude/worktrees/main-port-hook-cmd`,
+`N_RULES_NATIVE_ADDON=$PWD/target/release/librules_napi.dylib` для
+JS-прогонів):
+
+1. `cargo build --release -p rules-cli` — ОК.
+2. `cargo build --release -p rules-napi` — ОК.
+3. `cargo test -p rules-cli --bins` — 88 passed.
+4. `cargo test -p rules-cli --test cli` — 35 passed (дві гілки хука
+   переписано: доводять виклик мосту, а не повної делегації, без потреби
+   в реальному bun/node — `Bridge::start` падає МИТТЄВО на відсутності
+   `bridge-host.mjs`, ще до спавна рантайму).
+5. `cargo test -p rules-cli` (обидва suite разом) — 123 passed.
+6. `bunx vitest run npm/scripts/lib/tests/rules-cli-hook-parity.test.mjs`
+   (новий файл, дзеркало `rules-cli-lint-parity.test.mjs`) — 9 passed.
+7. `bunx vitest run npm/scripts/lib/tests/rules-cli-lint-parity.test.mjs
+   npm/scripts/tests/hook.test.mjs` (регрес на суміжні suite — рефактор
+   `lint_cmd.rs` і чинний JS-тест `hook.mjs`) — 26 passed.
+
+**НЕ запускались** (правило задачі): `npx @7n/rules lint`, `/doc-files`.
+
+**Що НЕ зроблено й чому це не залишок цієї задачі.** `npm/scripts/hook.mjs`
+(JS-реалізація) НЕ видалено — вона лишається продакшн-виконавцем реального
+`n-rules hook`, бо `npm/package.json#bin` і сьогодні веде в JS-entrypoint
+(крок 0 плану, «зробити бінар вхідною точкою», ще не закритий). Ця задача
+закриває розрив МІЖ Rust-бінарем і JS для `hook`-поверхні; коли крок 0
+закриється, `hook.mjs` стане мертвим кодом РАЗОМ з рештою JS-оркестрації,
+а не окремо.

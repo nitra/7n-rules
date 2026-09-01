@@ -80,7 +80,11 @@ const NATIVE_FLAG: &str = "--native-detect";
 const NATIVE_ENV: &str = "N_RULES_NATIVE_LINT";
 
 /// Чому native-шлях відмовився і команда пішла в JS-CLI.
-enum Bail {
+///
+/// `pub(crate)` — той самий тип переиспользує [`crate::hook_cmd`]: детект-конвеєр
+/// (discover/filter/plan/execute) один на весь бінар, `hook` лише не має
+/// гілки `Delegate` серед своїх власних відмов (доккомент `hook_cmd`).
+pub(crate) enum Bail {
     /// Делегувати з тим самим argv (паритет недосяжний цим зрізом).
     Delegate(String),
     /// Помилка, яку нема сенсу маскувати делегацією.
@@ -271,7 +275,8 @@ fn run_native(args: &LintRun, process_cwd: &Path) -> Result<u8, Bail> {
         )));
     }
 
-    let (violations, infra_message) = execute_plan(&plan, args, &by_rule, &mut bridge)?;
+    let (violations, infra_message) =
+        execute_plan(&plan, &args.cwd, args.verbose, &by_rule, &mut bridge)?;
 
     let result = rules_core::lint_render::sort_and_render_violations(&SortAndRenderInput {
         violations,
@@ -288,7 +293,10 @@ fn run_native(args: &LintRun, process_cwd: &Path) -> Result<u8, Bail> {
 }
 
 /// Рядковий масив із JSON-відповіді мосту (відсутнє поле → порожньо).
-fn string_array(value: &Value, key: &str) -> Vec<String> {
+///
+/// `pub(crate)` — переиспользує [`crate::hook_cmd`] для того самого поля
+/// відповіді `discover`.
+pub(crate) fn string_array(value: &Value, key: &str) -> Vec<String> {
     value
         .get(key)
         .and_then(Value::as_array)
@@ -306,7 +314,7 @@ fn string_array(value: &Value, key: &str) -> Vec<String> {
 /// іменем, перший власник виграє (ядро → плагіни в порядку списку).
 /// Правило без жодного detector-концерну в результат не потрапляє (та сама
 /// умова `concerns.length > 0`, що в JS).
-fn discover_by_rule(rules_dirs: &[PathBuf]) -> BTreeMap<String, Vec<ConcernMeta>> {
+pub(crate) fn discover_by_rule(rules_dirs: &[PathBuf]) -> BTreeMap<String, Vec<ConcernMeta>> {
     let mut merged: BTreeMap<String, Vec<ConcernMeta>> = BTreeMap::new();
     for dir in rules_dirs {
         for rule_id in rules_core::concern_meta::subdirectory_names(dir) {
@@ -335,7 +343,7 @@ fn discover_by_rule(rules_dirs: &[PathBuf]) -> BTreeMap<String, Vec<ConcernMeta>
 /// Порт `filterByCapabilities`: концерн із незадоволеним
 /// `requires.capability` відкидається; правило без жодного вцілілого
 /// концерну зникає цілком.
-fn filter_by_capabilities(
+pub(crate) fn filter_by_capabilities(
     by_rule: BTreeMap<String, Vec<ConcernMeta>>,
     capabilities: &HashSet<String>,
 ) -> BTreeMap<String, Vec<ConcernMeta>> {
@@ -366,7 +374,7 @@ fn filter_by_capabilities(
 /// поля в `main.json`. Битий предикат — делегація (текст помилки каноном
 /// лишається за JS), решта помилок — fail-closed, як у JS, де `applies`
 /// кидає нагору.
-fn filter_by_applies(
+pub(crate) fn filter_by_applies(
     by_rule: BTreeMap<String, Vec<ConcernMeta>>,
     cwd: &Path,
     bridge: &mut Bridge,
@@ -482,7 +490,7 @@ fn build_plan(
 
 /// Мінімальний DTO концернів для планувальника — рівно те, що читають
 /// builders (порт `toByRuleDto`).
-fn to_plan_dto(
+pub(crate) fn to_plan_dto(
     by_rule: &BTreeMap<String, Vec<ConcernMeta>>,
 ) -> BTreeMap<String, Vec<ConcernPlanInput>> {
     by_rule
@@ -512,7 +520,7 @@ fn to_plan_dto(
 
 /// Порт `enabledRuleIds` (+ `warnAboutRulesWithoutConcerns`): без конфігу
 /// делта/full-режими не мають активних правил узагалі.
-fn enabled_rule_ids(
+pub(crate) fn enabled_rule_ids(
     by_rule: &BTreeMap<String, Vec<ConcernMeta>>,
     config: &LiteConfig,
     rules_dirs: &[PathBuf],
@@ -611,23 +619,28 @@ fn partition(plan: &[PlanItem]) -> Vec<Segment<'_>> {
 /// Виконує план по сегментах. Перша інфра-помилка зупиняє прогін і стає
 /// `infraMessage` (той самий fail-closed контракт, що `DetectorError` у
 /// `detectPlanSequentially` → exit 2); уже зібрані violations лишаються.
-fn execute_plan(
+///
+/// `cwd`/`verbose` — не `&LintRun`: [`crate::hook_cmd`] переиспользує цю
+/// саму функцію без жодного з інших полів `LintRun` (`rules`/`full`/
+/// `repo_wide`/`base_ref` — там немає сенсу).
+pub(crate) fn execute_plan(
     plan: &[PlanItem],
-    args: &LintRun,
+    cwd: &Path,
+    verbose: bool,
     by_rule: &BTreeMap<String, Vec<ConcernMeta>>,
     bridge: &mut Bridge,
 ) -> Result<(Vec<LintViolation>, Option<String>), Bail> {
     let mut violations: Vec<LintViolation> = Vec::new();
     for segment in partition(plan) {
-        if args.verbose {
+        if verbose {
             for item in &segment.items {
                 log_pre_run(item, by_rule);
             }
         }
         let outcome = if segment.native {
-            run_native_segment(&segment.items, &args.cwd)
+            run_native_segment(&segment.items, cwd)
         } else {
-            run_bridge_segment(&segment.items, args, by_rule, bridge)?
+            run_bridge_segment(&segment.items, cwd, verbose, by_rule, bridge)?
         };
         violations.extend(outcome.0);
         if let Some(message) = outcome.1 {
@@ -703,7 +716,8 @@ fn run_native_segment(items: &[&PlanItem], cwd: &Path) -> (Vec<LintViolation>, O
 /// Виконує суцільний сегмент концернів мосту ОДНИМ запитом `detect`.
 fn run_bridge_segment(
     items: &[&PlanItem],
-    args: &LintRun,
+    cwd: &Path,
+    verbose: bool,
     by_rule: &BTreeMap<String, Vec<ConcernMeta>>,
     bridge: &mut Bridge,
 ) -> Result<(Vec<LintViolation>, Option<String>), Bail> {
@@ -728,8 +742,8 @@ fn run_bridge_segment(
         .call(
             "detect",
             json!({
-                "cwd": args.cwd.to_string_lossy(),
-                "verbose": args.verbose,
+                "cwd": cwd.to_string_lossy(),
+                "verbose": verbose,
                 "items": payload_items,
             }),
         )
