@@ -694,13 +694,16 @@ fn unknown_command_delegates_argv_and_exit_code_to_js_entrypoint() {
 }
 
 /// Поверхні, які фаза 8 свідомо лишає в JS (інвентаризація — реєстр
-/// відкладених питань, §3.5): `release`, `docs`, `taze` і дефолтний sync
-/// без підкоманди. (`adr-normalize-local` цю групу ПОКИНУВ — конвеєр
-/// портовано в `crates/rules-adr`, команда нативна.) Native-гілки в решти
-/// немає й не планується, тож єдиний контракт бінаря щодо них — довезти
-/// argv незміненим і повернути exit-код. Саме це й ламається мовчки, якщо
-/// граматика [`crate::cli`] колись почне їх «розуміти» — тому воно
-/// закріплене тут.
+/// відкладених питань, §3.5): `release`, `taze` і дефолтний sync без
+/// підкоманди. (`adr-normalize-local` цю групу ПОКИНУВ — конвеєр портовано в
+/// `crates/rules-adr`, команда нативна; `docs domains`/`index`/`slice`/
+/// `validate` ПОКИНУЛИ її на кроці 3 плану full-rust-migration — вони тепер
+/// native за замовчуванням, `docs build` лишається тут: LLM-стадії й мовні
+/// екстрактори чекають на slot-канал, `docs_takes_argv_verbatim`-подібні
+/// тести — окремо нижче.) Native-гілки в решти немає й не планується, тож
+/// єдиний контракт бінаря щодо них — довезти argv незміненим і повернути
+/// exit-код. Саме це й ламається мовчки, якщо граматика [`crate::cli`]
+/// колись почне їх «розуміти» — тому воно закріплене тут.
 #[cfg(unix)]
 #[test]
 fn commands_kept_in_js_delegate_argv_verbatim() {
@@ -715,7 +718,6 @@ fn commands_kept_in_js_delegate_argv_verbatim() {
         // Дефолтний sync: порожній argv — теж делегація, а не usage-помилка.
         vec![],
         vec!["release"],
-        vec!["docs", "domains"],
         vec!["docs", "build", "--domain", "npm-rules", "--publish"],
         vec!["taze", "diff", "--backup-suffix", ".taze-bak"],
     ] {
@@ -890,7 +892,9 @@ fn delegation_without_entrypoint_fails_with_hint() {
     let out = bin()
         .current_dir(tmp.path())
         .env_remove("N_RULES_JS_ENTRY")
-        .args(["docs", "domains"])
+        // `docs domains` тепер native за замовчуванням (крок 3) — `build`
+        // лишається JS-поверхнею, тож саме вона й доводить делегацію.
+        .args(["docs", "build", "--domain", "npm-rules"])
         .output()
         .unwrap();
     assert_eq!(out.status.code(), Some(1));

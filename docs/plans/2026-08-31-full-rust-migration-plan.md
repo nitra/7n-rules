@@ -427,6 +427,7 @@ JS-боком мосту, що існує заради інших JS-файлі�
 | `git-reconcile` розібраний: 5 972 рядки JS знесено, `ORCHESTRATED_SKILLS` порожній | §2.137 |
 | Крок 8 §5 повністю: 799 рядків (`native.mjs`/`auto-worktree.mjs`/`worktree-notice.mjs`/`root-notice.mjs`) класифіковано, плюс `ensure-tool.mjs` (592) | §2.107 (`docs/specs/2026-08-31-recon-orchestration-gap.md`), звірено повторно й скориговано §2.132 |
 | Крок 4 §5 — почато: `path-scope.mjs` (104) + `codegen-opa-wrapper.mjs` (30) портовано в `rules-core`, `ci-plan.mjs` (276) звірено як УЖЕ повністю портований (нуль нового коду) | §2.138 |
+| `--native-docs` — дефолт для `domains`/`index`/`slice`/`validate`; `build` свідомо лишається JS (slot-каналу нема) | §2.139 |
 
 ### Лишилось — звірено з кодом 2026-09-01
 
@@ -435,7 +436,7 @@ JS-боком мосту, що існує заради інших JS-файлі�
 
 | крок §5 | що лишилось | причина / межа |
 |---|---|---|
-| 3. дефолти | `--native-docs` не дефолт | перемикання = зміна поведінки продукту, окремий PR із цільовим прогоном |
+| 3. дефолти | ~~`--native-docs` не дефолт~~ — **закрито** (§2.138): `domains`/`index`/`slice`/`validate` тепер native за замовчуванням, паритет доведено vitest-гейтом на синтетичних даних, `build` свідомо лишився JS | — |
 | 3. дефолти | голий `lint` не вміє native-fix | `fix_cmd::concern_keys` вимагає непорожній `rule/concern`; потрібен оркестратор plan→fix, якого немає (§2.126) |
 | 3. дефолти | ~~`hook`~~ — **закрито** (§2.135) | — |
 | 4. клас A | 914 рядків `lint-surface` (`lint-lock.mjs` 332 + `progress.mjs` 210 + `scheduler.mjs` 96 — один блок, `progress.mjs`'s `renderProgressLine` є міжпроцесним контрактом із `lint-lock.mjs`), **плюс ~230 з 279 рядків `auto-worktree.mjs`** (алгоритмічна частина навколо вже нативного worktree-lifecycle: git-статус-гейт, confirm-флоу, copy-back, спавн `bun install`/`npx @7n/n push`) | §2.138 закрило 134 з 1 048 рядків (`path-scope.mjs` + `codegen-opa-wrapper.mjs`, + звірка `ci-plan.mjs`); лишок — прямий порт, нових поверхонь не треба; `auto-worktree.mjs` не рахувалась у §2 (`docs/specs/2026-08-31-recon-orchestration.md`), клас присвоєно §2.107 — без цього рядка крок 4 спланує себе неповно, рівно те, від чого мав захистити крок 8 |

@@ -28,11 +28,16 @@
 //!   Тому `build` лишається JS-поверхнею УСІМА шляхами, і `--native-docs`
 //!   на ній — явна відмова з поясненням, не спроба.
 //!
-//! # Гейт: `--native-docs`, дефолт не змінено
+//! # Крок 3 плану: `--native-docs` — дефолт для read-only підкоманд
 //!
-//! Той самий патерн, що `--native-detect`/`--native-fix`
-//! ([`crate::lint_cmd`], [`crate::fix_cmd`]): без прапорця — байдужа
-//! делегація в JS-CLI з тим самим argv, як і досі.
+//! `domains`/`index`/`slice`/`validate` тепер ідуть native-шляхом БЕЗ
+//! прапорця — той самий патерн переходу, що `--native-fix`
+//! ([`crate::fix_cmd`]) отримав на кроці 3 плану `full-rust-migration`:
+//! прапорець `--native-docs` лишається як явний форсер (сумісність зі
+//! скриптами, які його вже ставлять), а новий `--no-native-docs` —
+//! аварійний люк назад у JS-CLI. `build` — ОКРЕМИЙ випадок і завжди йде в
+//! JS: LLM-стадії й мовні екстрактори чекають на slot-канал, якого в
+//! WIT-контракті ще нема (нижче).
 //!
 //! # Розбір argv
 //!
@@ -43,14 +48,18 @@
 //!
 //! # Доведений паритет
 //!
-//! `domains` звірено на цьому репозиторії (29 доменів, 0 діагностик) —
-//! native і JS дають один і той самий набір `id`/`ecosystem`/`name`/
-//! `rootManifest`/`sourceRoots`/`excludedSourceRoots`. `index`/`slice`/
-//! `validate` НЕ звірено на реальних даних: у цьому репозиторії немає
-//! жодного закомiченого `docs/.docgen/manifest.json` — `build` тут ніколи
-//! не публікувався. Це саме та знахідка, яку задача просила не
-//! замовчувати: паритет цих трьох команд доведено лише читанням коду
-//! (дзеркальна побудова JSON з `cli.mjs`), не прогоном на реальних даних.
+//! Раніше (до кроку 3) `domains` була звірена вручну на цьому репозиторії
+//! (29 доменів, 0 діагностик), а `index`/`slice`/`validate` — лише читанням
+//! коду (дзеркальна побудова JSON з `cli.mjs`), без прогону на реальних
+//! даних: жодного закомiченого `docs/.docgen/manifest.json` у цьому
+//! репозиторії немає. Перемикання дефолту зробило це недостатнім доказом —
+//! перш ніж міняти дефолт, паритет усіх чотирьох команд заведено в
+//! byte-exact vitest-гейт `npm/scripts/lib/tests/rules-cli-parity.test.mjs`
+//! (`describe('rules-cli parity: docs …')`), який ганяє native-бінар і
+//! JS-CLI на ІДЕНТИЧНИХ синтетичних фікстурах (успішний манiфест,
+//! відсутній манiфест, невідома тема, відсутній `--topic`, alias-резолв,
+//! private-symbol leak) і звіряє stdout/stderr/exit-код byte-у-byte. Гейт
+//! зелений — розбіжностей не знайдено.
 
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -70,23 +79,31 @@ use serde_json::{json, Map, Value};
 use crate::cli::DocsArgs;
 use crate::js_fallback;
 
-/// Прапорець вмикання native-шляху — власний, поверхню `docs` не змінює.
+/// Прапорець вмикання native-шляху — явний форсер, сумісний із попереднім
+/// кроком (коли він був ОБОВʼЯЗКОВИЙ). Після кроку 3 не потрібен для
+/// `domains`/`index`/`slice`/`validate` — вони native за замовчуванням.
 const NATIVE_FLAG: &str = "--native-docs";
+
+/// Аварійний люк назад у JS-CLI для read-only підкоманд — той самий патерн,
+/// що `--no-native-fix` у [`crate::fix_cmd`]. `build` цей прапорець не читає:
+/// вона й так завжди JS, окрім явного `--native-docs`, де це жорстка відмова.
+const NO_NATIVE_FLAG: &str = "--no-native-docs";
 
 /// Точка входу підкоманди. `args` — ПОВНИЙ argv (з `docs` як `args[0]`), для
 /// делегації як є.
 pub fn run(parsed: &DocsArgs, args: &[String]) -> ExitCode {
     let Some(subcommand) = parsed.rest.first().map(String::as_str) else {
         // Гола `docs` — той самий usage, що й досі, JS-поверхня.
-        return js_fallback::delegate(args);
+        return delegate(args);
     };
-    let native = parsed.rest.iter().any(|a| a == NATIVE_FLAG);
+    let forced = parsed.rest.iter().any(|a| a == NATIVE_FLAG);
+    let disabled = parsed.rest.iter().any(|a| a == NO_NATIVE_FLAG);
 
     match subcommand {
         // `build` НІКОЛИ не йде native-шляхом — навіть за прапорцем: без
         // мовних екстракторів (slot-каналу нема) результат був би графом
         // без фрагментів, тобто мовчазний пропуск, а не паритет.
-        "build" if native => {
+        "build" if forced => {
             eprintln!(
                 "❌ n-rules docs build: {NATIVE_FLAG} не підтримується — LLM-стадії й мовні \
                  екстрактори чекають на slot-канал, якого в WIT-контракті ще нема \
@@ -95,14 +112,27 @@ pub fn run(parsed: &DocsArgs, args: &[String]) -> ExitCode {
             );
             ExitCode::FAILURE
         }
-        "domains" if native => run_domains(),
-        "index" if native => run_index(&parsed.rest),
-        "slice" if native => run_slice(&parsed.rest),
-        "validate" if native => run_validate(&parsed.rest),
-        // Без прапорця (чи невідома підкоманда) — та сама делегація, що й
-        // до цього кроку. Дефолт не змінено.
-        _ => js_fallback::delegate(args),
+        // Крок 3: дефолт — native; `--no-native-docs` — явний відкат у JS.
+        "domains" if !disabled => run_domains(),
+        "index" if !disabled => run_index(&parsed.rest),
+        "slice" if !disabled => run_slice(&parsed.rest),
+        "validate" if !disabled => run_validate(&parsed.rest),
+        // `--no-native-docs` (read-only підкоманди), `build` без форсу, чи
+        // невідома підкоманда — та сама делегація, що й до цього кроку.
+        _ => delegate(args),
     }
+}
+
+/// Делегація з відрізаними власними прапорцями — JS-CLI про `--native-docs`/
+/// `--no-native-docs` не знає (у `build` вона впала б на
+/// `unknown-build-option`, бо той валідує argv проти allow-list).
+fn delegate(args: &[String]) -> ExitCode {
+    let filtered: Vec<String> = args
+        .iter()
+        .filter(|a| a.as_str() != NATIVE_FLAG && a.as_str() != NO_NATIVE_FLAG)
+        .cloned()
+        .collect();
+    js_fallback::delegate(&filtered)
 }
 
 /// `args.indexOf(name)`-семантика JS `flagValue`: ПЕРШЕ входження, значення
@@ -508,7 +538,15 @@ fn create_slice(manifest: &Value, topic_id: &str) -> Result<Value, Value> {
         })
         .map(|item| {
             let mut object = item.as_object().cloned().unwrap_or_default();
-            object.remove("symbolId");
+            // `shift_remove`, НЕ `remove`: за фічею `preserve_order` (яку
+            // вмикає `rules-template-merge`, §2.87, і яка через
+            // feature-уніфікацію Cargo діє на ввесь воркспейс) `Map::remove`
+            // — це `swap_remove`, що ламає порядок ключів (останній ключ
+            // мапи займає місце видаленого). Parity-гейт
+            // (`rules-cli-parity.test.mjs`, `slice (alias-резолв)`) це
+            // зловив: native і JS-деструктуризація (`{ symbolId, ...item }`)
+            // мають лишати РЕШТУ ключів у вихідному порядку.
+            object.shift_remove("symbolId");
             Value::Object(object)
         })
         .collect();
@@ -558,8 +596,11 @@ fn run_slice(rest: &[String]) -> ExitCode {
         Err(code) => return code,
     };
     let Some(topic_id) = flag_value(rest, "--topic") else {
+        // БЕЗ `"ok"` — JS (`cli.mjs:280`) теж його тут не пише; на відміну
+        // від інших відмов цього файлу, це не структурована `{ ok, code,
+        // message }`-форма. Parity-гейт зловив зайве поле, коли додав його
+        // порт «про всяк випадок».
         print_json_err(&json!({
-            "ok": false,
             "code": "topic-required",
             "message": "Потрібен --topic <id>.",
         }));
