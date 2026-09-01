@@ -1,183 +1,252 @@
 ---
 name: n-git-reconcile
 description: >-
-  JS-оркестрований аналіз git-гілок, worktree та stash відносно актуальної
-  policy base branch: детерміновано відсіює merged і patch-equivalent refs, передає
-  LLM лише semantic triage та conflict resolution, а корисні зміни переносить
-  у перевірені PR. Використовуй, коли просять розібрати, консолідувати,
-  підготувати PR або безпечно почистити старі Git refs і stash.
+  Аналіз git-гілок, worktree та stash відносно актуальної policy base branch:
+  детерміновано відсіює merged і patch-equivalent refs (native `n-rules
+  git-reconcile inventory`), передає ТОБІ semantic triage та conflict
+  resolution, а корисні зміни переносить у перевірені PR. Безпечне видалення
+  (`n-rules git-reconcile cleanup`) архівує branch/stash у
+  `origin/tempo/git-reconcile/*` ПЕРЕД локальним видаленням (ADR #334) —
+  ніколи не видаляй їх вручну (`git branch -D`/`git stash drop`) в обхід цієї
+  команди. Використовуй, коли просять розібрати, консолідувати, підготувати
+  PR або безпечно почистити старі Git refs і stash.
 ---
 
 # n-git-reconcile — узгодження Git-графа
 
-Запускай через JS-оркестратор:
+## Виконання — ти сам, крок за кроком (§2.136)
 
-```bash
-npx @7n/rules skill pi git-reconcile
+Немає окремого JS-оркестратора: `npx @7n/rules skill pi|cursor|codex
+git-reconcile` передає цей файл ОДНИМ промптом у ОДИН агентський хід — так
+само, як будь-який інший скіл. Кроки 0-6 нижче виконуєш **ти сам**,
+послідовно, ОДИН candidate за раз (не паралельно — це свідома відмінність від
+старого JS, який матеріалізував незалежні PR-групи з bounded concurrency `3`;
+ти вже і є той единий "воркер", вкладений паралелізм тут не потрібен і не
+безпечний без окремого нагляду).
+
+Три кроки лишаються **native-командами** `n-rules git-reconcile <verb>`, а не
+текстом — не через обсяг, а тому що кожен із них або (a) мусить давати
+БАЙТОВО ІДЕНТИЧНУ класифікацію щоразу, або (b) є atomic-critical переходом,
+де ручне виконання крок-за-кроком залишає вікно небезпечної проміжної дії:
+
+- **`n-rules git-reconcile inventory [--base <гілка>]`** — детермінована
+  класифікація Git-фактів (branch/stash/worktree/open-PR відносно
+  `origin/<base>`, дефолт `main`) у JSON: `merged` / `patch-equivalent` /
+  `protected` / `review`. Ручне повторення цієї класифікації (`git
+  merge-base`, `git diff --quiet`, парсинг `git worktree list`) щоразу
+  вручну — ненадійне і саме та причина, з якої `taze diff` теж лишився
+  окремою командою (§2.125).
+- **`n-rules git-reconcile cleanup <джерело> --kind branch|stash [--reason
+  <text>] [--base <гілка>] [--no-archive] [--dry-run]`** — БЕЗПЕЧНЕ
+  видалення: archive у `origin/tempo/git-reconcile/<дата>/<kind>-<slug>-<sha12>`
+  (manifest `.git-reconcile/archive.json` + `ARCHIVE.md`, ADR #334) → push →
+  верифікація remote ref І byte-точного tree → **лише тоді** локальне
+  видалення (`git branch -D` / `git stash drop`). Будь-яка помилка
+  верифікації — джерело лишається `kept`, exit ≠ 0, нічого локально НЕ
+  видаляється. Це саме той крок, який НЕ можна звести до тексту SKILL.md:
+  агент, що виконує послідовність команд сам, має вікно між "push здався
+  успішним" і "verify підтвердив" — і під тиском "далі по кроках" може
+  передчасно видалити локальний стан. Атомарність цього переходу — точна
+  причина, чому це verb, а не інструкція. `--no-archive` дозволено лише коли
+  `inventory` уже класифікував джерело як `merged`/`patch-equivalent` — сама
+  команда fail-closed перевіряє це ще раз перед видаленням.
+- **`n-rules git-reconcile gc [--apply]`** — 45-денний sweep
+  `origin/tempo/git-reconcile/*` (ADR #334). Dry-run за замовчуванням;
+  `--apply` реально видаляє прострочені архіви лише якщо manifest валідний,
+  `deleteAfter` минув, і джерело не має open PR (недоступність GitHub-
+  перевірки — причина ПРОПУСТИТИ ref, не видаляти, той самий fail-closed
+  принцип). GC — окрема дія, не частина кожного прогону reconcile: клич
+  `gc` (без `--apply`) щоб побачити, що назріло, і `--apply` лише коли
+  користувач явно просить прибрати прострочені архіви.
+
+Решта — семантичні рішення (triage, conflict resolution, PR-опис) і звичайний
+git/gh workflow, який ти й так виконуєш у роботі. Не обгортка над ними —
+жодного вкладеного ACP-виклику на кожен candidate, ти вже читаєш повний
+контекст задачі в цьому ж ході.
+
+### Крок 0 — inventory
+
+```
+n-rules git-reconcile inventory --base main
 ```
 
-`cursor` і `codex` підтримуються замість `pi`. Без раннера команда лише друкує
-цей skill як промпт і не виконує reconciliation.
+Прочитай JSON: `branches[]`, `stashes[]`, `worktrees[]`, `openPrsChecked`.
+Кожен запис має `state`:
 
-## Розподіл відповідальності
+- `merged` / `patch-equivalent` — уже повністю в `origin/<base>` (byte-точно
+  чи ancestor). Кандидат для `cleanup --no-archive` одразу (крок 4), triage
+  не потрібен.
+- `protected` — live worktree, open PR або поточна гілка. НЕ чіпай.
+- `review` — потребує semantic triage (крок 1).
 
-JS виконує `fetch`, inventory, patch-equivalence, дедуплікацію refs, збір
-worktree/PR/stash, підготовку worktree від `origin/<baseBranch>`, cherry-pick або
-застосування stash, gates, commit, push, PR і фінальний звіт. Semantic no-op
-після conflict resolution детерміновано пропускає через `cherry-pick --skip`;
-порожній tree diff не push-иться і не створює PR.
+### Крок 1 — semantic triage (для кожного `review`-джерела)
 
-Stash inventory охоплює tracked та untracked payload. JS без apply/checkout
-порівнює змінені paths із policy base і exact patch signature між stashes:
-absorbed або старіший exact duplicate стає `patch-equivalent`, а найновіший
-duplicate лишається canonical.
+Подивись на diff джерела відносно `origin/<base>` (`git log`/`git diff`,
+`git stash show -p` для stash) і виріши:
 
-Після `fetch` JS ancestry-aware групує local branch із tracking upstream без
-фізичного fast-forward: `synced`/`behind-only` аналізує за remote tip, `ahead` —
-за local tip, а `diverged` лишає двома незалежними sources. Local worktree
-protection переноситься на effective candidate, тому grouping не робить
-checkout небезпечним для cleanup.
+- **`pr`** — завершена корисна зміна → крок 2-3.
+- **`keep`** — незавершено або сумнівно → нічого не роби, лиши як є, згадай у
+  фінальному звіті (крок 6).
+- **`drop`** — застаріле, неактуальне, або повністю замінене іншою роботою
+  → одразу крок 4 (`cleanup`, з archive — це НЕ merged/patch-equivalent,
+  тож `--no-archive` тут не підходить).
 
-LLM отримує лише bounded-завдання:
+Сам факт конфлікту при подальшому cherry-pick (крок 2) НЕ дозволяє
+downgrade вже ухваленого `pr` до `keep` — conflict resolution є наступним
+кроком, не приводом відкласти рішення.
 
-1. semantic triage кандидатів, які JS не може оцінити за Git-фактами;
-2. розв'язання змістових конфліктів і перевірку перенесеної поведінки у вже
-   підготовленому worktree;
-3. бізнесовий та архітектурний опис PR за bounded-фактами фінального diff.
+### Крок 2 — підготовка worktree і перенесення
 
-LLM не видаляє refs, не створює worktree, не push-ить і не відкриває PR.
-LLM виконує лише narrow tests, потрібні під час правок; full repository tests,
-doc generation, lint і changelog gates запускає JS після cognitive кроку.
-Для cognitive кроків ACP на рівні permission boundary скасовує repository-wide
-команди `bun run test`, `bun test`, `bun run build` і `npx @7n/rules lint`.
-Narrow test має явно називати test file або selector; без такого тесту LLM
-повертає blocker, а не підміняє його повним gate.
-Doc-files і unified lint отримують лише унікальні директорії зміненого коду,
-щоб repository-wide baseline та stale docs поза scope не забруднювали PR.
+```
+mt worktree create git-reconcile-<slug> --base origin/<base> --description "git-reconcile: <джерело>"
+```
 
-Оркестратор показує чесний ANSI-free фазовий progress: inventory має elapsed
-time без вигаданого total, а `triage`, `PR` і `cleanup` — окремі точні
-append-only bar snapshots за вже відомими batches/groups/sources. Поточний
-LLM-етап показує tier `min` або `max`; довгі етапи кожні 30 секунд отримують
-heartbeat з elapsed time. Формат однаковий у TTY/CI, тому captured output не
-містить cursor-control spam. Install, tests, lint і очікування PR checks
-виконуються через non-blocking child processes, тому heartbeat не завмирає.
+(`mt` — уже наявний CLI worktree-lifecycle, той самий, що бере
+`n-rules:worktree:start` для `worktree: true` скілів; тут викликаєш його сам,
+бо candidate-и багато і кожному потрібен СВІЙ ізольований worktree, а не
+worktree сесії.)
 
-Незалежні PR-групи виконуються з bounded concurrency `3`; override
-`N_GIT_RECONCILE_CONCURRENCY=1..4`. Порядок фінального звіту лишається
-детермінованим, а cleanup починається лише після завершення всіх PR jobs.
+Перенеси зміну у щойно створений worktree:
 
-Кожен LLM-крок починається на tier `min`. JS детерміновано перевіряє:
+- **branch** — по одному коміту: `git -C .worktrees/git-reconcile-<slug>
+  cherry-pick <oid>`. Конфлікт → розв'яжи ЗМІСТОВО (не `ours`/`theirs`
+  механічно: порівняй поточний `main` і намір перенесеної зміни, збережи
+  актуальну поведінку `main`, перенеси лише відсутню корисну частину),
+  `git add -A`, `git cherry-pick --continue`. Semantic no-op (порожній
+  staged diff, немає unresolved) → `git cherry-pick --skip`.
+- **stash** — `git -C .worktrees/git-reconcile-<slug> stash apply
+  <stash-ref>` (або `git apply --3way` на патчі `git stash show -p
+  --binary`, якщо `apply` не підходить). Конфлікт — та сама дисципліна, що
+  й для branch.
 
-- triage — повноту verdicts, schema, groups і commit OID;
-- triage intent — `complete-useful → pr`, `incomplete/uncertain → keep`,
-  `obsolete → drop`; сам факт conflict не дозволяє downgrade корисної
-  завершеної зміни до `keep`, бо conflict resolution є наступним етапом;
-- worktree — відсутність conflict markers та `git diff --check`;
-- PR description — JSON schema, evidence paths із реального diff і перевагу
-  business/architecture змісту над behavior/risk details;
-- поведінку — repository test script відносно test baseline чистої
-  `origin/<baseBranch>` і changelog gate. Red baseline приймається лише для
-  розпізнаних Vitest failures, якщо після перенесення не додалось нових.
-- змінений код — scoped `doc-files` у fix-режимі та unified lint у
-  `--no-fix`, окремо для кожної code directory.
+Перш ніж продовжити — переконайся, що весь corpus вже є в `main`, а не
+повертає застарілу архітектуру: якщо перенесена зміна не додає нічого, чого
+`origin/<base>` вже не має, це `obsolete`, не `pr` — поверни до кроку 1,
+познач `drop`, і йди в крок 4 з archive.
 
-Після min validation failure JS спершу запускає canonical scoped/changelog
-fixers. Якщо вони детерміновано усунули format, CSpell, docs або changeset
-дефект, min приймається без `max`. Лише residual behavioral failure запускає
-повтор того самого bounded-завдання на `max` із точною причиною. Infrastructure
-failure runner завершує крок одразу: повтор іншою моделлю не маскує проблему
-transport. Після провалу `max` джерело fail-closed лишається `kept` або
-`failed`, не потрапляє в cleanup, а неповний triage завершує команду non-zero.
+### Крок 3 — scoped gates, push, PR
+
+У `.worktrees/git-reconcile-<slug>`, для змінених директорій:
+
+1. **Doc-files** — регенеруй файлову доку для змінених файлів (обов'язковий
+   крок задачі, той самий що для будь-якої іншої правки — `.cursor/skills/
+   n-doc-files/SKILL.md`), скоуп лише на змінений код.
+2. **Lint** — `npx @7n/rules lint --no-fix <змінена-директорія>` для кожної
+   унікальної директорії зміненого коду (не repo-wide baseline).
+3. **Тести** — найвужчий релевантний regression test (test file/selector,
+   не `bun run test`/`bun test` repo-wide). Порівняй з baseline
+   `origin/<base>` — якщо там та сама помилка вже червона (розпізнаний
+   Vitest failure), прийми red baseline; НОВА помилка — виправ або поверни
+   до triage.
+4. **Changelog** — стандартний `.cursor/rules/n-changelog.mdc` гейт, як для
+   будь-якої іншої зміни.
+
+Після зелених gates:
+
+```
+git -C .worktrees/git-reconcile-<slug> push -u origin git-reconcile/<slug>
+gh pr create --base <base> --head git-reconcile/<slug> --title "<заголовок>" --body-file <файл>
+```
+
+PR body — секції «Навіщо», «Бізнес-результат», «Архітектура», «Поведінка»,
+«Ризики та сумісність» (контракт нижче в «Результат»); source/evidence paths
+— у collapsed technical details, не в основному тексті.
+
+Дочекайся checks: `gh pr checks <url>` з паузами (кілька спроб, до ~15 хв
+сумарно — той самий бюджет, що раніше тримав JS). Порівняй failed checks із
+base commit: check regression лише якщо той самий check був green на
+`origin/<base>`; відсутній/pending базовий check → `unverified`, не
+вигаданий regression. PR, який GitHub уже позначив merged під час
+очікування — теж успішний термінальний стан.
+
+### Крок 4 — cleanup (archive → verify → delete)
+
+- Джерело `merged`/`patch-equivalent` із кроку 0:
+  `n-rules git-reconcile cleanup <джерело> --kind branch|stash --no-archive --base <base>`
+- Джерело `pr-created` (checks зелені/merged) або `drop`:
+  `n-rules git-reconcile cleanup <джерело> --kind branch|stash --reason "<причина>" --base <base>`
+  (без `--no-archive` — команда сама архівує в `origin/tempo/git-reconcile/*`
+  і верифікує ПЕРЕД видаленням).
+- Regression/baseline-red/timeout/pending/unreadable checks, `keep` із кроку
+  1 — **не** cleanup-кандидат: залиш branch, URL і worktree, зафіксуй у
+  звіті.
+
+Прибери тимчасовий worktree кроку 2 для кожного завершеного (перенесеного
+або dropped) джерела: `mt worktree remove git-reconcile-<slug>`.
+
+### Крок 5 — GC (за потреби, не щоразу)
+
+`n-rules git-reconcile gc` без `--apply` показує, які архіви `tempo/
+git-reconcile/*` прострочені (45 днів). Реальне видалення (`--apply`) — лише
+коли користувач явно просить прибрати архіви, не автоматична частина
+кожного reconcile-прогону.
+
+### Крок 6 — фінальний звіт
+
+Формат — контракт «Результат» нижче: один verdict на джерело, точний count
+кожного outcome, forensic-деталі для збережених worktree/PR.
 
 ## Інваріанти
 
-- База — тільки свіжий `origin/<baseBranch>` із repository Git policy.
-- Pre-analysis не виконує `merge --ff-only`, `pull` або `update-ref`: tracking
-  relation визначається read-only через `merge-base --is-ancestor`, а local і
-  remote refs зберігаються як точні cleanup aliases.
+- База — тільки свіжий `origin/<baseBranch>` (`inventory`/`cleanup` самі
+  роблять `git fetch origin <base>` перед класифікацією).
+- Pre-analysis не виконує `merge --ff-only`, `pull` або `update-ref`:
+  tracking relation визначається read-only через `merge-base
+  --is-ancestor`.
 - Живі worktree, включно з detached HEAD за commit OID, та гілки відкритих
-  PR — protected.
+  PR — protected (`inventory` це класифікує).
 - Стара дата або великий divergence не означають, що зміна непотрібна.
 - `ours`/`theirs` не застосовуються механічно: конфлікт розв'язується за
-  поведінкою й підтверджується тестом.
+  поведінкою (крок 2).
 - Empty cherry-pick пропускається лише за активного `CHERRY_PICK_HEAD`,
   відсутніх conflicts і порожнього staged diff.
-- Вкладені `npx` не успадковують package selector зовнішнього
-  `npm exec --package`.
-- Перед створенням worktree JS додає `.worktrees/` до локального
-  `.git/info/exclude`, не змінюючи tracked `.gitignore` consumer-а.
-- ACP semantic idle watchdog не подовжується від `usage`, thought,
-  config або повторних tool-update events; його скидають лише новий tool-call
-  чи agent output.
 - За невизначеності джерело лишається `kept`; misleading ready PR не
   створюється.
-- Перед push обов'язково проходять фінальний tree-diff guard, domain lint для
-  non-code paths, changelog і `git diff --check`; code changes додатково
-  проходять scoped docs/lint та tests.
-- Змінений `bun.lock` перед push завжди проходить
-  `bun install --frozen-lockfile`, навіть якщо `node_modules` уже існує.
-  Невалідний lock JS один раз синхронізує через lockfile-only install і
-  повторює final gates.
-- Перед push JS передає min-моделі bounded final diff, commit metadata,
-  triage rationale і behavioral verification. Модель повертає лише validated
-  JSON, а JS рендерить PR body із видимими секціями «Навіщо»,
-  «Бізнес-результат», «Архітектура», «Поведінка» та «Ризики та сумісність»;
-  source і evidence paths лишаються у collapsed technical details.
-- `.changes/` разом із lockfile є валідним release PR. JS позначає такий final
-  diff як `release-lock-only`: product claims рендеряться як intent change
-  entry, а architecture/behavior секції детерміновано не заявляють runtime
-  changes, яких немає у фінальному diff.
-- Якщо exact narrative кожного `release-lock-only` change entry уже присутній
-  у base `CHANGELOG` відповідного workspace, source стає
-  `patch-equivalent`: повторний release PR не створюється.
-- Raw behavioral agent output не потрапляє ні в PR prompt, ні в PR body:
-  JS замінює його bounded verdict про cognitive review і фінальні gates.
-- Невалідний PR description повторюється на max; повторний провал fail-closed
-  зберігає worktree і не push-ить гілку з misleading описом.
-- Canonical fixers отримують лише точний scope failing gate: code directory,
-  non-code directory або конкретний root file. Root-wide `.` не є fallback;
-  після механічного виправлення фінальні gates обов'язково запускаються
-  повторно без fix.
-- Behavioral LLM не викликається для змін без code paths; test baseline
-  актуальної policy base branch кешується між PR-групами.
-- Для code-bearing переносу після materialization JS окремо просить LLM
-  порівняти final diff із актуальними callers і focused tests. Якщо вся
-  поведінка вже є в main, а source повертає застарілу архітектуру, verdict
-  `obsolete` прибирає transient worktree, повертає `drop-recommended` з
-  rationale і передає source у cleanup; PR не створюється.
-- Після `gh pr create` JS чекає bounded кілька registration ticks до появи
-  GitHub checks і порівнює failed checks із
-  base commit. Failure є regression лише якщо check з тим самим ім'ям був
-  green на base; відсутній або pending base check дає `unverified`, а не
-  вигаданий regression. PR, який GitHub уже позначив merged під час очікування,
-  також є terminally absorbed. Лише такий ready/merged PR дозволяє cleanup; regression,
-  baseline-red, timeout, pending або unreadable checks зберігають branch, URL
-  і worktree та завершують команду non-zero.
-- Cleanup виконує лише JS і тільки після inventory/PR-фази: видаляє точні refs,
-  уже merged/patch-equivalent, явно класифіковані як `drop` або повністю
-  перенесені в успішний PR.
-- Live worktree, open PR, `kept` і будь-яке джерело з проваленим перенесенням
-  не видаляються. Виняток — stale `prunable` records і clean inactive
-  worktree у transient `.worktrees/`/`.claude/worktrees/`: JS прибирає їх
-  перед refs cleanup лише якщо commit merged/patch-equivalent, немає open PR,
-  а checkout не current, dirty, locked або policy-protected.
-- `git stash clear` заборонено; stash видаляється лише по одному після
-  підтвердженого перенесення, Git-доведеної absorbed/exact-duplicate
-  equivalence або явного cleanup-запиту.
+- Перед push обов'язково проходять фінальний tree-diff guard, scoped
+  lint/doc-files/тести й changelog (крок 3).
+- Raw поведінкові подробиці не потрапляють у PR body напряму — рендер за
+  контрактом «Результат» нижче, з evidence paths у collapsed details.
+- **Локальне видалення НІКОЛИ не виконується вручну** (`git branch -D`,
+  `git stash drop`) — виключно через `n-rules git-reconcile cleanup`, чия
+  archive→verify→delete послідовність і є точка, де інваріант "remote копія
+  підтверджена ПЕРЕД видаленням" (ADR #334) фактично гарантується.
+- `git stash clear` заборонено взагалі — stash видаляється лише по одному,
+  через `cleanup`.
+- 45-денний GC (`n-rules git-reconcile gc`) fail-closed: відсутній/невалідний
+  manifest, недоступність open-PR перевірки чи будь-яка git-помилка —
+  причина ПРОПУСТИТИ ref, не видаляти.
 
 ## Результат
 
-Оркестратор повертає для кожного джерела один verdict: `merged`,
-`patch-equivalent`, `open-pr`, `protected`, `pr-created`, `kept`,
-`drop-recommended`, `pr-checks-regressed`, `pr-checks-baseline-red`,
-`pr-checks-unverified` або `failed`. `pr-created` означає, що checks завершились
-успішно; для непідтвердженого PR звіт зберігає URL, branch, worktree і точну
-причину. Summary містить точний count кожного outcome, фактичний залишок
+Один verdict на джерело: `merged`, `patch-equivalent`, `open-pr`,
+`protected`, `pr-created`, `kept`, `drop-recommended`,
+`pr-checks-regressed`, `pr-checks-baseline-red`, `pr-checks-unverified` або
+`failed`. `pr-created` означає, що checks завершились успішно; для
+непідтвердженого PR звіт зберігає URL, branch, worktree і точну причину.
+Summary містить точний count кожного outcome, фактичний залишок
 branches/worktrees/stashes після cleanup та агреговані причини retention.
-Для кожного збереженого forensic worktree summary окремо показує source,
-status, branch і path, reason, URL PR (за наявності), commits ahead,
-unresolved/staged/unstaged paths та конкретну next action. Це дозволяє
-відрізнити незавершений transfer, заблокований final gate і PR з
-непідтвердженими checks без ручного перегляду Git state.
-Для cleanup ref звіт також містить точний OID і видалені aliases.
+Для кожного збереженого forensic worktree — окремо source, status, branch і
+path, reason, URL PR (за наявності), commits ahead, unresolved/staged/
+unstaged paths та конкретну next action. Для cleanup — точний OID і archive
+ref (`tempo/git-reconcile/...`) кожного видаленого джерела.
+
+## Свідомо втрачено проти старого JS-оркестратора (§2.136)
+
+Документується прямо, не мовчки — той самий принцип, що вже застосований до
+`taze` (§2.125):
+
+- **Bounded concurrency `3` для незалежних PR-груп.** Старий JS матеріалізував
+  до трьох candidate-ів одночасно (`N_GIT_RECONCILE_CONCURRENCY`). Ти
+  працюєш серійно, один candidate за раз — той самий компроміс, що вже
+  прийнятий для `taze` (кроки 4-6 там теж серійні, не паралельні). Довше на
+  великій кількості кандидатів, безпечніше без окремого нагляду за
+  паралельними worktree.
+- **Живий ANSI-free progress-бар з heartbeat.** Мав сенс лише для
+  довготривалого одного процесу; ти вже показуєш прогрес природно, крок за
+  кроком, самим фактом виконання команд.
+- **Кеш test-baseline між PR-групами в одному процесі
+  (`baselineCache`).** Ти читаєш `origin/<base>` тести один раз на прогін і
+  тримаєш результат у контексті цього ж ходу — тій самій причині, що
+  `taze` не переносив міжпроцесний `migration-cache.mjs` (§2.125 п.5):
+  ізольованих підвикликів раннера на кожен candidate більше немає, кешу
+  нема кому наповнювати чи читати між ними.

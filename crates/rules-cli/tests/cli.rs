@@ -173,6 +173,10 @@ fn owned_commands_have_generated_ukrainian_help() {
         vec!["plugin", "--help"],
         vec!["plugin", "embed-manifest", "--help"],
         vec!["plugin", "publish", "--help"],
+        vec!["git-reconcile", "--help"],
+        vec!["git-reconcile", "inventory", "--help"],
+        vec!["git-reconcile", "cleanup", "--help"],
+        vec!["git-reconcile", "gc", "--help"],
     ] {
         let label = args.join(" ");
         let out = bin().args(&args).output().unwrap();
@@ -198,6 +202,102 @@ fn plugin_is_an_owned_surface_not_a_js_delegate() {
     assert!(!out.status.success());
     assert_eq!(out.status.code(), Some(2));
     assert!(stderr(&out).contains("--registry"), "{}", stderr(&out));
+}
+
+/// `git-reconcile` (§2.136 — ефекти скіла, `git_reconcile_cmd`) — власна
+/// поверхня без JS-двійника: невідома підкоманда й брак `--kind` для
+/// `cleanup` — usage-помилка код 2, не делегація.
+#[test]
+fn git_reconcile_is_an_owned_surface_not_a_js_delegate() {
+    let out = bin().args(["git-reconcile", "whatever"]).output().unwrap();
+    assert!(!out.status.success());
+    assert_eq!(out.status.code(), Some(2));
+    assert!(stderr(&out).contains("git-reconcile"), "{}", stderr(&out));
+
+    let out = bin()
+        .args(["git-reconcile", "cleanup", "feature/x"])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    assert_eq!(out.status.code(), Some(2));
+    assert!(stderr(&out).contains("--kind"), "{}", stderr(&out));
+}
+
+/// Наскрізний прогін `inventory`→`cleanup`(archive→verify→delete, ADR
+/// #334)→`gc` на реальному git-фікстурі з локальним bare remote — той самий
+/// happy path, що `git_reconcile_cmd::tests`, тут перевіряє САМЕ дріт CLI
+/// (argv-парсинг, дефолти, код виходу), не внутрішні функції напряму.
+#[test]
+fn git_reconcile_inventory_cleanup_gc_round_trip_through_the_binary() {
+    let remote = TempDir::new().unwrap();
+    git(remote.path(), &["init", "-q", "--bare"]);
+
+    let work = TempDir::new().unwrap();
+    git(work.path(), &["init", "-q", "-b", "main"]);
+    git(work.path(), &["config", "user.email", "test@example.com"]);
+    git(work.path(), &["config", "user.name", "test"]);
+    std::fs::write(work.path().join("a.txt"), "a\n").unwrap();
+    git(work.path(), &["add", "-A"]);
+    git(work.path(), &["commit", "-q", "-m", "init"]);
+    git(
+        work.path(),
+        &["remote", "add", "origin", remote.path().to_str().unwrap()],
+    );
+    git(work.path(), &["push", "-q", "origin", "main"]);
+
+    git(work.path(), &["checkout", "-q", "-b", "feature/orphan"]);
+    std::fs::write(work.path().join("orphan.txt"), "z\n").unwrap();
+    git(work.path(), &["add", "-A"]);
+    git(work.path(), &["commit", "-q", "-m", "orphan work"]);
+    git(work.path(), &["checkout", "-q", "main"]);
+
+    let inventory = bin()
+        .current_dir(work.path())
+        .args(["git-reconcile", "inventory"])
+        .output()
+        .unwrap();
+    assert!(inventory.status.success(), "{}", stderr(&inventory));
+    let report: serde_json::Value = serde_json::from_str(&stdout(&inventory)).unwrap();
+    let branch = report["branches"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|b| b["name"] == "feature/orphan")
+        .unwrap();
+    assert_eq!(branch["state"], "review");
+
+    let cleanup = bin()
+        .current_dir(work.path())
+        .args([
+            "git-reconcile",
+            "cleanup",
+            "feature/orphan",
+            "--kind",
+            "branch",
+            "--reason",
+            "cli round-trip test",
+        ])
+        .output()
+        .unwrap();
+    assert!(cleanup.status.success(), "{}", stderr(&cleanup));
+    let record: serde_json::Value = serde_json::from_str(&stdout(&cleanup)).unwrap();
+    assert_eq!(record["archived"], true);
+    assert_eq!(record["deleted"], true);
+    let list_out = std::process::Command::new("git")
+        .current_dir(work.path())
+        .args(["branch", "--list", "feature/orphan"])
+        .output()
+        .unwrap();
+    assert!(String::from_utf8_lossy(&list_out.stdout).trim().is_empty());
+
+    let gc = bin()
+        .current_dir(work.path())
+        .args(["git-reconcile", "gc"])
+        .output()
+        .unwrap();
+    assert!(gc.status.success(), "{}", stderr(&gc));
+    let gc_report: serde_json::Value = serde_json::from_str(&stdout(&gc)).unwrap();
+    assert_eq!(gc_report["apply"], false, "gc дефолт — dry-run, ADR #334");
 }
 
 /// Наскрізний прогін Д2 на реальному щойно зібраному гості: `embed-manifest`
@@ -319,32 +419,29 @@ fn skill_prompt_branch_names_available_skills_on_typo() {
     );
 }
 
-/// Скіли з власним JS-оркестратором лишаються делегованими: їхній прогін —
-/// конвеєр кроків, а не один агентний хід, і підміна мовчки з'їла б кроки.
+/// `ORCHESTRATED_SKILLS` тепер порожній (§2.136): `git-reconcile` пішов за
+/// `taze` (§2.125) — його 3 484-рядковий JS-оркестратор знесено, ефекти
+/// живуть у `n-rules git-reconcile <verb>`, оркестрація — текст
+/// `SKILL.md`. Раніше цей тест звався `orchestrated_skills_still_delegate_to_js`
+/// і саме `git-reconcile` доводив, що делегація ще працює; тепер це той
+/// самий скіл, але доводить протилежне — `skill git-reconcile` (гілка БЕЗ
+/// раннера, лише друк промпта, LLM не викликається) працює нативно, як
+/// БУДЬ-ЯКИЙ інший скіл. Раннерну гілку (`skill pi git-reconcile`) процесним
+/// тестом не перевірити — вона спавнила б справжнього ACP-агента (нотатка
+/// нижче); там межу гейтить детермінований юніт-тест `main.rs::tests::
+/// runner_branch_is_native_for_every_skill_except_claude` +
+/// `no_skill_is_orchestrated_anymore`.
 #[test]
-fn orchestrated_skills_still_delegate_to_js() {
-    // `taze` більше НЕ в цьому списку: §2.125 розібрала його оркестратор —
-    // кроки живуть у native-CLI й тексті `SKILL.md`, тож делегувати нічого.
-    // `git-reconcile` лишається єдиним оркестрованим скілом (його 3 484-рядковий
-    // оркестратор — окрема хвиля), і саме він тут за екземпляр.
+fn git_reconcile_prompt_branch_is_native_after_orchestrator_removal() {
     let package = fake_package(&["git-reconcile"]);
-    for skill in ["git-reconcile"] {
-        let out = bin()
-            .env("N_RULES_JS_ENTRY", fake_entry(&package))
-            .args(["skill", "pi", skill])
-            .output()
-            .unwrap();
-        // Делегація йде у неіснуючий фейковий entrypoint — важливий сам факт
-        // спроби (native-шлях не друкував би нічого про node/модуль).
-        assert!(
-            !out.status.success(),
-            "{skill}: очікували делегацію, а не native-шлях"
-        );
-        assert!(
-            !stderr(&out).contains("невідомий раннер"),
-            "{skill}: native-раннер не мав братися за оркестрований скіл"
-        );
-    }
+    let out = bin()
+        .env("N_RULES_JS_ENTRY", fake_entry(&package))
+        .args(["skill", "git-reconcile", "почисти", "гілки"])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "stderr: {}", stderr(&out));
+    let text = stdout(&out);
+    assert!(text.starts_with("# Task\n\nпочисти гілки\n\n# Skill\n"));
 }
 
 /// Deprecated раннер `claude` Rust не моделює — він теж делегується.
@@ -535,14 +632,15 @@ fn rename_yaml_extensions_respects_config_ignore() {
     assert!(tmp.path().join("k8s/web.yml").exists());
 }
 
-/// Оркестрований скіл їде в JS із незміненим argv і його exit-кодом.
-///
-/// Раніше цей тест звався «будь-яка не-`list` підкоманда делегується» — межа
-/// зсунулась: тепер делегуються рівно оркестровані скіли й `claude`, а
-/// звичайні раннери йдуть нативним ACP-шляхом.
+/// `claude` (deprecated раннер, Rust не моделює) їде в JS із незміненим argv
+/// і його exit-кодом — ЄДИНИЙ лишок делегації в гілці `skill <runner> <id>`
+/// після §2.136: раніше цей самий тест (тоді — `orchestrated_skill_delegates_
+/// argv_and_exit_code`) стояв на `git-reconcile` як екземплярі оркестрованого
+/// скіла; тепер оркестрованих скілів немає взагалі (`ORCHESTRATED_SKILLS`
+/// порожній), і `claude` — єдина причина, з якої ця гілка ще може делегувати.
 #[cfg(unix)]
 #[test]
-fn orchestrated_skill_delegates_argv_and_exit_code() {
+fn claude_runner_delegates_argv_and_exit_code() {
     use std::os::unix::fs::PermissionsExt;
 
     let tmp = TempDir::new().unwrap();
@@ -554,11 +652,11 @@ fn orchestrated_skill_delegates_argv_and_exit_code() {
         .current_dir(tmp.path())
         .env("N_RULES_JS_ENTRY", "/fake/n-rules.js")
         .env("N_RULES_JS_RUNTIME", &stub)
-        .args(["skill", "pi", "git-reconcile"])
+        .args(["skill", "claude", "lint"])
         .output()
         .unwrap();
     assert_eq!(out.status.code(), Some(7));
-    assert_eq!(stdout(&out), "/fake/n-rules.js skill pi git-reconcile\n");
+    assert_eq!(stdout(&out), "/fake/n-rules.js skill claude lint\n");
 }
 
 // Позитивної перевірки «звичайний скіл під раннером іде нативно» тут НЕМАЄ

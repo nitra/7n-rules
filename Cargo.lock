@@ -5927,6 +5927,7 @@ name = "rules-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "clap",
  "libc",
  "n7n-harness",
