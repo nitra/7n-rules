@@ -40,13 +40,18 @@ use llm_lib::acp::{AcpAgentKind, Strength};
 
 use crate::js_fallback;
 
-/// Скіли з власним JS-оркестратором: їхній прогін — не один агентний хід, а
-/// конвеєр детермінованих кроків із точковими LLM-викликами
-/// (`skills/git-reconcile/js/orchestrate.mjs`). Порт конвеєра — окремий зріз
-/// спеки, тож він лишається делегованим: краще чесно віддати його JS, ніж
-/// підмінити конвеєр одним ходом і мовчки втратити кроки.
+/// Скіли з власним JS-оркестратором. Порожній список (§2.135):
+/// `git-reconcile` був останнім і єдиним записом — його
+/// `skills/git-reconcile/js/orchestrate.mjs` (3 484 рядки) знесено за тим
+/// самим патерном, що вже довів себе на `taze` (§2.125, коментар нижче).
+/// Ефекти (git inventory, safe cleanup з archive-lifecycle ADR #334, GC)
+/// живуть у `git_reconcile_cmd` (`n-rules git-reconcile …`), оркестрація
+/// (послідовність кроків, LLM semantic triage, conflict resolution, PR body)
+/// — текст `npm/skills/git-reconcile/SKILL.md`. Тип лишається `[&str; 0]`,
+/// не `Vec`/порожній модуль: майбутній скіл із власним конвеєром додасться
+/// сюди тим самим способом, яким сюди додався й вибув `git-reconcile`.
 ///
-/// `taze` тут БІЛЬШЕ немає (§2.125,
+/// `taze` тут пішов ПЕРШИМ (§2.125,
 /// `docs/specs/2026-08-31-recon-providers-rules-skills.md` §3): свій
 /// JS-оркестратор (`skills/taze/js/orchestrate.mjs` +
 /// `migration-cache.mjs`, 546 рядків) знесено. Причина — не обсяг, а
@@ -64,7 +69,7 @@ use crate::js_fallback;
 /// `SKILL.md`, є раннером. Кеш міграцій між репо (`migration-cache.mjs`)
 /// свідомо НЕ перенесено: він мав сенс лише в архітектурі з ізольованими
 /// підвикликами раннера на кожен пакет, якої більше немає.
-const ORCHESTRATED_SKILLS: [&str; 1] = ["git-reconcile"];
+const ORCHESTRATED_SKILLS: [&str; 0] = [];
 
 /// Раннер CLI → ACP-kind. `claude` свідомо відсутній (legacy-ім'я, usage
 /// друкує JS — доккомент роутера в `main.rs`); `goose` прибрано слідом за

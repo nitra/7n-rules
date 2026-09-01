@@ -119,6 +119,11 @@ pub enum NativeCommand {
     /// (`plugin_cmd`) — поверхні в JS-CLI немає взагалі, команда нативна
     /// цілком.
     Plugin(PluginArgs),
+    /// Ефекти скіла `git-reconcile` (`git_reconcile_cmd`) — inventory, safe
+    /// cleanup (архів `origin/tempo/git-reconcile/*` перед видаленням,
+    /// ADR #334) і його GC. Поверхні в JS-CLI немає взагалі (JS-оркестратор
+    /// git-reconcile знесений, §2.135) — команда нативна цілком.
+    GitReconcile(GitReconcileArgs),
 }
 
 /// `changed-files [--cwd <dir>] [--delta] [--base <ref>]`.
@@ -440,6 +445,102 @@ pub struct PluginFetchArgs {
     /// конвенція JS-боку (`~/.cache/@7n/rules/plugins` mac/linux).
     #[arg(long, value_name = "тека")]
     pub cache_root: Option<std::path::PathBuf>,
+}
+
+/// `git-reconcile <inventory|cleanup|gc>`.
+#[derive(Args, Debug)]
+#[command(
+    help_template = HELP_TEMPLATE,
+    override_usage = "n-rules git-reconcile <inventory|cleanup|gc>",
+    subcommand_help_heading = "Підкоманди"
+)]
+pub struct GitReconcileArgs {
+    /// Підкоманда `git-reconcile`.
+    #[command(subcommand)]
+    pub command: GitReconcileCommand,
+}
+
+/// Підкоманди `git-reconcile` — рівно ефекти, названі §2.135 як такі, що не
+/// лягають у текст `SKILL.md`: детермінована класифікація Git-фактів
+/// (`inventory`) і atomic-ish archive→verify→delete lifecycle (`cleanup`,
+/// `gc`), обидва fail-closed на будь-якій непідтвердженій верифікації.
+#[derive(Subcommand, Debug)]
+pub enum GitReconcileCommand {
+    /// Inventory локальних branch/stash/worktree/PR відносно `origin/<base>`.
+    Inventory(GitReconcileInventoryArgs),
+    /// Безпечне видалення джерела: archive у `origin/tempo/git-reconcile/*`
+    /// (ADR #334) + верифікація ПЕРЕД локальним видаленням.
+    Cleanup(GitReconcileCleanupArgs),
+    /// 45-денний GC архівів `origin/tempo/git-reconcile/*` — dry-run за
+    /// замовчуванням.
+    Gc(GitReconcileGcArgs),
+}
+
+/// `git-reconcile inventory [--base <ref>]`.
+#[derive(Args, Debug)]
+#[command(
+    help_template = HELP_TEMPLATE,
+    override_usage = "n-rules git-reconcile inventory [--base <ref>]",
+    next_help_heading = FLAGS_HEADING
+)]
+pub struct GitReconcileInventoryArgs {
+    /// Policy base branch (без `origin/`) — дефолт `main`.
+    #[arg(long, value_name = "ref")]
+    pub base: Option<String>,
+}
+
+/// Кандидат `cleanup`/`inventory` — гілка чи stash.
+#[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GitReconcileKind {
+    Branch,
+    Stash,
+}
+
+/// `git-reconcile cleanup <source> --kind <branch|stash> [--reason <text>]
+/// [--base <ref>] [--no-archive] [--dry-run]`.
+#[derive(Args, Debug)]
+#[command(
+    help_template = HELP_TEMPLATE,
+    override_usage = "n-rules git-reconcile cleanup <source> --kind <branch|stash> \
+                       [--reason <text>] [--base <ref>] [--no-archive] [--dry-run]",
+    next_help_heading = FLAGS_HEADING
+)]
+pub struct GitReconcileCleanupArgs {
+    /// Ім'я гілки (`feature/x`) або stash-ref (`stash@{0}`).
+    pub source: String,
+    /// Тип джерела.
+    #[arg(long, value_enum)]
+    pub kind: GitReconcileKind,
+    /// Людська причина — потрапляє у `.git-reconcile/archive.json`/`ARCHIVE.md`.
+    #[arg(long, value_name = "text")]
+    pub reason: Option<String>,
+    /// Policy base branch (без `origin/`) — дефолт `main`.
+    #[arg(long, value_name = "ref")]
+    pub base: Option<String>,
+    /// Пропустити archive: дозволено лише коли `source` вже reachable в
+    /// `origin/<base>` (merged) або дає порожній diff проти нього
+    /// (patch-equivalent) — команда сама це перевіряє fail-closed.
+    #[arg(long)]
+    pub no_archive: bool,
+    /// Нічого не пушити/видаляти, лише показати план.
+    #[arg(long)]
+    pub dry_run: bool,
+}
+
+/// `git-reconcile gc [--apply] [--now <RFC3339>]`.
+#[derive(Args, Debug)]
+#[command(
+    help_template = HELP_TEMPLATE,
+    override_usage = "n-rules git-reconcile gc [--apply] [--now <RFC3339>]",
+    next_help_heading = FLAGS_HEADING
+)]
+pub struct GitReconcileGcArgs {
+    /// Реально видалити прострочені архіви (дефолт — dry-run, ADR #334).
+    #[arg(long)]
+    pub apply: bool,
+    /// Перевизначає «зараз» для детермінованих тестів (RFC 3339).
+    #[arg(long, value_name = "RFC3339")]
+    pub now: Option<String>,
 }
 
 /// Розбір argv спільною граматикою для юніт-тестів команд: вони мають

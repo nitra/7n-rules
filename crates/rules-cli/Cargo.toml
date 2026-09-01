@@ -65,6 +65,10 @@ oci-dist-oci = { version = "=0.3.1", registry = "crates-7n" }
 # `publish_plugin_component` повертає `anyhow::Result` — той самий тип
 # помилки лишається наскрізним у `plugin_cmd::run_blocking`, без обгортки.
 anyhow = "1"
+# `git_reconcile_cmd`: `createdAt`/`deleteAfter` (45-денний GC, ADR #334) і
+# `--now` override для детермінованих тестів. Той самий пін і ті самі фічі,
+# що вже бере `rules-core` (`chrono::Local`/`Utc`) — не новий вибір.
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
 
 [dev-dependencies]
 tempfile = "3"
