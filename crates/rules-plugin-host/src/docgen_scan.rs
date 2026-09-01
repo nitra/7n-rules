@@ -173,3 +173,66 @@ mod tests {
         assert!(is_system_wide_docs_root(tmp.path()));
     }
 }
+
+#[cfg(test)]
+mod mirror_gate {
+    use std::path::PathBuf;
+
+    /// Витягує тіло `const DOCGEN_IGNORE_GLOBS: &[&str] = &[ … ];` з файлу
+    /// джерела як упорядкований список літералів.
+    fn extract_globs(source: &str) -> Vec<String> {
+        let start = source
+            .find("DOCGEN_IGNORE_GLOBS: &[&str] = &[")
+            .expect("константа DOCGEN_IGNORE_GLOBS має бути в файлі");
+        let body_start = source[start..].find('[').expect("масив") + start + 1;
+        let body_end = source[body_start..].find("];").expect("кінець масиву") + body_start;
+        source[body_start..body_end]
+            .lines()
+            .filter_map(|line| {
+                let line = line.trim().trim_end_matches(',');
+                let inner = line.strip_prefix('"')?.strip_suffix('"')?;
+                Some(inner.to_owned())
+            })
+            .collect()
+    }
+
+    fn repo_root() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .and_then(std::path::Path::parent)
+            .expect("корінь workspace")
+            .to_path_buf()
+    }
+
+    /// Доккомент [`super::DOCGEN_IGNORE_GLOBS`] СТВЕРДЖУЄ, що список —
+    /// byte-exact дзеркало `plugin_docgen::ignore::DOCGEN_IGNORE_GLOBS`.
+    /// Дублювання там обґрунтоване (`plugin-docgen` — `cdylib`, не може бути
+    /// rlib-залежністю host-крейта), але саме твердження до цього гейта не
+    /// перевіряв НІХТО — тобто інваріант тримався на уважності автора
+    /// наступної правки.
+    ///
+    /// Гейт читає ОБИДВА джерела текстом — той самий прийом, що
+    /// `mirror-parity` для `.cursor/rules/*.mdc`, і з тієї ж причини: імпорт
+    /// неможливий, а мовчазний дрейф дорогий. Цього ж дня дрейф дзеркала
+    /// (`.cursor/rules/n-rust.mdc` проти канону) реально стався й пройшов
+    /// непоміченим до наступної хвилі — саме тому тут гейт, а не коментар.
+    #[test]
+    fn host_glob_list_mirrors_guest_byte_exact() {
+        let root = repo_root();
+        let host = std::fs::read_to_string(root.join("crates/rules-plugin-host/src/docgen_scan.rs"))
+            .expect("host-джерело читається");
+        let guest = std::fs::read_to_string(root.join("crates/plugin-docgen/src/ignore.rs"))
+            .expect("guest-джерело читається");
+
+        let host_globs = extract_globs(&host);
+        let guest_globs = extract_globs(&guest);
+
+        assert!(!guest_globs.is_empty(), "порожній список у гостя — гейт нічого не перевірив би");
+        assert_eq!(
+            host_globs, guest_globs,
+            "DOCGEN_IGNORE_GLOBS розійшлись: host (`rules-plugin-host/src/docgen_scan.rs`) \
+             проти guest (`plugin-docgen/src/ignore.rs`). Список свідомо дубльований \
+             (cdylib не може бути rlib-залежністю), тож правити треба ОБИДВА місця."
+        );
+    }
+}
