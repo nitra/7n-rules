@@ -1,0 +1,220 @@
+name: rules-cli-release
+
+# Канал доставки native-бінаря `n-rules` (`crates/rules-cli`), відмінний
+# від npm/`bunx` — задача «Крок 0» плану full-rust-migration
+# (`docs/plans/2026-08-31-full-rust-migration-plan.md` §5) і передумова Д4
+# третьої колії дистрибуції, названа виміром у
+# `docs/specs/2026-09-01-distribution-d3-d4-scope-check.md`. Форма каналу —
+# Homebrew tap `nitra/7n` (ухвалено власником), мінідизайн —
+# `docs/specs/2026-09-01-native-binary-distribution-channel.md`, розділи 1-3.
+#
+# Конвеєр — форма `mt.rb`/`mt-rust` (GitHub-native репо, пряме посилання
+# formula → GH Release asset ЦЬОГО репозиторію), НЕ форма `foc.rb`
+# (Forgejo-репо, тому OIDC-JWT-до-Forgejo-API ритуал і копіювання байтів у
+# tap) — `nitra/7n-rules` уже на GitHub, той самий клас репозиторію, що
+# `nitra/mt-rust`, вимір: `git remote -v` цього чекауту.
+#
+# СВІДОМО manual-only (лише `workflow_dispatch`): жодного `push`/`tag`-
+# тригера. Цей файл — НЕ один із 15 `disabled_manually` воркфлоу репозиторію
+# (план §7, «Крок 7») і не вмикає й не вимикає жоден із них — він просто
+# інертний, доки хтось не запустить його вручну з конкретною версією.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Версія rules-cli (без "v" — та сама, що version у crates/rules-cli/Cargo.toml, гейт нижче звіряє)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  # Гейт «тег == версія Cargo.toml» — дослівно перенесений мотив із
+  # /Users/vitalii/www/nitra/foc/.forgejo/workflows/release.yml (єдина
+  # частина того конвеєра, що не специфічна до Forgejo): реліз для версії,
+  # якої немає в закомутованому коді, — тихий дрейф каналу від джерела.
+  check-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Версія входу == crates/rules-cli/Cargo.toml
+        run: |
+          set -euo pipefail
+          cargo_version="$(sed -nE '0,/^version = "([0-9]+\.[0-9]+\.[0-9]+)"$/s//\1/p' crates/rules-cli/Cargo.toml)"
+          if [ "$cargo_version" != "${{ inputs.version }}" ]; then
+            echo "::error::вхід version='${{ inputs.version }}' != crates/rules-cli/Cargo.toml version='$cargo_version'"
+            exit 1
+          fi
+
+  build:
+    needs: check-version
+    strategy:
+      fail-fast: true
+      # ЛИШЕ дві платформи — не три, що napi-матриця build-native у
+      # npm-publish.yml. Homebrew структурно не має каналу для Windows
+      # (немає `on_windows` у Formula DSL, жоден із прочитаних прецедентів
+      # foc.rb/mt.rb/g.rb його не має) — win32-x64 лишається на npm/`bunx`
+      # завжди, мінідизайн розділ 1. Дублювати win32-збірку в цьому
+      # workflow означало б зібрати asset, який жодна formula ніколи не
+      # зможе адресувати.
+      matrix:
+        include:
+          - os: macos-14
+            target: aarch64-apple-darwin
+            asset-name: rules-cli-darwin-arm64
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            asset-name: rules-cli-linux-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false # build-only, токен не потрібен
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build rules-cli
+        run: cargo build --release --target ${{ matrix.target }} -p rules-cli
+
+      # Без tar.gz — той самий, простіший, підхід, що mt.rb/mt-rust (сирий
+      # бінар як asset), не foc.rb (яка тарить, бо мірорить в інший
+      # репозиторій копією). shell: bash — build-native у npm-publish.yml
+      # той самий мотив (git-bash на кожному з трьох ОС-runner-ів).
+      - name: Stage binary під ім'я asset-а
+        shell: bash
+        run: cp "target/${{ matrix.target }}/release/rules-cli" "${{ matrix.asset-name }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset-name }}
+          path: ${{ matrix.asset-name }}
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # gh release create/upload у ЦЬОМУ репозиторії
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+          pattern: rules-cli-*
+          merge-multiple: true
+
+      - id: tag
+        run: echo "tag=rules-cli-v${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+
+      # Окремий тег-простір від package-release.yml's `@<npm-name>@<version>`
+      # (npm-workspace релізи) — rules-cli не npm-пакет, версія в
+      # crates/rules-cli/Cargo.toml. Схема — дослівно за mt-rust
+      # (`mt-v0.1.44`), мінідизайн розділ 1.
+      - name: Створити GH Release (якщо тегу ще нема) і прикріпити asset-и
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.tag.outputs.tag }}"
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --title "$TAG" --notes "rules-cli ${{ inputs.version }} — native-бінар, канал Homebrew tap nitra/7n"
+          fi
+          gh release upload "$TAG" assets/* --clobber
+
+  update-homebrew-formula:
+    needs: release
+    runs-on: ubuntu-latest
+    # Секрет власника (Forgejo PAT/deploy-key з правом пушу в
+    # git.7n.ai/7n/homebrew — вимірюваний `origin` локального клону
+    # /Users/vitalii/www/7n/homebrew, мінідизайн розділ 1). Без нього крок
+    # падає гучно на `git push`, а не мовчки пропускає оновлення formula —
+    # namespace secrets.HOMEBREW_TAP_TOKEN НЕ заведений цією задачею
+    # (owner-provisioned, поза межею PR).
+    steps:
+      - name: Порахувати sha256 обох asset-ів
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="${{ needs.release.outputs.tag }}"
+          BASE="https://github.com/${{ github.repository }}/releases/download/${TAG}"
+          curl --fail --location --silent --show-error --output rules-cli-darwin-arm64 "${BASE}/rules-cli-darwin-arm64"
+          curl --fail --location --silent --show-error --output rules-cli-linux-x64 "${BASE}/rules-cli-linux-x64"
+          {
+            echo "DARWIN_SHA=$(shasum -a 256 rules-cli-darwin-arm64 | awk '{print $1}')"
+            echo "LINUX_SHA=$(shasum -a 256 rules-cli-linux-x64 | awk '{print $1}')"
+          } >> "$GITHUB_ENV"
+
+      - name: Клонувати tap, оновити Formula/n-rules.rb, запушити
+        if: env.HOMEBREW_TAP_TOKEN != ''
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          TAG: ${{ needs.release.outputs.tag }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          git -c http.extraHeader="Authorization: Bearer ${HOMEBREW_TAP_TOKEN}" \
+            clone https://git.7n.ai/7n/homebrew.git tap
+          cd tap
+          mkdir -p Formula
+          BASE="https://github.com/${{ github.repository }}/releases/download/${TAG}"
+          cat > Formula/n-rules.rb <<EOF
+          class NRules < Formula
+            desc "CLI еталонних правил і skills @7n/rules"
+            homepage "https://github.com/${{ github.repository }}"
+            version "${VERSION}"
+            license "ISC"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "${BASE}/rules-cli-darwin-arm64"
+                sha256 "${DARWIN_SHA}"
+
+                def install
+                  bin.install "rules-cli-darwin-arm64" => "n-rules"
+                end
+              else
+                odie "n-rules: Intel macOS is not supported yet"
+              end
+            end
+
+            on_linux do
+              url "${BASE}/rules-cli-linux-x64"
+              sha256 "${LINUX_SHA}"
+
+              def install
+                bin.install "rules-cli-linux-x64" => "n-rules"
+              end
+            end
+
+            test do
+              system "#{bin}/n-rules", "--help"
+            end
+          end
+          EOF
+          git add Formula/n-rules.rb
+          git diff --cached --quiet && exit 0
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -m "n-rules ${VERSION}"
+          git -c http.extraHeader="Authorization: Bearer ${HOMEBREW_TAP_TOKEN}" push origin HEAD:main
+
+      - name: Секрет відсутній — гучне пояснення, не мовчазний skip
+        if: env.HOMEBREW_TAP_TOKEN == ''
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          echo "::error::secrets.HOMEBREW_TAP_TOKEN не заведений — GH Release asset-и опубліковано, але Formula/n-rules.rb у tap НЕ оновлено. Заведи секрет (Forgejo PAT з правом пушу в git.7n.ai/7n/homebrew) і перезапусти цю job."
+          exit 1

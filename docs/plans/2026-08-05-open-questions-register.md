@@ -16717,3 +16717,115 @@ PR номер §2.142 встиг зайняти НЕ ОДНА, а ДВІ різ�
 споживача — саме та помилка, від якої §5.1 плану будує гейт («рація
 пережила свою причину» у зворотний бік: тут не застаріла причина, а
 причина, підтверджена свіжим виміром і кодом).
+### 2.144. Канал доставки native-бінаря `n-rules` — передумова Д3/Д4 і «Крок 0» (§2.140), тепер має мінідизайн (Homebrew tap, форма власника) + скелети
+
+**Контекст.** §2.140 виміряв, що Д3 і Д4 третьої колії обидві впираються в
+передумову, якої жодна попередня задача не описала як роботу: у
+`.github/workflows/` немає жодного НЕ-npm release, і `n-rules plugin
+publish`/`fetch` (Д1/Д2, код готовий — §2.121, §2.134) не викликаються
+жодним конвеєром. Ця задача — той канал.
+
+**Форму каналу для бінаря ухвалив власник під час виконання задачі:
+Homebrew tap `nitra/7n`**, за зразком трьох прочитаних (НЕ змінених)
+прецедентів — `/Users/vitalii/www/nitra/foc/.forgejo/workflows/{release,
+prepare-release}.yml`, `/Users/vitalii/www/7n/homebrew/Formula/{foc,mt,g}.rb`.
+Мінідизайн — `docs/specs/2026-09-01-native-binary-distribution-channel.md`
+— відповідає на всі чотири питання брифу виміром, а не смаком:
+
+1. **Конвеєр — форма `mt.rb`, не `foc.rb`.** `nitra/7n-rules` — GitHub-
+   репозиторій (як `mt-rust`), не Forgejo (як `foc`/`g`) — вимір `git
+   remote -v`. Тож жодного OIDC-до-Forgejo-JWT ритуалу з `foc.rb`;
+   asset хоститься в GH Release ЦЬОГО репозиторію напряму, formula
+   посилається без копіювання байтів у tap. Tag-схема — окрема від
+   `package-release.yml`'s `@<npm-name>@<version>`, за зразком `mt-v0.1.44`:
+   **`rules-cli-v<version>`**, з гейтом «тег == `crates/rules-cli/Cargo.toml`
+   version» (єдина Forgejo-незалежна частина `foc.rb`, перенесена дослівно).
+2. **Дві платформи, третя структурно поза каналом.** darwin-arm64 +
+   linux-x64 (та сама пара, що обидва GitHub-native прецеденти) — Intel
+   macOS → `odie` (дослівний повторюваний патерн обох еталонів). win32-x64
+   — **не тимчасово, а НІКОЛИ**: Homebrew Formula DSL не має `on_windows`
+   узагалі, жоден із трьох прецедентів його не має. Windows лишається на
+   npm/`bunx` завжди — не мовчазний фолбек, а структурний факт платформи
+   Homebrew, названий явно в мінідизайні.
+3. **Два артефакти, два транспорти.** Brew tap несе лише бінар; шість
+   first-party wasm-плагінів ідуть окремим, паралельним OCI-транспортом
+   (Д1/Д2, не змінилось відносно §2.140). `.oci-dist.lock` НІКОЛИ не
+   постачається `n-rules` — консюмер сам пише його через `n-rules plugin
+   fetch` (trust-on-first-use, Д1-мінідизайн §4); для шести first-party
+   плагінів СЬОГОДНІ (до Д3) лишається офлайн-канал `builtin-pins.json`,
+   OCI — підготовка для Д3, не паралельний обов'язковий шлях зараз.
+4. **`npm/package.json#bin` НЕ перемикається — brew і npm співіснують.**
+   Windows-консюмер не має альтернативи npm взагалі (brew структурно не
+   покриває Windows) — `bin/n-rules.js` лишається каналом для цієї
+   платформи назавжди. macOS/Linux-консюмер отримує ДРУГИЙ, незалежний
+   спосіб (`brew install nitra/7n/n-rules`), паралельно до `bunx`. Крок 0
+   плану («бінар вхідною точкою НАВІТЬ для npm-пакета») лишається окремим,
+   орієнтованим на npm-консюмерів питанням, не залежним від brew tap.
+   Гучна діагностика для brew — уже сам Homebrew DSL (`odie`, структурна
+   відсутність `on_windows`); гучна діагностика для гіпотетичного
+   майбутнього npm-прямого-бінаря — `native-cli-binary.mjs` (нижче),
+   не підключений, але НІКОЛИ не падає мовчки в JS-fallback.
+
+**Реалізовано (перевірено без мережі, без реальних публікацій, без
+реального пуша в tap-репозиторій):**
+
+| що | де | перевірка |
+|---|---|---|
+| Резолвер бінаря `rules-cli` з гучною діагностикою (для гіпотетичного майбутнього npm-прямого-бінаря, розділ 3 мінідизайну) | `npm/scripts/lib/native-cli-binary.mjs` | 16 нових тестів на ін'єктованих deps, `npm/scripts/lib/tests/native-cli-binary.test.mjs` |
+| Дедуплікація каскаду з тестовим резолвером | `npm/scripts/utils/test-helpers.mjs::resolveRulesCliBin` тепер тонка обгортка над `nativeCliBinaryChain` | наявні parity-тести не редагувались — поведінка ідентична |
+| Homebrew-release конвеєр (2 платформи, гейт версії, GH Release у власному репо, оновлення `Formula/n-rules.rb` у tap) | `.github/workflows/rules-cli-release.yml` (manual-only, `workflow_dispatch` з `version`) | `actionlint`, синтаксичний parse YAML |
+| OCI publish wiring для шести first-party плагінів | `.github/workflows/wasm-plugin-oci-publish.yml` (manual-only, `dry_run` дефолт `true`) | `actionlint`, синтаксичний parse YAML |
+| Мінідизайн (звірений із трьома прочитаними прецедентами) | `docs/specs/2026-09-01-native-binary-distribution-channel.md` | — |
+
+**Свідомо НЕ зроблено:** жодного реального `npm publish`/`n-rules plugin
+publish` (не dry-run)/GH Release/пуша в `git.7n.ai/7n/homebrew`. Жоден із
+двох нових workflow не входить у список 15 `disabled_manually` і не
+вмикає/вимикає жоден із них — обидва manual-only, інертні, доки власник
+не запустить їх сам зі своїм секретом `HOMEBREW_TAP_TOKEN` (не заведений
+цією задачею). `#bin` не перемикався. `npm/wasm-plugins/`, 14
+консюмерських шаблонів, `.claude-template/settings.template.json`,
+`CONFIG_SCHEMA_URL` — не чіпались (те саме, що §2.140 свідомо лишила
+нулем). Репозиторії `foc` і `homebrew` прочитано, НЕ змінено.
+
+**Робота велась у власному worktree** (`.worktrees/binary-channel`, гілка
+`mt/binary-delivery-channel` від `origin/main`) — головне дерево
+репозиторію в момент задачі стояло на чужій гілці
+(`docs/step6-npm-rules-recon-2026-09-01`) з чужими незакомiченими
+правками, яких ця задача не торкалась. Гілку двічі ребейзили на свіжий
+`origin/main` під час виконання (мерж #652, потім #653) — реєстрову
+секцію відповідно перенумеровано з початкового чернеткового §2.143 на
+вільний §2.144, коли §2.143 виявився зайнятим паралельною задачею
+(«крок 6 npm/rules/**»).
+
+**Що чекає на дію власника:** секрет `HOMEBREW_TAP_TOKEN`; перший
+реальний тег `rules-cli-v<X.Y.Z>` + ручний прогін `rules-cli-release.yml`;
+реалізація Harbor/Zot (Рішення 9) і Apicurio (Рішення 7) зі
+`slice6-consumer-surfaces.md`; реальний (не dry-run) запуск
+`wasm-plugin-oci-publish.yml` + наскрізний `fetch`; лише після цього —
+Д3/Д4 (Д4 — лише для macOS/Linux-рядків 14 шаблонів, Windows лишається
+`bunx`). Повернення 15 `disabled_manually` воркфлоу — окреме рішення
+власника (план §7, «Крок 7»), поза межею цієї задачі.
+
+**Цільові прогони (синхронно, без фонових процесів, з `.worktrees/
+binary-channel`):**
+
+1. `cargo build --release -p rules-cli` — OK.
+2. `cargo build --release -p rules-napi` — OK.
+3. `cargo test -p rules-cli` (повний, обидва suite) — 174 passed, без
+   регресій (Rust-код цією задачею не чіпався).
+4. `actionlint .github/workflows/rules-cli-release.yml
+   .github/workflows/wasm-plugin-oci-publish.yml` — чисто.
+5. `N_RULES_NATIVE_ADDON=<CARGO_TARGET_DIR>/release/librules_napi.dylib
+   npx vitest run npm/scripts/lib/tests/ npm/scripts/lib/lint-surface/tests/`
+   (з `npm/`) — новий файл `native-cli-binary.test.mjs` (16 нових тестів)
+   + наявні parity-тести без регресів.
+
+`npx @7n/rules lint` і `/doc-files` свідомо НЕ запускались (правило
+задачі).
+
+**Наслідок для плану.** Рядок «дистрибуція | Д3, Д4» у §7 таблиці плану
+`2026-08-31-full-rust-migration-plan.md` лишається «Лишилось» — ця задача
+не закриває Д3/Д4, вона закриває названу в §2.140 передумову частково:
+канал (тепер конкретна, ухвалена власником форма — Homebrew) і резолвер
+готові, підключення (секрет, живий тег, живий OCI-реєстр) — робота
+власника/наступної хвилі.
