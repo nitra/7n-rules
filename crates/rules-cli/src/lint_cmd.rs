@@ -32,15 +32,24 @@
 //! Native-шлях також ВІДМОВЛЯЄТЬСЯ (делегує) там, де паритет недосяжний
 //! цим зрізом:
 //! - без `--no-fix` (fix-пайплайн — T0-патерни + LLM-ladder — не портовано);
-//! - з `--path` (перетин піддерева з дельтою живе в `path-scope.mjs`);
 //! - якщо план зачепив wasm-концерн (виконання wasm через
 //!   `rules-plugin-host` — окремий зріз; мовчазна розбіжність гірша
 //!   за делегацію).
+//!
+//! `--path` тепер покрито нативно ([`rules_core::path_scope`], крок 4 плану
+//! `docs/plans/2026-08-31-full-rust-migration-plan.md`, порт
+//! `npm/scripts/lib/lint-surface/path-scope.mjs`) — дефолт лишається
+//! перетином піддерева з git-дельтою (`path_mode: true`), `--path --full`
+//! бере усе піддерево (історична поведінка), а нерезолвна база дельти
+//! fail-open фолбечиться на повне піддерево — той самий контракт, що
+//! `npm/bin/n-rules-cli.mjs:1853-1873`.
 //!
 //! # Свідомі розбіжності (не покрито цим зрізом)
 //!
 //! - **Глобальна черга `--full`** (`lint-lock.mjs`) і worktree-ізоляція:
 //!   detect-only прогін нічого не мутує, тож чергу native-шлях не бере.
+//!   Не стосується `--path` — той не бере чергу і в JS (лишається scoped
+//!   прогоном одного сервісу, не machine-wide `--full`).
 //! - **Progress-бар TTY** (`progress.mjs`) — вивід прогресу не відтворюється.
 //! - **`N_RULES_LINT_CONCURRENCY>1`** (experimental two-lane scheduler) —
 //!   native-шлях завжди послідовний, як і дефолт JS.
@@ -99,6 +108,11 @@ struct LintRun {
     base_ref: Option<String>,
     repo_wide: bool,
     full: bool,
+    /// Значення `--path` (звужує файловий набір, корінь прогону не міняє).
+    path: Option<String>,
+    /// `--path --full` — історична поведінка: усе піддерево, а не перетин
+    /// з дельтою (порт `pathArg !== null && args.includes('--full')`).
+    path_full: bool,
     verbose: bool,
     rules: Vec<String>,
 }
@@ -153,8 +167,11 @@ fn resolve_args(parsed: &LintArgs, process_cwd: &Path) -> Result<LintRun, String
         base_ref: parsed.base.clone(),
         repo_wide: parsed.repo_wide,
         // `--full` неактивний разом із `--path`/`--repo-wide` — той самий
-        // предикат, що в JS (`--path` тут і так веде до делегації).
+        // предикат, що в JS (`buildPlan` ігнорує `full`, коли передано
+        // `explicitFiles`; `--path --full` іде окремою віссю нижче).
         full: parsed.full && parsed.path.is_none() && !parsed.repo_wide,
+        path: parsed.path.clone(),
+        path_full: parsed.full && parsed.path.is_some(),
         verbose: parsed.verbose,
         rules,
     })
@@ -183,11 +200,6 @@ pub fn run(parsed: &LintArgs, args: &[String]) -> ExitCode {
         );
         return delegate(args);
     }
-    if parsed.path.is_some() {
-        eprintln!("ℹ️ rules-cli lint: --path не покрито native-шляхом — делегую в JS-CLI.");
-        return delegate(args);
-    }
-
     let process_cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     let resolved = match resolve_args(parsed, &process_cwd) {
         Ok(resolved) => resolved,
@@ -450,8 +462,24 @@ fn build_plan(
 ) -> Result<Vec<PlanItem>, Bail> {
     let by_rule_dto = to_plan_dto(by_rule);
 
-    // scoped: усі lint-concerns названих правил, whole-repo.
+    // scoped (+ --path): per-file concerns названих правил, план обмежено
+    // перетином pidderev/дельти — порт `rules.length > 0 && explicitFiles !== null`.
     if !args.rules.is_empty() {
+        if let Some(path_arg) = &args.path {
+            let path_files = resolve_path_files(args, path_arg)?.files;
+            return Ok(rules_core::lint_plan::build_lint_plan(
+                &BuildLintPlanInput {
+                    mode: "scopedDelta".to_string(),
+                    by_rule: by_rule_dto,
+                    rules: args.rules.clone(),
+                    explicit_files: path_files,
+                    enabled_rule_ids: Vec::new(),
+                    changed: Vec::new(),
+                    path_mode: false,
+                },
+            ));
+        }
+        // scoped: усі lint-concerns названих правил, whole-repo.
         return Ok(rules_core::lint_plan::build_lint_plan(
             &BuildLintPlanInput {
                 mode: "scoped".to_string(),
@@ -466,6 +494,26 @@ fn build_plan(
     }
 
     let enabled = enabled_rule_ids(by_rule, config, rules_dirs);
+
+    // --path (без scoped rule/concern фільтра): дефолт — перетин піддерева
+    // з git-дельтою (path_mode виключає full-scope concerns, ідуть лише
+    // per-file); нерезолвна база — fail-open на повне піддерево; `--path
+    // --full` — те саме fail-open піддерево одразу, без спроби дельти.
+    // Порт розгалуження `n-rules-cli.mjs:1853-1873`.
+    if let Some(path_arg) = &args.path {
+        let PathScopedResult { files, path_mode } = resolve_path_files(args, path_arg)?;
+        return Ok(rules_core::lint_plan::build_lint_plan(
+            &BuildLintPlanInput {
+                mode: "delta".to_string(),
+                by_rule: by_rule_dto,
+                rules: Vec::new(),
+                explicit_files: Vec::new(),
+                enabled_rule_ids: enabled,
+                changed: files,
+                path_mode,
+            },
+        ));
+    }
 
     let (mode, changed) = if args.repo_wide {
         ("repoWide", Vec::new())
@@ -486,6 +534,49 @@ fn build_plan(
             path_mode: false,
         },
     ))
+}
+
+/// Файловий набір `--path` + статус `path_mode` — порт розгалуження
+/// `n-rules-cli.mjs:1853-1873` навколо `path-scope.mjs`.
+struct PathScopedResult {
+    files: Vec<String>,
+    path_mode: bool,
+}
+
+/// Резолвить файловий набір `--path` для [`build_plan`]: `--path --full` —
+/// одразу все піддерево; інакше — перетин із дельтою, з fail-open фолбеком
+/// на повне піддерево, коли база не резолвиться (той самий контракт, що
+/// `collectPathScopedChangedFiles`/`collectPathScopedFiles`).
+fn resolve_path_files(args: &LintRun, path_arg: &str) -> Result<PathScopedResult, Bail> {
+    if args.path_full {
+        let files = rules_core::path_scope::collect_path_scoped_files(&args.cwd, path_arg)
+            .map_err(Bail::Fail)?;
+        return Ok(PathScopedResult {
+            files,
+            path_mode: false,
+        });
+    }
+    let scoped = rules_core::path_scope::collect_path_scoped_changed_files(
+        &args.cwd,
+        path_arg,
+        args.base_ref.as_deref(),
+    )
+    .map_err(Bail::Fail)?;
+    if scoped.base_resolved {
+        return Ok(PathScopedResult {
+            files: scoped.files,
+            path_mode: true,
+        });
+    }
+    eprintln!(
+        "⚠️ lint --path: база дельти не резолвиться (немає main/origin/main чи --base) — fail-open: лінтиться все піддерево"
+    );
+    let files = rules_core::path_scope::collect_path_scoped_files(&args.cwd, path_arg)
+        .map_err(Bail::Fail)?;
+    Ok(PathScopedResult {
+        files,
+        path_mode: false,
+    })
 }
 
 /// Мінімальний DTO концернів для планувальника — рівно те, що читають
@@ -898,5 +989,139 @@ mod tests {
         assert!(segments[0].native);
         assert_eq!(segments[0].items.len(), 2);
         assert!(!segments[1].native);
+    }
+
+    #[test]
+    fn resolve_args_carries_path_and_path_full() {
+        let resolved = resolve_args(&lint_args(&["--path", "svc", "--full"]), Path::new("/repo"))
+            .expect("--path --full парситься");
+        assert_eq!(resolved.path.as_deref(), Some("svc"));
+        assert!(resolved.path_full);
+        // `--full` не активує whole-repo вісь, коли є `--path` (той самий
+        // предикат, що в JS `n-rules-cli.mjs:1875`).
+        assert!(!resolved.full);
+    }
+
+    #[test]
+    fn resolve_args_path_without_full_leaves_path_full_false() {
+        let resolved =
+            resolve_args(&lint_args(&["--path", "svc"]), Path::new("/repo")).expect("парситься");
+        assert_eq!(resolved.path.as_deref(), Some("svc"));
+        assert!(!resolved.path_full);
+    }
+
+    fn git(dir: &Path, args: &[&str]) {
+        let status = std::process::Command::new("git")
+            .args(args)
+            .current_dir(dir)
+            .status()
+            .unwrap();
+        assert!(status.success(), "git {args:?} failed");
+    }
+
+    /// `resolve_path_files` — інтеграційний тест wiring-у [`build_plan`] на
+    /// [`rules_core::path_scope`]: перетин піддерева з дельтою vs merge-base
+    /// `HEAD~1` (клас A, крок 4 плану full-rust-migration).
+    #[test]
+    fn resolve_path_files_intersects_delta_with_subtree() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let cwd = tmp.path();
+        git(cwd, &["init", "-q"]);
+        git(cwd, &["config", "user.email", "t@example.com"]);
+        git(cwd, &["config", "user.name", "t"]);
+        std::fs::create_dir(cwd.join("svc")).unwrap();
+        std::fs::write(cwd.join("svc/a.txt"), "a").unwrap();
+        std::fs::write(cwd.join("other.txt"), "o").unwrap();
+        git(cwd, &["add", "-A"]);
+        git(cwd, &["commit", "-q", "-m", "base"]);
+        let base = String::from_utf8(
+            std::process::Command::new("git")
+                .args(["rev-parse", "HEAD"])
+                .current_dir(cwd)
+                .output()
+                .unwrap()
+                .stdout,
+        )
+        .unwrap()
+        .trim()
+        .to_string();
+        std::fs::write(cwd.join("svc/a.txt"), "a2").unwrap();
+        std::fs::write(cwd.join("other.txt"), "o2").unwrap();
+
+        let args = LintRun {
+            cwd: cwd.to_path_buf(),
+            base_ref: Some(base),
+            repo_wide: false,
+            full: false,
+            path: Some("svc".to_string()),
+            path_full: false,
+            verbose: false,
+            rules: Vec::new(),
+        };
+        let result = match resolve_path_files(&args, "svc") {
+            Ok(r) => r,
+            Err(Bail::Fail(m)) | Err(Bail::Delegate(m)) => panic!("резолв не падає: {m}"),
+        };
+        assert!(result.path_mode);
+        assert_eq!(result.files, vec!["svc/a.txt".to_string()]);
+    }
+
+    /// `--path --full` бере усе піддерево, минаючи дельту — `path_mode`
+    /// лишається `false`, як і в JS (`buildPlan` не виключає full-scope
+    /// concerns для цього режиму).
+    #[test]
+    fn resolve_path_files_full_takes_whole_subtree_without_delta() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let cwd = tmp.path();
+        std::fs::create_dir(cwd.join("svc")).unwrap();
+        std::fs::write(cwd.join("svc/a.txt"), "a").unwrap();
+        std::fs::write(cwd.join("svc/b.txt"), "b").unwrap();
+
+        let args = LintRun {
+            cwd: cwd.to_path_buf(),
+            base_ref: None,
+            repo_wide: false,
+            full: false,
+            path: Some("svc".to_string()),
+            path_full: true,
+            verbose: false,
+            rules: Vec::new(),
+        };
+        let result = match resolve_path_files(&args, "svc") {
+            Ok(r) => r,
+            Err(Bail::Fail(m)) | Err(Bail::Delegate(m)) => panic!("резолв не падає: {m}"),
+        };
+        assert!(!result.path_mode);
+        assert_eq!(
+            result.files,
+            vec!["svc/a.txt".to_string(), "svc/b.txt".to_string()]
+        );
+    }
+
+    /// Нерезолвна база (не git-репо) — fail-open фолбек на повне піддерево,
+    /// не мовчазний скіп (порт `n-rules-cli.mjs:1867-1873`).
+    #[test]
+    fn resolve_path_files_falls_back_to_whole_subtree_without_resolvable_base() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let cwd = tmp.path();
+        std::fs::create_dir(cwd.join("svc")).unwrap();
+        std::fs::write(cwd.join("svc/a.txt"), "a").unwrap();
+
+        let args = LintRun {
+            cwd: cwd.to_path_buf(),
+            base_ref: None,
+            repo_wide: false,
+            full: false,
+            path: Some("svc".to_string()),
+            path_full: false,
+            verbose: false,
+            rules: Vec::new(),
+        };
+        let result = match resolve_path_files(&args, "svc") {
+            Ok(r) => r,
+            Err(Bail::Fail(m)) | Err(Bail::Delegate(m)) => panic!("резолв не падає (fail-open): {m}"),
+        };
+        assert!(!result.path_mode);
+        assert_eq!(result.files, vec!["svc/a.txt".to_string()]);
     }
 }

@@ -16232,3 +16232,32 @@ S0 (`test/stryker_config`, §2.1) — блокер знятий раніше, п
 - `npx vitest run scripts/tests/skills-cli.test.mjs` (з `npm/`) — 25 passed.
 
 `npx @7n/rules lint` і `/doc-files` свідомо НЕ запускались (правило задачі) — CRC у frontmatter згенерованих доків після цієї правки стане застарілим; регенерація — окремим кроком.
+
+### 2.138. Крок 4 плану full-rust-migration — почато: `path-scope.mjs` (104) + `codegen-opa-wrapper.mjs` (30) портовано в `rules-core`, `ci-plan.mjs` (276) звірено як УЖЕ повністю портований; `lint-lock.mjs`/`progress.mjs`/`scheduler.mjs` (638) і ~230 рядків `auto-worktree.mjs` названо явним залишком
+
+**Контекст.** Крок 4 плану `docs/plans/2026-08-31-full-rust-migration-plan.md`: клас A `lint-surface` (6 файлів, 1 048 рядків, `docs/specs/2026-08-31-recon-lint-surface.md` §6) плюс ~230 з 279 рядків `auto-worktree.mjs` (клас A без застереження, §2.107/§2.132). Обсяг не влізає в одну задачу — портовано чітко названу підмножину повністю, решта явно винесена, не мовчки звужена.
+
+**Зміряно перед портом (усі шість файлів класу A — рядки збіглись з таблицею §6 спеки байт-у-байт):** `lint-lock.mjs` 332, `ci-plan.mjs` 276, `progress.mjs` 210, `path-scope.mjs` 104, `scheduler.mjs` 96, `codegen-opa-wrapper.mjs` 30 — разом 1 048.
+
+**Портовано цим PR (134 з 1 048 рядків JS-міри, повністю до зеленого):**
+
+1. **`path-scope.mjs` (104) → `crates/rules-core/src/path_scope.rs`.** Точний порт `resolveAndAssertPathDir`/`collectPathScopedChangedFiles`/`collectPathScopedFiles`, поверх уже наявних примітивів (`changed_base::resolve_changed_base`, `changed_files::collect_changed_files_since`, `concerns::cursor_ignore::{load_cursor_ignore_paths, to_relative_ignore_globs, walk_under_repo}`, `git_policy::read_git_policy`) — жодного нового каналу, як і передбачає клас A. **Підключено в `crates/rules-cli/src/lint_cmd.rs`**: гейт `--path не покрито native-шляхом — делегую в JS-CLI` знято повністю; `LintRun` отримав поля `path`/`path_full`; `build_plan` розгалужується на `scopedDelta` (rules+path) і `delta`+`path_mode` (лише path) — той самий контракт, що `n-rules-cli.mjs:1853-1886` (дефолт — перетин з дельтою, `--path --full` — усе піддерево, нерезолвна база — fail-open на повне піддерево з тим самим текстом попередження). Смоук-тест на самому дереві репозиторію (`N_RULES_NATIVE_LINT=1 rules-cli lint --path crates/rules-core/src --no-fix --native-detect`, і той самий виклик + `text/forbidden-prettier`, і + `--full`) — усі три форми виконались нативно (exit 0, без рядка «делегую»), де раніше кожна безумовно йшла в JS.
+2. **`codegen-opa-wrapper.mjs` (30) → `crates/rules-core/src/codegen_opa_wrapper.rs`.** Точний порт `isGeneratedFile`/`hasResolvableFiles`. **Без Rust-споживача — свідомо задокументовано в доккоменті модуля**: єдиний імпортер лишається `detect.mjs`, класу B (диспетчер концернів чекає на резолв плагінів). Це не самостійна поверхня і не вигадана потреба — підготовка до майбутнього порту `detect.mjs`, тим самим станом «написано, без споживача», що план явно допускає для `rules-docs` (відмінність від «недосяжне» — тут просто немає кому ще подзвонити, поки диспетчер лишається в JS).
+3. **`ci-plan.mjs` (276) звірено, а не портовано.** `crates/rules-core/src/ci_plan.rs` (472) + `crates/rules-cli/src/ci_cmd.rs` (634) — уже повний порт (`ci_cmd.rs:1-5` сам себе так називає), з парити-тестами. Єдине, що лишає `ci plan` частково делегованим — умова `native_eligible` (резолв плагінів), яка НЕ належить цьому файлу і не входить в обсяг кроку 4 (та сама межа, що в §3.1 спеки: резолв плагінів — залежність ПОЗА `lint-surface`). Нуль нового коду для цього рядка таблиці — задокументовано явно, не мовчки пропущено.
+
+**Явно НЕ портовано цим PR — залишок кроку 4, у порядку:**
+
+1. **`lint-lock.mjs` (332) + `progress.mjs` (210) + `scheduler.mjs` (96) = 638 рядків.** Тримати одним блоком не випадково: `progress.mjs`'s `renderProgressLine` — контракт МІЖ процесами, який читає `lint-lock.mjs` (доккомент §2.11 спеки: «формат знімка треба зафіксувати разом із портом `lint-lock.mjs`»), а `scheduler.mjs` розблоковує сенс `N_RULES_LINT_CONCURRENCY>1` у native-шляху (сьогодні `lint_cmd.rs` завжди послідовний). Портувати їх окремо один від одного — ризик розсинхронити протокол `progress.json` між JS- і Rust-боком черги, чого план явно попереджав уникати (той самий клас пастки, що вже описаний у §2 плану про `bridge.rs`/`bridge-host.mjs`).
+2. **`auto-worktree.mjs`, ~230 з 279 рядків** (git-статус-гейт, confirm-флоу, copy-back, спавн `bun install`/`npx @7n/n push`) — клас A без застереження (§2.107/§2.132), окрема самодостатня поверхня (worktree-ізоляція `lint --full`), не залежить від (1). Наступний кандидат ПІСЛЯ (1), бо (1) менший і вже частково готовий (worktree lifecycle сам уже нативний — доккомент §2 розвідки-джерела).
+
+**Цільові прогони (синхронно, без фонових процесів):**
+
+- `cargo build --release -p rules-cli` — OK.
+- `cargo build --release -p rules-napi` — OK.
+- `cargo test -p rules-core --lib` — 1292 passed (+9 нових: 7 `path_scope`, 2 `codegen_opa_wrapper`).
+- `cargo test -p rules-cli --bins` — 106 passed (+5 нових: `resolve_args_carries_path_and_path_full`, `resolve_args_path_without_full_leaves_path_full_false`, `resolve_path_files_intersects_delta_with_subtree`, `resolve_path_files_full_takes_whole_subtree_without_delta`, `resolve_path_files_falls_back_to_whole_subtree_without_resolvable_base`).
+- `cargo test -p rules-cli --test cli` — 37 passed (без змін — жоден сценарій делегації `--path` серед них не було, конфлікту нема).
+- `cargo test -p rules-cli` (обидва suite разом) — 143 passed.
+- `N_RULES_NATIVE_ADDON=$PWD/target/release/librules_napi.dylib npx vitest run scripts/lib/lint-surface/tests/path-scope.test.mjs` (з `npm/`) — 13 passed, без регресій (JS-файл незмінний, лише звірка, що Rust-порт не зламав JS-бік).
+
+`npx @7n/rules lint` і `/doc-files` свідомо НЕ запускались (правило задачі).
